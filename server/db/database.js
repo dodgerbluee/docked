@@ -1,23 +1,23 @@
 /**
  * Database Configuration
  * SQLite database for user storage
- * 
+ *
  * Note: For production, consider using PostgreSQL or MySQL
  * SQLite is fine for single-instance deployments
  */
 
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const bcrypt = require('bcrypt');
+const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
+const bcrypt = require("bcrypt");
 
-const DB_PATH = path.join(__dirname, 'users.db');
+const DB_PATH = path.join(__dirname, "users.db");
 
 // Create database connection
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
-    console.error('Error opening database:', err.message);
+    console.error("Error opening database:", err.message);
   } else {
-    console.log('Connected to SQLite database');
+    console.log("Connected to SQLite database");
     initializeDatabase();
   }
 });
@@ -40,9 +40,9 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error('Error creating users table:', err.message);
+          console.error("Error creating users table:", err.message);
         } else {
-          console.log('Users table ready');
+          console.log("Users table ready");
           // Create default admin user if no users exist
           createDefaultAdmin();
         }
@@ -63,16 +63,22 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error('Error creating portainer_instances table:', err.message);
+          console.error(
+            "Error creating portainer_instances table:",
+            err.message
+          );
         } else {
-          console.log('Portainer instances table ready');
+          console.log("Portainer instances table ready");
           // Add display_order column if it doesn't exist (migration)
           db.run(
             `ALTER TABLE portainer_instances ADD COLUMN display_order INTEGER DEFAULT 0`,
             (alterErr) => {
               // Ignore error if column already exists
-              if (alterErr && !alterErr.message.includes('duplicate column')) {
-                console.error('Error adding display_order column:', alterErr.message);
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                console.error(
+                  "Error adding display_order column:",
+                  alterErr.message
+                );
               }
             }
           );
@@ -91,9 +97,12 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error('Error creating docker_hub_credentials table:', err.message);
+          console.error(
+            "Error creating docker_hub_credentials table:",
+            err.message
+          );
         } else {
-          console.log('Docker Hub credentials table ready');
+          console.log("Docker Hub credentials table ready");
         }
       }
     );
@@ -109,9 +118,9 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error('Error creating container_cache table:', err.message);
+          console.error("Error creating container_cache table:", err.message);
         } else {
-          console.log('Container cache table ready');
+          console.log("Container cache table ready");
         }
       }
     );
@@ -122,25 +131,30 @@ function initializeDatabase() {
  * Create default admin user if no users exist
  */
 async function createDefaultAdmin() {
-  db.get('SELECT COUNT(*) as count FROM users', async (err, row) => {
+  db.get("SELECT COUNT(*) as count FROM users", async (err, row) => {
     if (err) {
-      console.error('Error checking users:', err.message);
+      console.error("Error checking users:", err.message);
       return;
     }
 
     if (row.count === 0) {
-      const defaultPassword = process.env.ADMIN_PASSWORD || 'admin';
+      // Use ADMIN_PASSWORD if set and not empty, otherwise default to 'admin'
+      const defaultPassword =
+        (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) ||
+        "admin";
       const passwordHash = await bcrypt.hash(defaultPassword, 10);
-      
+
       db.run(
-        'INSERT INTO users (username, password_hash, role, password_changed) VALUES (?, ?, ?, ?)',
-        ['admin', passwordHash, 'admin', 0],
+        "INSERT INTO users (username, password_hash, role, password_changed) VALUES (?, ?, ?, ?)",
+        ["admin", passwordHash, "admin", 0],
         (err) => {
           if (err) {
-            console.error('Error creating default admin:', err.message);
+            console.error("Error creating default admin:", err.message);
           } else {
-            console.log('Default admin user created (username: admin, password: admin)');
-            console.log('⚠️  Password change will be required on first login!');
+            console.log(
+              "Default admin user created (username: admin, password: admin)"
+            );
+            console.log("⚠️  Password change will be required on first login!");
           }
         }
       );
@@ -155,17 +169,13 @@ async function createDefaultAdmin() {
  */
 function getUserByUsername(username) {
   return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM users WHERE username = ?',
-      [username],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
-        }
+    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
       }
-    );
+    });
   });
 }
 
@@ -177,7 +187,7 @@ function getUserByUsername(username) {
 function getUserById(id) {
   return new Promise((resolve, reject) => {
     db.get(
-      'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?',
+      "SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?",
       [id],
       (err, row) => {
         if (err) {
@@ -207,13 +217,17 @@ async function verifyPassword(plainPassword, hashedPassword) {
  * @param {boolean} markPasswordChanged - Mark password as changed (for first login)
  * @returns {Promise<void>}
  */
-async function updatePassword(username, newPassword, markPasswordChanged = true) {
+async function updatePassword(
+  username,
+  newPassword,
+  markPasswordChanged = true
+) {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   return new Promise((resolve, reject) => {
     db.run(
-      'UPDATE users SET password_hash = ?, password_changed = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?',
+      "UPDATE users SET password_hash = ?, password_changed = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
       [passwordHash, markPasswordChanged ? 1 : 0, username],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -233,9 +247,9 @@ async function updatePassword(username, newPassword, markPasswordChanged = true)
 async function updateUsername(oldUsername, newUsername) {
   return new Promise((resolve, reject) => {
     db.run(
-      'UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?',
+      "UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
       [newUsername, oldUsername],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -253,13 +267,13 @@ async function updateUsername(oldUsername, newUsername) {
  * @param {string} role - User role (default: 'admin')
  * @returns {Promise<void>}
  */
-async function createUser(username, password, role = 'admin') {
+async function createUser(username, password, role = "admin") {
   const passwordHash = await bcrypt.hash(password, 10);
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
       [username, passwordHash, role],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -277,7 +291,7 @@ async function createUser(username, password, role = 'admin') {
 function getAllPortainerInstances() {
   return new Promise((resolve, reject) => {
     db.all(
-      'SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC',
+      "SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
       [],
       (err, rows) => {
         if (err) {
@@ -298,7 +312,7 @@ function getAllPortainerInstances() {
 function getPortainerInstanceById(id) {
   return new Promise((resolve, reject) => {
     db.get(
-      'SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances WHERE id = ?',
+      "SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances WHERE id = ?",
       [id],
       (err, row) => {
         if (err) {
@@ -322,25 +336,29 @@ function getPortainerInstanceById(id) {
 function createPortainerInstance(name, url, username, password) {
   return new Promise((resolve, reject) => {
     // Get max display_order to set new instance at the end
-    db.get('SELECT MAX(display_order) as max_order FROM portainer_instances', [], (err, row) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      const nextOrder = (row?.max_order ?? -1) + 1;
-      
-      db.run(
-        'INSERT INTO portainer_instances (name, url, username, password, display_order) VALUES (?, ?, ?, ?, ?)',
-        [name, url, username, password, nextOrder],
-        function(insertErr) {
-          if (insertErr) {
-            reject(insertErr);
-          } else {
-            resolve(this.lastID);
-          }
+    db.get(
+      "SELECT MAX(display_order) as max_order FROM portainer_instances",
+      [],
+      (err, row) => {
+        if (err) {
+          reject(err);
+          return;
         }
-      );
-    });
+        const nextOrder = (row?.max_order ?? -1) + 1;
+
+        db.run(
+          "INSERT INTO portainer_instances (name, url, username, password, display_order) VALUES (?, ?, ?, ?, ?)",
+          [name, url, username, password, nextOrder],
+          function (insertErr) {
+            if (insertErr) {
+              reject(insertErr);
+            } else {
+              resolve(this.lastID);
+            }
+          }
+        );
+      }
+    );
   });
 }
 
@@ -356,9 +374,9 @@ function createPortainerInstance(name, url, username, password) {
 function updatePortainerInstance(id, name, url, username, password) {
   return new Promise((resolve, reject) => {
     db.run(
-      'UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
       [name, url, username, password, id],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -377,9 +395,9 @@ function updatePortainerInstance(id, name, url, username, password) {
 function deletePortainerInstance(id) {
   return new Promise((resolve, reject) => {
     db.run(
-      'DELETE FROM portainer_instances WHERE id = ?',
+      "DELETE FROM portainer_instances WHERE id = ?",
       [id],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -398,28 +416,30 @@ function deletePortainerInstance(id) {
 function updatePortainerInstanceOrder(orders) {
   return new Promise((resolve, reject) => {
     db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-      
-      const stmt = db.prepare('UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-      
+      db.run("BEGIN TRANSACTION");
+
+      const stmt = db.prepare(
+        "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      );
+
       let completed = 0;
       let hasError = false;
-      
+
       orders.forEach(({ id, display_order }) => {
         stmt.run([display_order, id], (err) => {
           if (err && !hasError) {
             hasError = true;
-            db.run('ROLLBACK');
+            db.run("ROLLBACK");
             reject(err);
           } else {
             completed++;
             if (completed === orders.length && !hasError) {
               stmt.finalize((finalizeErr) => {
                 if (finalizeErr) {
-                  db.run('ROLLBACK');
+                  db.run("ROLLBACK");
                   reject(finalizeErr);
                 } else {
-                  db.run('COMMIT', (commitErr) => {
+                  db.run("COMMIT", (commitErr) => {
                     if (commitErr) {
                       reject(commitErr);
                     } else {
@@ -443,7 +463,7 @@ function updatePortainerInstanceOrder(orders) {
 function getDockerHubCredentials() {
   return new Promise((resolve, reject) => {
     db.get(
-      'SELECT username, token, updated_at FROM docker_hub_credentials WHERE id = 1',
+      "SELECT username, token, updated_at FROM docker_hub_credentials WHERE id = 1",
       [],
       (err, row) => {
         if (err) {
@@ -469,7 +489,7 @@ function updateDockerHubCredentials(username, token) {
       `INSERT OR REPLACE INTO docker_hub_credentials (id, username, token, updated_at) 
        VALUES (1, ?, ?, CURRENT_TIMESTAMP)`,
       [username, token],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -487,9 +507,9 @@ function updateDockerHubCredentials(username, token) {
 function deleteDockerHubCredentials() {
   return new Promise((resolve, reject) => {
     db.run(
-      'DELETE FROM docker_hub_credentials WHERE id = 1',
+      "DELETE FROM docker_hub_credentials WHERE id = 1",
       [],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -508,7 +528,7 @@ function deleteDockerHubCredentials() {
 function getContainerCache(cacheKey) {
   return new Promise((resolve, reject) => {
     db.get(
-      'SELECT cache_data, updated_at FROM container_cache WHERE cache_key = ?',
+      "SELECT cache_data, updated_at FROM container_cache WHERE cache_key = ?",
       [cacheKey],
       (err, row) => {
         if (err) {
@@ -518,7 +538,7 @@ function getContainerCache(cacheKey) {
             try {
               resolve(JSON.parse(row.cache_data));
             } catch (parseErr) {
-              console.error('Error parsing cached data:', parseErr);
+              console.error("Error parsing cached data:", parseErr);
               resolve(null);
             }
           } else {
@@ -543,7 +563,7 @@ function setContainerCache(cacheKey, data) {
       `INSERT OR REPLACE INTO container_cache (cache_key, cache_data, updated_at) 
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
       [cacheKey, cacheData],
-      function(err) {
+      function (err) {
         if (err) {
           reject(err);
         } else {
@@ -560,7 +580,7 @@ function setContainerCache(cacheKey, data) {
  */
 function clearContainerCache() {
   return new Promise((resolve, reject) => {
-    db.run('DELETE FROM container_cache', [], function(err) {
+    db.run("DELETE FROM container_cache", [], function (err) {
       if (err) {
         reject(err);
       } else {
@@ -579,7 +599,7 @@ function closeDatabase() {
       if (err) {
         reject(err);
       } else {
-        console.log('Database connection closed');
+        console.log("Database connection closed");
         resolve();
       }
     });
@@ -608,4 +628,3 @@ module.exports = {
   clearContainerCache,
   closeDatabase,
 };
-
