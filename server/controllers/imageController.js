@@ -1,0 +1,93 @@
+/**
+ * Image Controller
+ * Handles HTTP requests for image operations
+ */
+
+const containerService = require('../services/containerService');
+const portainerService = require('../services/portainerService');
+const { validateImageArray } = require('../utils/validation');
+
+/**
+ * Get unused images
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getUnusedImages(req, res, next) {
+  try {
+    const unusedImages = await containerService.getUnusedImages();
+    res.json({ unusedImages });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Delete selected images
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function deleteImages(req, res, next) {
+  try {
+    const { images } = req.body;
+
+    // Validate input
+    const validationError = validateImageArray(images);
+    if (validationError) {
+      return res.status(400).json(validationError);
+    }
+
+    const results = [];
+    const errors = [];
+
+    // Deduplicate images by id+portainerUrl+endpointId
+    const uniqueImages = [];
+    const seenKeys = new Set();
+    for (const image of images) {
+      const key = `${image.id}-${image.portainerUrl}-${image.endpointId}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueImages.push(image);
+      }
+    }
+
+    console.log(
+      `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
+    );
+
+    // Delete images
+    for (const image of uniqueImages) {
+      const { id, portainerUrl, endpointId } = image;
+      try {
+        await portainerService.authenticatePortainer(portainerUrl);
+        console.log(
+          `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`
+        );
+        await portainerService.deleteImage(portainerUrl, endpointId, id, true);
+        results.push({ id, success: true });
+      } catch (error) {
+        console.error(
+          `Failed to delete image ${id.substring(0, 12)}:`,
+          error.message
+        );
+        errors.push({ id, error: error.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      deleted: results.length,
+      results,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  getUnusedImages,
+  deleteImages,
+};
+
