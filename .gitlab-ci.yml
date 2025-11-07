@@ -1,0 +1,32 @@
+stages:
+  - build
+  - docker
+
+variables:
+  DOCKER_IMAGE_NAME: dockaverger
+  DOCKER_REGISTRY: registry.gitlab.com
+  IMAGE_VERSION: "0.1.0"
+
+# Build Docker image
+build_docker:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      docker build \
+        -t $CI_REGISTRY_IMAGE:$IMAGE_VERSION \
+        -t $CI_REGISTRY_IMAGE:latest \
+        .
+    - docker push $CI_REGISTRY_IMAGE:$IMAGE_VERSION
+    - docker push $CI_REGISTRY_IMAGE:latest
+  only:
+    - main
+    - master
+    - tags
+  tags:
+    - docker
+
