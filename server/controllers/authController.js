@@ -1,0 +1,433 @@
+/**
+ * Authentication Controller
+ * Handles user authentication with database
+ */
+
+const { validateRequiredFields } = require('../utils/validation');
+const {
+  getUserByUsername,
+  verifyPassword,
+  updatePassword,
+  updateUsername,
+  getDockerHubCredentials,
+  updateDockerHubCredentials,
+  deleteDockerHubCredentials,
+} = require('../db/database');
+const { clearCache } = require('../utils/dockerHubCreds');
+
+/**
+ * Login endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function login(req, res, next) {
+  try {
+    const { username, password } = req.body;
+
+    // Validate input
+    const validationError = validateRequiredFields(
+      { username, password },
+      ['username', 'password']
+    );
+    if (validationError) {
+      return res.status(400).json(validationError);
+    }
+
+    // Get user from database
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid username or password',
+      });
+    }
+
+    // Verify password
+    const passwordValid = await verifyPassword(password, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid username or password',
+      });
+    }
+
+    // Generate simple token (in production, use JWT)
+    const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
+
+    res.json({
+      success: true,
+      token,
+      username: user.username,
+      role: user.role,
+      passwordChanged: user.password_changed === 1,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Verify token endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function verifyToken(req, res, next) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'No token provided',
+      });
+    }
+
+    // Simple token verification (in production, use JWT)
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const [username] = decoded.split(':');
+
+      const user = await getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid token',
+        });
+      }
+
+      res.json({
+        success: true,
+        username: user.username,
+        role: user.role,
+      });
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid token',
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Update password endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function updateUserPassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const username = req.user?.username;
+
+    if (!username) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    // Validate input
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password is required',
+      });
+    }
+
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password must be at least 6 characters long',
+      });
+    }
+
+    // Get user
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // If password hasn't been changed (first login), currentPassword is required
+    // Otherwise, verify current password
+    if (user.password_changed === 1) {
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'Current password is required',
+        });
+      }
+      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
+      if (!passwordValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'Current password is incorrect',
+        });
+      }
+    } else {
+      // First login - still require current password for security
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'Current password is required',
+        });
+      }
+      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
+      if (!passwordValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'Current password is incorrect',
+        });
+      }
+    }
+
+    // Update password and mark as changed
+    await updatePassword(username, newPassword, true);
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get current user info
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getCurrentUser(req, res, next) {
+  try {
+    const username = req.user?.username;
+
+    if (!username) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        username: user.username,
+        role: user.role,
+        passwordChanged: user.password_changed === 1,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Update username endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function updateUserUsername(req, res, next) {
+  try {
+    const { newUsername, password } = req.body;
+    const oldUsername = req.user?.username;
+
+    if (!oldUsername) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    // Validate input
+    if (!newUsername || newUsername.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'New username is required',
+      });
+    }
+
+    if (newUsername.length < 3) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username must be at least 3 characters long',
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password is required to change username',
+      });
+    }
+
+    // Get user and verify password
+    const user = await getUserByUsername(oldUsername);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const passwordValid = await verifyPassword(password, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Password is incorrect',
+      });
+    }
+
+    // Check if new username already exists
+    const existingUser = await getUserByUsername(newUsername.trim());
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username already exists',
+      });
+    }
+
+    // Update username
+    await updateUsername(oldUsername, newUsername.trim());
+
+    res.json({
+      success: true,
+      message: 'Username updated successfully',
+      newUsername: newUsername.trim(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get Docker Hub credentials endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getDockerHubCreds(req, res, next) {
+  try {
+    const credentials = await getDockerHubCredentials();
+    
+    if (!credentials) {
+      return res.json({
+        success: true,
+        credentials: null,
+      });
+    }
+
+    // Return username but mask token for security
+    res.json({
+      success: true,
+      credentials: {
+        username: credentials.username,
+        hasToken: !!credentials.token,
+        updated_at: credentials.updated_at,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Update Docker Hub credentials endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function updateDockerHubCreds(req, res, next) {
+  try {
+    const { username, token } = req.body;
+
+    // Validate input
+    if (!username || username.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Docker Hub username is required',
+      });
+    }
+
+    // Get existing credentials if token is not provided
+    let tokenToUse = token && token.trim().length > 0 ? token.trim() : null;
+    
+    if (!tokenToUse) {
+      const existingCreds = await getDockerHubCredentials();
+      if (!existingCreds || !existingCreds.token) {
+        return res.status(400).json({
+          success: false,
+          error: 'Docker Hub personal access token is required',
+        });
+      }
+      // Use existing token
+      tokenToUse = existingCreds.token;
+    }
+
+    // Update credentials
+    await updateDockerHubCredentials(username.trim(), tokenToUse);
+    
+    // Clear cache so new credentials are used immediately
+    clearCache();
+
+    res.json({
+      success: true,
+      message: 'Docker Hub credentials updated successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Delete Docker Hub credentials endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function deleteDockerHubCreds(req, res, next) {
+  try {
+    await deleteDockerHubCredentials();
+    
+    // Clear cache so credentials are removed immediately
+    clearCache();
+
+    res.json({
+      success: true,
+      message: 'Docker Hub credentials deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  login,
+  verifyToken,
+  updateUserPassword,
+  updateUserUsername,
+  getCurrentUser,
+  getDockerHubCreds,
+  updateDockerHubCreds,
+  deleteDockerHubCreds,
+};

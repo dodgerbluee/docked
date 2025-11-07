@@ -1,0 +1,15 @@
+# Database
+db/users.db
+db/*.db
+db/*.db-journal
+
+# Environment variables
+.env
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
