@@ -4,6 +4,7 @@ A modern web application for managing Docker container updates through Portainer
 
 ## Features
 
+- 🔐 **Secure Authentication**: Login page protects the application
 - 🔍 **Automatic Update Detection**: Scans your Docker containers and identifies available updates
 - 🎨 **Modern UI**: Clean, responsive interface with real-time status updates
 - 🔄 **One-Click Upgrades**: Upgrade containers with a single click
@@ -38,22 +39,18 @@ cd server
 cp .env.example .env
 ```
 
-Edit `server/.env` with your Portainer credentials:
+Edit `server/.env` with your configuration:
 
 ```
 PORT=3001
-PORTAINER_URL=http://localhost:9000
-PORTAINER_USERNAME=admin
-PORTAINER_PASSWORD=your_password_here
+
+# Optional: Set custom admin password for the application login
+# Default is "admin" if not set
+ADMIN_PASSWORD=your_admin_password
 ```
 
-**Important:** If your password contains special characters (like `#`, `$`, spaces, etc.), you **must** wrap it in quotes:
+**Note:** Portainer instances and Docker Hub credentials are now managed through the Settings UI in the application. You no longer need to configure them in the environment file.
 
-```
-PORTAINER_PASSWORD="my#password$123"
-```
-
-Without quotes, characters like `#` will be treated as comments and the password will be truncated.
 
 ## Usage
 
@@ -83,6 +80,39 @@ npm run client
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
+
+### Login
+
+When you first access the application, you'll be presented with a login page.
+
+**Default credentials:**
+
+- Username: `admin`
+- Password: `admin` (or the value set in `ADMIN_PASSWORD` environment variable)
+
+**Note:** For production use, you should:
+
+1. Set a strong `ADMIN_PASSWORD` in your `.env` file (or change it in the Settings page after first login)
+2. Consider using PostgreSQL or MySQL instead of SQLite for better performance and concurrent access
+3. Use JWT tokens instead of simple base64 tokens
+4. Regularly backup the `server/db/users.db` file
+
+### Database
+
+The application uses SQLite to store user credentials. The database file is located at `server/db/users.db`.
+
+**Default user:**
+
+- Username: `admin`
+- Password: `admin` (or the value set in `ADMIN_PASSWORD` environment variable)
+
+**Important:** Change the default password immediately after first login using the Settings page!
+
+**Database Recommendations:**
+
+- **SQLite** (current): Good for single-instance deployments, simple setup
+- **PostgreSQL**: Recommended for production, better performance, supports concurrent connections
+- **MySQL**: Alternative to PostgreSQL, also production-ready
 
 ## How It Works
 
@@ -120,9 +150,16 @@ When you click "Upgrade Now" on a container:
 ### Environment Variables
 
 - `PORT` - Backend server port (default: 3001)
-- `PORTAINER_URL` - Portainer API URL (default: http://localhost:9000)
-- `PORTAINER_USERNAME` - Portainer username
-- `PORTAINER_PASSWORD` - Portainer password
+- `ADMIN_PASSWORD` - Admin password for application login (default: "admin")
+
+### Application Settings
+
+The following are configured through the Settings UI in the application:
+
+- **Portainer Instances**: Add, edit, and manage Portainer instances with their URLs and credentials
+- **Docker Hub Authentication**: Configure Docker Hub username and Personal Access Token for higher API rate limits (200 requests/6hr vs 100 for anonymous)
+
+**Note:** Portainer instances and Docker Hub credentials are no longer configured via environment variables. Use the Settings page after logging in.
 
 ## Notes
 

@@ -1,14 +1,61 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
+import Login from "./components/Login";
+import Settings from "./components/Settings";
+import AddPortainerModal from "./components/AddPortainerModal";
+import {
+  getDockerHubUrl,
+  getDockerHubTagsUrl,
+  getGitHubRepoUrl,
+  formatTimeAgo,
+} from "./utils/formatters";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:3001";
 
 function App() {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Check if user is already logged in
+    return !!localStorage.getItem("authToken");
+  });
+  const [authToken, setAuthToken] = useState(() => {
+    const token = localStorage.getItem("authToken");
+    // Set axios header immediately if token exists
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
+    return token || null;
+  });
+  const [username, setUsername] = useState(() => {
+    return localStorage.getItem("username") || null;
+  });
+  const [passwordChanged, setPasswordChanged] = useState(() => {
+    const stored = localStorage.getItem("passwordChanged");
+    // If not in localStorage, check if we need to fetch from API
+    if (stored === null && localStorage.getItem("authToken")) {
+      // Will be set after login response
+      return false;
+    }
+    return stored === "true";
+  });
+  const [showAddPortainerModal, setShowAddPortainerModal] = useState(false);
+  const [editingPortainerInstance, setEditingPortainerInstance] =
+    useState(null);
+  const [draggedTabIndex, setDraggedTabIndex] = useState(null);
+  const [dataFetched, setDataFetched] = useState(false); // Track if data has been fetched
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("password"); // 'username', 'password', 'portainer', 'dockerhub'
+
   const [containers, setContainers] = useState([]);
   const [stacks, setStacks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false - only show loading when actually fetching
   const [error, setError] = useState(null);
+  const [portainerInstancesFromAPI, setPortainerInstancesFromAPI] = useState(
+    []
+  );
+  const [portainerInstancesLoading, setPortainerInstancesLoading] =
+    useState(false);
   const [upgrading, setUpgrading] = useState({});
   const [selectedContainers, setSelectedContainers] = useState(new Set());
   const [batchUpgrading, setBatchUpgrading] = useState(false);
@@ -19,11 +66,68 @@ function App() {
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [deletingImages, setDeletingImages] = useState(false);
   const [unusedImagesCount, setUnusedImagesCount] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
+    // Check localStorage for saved state
+    const saved = localStorage.getItem("dockerHubDataPulled");
+    return saved ? JSON.parse(saved) : false;
+  });
   const [darkMode, setDarkMode] = useState(() => {
     // Check localStorage for saved preference
     const saved = localStorage.getItem("darkMode");
     return saved ? JSON.parse(saved) : false;
   });
+
+  // Handle login
+  const handleLogin = (token, user, pwdChanged) => {
+    // Set axios header immediately before state updates
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+    setAuthToken(token);
+    setUsername(user);
+    setPasswordChanged(pwdChanged);
+    setIsAuthenticated(true);
+
+    // If password not changed, show settings immediately
+    if (!pwdChanged) {
+      setActiveTab("settings");
+    }
+  };
+
+  // Handle username update
+  const handleUsernameUpdate = (newUsername) => {
+    setUsername(newUsername);
+    localStorage.setItem("username", newUsername);
+    // Update token with new username (in production, re-authenticate)
+    const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
+      "base64"
+    );
+    setAuthToken(token);
+    localStorage.setItem("authToken", token);
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  };
+
+  // Handle password update success
+  const handlePasswordUpdateSuccess = () => {
+    setPasswordChanged(true);
+    localStorage.setItem("passwordChanged", "true");
+    setActiveTab("summary");
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("username");
+    localStorage.removeItem("passwordChanged");
+    setAuthToken(null);
+    setUsername(null);
+    setPasswordChanged(false);
+    setIsAuthenticated(false);
+    setActiveTab("summary");
+    // Clear axios defaults
+    delete axios.defaults.headers.common["Authorization"];
+  };
 
   // Update body class when dark mode changes
   useEffect(() => {
@@ -35,20 +139,146 @@ function App() {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
 
+  // Fetch cached data on page load/refresh (no Docker Hub calls)
+  // This loads data from the database cache without triggering Docker Hub API calls
+  // If no cache exists, backend will automatically fetch from Portainer (no Docker Hub)
   useEffect(() => {
-    fetchContainers();
-    // Auto-refresh disabled - user can manually refresh if needed
-  }, []);
+    if (isAuthenticated && authToken && passwordChanged) {
+      // Ensure axios header is set before fetching
+      if (!axios.defaults.headers.common["Authorization"]) {
+        axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
+      }
+      // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
+      // Only fetch if we haven't fetched yet (don't refetch after clearing)
+      if (!dataFetched) {
+        fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
+      }
+    }
+  }, [isAuthenticated, authToken, passwordChanged]);
 
-  const fetchContainers = async () => {
+  // Reset dataFetched and dockerHubDataPulled when logging out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDataFetched(false);
+      setDockerHubDataPulled(false);
+      localStorage.removeItem("dockerHubDataPulled");
+      setPortainerInstancesFromAPI([]);
+    }
+  }, [isAuthenticated]);
+
+  // Fetch Portainer instances separately (independent of container data)
+  // This ensures tabs remain visible even while containers are loading
+  const fetchPortainerInstances = async () => {
+    if (!isAuthenticated || !authToken) return;
+
     try {
-      setLoading(true);
+      setPortainerInstancesLoading(true);
+      const response = await axios.get(
+        `${API_BASE_URL}/api/portainer/instances`
+      );
+      if (response.data.success && response.data.instances) {
+        // Map the instances to match the format expected by the UI
+        const formattedInstances = response.data.instances.map((inst) => ({
+          name: inst.name,
+          url: inst.url,
+          id: inst.id,
+          display_order: inst.display_order,
+          containers: [], // Will be populated when containers load
+          upToDate: [], // Will be populated when containers load
+        }));
+        setPortainerInstancesFromAPI(formattedInstances);
+      }
+    } catch (err) {
+      console.error("Error fetching Portainer instances:", err);
+      // Don't set error state here - let containers fetch handle errors
+    } finally {
+      setPortainerInstancesLoading(false);
+    }
+  };
+
+  // Fetch Portainer instances on app load
+  useEffect(() => {
+    fetchPortainerInstances();
+  }, [isAuthenticated, authToken]);
+
+  // Close avatar menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showAvatarMenu && !event.target.closest(".avatar-container")) {
+        setShowAvatarMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showAvatarMenu]);
+
+  const fetchContainers = async (showLoading = true) => {
+    try {
+      // Only show loading if explicitly requested (e.g., on pull) or if we have no data
+      if (showLoading && containers.length === 0) {
+        setLoading(true);
+      }
+      console.log(
+        "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
+      );
+
+      // Backend will automatically fetch from Portainer if no cache exists
       const response = await axios.get(`${API_BASE_URL}/api/containers`);
       // Handle both grouped and flat response formats
       if (response.data.grouped && response.data.stacks) {
-        setContainers(response.data.containers); // Keep flat list for filtering
-        setStacks(response.data.stacks);
+        setContainers(response.data.containers || []); // Keep flat list for filtering
+        setStacks(response.data.stacks || []);
         setUnusedImagesCount(response.data.unusedImagesCount || 0);
+
+        // Check if this data includes Docker Hub information (has update checks)
+        // If containers have latestDigest, latestTag, etc., Docker Hub was checked
+        const hasDockerHubData =
+          response.data.containers &&
+          response.data.containers.some(
+            (container) =>
+              container.latestDigest ||
+              container.latestTag ||
+              container.latestVersion
+          );
+        if (hasDockerHubData) {
+          setDockerHubDataPulled(true);
+          localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+        }
+
+        // Update portainerInstances from API response (includes container counts)
+        // Only update if we don't already have instances loaded, or merge container data
+        if (response.data.portainerInstances) {
+          // If we already have instances, merge the container data
+          if (
+            portainerInstancesFromAPI &&
+            Array.isArray(portainerInstancesFromAPI) &&
+            portainerInstancesFromAPI.length > 0
+          ) {
+            const updatedInstances = portainerInstancesFromAPI.map(
+              (existingInst) => {
+                const apiInst = response.data.portainerInstances.find(
+                  (inst) =>
+                    inst.name === existingInst.name ||
+                    inst.url === existingInst.url
+                );
+                if (apiInst) {
+                  return {
+                    ...existingInst,
+                    containers: apiInst.containers || [],
+                    upToDate: apiInst.upToDate || [],
+                  };
+                }
+                return existingInst;
+              }
+            );
+            setPortainerInstancesFromAPI(updatedInstances);
+          } else {
+            // First time loading, use API response directly
+            setPortainerInstancesFromAPI(response.data.portainerInstances);
+          }
+        }
       } else {
         // Backward compatibility: treat as flat array
         setContainers(Array.isArray(response.data) ? response.data : []);
@@ -56,8 +286,9 @@ function App() {
         setUnusedImagesCount(0);
       }
       setError(null);
+      setDataFetched(true);
 
-      // Fetch unused images
+      // Fetch unused images (this is fast, doesn't need cache check)
       await fetchUnusedImages();
     } catch (err) {
       setError(err.response?.data?.error || "Failed to fetch containers");
@@ -73,6 +304,215 @@ function App() {
       setUnusedImages(response.data.unusedImages || []);
     } catch (err) {
       console.error("Error fetching unused images:", err);
+    }
+  };
+
+  const handleClear = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to clear all cached data? This will remove all container information until you pull again."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setClearing(true);
+      setError(null);
+      console.log("🗑️ Clearing all cached data...");
+
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/containers/cache`
+      );
+
+      if (response.data && response.data.success) {
+        // Clear container data, but keep Portainer instances (they're in the database)
+        setContainers([]);
+        setStacks([]);
+        setUnusedImagesCount(0);
+        // DON'T clear portainerInstancesFromAPI - these are stored in DB and should persist
+        setUnusedImages([]);
+        setSelectedContainers(new Set());
+        setSelectedImages(new Set());
+        setDataFetched(true); // Set to true so it doesn't auto-fetch
+        setDockerHubDataPulled(false); // Reset Docker Hub pull status
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setError(null);
+        console.log("✅ Cache cleared successfully");
+      } else {
+        // Even if response doesn't have success, clear frontend state
+        // The backend cache might have been cleared even if response format is unexpected
+        setContainers([]);
+        setStacks([]);
+        setUnusedImagesCount(0);
+        // DON'T clear portainerInstancesFromAPI - these are stored in DB and should persist
+        setUnusedImages([]);
+        setSelectedContainers(new Set());
+        setSelectedImages(new Set());
+        setDataFetched(true);
+        setDockerHubDataPulled(false); // Reset Docker Hub pull status
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setError(null);
+        console.log("✅ Cache cleared (assuming success)");
+      }
+    } catch (err) {
+      // If we get a 404, the route might not exist, but we can still clear frontend state
+      if (err.response && err.response.status === 404) {
+        console.warn(
+          "⚠️ Clear cache endpoint not found (404), clearing frontend state anyway"
+        );
+        setContainers([]);
+        setStacks([]);
+        setUnusedImagesCount(0);
+        // DON'T clear portainerInstancesFromAPI - these are stored in DB and should persist
+        setUnusedImages([]);
+        setSelectedContainers(new Set());
+        setSelectedImages(new Set());
+        setDataFetched(true);
+        setDockerHubDataPulled(false); // Reset Docker Hub pull status
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setError(null);
+        // Try to clear cache via alternative method (direct database call would require backend change)
+        // For now, just clear frontend and show message
+        console.log(
+          "✅ Frontend state cleared. Backend cache may need manual clearing."
+        );
+      } else {
+        const errorMessage =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to clear cache";
+        setError(errorMessage);
+        console.error("Error clearing cache:", err);
+      }
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handlePull = async () => {
+    try {
+      setPulling(true);
+      setError(null); // Clear any previous errors
+      // Don't set loading to true - show existing data while pulling
+      console.log("🔄 Pulling fresh data from Docker Hub...");
+
+      // Start the pull operation (don't await yet - let it run in background)
+      const pullPromise = axios.post(
+        `${API_BASE_URL}/api/containers/pull`,
+        {},
+        {
+          timeout: 300000, // 5 minute timeout for large pulls
+        }
+      );
+
+      // While pulling, fetch any existing cached data to show immediately
+      // This allows the summary page to display while new data is being fetched
+      try {
+        const cachedResponse = await axios.get(
+          `${API_BASE_URL}/api/containers`
+        );
+        if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
+          setContainers(cachedResponse.data.containers || []);
+          setStacks(cachedResponse.data.stacks || []);
+          setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
+
+          if (cachedResponse.data.portainerInstances) {
+            setPortainerInstancesFromAPI(
+              cachedResponse.data.portainerInstances
+            );
+          }
+          setDataFetched(true);
+        }
+      } catch (cacheErr) {
+        // If no cached data exists, that's okay - we'll show empty state
+        console.log("No cached data available yet");
+      }
+
+      // Now wait for the pull to complete
+      const response = await pullPromise;
+
+      // Check if response has success flag
+      if (response.data.success === false) {
+        throw new Error(
+          response.data.error ||
+            response.data.message ||
+            "Failed to pull container data"
+        );
+      }
+
+      // Update state with fresh data
+      if (response.data.grouped && response.data.stacks) {
+        setContainers(response.data.containers || []);
+        setStacks(response.data.stacks || []);
+        setUnusedImagesCount(response.data.unusedImagesCount || 0);
+
+        if (response.data.portainerInstances) {
+          setPortainerInstancesFromAPI(response.data.portainerInstances);
+        }
+
+        // Mark that Docker Hub data has been pulled
+        setDockerHubDataPulled(true);
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+      } else {
+        // Backward compatibility: treat as flat array
+        setContainers(Array.isArray(response.data) ? response.data : []);
+        setStacks([]);
+        setUnusedImagesCount(0);
+      }
+
+      setError(null);
+      setDataFetched(true);
+
+      // Fetch unused images
+      await fetchUnusedImages();
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to pull container data";
+      setError(errorMessage);
+      console.error("Error pulling containers:", err);
+      console.error("Error details:", {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  const handleReorderTabs = async (fromIndex, toIndex) => {
+    // Get current instances from API to ensure we have IDs
+    try {
+      const instancesResponse = await axios.get(
+        `${API_BASE_URL}/api/portainer/instances`
+      );
+      const apiInstances = instancesResponse.data.instances || [];
+
+      if (apiInstances.length === 0) return;
+
+      // Create new order array based on current API instances
+      const newOrder = [...apiInstances];
+      const [moved] = newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, moved);
+
+      // Build orders array for API
+      const orders = newOrder.map((instance, index) => ({
+        id: instance.id,
+        display_order: index,
+      }));
+
+      await axios.post(`${API_BASE_URL}/api/portainer/instances/reorder`, {
+        orders,
+      });
+      // Refresh containers to get updated order
+      fetchContainers();
+    } catch (err) {
+      console.error("Error reordering tabs:", err);
     }
   };
 
@@ -94,6 +534,69 @@ function App() {
       setSelectedImages(new Set());
     } else {
       setSelectedImages(new Set(unusedImages.map((img) => img.id)));
+    }
+  };
+
+  const handleDeleteImage = async (image) => {
+    if (
+      !window.confirm(
+        `Delete image ${
+          image.repoTags?.[0] || image.id
+        }? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingImages(true);
+      const imagesToDelete = [image];
+
+      // Deduplicate by image ID + portainerUrl + endpointId to avoid deleting the same image twice
+      const uniqueImages = [];
+      const seenKeys = new Set();
+      for (const img of imagesToDelete) {
+        const key = `${img.id}-${img.portainerUrl}-${img.endpointId}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          uniqueImages.push(img);
+        }
+      }
+
+      console.log(
+        `Selected ${selectedImages.size} images, sending ${uniqueImages.length} unique images to delete`
+      );
+
+      const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
+        images: uniqueImages.map((img) => ({
+          id: img.id,
+          portainerUrl: img.portainerUrl,
+          endpointId: img.endpointId,
+        })),
+      });
+
+      if (response.data.success) {
+        const deletedCount = response.data.deleted || 0;
+        // Remove the deleted image from the list immediately
+        setUnusedImages((prev) => prev.filter((img) => img.id !== image.id));
+        setSelectedImages((prev) => {
+          const next = new Set(prev);
+          next.delete(image.id);
+          return next;
+        });
+        // Refresh in background
+        await fetchContainers();
+      } else {
+        alert(`Failed to delete image. Check console for details.`);
+        console.error("Delete errors:", response.data.errors);
+      }
+    } catch (err) {
+      alert(
+        `Failed to delete image: ${err.response?.data?.error || err.message}`
+      );
+      console.error("Error deleting image:", err);
+    } finally {
+      setDeletingImages(false);
     }
   };
 
@@ -182,14 +685,9 @@ function App() {
       );
 
       if (response.data.success) {
-        // Refresh containers after upgrade
-        await fetchContainers();
-        const oldImage = response.data.oldImage || container.image;
-        const newImage = response.data.newImage || container.image;
-        alert(
-          `Container ${container.name} upgraded successfully!\n` +
-            `From: ${oldImage}\n` +
-            `To: ${newImage}`
+        // Immediately remove container from display (it no longer has updates)
+        setContainers((prevContainers) =>
+          prevContainers.filter((c) => c.id !== container.id)
         );
         // Remove from selection if it was selected
         setSelectedContainers((prev) => {
@@ -197,6 +695,15 @@ function App() {
           next.delete(container.id);
           return next;
         });
+        const oldImage = response.data.oldImage || container.image;
+        const newImage = response.data.newImage || container.image;
+        alert(
+          `Container ${container.name} upgraded successfully!\n` +
+            `From: ${oldImage}\n` +
+            `To: ${newImage}`
+        );
+        // Refresh containers in background to update cache
+        fetchContainers();
       }
     } catch (err) {
       alert(
@@ -237,6 +744,31 @@ function App() {
       // Select all (excluding Portainer containers)
       setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
     }
+  };
+
+  const handleToggleStackSelect = (e, containersInStack) => {
+    e.stopPropagation(); // Prevent stack collapse
+    // Filter out Portainer containers and only containers with updates
+    const selectableContainers = containersInStack.filter(
+      (c) => !isPortainerContainer(c) && c.hasUpdate
+    );
+    if (selectableContainers.length === 0) return;
+
+    const allSelected = selectableContainers.every((c) =>
+      selectedContainers.has(c.id)
+    );
+
+    setSelectedContainers((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        // Deselect all
+        selectableContainers.forEach((c) => next.delete(c.id));
+      } else {
+        // Select all
+        selectableContainers.forEach((c) => next.add(c.id));
+      }
+      return next;
+    });
   };
 
   const handleBatchUpgrade = async () => {
@@ -280,8 +812,19 @@ function App() {
         }
       );
 
-      // Refresh containers after upgrade
-      await fetchContainers();
+      // Immediately remove successfully upgraded containers from display
+      const successfulIds = new Set(
+        response.data.results?.map((r) => r.containerId) || []
+      );
+      setContainers((prevContainers) =>
+        prevContainers.filter((c) => !successfulIds.has(c.id))
+      );
+      // Remove successfully upgraded containers from selection
+      setSelectedContainers((prev) => {
+        const next = new Set(prev);
+        successfulIds.forEach((id) => next.delete(id));
+        return next;
+      });
 
       // Show results
       const successCount = response.data.results?.length || 0;
@@ -301,6 +844,9 @@ function App() {
 
       // Clear selection
       setSelectedContainers(new Set());
+
+      // Refresh containers in background to update cache
+      fetchContainers();
     } catch (err) {
       alert(
         `Batch upgrade failed: ${err.response?.data?.error || err.message}`
@@ -341,52 +887,103 @@ function App() {
     );
   };
 
-  // Group containers by Portainer instance
+  // Build containersByPortainer map for rendering (always needed)
+  // Use URL as the key instead of name, since URL is stable and doesn't change when renamed
   const containersByPortainer = containers.reduce((acc, container) => {
-    const portainerName =
-      container.portainerName || container.portainerUrl || "Unknown";
-    if (!acc[portainerName]) {
-      acc[portainerName] = {
-        name: portainerName,
-        url: container.portainerUrl,
+    const portainerUrl = container.portainerUrl || "Unknown";
+    const portainerName = container.portainerName || portainerUrl || "Unknown";
+
+    if (!acc[portainerUrl]) {
+      acc[portainerUrl] = {
+        name: portainerName, // Use current name from container
+        url: portainerUrl, // Use URL as stable key
         containers: [],
         withUpdates: [],
         upToDate: [],
       };
     }
-    acc[portainerName].containers.push(container);
+    acc[portainerUrl].containers.push(container);
     if (container.hasUpdate) {
-      acc[portainerName].withUpdates.push(container);
+      acc[portainerUrl].withUpdates.push(container);
     } else {
-      acc[portainerName].upToDate.push(container);
+      acc[portainerUrl].upToDate.push(container);
     }
     return acc;
   }, {});
 
-  const portainerInstances = Object.values(containersByPortainer);
+  // Use portainerInstances from API response if available (includes IDs and proper ordering)
+  // Merge with containersByPortainer to ensure all properties are present
+  let portainerInstances = [];
+
+  if (portainerInstancesFromAPI && portainerInstancesFromAPI.length > 0) {
+    // Merge API instances with container data to ensure all properties are present
+    // Match by URL instead of name, since URL is stable and doesn't change when renamed
+    portainerInstances = portainerInstancesFromAPI
+      .filter((apiInst) => apiInst != null && apiInst.url) // Filter out invalid entries (check URL instead of name)
+      .map((apiInst) => {
+        // Match by URL instead of name
+        const containerData = containersByPortainer[apiInst.url];
+        if (containerData) {
+          // Merge API instance data with container data
+          // Use the API instance name (which may have been updated) but keep container data
+          return {
+            ...apiInst,
+            name: apiInst.name, // Use the updated name from API
+            containers: containerData.containers || apiInst.containers || [],
+            withUpdates: containerData.withUpdates || apiInst.withUpdates || [],
+            upToDate: containerData.upToDate || apiInst.upToDate || [],
+          };
+        }
+        // If no container data yet, ensure properties are initialized
+        return {
+          ...apiInst,
+          containers: apiInst.containers || [],
+          withUpdates: apiInst.withUpdates || [],
+          upToDate: apiInst.upToDate || [],
+        };
+      });
+  } else {
+    // Fallback: Use containersByPortainer
+    portainerInstances = Object.values(containersByPortainer || {});
+  }
+
+  // Ensure portainerInstances is always an array
+  if (!Array.isArray(portainerInstances)) {
+    portainerInstances = [];
+  }
+
+  // Sort Portainer instances alphabetically by name
+  portainerInstances.sort((a, b) => {
+    const nameA = (a.name || "").toLowerCase();
+    const nameB = (b.name || "").toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
 
   // Calculate unused images per Portainer instance
+  // Match by URL instead of name for stability
   const unusedImagesByPortainer = unusedImages.reduce((acc, img) => {
-    const portainerName = img.portainerName || "Unknown";
-    acc[portainerName] = (acc[portainerName] || 0) + 1;
+    const portainerUrl = img.portainerUrl || "Unknown";
+    acc[portainerUrl] = (acc[portainerUrl] || 0) + 1;
     return acc;
   }, {});
 
   // Calculate summary statistics
   const summaryStats = {
-    totalPortainers: portainerInstances.length,
+    totalPortainers: (portainerInstances || []).length,
     totalContainers: containers.length,
     containersWithUpdates: containersWithUpdates.length,
     containersUpToDate: containersUpToDate.length,
     unusedImages: unusedImagesCount,
-    portainerStats: portainerInstances.map((p) => ({
-      name: p.name,
-      url: p.url,
-      total: p.containers.length,
-      withUpdates: p.withUpdates.length,
-      upToDate: p.upToDate.length,
-      unusedImages: unusedImagesByPortainer[p.name] || 0,
-    })),
+    portainerStats: (portainerInstances || [])
+      .filter((p) => p != null) // Filter out any null/undefined entries
+      .map((p) => ({
+        name: p.name || "Unknown",
+        url: p.url || "",
+        total: (p.containers || []).length,
+        withUpdates: (p.withUpdates || []).length,
+        upToDate: (p.upToDate || []).length,
+        unusedImages: unusedImagesByPortainer[p.url] || 0, // Match by URL instead of name
+      })),
   };
 
   // Render a stack group
@@ -426,20 +1023,14 @@ function App() {
             </button>
             <h3 className="stack-name">{displayName}</h3>
           </div>
-          <span className="stack-count">
-            {showUpdates && stackContainersWithUpdates.length > 0 && (
-              <span className="update-count">
-                {stackContainersWithUpdates.length} update
-                {stackContainersWithUpdates.length !== 1 ? "s" : ""} available
-              </span>
-            )}
-            {!showUpdates && (
+          {!showUpdates && (
+            <span className="stack-count">
               <span>
                 {stackContainersUpToDate.length} container
                 {stackContainersUpToDate.length !== 1 ? "s" : ""}
               </span>
-            )}
-          </span>
+            </span>
+          )}
         </div>
         {!isCollapsed && (
           <>
@@ -467,23 +1058,25 @@ function App() {
                             : ""
                         }
                       >
-                        <label className="container-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={selectedContainers.has(container.id)}
-                            onChange={() => handleToggleSelect(container.id)}
-                            disabled={
-                              upgrading[container.id] ||
-                              isPortainerContainer(container)
-                            }
-                            title={
-                              isPortainer
-                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
-                                : ""
-                            }
-                          />
-                          <h3>{container.name}</h3>
-                        </label>
+                        <h3>{container.name}</h3>
+                        {container.hasUpdate && (
+                          <label className="container-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selectedContainers.has(container.id)}
+                              onChange={() => handleToggleSelect(container.id)}
+                              disabled={
+                                upgrading[container.id] ||
+                                isPortainerContainer(container)
+                              }
+                              title={
+                                isPortainer
+                                  ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                                  : ""
+                              }
+                            />
+                          </label>
+                        )}
                       </div>
                       <div
                         className="card-body"
@@ -510,23 +1103,75 @@ function App() {
                         <p className="tag-info">
                           <strong>Current:</strong>{" "}
                           <span className="version-badge current">
-                            {container.currentDigest
-                              ? `sha256:${container.currentDigest}`
-                              : container.currentVersion ||
-                                container.currentTag ||
-                                "latest"}
+                            {container.currentDigest ? (
+                              <a
+                                href={
+                                  container.currentTag ||
+                                  container.currentVersion
+                                    ? getDockerHubUrl(
+                                        container.image,
+                                        container.currentTag ||
+                                          container.currentVersion
+                                      )
+                                    : getDockerHubTagsUrl(container.image)
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="digest-link"
+                                title={
+                                  container.currentTag ||
+                                  container.currentVersion
+                                    ? "View layer on Docker Hub"
+                                    : "View tags on Docker Hub"
+                                }
+                              >
+                                sha256:{container.currentDigest}
+                              </a>
+                            ) : (
+                              container.currentVersion ||
+                              container.currentTag ||
+                              "latest"
+                            )}
                           </span>
                         </p>
                         <p className="tag-info">
                           <strong>Latest:</strong>{" "}
                           <span className="version-badge new">
-                            {container.latestDigest
-                              ? `sha256:${container.latestDigest}`
-                              : container.newVersion ||
-                                container.latestTag ||
-                                "latest"}
+                            {container.latestDigest ? (
+                              <a
+                                href={getDockerHubUrl(
+                                  container.image,
+                                  container.latestTag || container.newVersion
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="digest-link"
+                                title="View layer on Docker Hub"
+                              >
+                                sha256:{container.latestDigest}
+                              </a>
+                            ) : (
+                              container.newVersion ||
+                              container.latestTag ||
+                              "latest"
+                            )}
                           </span>
                         </p>
+                        {container.latestPublishDate && (
+                          <p
+                            className="publish-info"
+                            style={{
+                              fontSize: "0.8rem",
+                              color: "var(--text-tertiary)",
+                              marginTop: "4px",
+                            }}
+                          >
+                            <strong>Published:</strong>{" "}
+                            {formatTimeAgo(container.latestPublishDate)}
+                          </p>
+                        )}
                       </div>
                       <div
                         className="card-footer"
@@ -611,7 +1256,30 @@ function App() {
                           <p className="tag-info">
                             <strong>Digest:</strong>{" "}
                             <span className="version-badge current">
-                              sha256:{container.currentDigest}
+                              <a
+                                href={
+                                  container.currentTag ||
+                                  container.currentVersion
+                                    ? getDockerHubUrl(
+                                        container.image,
+                                        container.currentTag ||
+                                          container.currentVersion
+                                      )
+                                    : getDockerHubTagsUrl(container.image)
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="digest-link"
+                                title={
+                                  container.currentTag ||
+                                  container.currentVersion
+                                    ? "View layer on Docker Hub"
+                                    : "View tags on Docker Hub"
+                                }
+                              >
+                                sha256:{container.currentDigest}
+                              </a>
                             </span>
                           </p>
                         )}
@@ -627,11 +1295,234 @@ function App() {
     );
   };
 
+  // Render Settings page with tabs
+  const renderSettingsPage = () => {
+    return (
+      <div className="settings-page">
+        <div className="summary-header">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <h2 className="settings-header">Settings</h2>
+            <button
+              onClick={() => setActiveTab("summary")}
+              style={{
+                padding: "10px 20px",
+                fontSize: "1rem",
+                fontWeight: "600",
+                background: "var(--dodger-blue)",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "var(--dodger-blue-light)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "var(--dodger-blue)";
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Return Home
+            </button>
+          </div>
+        </div>
+        <Settings
+          username={username}
+          onUsernameUpdate={handleUsernameUpdate}
+          onLogout={handleLogout}
+          isFirstLogin={!passwordChanged}
+          onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+          onPortainerInstancesChange={() => {
+            fetchPortainerInstances();
+            fetchContainers();
+          }}
+          activeSection={settingsTab}
+          onSectionChange={setSettingsTab}
+          showUserInfoAboveTabs={true}
+        />
+        <div className="content-tabs">
+          <div className="content-tabs-left">
+            <button
+              className={`content-tab ${
+                settingsTab === "username" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("username")}
+              disabled={!passwordChanged}
+            >
+              Username
+            </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "password" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("password")}
+            >
+              Password
+            </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "portainer" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("portainer")}
+              disabled={!passwordChanged}
+            >
+              Portainer Instances
+            </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "dockerhub" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("dockerhub")}
+              disabled={!passwordChanged}
+            >
+              Docker Hub
+            </button>
+          </div>
+        </div>
+        <div className="content-tab-panel">
+          <Settings
+            username={username}
+            onUsernameUpdate={handleUsernameUpdate}
+            onLogout={handleLogout}
+            isFirstLogin={!passwordChanged}
+            onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+            onPortainerInstancesChange={() => {
+              fetchPortainerInstances();
+              fetchContainers();
+            }}
+            activeSection={settingsTab}
+            onSectionChange={setSettingsTab}
+            showUserInfoAboveTabs={false}
+            onEditInstance={(instance) => {
+              setEditingPortainerInstance(instance);
+              setShowAddPortainerModal(true);
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   // Render summary page
   const renderSummary = () => {
     return (
       <div className="summary-page">
-        <h2>Summary Dashboard</h2>
+        <div className="summary-header">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <h2>Summary Dashboard</h2>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                className="pull-button"
+                onClick={handlePull}
+                disabled={pulling || loading || clearing}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  background: pulling
+                    ? "var(--bg-secondary)"
+                    : "var(--dodger-blue)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    pulling || loading || clearing ? "not-allowed" : "pointer",
+                  opacity: pulling || loading || clearing ? 0.6 : 1,
+                  transition: "all 0.2s",
+                }}
+              >
+                {pulling ? "Pulling..." : "Pull from Docker Hub"}
+              </button>
+              <button
+                className="clear-button"
+                onClick={handleClear}
+                disabled={clearing || pulling || loading}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  background: clearing
+                    ? "var(--bg-secondary)"
+                    : "var(--dodger-red)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    clearing || pulling || loading ? "not-allowed" : "pointer",
+                  opacity: clearing || pulling || loading ? 0.6 : 1,
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: "44px",
+                  lineHeight: "1.5",
+                }}
+                title="Clear all cached data"
+                aria-label="Clear cache"
+              >
+                {clearing ? (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ animation: "spin 1s linear infinite" }}
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="summary-stats">
           <div className="stat-card">
             <div className="stat-value">{summaryStats.totalPortainers}</div>
@@ -668,11 +1559,6 @@ function App() {
               >
                 <div className="instance-header">
                   <h4>{stat.name}</h4>
-                  {stat.withUpdates > 0 && (
-                    <span className="update-badge">
-                      {stat.withUpdates} updates
-                    </span>
-                  )}
                 </div>
                 <div className="instance-stats">
                   <div className="instance-stat">
@@ -704,14 +1590,24 @@ function App() {
 
   // Render containers for a specific Portainer instance
   const renderPortainerTab = (portainerName) => {
-    const portainerData = containersByPortainer[portainerName];
-    if (!portainerData) return null;
+    // Find the instance info first to get the URL
+    const instanceInfo = portainerInstances.find(
+      (inst) => inst.name === portainerName
+    );
 
-    const instanceContainersWithUpdates = portainerData.withUpdates;
-    const instanceContainersUpToDate = portainerData.upToDate;
+    // Match by URL instead of name for stability
+    const portainerUrl = instanceInfo?.url;
+    const portainerData = portainerUrl
+      ? containersByPortainer[portainerUrl]
+      : null;
+    if (!portainerData && !instanceInfo) return null;
+
+    const instanceContainersWithUpdates = portainerData?.withUpdates || [];
+    const instanceContainersUpToDate = portainerData?.upToDate || [];
+    const instanceContainers = portainerData?.containers || [];
 
     // Group by stack for this instance
-    const instanceStacks = portainerData.containers.reduce((acc, container) => {
+    const instanceStacks = instanceContainers.reduce((acc, container) => {
       const stackName = container.stackName || "Standalone";
       if (!acc[stackName]) {
         acc[stackName] = [];
@@ -731,52 +1627,216 @@ function App() {
       return a.stackName.localeCompare(b.stackName);
     });
 
-    // Filter unused images for this portainer
+    // Filter unused images for this portainer by URL instead of name
     const portainerUnusedImages = unusedImages.filter(
-      (img) => img.portainerName === portainerName
+      (img) => img.portainerUrl === portainerUrl
     );
 
     return (
       <div className="portainer-tab-content">
-        <div className="portainer-header">
+        {/* Portainer Instance Header */}
+        <div className="portainer-instance-header">
           <h2>{portainerName}</h2>
-          <div className="portainer-stats-inline">
-            <span className="stat-inline">
-              <strong>{portainerData.containers.length}</strong> containers
-            </span>
-            {portainerData.withUpdates.length > 0 && (
-              <span className="stat-inline update">
-                <strong>{portainerData.withUpdates.length}</strong> updates
-                available
-              </span>
-            )}
-          </div>
         </div>
 
         {/* Content Tabs */}
         <div className="content-tabs">
-          <button
-            className={`content-tab ${
-              contentTab === "updates" ? "active" : ""
-            }`}
-            onClick={() => setContentTab("updates")}
-          >
-            Updates Available ({instanceContainersWithUpdates.length})
-          </button>
-          <button
-            className={`content-tab ${
-              contentTab === "current" ? "active" : ""
-            }`}
-            onClick={() => setContentTab("current")}
-          >
-            Current Containers ({instanceContainersUpToDate.length})
-          </button>
-          <button
-            className={`content-tab ${contentTab === "unused" ? "active" : ""}`}
-            onClick={() => setContentTab("unused")}
-          >
-            Unused Images ({portainerUnusedImages.length})
-          </button>
+          <div className="content-tabs-left">
+            <button
+              className={`content-tab ${
+                contentTab === "updates" ? "active" : ""
+              }`}
+              onClick={() => setContentTab("updates")}
+            >
+              Updates Available ({instanceContainersWithUpdates.length})
+            </button>
+            <button
+              className={`content-tab ${
+                contentTab === "current" ? "active" : ""
+              }`}
+              onClick={() => setContentTab("current")}
+            >
+              Current Containers ({instanceContainersUpToDate.length})
+            </button>
+            <button
+              className={`content-tab ${
+                contentTab === "unused" ? "active" : ""
+              }`}
+              onClick={() => setContentTab("unused")}
+            >
+              Unused Images ({portainerUnusedImages.length})
+            </button>
+          </div>
+          <div className="content-tabs-right">
+            {contentTab === "updates" &&
+              instanceContainersWithUpdates.length > 0 && (
+                <>
+                  {selectedContainers.size > 0 && (
+                    <button
+                      className="batch-upgrade-button"
+                      onClick={handleBatchUpgrade}
+                      disabled={batchUpgrading}
+                    >
+                      {batchUpgrading
+                        ? `Upgrading ${selectedContainers.size}...`
+                        : `Upgrade Selected (${selectedContainers.size})`}
+                    </button>
+                  )}
+                  <label className="select-all-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={
+                        instanceContainersWithUpdates.filter(
+                          (c) => !isPortainerContainer(c)
+                        ).length > 0 &&
+                        instanceContainersWithUpdates
+                          .filter((c) => !isPortainerContainer(c))
+                          .every((c) => selectedContainers.has(c.id))
+                      }
+                      onChange={() =>
+                        handleSelectAll(instanceContainersWithUpdates)
+                      }
+                    />
+                    Select All
+                  </label>
+                  {instanceInfo && instanceInfo.url && (
+                    <button
+                      className="portainer-open-button"
+                      onClick={() => {
+                        window.open(
+                          instanceInfo.url,
+                          "_blank",
+                          "noopener,noreferrer"
+                        );
+                      }}
+                      title={`Open ${portainerName} in Portainer`}
+                      aria-label={`Open ${portainerName} Portainer instance`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      <span>Open in Portainer</span>
+                    </button>
+                  )}
+                </>
+              )}
+            {contentTab === "current" && instanceInfo && instanceInfo.url && (
+              <button
+                className="portainer-open-button"
+                onClick={() => {
+                  window.open(
+                    instanceInfo.url,
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
+                }}
+                title={`Open ${portainerName} in Portainer`}
+                aria-label={`Open ${portainerName} Portainer instance`}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                <span>Open in Portainer</span>
+              </button>
+            )}
+            {contentTab === "unused" && portainerUnusedImages.length > 0 && (
+              <>
+                {selectedImages.size > 0 && (
+                  <button
+                    className="delete-images-button"
+                    onClick={handleDeleteImages}
+                    disabled={deletingImages}
+                  >
+                    {deletingImages
+                      ? `Deleting ${selectedImages.size}...`
+                      : `Delete Selected (${selectedImages.size})`}
+                  </button>
+                )}
+                <label className="select-all-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={
+                      portainerUnusedImages.length > 0 &&
+                      portainerUnusedImages.every((img) =>
+                        selectedImages.has(img.id)
+                      )
+                    }
+                    onChange={() => {
+                      const allSelected = portainerUnusedImages.every((img) =>
+                        selectedImages.has(img.id)
+                      );
+                      if (allSelected) {
+                        const newSet = new Set(selectedImages);
+                        portainerUnusedImages.forEach((img) =>
+                          newSet.delete(img.id)
+                        );
+                        setSelectedImages(newSet);
+                      } else {
+                        const newSet = new Set(selectedImages);
+                        portainerUnusedImages.forEach((img) =>
+                          newSet.add(img.id)
+                        );
+                        setSelectedImages(newSet);
+                      }
+                    }}
+                  />
+                  Select All
+                </label>
+                {instanceInfo && instanceInfo.url && (
+                  <button
+                    className="portainer-open-button"
+                    onClick={() => {
+                      window.open(
+                        instanceInfo.url,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    }}
+                    title={`Open ${portainerName} in Portainer`}
+                    aria-label={`Open ${portainerName} Portainer instance`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    <span>Open in Portainer</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Updates Tab */}
@@ -784,48 +1844,17 @@ function App() {
           <div className="content-tab-panel">
             {instanceContainersWithUpdates.length > 0 ? (
               <>
-                <div className="section-header">
-                  <h3>
-                    Available Updates ({instanceContainersWithUpdates.length})
-                  </h3>
-                  <div className="batch-actions">
-                    <label className="select-all-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={
-                          instanceContainersWithUpdates.filter(
-                            (c) => !isPortainerContainer(c)
-                          ).length > 0 &&
-                          instanceContainersWithUpdates
-                            .filter((c) => !isPortainerContainer(c))
-                            .every((c) => selectedContainers.has(c.id))
-                        }
-                        onChange={() =>
-                          handleSelectAll(instanceContainersWithUpdates)
-                        }
-                      />
-                      Select All
-                    </label>
-                    {selectedContainers.size > 0 && (
-                      <button
-                        className="batch-upgrade-button"
-                        onClick={handleBatchUpgrade}
-                        disabled={batchUpgrading}
-                      >
-                        {batchUpgrading
-                          ? `Upgrading ${selectedContainers.size}...`
-                          : `Upgrade Selected (${selectedContainers.size})`}
-                      </button>
-                    )}
-                  </div>
-                </div>
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, true)
                 )}
               </>
             ) : (
               <div className="empty-state">
-                <p>No containers with updates available.</p>
+                <p>
+                  {dockerHubDataPulled
+                    ? "No containers with updates available."
+                    : "Pull from Docker Hub to check for available upgrades."}
+                </p>
               </div>
             )}
           </div>
@@ -836,11 +1865,6 @@ function App() {
           <div className="content-tab-panel">
             {instanceContainersUpToDate.length > 0 ? (
               <>
-                <div className="section-header">
-                  <h3>
-                    Current Containers ({instanceContainersUpToDate.length})
-                  </h3>
-                </div>
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, false)
                 )}
@@ -860,7 +1884,6 @@ function App() {
               <>
                 <div className="section-header">
                   <div>
-                    <h3>Unused Images ({portainerUnusedImages.length})</h3>
                     <p className="unused-images-total-size">
                       Total Size:{" "}
                       <strong>
@@ -873,59 +1896,11 @@ function App() {
                       </strong>
                     </p>
                   </div>
-                  <div className="batch-actions">
-                    <label className="select-all-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={
-                          portainerUnusedImages.length > 0 &&
-                          portainerUnusedImages.every((img) =>
-                            selectedImages.has(img.id)
-                          )
-                        }
-                        onChange={() => {
-                          const allSelected = portainerUnusedImages.every(
-                            (img) => selectedImages.has(img.id)
-                          );
-                          if (allSelected) {
-                            const newSet = new Set(selectedImages);
-                            portainerUnusedImages.forEach((img) =>
-                              newSet.delete(img.id)
-                            );
-                            setSelectedImages(newSet);
-                          } else {
-                            const newSet = new Set(selectedImages);
-                            portainerUnusedImages.forEach((img) =>
-                              newSet.add(img.id)
-                            );
-                            setSelectedImages(newSet);
-                          }
-                        }}
-                      />
-                      Select All
-                    </label>
-                    {selectedImages.size > 0 && (
-                      <button
-                        className="delete-images-button"
-                        onClick={handleDeleteImages}
-                        disabled={deletingImages}
-                      >
-                        {deletingImages
-                          ? `Deleting ${selectedImages.size}...`
-                          : `Delete Selected (${selectedImages.size})`}
-                      </button>
-                    )}
-                  </div>
                 </div>
                 <div className="unused-images-grid">
                   {portainerUnusedImages.map((image) => (
                     <div key={image.id} className="unused-image-card">
-                      <label className="image-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={selectedImages.has(image.id)}
-                          onChange={() => handleToggleImageSelect(image.id)}
-                        />
+                      <div className="image-card-header">
                         <div className="image-info">
                           <div className="image-tags-header">
                             <strong>Image Tags:</strong>
@@ -952,7 +1927,23 @@ function App() {
                             </span>
                           </div>
                         </div>
-                      </label>
+                        <label className="image-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedImages.has(image.id)}
+                            onChange={() => handleToggleImageSelect(image.id)}
+                          />
+                        </label>
+                      </div>
+                      <div className="image-card-footer">
+                        <button
+                          className="delete-image-button"
+                          onClick={() => handleDeleteImage(image)}
+                          disabled={deletingImages}
+                        >
+                          {deletingImages ? "Deleting..." : "Delete Image"}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -965,7 +1956,7 @@ function App() {
           </div>
         )}
 
-        {portainerData.containers.length === 0 &&
+        {(portainerData.containers || []).length === 0 &&
           portainerUnusedImages.length === 0 && (
             <div className="empty-state">
               <p>No containers or images found for this Portainer instance.</p>
@@ -975,93 +1966,402 @@ function App() {
     );
   };
 
+  // Configure axios to include auth token in all requests
+  useEffect(() => {
+    if (authToken && isAuthenticated) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
+    } else {
+      // Clear auth headers when not authenticated
+      delete axios.defaults.headers.common["Authorization"];
+    }
+  }, [authToken, isAuthenticated]);
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    // Clear any stale auth data when showing login
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // If password not changed, force settings page
+  if (!passwordChanged) {
+    return (
+      <div className="App">
+        <header className="App-header">
+          <div className="header-content">
+            <div>
+              <h1>🐳 Docked</h1>
+              <p>Portainer Container Manager</p>
+            </div>
+          </div>
+        </header>
+        <div className="container">
+          <Settings
+            username={username}
+            onUsernameUpdate={handleUsernameUpdate}
+            onLogout={handleLogout}
+            isFirstLogin={true}
+            onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+            onPortainerInstancesChange={() => {
+              fetchPortainerInstances();
+              fetchContainers();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <header className="App-header">
         <div className="header-content">
           <div>
             <h1>🐳 Docked</h1>
-            <p>Docker Container Update Manager</p>
+            <p>Portainer Container Manager</p>
+            {username && (
+              <p
+                style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "4px" }}
+              >
+                Logged in as: {username}
+              </p>
+            )}
           </div>
           <div className="header-actions">
-            <button
-              className="theme-toggle-button"
-              onClick={() => setDarkMode(!darkMode)}
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? "☀️" : "🌙"}
-            </button>
-            <button
-              className="refresh-button"
-              onClick={fetchContainers}
-              aria-label="Refresh containers"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="avatar-container" style={{ position: "relative" }}>
+              <button
+                className="avatar-button"
+                onClick={() => {
+                  setShowAvatarMenu(!showAvatarMenu);
+                }}
+                aria-label="User Menu"
+                title="User Menu"
               >
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                <path d="M3 21v-5h5" />
-              </svg>
-            </button>
+                {/* Docker whale emoji as avatar */}
+                <div className="avatar-image">🐳</div>
+              </button>
+              {showAvatarMenu && (
+                <div className="avatar-menu">
+                  <div className="avatar-menu-header">
+                    <div className="avatar-menu-avatar">🐳</div>
+                    <div className="avatar-menu-info">
+                      <div className="avatar-menu-username">
+                        {username || "User"}
+                      </div>
+                      <div className="avatar-menu-role">Administrator</div>
+                    </div>
+                  </div>
+                  <div className="avatar-menu-divider"></div>
+                  <div className="avatar-menu-actions">
+                    <button
+                      className="avatar-menu-item"
+                      onClick={() => {
+                        setActiveTab("summary");
+                        setShowAvatarMenu(false);
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                      Home
+                    </button>
+                    <button
+                      className="avatar-menu-item"
+                      onClick={() => {
+                        setActiveTab("settings");
+                        setShowAvatarMenu(false);
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      Settings
+                    </button>
+                    <button
+                      className="avatar-menu-item"
+                      onClick={() => {
+                        setDarkMode(!darkMode);
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        {darkMode ? (
+                          <>
+                            <circle cx="12" cy="12" r="5" />
+                            <line x1="12" y1="1" x2="12" y2="3" />
+                            <line x1="12" y1="21" x2="12" y2="23" />
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                            <line x1="1" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="23" y2="12" />
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                          </>
+                        ) : (
+                          <>
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                          </>
+                        )}
+                      </svg>
+                      {darkMode ? "Light Mode" : "Dark Mode"}
+                    </button>
+                    <div className="avatar-menu-divider"></div>
+                    <button
+                      className="avatar-menu-item"
+                      onClick={() => {
+                        handleLogout();
+                        setShowAvatarMenu(false);
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="container">
-        {/* Tabs */}
-        <div className="tabs-container">
-          <div className="tabs">
-            <button
-              className={`tab ${activeTab === "summary" ? "active" : ""}`}
-              onClick={() => setActiveTab("summary")}
-            >
-              📊 Summary
-            </button>
-            {portainerInstances.map((instance) => (
+      <div
+        className="container"
+        style={{
+          marginTop: pulling ? "70px" : "0",
+          transition: "margin-top 0.3s ease-out",
+        }}
+      >
+        {/* Tabs - Only show when not in Settings */}
+        {activeTab !== "settings" && (
+          <div className="tabs-container">
+            <div className="tabs">
               <button
-                key={instance.name}
-                className={`tab ${activeTab === instance.name ? "active" : ""}`}
-                onClick={() => setActiveTab(instance.name)}
+                className={`tab ${activeTab === "summary" ? "active" : ""}`}
+                onClick={() => setActiveTab("summary")}
               >
-                {instance.name}
-                {instance.withUpdates.length > 0 && (
-                  <span className="tab-badge">
-                    {instance.withUpdates.length}
-                  </span>
+                📊 Summary
+              </button>
+              {(portainerInstances || [])
+                .filter((inst) => inst != null && inst.name)
+                .map((instance, index) => (
+                  <button
+                    key={instance.name}
+                    className={`tab ${
+                      activeTab === instance.name ? "active" : ""
+                    } ${draggedTabIndex === index ? "dragging" : ""}`}
+                    onClick={() => setActiveTab(instance.name)}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedTabIndex(index);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/html", index);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const draggedIndex = parseInt(
+                        e.dataTransfer.getData("text/html")
+                      );
+                      if (draggedIndex !== index) {
+                        handleReorderTabs(draggedIndex, index);
+                      }
+                      setDraggedTabIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedTabIndex(null);
+                    }}
+                  >
+                    {instance.name}
+                    {instance.withUpdates.length > 0 && (
+                      <span className="tab-badge">
+                        {instance.withUpdates.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              <button
+                className={`tab add-instance-tab ${
+                  portainerInstances.length > 0 ? "add-instance-icon-only" : ""
+                }`}
+                onClick={() => {
+                  setEditingPortainerInstance(null);
+                  setShowAddPortainerModal(true);
+                }}
+                title="Add Portainer Instance"
+              >
+                {portainerInstances.length === 0 ? (
+                  <>➕ Add Instance</>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
                 )}
               </button>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tab Content */}
         <div className="tab-content">
-          {loading && <div className="loading">Loading containers...</div>}
-
-          {error && (
-            <div className="error">
-              <p>Error: {error}</p>
-              <button onClick={fetchContainers}>Retry</button>
-            </div>
-          )}
-
-          {!loading && !error && (
+          {activeTab === "settings" ? (
+            renderSettingsPage()
+          ) : (
             <>
-              {activeTab === "summary" && renderSummary()}
-              {activeTab !== "summary" && renderPortainerTab(activeTab)}
+              {pulling && (
+                <div className="pull-status-banner">
+                  <div className="pull-status-content">
+                    <div className="pull-spinner">
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    </div>
+                    <div className="pull-status-text">
+                      <strong>Pulling fresh data from Docker Hub...</strong>
+                      <span>This may take a few moments</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {loading && containers.length === 0 && !pulling && (
+                <div className="loading">Loading containers...</div>
+              )}
+
+              {error && (
+                <div className="error">
+                  <p>Error: {error}</p>
+                  <button onClick={handlePull} disabled={pulling || loading}>
+                    {pulling || loading ? "Retrying..." : "Try Again"}
+                  </button>
+                </div>
+              )}
+
+              {!loading &&
+                !error &&
+                (!portainerInstances || portainerInstances.length === 0) && (
+                  <div
+                    className="empty-state"
+                    style={{ textAlign: "center", padding: "60px 20px" }}
+                  >
+                    <h2
+                      style={{
+                        color: "var(--text-primary)",
+                        marginBottom: "15px",
+                      }}
+                    >
+                      No Portainer Instances Configured
+                    </h2>
+                    <p
+                      style={{
+                        color: "var(--text-secondary)",
+                        marginBottom: "30px",
+                        fontSize: "1.1rem",
+                      }}
+                    >
+                      Get started by adding your first Portainer instance.
+                    </p>
+                    <button
+                      className="update-button"
+                      onClick={() => {
+                        setEditingPortainerInstance(null);
+                        setShowAddPortainerModal(true);
+                      }}
+                      style={{ fontSize: "1.1rem", padding: "14px 28px" }}
+                    >
+                      ➕ Add Your First Portainer Instance
+                    </button>
+                  </div>
+                )}
+
+              {!loading &&
+                !error &&
+                portainerInstances &&
+                portainerInstances.length > 0 && (
+                  <>
+                    {activeTab === "summary" && renderSummary()}
+                    {activeTab !== "summary" && renderPortainerTab(activeTab)}
+                  </>
+                )}
             </>
           )}
         </div>
       </div>
+
+      <AddPortainerModal
+        isOpen={showAddPortainerModal}
+        onClose={() => {
+          setShowAddPortainerModal(false);
+          setEditingPortainerInstance(null);
+        }}
+        onSuccess={() => {
+          fetchPortainerInstances();
+          fetchContainers();
+          setEditingPortainerInstance(null);
+        }}
+        initialData={editingPortainerInstance}
+        instanceId={editingPortainerInstance?.id || null}
+      />
     </div>
   );
 }
