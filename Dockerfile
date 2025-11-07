@@ -31,6 +31,9 @@ RUN npm ci --only=production
 COPY server/ ./
 
 # Copy built frontend from builder stage
+# Server.js now serves from path.join(__dirname, "public")
+# Since server.js is at /app/server.js, __dirname is /app
+# So it looks for /app/public
 COPY --from=frontend-builder /app/client/build ./public
 
 # Expose port
