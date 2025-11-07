@@ -1,0 +1,13 @@
+services:
+  docked:
+    image: ghcr.io/dodgerbluee/docked:latest
+    container_name: docked
+    restart: unless-stopped
+    ports:
+      - "6969:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    volumes:
+      - /docker/docked:/app/server/db
