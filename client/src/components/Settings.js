@@ -7,7 +7,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './Settings.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// In production, API is served from same origin, so use relative URLs
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
 
 function Settings({ username, onUsernameUpdate, onLogout, isFirstLogin = false, onPasswordUpdateSuccess, onPortainerInstancesChange, activeSection = 'password', onSectionChange = null, showUserInfoAboveTabs = false, onEditInstance = null }) {
   const [userInfo, setUserInfo] = useState(null);
