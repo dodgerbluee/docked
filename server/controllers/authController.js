@@ -310,14 +310,10 @@ async function updateUserUsername(req, res, next) {
     // Update username
     await updateUsername(oldUsername, newUsername.trim());
 
-    // Generate new token with updated username
-    const newToken = Buffer.from(`${newUsername.trim()}:${Date.now()}`).toString('base64');
-
     res.json({
       success: true,
       message: 'Username updated successfully',
       newUsername: newUsername.trim(),
-      token: newToken, // Return new token so client can update it
     });
   } catch (error) {
     next(error);

@@ -13,8 +13,9 @@ import {
 
 // In production, API is served from same origin, so use relative URLs
 // In development, use localhost
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+const API_BASE_URL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
 
 function App() {
   // Authentication state
@@ -71,6 +72,7 @@ function App() {
   const [unusedImagesCount, setUnusedImagesCount] = useState(0);
   const [pulling, setPulling] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [loadingInstances, setLoadingInstances] = useState(new Set()); // Track loading state per instance
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
     // Check localStorage for saved state
     const saved = localStorage.getItem("dockerHubDataPulled");
@@ -99,15 +101,16 @@ function App() {
   };
 
   // Handle username update
-  const handleUsernameUpdate = (newUsername, newToken) => {
+  const handleUsernameUpdate = (newUsername) => {
     setUsername(newUsername);
     localStorage.setItem("username", newUsername);
-    // Use token from server if provided, otherwise keep existing token
-    if (newToken) {
-      setAuthToken(newToken);
-      localStorage.setItem("authToken", newToken);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-    }
+    // Update token with new username (in production, re-authenticate)
+    const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
+      "base64"
+    );
+    setAuthToken(token);
+    localStorage.setItem("authToken", token);
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
   };
 
   // Handle password update success
@@ -170,8 +173,9 @@ function App() {
 
   // Fetch Portainer instances separately (independent of container data)
   // This ensures tabs remain visible even while containers are loading
+  // Returns the formatted instances for immediate use
   const fetchPortainerInstances = async () => {
-    if (!isAuthenticated || !authToken) return;
+    if (!isAuthenticated || !authToken) return [];
 
     try {
       setPortainerInstancesLoading(true);
@@ -189,10 +193,13 @@ function App() {
           upToDate: [], // Will be populated when containers load
         }));
         setPortainerInstancesFromAPI(formattedInstances);
+        return formattedInstances;
       }
+      return [];
     } catch (err) {
       console.error("Error fetching Portainer instances:", err);
       // Don't set error state here - let containers fetch handle errors
+      return [];
     } finally {
       setPortainerInstancesLoading(false);
     }
@@ -216,18 +223,30 @@ function App() {
     };
   }, [showAvatarMenu]);
 
-  const fetchContainers = async (showLoading = true) => {
+  const fetchContainers = async (showLoading = true, instanceUrl = null) => {
     try {
-      // Only show loading if explicitly requested (e.g., on pull) or if we have no data
-      if (showLoading && containers.length === 0) {
-        setLoading(true);
+      // Track loading state for specific instance if provided
+      if (instanceUrl) {
+        setLoadingInstances((prev) => new Set(prev).add(instanceUrl));
+      } else {
+        // Only show loading if explicitly requested (e.g., on pull) or if we have no data
+        if (showLoading && containers.length === 0) {
+          setLoading(true);
+        }
       }
+
       console.log(
-        "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
+        instanceUrl
+          ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
+          : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
       );
 
       // Backend will automatically fetch from Portainer if no cache exists
-      const response = await axios.get(`${API_BASE_URL}/api/containers`);
+      // If instanceUrl is provided, we want fresh data from Portainer (no cache)
+      const url = instanceUrl
+        ? `${API_BASE_URL}/api/containers?portainerOnly=true`
+        : `${API_BASE_URL}/api/containers`;
+      const response = await axios.get(url);
       // Handle both grouped and flat response formats
       if (response.data.grouped && response.data.stacks) {
         setContainers(response.data.containers || []); // Keep flat list for filtering
@@ -250,31 +269,71 @@ function App() {
         }
 
         // Update portainerInstances from API response (includes container counts)
-        // Only update if we don't already have instances loaded, or merge container data
+        // CRITICAL: Always preserve all instances from portainerInstancesFromAPI
+        // and merge in container data from the response
         if (response.data.portainerInstances) {
-          // If we already have instances, merge the container data
+          // If we already have instances, merge the container data while preserving all instances
           if (
             portainerInstancesFromAPI &&
             Array.isArray(portainerInstancesFromAPI) &&
             portainerInstancesFromAPI.length > 0
           ) {
+            // Start with all existing instances to preserve them
+            const existingInstancesMap = new Map();
+            portainerInstancesFromAPI.forEach((inst) => {
+              existingInstancesMap.set(inst.url, inst);
+            });
+
+            // Update existing instances with container data from response
+            response.data.portainerInstances.forEach((apiInst) => {
+              const existingInst = existingInstancesMap.get(apiInst.url);
+              if (existingInst) {
+                // Update existing instance with container data
+                existingInstancesMap.set(apiInst.url, {
+                  ...existingInst,
+                  containers: apiInst.containers || [],
+                  withUpdates:
+                    apiInst.withUpdates || existingInst.withUpdates || [],
+                  upToDate: apiInst.upToDate || existingInst.upToDate || [],
+                });
+              } else {
+                // New instance from response (shouldn't happen, but be safe)
+                existingInstancesMap.set(apiInst.url, {
+                  name: apiInst.name,
+                  url: apiInst.url,
+                  id: apiInst.id,
+                  display_order: apiInst.display_order || 0,
+                  containers: apiInst.containers || [],
+                  withUpdates: apiInst.withUpdates || [],
+                  upToDate: apiInst.upToDate || [],
+                });
+              }
+            });
+
+            // Convert back to array, preserving order from portainerInstancesFromAPI
             const updatedInstances = portainerInstancesFromAPI.map(
               (existingInst) => {
-                const apiInst = response.data.portainerInstances.find(
-                  (inst) =>
-                    inst.name === existingInst.name ||
-                    inst.url === existingInst.url
+                return (
+                  existingInstancesMap.get(existingInst.url) || existingInst
                 );
-                if (apiInst) {
-                  return {
-                    ...existingInst,
-                    containers: apiInst.containers || [],
-                    upToDate: apiInst.upToDate || [],
-                  };
-                }
-                return existingInst;
               }
             );
+
+            // Add any new instances from response that weren't in our list
+            response.data.portainerInstances.forEach((apiInst) => {
+              if (!updatedInstances.find((inst) => inst.url === apiInst.url)) {
+                updatedInstances.push({
+                  name: apiInst.name,
+                  url: apiInst.url,
+                  id: apiInst.id,
+                  display_order: apiInst.display_order || 0,
+                  containers: apiInst.containers || [],
+                  withUpdates: apiInst.withUpdates || [],
+                  upToDate: apiInst.upToDate || [],
+                });
+              }
+            });
+
             setPortainerInstancesFromAPI(updatedInstances);
           } else {
             // First time loading, use API response directly
@@ -297,6 +356,14 @@ function App() {
       console.error("Error fetching containers:", err);
     } finally {
       setLoading(false);
+      // Clear loading state for specific instance if provided
+      if (instanceUrl) {
+        setLoadingInstances((prev) => {
+          const next = new Set(prev);
+          next.delete(instanceUrl);
+          return next;
+        });
+      }
     }
   };
 
@@ -954,6 +1021,30 @@ function App() {
     portainerInstances = [];
   }
 
+  // Safety check: If activeTab is a Portainer instance name but that instance doesn't exist,
+  // and we're not currently loading instances, switch back to summary to avoid broken state
+  useEffect(() => {
+    if (
+      activeTab !== "summary" &&
+      activeTab !== "settings" &&
+      !portainerInstancesLoading && // Don't switch during loading
+      portainerInstancesFromAPI && // Only check if we have instances loaded
+      portainerInstancesFromAPI.length > 0 &&
+      !portainerInstances.find((inst) => inst.name === activeTab) &&
+      !portainerInstancesFromAPI.find((inst) => inst.name === activeTab)
+    ) {
+      console.warn(
+        `Active tab "${activeTab}" no longer exists, switching to summary`
+      );
+      setActiveTab("summary");
+    }
+  }, [
+    activeTab,
+    portainerInstances,
+    portainerInstancesFromAPI,
+    portainerInstancesLoading,
+  ]);
+
   // Sort Portainer instances alphabetically by name
   portainerInstances.sort((a, b) => {
     const nameA = (a.name || "").toLowerCase();
@@ -1593,20 +1684,88 @@ function App() {
   // Render containers for a specific Portainer instance
   const renderPortainerTab = (portainerName) => {
     // Find the instance info first to get the URL
-    const instanceInfo = portainerInstances.find(
+    // Check both portainerInstances (merged with container data) and portainerInstancesFromAPI (raw from API)
+    let instanceInfo = portainerInstances.find(
       (inst) => inst.name === portainerName
     );
+
+    // If not found in merged list, check the API list directly (for newly added instances)
+    if (
+      !instanceInfo &&
+      portainerInstancesFromAPI &&
+      portainerInstancesFromAPI.length > 0
+    ) {
+      instanceInfo = portainerInstancesFromAPI.find(
+        (inst) => inst.name === portainerName
+      );
+    }
+
+    // If still no instance info found, show loading state (instance might be loading)
+    if (!instanceInfo) {
+      return (
+        <div className="portainer-tab-content">
+          <div className="portainer-instance-header">
+            <h2>{portainerName}</h2>
+            <div className="instance-loading-indicator">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ animation: "spin 1s linear infinite" }}
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <span>Loading instance...</span>
+            </div>
+          </div>
+          <div className="empty-state">
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: "spin 1s linear infinite",
+                  opacity: 0.6,
+                }}
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <p>Loading Portainer instance data...</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // Match by URL instead of name for stability
     const portainerUrl = instanceInfo?.url;
     const portainerData = portainerUrl
       ? containersByPortainer[portainerUrl]
       : null;
-    if (!portainerData && !instanceInfo) return null;
 
+    // Always render the tab, even if no data yet
     const instanceContainersWithUpdates = portainerData?.withUpdates || [];
     const instanceContainersUpToDate = portainerData?.upToDate || [];
     const instanceContainers = portainerData?.containers || [];
+    const isLoading = loadingInstances.has(portainerUrl);
 
     // Group by stack for this instance
     const instanceStacks = instanceContainers.reduce((acc, container) => {
@@ -1634,11 +1793,33 @@ function App() {
       (img) => img.portainerUrl === portainerUrl
     );
 
+    // Check if we have any data at all
+    const hasData =
+      instanceContainers.length > 0 || portainerUnusedImages.length > 0;
+
     return (
       <div className="portainer-tab-content">
         {/* Portainer Instance Header */}
         <div className="portainer-instance-header">
           <h2>{portainerName}</h2>
+          {isLoading && (
+            <div className="instance-loading-indicator">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ animation: "spin 1s linear infinite" }}
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <span>Loading data...</span>
+            </div>
+          )}
         </div>
 
         {/* Content Tabs */}
@@ -1844,7 +2025,36 @@ function App() {
         {/* Updates Tab */}
         {contentTab === "updates" && (
           <div className="content-tab-panel">
-            {instanceContainersWithUpdates.length > 0 ? (
+            {isLoading && !hasData ? (
+              <div className="empty-state">
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "16px",
+                  }}
+                >
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      animation: "spin 1s linear infinite",
+                      opacity: 0.6,
+                    }}
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  <p>Loading container data from Portainer...</p>
+                </div>
+              </div>
+            ) : instanceContainersWithUpdates.length > 0 ? (
               <>
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, true)
@@ -1855,6 +2065,8 @@ function App() {
                 <p>
                   {dockerHubDataPulled
                     ? "No containers with updates available."
+                    : hasData
+                    ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
                     : "Pull from Docker Hub to check for available upgrades."}
                 </p>
               </div>
@@ -1865,7 +2077,36 @@ function App() {
         {/* Current Containers Tab */}
         {contentTab === "current" && (
           <div className="content-tab-panel">
-            {instanceContainersUpToDate.length > 0 ? (
+            {isLoading && !hasData ? (
+              <div className="empty-state">
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "16px",
+                  }}
+                >
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      animation: "spin 1s linear infinite",
+                      opacity: 0.6,
+                    }}
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  <p>Loading container data from Portainer...</p>
+                </div>
+              </div>
+            ) : instanceContainersUpToDate.length > 0 ? (
               <>
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, false)
@@ -1873,7 +2114,11 @@ function App() {
               </>
             ) : (
               <div className="empty-state">
-                <p>No up-to-date containers found.</p>
+                <p>
+                  {hasData
+                    ? "No up-to-date containers found."
+                    : "No containers found. Data will appear once fetched from Portainer."}
+                </p>
               </div>
             )}
           </div>
@@ -1882,7 +2127,36 @@ function App() {
         {/* Unused Images Tab */}
         {contentTab === "unused" && (
           <div className="content-tab-panel">
-            {portainerUnusedImages.length > 0 ? (
+            {isLoading && !hasData ? (
+              <div className="empty-state">
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "16px",
+                  }}
+                >
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      animation: "spin 1s linear infinite",
+                      opacity: 0.6,
+                    }}
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  <p>Loading image data from Portainer...</p>
+                </div>
+              </div>
+            ) : portainerUnusedImages.length > 0 ? (
               <>
                 <div className="section-header">
                   <div>
@@ -1952,18 +2226,15 @@ function App() {
               </>
             ) : (
               <div className="empty-state">
-                <p>No unused images found.</p>
+                <p>
+                  {hasData
+                    ? "No unused images found."
+                    : "No unused images found. Data will appear once fetched from Portainer."}
+                </p>
               </div>
             )}
           </div>
         )}
-
-        {(portainerData.containers || []).length === 0 &&
-          portainerUnusedImages.length === 0 && (
-            <div className="empty-state">
-              <p>No containers or images found for this Portainer instance.</p>
-            </div>
-          )}
       </div>
     );
   };
@@ -2356,9 +2627,43 @@ function App() {
           setShowAddPortainerModal(false);
           setEditingPortainerInstance(null);
         }}
-        onSuccess={() => {
-          fetchPortainerInstances();
-          fetchContainers();
+        onSuccess={async (newInstanceData) => {
+          // Refresh Portainer instances list and get the updated instances
+          const updatedInstances = await fetchPortainerInstances();
+
+          // If this is a new instance (not editing), switch to its tab and fetch data
+          if (!editingPortainerInstance && newInstanceData) {
+            // Find the new instance in the updated list to get the correct name
+            // The name might be different if backend used hostname as default
+            const newInstance = updatedInstances.find(
+              (inst) =>
+                inst.id === newInstanceData.id ||
+                inst.url === newInstanceData.url
+            );
+
+            if (newInstance) {
+              // Use the instance name from the API response (ensures it matches what's in state)
+              const instanceName = newInstance.name;
+              setActiveTab(instanceName);
+              setContentTab("current"); // Start with current containers tab
+
+              // Trigger background fetch for this specific instance
+              // This fetches from Portainer without Docker Hub checks
+              // Note: This fetches ALL instances, but that's fine - it will include the new one
+              await fetchContainers(false, newInstance.url);
+            } else {
+              // Fallback: use the data we have (shouldn't happen, but be safe)
+              const instanceName =
+                newInstanceData.name || new URL(newInstanceData.url).hostname;
+              setActiveTab(instanceName);
+              setContentTab("current");
+              await fetchContainers(false, newInstanceData.url);
+            }
+          } else {
+            // For edits, just refresh all data
+            fetchContainers();
+          }
+
           setEditingPortainerInstance(null);
         }}
         initialData={editingPortainerInstance}
