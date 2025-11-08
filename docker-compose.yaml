@@ -1,17 +1,13 @@
 services:
   docked:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/dodgerbluee/docked:latest
     container_name: docked
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "6969:3000"
     environment:
       - NODE_ENV=production
-      - PORT=3001
+      - PORT=3000
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - DATA_DIR=/data
     volumes:
-      # Mount to /data where the database is actually created
-      - ./data:/data
+      - /docker/docked:/app/server/db
