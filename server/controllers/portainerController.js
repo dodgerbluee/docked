@@ -10,8 +10,8 @@ const {
   updatePortainerInstance,
   deletePortainerInstance,
   updatePortainerInstanceOrder,
-} = require("./db/database");
-const { validateRequiredFields } = require("../utils/validation");
+} = require('../db/database');
+const { validateRequiredFields } = require('../utils/validation');
 
 /**
  * Get all Portainer instances
@@ -43,11 +43,11 @@ async function getInstance(req, res, next) {
   try {
     const { id } = req.params;
     const instance = await getPortainerInstanceById(parseInt(id));
-
+    
     if (!instance) {
       return res.status(404).json({
         success: false,
-        error: "Portainer instance not found",
+        error: 'Portainer instance not found',
       });
     }
 
@@ -75,7 +75,7 @@ async function createInstance(req, res, next) {
     // Validate required fields
     const validationError = validateRequiredFields(
       { name, url, username, password },
-      ["name", "url", "username", "password"]
+      ['name', 'url', 'username', 'password']
     );
     if (validationError) {
       return res.status(400).json(validationError);
@@ -85,16 +85,16 @@ async function createInstance(req, res, next) {
     try {
       const urlObj = new URL(url);
       // Ensure URL has http or https
-      if (!["http:", "https:"].includes(urlObj.protocol)) {
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
         return res.status(400).json({
           success: false,
-          error: "URL must use http:// or https://",
+          error: 'URL must use http:// or https://',
         });
       }
     } catch (err) {
       return res.status(400).json({
         success: false,
-        error: "Invalid URL format",
+        error: 'Invalid URL format',
       });
     }
 
@@ -111,15 +111,15 @@ async function createInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: "Portainer instance created successfully",
+      message: 'Portainer instance created successfully',
       id,
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes("UNIQUE constraint failed")) {
+    if (error.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({
         success: false,
-        error: "A Portainer instance with this URL already exists",
+        error: 'A Portainer instance with this URL already exists',
       });
     }
     next(error);
@@ -142,16 +142,15 @@ async function updateInstance(req, res, next) {
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: "Portainer instance not found",
+        error: 'Portainer instance not found',
       });
     }
 
     // Validate required fields (password is optional when updating)
-    const validationError = validateRequiredFields({ name, url, username }, [
-      "name",
-      "url",
-      "username",
-    ]);
+    const validationError = validateRequiredFields(
+      { name, url, username },
+      ['name', 'url', 'username']
+    );
     if (validationError) {
       return res.status(400).json(validationError);
     }
@@ -160,22 +159,22 @@ async function updateInstance(req, res, next) {
     try {
       const urlObj = new URL(url);
       // Ensure URL has http or https
-      if (!["http:", "https:"].includes(urlObj.protocol)) {
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
         return res.status(400).json({
           success: false,
-          error: "URL must use http:// or https://",
+          error: 'URL must use http:// or https://',
         });
       }
     } catch (err) {
       return res.status(400).json({
         success: false,
-        error: "Invalid URL format",
+        error: 'Invalid URL format',
       });
     }
 
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
-
+    
     // If password is empty and we're updating, keep the existing password
     let passwordToUse = password;
     if (!password && existing.password) {
@@ -193,14 +192,14 @@ async function updateInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: "Portainer instance updated successfully",
+      message: 'Portainer instance updated successfully',
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes("UNIQUE constraint failed")) {
+    if (error.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({
         success: false,
-        error: "A Portainer instance with this URL already exists",
+        error: 'A Portainer instance with this URL already exists',
       });
     }
     next(error);
@@ -222,7 +221,7 @@ async function deleteInstance(req, res, next) {
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: "Portainer instance not found",
+        error: 'Portainer instance not found',
       });
     }
 
@@ -231,7 +230,7 @@ async function deleteInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: "Portainer instance deleted successfully",
+      message: 'Portainer instance deleted successfully',
     });
   } catch (error) {
     next(error);
@@ -251,20 +250,16 @@ async function updateInstanceOrder(req, res, next) {
     if (!Array.isArray(orders)) {
       return res.status(400).json({
         success: false,
-        error: "orders must be an array",
+        error: 'orders must be an array',
       });
     }
 
     // Validate each order entry
     for (const order of orders) {
-      if (
-        typeof order.id !== "number" ||
-        typeof order.display_order !== "number"
-      ) {
+      if (typeof order.id !== 'number' || typeof order.display_order !== 'number') {
         return res.status(400).json({
           success: false,
-          error:
-            "Each order entry must have id (number) and display_order (number)",
+          error: 'Each order entry must have id (number) and display_order (number)',
         });
       }
     }
@@ -273,7 +268,7 @@ async function updateInstanceOrder(req, res, next) {
 
     res.json({
       success: true,
-      message: "Portainer instance order updated successfully",
+      message: 'Portainer instance order updated successfully',
     });
   } catch (error) {
     next(error);
@@ -288,3 +283,4 @@ module.exports = {
   deleteInstance,
   updateInstanceOrder,
 };
+

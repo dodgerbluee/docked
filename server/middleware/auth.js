@@ -3,7 +3,7 @@
  * Verifies tokens and protects routes
  */
 
-const { getUserByUsername } = require("./db/database");
+const { getUserByUsername } = require('../db/database');
 
 /**
  * Middleware to verify authentication token
@@ -13,25 +13,25 @@ const { getUserByUsername } = require("./db/database");
  */
 async function authenticate(req, res, next) {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
+    const token = req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required",
+        error: 'Authentication required',
       });
     }
 
     // Simple token verification (in production, use JWT)
     try {
-      const decoded = Buffer.from(token, "base64").toString("utf-8");
-      const [username] = decoded.split(":");
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const [username] = decoded.split(':');
 
       const user = await getUserByUsername(username);
       if (!user) {
         return res.status(401).json({
           success: false,
-          error: "Invalid token",
+          error: 'Invalid token',
         });
       }
 
@@ -42,7 +42,7 @@ async function authenticate(req, res, next) {
     } catch (err) {
       return res.status(401).json({
         success: false,
-        error: "Invalid token",
+        error: 'Invalid token',
       });
     }
   } catch (error) {
