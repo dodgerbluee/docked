@@ -11,7 +11,10 @@ import {
   formatTimeAgo,
 } from "./utils/formatters";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:3001";
+// In production, API is served from same origin, so use relative URLs
+// In development, use localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
 
 function App() {
   // Authentication state
