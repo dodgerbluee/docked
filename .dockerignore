@@ -1,0 +1,30 @@
+# Don't copy database files (they're created at runtime)
+server/db/*.db
+data/
+
+# Don't copy node_modules (they're installed in container)
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Don't copy build artifacts
+client/build/
+
+# Don't copy git files
+.git/
+.gitignore
+
+# Don't copy env files
+.env
+*.env
+
+# Don't copy IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Don't copy OS files
+.DS_Store
+Thumbs.db
+
