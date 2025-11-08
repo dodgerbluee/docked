@@ -3,7 +3,7 @@
  * Handles user authentication with database
  */
 
-const { validateRequiredFields } = require('../utils/validation');
+const { validateRequiredFields } = require("../utils/validation");
 const {
   getUserByUsername,
   verifyPassword,
@@ -12,8 +12,8 @@ const {
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
-} = require('../db/database');
-const { clearCache } = require('../utils/dockerHubCreds');
+} = require("./db/database");
+const { clearCache } = require("../utils/dockerHubCreds");
 
 /**
  * Login endpoint
@@ -26,10 +26,10 @@ async function login(req, res, next) {
     const { username, password } = req.body;
 
     // Validate input
-    const validationError = validateRequiredFields(
-      { username, password },
-      ['username', 'password']
-    );
+    const validationError = validateRequiredFields({ username, password }, [
+      "username",
+      "password",
+    ]);
     if (validationError) {
       return res.status(400).json(validationError);
     }
@@ -39,7 +39,7 @@ async function login(req, res, next) {
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid username or password',
+        error: "Invalid username or password",
       });
     }
 
@@ -48,12 +48,12 @@ async function login(req, res, next) {
     if (!passwordValid) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid username or password',
+        error: "Invalid username or password",
       });
     }
 
     // Generate simple token (in production, use JWT)
-    const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
+    const token = Buffer.from(`${username}:${Date.now()}`).toString("base64");
 
     res.json({
       success: true,
@@ -75,25 +75,25 @@ async function login(req, res, next) {
  */
 async function verifyToken(req, res, next) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace("Bearer ", "");
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: 'No token provided',
+        error: "No token provided",
       });
     }
 
     // Simple token verification (in production, use JWT)
     try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const [username] = decoded.split(':');
+      const decoded = Buffer.from(token, "base64").toString("utf-8");
+      const [username] = decoded.split(":");
 
       const user = await getUserByUsername(username);
       if (!user) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid token',
+          error: "Invalid token",
         });
       }
 
@@ -105,7 +105,7 @@ async function verifyToken(req, res, next) {
     } catch (err) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid token',
+        error: "Invalid token",
       });
     }
   } catch (error) {
@@ -127,7 +127,7 @@ async function updateUserPassword(req, res, next) {
     if (!username) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -135,7 +135,7 @@ async function updateUserPassword(req, res, next) {
     if (!newPassword) {
       return res.status(400).json({
         success: false,
-        error: 'New password is required',
+        error: "New password is required",
       });
     }
 
@@ -143,7 +143,7 @@ async function updateUserPassword(req, res, next) {
     if (newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        error: 'New password must be at least 6 characters long',
+        error: "New password must be at least 6 characters long",
       });
     }
 
@@ -152,7 +152,7 @@ async function updateUserPassword(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -162,14 +162,17 @@ async function updateUserPassword(req, res, next) {
       if (!currentPassword) {
         return res.status(400).json({
           success: false,
-          error: 'Current password is required',
+          error: "Current password is required",
         });
       }
-      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
+      const passwordValid = await verifyPassword(
+        currentPassword,
+        user.password_hash
+      );
       if (!passwordValid) {
         return res.status(401).json({
           success: false,
-          error: 'Current password is incorrect',
+          error: "Current password is incorrect",
         });
       }
     } else {
@@ -177,14 +180,17 @@ async function updateUserPassword(req, res, next) {
       if (!currentPassword) {
         return res.status(400).json({
           success: false,
-          error: 'Current password is required',
+          error: "Current password is required",
         });
       }
-      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
+      const passwordValid = await verifyPassword(
+        currentPassword,
+        user.password_hash
+      );
       if (!passwordValid) {
         return res.status(401).json({
           success: false,
-          error: 'Current password is incorrect',
+          error: "Current password is incorrect",
         });
       }
     }
@@ -194,7 +200,7 @@ async function updateUserPassword(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Password updated successfully',
+      message: "Password updated successfully",
     });
   } catch (error) {
     next(error);
@@ -214,7 +220,7 @@ async function getCurrentUser(req, res, next) {
     if (!username) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -222,7 +228,7 @@ async function getCurrentUser(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -255,7 +261,7 @@ async function updateUserUsername(req, res, next) {
     if (!oldUsername) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -263,21 +269,21 @@ async function updateUserUsername(req, res, next) {
     if (!newUsername || newUsername.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'New username is required',
+        error: "New username is required",
       });
     }
 
     if (newUsername.length < 3) {
       return res.status(400).json({
         success: false,
-        error: 'Username must be at least 3 characters long',
+        error: "Username must be at least 3 characters long",
       });
     }
 
     if (!password) {
       return res.status(400).json({
         success: false,
-        error: 'Password is required to change username',
+        error: "Password is required to change username",
       });
     }
 
@@ -286,7 +292,7 @@ async function updateUserUsername(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -294,7 +300,7 @@ async function updateUserUsername(req, res, next) {
     if (!passwordValid) {
       return res.status(401).json({
         success: false,
-        error: 'Password is incorrect',
+        error: "Password is incorrect",
       });
     }
 
@@ -303,7 +309,7 @@ async function updateUserUsername(req, res, next) {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        error: 'Username already exists',
+        error: "Username already exists",
       });
     }
 
@@ -312,7 +318,7 @@ async function updateUserUsername(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Username updated successfully',
+      message: "Username updated successfully",
       newUsername: newUsername.trim(),
     });
   } catch (error) {
@@ -329,7 +335,7 @@ async function updateUserUsername(req, res, next) {
 async function getDockerHubCreds(req, res, next) {
   try {
     const credentials = await getDockerHubCredentials();
-    
+
     if (!credentials) {
       return res.json({
         success: true,
@@ -365,19 +371,19 @@ async function updateDockerHubCreds(req, res, next) {
     if (!username || username.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Docker Hub username is required',
+        error: "Docker Hub username is required",
       });
     }
 
     // Get existing credentials if token is not provided
     let tokenToUse = token && token.trim().length > 0 ? token.trim() : null;
-    
+
     if (!tokenToUse) {
       const existingCreds = await getDockerHubCredentials();
       if (!existingCreds || !existingCreds.token) {
         return res.status(400).json({
           success: false,
-          error: 'Docker Hub personal access token is required',
+          error: "Docker Hub personal access token is required",
         });
       }
       // Use existing token
@@ -386,13 +392,13 @@ async function updateDockerHubCreds(req, res, next) {
 
     // Update credentials
     await updateDockerHubCredentials(username.trim(), tokenToUse);
-    
+
     // Clear cache so new credentials are used immediately
     clearCache();
 
     res.json({
       success: true,
-      message: 'Docker Hub credentials updated successfully',
+      message: "Docker Hub credentials updated successfully",
     });
   } catch (error) {
     next(error);
@@ -408,13 +414,13 @@ async function updateDockerHubCreds(req, res, next) {
 async function deleteDockerHubCreds(req, res, next) {
   try {
     await deleteDockerHubCredentials();
-    
+
     // Clear cache so credentials are removed immediately
     clearCache();
 
     res.json({
       success: true,
-      message: 'Docker Hub credentials deleted successfully',
+      message: "Docker Hub credentials deleted successfully",
     });
   } catch (error) {
     next(error);
