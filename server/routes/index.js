@@ -7,6 +7,7 @@ const containerController = require("../controllers/containerController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
+const avatarController = require("../controllers/avatarController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -100,5 +101,13 @@ router.delete(
   "/portainer/instances/:id",
   asyncHandler(portainerController.deleteInstance)
 );
+
+// Avatar routes
+router.get("/avatars", asyncHandler(avatarController.getAvatar));
+router.get("/avatars/recent", asyncHandler(avatarController.getRecentAvatars));
+router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
+router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
+router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
+router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
 
 module.exports = router;

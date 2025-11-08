@@ -83,6 +83,8 @@ function App() {
     const saved = localStorage.getItem("darkMode");
     return saved ? JSON.parse(saved) : false;
   });
+  const [avatar, setAvatar] = useState("/img/default-avatar.jpg");
+  const [recentAvatars, setRecentAvatars] = useState([]);
 
   // Handle login
   const handleLogin = (token, user, pwdChanged) => {
@@ -205,15 +207,63 @@ function App() {
     }
   };
 
-  // Fetch Portainer instances on app load
+  // Fetch Portainer instances and avatar on app load
   useEffect(() => {
-    fetchPortainerInstances();
+    if (isAuthenticated && authToken) {
+      fetchPortainerInstances();
+      fetchAvatar();
+      fetchRecentAvatars();
+    }
   }, [isAuthenticated, authToken]);
+
+  // Fetch user's avatar from server
+  const fetchAvatar = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/avatars`, {
+        responseType: "blob",
+      });
+      // Convert blob to object URL
+      const avatarUrl = URL.createObjectURL(response.data);
+      // Revoke old blob URL if it exists
+      if (avatar && avatar.startsWith("blob:")) {
+        URL.revokeObjectURL(avatar);
+      }
+      setAvatar(avatarUrl);
+    } catch (err) {
+      // Avatar not found or error - use default
+      if (err.response?.status !== 404) {
+        console.error("Error fetching avatar:", err);
+      }
+      // Revoke old blob URL if it exists
+      if (avatar && avatar.startsWith("blob:")) {
+        URL.revokeObjectURL(avatar);
+      }
+      setAvatar("/img/default-avatar.jpg");
+    }
+  };
+
+  // Fetch recent avatars from server
+  const fetchRecentAvatars = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/avatars/recent`);
+      if (response.data.success) {
+        setRecentAvatars(response.data.avatars || []);
+      }
+    } catch (err) {
+      console.error("Error fetching recent avatars:", err);
+      setRecentAvatars([]);
+    }
+  };
 
   // Close avatar menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (showAvatarMenu && !event.target.closest(".avatar-container")) {
+      if (
+        showAvatarMenu &&
+        !event.target.closest(".avatar-menu") &&
+        !event.target.closest(".avatar-button") &&
+        !event.target.closest("[data-username-role]")
+      ) {
         setShowAvatarMenu(false);
       }
     };
@@ -223,7 +273,7 @@ function App() {
     };
   }, [showAvatarMenu]);
 
-  const fetchContainers = async (showLoading = true, instanceUrl = null) => {
+  const fetchContainers = async (showLoading = true, instanceUrl = null, portainerOnly = false) => {
     try {
       // Track loading state for specific instance if provided
       if (instanceUrl) {
@@ -238,12 +288,14 @@ function App() {
       console.log(
         instanceUrl
           ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
+          : portainerOnly
+          ? "🔄 Fetching containers from Portainer (no Docker Hub checks)..."
           : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
       );
 
       // Backend will automatically fetch from Portainer if no cache exists
-      // If instanceUrl is provided, we want fresh data from Portainer (no cache)
-      const url = instanceUrl
+      // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
+      const url = instanceUrl || portainerOnly
         ? `${API_BASE_URL}/api/containers?portainerOnly=true`
         : `${API_BASE_URL}/api/containers`;
       const response = await axios.get(url);
@@ -403,11 +455,22 @@ function App() {
         setUnusedImages([]);
         setSelectedContainers(new Set());
         setSelectedImages(new Set());
-        setDataFetched(true); // Set to true so it doesn't auto-fetch
         setDockerHubDataPulled(false); // Reset Docker Hub pull status
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setDataFetched(false); // Reset so we can fetch fresh data
         setError(null);
         console.log("✅ Cache cleared successfully");
+        // Immediately fetch from Portainer (but not Docker Hub)
+        console.log("🔄 Fetching fresh data from Portainer...");
+        try {
+          await fetchContainers(true, null, true);
+          console.log("✅ Portainer data fetched successfully");
+        } catch (fetchError) {
+          console.error("❌ Error fetching Portainer data:", fetchError);
+          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+        } finally {
+          setClearing(false);
+        }
       } else {
         // Even if response doesn't have success, clear frontend state
         // The backend cache might have been cleared even if response format is unexpected
@@ -418,11 +481,22 @@ function App() {
         setUnusedImages([]);
         setSelectedContainers(new Set());
         setSelectedImages(new Set());
-        setDataFetched(true);
         setDockerHubDataPulled(false); // Reset Docker Hub pull status
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setDataFetched(false); // Reset so we can fetch fresh data
         setError(null);
         console.log("✅ Cache cleared (assuming success)");
+        // Immediately fetch from Portainer (but not Docker Hub)
+        console.log("🔄 Fetching fresh data from Portainer...");
+        try {
+          await fetchContainers(true, null, true);
+          console.log("✅ Portainer data fetched successfully");
+        } catch (fetchError) {
+          console.error("❌ Error fetching Portainer data:", fetchError);
+          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+        } finally {
+          setClearing(false);
+        }
       }
     } catch (err) {
       // If we get a 404, the route might not exist, but we can still clear frontend state
@@ -437,15 +511,26 @@ function App() {
         setUnusedImages([]);
         setSelectedContainers(new Set());
         setSelectedImages(new Set());
-        setDataFetched(true);
         setDockerHubDataPulled(false); // Reset Docker Hub pull status
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
+        setDataFetched(false); // Reset so we can fetch fresh data
         setError(null);
         // Try to clear cache via alternative method (direct database call would require backend change)
         // For now, just clear frontend and show message
         console.log(
           "✅ Frontend state cleared. Backend cache may need manual clearing."
         );
+        // Immediately fetch from Portainer (but not Docker Hub)
+        console.log("🔄 Fetching fresh data from Portainer...");
+        try {
+          await fetchContainers(true, null, true);
+          console.log("✅ Portainer data fetched successfully");
+        } catch (fetchError) {
+          console.error("❌ Error fetching Portainer data:", fetchError);
+          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+        } finally {
+          setClearing(false);
+        }
       } else {
         const errorMessage =
           err.response?.data?.error ||
@@ -454,9 +539,8 @@ function App() {
           "Failed to clear cache";
         setError(errorMessage);
         console.error("Error clearing cache:", err);
+        setClearing(false);
       }
-    } finally {
-      setClearing(false);
     }
   };
 
@@ -1462,6 +1546,25 @@ function App() {
           onUsernameUpdate={handleUsernameUpdate}
           onLogout={handleLogout}
           isFirstLogin={!passwordChanged}
+          avatar={avatar}
+          recentAvatars={recentAvatars}
+          onAvatarChange={(newAvatar) => {
+            // If it's a blob URL, revoke the old one
+            if (avatar && avatar.startsWith("blob:")) {
+              URL.revokeObjectURL(avatar);
+            }
+            setAvatar(newAvatar);
+          }}
+          onRecentAvatarsChange={(avatars) => {
+            console.log(
+              "onRecentAvatarsChange called with:",
+              avatars?.length,
+              "avatars"
+            );
+            setRecentAvatars(avatars);
+            // Refresh recent avatars from server to get latest
+            fetchRecentAvatars();
+          }}
           onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
           onPortainerInstancesChange={() => {
             fetchPortainerInstances();
@@ -1489,6 +1592,15 @@ function App() {
               onClick={() => setSettingsTab("password")}
             >
               Password
+            </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "avatar" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("avatar")}
+              disabled={!passwordChanged}
+            >
+              Avatar
             </button>
             <button
               className={`content-tab ${
@@ -2288,6 +2400,20 @@ function App() {
             onUsernameUpdate={handleUsernameUpdate}
             onLogout={handleLogout}
             isFirstLogin={true}
+            avatar={avatar}
+            recentAvatars={recentAvatars}
+            onAvatarChange={(newAvatar) => {
+              // If it's a blob URL, revoke the old one
+              if (avatar && avatar.startsWith("blob:")) {
+                URL.revokeObjectURL(avatar);
+              }
+              setAvatar(newAvatar);
+            }}
+            onRecentAvatarsChange={(avatars) => {
+              setRecentAvatars(avatars);
+              // Refresh recent avatars from server to get latest
+              fetchRecentAvatars();
+            }}
             onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
             onPortainerInstancesChange={() => {
               fetchPortainerInstances();
@@ -2304,18 +2430,35 @@ function App() {
       <header className="App-header">
         <div className="header-content">
           <div>
-            <h1>🐳 Docked</h1>
-            <p>Portainer Container Manager</p>
-            {username && (
-              <p
-                style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "4px" }}
+            <h1>
+              <img
+                src="/img/image.png"
+                alt="Docked"
+                style={{
+                  height: "2em",
+                  verticalAlign: "middle",
+                  marginRight: "8px",
+                  display: "inline-block",
+                }}
+              />
+              <span
+                style={{
+                  display: "inline-block",
+                  transform: "translateY(3px)",
+                }}
               >
-                Logged in as: {username}
-              </p>
-            )}
+                Docked
+              </span>
+            </h1>
           </div>
           <div className="header-actions">
-            <div className="avatar-container" style={{ position: "relative" }}>
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
               <button
                 className="avatar-button"
                 onClick={() => {
@@ -2324,21 +2467,68 @@ function App() {
                 aria-label="User Menu"
                 title="User Menu"
               >
-                {/* Docker whale emoji as avatar */}
-                <div className="avatar-image">🐳</div>
+                <img
+                  src={
+                    avatar.startsWith("blob:") ||
+                    avatar.startsWith("http") ||
+                    avatar.startsWith("/img/")
+                      ? avatar
+                      : `${API_BASE_URL}${avatar}`
+                  }
+                  alt="User Avatar"
+                  className="avatar-image"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "6px",
+                  }}
+                  onError={(e) => {
+                    // Fallback to default avatar if server avatar fails to load
+                    e.target.src = "/img/default-avatar.jpg";
+                  }}
+                />
               </button>
+              {username && (
+                <div
+                  data-username-role
+                  onClick={() => {
+                    setShowAvatarMenu(!showAvatarMenu);
+                  }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    marginLeft: "0px",
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.9rem",
+                      opacity: 0.95,
+                      color: "white",
+                      lineHeight: "1.2",
+                    }}
+                  >
+                    {username}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      opacity: 0.8,
+                      color: "white",
+                      lineHeight: "1.2",
+                      marginTop: "2px",
+                    }}
+                  >
+                    Administrator
+                  </span>
+                </div>
+              )}
               {showAvatarMenu && (
-                <div className="avatar-menu">
-                  <div className="avatar-menu-header">
-                    <div className="avatar-menu-avatar">🐳</div>
-                    <div className="avatar-menu-info">
-                      <div className="avatar-menu-username">
-                        {username || "User"}
-                      </div>
-                      <div className="avatar-menu-role">Administrator</div>
-                    </div>
-                  </div>
-                  <div className="avatar-menu-divider"></div>
+                <div className="avatar-menu" style={{ right: 0 }}>
                   <div className="avatar-menu-actions">
                     <button
                       className="avatar-menu-item"

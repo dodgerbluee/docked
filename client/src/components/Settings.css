@@ -238,6 +238,51 @@ body.dark-mode .update-button:hover:not(:disabled) {
   transform: none;
 }
 
+/* Avatar Styles */
+.avatar-preview-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 3px solid var(--border-color);
+  box-shadow: 0 2px 8px var(--shadow);
+  transition: all 0.3s;
+}
+
+.avatar-preview-large:hover {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 4px 12px rgba(0, 90, 156, 0.3);
+}
+
+.avatar-select-button {
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 3px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--bg-secondary);
+  overflow: hidden;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.avatar-select-button:hover {
+  border-color: var(--dodger-blue-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.avatar-select-button.selected {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.2);
+}
+
+body.dark-mode .avatar-select-button.selected {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
+}
+
 @media (max-width: 768px) {
   .settings-container {
     padding: 20px;
