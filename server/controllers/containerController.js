@@ -3,13 +3,13 @@
  * Handles HTTP requests for container operations
  */
 
-const containerService = require('../services/containerService');
-const portainerService = require('../services/portainerService');
+const containerService = require("../services/containerService");
+const portainerService = require("../services/portainerService");
 const {
   validateRequiredFields,
   isValidContainerId,
   validateContainerArray,
-} = require('../utils/validation');
+} = require("../utils/validation");
 
 /**
  * Get all containers with update status
@@ -20,8 +20,8 @@ const {
 async function getContainers(req, res, next) {
   try {
     // Check if we should fetch from Portainer only (no Docker Hub)
-    const portainerOnly = req.query.portainerOnly === 'true';
-    
+    const portainerOnly = req.query.portainerOnly === "true";
+
     if (portainerOnly) {
       // Fetch from Portainer without Docker Hub checks
       const result = await containerService.getContainersFromPortainer();
@@ -32,26 +32,30 @@ async function getContainers(req, res, next) {
     // Always use cached data unless explicitly requested to refresh
     // If no cache exists, automatically fetch from Portainer only (no Docker Hub)
     const cached = await containerService.getAllContainersWithUpdates(false);
-    
+
     // If cache is empty or has no containers, fetch from Portainer only
     if (!cached || !cached.containers || cached.containers.length === 0) {
-      console.log('📦 No cached data found, automatically fetching from Portainer (no Docker Hub checks)...');
-      const portainerResult = await containerService.getContainersFromPortainer();
+      console.log(
+        "📦 No cached data found, automatically fetching from Portainer (no Docker Hub checks)..."
+      );
+      const portainerResult =
+        await containerService.getContainersFromPortainer();
       // Don't cache this result - user must click "Pull" to cache with Docker Hub data
       res.json(portainerResult);
       return;
     }
-    
+
     // Return cached data
     res.json(cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
-    console.error('Error getting containers:', error);
+    console.error("Error getting containers:", error);
     try {
-      const portainerResult = await containerService.getContainersFromPortainer();
+      const portainerResult =
+        await containerService.getContainersFromPortainer();
       res.json(portainerResult);
     } catch (portainerError) {
-      console.error('Error fetching from Portainer:', portainerError);
+      console.error("Error fetching from Portainer:", portainerError);
       res.json({
         grouped: true,
         stacks: [],
@@ -72,26 +76,27 @@ async function getContainers(req, res, next) {
  */
 async function pullContainers(req, res, next) {
   try {
-    console.log('🔄 Pull request received - clearing cache and fetching fresh data...');
+    console.log(
+      "🔄 Pull request received - clearing cache and fetching fresh data..."
+    );
     // Force refresh - clears cache and fetches fresh data
     const result = await containerService.getAllContainersWithUpdates(true);
-    console.log('✅ Pull completed successfully');
+    console.log("✅ Pull completed successfully");
     res.json({
       success: true,
-      message: 'Container data pulled successfully',
+      message: "Container data pulled successfully",
       ...result,
     });
   } catch (error) {
-    console.error('❌ Error in pullContainers:', error);
+    console.error("❌ Error in pullContainers:", error);
     // Return a more detailed error response
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to pull container data',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      error: error.message || "Failed to pull container data",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 }
-
 
 /**
  * Upgrade a single container
@@ -106,12 +111,12 @@ async function upgradeContainer(req, res, next) {
 
     // Validate input
     if (!isValidContainerId(containerId)) {
-      return res.status(400).json({ error: 'Invalid container ID' });
+      return res.status(400).json({ error: "Invalid container ID" });
     }
 
     const validationError = validateRequiredFields(
       { endpointId, imageName, portainerUrl },
-      ['endpointId', 'imageName', 'portainerUrl']
+      ["endpointId", "imageName", "portainerUrl"]
     );
     if (validationError) {
       return res.status(400).json(validationError);
@@ -127,7 +132,7 @@ async function upgradeContainer(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Container upgraded successfully',
+      message: "Container upgraded successfully",
       ...result,
     });
   } catch (error) {
@@ -172,7 +177,7 @@ async function batchUpgradeContainers(req, res, next) {
         );
         errors.push({
           containerId: container.containerId,
-          containerName: container.containerName || 'Unknown',
+          containerName: container.containerName || "Unknown",
           error: error.message,
         });
       }
@@ -197,18 +202,18 @@ async function batchUpgradeContainers(req, res, next) {
  */
 async function clearCache(req, res, next) {
   try {
-    const { clearContainerCache } = require('../db/database');
+    const { clearContainerCache } = require("./db/database");
     await clearContainerCache();
-    console.log('🗑️ Container cache cleared');
+    console.log("🗑️ Container cache cleared");
     res.json({
       success: true,
-      message: 'Cache cleared successfully',
+      message: "Cache cleared successfully",
     });
   } catch (error) {
-    console.error('❌ Error clearing cache:', error);
+    console.error("❌ Error clearing cache:", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to clear cache',
+      error: error.message || "Failed to clear cache",
     });
   }
 }
@@ -220,4 +225,3 @@ module.exports = {
   upgradeContainer,
   batchUpgradeContainers,
 };
-
