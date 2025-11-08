@@ -9,8 +9,9 @@ import "./Login.css";
 
 // In production, API is served from same origin, so use relative URLs
 // In development, use localhost
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+const API_BASE_URL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -76,7 +77,23 @@ function Login({ onLogin }) {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>🐳 Docked</h1>
+          <h1>
+            <img
+              src="/img/image.png"
+              alt="Docked"
+              style={{
+                height: "2em",
+                verticalAlign: "middle",
+                marginRight: "8px",
+                display: "inline-block",
+              }}
+            />
+            <span
+              style={{ display: "inline-block", transform: "translateY(3px)" }}
+            >
+              Docked
+            </span>
+          </h1>
           <p>Portainer Container Manager</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">

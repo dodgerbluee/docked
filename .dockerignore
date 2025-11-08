@@ -24,6 +24,8 @@ client/build/
 *.swp
 *.swo
 
+data/avatars
+
 # Don't copy OS files
 .DS_Store
 Thumbs.db
