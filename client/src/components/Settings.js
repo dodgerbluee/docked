@@ -128,21 +128,30 @@ function Settings({ username, onUsernameUpdate, onLogout, isFirstLogin = false, 
       });
 
       if (response.data.success) {
+        // Clear any previous errors first
+        setUsernameError('');
         setUsernameSuccess('Username updated successfully!');
         setNewUsername('');
         setUsernamePassword('');
-        // Update username in parent component
+        // Update username in parent component (pass new token if provided)
         if (onUsernameUpdate) {
-          onUsernameUpdate(response.data.newUsername);
+          onUsernameUpdate(response.data.newUsername, response.data.token);
         }
-        // Refresh user info
-        await fetchUserInfo();
+        // Refresh user info (don't let errors here affect the success message)
+        try {
+          await fetchUserInfo();
+        } catch (fetchErr) {
+          // Silently handle fetchUserInfo errors - username update was successful
+          console.warn('Failed to refresh user info:', fetchErr);
+        }
         // Clear success message after 3 seconds
         setTimeout(() => setUsernameSuccess(''), 3000);
       } else {
         setUsernameError(response.data.error || 'Failed to update username');
       }
     } catch (err) {
+      // Clear success message if there's an error
+      setUsernameSuccess('');
       setUsernameError(
         err.response?.data?.error || 'Failed to update username. Please try again.'
       );

@@ -99,16 +99,15 @@ function App() {
   };
 
   // Handle username update
-  const handleUsernameUpdate = (newUsername) => {
+  const handleUsernameUpdate = (newUsername, newToken) => {
     setUsername(newUsername);
     localStorage.setItem("username", newUsername);
-    // Update token with new username (in production, re-authenticate)
-    const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
-      "base64"
-    );
-    setAuthToken(token);
-    localStorage.setItem("authToken", token);
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    // Use token from server if provided, otherwise keep existing token
+    if (newToken) {
+      setAuthToken(newToken);
+      localStorage.setItem("authToken", newToken);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+    }
   };
 
   // Handle password update success
