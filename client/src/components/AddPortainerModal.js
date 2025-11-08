@@ -53,7 +53,15 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
       if (response.data.success) {
         // Reset form
         setFormData({ name: '', url: '', username: '', password: '' });
-        onSuccess();
+        // Pass instance data to onSuccess callback for new instances
+        const instanceData = instanceId 
+          ? null // Don't pass data for edits
+          : {
+              name: formData.name || new URL(formData.url).hostname,
+              url: formData.url,
+              id: response.data.id,
+            };
+        onSuccess(instanceData);
         onClose();
       } else {
         setError(response.data.error || (instanceId ? 'Failed to update Portainer instance' : 'Failed to add Portainer instance'));

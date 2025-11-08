@@ -406,6 +406,39 @@ async function startContainer(portainerUrl, endpointId, containerId) {
   }
 }
 
+/**
+ * Get container logs
+ * @param {string} portainerUrl - Portainer instance URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @param {number} tail - Number of lines to return (default: 100)
+ * @returns {Promise<string>} - Container logs
+ */
+async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100) {
+  try {
+    const response = await axios.get(
+      `${portainerUrl}/api/endpoints/${endpointId}/docker/containers/${containerId}/logs`,
+      {
+        headers: getAuthHeaders(portainerUrl),
+        params: {
+          stdout: 1,
+          stderr: 1,
+          tail: tail,
+          timestamps: 1,
+        },
+        responseType: 'text',
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 401) {
+      await authenticatePortainer(portainerUrl);
+      return getContainerLogs(portainerUrl, endpointId, containerId, tail);
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   authenticatePortainer,
   getEndpoints,
@@ -419,5 +452,6 @@ module.exports = {
   removeContainer,
   createContainer,
   startContainer,
+  getContainerLogs,
 };
 

@@ -159,6 +159,12 @@ async function upgradeSingleContainer(
 
   // Preserve the original container name (important for stacks)
   const originalContainerName = containerDetails.Name;
+  
+  // Check if this container is part of a stack
+  const labels = containerDetails.Config.Labels || {};
+  const stackName = labels['com.docker.compose.project'] || 
+                    labels['com.docker.stack.namespace'] || 
+                    null;
 
   // Extract current and new image info
   const imageParts = imageName.includes(':')
@@ -173,25 +179,61 @@ async function upgradeSingleContainer(
   const newTag = currentTag;
   const newImageName = `${imageRepo}:${newTag}`;
 
+  console.log(`🔄 Upgrading container ${originalContainerName} from ${imageName} to ${newImageName}`);
+
   // Stop the container
+  console.log(`⏹️  Stopping container ${originalContainerName}...`);
   await portainerService.stopContainer(portainerUrl, endpointId, containerId);
 
+  // Wait for container to fully stop (important for databases and services)
+  console.log(`⏳ Waiting for container to stop...`);
+  let stopped = false;
+  for (let i = 0; i < 10; i++) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
+      if (details.State === 'exited' || details.State === 'stopped') {
+        stopped = true;
+        break;
+      }
+    } catch (err) {
+      // Container might be removed already
+      if (err.response?.status === 404) {
+        stopped = true;
+        break;
+      }
+    }
+  }
+  if (!stopped) {
+    console.warn(`⚠️  Container did not stop within timeout, proceeding anyway...`);
+  }
+
   // Pull the latest image
+  console.log(`📥 Pulling latest image ${newImageName}...`);
   await portainerService.pullImage(portainerUrl, endpointId, newImageName);
 
   // Remove old container
+  console.log(`🗑️  Removing old container...`);
   await portainerService.removeContainer(portainerUrl, endpointId, containerId);
 
+  // Clean HostConfig - remove container-specific references
+  const cleanHostConfig = { ...containerDetails.HostConfig };
+  delete cleanHostConfig.ContainerIDFile;
+
   // Create new container with same configuration
+  console.log(`🔨 Creating new container...`);
   const containerConfig = {
     Image: newImageName,
     Cmd: containerDetails.Config.Cmd,
     Env: containerDetails.Config.Env,
     ExposedPorts: containerDetails.Config.ExposedPorts,
-    HostConfig: containerDetails.HostConfig,
+    HostConfig: cleanHostConfig,
     Labels: containerDetails.Config.Labels,
     WorkingDir: containerDetails.Config.WorkingDir,
     Entrypoint: containerDetails.Config.Entrypoint,
+    NetworkingConfig: containerDetails.NetworkSettings?.Networks ? {
+      EndpointsConfig: containerDetails.NetworkSettings.Networks
+    } : undefined,
   };
 
   // Pass container name as separate parameter (Docker API uses it as query param)
@@ -203,10 +245,175 @@ async function upgradeSingleContainer(
   );
 
   // Start the new container
+  console.log(`▶️  Starting new container...`);
   await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
+
+  // Wait for container to be healthy/ready (CRITICAL for databases)
+  console.log(`⏳ Waiting for container ${originalContainerName} to be ready...`);
+  let isReady = false;
+  const maxWaitTime = 120000; // 2 minutes max for databases with health checks
+  const checkInterval = 2000; // Check every 2 seconds
+  const startTime = Date.now();
+  let consecutiveRunningChecks = 0;
+  const requiredStableChecks = 3; // Container must be running for 3 consecutive checks (6 seconds)
+
+  while (Date.now() - startTime < maxWaitTime) {
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
+    
+    try {
+      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
+      
+      // Check if container is running
+      if (details.State !== 'running') {
+        consecutiveRunningChecks = 0; // Reset counter
+        if (details.State === 'exited') {
+          // Container exited - get logs for debugging
+          try {
+            const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
+            const exitCode = details.State.ExitCode || 0;
+            throw new Error(`Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`);
+          } catch (logErr) {
+            const exitCode = details.State.ExitCode || 0;
+            throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
+          }
+        }
+        continue; // Still starting up
+      }
+
+      // Container is running - increment counter
+      consecutiveRunningChecks++;
+
+      // Check health status if health check is configured
+      if (details.State.Health) {
+        if (details.State.Health.Status === 'healthy') {
+          isReady = true;
+          console.log(`✅ Container health check passed`);
+          break;
+        } else if (details.State.Health.Status === 'unhealthy') {
+          try {
+            const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
+            throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
+          } catch (logErr) {
+            throw new Error('Container health check failed. Could not retrieve logs.');
+          }
+        }
+        // Status is 'starting' or 'none', continue waiting
+        // For health checks, we'll wait up to maxWaitTime
+      } else {
+        // No health check configured - use stability check instead
+        // For databases and services, wait a minimum time for initialization
+        const waitTime = Date.now() - startTime;
+        const minInitTime = 15000; // Wait at least 15 seconds for initialization (databases need this)
+        
+        if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
+          // Container has been running stably for required checks
+          isReady = true;
+          console.log(`✅ Container is running and stable (${consecutiveRunningChecks * checkInterval / 1000}s stable)`);
+          break;
+        }
+        
+        // If we've waited a reasonable time and container is running, consider it ready
+        // This handles containers that start quickly (non-databases)
+        if (waitTime >= 5000 && consecutiveRunningChecks >= 2) {
+          // Check if this looks like a database container (common database image names)
+          const isLikelyDatabase = /postgres|mysql|mariadb|redis|mongodb|couchdb|influxdb|elasticsearch/i.test(imageName);
+          if (!isLikelyDatabase) {
+            // Not a database, and it's been running stably - consider it ready
+            isReady = true;
+            console.log(`✅ Container is running and stable (non-database service)`);
+            break;
+          }
+          // For databases, continue waiting for minInitTime
+        }
+      }
+    } catch (err) {
+      if (err.message.includes('exited') || err.message.includes('health check')) {
+        throw err;
+      }
+      // Continue waiting on other errors
+      consecutiveRunningChecks = 0; // Reset on error
+    }
+  }
+
+  if (!isReady) {
+    // Final check - if container is running, consider it ready even if we hit timeout
+    try {
+      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
+      if (details.State === 'running') {
+        console.log(`⚠️  Timeout reached but container is running - considering it ready`);
+        isReady = true;
+      } else {
+        throw new Error(`Container did not become ready within timeout period (2 minutes). Current state: ${details.State}`);
+      }
+    } catch (err) {
+      if (err.message.includes('Current state')) {
+        throw err;
+      }
+      // If we can't check, throw the timeout error
+      throw new Error('Container did not become ready within timeout period (2 minutes). Container may have failed to start.');
+    }
+  }
+
+  console.log(`✅ Container ${originalContainerName} is ready`);
+
+  // If this is part of a stack, restart dependent containers
+  if (stackName) {
+    console.log(`🔄 Checking for dependent containers in stack: ${stackName}`);
+    try {
+      const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+      
+      // Find containers in the same stack
+      const stackContainers = [];
+      for (const container of allContainers) {
+        if (container.Id === newContainer.Id) continue; // Skip the one we just upgraded
+        
+        try {
+          const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.Id);
+          const containerStackName = details.Config.Labels?.['com.docker.compose.project'] || 
+                                     details.Config.Labels?.['com.docker.stack.namespace'] || 
+                                     null;
+          
+          if (containerStackName === stackName && details.State === 'running') {
+            stackContainers.push({
+              id: container.Id,
+              name: container.Names[0]?.replace('/', '') || container.Id.substring(0, 12),
+            });
+          }
+        } catch (err) {
+          // Skip containers we can't inspect
+          continue;
+        }
+      }
+
+      // Restart dependent containers to reconnect to the upgraded service
+      if (stackContainers.length > 0) {
+        console.log(`🔄 Restarting ${stackContainers.length} dependent container(s) to reconnect...`);
+        for (const container of stackContainers) {
+          try {
+            console.log(`   Restarting ${container.name}...`);
+            await portainerService.stopContainer(portainerUrl, endpointId, container.id);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief wait
+            await portainerService.startContainer(portainerUrl, endpointId, container.id);
+            console.log(`   ✅ ${container.name} restarted successfully`);
+          } catch (err) {
+            console.error(`   ⚠️  Failed to restart ${container.name}:`, err.message);
+            // Continue with other containers
+          }
+        }
+        console.log(`✅ All dependent containers restarted`);
+      } else {
+        console.log(`ℹ️  No other running containers found in stack ${stackName}`);
+      }
+    } catch (err) {
+      console.error('⚠️  Error restarting dependent containers:', err.message);
+      // Don't fail the upgrade if dependent restart fails
+    }
+  }
 
   // Invalidate cache for this image so next check gets fresh data
   dockerRegistryService.clearDigestCache(imageRepo, currentTag);
+
+  console.log(`✅ Upgrade completed successfully for ${originalContainerName}`);
 
   return {
     success: true,

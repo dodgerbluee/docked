@@ -350,10 +350,35 @@ body.dark-mode {
   align-items: center;
 }
 
+.instance-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dodger-blue);
+  font-size: 0.9rem;
+  margin-left: auto;
+  padding: 6px 12px;
+  background: rgba(0, 90, 156, 0.1);
+  border-radius: 6px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+body.dark-mode .instance-loading-indicator {
+  color: var(--dodger-blue-light);
+  background: rgba(30, 136, 229, 0.15);
+}
+
+.instance-loading-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+
 .portainer-instance-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   margin: 20px 0;
   padding-bottom: 10px;
 }
@@ -785,6 +810,17 @@ body.dark-mode .instance-stat .stat-number.current {
 .pull-spinner {
   animation: spin 1s linear infinite;
   flex-shrink: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes spin {
