@@ -44,23 +44,29 @@ async function checkImageUpdates(
     // This ensures we link to the correct version page even if the container is using "latest"
     // Uses aggressive caching to minimize Docker Hub API calls
     if (currentDigest) {
-      console.log(`   🔍 Looking up version tag for current digest...`);
+      // Reduced logging - only in debug mode
+      if (process.env.DEBUG) {
+        console.log(`   🔍 Looking up version tag for current digest...`);
+      }
       currentTagFromDigest = await dockerRegistryService.getTagFromDigest(repo, currentDigest);
-      if (currentTagFromDigest) {
+      if (process.env.DEBUG && currentTagFromDigest) {
         console.log(`   ✅ Found version tag for current digest: ${currentTagFromDigest}`);
-      } else {
-        console.log(`   ⚠️  Could not find version tag, will use original tag: ${currentTag}`);
       }
     }
   }
 
   // Get the image digest from registry for the current tag
-  console.log(`   📡 Fetching latest digest for ${repo}:${currentTag}`);
-  const latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag);
-  console.log(`   📡 Latest image info:`, latestImageInfo ? {
-    digest: latestImageInfo.digest?.substring(0, 20) + '...',
-    tag: latestImageInfo.tag,
-  } : 'null');
+  let latestImageInfo;
+  try {
+    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag);
+  } catch (error) {
+    // If rate limit exceeded, propagate the error
+    if (error.isRateLimitExceeded) {
+      throw error;
+    }
+    // For other errors, continue with null (will assume no update)
+    latestImageInfo = null;
+  }
 
   let hasUpdate = false;
   let latestDigest = null;
@@ -70,32 +76,20 @@ async function checkImageUpdates(
     latestDigest = latestImageInfo.digest;
     latestTag = latestImageInfo.tag;
 
-    console.log(`   🔄 Comparing digests:`, {
-      currentDigest: currentDigest ? currentDigest.substring(0, 20) + '...' : 'null',
-      latestDigest: latestDigest ? latestDigest.substring(0, 20) + '...' : 'null',
-      currentTag,
-      latestTag,
-    });
-
     // Compare digests to determine if update is available
     if (currentDigest && latestDigest) {
       // If digests are different, there's an update available
       hasUpdate = currentDigest !== latestDigest;
-      console.log(`   ✅ Digest comparison: ${hasUpdate ? 'UPDATE AVAILABLE' : 'UP TO DATE'}`);
     } else {
       // Fallback: if we can't compare digests, compare tags
       // If current tag is different from latest tag, there's an update
       if (currentTag !== latestTag) {
         hasUpdate = true;
-        console.log(`   ⚠️  Using tag comparison fallback: ${hasUpdate ? 'UPDATE AVAILABLE' : 'UP TO DATE'}`);
-      } else {
-        console.log(`   ⚠️  No digests available, tags match: UP TO DATE`);
       }
     }
   } else {
     // Fallback: if we can't get digests, assume no update available
     hasUpdate = false;
-    console.log(`   ❌ Could not fetch latest image info: assuming UP TO DATE`);
   }
 
   // Format digest for display (shortened version)
@@ -109,14 +103,10 @@ async function checkImageUpdates(
   let latestPublishDate = null;
   if (latestTag && hasUpdate) {
     try {
-      console.log(`   📅 Fetching publish date for ${repo}:${latestTag}`);
       latestPublishDate = await dockerRegistryService.getTagPublishDate(repo, latestTag);
-      if (latestPublishDate) {
-        console.log(`   ✅ Got publish date: ${latestPublishDate}`);
-      }
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
-      console.log(`   ⚠️  Could not fetch publish date (non-critical): ${error.message}`);
+      // Silently continue - publish date is nice to have but not critical
       latestPublishDate = null;
     }
   }
@@ -439,12 +429,17 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
   if (!forceRefresh) {
     const cached = await getContainerCache('containers');
     if (cached) {
-      console.log('✅ Using cached container data from database');
+      // Reduced logging - only log in debug mode
+      if (process.env.DEBUG) {
+        console.log('✅ Using cached container data from database');
+      }
       return cached;
     }
     // No cached data found - return empty result instead of fetching from Docker Hub
     // User must explicitly click "Pull" to fetch fresh data
-    console.log('📦 No cached data found, returning empty result. User must click "Pull" to fetch data.');
+    if (process.env.DEBUG) {
+      console.log('📦 No cached data found, returning empty result. User must click "Pull" to fetch data.');
+    }
     return {
       grouped: true,
       stacks: [],
@@ -453,19 +448,20 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
       unusedImagesCount: 0,
     };
   } else {
-    console.log('🔄 Force refresh requested, fetching fresh data...');
+    console.log('🔄 Force refresh requested, fetching fresh data from Docker Hub...');
     // Don't clear cache immediately - keep old data visible until new data is ready
     // Cache will be replaced when new data is saved
   }
-
-  console.log('⏳ Fetching container updates from Portainer...');
   const allContainers = [];
 
   // Get Portainer instances from database
   const portainerInstances = await getAllPortainerInstances();
   
   if (portainerInstances.length === 0) {
-    console.log('⚠️  No Portainer instances configured. Please add instances from the home page.');
+    // Only log warning, not every time
+    if (process.env.DEBUG) {
+      console.log('⚠️  No Portainer instances configured. Please add instances from the home page.');
+    }
     // Return empty result and cache it so we don't keep trying to fetch
     const emptyResult = {
       grouped: true,
@@ -515,23 +511,13 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
             );
             const imageName = details.Config.Image;
             
-            console.log(`🔍 Checking updates for container: ${container.Names[0]?.replace('/', '') || container.Id.substring(0, 12)}`);
-            console.log(`   Image: ${imageName}`);
-            
+            // Reduced logging - only log in debug mode or for errors
             const updateInfo = await checkImageUpdates(
               imageName,
               details,
               portainerUrl,
               endpointId
             );
-            
-            console.log(`   Update check result:`, {
-              hasUpdate: updateInfo.hasUpdate,
-              currentDigest: updateInfo.currentDigest,
-              latestDigest: updateInfo.latestDigest,
-              currentTag: updateInfo.currentTag,
-              latestTag: updateInfo.latestTag,
-            });
 
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
@@ -564,8 +550,14 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
               stackName: stackName,
             };
           } catch (error) {
+            // If rate limit exceeded, propagate the error to stop the entire process
+            if (error.isRateLimitExceeded) {
+              throw error;
+            }
             // If a single container fails, log it but don't break the entire process
-            console.error(`   ❌ Error checking updates for container ${container.Names[0]?.replace('/', '') || container.Id.substring(0, 12)}:`, error.message);
+            if (process.env.DEBUG) {
+              console.error(`   ❌ Error checking updates for container ${container.Names[0]?.replace('/', '') || container.Id.substring(0, 12)}:`, error.message);
+            }
             // Return a basic container object without update info
             return {
               id: container.Id,
@@ -595,6 +587,10 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
 
       allContainers.push(...containersWithUpdates);
     } catch (error) {
+      // If rate limit exceeded, propagate the error immediately
+      if (error.isRateLimitExceeded) {
+        throw error;
+      }
       console.error(
         `Error fetching containers from ${portainerUrl}:`,
         error.message

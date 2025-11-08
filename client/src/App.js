@@ -537,18 +537,33 @@ function App() {
       // Fetch unused images
       await fetchUnusedImages();
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to pull container data";
-      setError(errorMessage);
-      console.error("Error pulling containers:", err);
-      console.error("Error details:", {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-      });
+      // Handle rate limit errors specially
+      if (
+        err.response?.status === 429 ||
+        err.response?.data?.rateLimitExceeded
+      ) {
+        const rateLimitMessage =
+          err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        setError(rateLimitMessage);
+        console.error("❌ Docker Hub rate limit exceeded:", rateLimitMessage);
+      } else {
+        const errorMessage =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to pull container data";
+        setError(errorMessage);
+        console.error("Error pulling containers:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error details:", {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status,
+          });
+        }
+      }
     } finally {
       setPulling(false);
     }
@@ -2562,11 +2577,81 @@ function App() {
               )}
 
               {error && (
-                <div className="error">
-                  <p>Error: {error}</p>
-                  <button onClick={handlePull} disabled={pulling || loading}>
-                    {pulling || loading ? "Retrying..." : "Try Again"}
-                  </button>
+                <div
+                  className={`error ${
+                    error.includes("rate limit") || error.includes("Rate limit")
+                      ? "rate-limit-error"
+                      : ""
+                  }`}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "12px",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          marginBottom: "8px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {error.includes("rate limit") ||
+                        error.includes("Rate limit")
+                          ? "⚠️ Docker Hub Rate Limit Exceeded"
+                          : "Error"}
+                      </p>
+                      <p style={{ margin: 0, marginBottom: "12px" }}>{error}</p>
+                      {error.includes("rate limit") ||
+                      error.includes("Rate limit") ? (
+                        <div style={{ marginTop: "12px" }}>
+                          <button
+                            onClick={() => {
+                              setActiveTab("settings");
+                              setSettingsTab("dockerhub");
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              background: "var(--dodger-blue)",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "0.9rem",
+                              fontWeight: "600",
+                              marginRight: "8px",
+                            }}
+                          >
+                            Configure Docker Hub Credentials
+                          </button>
+                          <button
+                            onClick={() => setError(null)}
+                            style={{
+                              padding: "8px 16px",
+                              background: "transparent",
+                              color: "var(--text-primary)",
+                              border: "1px solid var(--border-color)",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handlePull}
+                          disabled={pulling || loading}
+                        >
+                          {pulling || loading ? "Retrying..." : "Try Again"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

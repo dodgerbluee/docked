@@ -4,6 +4,12 @@
 
 let lastDockerHubRequest = 0;
 
+// Track consecutive rate limit errors
+let consecutiveRateLimitErrors = 0;
+let lastRateLimitErrorTime = 0;
+const RATE_LIMIT_ERROR_THRESHOLD = 5; // Stop after 5 consecutive 429 errors
+const RATE_LIMIT_ERROR_WINDOW = 60000; // Reset counter after 1 minute of no errors
+
 /**
  * Delays requests to avoid rate limiting
  * @param {number} delayMs - Minimum delay in milliseconds
@@ -18,7 +24,61 @@ async function rateLimitDelay(delayMs = 200) {
   lastDockerHubRequest = Date.now();
 }
 
+/**
+ * Record a rate limit error (429)
+ * @returns {boolean} - True if threshold exceeded, false otherwise
+ */
+function recordRateLimitError() {
+  const now = Date.now();
+  
+  // Reset counter if enough time has passed since last error
+  if (now - lastRateLimitErrorTime > RATE_LIMIT_ERROR_WINDOW) {
+    consecutiveRateLimitErrors = 0;
+  }
+  
+  consecutiveRateLimitErrors++;
+  lastRateLimitErrorTime = now;
+  
+  if (consecutiveRateLimitErrors >= RATE_LIMIT_ERROR_THRESHOLD) {
+    return true; // Threshold exceeded
+  }
+  
+  return false;
+}
+
+/**
+ * Record a successful request (resets rate limit error counter)
+ */
+function recordSuccess() {
+  consecutiveRateLimitErrors = 0;
+}
+
+/**
+ * Get current rate limit error count
+ * @returns {number}
+ */
+function getRateLimitErrorCount() {
+  const now = Date.now();
+  // Reset if window expired
+  if (now - lastRateLimitErrorTime > RATE_LIMIT_ERROR_WINDOW) {
+    consecutiveRateLimitErrors = 0;
+  }
+  return consecutiveRateLimitErrors;
+}
+
+/**
+ * Reset rate limit error tracking
+ */
+function resetRateLimitErrors() {
+  consecutiveRateLimitErrors = 0;
+  lastRateLimitErrorTime = 0;
+}
+
 module.exports = {
   rateLimitDelay,
+  recordRateLimitError,
+  recordSuccess,
+  getRateLimitErrorCount,
+  resetRateLimitErrors,
 };
 
