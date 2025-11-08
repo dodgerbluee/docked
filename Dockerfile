@@ -21,19 +21,25 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install build tools for sqlite3 native module
+RUN apk add --no-cache python3 make g++
+
 # Copy server package files
 COPY server/package*.json ./
 
-# Install server dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (needed to build sqlite3)
+RUN npm install
 
-# Copy server source
+# Rebuild sqlite3 from source for this architecture
+RUN npm rebuild sqlite3
+
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
+
+# Copy ALL server files (including db directory)
 COPY server/ ./
 
 # Copy built frontend from builder stage
-# Server.js now serves from path.join(__dirname, "public")
-# Since server.js is at /app/server.js, __dirname is /app
-# So it looks for /app/public
 COPY --from=frontend-builder /app/client/build ./public
 
 # Expose port
@@ -45,4 +51,3 @@ ENV PORT=3001
 
 # Start server
 CMD ["node", "server.js"]
-
