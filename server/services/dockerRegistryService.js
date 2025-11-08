@@ -96,13 +96,17 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
   const cacheKey = `${imageRepo}:${tag}`;
   const cached = digestCache.get(cacheKey);
   if (cached) {
-    console.log(`      ✅ Cache HIT for ${imageRepo}:${tag}`);
+    // Reduced logging - only log cache hits in debug mode
+    if (process.env.DEBUG) {
+      console.log(`      ✅ Cache HIT for ${imageRepo}:${tag}`);
+    }
     return cached;
   }
 
-  console.log(
-    `      🔄 Cache MISS - fetching ${imageRepo}:${tag} from Docker Hub`
-  );
+  // Only log cache misses for important operations
+  if (process.env.DEBUG) {
+    console.log(`      🔄 Cache MISS - fetching ${imageRepo}:${tag} from Docker Hub`);
+  }
 
   try {
     // Rate limit: add delay between requests
@@ -121,16 +125,14 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
       repository = parts.slice(1).join("/");
     }
 
-    // Get authentication token
-    console.log(`      🔑 Getting auth token for ${namespace}/${repository}`);
+    // Get authentication token (reduced logging)
     const token = await getDockerRegistryToken(namespace, repository);
     if (!token) {
       console.error(
-        `      ❌ Failed to get authentication token for ${namespace}/${repository}`
+        `❌ Failed to get authentication token for ${namespace}/${repository}`
       );
       return null;
     }
-    console.log(`      ✅ Got auth token`);
 
     // Request manifest list (index) to get the index digest
     const registryUrl = `https://registry-1.docker.io/v2/${namespace}/${repository}/manifests/${tag}`;
@@ -159,29 +161,30 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
     );
 
     // Get the index digest from the docker-content-digest header
-    console.log(`      📦 Manifest response status: ${response.status}`);
     if (response.status === 200 && response.headers["docker-content-digest"]) {
       const digest = response.headers["docker-content-digest"];
-      console.log(
-        `      ✅ Got digest from manifest: ${digest.substring(0, 20)}...`
-      );
       // Cache the result
       digestCache.set(cacheKey, digest, config.cache.digestCacheTTL);
       return digest;
     }
 
-    console.log(`      ⚠️  No digest in response (status: ${response.status})`);
+    // Only log failures, not every status check
+    if (response.status !== 200) {
+      console.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
+    }
     return null;
   } catch (error) {
+    // Re-throw rate limit exceeded errors
+    if (error.isRateLimitExceeded) {
+      throw error;
+    }
+    
     // Only log non-404 errors and non-429 errors (429s are handled by retry)
     if (error.response?.status !== 404 && error.response?.status !== 429) {
       console.error(
-        `      ❌ Error fetching index digest for ${imageRepo}:${tag}:`,
-        error.message,
-        `Status: ${error.response?.status}`
+        `❌ Error fetching index digest for ${imageRepo}:${tag}:`,
+        error.message
       );
-    } else if (error.response?.status === 404) {
-      console.log(`      ⚠️  Image ${imageRepo}:${tag} not found (404)`);
     }
     return null;
   }
@@ -233,24 +236,28 @@ async function getCurrentImageDigest(
   portainerUrl,
   endpointId
 ) {
-  console.log(`      🔍 Getting current digest for ${imageName}`);
+  // Reduced logging - only in debug mode
+  if (process.env.DEBUG) {
+    console.log(`      🔍 Getting current digest for ${imageName}`);
+  }
 
   // First check if image name already contains a digest
   const configImage = containerDetails.Config?.Image;
   if (configImage && configImage.includes("@sha256:")) {
     const digest = configImage.split("@sha256:")[1];
-    console.log(
-      `      ✅ Found digest in image name: sha256:${digest.substring(
-        0,
-        12
-      )}...`
-    );
+    if (process.env.DEBUG) {
+      console.log(
+        `      ✅ Found digest in image name: sha256:${digest.substring(
+          0,
+          12
+        )}...`
+      );
+    }
     return `sha256:${digest}`;
   }
 
   // Get the actual image ID from the container
   const imageId = containerDetails.Image;
-  console.log(`      🖼️  Image ID: ${imageId?.substring(0, 12)}...`);
 
   // If we have portainerUrl and endpointId, we can inspect the image to get the full digest
   if (portainerUrl && endpointId && imageId) {
@@ -263,10 +270,6 @@ async function getCurrentImageDigest(
       );
 
       // RepoDigests contains full digests like ["repo@sha256:abc123..."]
-      console.log(
-        `      📋 Image RepoDigests:`,
-        imageData.RepoDigests?.length || 0
-      );
       if (imageData.RepoDigests && imageData.RepoDigests.length > 0) {
         // Find the digest that matches our image repo exactly
         const imageParts = imageName.includes(":")
@@ -293,12 +296,14 @@ async function getCurrentImageDigest(
             // Exact match (after normalization)
             if (normalizedRepoPart === normalizedTargetRepo) {
               const digest = repoDigest.split("@sha256:")[1];
-              console.log(
-                `      ✅ Found exact match digest: sha256:${digest.substring(
-                  0,
-                  12
-                )}...`
-              );
+              if (process.env.DEBUG) {
+                console.log(
+                  `      ✅ Found exact match digest: sha256:${digest.substring(
+                    0,
+                    12
+                  )}...`
+                );
+              }
               return `sha256:${digest}`;
             }
           }
@@ -317,12 +322,14 @@ async function getCurrentImageDigest(
               normalizedRepoPart === repoNameOnly
             ) {
               const digest = repoDigest.split("@sha256:")[1];
-              console.log(
-                `      ✅ Found partial match digest: sha256:${digest.substring(
-                  0,
-                  12
-                )}...`
-              );
+              if (process.env.DEBUG) {
+                console.log(
+                  `      ✅ Found partial match digest: sha256:${digest.substring(
+                    0,
+                    12
+                  )}...`
+                );
+              }
               return `sha256:${digest}`;
             }
           }
@@ -332,12 +339,14 @@ async function getCurrentImageDigest(
         const firstRepoDigest = imageData.RepoDigests[0];
         if (firstRepoDigest && firstRepoDigest.includes("@sha256:")) {
           const digest = firstRepoDigest.split("@sha256:")[1];
-          console.log(
-            `Warning: Using first RepoDigest for ${imageName} as fallback: ${digest.substring(
-              0,
-              12
-            )}`
-          );
+          if (process.env.DEBUG) {
+            console.log(
+              `Warning: Using first RepoDigest for ${imageName} as fallback: ${digest.substring(
+                0,
+                12
+              )}`
+            );
+          }
           return `sha256:${digest}`;
         }
       }
