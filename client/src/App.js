@@ -106,16 +106,16 @@ function App() {
   const [colorScheme, setColorScheme] = useState(() => {
     // Check localStorage for saved preference, default to 'system'
     const saved = localStorage.getItem("colorScheme");
-    return saved || 'system';
+    return saved || "system";
   });
-  
+
   // Derived dark mode state based on color scheme preference
   const [darkMode, setDarkMode] = useState(() => {
-    if (colorScheme === 'system') {
+    if (colorScheme === "system") {
       // Check system preference
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
-    return colorScheme === 'dark';
+    return colorScheme === "dark";
   });
   const [avatar, setAvatar] = useState("/img/default-avatar.jpg");
   const [recentAvatars, setRecentAvatars] = useState([]);
@@ -226,9 +226,10 @@ function App() {
     setPasswordChanged(pwdChanged);
     setIsAuthenticated(true);
 
-    // If password not changed, show settings immediately
+    // If password not changed, show settings immediately with password section
     if (!pwdChanged) {
       setActiveTab("settings");
+      setSettingsTab("password");
     }
   };
 
@@ -289,20 +290,20 @@ function App() {
 
   // Update dark mode based on color scheme preference
   useEffect(() => {
-    if (colorScheme === 'system') {
+    if (colorScheme === "system") {
       // Listen to system preference changes
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
       const handleChange = (e) => {
         setDarkMode(e.matches);
       };
-      
+
       // Set initial value
       setDarkMode(mediaQuery.matches);
-      
+
       // Listen for changes
       if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', handleChange);
-        return () => mediaQuery.removeEventListener('change', handleChange);
+        mediaQuery.addEventListener("change", handleChange);
+        return () => mediaQuery.removeEventListener("change", handleChange);
       } else {
         // Fallback for older browsers
         mediaQuery.addListener(handleChange);
@@ -310,7 +311,7 @@ function App() {
       }
     } else {
       // Use explicit preference
-      setDarkMode(colorScheme === 'dark');
+      setDarkMode(colorScheme === "dark");
     }
   }, [colorScheme]);
 
@@ -2190,7 +2191,11 @@ function App() {
                 setEditingPortainerInstance(instance);
                 setShowAddPortainerModal(true);
               }}
-              refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
+              refreshInstances={
+                editingPortainerInstance === null
+                  ? fetchPortainerInstances
+                  : null
+              }
               onBatchConfigUpdate={handleBatchConfigUpdate}
               colorScheme={colorScheme}
               onColorSchemeChange={handleColorSchemeChange}
@@ -3166,7 +3171,7 @@ function App() {
                         className="avatar-menu-item"
                         onClick={() => {
                           // Toggle between light and dark (skip system for quick toggle)
-                          const newScheme = darkMode ? 'light' : 'dark';
+                          const newScheme = darkMode ? "light" : "dark";
                           handleColorSchemeChange(newScheme);
                         }}
                       >
@@ -3512,57 +3517,58 @@ function App() {
               setShowAddPortainerModal(false);
               setEditingPortainerInstance(null);
             }}
-          onSuccess={async (newInstanceData) => {
-            // Refresh Portainer instances list and get the updated instances
-            const updatedInstances = await fetchPortainerInstances();
+            onSuccess={async (newInstanceData) => {
+              // Refresh Portainer instances list and get the updated instances
+              const updatedInstances = await fetchPortainerInstances();
 
-            // If this is a new instance (not editing), switch to its tab and fetch data
-            if (!editingPortainerInstance && newInstanceData) {
-              // Find the new instance in the updated list to get the correct name
-              // The name might be different if backend used hostname as default
-              const newInstance = updatedInstances.find(
-                (inst) =>
-                  inst.id === newInstanceData.id ||
-                  inst.url === newInstanceData.url
-              );
+              // If this is a new instance (not editing), switch to its tab and fetch data
+              if (!editingPortainerInstance && newInstanceData) {
+                // Find the new instance in the updated list to get the correct name
+                // The name might be different if backend used hostname as default
+                const newInstance = updatedInstances.find(
+                  (inst) =>
+                    inst.id === newInstanceData.id ||
+                    inst.url === newInstanceData.url
+                );
 
-              if (newInstance) {
-                // Use the instance name from the API response (ensures it matches what's in state)
-                const instanceName = newInstance.name;
-                setActiveTab(instanceName);
-                setContentTab("current"); // Start with current containers tab
+                if (newInstance) {
+                  // Use the instance name from the API response (ensures it matches what's in state)
+                  const instanceName = newInstance.name;
+                  setActiveTab(instanceName);
+                  setContentTab("current"); // Start with current containers tab
 
-                // Trigger background fetch for this specific instance
-                // This fetches from Portainer without Docker Hub checks
-                // Note: This fetches ALL instances, but that's fine - it will include the new one
-                await fetchContainers(false, newInstance.url);
+                  // Trigger background fetch for this specific instance
+                  // This fetches from Portainer without Docker Hub checks
+                  // Note: This fetches ALL instances, but that's fine - it will include the new one
+                  await fetchContainers(false, newInstance.url);
+                } else {
+                  // Fallback: use the data we have (shouldn't happen, but be safe)
+                  const instanceName =
+                    newInstanceData.name ||
+                    new URL(newInstanceData.url).hostname;
+                  setActiveTab(instanceName);
+                  setContentTab("current");
+                  await fetchContainers(false, newInstanceData.url);
+                }
               } else {
-                // Fallback: use the data we have (shouldn't happen, but be safe)
-                const instanceName =
-                  newInstanceData.name || new URL(newInstanceData.url).hostname;
-                setActiveTab(instanceName);
-                setContentTab("current");
-                await fetchContainers(false, newInstanceData.url);
+                // For edits, just refresh all data
+                fetchContainers();
               }
-            } else {
-              // For edits, just refresh all data
-              fetchContainers();
-            }
 
-            setEditingPortainerInstance(null);
-            
-            // Trigger refresh in Settings component to update the auth method badges
-            // If we're on the settings page, trigger a refresh
-            if (activeTab === "settings" && settingsTab === "portainer") {
-              // The Settings component will refresh when the portainer section is active
-              // But we can also force a refresh by calling fetchPortainerInstances
-              // which will update App's state, and Settings will pick it up
-              await fetchPortainerInstances();
-            }
-          }}
-          initialData={editingPortainerInstance}
-          instanceId={editingPortainerInstance?.id || null}
-        />
+              setEditingPortainerInstance(null);
+
+              // Trigger refresh in Settings component to update the auth method badges
+              // If we're on the settings page, trigger a refresh
+              if (activeTab === "settings" && settingsTab === "portainer") {
+                // The Settings component will refresh when the portainer section is active
+                // But we can also force a refresh by calling fetchPortainerInstances
+                // which will update App's state, and Settings will pick it up
+                await fetchPortainerInstances();
+              }
+            }}
+            initialData={editingPortainerInstance}
+            instanceId={editingPortainerInstance?.id || null}
+          />
         </ErrorBoundary>
       </div>
     </BatchConfigContext.Provider>
