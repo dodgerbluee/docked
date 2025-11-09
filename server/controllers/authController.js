@@ -3,6 +3,7 @@
  * Handles user authentication with database
  */
 
+const axios = require('axios');
 const { validateRequiredFields } = require('../utils/validation');
 const {
   getUserByUsername,
@@ -421,6 +422,72 @@ async function getDockerHubCreds(req, res, next) {
 }
 
 /**
+ * Validate Docker Hub credentials without saving them
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function validateDockerHubCreds(req, res, next) {
+  try {
+    const { username, token } = req.body;
+
+    // Validate input
+    if (!username || username.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Docker Hub username is required',
+      });
+    }
+
+    if (!token || token.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Docker Hub personal access token is required',
+      });
+    }
+
+    // Test authentication by making a request to Docker Hub auth API
+    try {
+      const authUrl = 'https://auth.docker.io/token';
+      const params = {
+        service: 'registry.docker.io',
+        scope: 'repository:library/alpine:pull', // Use a public repo for validation
+      };
+
+      const response = await axios.get(authUrl, {
+        params,
+        auth: {
+          username: username.trim(),
+          password: token.trim(),
+        },
+        timeout: 10000,
+      });
+
+      // If we get here, authentication succeeded
+      res.json({
+        success: true,
+        message: 'Docker Hub credentials validated successfully',
+      });
+    } catch (authError) {
+      // Authentication failed
+      if (authError.response?.status === 401) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication failed. Please check your username and token.',
+        });
+      }
+      // Other errors (network, timeout, etc.)
+      return res.status(500).json({
+        success: false,
+        error: authError.message || 'Failed to validate Docker Hub credentials. Please try again.',
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Update Docker Hub credentials endpoint
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -554,6 +621,7 @@ module.exports = {
   updateUserUsername,
   getCurrentUser,
   getDockerHubCreds,
+  validateDockerHubCreds,
   updateDockerHubCreds,
   deleteDockerHubCreds,
 };
