@@ -25,8 +25,20 @@ if (!fs.existsSync(AVATARS_DIR)) {
  */
 async function getAvatar(req, res, next) {
   try {
-    const username = req.user.username;
-    const avatarPath = path.join(AVATARS_DIR, username, 'avatar.jpg');
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
+    const avatarPath = path.join(AVATARS_DIR, userId.toString(), 'avatar.jpg');
+    
+    // If avatar doesn't exist in user ID directory, try migrating from username directory
+    if (!fs.existsSync(avatarPath)) {
+      await migrateAvatarFromUsername(userId, req.user.username);
+    }
     
     if (fs.existsSync(avatarPath)) {
       // Return the avatar file
@@ -51,8 +63,20 @@ async function getAvatar(req, res, next) {
  */
 async function getRecentAvatars(req, res, next) {
   try {
-    const username = req.user.username;
-    const recentAvatarsDir = path.join(AVATARS_DIR, username, 'recent');
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
+    const recentAvatarsDir = path.join(AVATARS_DIR, userId.toString(), 'recent');
+    
+    // If directory doesn't exist, try migrating from username directory
+    if (!fs.existsSync(recentAvatarsDir)) {
+      await migrateAvatarFromUsername(userId, req.user.username);
+    }
     
     if (!fs.existsSync(recentAvatarsDir)) {
       return res.json({
@@ -93,7 +117,14 @@ async function getRecentAvatars(req, res, next) {
  */
 async function getRecentAvatar(req, res, next) {
   try {
-    const username = req.user.username;
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
     const filename = req.params.filename;
     
     // Security: ensure filename is safe (only alphanumeric, dash, underscore)
@@ -104,7 +135,12 @@ async function getRecentAvatar(req, res, next) {
       });
     }
     
-    const avatarPath = path.join(AVATARS_DIR, username, 'recent', filename);
+    const avatarPath = path.join(AVATARS_DIR, userId.toString(), 'recent', filename);
+    
+    // If avatar doesn't exist, try migrating from username directory
+    if (!fs.existsSync(avatarPath)) {
+      await migrateAvatarFromUsername(userId, req.user.username);
+    }
     
     if (fs.existsSync(avatarPath)) {
       res.sendFile(avatarPath);
@@ -127,7 +163,14 @@ async function getRecentAvatar(req, res, next) {
  */
 async function uploadAvatar(req, res, next) {
   try {
-    const username = req.user.username;
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
     const { avatar } = req.body; // Base64 encoded image
     
     if (!avatar) {
@@ -149,8 +192,8 @@ async function uploadAvatar(req, res, next) {
     const base64Data = avatar.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     
-    // Ensure user's avatar directory exists
-    const userAvatarDir = path.join(AVATARS_DIR, username);
+    // Ensure user's avatar directory exists (using user ID)
+    const userAvatarDir = path.join(AVATARS_DIR, userId.toString());
     const recentAvatarsDir = path.join(userAvatarDir, 'recent');
     
     if (!fs.existsSync(userAvatarDir)) {
@@ -210,7 +253,14 @@ async function uploadAvatar(req, res, next) {
  */
 async function setCurrentAvatar(req, res, next) {
   try {
-    const username = req.user.username;
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
     const { filename } = req.body;
     
     if (!filename) {
@@ -228,8 +278,8 @@ async function setCurrentAvatar(req, res, next) {
       });
     }
     
-    const recentAvatarPath = path.join(AVATARS_DIR, username, 'recent', filename);
-    const currentAvatarPath = path.join(AVATARS_DIR, username, 'avatar.jpg');
+    const recentAvatarPath = path.join(AVATARS_DIR, userId.toString(), 'recent', filename);
+    const currentAvatarPath = path.join(AVATARS_DIR, userId.toString(), 'avatar.jpg');
     
     if (!fs.existsSync(recentAvatarPath)) {
       return res.status(404).json({
@@ -259,8 +309,15 @@ async function setCurrentAvatar(req, res, next) {
  */
 async function deleteAvatar(req, res, next) {
   try {
-    const username = req.user.username;
-    const avatarPath = path.join(AVATARS_DIR, username, 'avatar.jpg');
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User ID not found'
+      });
+    }
+    
+    const avatarPath = path.join(AVATARS_DIR, userId.toString(), 'avatar.jpg');
     
     if (fs.existsSync(avatarPath)) {
       fs.unlinkSync(avatarPath);
@@ -272,6 +329,61 @@ async function deleteAvatar(req, res, next) {
     });
   } catch (err) {
     next(err);
+  }
+}
+
+/**
+ * Migrate avatar from username-based directory to user ID-based directory
+ * This is a one-time migration when a user's avatar is accessed after username change
+ * @param {number} userId - User ID
+ * @param {string} username - Current username (for finding old directory)
+ */
+async function migrateAvatarFromUsername(userId, username) {
+  try {
+    const oldAvatarDir = path.join(AVATARS_DIR, username);
+    const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
+    
+    // If old directory doesn't exist, nothing to migrate
+    if (!fs.existsSync(oldAvatarDir)) {
+      return;
+    }
+    
+    // If new directory already exists, don't overwrite
+    if (fs.existsSync(newAvatarDir)) {
+      return;
+    }
+    
+    // Create new directory
+    fs.mkdirSync(newAvatarDir, { recursive: true });
+    
+    // Copy main avatar if it exists
+    const oldAvatarPath = path.join(oldAvatarDir, 'avatar.jpg');
+    if (fs.existsSync(oldAvatarPath)) {
+      const newAvatarPath = path.join(newAvatarDir, 'avatar.jpg');
+      fs.copyFileSync(oldAvatarPath, newAvatarPath);
+    }
+    
+    // Copy recent avatars directory if it exists
+    const oldRecentDir = path.join(oldAvatarDir, 'recent');
+    if (fs.existsSync(oldRecentDir)) {
+      const newRecentDir = path.join(newAvatarDir, 'recent');
+      fs.mkdirSync(newRecentDir, { recursive: true });
+      
+      // Copy all recent avatar files
+      const recentFiles = fs.readdirSync(oldRecentDir);
+      recentFiles.forEach(file => {
+        const oldFilePath = path.join(oldRecentDir, file);
+        const newFilePath = path.join(newRecentDir, file);
+        if (fs.statSync(oldFilePath).isFile() && file.endsWith('.jpg')) {
+          fs.copyFileSync(oldFilePath, newFilePath);
+        }
+      });
+    }
+    
+    console.log(`Migrated avatar from username directory (${username}) to user ID directory (${userId})`);
+  } catch (err) {
+    console.error('Error migrating avatar:', err);
+    // Don't throw - migration failure shouldn't break the request
   }
 }
 

@@ -3,7 +3,7 @@
  * Verifies tokens and protects routes
  */
 
-const { getUserByUsername } = require('../db/database');
+const { getUserByUsername, getUserById } = require('../db/database');
 
 /**
  * Middleware to verify authentication token
@@ -23,20 +23,33 @@ async function authenticate(req, res, next) {
     }
 
     // Simple token verification (in production, use JWT)
+    // Token format: userId:username:timestamp (base64 encoded)
+    // Use user ID for authentication to allow username changes
     try {
       const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const [username] = decoded.split(':');
+      const parts = decoded.split(':');
+      const userId = parseInt(parts[0]);
+      const username = parts[1]; // Keep for backwards compatibility, but use ID for lookup
 
-      const user = await getUserByUsername(username);
+      // Look up user by ID (more resilient to username changes)
+      const user = await getUserById(userId);
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid token',
-        });
+        // Fallback to username lookup for old tokens
+        const userByUsername = await getUserByUsername(username);
+        if (!userByUsername) {
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid token',
+          });
+        }
+        // Store user info in request for use in controllers
+        req.user = { id: userByUsername.id, username: userByUsername.username, role: userByUsername.role };
+        next();
+        return;
       }
 
       // Store user info in request for use in controllers
-      req.user = { username: user.username, role: user.role };
+      req.user = { id: user.id, username: user.username, role: user.role };
 
       next();
     } catch (err) {

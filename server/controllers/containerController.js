@@ -30,11 +30,11 @@ async function getContainers(req, res, next) {
       return;
     }
 
-    // Always use cached data unless explicitly requested to refresh
-    // If no cache exists, automatically fetch from Portainer only (no Docker Hub)
+    // IMPORTANT: Never call Docker Hub here - only return cached data or fetch from Portainer
+    // Docker Hub is ONLY called via /api/containers/pull endpoint (manual pull or batch process)
     const cached = await containerService.getAllContainersWithUpdates(false);
     
-    // If cache is empty or has no containers, fetch from Portainer only
+    // If cache is empty or has no containers, fetch from Portainer only (NO Docker Hub)
     if (!cached || !cached.containers || cached.containers.length === 0) {
       console.log('📦 No cached data found, automatically fetching from Portainer (no Docker Hub checks)...');
       const portainerResult = await containerService.getContainersFromPortainer();
@@ -43,7 +43,7 @@ async function getContainers(req, res, next) {
       return;
     }
     
-    // Return cached data
+    // Return cached data (may contain Docker Hub info from previous pull, but no new Docker Hub calls)
     res.json(cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
@@ -73,8 +73,9 @@ async function getContainers(req, res, next) {
  */
 async function pullContainers(req, res, next) {
   try {
-    console.log('🔄 Pull request received - clearing cache and fetching fresh data...');
-    // Force refresh - clears cache and fetches fresh data
+    console.log('🔄 Pull request received - this is the ONLY endpoint that calls Docker Hub...');
+    // Force refresh - this is the ONLY place that should call Docker Hub
+    // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process
     const result = await containerService.getAllContainersWithUpdates(true);
     console.log('✅ Pull completed successfully');
     res.json({

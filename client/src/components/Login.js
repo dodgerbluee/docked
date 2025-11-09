@@ -59,7 +59,16 @@ function Login({ onLogin }) {
           "passwordChanged",
           response.data.passwordChanged ? "true" : "false"
         );
-        onLogin(response.data.token, username, response.data.passwordChanged);
+        // Store role if provided
+        if (response.data.role) {
+          localStorage.setItem("userRole", response.data.role);
+        }
+        onLogin(
+          response.data.token,
+          username,
+          response.data.passwordChanged,
+          response.data.role || "Administrator"
+        );
       } else {
         setError(response.data.error || "Login failed");
       }

@@ -3,7 +3,7 @@
  * Allows users to update their username and password
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./Settings.css";
 
@@ -28,7 +28,21 @@ function Settings({
   onAvatarChange,
   onRecentAvatarsChange,
   onAvatarUploaded,
+  onBatchConfigUpdate = null,
 }) {
+  // Store callbacks in refs to avoid stale closure issues
+  const onBatchConfigUpdateRef = useRef(onBatchConfigUpdate);
+  const onAvatarChangeRef = useRef(onAvatarChange);
+
+  // Update refs whenever props change
+  useEffect(() => {
+    onBatchConfigUpdateRef.current = onBatchConfigUpdate;
+  }, [onBatchConfigUpdate]);
+
+  useEffect(() => {
+    onAvatarChangeRef.current = onAvatarChange;
+  }, [onAvatarChange]);
+
   const [userInfo, setUserInfo] = useState(null);
   // Use prop if provided, otherwise use internal state
   const [internalActiveSection, setInternalActiveSection] =
@@ -72,6 +86,15 @@ function Settings({
   const [dockerHubLoading, setDockerHubLoading] = useState(false);
   const [dockerHubCredentials, setDockerHubCredentials] = useState(null);
 
+  // Batch configuration state
+  const [batchEnabled, setBatchEnabled] = useState(false);
+  const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(60);
+  const [batchIntervalValue, setBatchIntervalValue] = useState(60);
+  const [batchIntervalUnit, setBatchIntervalUnit] = useState("minutes"); // "minutes" or "hours"
+  const [batchError, setBatchError] = useState("");
+  const [batchSuccess, setBatchSuccess] = useState("");
+  const [batchLoading, setBatchLoading] = useState(false);
+
   // Avatar upload state
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [avatarFile, setAvatarFile] = useState(null);
@@ -96,6 +119,7 @@ function Settings({
     fetchUserInfo();
     fetchPortainerInstances();
     fetchDockerHubCredentials();
+    fetchBatchConfig();
     // Update internal state when prop changes
     if (activeSection) {
       setInternalActiveSection(activeSection);
@@ -108,19 +132,6 @@ function Settings({
       }
     }
   }, [isFirstLogin, activeSection]);
-
-  // Debug: Log when recentAvatars prop changes
-  useEffect(() => {
-    console.log("Recent avatars prop updated in Settings:", {
-      count: recentAvatars?.length || 0,
-      avatars: recentAvatars?.map((a, i) => ({
-        index: i,
-        type: typeof a,
-        preview: a?.substring(0, 30),
-        length: a?.length,
-      })),
-    });
-  }, [recentAvatars]);
 
   const fetchPortainerInstances = async () => {
     try {
@@ -148,6 +159,29 @@ function Settings({
       }
     } catch (err) {
       console.error("Error fetching Docker Hub credentials:", err);
+    }
+  };
+
+  const fetchBatchConfig = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
+      if (response.data.success) {
+        setBatchEnabled(response.data.config.enabled || false);
+        const minutes = response.data.config.intervalMinutes || 60;
+        setBatchIntervalMinutes(minutes);
+
+        // Convert minutes to display value and unit
+        // If it's a multiple of 60, show in hours; otherwise show in minutes
+        if (minutes >= 60 && minutes % 60 === 0) {
+          setBatchIntervalUnit("hours");
+          setBatchIntervalValue(minutes / 60);
+        } else {
+          setBatchIntervalUnit("minutes");
+          setBatchIntervalValue(minutes);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching batch config:", err);
     }
   };
 
@@ -195,8 +229,17 @@ function Settings({
         setNewUsername("");
         setUsernamePassword("");
         // Update username in parent component
-        if (onUsernameUpdate) {
-          onUsernameUpdate(response.data.newUsername);
+        // Update token if provided (new token format with user ID)
+        if (response.data.token) {
+          // Update token in parent component
+          if (onUsernameUpdate) {
+            onUsernameUpdate(response.data.newUsername, response.data.token);
+          }
+        } else {
+          // Fallback for old API format
+          if (onUsernameUpdate) {
+            onUsernameUpdate(response.data.newUsername);
+          }
         }
         // Refresh user info
         await fetchUserInfo();
@@ -423,6 +466,73 @@ function Settings({
     }
   };
 
+  const handleBatchConfigSubmit = async (e) => {
+    e.preventDefault();
+    setBatchError("");
+    setBatchSuccess("");
+    setBatchLoading(true);
+
+    // Convert display value to minutes based on selected unit
+    const intervalMinutes =
+      batchIntervalUnit === "hours"
+        ? batchIntervalValue * 60
+        : batchIntervalValue;
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/batch/config`, {
+        enabled: batchEnabled,
+        intervalMinutes: intervalMinutes,
+      });
+
+      // Update the minutes state for consistency
+      setBatchIntervalMinutes(intervalMinutes);
+
+      if (response.data.success) {
+        setBatchSuccess("Batch configuration updated successfully!");
+        setTimeout(() => setBatchSuccess(""), 3000);
+        // Notify parent component to refetch batch config
+        // Use ref to get the latest callback value (avoids stale closure)
+        const callback = onBatchConfigUpdateRef.current;
+        console.log("🔔 Settings: Calling onBatchConfigUpdate callback");
+        console.log(
+          "🔍 Settings: onBatchConfigUpdate at call time (from ref):",
+          {
+            exists: !!callback,
+            isFunction: typeof callback === "function",
+            value: callback,
+          }
+        );
+        if (callback && typeof callback === "function") {
+          console.log("✅ Settings: onBatchConfigUpdate exists, calling it...");
+          try {
+            await callback();
+            console.log("✅ Settings: onBatchConfigUpdate completed");
+          } catch (err) {
+            console.error(
+              "❌ Settings: Error calling onBatchConfigUpdate:",
+              err
+            );
+          }
+        } else {
+          console.error(
+            "❌ Settings: onBatchConfigUpdate is null/undefined or not a function!"
+          );
+        }
+      } else {
+        setBatchError(
+          response.data.error || "Failed to update batch configuration"
+        );
+      }
+    } catch (err) {
+      setBatchError(
+        err.response?.data?.error ||
+          "Failed to update batch configuration. Please try again."
+      );
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   // Avatar upload handlers
   const handleAvatarFileSelect = (e) => {
     const file = e.target.files[0];
@@ -578,8 +688,13 @@ function Settings({
         }
 
         // Set to default avatar immediately
-        if (onAvatarChange) {
-          onAvatarChange("/img/default-avatar.jpg");
+        const callback = onAvatarChangeRef.current;
+        if (callback && typeof callback === "function") {
+          try {
+            await callback("/img/default-avatar.jpg");
+          } catch (err) {
+            console.error("Error in onAvatarChange:", err);
+          }
         }
 
         // Clear recent avatars
@@ -621,14 +736,6 @@ function Settings({
     setAvatarError("");
 
     try {
-      console.log("Starting avatar upload...", {
-        hasFile: !!avatarFile,
-        hasPreview: !!avatarPreview,
-        hasImage: !!avatarImage,
-        crop: avatarCrop,
-        zoom: avatarZoom,
-      });
-
       const croppedImageUrl = await cropImage(
         avatarImage,
         avatarCrop,
@@ -670,29 +777,25 @@ function Settings({
       });
 
       if (uploadResponse.data.success) {
-        console.log("Avatar uploaded to server successfully");
-
         // Update avatar URL
         const avatarUrl = uploadResponse.data.avatarUrl;
-        if (onAvatarChange) {
-          console.log("Calling onAvatarChange with server URL:", avatarUrl);
-          onAvatarChange(avatarUrl);
+        const callback = onAvatarChangeRef.current;
+        if (callback && typeof callback === "function") {
+          try {
+            await callback(avatarUrl);
+          } catch (err) {
+            console.error("Error in onAvatarChange:", err);
+          }
         }
 
         // Update recent avatars from server response
         const serverRecentAvatars = uploadResponse.data.recentAvatars || [];
         if (onRecentAvatarsChange) {
-          console.log(
-            "Calling onRecentAvatarsChange with server avatars:",
-            serverRecentAvatars.length
-          );
           onRecentAvatarsChange(serverRecentAvatars);
         }
       } else {
         throw new Error(uploadResponse.data.error || "Failed to upload avatar");
       }
-
-      console.log("Avatar upload successful!");
 
       // Show success message (persists until page is left)
       setAvatarSuccess("Avatar uploaded successfully!");
@@ -733,8 +836,9 @@ function Settings({
   const handleSelectAvatar = async (avatarUrl) => {
     // If selecting default avatar, just update the state
     if (avatarUrl === "/img/default-avatar.jpg") {
-      if (onAvatarChange) {
-        onAvatarChange(avatarUrl);
+      const callback = onAvatarChangeRef.current;
+      if (callback && typeof callback === "function") {
+        await callback(avatarUrl);
       }
       return;
     }
@@ -782,8 +886,9 @@ function Settings({
             responseType: "blob",
           });
           const blobUrl = URL.createObjectURL(response.data);
-          if (onAvatarChange) {
-            onAvatarChange(blobUrl);
+          const callback = onAvatarChangeRef.current;
+          if (callback && typeof callback === "function") {
+            await callback(blobUrl);
           }
         } catch (fetchErr) {
           console.error("Error loading avatar:", fetchErr);
@@ -791,8 +896,9 @@ function Settings({
       }
     } else {
       // For other URLs, just set directly
-      if (onAvatarChange) {
-        onAvatarChange(avatarUrl);
+      const callback = onAvatarChangeRef.current;
+      if (callback && typeof callback === "function") {
+        await callback(avatarUrl);
       }
     }
   };
@@ -1745,6 +1851,253 @@ function Settings({
                     : dockerHubCredentials
                     ? "Update Credentials"
                     : "Save Credentials"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {currentActiveSection === "batch" && (
+            <div className="update-section">
+              <h3>Batch Processing Configuration</h3>
+              <div
+                style={{
+                  background: "var(--bg-secondary)",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  marginBottom: "20px",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h4 style={{ marginTop: 0, color: "var(--text-primary)" }}>
+                  What is this?
+                </h4>
+                <p
+                  style={{
+                    color: "var(--text-secondary)",
+                    lineHeight: "1.6",
+                    marginBottom: "10px",
+                  }}
+                >
+                  Batch processing automatically fetches container update
+                  information from Docker Hub at regular intervals in the
+                  background. This keeps your container data up-to-date without
+                  manual intervention.
+                </p>
+                <h4 style={{ color: "var(--text-primary)" }}>How it works:</h4>
+                <ul
+                  style={{
+                    color: "var(--text-secondary)",
+                    lineHeight: "1.6",
+                    marginBottom: 0,
+                    paddingLeft: "20px",
+                  }}
+                >
+                  <li>
+                    <strong>Automatic Updates:</strong> When enabled, the system
+                    will automatically pull fresh data from Docker Hub at the
+                    configured interval
+                  </li>
+                  <li>
+                    <strong>Background Processing:</strong> Updates run in the
+                    background and won't interrupt your work
+                  </li>
+                  <li>
+                    <strong>Configurable Interval:</strong> Set how often the
+                    batch process runs (in minutes or hours)
+                  </li>
+                  <li>
+                    <strong>Rate Limit Aware:</strong> The system respects
+                    Docker Hub rate limits and will adjust accordingly
+                  </li>
+                </ul>
+              </div>
+
+              <form onSubmit={handleBatchConfigSubmit} className="update-form">
+                <div className="form-group">
+                  <label
+                    htmlFor="batchEnabled"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      id="batchEnabled"
+                      checked={batchEnabled}
+                      onChange={(e) => setBatchEnabled(e.target.checked)}
+                      disabled={batchLoading}
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontWeight: "600",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      Enable Batch Processing
+                    </span>
+                  </label>
+                  <small>
+                    When enabled, Docker Hub data will be fetched automatically
+                    at the configured interval
+                  </small>
+                </div>
+
+                {batchEnabled && (
+                  <div className="form-group">
+                    <label htmlFor="batchInterval">Update Interval</label>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        id="batchInterval"
+                        value={batchIntervalValue}
+                        onKeyPress={(e) => {
+                          // Only allow digits (0-9)
+                          if (
+                            !/[0-9]/.test(e.key) &&
+                            e.key !== "Backspace" &&
+                            e.key !== "Delete" &&
+                            e.key !== "ArrowLeft" &&
+                            e.key !== "ArrowRight" &&
+                            e.key !== "Tab"
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onChange={(e) => {
+                          // Only allow digits
+                          const inputValue = e.target.value.replace(
+                            /[^0-9]/g,
+                            ""
+                          );
+                          if (inputValue === "") {
+                            setBatchIntervalValue("");
+                            return;
+                          }
+                          const numValue = parseInt(inputValue, 10);
+                          if (isNaN(numValue)) {
+                            return;
+                          }
+                          // Validate against min/max
+                          const max = batchIntervalUnit === "hours" ? 24 : 1440;
+                          const validatedValue = Math.max(
+                            1,
+                            Math.min(numValue, max)
+                          );
+                          setBatchIntervalValue(validatedValue);
+                          // Update minutes for validation
+                          const minutes =
+                            batchIntervalUnit === "hours"
+                              ? validatedValue * 60
+                              : validatedValue;
+                          setBatchIntervalMinutes(minutes);
+                        }}
+                        onBlur={(e) => {
+                          // Ensure value is set on blur if empty
+                          if (
+                            e.target.value === "" ||
+                            parseInt(e.target.value, 10) < 1
+                          ) {
+                            setBatchIntervalValue(1);
+                            const minutes =
+                              batchIntervalUnit === "hours" ? 60 : 1;
+                            setBatchIntervalMinutes(minutes);
+                          }
+                        }}
+                        required
+                        disabled={batchLoading}
+                        style={{
+                          width: "80px",
+                          padding: "6px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border-color)",
+                          background: "var(--bg-primary)",
+                          color: "var(--text-primary)",
+                          fontSize: "14px",
+                          textAlign: "center",
+                          WebkitAppearance: "none",
+                          MozAppearance: "textfield",
+                        }}
+                      />
+                      <select
+                        id="batchIntervalUnit"
+                        value={batchIntervalUnit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          setBatchIntervalUnit(newUnit);
+                          // Convert current value to new unit
+                          if (newUnit === "hours") {
+                            // Convert minutes to hours (round to nearest)
+                            const hours =
+                              Math.round(batchIntervalMinutes / 60) || 1;
+                            setBatchIntervalValue(hours);
+                          } else {
+                            // Convert hours to minutes
+                            const minutes = batchIntervalValue * 60;
+                            setBatchIntervalValue(minutes);
+                            setBatchIntervalMinutes(minutes);
+                          }
+                        }}
+                        disabled={batchLoading}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border-color)",
+                          background: "var(--bg-primary)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        <option value="minutes">Minutes</option>
+                        <option value="hours">Hours</option>
+                      </select>
+                    </div>
+                    <small>
+                      How often to fetch updates.{" "}
+                      {batchIntervalUnit === "hours"
+                        ? `Range: 1-24 hours (${
+                            batchIntervalValue * 60
+                          } minutes)`
+                        : `Range: 1-1440 minutes (${
+                            batchIntervalMinutes >= 60
+                              ? `${(batchIntervalMinutes / 60).toFixed(
+                                  1
+                                )} hours`
+                              : `${batchIntervalMinutes} minutes`
+                          })`}
+                    </small>
+                  </div>
+                )}
+
+                {batchError && (
+                  <div className="error-message">{batchError}</div>
+                )}
+                {batchSuccess && (
+                  <div className="success-message">{batchSuccess}</div>
+                )}
+                <button
+                  type="submit"
+                  className="update-button"
+                  disabled={
+                    batchLoading || (batchEnabled && batchIntervalValue < 1)
+                  }
+                >
+                  {batchLoading ? "Saving..." : "Save Configuration"}
                 </button>
               </form>
             </div>
