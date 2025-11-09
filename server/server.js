@@ -111,14 +111,24 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Rate limiting - only apply in production
 // In development, skip rate limiting to avoid blocking legitimate requests
 if (process.env.NODE_ENV === "production") {
-  // Rate limiting - general API rate limiter
-  const apiLimiter = rateLimit(config.rateLimit.api);
-  app.use("/api/", apiLimiter);
-
-  // Rate limiting - stricter for auth endpoints
+  // Rate limiting - stricter for auth endpoints (must come first to exclude from general limiter)
   const authLimiter = rateLimit(config.rateLimit.auth);
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/update-password", authLimiter);
+
+  // Rate limiting - general API rate limiter (excludes auth endpoints)
+  const apiLimiter = rateLimit({
+    ...config.rateLimit.api,
+    skip: (req) => {
+      // Skip auth endpoints - they have their own rate limiter
+      if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/update-password')) {
+        return true;
+      }
+      // Use the original skip logic for other endpoints
+      return config.rateLimit.api.skip ? config.rateLimit.api.skip(req) : false;
+    },
+  });
+  app.use("/api/", apiLimiter);
 } else {
   // In development, use very lenient rate limiting or skip entirely
   // This prevents accidental rate limit issues during development
