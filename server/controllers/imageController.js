@@ -79,7 +79,7 @@ async function deleteImages(req, res, next) {
           instance.username,
           instance.password,
           instance.api_key,
-          instance.auth_type || "password"
+          instance.auth_type || "apikey"
         );
         console.log(
           `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`

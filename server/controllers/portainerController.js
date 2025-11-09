@@ -22,7 +22,7 @@ const portainerService = require('../services/portainerService');
  */
 async function validateInstance(req, res, next) {
   try {
-    const { url, username, password, apiKey, authType = 'password' } = req.body;
+    const { url, username, password, apiKey, authType = 'apikey' } = req.body;
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
@@ -145,7 +145,7 @@ async function getInstance(req, res, next) {
  */
 async function createInstance(req, res, next) {
   try {
-    const { name, url, username, password, apiKey, authType = 'password' } = req.body;
+    const { name, url, username, password, apiKey, authType = 'apikey' } = req.body;
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
@@ -235,7 +235,7 @@ async function updateInstance(req, res, next) {
     }
 
     // Use existing authType if not provided
-    const finalAuthType = authType || existing.auth_type || 'password';
+    const finalAuthType = authType || existing.auth_type || 'apikey';
 
     // Validate required fields based on auth type
     if (finalAuthType === 'apikey') {

@@ -12,7 +12,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
 
 function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, instanceId = null }) {
-  const [authType, setAuthType] = useState('password'); // 'password' or 'apikey'
+  const [authType, setAuthType] = useState('apikey'); // 'password' or 'apikey'
   const [protocol, setProtocol] = useState('https'); // 'http' or 'https'
   const [formData, setFormData] = useState({
     name: '',
@@ -32,7 +32,7 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
   // Update form data when initialData changes (for edit mode)
   useEffect(() => {
     if (initialData) {
-      const initialAuthType = initialData.auth_type || 'password';
+      const initialAuthType = initialData.auth_type || 'apikey';
       setAuthType(initialAuthType);
       
       // Extract protocol from URL if it exists
@@ -55,7 +55,7 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         apiKey: '', // Don't pre-fill API key for security
       });
     } else {
-      setAuthType('password');
+      setAuthType('apikey');
       setProtocol('https');
       setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
     }
@@ -91,11 +91,11 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         // Update existing instance (no validation needed)
         response = await axios.put(`${API_BASE_URL}/api/portainer/instances/${instanceId}`, requestData);
         
-        if (response.data.success) {
-          // Reset form
-          setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
-          setAuthType('password');
-          // Pass the updated instance data so the parent can refresh
+          if (response.data.success) {
+            // Reset form
+            setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
+            setAuthType('apikey');
+            // Pass the updated instance data so the parent can refresh
           onSuccess({
             id: instanceId,
             ...requestData,
@@ -134,7 +134,7 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
           if (response.data.success) {
             // Reset form
             setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
-            setAuthType('password');
+            setAuthType('apikey');
             // Pass instance data to onSuccess callback for new instances
             const instanceData = {
               name: formData.name || new URL(formData.url).hostname,
@@ -274,16 +274,6 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
             <div className="auth-type-toggle">
               <button
                 type="button"
-                className={`auth-type-option ${authType === 'password' ? 'active' : ''}`}
-                onClick={() => !loading && setAuthType('password')}
-                disabled={loading}
-                aria-pressed={authType === 'password'}
-              >
-                <span className="auth-type-icon">🔐</span>
-                <span>Username / Password</span>
-              </button>
-              <button
-                type="button"
                 className={`auth-type-option ${authType === 'apikey' ? 'active' : ''}`}
                 onClick={() => !loading && setAuthType('apikey')}
                 disabled={loading}
@@ -291,6 +281,16 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
               >
                 <span className="auth-type-icon">🔑</span>
                 <span>API Key</span>
+              </button>
+              <button
+                type="button"
+                className={`auth-type-option ${authType === 'password' ? 'active' : ''}`}
+                onClick={() => !loading && setAuthType('password')}
+                disabled={loading}
+                aria-pressed={authType === 'password'}
+              >
+                <span className="auth-type-icon">🔐</span>
+                <span>Username / Password</span>
               </button>
             </div>
           </div>
