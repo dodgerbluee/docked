@@ -24,6 +24,11 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Clear error when modal opens or closes
+  useEffect(() => {
+    setError('');
+  }, [isOpen]);
+
   // Update form data when initialData changes (for edit mode)
   useEffect(() => {
     if (initialData) {
