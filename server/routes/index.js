@@ -21,6 +21,7 @@ const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
+const trackedImageController = require("../controllers/trackedImageController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -215,5 +216,14 @@ router.put("/batch/runs/:id", asyncHandler(batchController.updateBatchRunHandler
 router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
+
+// Tracked images routes
+router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
+router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
+router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
+router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
+router.post("/tracked-images/check-updates", asyncHandler(trackedImageController.checkTrackedImagesUpdates));
+router.post("/tracked-images/:id/check-update", asyncHandler(trackedImageController.checkTrackedImageUpdate));
 
 module.exports = router;

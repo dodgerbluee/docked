@@ -182,7 +182,9 @@ async function upgradeSingleContainer(
     await new Promise(resolve => setTimeout(resolve, 500));
     try {
       const details = await portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
-      if (details.State === 'exited' || details.State === 'stopped') {
+      // Docker API returns State as an object with Status property
+      const containerStatus = details.State?.Status || (details.State?.Running === false ? 'exited' : 'unknown');
+      if (containerStatus === 'exited' || containerStatus === 'stopped') {
         stopped = true;
         break;
       }
@@ -254,16 +256,18 @@ async function upgradeSingleContainer(
       const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
       
       // Check if container is running
-      if (details.State !== 'running') {
+      // Docker API returns State as an object with Status property
+      const containerStatus = details.State?.Status || (details.State?.Running ? 'running' : 'unknown');
+      if (containerStatus !== 'running') {
         consecutiveRunningChecks = 0; // Reset counter
-        if (details.State === 'exited') {
+        if (containerStatus === 'exited') {
           // Container exited - get logs for debugging
           try {
             const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
-            const exitCode = details.State.ExitCode || 0;
+            const exitCode = details.State?.ExitCode || 0;
             throw new Error(`Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`);
           } catch (logErr) {
-            const exitCode = details.State.ExitCode || 0;
+            const exitCode = details.State?.ExitCode || 0;
             throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
           }
         }
@@ -274,12 +278,13 @@ async function upgradeSingleContainer(
       consecutiveRunningChecks++;
 
       // Check health status if health check is configured
-      if (details.State.Health) {
-        if (details.State.Health.Status === 'healthy') {
+      if (details.State?.Health) {
+        const healthStatus = details.State.Health.Status;
+        if (healthStatus === 'healthy') {
           isReady = true;
           console.log(`✅ Container health check passed`);
           break;
-        } else if (details.State.Health.Status === 'unhealthy') {
+        } else if (healthStatus === 'unhealthy') {
           try {
             const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
             throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
@@ -288,6 +293,16 @@ async function upgradeSingleContainer(
           }
         }
         // Status is 'starting' or 'none', continue waiting
+        // However, if container has been running for a while and health check is still starting,
+        // consider it ready (some containers never report healthy but work fine)
+        const waitTime = Date.now() - startTime;
+        if (waitTime >= 30000 && consecutiveRunningChecks >= 5) {
+          // Container has been running for 30+ seconds with 5+ stable checks
+          // and health check is still starting - likely a container that doesn't properly report health
+          console.log(`⚠️  Health check still starting after 30s, but container is running stably - considering ready`);
+          isReady = true;
+          break;
+        }
         // For health checks, we'll wait up to maxWaitTime
       } else {
         // No health check configured - use stability check instead
@@ -329,11 +344,16 @@ async function upgradeSingleContainer(
     // Final check - if container is running, consider it ready even if we hit timeout
     try {
       const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
-      if (details.State === 'running') {
+      // Docker API returns State as an object with Status property
+      const containerStatus = details.State?.Status || (details.State?.Running ? 'running' : 'unknown');
+      const isRunning = containerStatus === 'running' || details.State?.Running === true;
+      if (isRunning) {
         console.log(`⚠️  Timeout reached but container is running - considering it ready`);
         isReady = true;
       } else {
-        throw new Error(`Container did not become ready within timeout period (2 minutes). Current state: ${details.State}`);
+        // Format state info for error message
+        const stateInfo = containerStatus || (details.State ? JSON.stringify(details.State) : 'unknown');
+        throw new Error(`Container did not become ready within timeout period (2 minutes). Current state: ${stateInfo}`);
       }
     } catch (err) {
       if (err.message.includes('Current state')) {

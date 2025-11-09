@@ -9,6 +9,7 @@ const {
   createBatchRun,
   updateBatchRun,
   getLatestBatchRun,
+  getLatestBatchRunsByJobType,
   getRecentBatchRuns,
   getBatchRunById,
 } = require('../db/database');
@@ -21,10 +22,10 @@ const {
  */
 async function getBatchConfigHandler(req, res, next) {
   try {
-    const config = await getBatchConfig();
+    const configs = await getBatchConfig(); // Returns all configs
     res.json({
       success: true,
-      config,
+      config: configs, // Return all configs as an object
     });
   } catch (error) {
     console.error('Error fetching batch config:', error);
@@ -43,9 +44,16 @@ async function getBatchConfigHandler(req, res, next) {
  */
 async function updateBatchConfigHandler(req, res, next) {
   try {
-    const { enabled, intervalMinutes } = req.body;
+    const { jobType, enabled, intervalMinutes } = req.body;
 
     // Validate required fields
+    if (!jobType || typeof jobType !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'jobType is required and must be a string',
+      });
+    }
+
     if (typeof enabled !== 'boolean') {
       return res.status(400).json({
         success: false,
@@ -60,13 +68,13 @@ async function updateBatchConfigHandler(req, res, next) {
       });
     }
 
-    await updateBatchConfig(enabled, intervalMinutes);
+    await updateBatchConfig(jobType, enabled, intervalMinutes);
     
-    const updatedConfig = await getBatchConfig();
+    const updatedConfigs = await getBatchConfig(); // Get all configs
     
     res.json({
       success: true,
-      config: updatedConfig,
+      config: updatedConfigs,
       message: 'Batch configuration updated successfully',
     });
   } catch (error) {
@@ -149,11 +157,22 @@ async function updateBatchRunHandler(req, res, next) {
  */
 async function getLatestBatchRunHandler(req, res, next) {
   try {
-    const latestRun = await getLatestBatchRun();
-    res.json({
-      success: true,
-      run: latestRun,
-    });
+    // Check if we want latest runs by job type
+    const byJobType = req.query.byJobType === 'true';
+    
+    if (byJobType) {
+      const latestRuns = await getLatestBatchRunsByJobType();
+      res.json({
+        success: true,
+        runs: latestRuns,
+      });
+    } else {
+      const latestRun = await getLatestBatchRun();
+      res.json({
+        success: true,
+        run: latestRun,
+      });
+    }
   } catch (error) {
     console.error('Error fetching latest batch run:', error);
     res.status(500).json({

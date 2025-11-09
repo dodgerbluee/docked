@@ -28,6 +28,7 @@ import {
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
+import AddTrackedImageModal from "./components/AddTrackedImageModal";
 
 // In production, API is served from same origin, so use relative URLs
 // In development, use localhost
@@ -73,7 +74,67 @@ function App() {
   const [draggedTabIndex, setDraggedTabIndex] = useState(null);
   const [dataFetched, setDataFetched] = useState(false); // Track if data has been fetched
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+  // Store dismissed notifications as Map: id -> dismissed version
+  // Load from localStorage on mount
+  const [dismissedContainerNotifications, setDismissedContainerNotifications] =
+    useState(() => {
+      try {
+        const stored = localStorage.getItem("dismissedContainerNotifications");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return new Map(Object.entries(parsed));
+        }
+      } catch (err) {
+        console.error("Error loading dismissed container notifications:", err);
+      }
+      return new Map();
+    });
+  const [
+    dismissedTrackedAppNotifications,
+    setDismissedTrackedAppNotifications,
+  ] = useState(() => {
+    try {
+      const stored = localStorage.getItem("dismissedTrackedAppNotifications");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return new Map(Object.entries(parsed));
+      }
+    } catch (err) {
+      console.error("Error loading dismissed tracked app notifications:", err);
+    }
+    return new Map();
+  });
+
+  // Persist dismissed notifications to localStorage whenever they change
+  useEffect(() => {
+    try {
+      const containerData = Object.fromEntries(dismissedContainerNotifications);
+      localStorage.setItem(
+        "dismissedContainerNotifications",
+        JSON.stringify(containerData)
+      );
+    } catch (err) {
+      console.error("Error saving dismissed container notifications:", err);
+    }
+  }, [dismissedContainerNotifications]);
+
+  useEffect(() => {
+    try {
+      const trackedAppData = Object.fromEntries(
+        dismissedTrackedAppNotifications
+      );
+      localStorage.setItem(
+        "dismissedTrackedAppNotifications",
+        JSON.stringify(trackedAppData)
+      );
+    } catch (err) {
+      console.error("Error saving dismissed tracked app notifications:", err);
+    }
+  }, [dismissedTrackedAppNotifications]);
   const [settingsTab, setSettingsTab] = useState("general"); // 'general', 'username', 'password', 'portainer', 'dockerhub', 'avatar', 'batch'
+  const [configurationTab, setConfigurationTab] = useState("batch"); // 'batch' or 'settings'
+  const [portainerSubTab, setPortainerSubTab] = useState(null); // Portainer instance name when in Portainer tab
 
   const [containers, setContainers] = useState([]);
   const [stacks, setStacks] = useState([]);
@@ -95,8 +156,31 @@ function App() {
   const [deletingImages, setDeletingImages] = useState(false);
   const [unusedImagesCount, setUnusedImagesCount] = useState(0);
   const [pulling, setPulling] = useState(false);
+  const [lastPullTime, setLastPullTime] = useState(() => {
+    try {
+      const stored = localStorage.getItem("lastPullTime");
+      if (stored) {
+        return new Date(stored);
+      }
+    } catch (err) {
+      console.error("Error loading lastPullTime:", err);
+    }
+    return null;
+  });
   const [clearing, setClearing] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set()); // Track loading state per instance
+  // Tracked images state
+  const [trackedImages, setTrackedImages] = useState([]);
+  const [trackedImageError, setTrackedImageError] = useState("");
+  const [trackedImageSuccess, setTrackedImageSuccess] = useState("");
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState(null);
+  const [editingTrackedImage, setEditingTrackedImage] = useState(null);
+  const [editTrackedImageName, setEditTrackedImageName] = useState("");
+  const [editTrackedImageCurrentVersion, setEditTrackedImageCurrentVersion] =
+    useState("");
+  const [showAddTrackedImageModal, setShowAddTrackedImageModal] =
+    useState(false);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
     // Check localStorage for saved state
     const saved = localStorage.getItem("dockerHubDataPulled");
@@ -126,10 +210,10 @@ function App() {
     avatarRef.current = avatar;
   }, [avatar]);
 
-  // Batch processing state
+  // Batch processing state - now stores all job type configs
   const [batchConfig, setBatchConfig] = useState({
-    enabled: false,
-    intervalMinutes: 60,
+    "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
+    "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
   });
 
   // Memoize context value to ensure React detects changes
@@ -144,8 +228,10 @@ function App() {
   );
 
   const batchIntervalRef = useRef(null);
+  const lastCheckedBatchRunIdRef = useRef(null); // Track last checked batch run ID for Docker Hub pulls
   const batchInitialTimeoutRef = useRef(null);
-  const hasRunInitialPullRef = useRef(false); // Track if initial pull has run in this session
+  const hasRunInitialPullRef = useRef(false);
+  const lastImageDeleteTimeRef = useRef(0); // Track when images were deleted to prevent count overwrite
 
   // Memoize avatar change handler to prevent it from being recreated on every render
   // Use ref to access current avatar value to avoid dependency on avatar state
@@ -195,26 +281,28 @@ function App() {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
       if (response.data.success) {
-        const newConfig = {
-          enabled: response.data.config.enabled || false,
-          intervalMinutes: response.data.config.intervalMinutes || 60,
+        const configs = response.data.config || {};
+        // Ensure both job types exist with defaults
+        const newConfigs = {
+          "docker-hub-pull": configs["docker-hub-pull"] || {
+            enabled: false,
+            intervalMinutes: 60,
+          },
+          "tracked-apps-check": configs["tracked-apps-check"] || {
+            enabled: false,
+            intervalMinutes: 60,
+          },
         };
         // Force state update with new object - this will trigger Context update
         setBatchConfig((prev) => {
           // Always return new object to ensure React detects the change
-          if (
-            prev.enabled !== newConfig.enabled ||
-            prev.intervalMinutes !== newConfig.intervalMinutes
-          ) {
-            return newConfig;
-          }
-          return { ...newConfig };
+          return newConfigs;
         });
       }
     } catch (err) {
       console.error("Error refetching batch config:", err);
     }
-  }, [batchConfig]);
+  }, []);
 
   // Handle login
   const handleLogin = (token, user, pwdChanged) => {
@@ -330,6 +418,11 @@ function App() {
     localStorage.setItem("colorScheme", newColorScheme);
   }, []);
 
+  // Handle temporary theme toggle from avatar dropdown (doesn't persist)
+  const handleTemporaryThemeToggle = useCallback(() => {
+    setDarkMode((prev) => !prev);
+  }, []);
+
   // Fetch cached data on page load/refresh (no Docker Hub calls)
   // This loads data from the database cache without triggering Docker Hub API calls
   // If no cache exists, backend will automatically fetch from Portainer (no Docker Hub)
@@ -369,9 +462,17 @@ function App() {
         try {
           const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
           if (response.data.success) {
+            const configs = response.data.config || {};
+            // Ensure both job types exist with defaults
             setBatchConfig({
-              enabled: response.data.config.enabled || false,
-              intervalMinutes: response.data.config.intervalMinutes || 60,
+              "docker-hub-pull": configs["docker-hub-pull"] || {
+                enabled: false,
+                intervalMinutes: 60,
+              },
+              "tracked-apps-check": configs["tracked-apps-check"] || {
+                enabled: false,
+                intervalMinutes: 60,
+              },
             });
           }
         } catch (err) {
@@ -381,6 +482,54 @@ function App() {
       fetchBatchConfig();
     }
   }, [isAuthenticated, authToken, passwordChanged]);
+
+  // Poll for server-side batch run completions to update "Last scanned"
+  useEffect(() => {
+    if (!isAuthenticated || !authToken || !passwordChanged) {
+      return;
+    }
+
+    const checkBatchRuns = async () => {
+      try {
+        // Fetch latest Docker Hub pull batch run
+        const response = await axios.get(
+          `${API_BASE_URL}/api/batch/runs/latest?byJobType=true`
+        );
+        if (response.data.success && response.data.runs) {
+          const dockerHubRun = response.data.runs["docker-hub-pull"];
+          if (
+            dockerHubRun &&
+            dockerHubRun.status === "completed" &&
+            dockerHubRun.completed_at &&
+            dockerHubRun.id !== lastCheckedBatchRunIdRef.current
+          ) {
+            // New completed run detected
+            lastCheckedBatchRunIdRef.current = dockerHubRun.id;
+            const completedAt = new Date(dockerHubRun.completed_at);
+            // Only update if this is a new run (not the one we already processed)
+            if (
+              !lastPullTime ||
+              completedAt.getTime() > lastPullTime.getTime()
+            ) {
+              setLastPullTime(completedAt);
+              localStorage.setItem("lastPullTime", completedAt.toISOString());
+            }
+          }
+        }
+      } catch (err) {
+        // Silently fail - this is just for updating the UI timestamp
+        console.error("Error checking batch runs:", err);
+      }
+    };
+
+    // Check immediately
+    checkBatchRuns();
+
+    // Then check every 30 seconds
+    const interval = setInterval(checkBatchRuns, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, authToken, passwordChanged, lastPullTime]);
 
   // Handle batch pull with logging - memoized to prevent unnecessary re-renders
   // MUST be defined before the useEffect that uses it
@@ -481,6 +630,10 @@ function App() {
         // Mark that Docker Hub data has been pulled
         setDockerHubDataPulled(true);
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+        // Store last pull time
+        const pullTime = new Date();
+        setLastPullTime(pullTime);
+        localStorage.setItem("lastPullTime", pullTime.toISOString());
       } else {
         // Backward compatibility: treat as flat array
         setContainers(Array.isArray(response.data) ? response.data : []);
@@ -592,17 +745,23 @@ function App() {
       const intervalId = setInterval(() => {
         // Double-check we're still the active interval before running
         if (batchIntervalRef.current === intervalId) {
-          // Note: We don't check if pulling is true here because:
+          // Note: We don't check if pulling/checking is true here because:
           // 1. State updates are async and may not reflect current state
           // 2. Even if a previous run is still running, we want the interval to continue
-          // 3. The handleBatchPull function handles its own state management
+          // 3. The batch handlers handle their own state management
 
-          // Trigger pull in background with logging
-          // IMPORTANT: Always catch errors to ensure interval continues even if pull fails
+          // Trigger both jobs in background with logging
+          // IMPORTANT: Always catch errors to ensure interval continues even if jobs fail
           // The interval will continue running regardless of success or failure
           handleBatchPull().catch((err) => {
             console.error(
               "❌ Error in batch pull (interval will continue):",
+              err
+            );
+          });
+          handleBatchTrackedAppsCheck().catch((err) => {
+            console.error(
+              "❌ Error in tracked apps batch check (interval will continue):",
               err
             );
           });
@@ -626,7 +785,7 @@ function App() {
       const shouldRunInitial =
         !lastInitialPull || lastPullTimestamp < oneHourAgo;
 
-      // Don't run initial pull if:
+      // Don't run initial jobs if:
       // 1. Already ran in this session, OR
       // 2. Ran within the last hour (check localStorage)
       if (!hasRunInitialPullRef.current && shouldRunInitial) {
@@ -637,6 +796,9 @@ function App() {
         const timeoutId = setTimeout(() => {
           handleBatchPull().catch((err) => {
             console.error("Error in initial batch pull:", err);
+          });
+          handleBatchTrackedAppsCheck().catch((err) => {
+            console.error("Error in initial tracked apps check:", err);
           });
           batchInitialTimeoutRef.current = null; // Clear ref after timeout fires
         }, 5000); // Wait 5 seconds after page load
@@ -708,12 +870,277 @@ function App() {
     }
   };
 
+  // Fetch tracked images
+  const fetchTrackedImages = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/tracked-images`);
+      if (response.data.success) {
+        const images = response.data.images || [];
+
+        // Sort by version age (newest first)
+        const sortedImages = images.sort((a, b) => {
+          const getSortDate = (img) => {
+            if (img.currentVersionPublishDate) {
+              return new Date(img.currentVersionPublishDate).getTime();
+            }
+            if (img.last_checked) {
+              return new Date(img.last_checked).getTime();
+            }
+            return 0;
+          };
+
+          const dateA = getSortDate(a);
+          const dateB = getSortDate(b);
+
+          // Newest first (larger timestamp first)
+          return dateB - dateA;
+        });
+
+        setTrackedImages(sortedImages);
+
+        // Set last scan time from the most recent last_checked
+        if (images.length > 0) {
+          const mostRecentCheck = images
+            .map((img) => img.last_checked)
+            .filter(Boolean)
+            .sort((a, b) => new Date(b) - new Date(a))[0];
+          if (mostRecentCheck) {
+            setLastScanTime(new Date(mostRecentCheck));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching tracked images:", err);
+    }
+  };
+
+  // Tracked images handlers
+  const handleTrackedImageModalSuccess = async () => {
+    await fetchTrackedImages();
+    setTrackedImageSuccess("Tracked item added successfully!");
+    setTimeout(() => setTrackedImageSuccess(""), 3000);
+  };
+
+  const handleDeleteTrackedImage = async (id) => {
+    if (
+      !window.confirm("Are you sure you want to remove this tracked image?")
+    ) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/tracked-images/${id}`
+      );
+      if (response.data.success) {
+        await fetchTrackedImages();
+      } else {
+        setTrackedImageError(
+          response.data.error || "Failed to delete tracked image"
+        );
+      }
+    } catch (err) {
+      setTrackedImageError(
+        err.response?.data?.error || "Failed to delete tracked image"
+      );
+    }
+  };
+
+  const handleUpgradeTrackedImage = async (id, latestVersion) => {
+    try {
+      const response = await axios.put(
+        `${API_BASE_URL}/api/tracked-images/${id}`,
+        {
+          current_version: latestVersion,
+        }
+      );
+      if (response.data.success) {
+        await fetchTrackedImages();
+        setTrackedImageSuccess("Current version updated successfully!");
+        setTimeout(() => setTrackedImageSuccess(""), 3000);
+      } else {
+        setTrackedImageError(
+          response.data.error || "Failed to update current version"
+        );
+      }
+    } catch (err) {
+      setTrackedImageError(
+        err.response?.data?.error || "Failed to update current version"
+      );
+    }
+  };
+
+  const handleEditTrackedImage = (image) => {
+    setEditingTrackedImage(image.id);
+    setEditTrackedImageName(image.name);
+    setEditTrackedImageCurrentVersion(image.current_version || "");
+  };
+
+  const handleCancelEditTrackedImage = () => {
+    setEditingTrackedImage(null);
+    setEditTrackedImageName("");
+    setEditTrackedImageCurrentVersion("");
+  };
+
+  const handleSaveEditTrackedImage = async (id) => {
+    try {
+      const response = await axios.put(
+        `${API_BASE_URL}/api/tracked-images/${id}`,
+        {
+          name: editTrackedImageName.trim(),
+          current_version: editTrackedImageCurrentVersion.trim() || null,
+        }
+      );
+      if (response.data.success) {
+        await fetchTrackedImages();
+        setEditingTrackedImage(null);
+        setEditTrackedImageName("");
+        setEditTrackedImageCurrentVersion("");
+        setTrackedImageSuccess("Tracked image updated successfully!");
+        setTimeout(() => setTrackedImageSuccess(""), 3000);
+      } else {
+        setTrackedImageError(
+          response.data.error || "Failed to update tracked image"
+        );
+      }
+    } catch (err) {
+      setTrackedImageError(
+        err.response?.data?.error || "Failed to update tracked image"
+      );
+    }
+  };
+
+  const handleCheckTrackedImagesUpdates = async () => {
+    setCheckingUpdates(true);
+    setTrackedImageError("");
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/tracked-images/check-updates`
+      );
+      if (response.data.success) {
+        await fetchTrackedImages();
+        setLastScanTime(new Date());
+        setTrackedImageSuccess("Update check completed!");
+        setTimeout(() => setTrackedImageSuccess(""), 3000);
+      }
+    } catch (err) {
+      setTrackedImageError(
+        err.response?.data?.error || "Failed to check for updates"
+      );
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  // Batch handler for tracked apps updates check
+  const handleBatchTrackedAppsCheck = useCallback(async () => {
+    let runId = null;
+    const logs = [];
+
+    const log = (message) => {
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] ${message}`;
+      logs.push(logEntry);
+      console.log(logEntry);
+    };
+
+    try {
+      // Create batch run record
+      log("Starting tracked apps batch check process...");
+      const runResponse = await axios.post(`${API_BASE_URL}/api/batch/runs`, {
+        status: "running",
+        jobType: "tracked-apps-check",
+      });
+      runId = runResponse.data.runId;
+      log(`Batch run ${runId} created`);
+
+      setCheckingUpdates(true);
+      log("🔄 Checking for tracked app updates...");
+
+      // Start the check operation
+      log("Initiating tracked apps update check...");
+      const response = await axios.post(
+        `${API_BASE_URL}/api/tracked-images/check-updates`,
+        {},
+        {
+          timeout: 300000, // 5 minute timeout
+        }
+      );
+
+      if (response.data.success) {
+        log("Tracked apps check completed successfully");
+
+        // Wait a moment for database updates to complete
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Fetch updated tracked images to get accurate counts
+        const updatedResponse = await axios.get(
+          `${API_BASE_URL}/api/tracked-images`
+        );
+        if (!updatedResponse.data.success) {
+          throw new Error("Failed to fetch updated tracked images");
+        }
+        const updatedImages = updatedResponse.data.images || [];
+        const appsChecked = updatedImages.length;
+        const appsWithUpdates = updatedImages.filter((img) =>
+          Boolean(img.has_update)
+        ).length;
+        log(
+          `Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`
+        );
+
+        // Update UI state
+        await fetchTrackedImages();
+        setLastScanTime(new Date());
+
+        // Update batch run as completed
+        if (runId) {
+          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
+            status: "completed",
+            containersChecked: appsChecked,
+            containersUpdated: appsWithUpdates,
+            logs: logs.join("\n"),
+          });
+          log(`Batch run ${runId} marked as completed`);
+        }
+      } else {
+        throw new Error(response.data.error || "Failed to check tracked apps");
+      }
+    } catch (err) {
+      let errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to check tracked apps";
+      log(`❌ Error: ${errorMessage}`);
+      console.error("Error checking tracked apps:", err);
+
+      // Update batch run as failed
+      if (runId) {
+        try {
+          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
+            status: "failed",
+            errorMessage,
+            logs: logs.join("\n"),
+          });
+          log(`Batch run ${runId} marked as failed`);
+        } catch (updateErr) {
+          console.error("Error updating batch run:", updateErr);
+        }
+      }
+    } finally {
+      setCheckingUpdates(false);
+      log("Tracked apps batch check process finished (success or failure)");
+    }
+  }, []); // Empty deps - fetchTrackedImages is stable, and we use setState functions which are stable
+
   // Fetch Portainer instances and avatar on app load
   useEffect(() => {
     if (isAuthenticated && authToken) {
       fetchPortainerInstances();
       fetchAvatar();
       fetchRecentAvatars();
+      fetchTrackedImages();
     }
   }, [isAuthenticated, authToken]);
 
@@ -761,7 +1188,7 @@ function App() {
     }
   };
 
-  // Close avatar menu when clicking outside
+  // Close avatar menu and notification menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -772,12 +1199,19 @@ function App() {
       ) {
         setShowAvatarMenu(false);
       }
+      if (
+        showNotificationMenu &&
+        !event.target.closest(".notification-menu") &&
+        !event.target.closest(".notification-button")
+      ) {
+        setShowNotificationMenu(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showAvatarMenu]);
+  }, [showAvatarMenu, showNotificationMenu]);
 
   const fetchContainers = async (
     showLoading = true,
@@ -814,7 +1248,12 @@ function App() {
       if (response.data.grouped && response.data.stacks) {
         setContainers(response.data.containers || []); // Keep flat list for filtering
         setStacks(response.data.stacks || []);
-        setUnusedImagesCount(response.data.unusedImagesCount || 0);
+        // Only update unused images count if we haven't just deleted images
+        // (within the last 2 seconds) to prevent overwriting manual updates
+        const timeSinceLastDelete = Date.now() - lastImageDeleteTimeRef.current;
+        if (timeSinceLastDelete > 2000) {
+          setUnusedImagesCount(response.data.unusedImagesCount || 0);
+        }
 
         // Check if this data includes Docker Hub information (has update checks)
         // If containers have latestDigest, latestTag, etc., Docker Hub was checked
@@ -1128,6 +1567,10 @@ function App() {
         // Mark that Docker Hub data has been pulled
         setDockerHubDataPulled(true);
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+        // Store last pull time
+        const pullTime = new Date();
+        setLastPullTime(pullTime);
+        localStorage.setItem("lastPullTime", pullTime.toISOString());
       } else {
         // Backward compatibility: treat as flat array
         setContainers(Array.isArray(response.data) ? response.data : []);
@@ -1265,15 +1708,21 @@ function App() {
 
       if (response.data.success) {
         const deletedCount = response.data.deleted || 0;
+        // Track deletion time to prevent fetchContainers from overwriting our count
+        lastImageDeleteTimeRef.current = Date.now();
         // Remove the deleted image from the list immediately
         setUnusedImages((prev) => prev.filter((img) => img.id !== image.id));
+        // Update unused images count
+        setUnusedImagesCount((prev) => Math.max(0, prev - 1));
         setSelectedImages((prev) => {
           const next = new Set(prev);
           next.delete(image.id);
           return next;
         });
-        // Refresh in background
-        await fetchContainers();
+        // Refresh in background (non-blocking, won't overwrite our count update)
+        fetchContainers().catch(() => {
+          // Ignore errors - we've already updated the UI
+        });
       } else {
         alert(`Failed to delete image. Check console for details.`);
         console.error("Delete errors:", response.data.errors);
@@ -1335,9 +1784,20 @@ function App() {
         const deletedCount = response.data.deleted || 0;
         alert(`Successfully deleted ${deletedCount} image(s)`);
 
-        // Refresh containers and unused images
-        await fetchContainers();
+        // Track deletion time to prevent fetchContainers from overwriting our count
+        lastImageDeleteTimeRef.current = Date.now();
+        // Remove deleted images from the list immediately
+        setUnusedImages((prev) =>
+          prev.filter((img) => !selectedImages.has(img.id))
+        );
+        // Update unused images count
+        setUnusedImagesCount((prev) => Math.max(0, prev - deletedCount));
+        // Clear selection
         setSelectedImages(new Set());
+        // Refresh in background (non-blocking, won't overwrite our count update)
+        fetchContainers().catch(() => {
+          // Ignore errors - we've already updated the UI
+        });
       } else {
         alert(`Failed to delete some images. Check console for details.`);
         console.error("Delete errors:", response.data.errors);
@@ -1373,9 +1833,11 @@ function App() {
       );
 
       if (response.data.success) {
-        // Immediately remove container from display (it no longer has updates)
+        // Mark container as up to date (no longer has updates)
         setContainers((prevContainers) =>
-          prevContainers.filter((c) => c.id !== container.id)
+          prevContainers.map((c) =>
+            c.id === container.id ? { ...c, hasUpdate: false } : c
+          )
         );
         // Remove from selection if it was selected
         setSelectedContainers((prev) => {
@@ -1500,12 +1962,14 @@ function App() {
         }
       );
 
-      // Immediately remove successfully upgraded containers from display
+      // Mark successfully upgraded containers as up to date (no longer have updates)
       const successfulIds = new Set(
         response.data.results?.map((r) => r.containerId) || []
       );
       setContainers((prevContainers) =>
-        prevContainers.filter((c) => !successfulIds.has(c.id))
+        prevContainers.map((c) =>
+          successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c
+        )
       );
       // Remove successfully upgraded containers from selection
       setSelectedContainers((prev) => {
@@ -1645,7 +2109,10 @@ function App() {
   useEffect(() => {
     if (
       activeTab !== "summary" &&
+      activeTab !== "tracked-apps" &&
+      activeTab !== "portainer" && // Portainer main tab
       activeTab !== "settings" &&
+      activeTab !== "configuration" &&
       activeTab !== "batch-logs" &&
       !portainerInstancesLoading && // Don't switch during loading
       portainerInstancesFromAPI && // Only check if we have instances loaded
@@ -1665,6 +2132,32 @@ function App() {
     portainerInstancesLoading,
   ]);
 
+  // When Portainer tab is selected, set the first instance as the sub-tab if none is selected
+  useEffect(() => {
+    if (
+      activeTab === "portainer" &&
+      !portainerSubTab &&
+      portainerInstances.length > 0
+    ) {
+      setPortainerSubTab(portainerInstances[0].name);
+    } else if (
+      activeTab === "portainer" &&
+      portainerSubTab &&
+      portainerInstances.length > 0
+    ) {
+      // If the selected sub-tab instance no longer exists, switch to first available
+      const instanceExists = portainerInstances.find(
+        (inst) => inst.name === portainerSubTab
+      );
+      if (!instanceExists) {
+        setPortainerSubTab(portainerInstances[0].name);
+      }
+    } else if (activeTab !== "portainer") {
+      // Clear sub-tab when leaving Portainer tab
+      setPortainerSubTab(null);
+    }
+  }, [activeTab, portainerInstances, portainerSubTab]);
+
   // Sort Portainer instances alphabetically by name
   portainerInstances.sort((a, b) => {
     const nameA = (a.name || "").toLowerCase();
@@ -1680,6 +2173,53 @@ function App() {
     return acc;
   }, {});
 
+  // Calculate tracked apps statistics
+  const totalTrackedApps = trackedImages.length;
+  const trackedAppsUpToDate = trackedImages.filter(
+    (img) =>
+      !img.has_update ||
+      (img.current_version &&
+        img.latest_version &&
+        img.current_version === img.latest_version)
+  ).length;
+  const trackedAppsBehind = trackedImages.filter(
+    (img) => img.has_update
+  ).length;
+
+  // Filter out dismissed notifications, but show again if version has changed
+  const activeContainersWithUpdates = containersWithUpdates.filter(
+    (container) => {
+      const dismissedVersion = dismissedContainerNotifications.get(
+        container.id
+      );
+      if (!dismissedVersion) {
+        // Not dismissed, show it
+        return true;
+      }
+      // Check if the latest version has changed since dismissal
+      const currentLatestVersion =
+        container.latestVersion ||
+        container.newVersion ||
+        container.latestTag ||
+        container.latestDigest;
+      return currentLatestVersion !== dismissedVersion;
+    }
+  );
+  const activeTrackedAppsBehind = trackedImages.filter((img) => {
+    if (!img.has_update) return false;
+    const dismissedVersion = dismissedTrackedAppNotifications.get(img.id);
+    if (!dismissedVersion) {
+      // Not dismissed, show it
+      return true;
+    }
+    // Check if the latest version has changed since dismissal
+    return img.latest_version !== dismissedVersion;
+  });
+
+  // Calculate notification count (active containers with updates + active tracked apps behind)
+  const notificationCount =
+    activeContainersWithUpdates.length + activeTrackedAppsBehind.length;
+
   // Calculate summary statistics
   const summaryStats = {
     totalPortainers: (portainerInstances || []).length,
@@ -1687,6 +2227,9 @@ function App() {
     containersWithUpdates: containersWithUpdates.length,
     containersUpToDate: containersUpToDate.length,
     unusedImages: unusedImagesCount,
+    totalTrackedApps: totalTrackedApps,
+    trackedAppsUpToDate: trackedAppsUpToDate,
+    trackedAppsBehind: trackedAppsBehind,
     portainerStats: (portainerInstances || [])
       .filter((p) => p != null) // Filter out any null/undefined entries
       .map((p) => ({
@@ -2145,15 +2688,6 @@ function App() {
             >
               Docker Hub
             </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "batch" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("batch")}
-              disabled={!passwordChanged}
-            >
-              Batch
-            </button>
           </div>
         </div>
         <div className="content-tab-panel">
@@ -2211,16 +2745,16 @@ function App() {
     return (
       <div className="summary-page">
         <div className="summary-header">
+          <h2>Summary</h2>
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              width: "100%",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "10px",
             }}
           >
-            <h2>Summary Dashboard</h2>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <button
                 className="pull-button"
                 onClick={handlePull}
@@ -2241,7 +2775,7 @@ function App() {
                   transition: "all 0.2s",
                 }}
               >
-                {pulling ? "Pulling..." : "Pull from Docker Hub"}
+                {pulling ? "Checking..." : "Check for Updates"}
               </button>
               <button
                 className="clear-button"
@@ -2301,8 +2835,21 @@ function App() {
                 )}
               </button>
             </div>
+            {lastPullTime && (
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Last scanned: {lastPullTime.toLocaleString()}
+              </div>
+            )}
           </div>
         </div>
+        <h3 style={{ marginBottom: "20px", color: "var(--text-primary)" }}>
+          Portainer Summary
+        </h3>
         <div className="summary-stats">
           <div className="stat-card">
             <div className="stat-value">{summaryStats.totalPortainers}</div>
@@ -2335,7 +2882,10 @@ function App() {
               <div
                 key={stat.name}
                 className="instance-card"
-                onClick={() => setActiveTab(stat.name)}
+                onClick={() => {
+                  setActiveTab("portainer");
+                  setPortainerSubTab(stat.name);
+                }}
               >
                 <div className="instance-header">
                   <h4>{stat.name}</h4>
@@ -2364,6 +2914,434 @@ function App() {
             ))}
           </div>
         </div>
+
+        <div
+          className="tracked-apps-summary"
+          style={{
+            marginTop: "40px",
+            paddingTop: "30px",
+            borderTop: "2px solid var(--border-color)",
+          }}
+        >
+          <h3 style={{ marginBottom: "20px", color: "var(--text-primary)" }}>
+            Tracked Apps Summary
+          </h3>
+          <div className="summary-stats">
+            <div className="stat-card">
+              <div className="stat-value">{summaryStats.totalTrackedApps}</div>
+              <div className="stat-label">Tracked Apps</div>
+            </div>
+            <div className="stat-card current">
+              <div className="stat-value">
+                {summaryStats.trackedAppsUpToDate}
+              </div>
+              <div className="stat-label">Apps Up to Date</div>
+            </div>
+            <div className="stat-card update-available">
+              <div className="stat-value">{summaryStats.trackedAppsBehind}</div>
+              <div className="stat-label">Apps Behind</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Tracked Apps tab
+  const renderTrackedApps = () => {
+    return (
+      <div className="summary-page">
+        <div className="summary-header">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <h2>Tracked Apps</h2>
+            <button
+              onClick={() => setShowAddTrackedImageModal(true)}
+              className="add-tracked-app-button"
+              title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
+            >
+              +
+            </button>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "10px",
+            }}
+          >
+            <button
+              onClick={handleCheckTrackedImagesUpdates}
+              className="pull-button"
+              disabled={checkingUpdates || trackedImages.length === 0}
+              style={{
+                padding: "10px 20px",
+                fontSize: "1rem",
+                fontWeight: "600",
+                background: checkingUpdates
+                  ? "var(--bg-secondary)"
+                  : "var(--dodger-blue)",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor:
+                  checkingUpdates || trackedImages.length === 0
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  checkingUpdates || trackedImages.length === 0 ? 0.6 : 1,
+                transition: "all 0.2s",
+              }}
+            >
+              {checkingUpdates ? "Checking..." : "Check for Updates"}
+            </button>
+            {lastScanTime && (
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Last scanned: {lastScanTime.toLocaleString()}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="tracked-apps-list" style={{ marginTop: "20px" }}>
+          {trackedImageError && (
+            <div className="error-message">{trackedImageError}</div>
+          )}
+          {trackedImageSuccess && (
+            <div className="success-message">{trackedImageSuccess}</div>
+          )}
+
+          {trackedImages.length > 0 ? (
+            <div style={{ marginTop: "20px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: "15px",
+                }}
+              >
+                {trackedImages.map((image) => (
+                  <div
+                    key={image.id}
+                    style={{
+                      background: "var(--bg-secondary)",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: image.has_update
+                        ? "2px solid var(--dodger-red)"
+                        : "1px solid var(--border-color)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: "bold",
+                          color: "var(--text-primary)",
+                          marginBottom: "3px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {image.current_version &&
+                          image.latest_version &&
+                          image.current_version === image.latest_version && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "14px",
+                                height: "14px",
+                                borderRadius: "50%",
+                                background: "rgba(34, 197, 94, 0.15)",
+                                color: "#22c55e",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                flexShrink: 0,
+                              }}
+                            >
+                              ✓
+                            </span>
+                          )}
+                        <span style={{ fontSize: "1.05rem" }}>
+                          {image.name}
+                        </span>
+                        {(!image.source_type ||
+                          image.source_type === "docker") && (
+                          <span
+                            style={{
+                              fontSize: "0.9rem",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            🐳 Docker
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--text-secondary)",
+                          fontSize: "0.95rem",
+                          marginBottom: "3px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{
+                            wordBreak: "break-word",
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          {image.github_repo || image.image_name}
+                        </span>
+                        {image.releaseUrl && (
+                          <a
+                            href={image.releaseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "var(--dodger-blue)",
+                              textDecoration: "none",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            View Release →
+                          </a>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.9rem",
+                          color: "var(--text-tertiary)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                        }}
+                      >
+                        <div>Current: {image.current_version || "Not set"}</div>
+                        {image.latest_version && image.has_update && (
+                          <div style={{ color: "var(--dodger-blue)" }}>
+                            Latest: {image.latest_version}
+                          </div>
+                        )}
+                        {image.has_update && (
+                          <div
+                            style={{
+                              color: "var(--dodger-blue)",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            ⬆ Update Available
+                          </div>
+                        )}
+                        {image.currentVersionPublishDate ? (
+                          <div>
+                            Released:{" "}
+                            {new Date(
+                              image.currentVersionPublishDate
+                            ).toLocaleDateString()}
+                          </div>
+                        ) : image.source_type === "github" &&
+                          image.current_version ? (
+                          <div
+                            style={{
+                              color: "var(--text-tertiary)",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            Released: Not available
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "4px",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        marginTop: "3px",
+                      }}
+                    >
+                      {editingTrackedImage === image.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editTrackedImageName}
+                            onChange={(e) =>
+                              setEditTrackedImageName(e.target.value)
+                            }
+                            style={{
+                              padding: "5px 10px",
+                              fontSize: "0.9rem",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color)",
+                              background: "var(--bg-primary)",
+                              color: "var(--text-primary)",
+                              width: "100px",
+                            }}
+                            placeholder="Name"
+                          />
+                          <input
+                            type="text"
+                            value={editTrackedImageCurrentVersion}
+                            onChange={(e) =>
+                              setEditTrackedImageCurrentVersion(e.target.value)
+                            }
+                            style={{
+                              padding: "5px 10px",
+                              fontSize: "0.9rem",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color)",
+                              background: "var(--bg-primary)",
+                              color: "var(--text-primary)",
+                              width: "95px",
+                            }}
+                            placeholder="Version"
+                          />
+                          <button
+                            onClick={() => handleSaveEditTrackedImage(image.id)}
+                            className="update-button"
+                            style={{
+                              padding: "5px 10px",
+                              fontSize: "0.9rem",
+                              background: "rgba(30, 144, 255, 0.2)",
+                              borderColor: "var(--dodger-blue)",
+                              color: "var(--dodger-blue)",
+                            }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEditTrackedImage}
+                            className="update-button"
+                            style={{
+                              padding: "5px 10px",
+                              fontSize: "0.9rem",
+                              background: "rgba(128, 128, 128, 0.2)",
+                              borderColor: "var(--text-secondary)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {image.latest_version &&
+                            (image.has_update ||
+                              !image.current_version ||
+                              image.current_version !==
+                                image.latest_version) && (
+                              <button
+                                onClick={() =>
+                                  handleUpgradeTrackedImage(
+                                    image.id,
+                                    image.latest_version
+                                  )
+                                }
+                                className="update-button"
+                                style={{
+                                  padding: "5px 12px",
+                                  fontSize: "0.9rem",
+                                  background: "rgba(30, 144, 255, 0.2)",
+                                  borderColor: "var(--dodger-blue)",
+                                  color: "var(--dodger-blue)",
+                                }}
+                              >
+                                Mark Upgraded
+                              </button>
+                            )}
+                          {image.source_type === "github" &&
+                            image.github_repo && (
+                              <button
+                                onClick={() => {
+                                  const repoUrl = image.github_repo.startsWith(
+                                    "http"
+                                  )
+                                    ? image.github_repo
+                                    : `https://github.com/${image.github_repo}`;
+                                  window.open(
+                                    repoUrl,
+                                    "_blank",
+                                    "noopener,noreferrer"
+                                  );
+                                }}
+                                className="update-button"
+                                style={{
+                                  padding: "5px 12px",
+                                  fontSize: "0.9rem",
+                                  background: "rgba(30, 144, 255, 0.2)",
+                                  borderColor: "var(--dodger-blue)",
+                                  color: "var(--dodger-blue)",
+                                }}
+                                title="Open GitHub repository"
+                              >
+                                🐙 GitHub
+                              </button>
+                            )}
+                          <button
+                            onClick={() => handleEditTrackedImage(image)}
+                            className="update-button"
+                            style={{
+                              padding: "5px 12px",
+                              fontSize: "0.9rem",
+                              background: "rgba(128, 128, 128, 0.2)",
+                              borderColor: "var(--text-secondary)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTrackedImage(image.id)}
+                            className="update-button"
+                            style={{
+                              padding: "5px 10px",
+                              fontSize: "0.95rem",
+                              background: "rgba(239, 62, 66, 0.2)",
+                              borderColor: "var(--dodger-red)",
+                              color: "var(--dodger-red)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minWidth: "32px",
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "40px",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <p>No tracked apps yet. Click the "+" button to add one.</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -2391,24 +3369,24 @@ function App() {
     if (!instanceInfo) {
       return (
         <div className="portainer-tab-content">
-          <div className="portainer-instance-header">
-            <h2>{portainerName}</h2>
-            <div className="instance-loading-indicator">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ animation: "spin 1s linear infinite" }}
-              >
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-              <span>Loading instance...</span>
-            </div>
+          <div
+            className="instance-loading-indicator"
+            style={{ marginBottom: "20px" }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ animation: "spin 1s linear infinite" }}
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+            <span>Loading instance...</span>
           </div>
           <div className="empty-state">
             <div
@@ -2486,28 +3464,27 @@ function App() {
 
     return (
       <div className="portainer-tab-content">
-        {/* Portainer Instance Header */}
-        <div className="portainer-instance-header">
-          <h2>{portainerName}</h2>
-          {isLoading && (
-            <div className="instance-loading-indicator">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ animation: "spin 1s linear infinite" }}
-              >
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-              <span>Loading data...</span>
-            </div>
-          )}
-        </div>
+        {isLoading && (
+          <div
+            className="instance-loading-indicator"
+            style={{ marginBottom: "20px" }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ animation: "spin 1s linear infinite" }}
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+            <span>Loading data...</span>
+          </div>
+        )}
 
         {/* Content Tabs */}
         <div className="content-tabs">
@@ -3017,12 +3994,463 @@ function App() {
                   position: "relative",
                   display: "flex",
                   alignItems: "center",
+                  gap: "10px",
                 }}
               >
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="notification-button"
+                    onClick={() => {
+                      setShowNotificationMenu(!showNotificationMenu);
+                      setShowAvatarMenu(false);
+                    }}
+                    aria-label="Notifications"
+                    title="Notifications"
+                    style={{
+                      padding: "10px",
+                      background: "rgba(255, 255, 255, 0.2)",
+                      color: "white",
+                      border: "2px solid rgba(255, 255, 255, 0.3)",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      transition: "all 0.3s",
+                      backdropFilter: "blur(10px)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "44px",
+                      height: "44px",
+                      position: "relative",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                      e.target.style.borderColor = "rgba(255, 255, 255, 0.5)";
+                      e.target.style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                      e.target.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                      e.target.style.transform = "translateY(0)";
+                    }}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    {notificationCount > 0 && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "4px",
+                          right: "4px",
+                          background: "var(--dodger-red)",
+                          color: "white",
+                          borderRadius: "50%",
+                          width: "18px",
+                          height: "18px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.7rem",
+                          fontWeight: "bold",
+                          border: "2px solid white",
+                          zIndex: 10,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {notificationCount > 99 ? "99+" : notificationCount}
+                      </span>
+                    )}
+                  </button>
+                  {showNotificationMenu && (
+                    <div
+                      className="notification-menu"
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 10px)",
+                        right: 0,
+                        background: "var(--bg-primary)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 12px var(--shadow)",
+                        minWidth: "300px",
+                        maxWidth: "400px",
+                        maxHeight: "500px",
+                        overflowY: "auto",
+                        zIndex: 1001,
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "var(--bg-secondary)",
+                          borderBottom: "1px solid var(--border-color)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <h3
+                          style={{
+                            margin: 0,
+                            color: "var(--text-primary)",
+                            fontSize: "1rem",
+                          }}
+                        >
+                          Notifications
+                        </h3>
+                        {notificationCount > 0 && (
+                          <span
+                            style={{
+                              background: "var(--dodger-blue)",
+                              color: "white",
+                              borderRadius: "12px",
+                              padding: "2px 8px",
+                              fontSize: "0.85rem",
+                              fontWeight: "600",
+                            }}
+                          >
+                            {notificationCount}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ padding: "8px 0" }}>
+                        {activeContainersWithUpdates.length > 0 && (
+                          <>
+                            <div
+                              style={{
+                                padding: "8px 16px",
+                                fontSize: "0.85rem",
+                                color: "var(--text-secondary)",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                              }}
+                            >
+                              Container Updates (
+                              {activeContainersWithUpdates.length})
+                            </div>
+                            {activeContainersWithUpdates
+                              .slice(0, 5)
+                              .map((container) => (
+                                <div
+                                  key={container.id}
+                                  style={{
+                                    padding: "12px 16px",
+                                    borderBottom:
+                                      "1px solid var(--border-color)",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background =
+                                      "var(--bg-secondary)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background =
+                                      "transparent";
+                                  }}
+                                >
+                                  <div
+                                    style={{ flex: 1 }}
+                                    onClick={() => {
+                                      setShowNotificationMenu(false);
+                                      setActiveTab("portainer");
+                                      if (container.portainerName) {
+                                        setPortainerSubTab(
+                                          container.portainerName
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        color: "var(--text-primary)",
+                                        fontWeight: "600",
+                                        fontSize: "0.9rem",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      {container.name}
+                                    </div>
+                                    <div
+                                      style={{
+                                        color: "var(--text-secondary)",
+                                        fontSize: "0.85rem",
+                                      }}
+                                    >
+                                      Update available
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDismissedContainerNotifications(
+                                        (prev) => {
+                                          const newMap = new Map(prev);
+                                          // Store the latest version that was dismissed
+                                          const latestVersion =
+                                            container.latestVersion ||
+                                            container.newVersion ||
+                                            container.latestTag ||
+                                            container.latestDigest;
+                                          newMap.set(
+                                            container.id,
+                                            latestVersion
+                                          );
+                                          return newMap;
+                                        }
+                                      );
+                                    }}
+                                    style={{
+                                      padding: "4px 8px",
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      color: "var(--text-secondary)",
+                                      borderRadius: "4px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.2s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background =
+                                        "var(--bg-tertiary)";
+                                      e.currentTarget.style.color =
+                                        "var(--text-primary)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background =
+                                        "transparent";
+                                      e.currentTarget.style.color =
+                                        "var(--text-secondary)";
+                                    }}
+                                    aria-label="Dismiss notification"
+                                    title="Dismiss"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))}
+                            {activeContainersWithUpdates.length > 5 && (
+                              <div
+                                style={{
+                                  padding: "8px 16px",
+                                  fontSize: "0.85rem",
+                                  color: "var(--dodger-blue)",
+                                  textAlign: "center",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => {
+                                  setShowNotificationMenu(false);
+                                  setActiveTab("summary");
+                                }}
+                              >
+                                View all {activeContainersWithUpdates.length}{" "}
+                                container updates
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {activeTrackedAppsBehind.length > 0 && (
+                          <>
+                            {activeContainersWithUpdates.length > 0 && (
+                              <div
+                                style={{
+                                  height: "1px",
+                                  background: "var(--border-color)",
+                                  margin: "8px 0",
+                                }}
+                              />
+                            )}
+                            <div
+                              style={{
+                                padding: "8px 16px",
+                                fontSize: "0.85rem",
+                                color: "var(--text-secondary)",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                              }}
+                            >
+                              Tracked App Updates (
+                              {activeTrackedAppsBehind.length})
+                            </div>
+                            {activeTrackedAppsBehind
+                              .slice(0, 5)
+                              .map((image) => (
+                                <div
+                                  key={image.id}
+                                  style={{
+                                    padding: "12px 16px",
+                                    borderBottom:
+                                      "1px solid var(--border-color)",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background =
+                                      "var(--bg-secondary)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background =
+                                      "transparent";
+                                  }}
+                                >
+                                  <div
+                                    style={{ flex: 1 }}
+                                    onClick={() => {
+                                      setShowNotificationMenu(false);
+                                      setActiveTab("tracked-apps");
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        color: "var(--text-primary)",
+                                        fontWeight: "600",
+                                        fontSize: "0.9rem",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      {image.name}
+                                    </div>
+                                    <div
+                                      style={{
+                                        color: "var(--text-secondary)",
+                                        fontSize: "0.85rem",
+                                      }}
+                                    >
+                                      Update available: {image.latest_version}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDismissedTrackedAppNotifications(
+                                        (prev) => {
+                                          const newMap = new Map(prev);
+                                          // Store the latest version that was dismissed
+                                          newMap.set(
+                                            image.id,
+                                            image.latest_version
+                                          );
+                                          return newMap;
+                                        }
+                                      );
+                                    }}
+                                    style={{
+                                      padding: "4px 8px",
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      color: "var(--text-secondary)",
+                                      borderRadius: "4px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.2s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background =
+                                        "var(--bg-tertiary)";
+                                      e.currentTarget.style.color =
+                                        "var(--text-primary)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background =
+                                        "transparent";
+                                      e.currentTarget.style.color =
+                                        "var(--text-secondary)";
+                                    }}
+                                    aria-label="Dismiss notification"
+                                    title="Dismiss"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))}
+                            {activeTrackedAppsBehind.length > 5 && (
+                              <div
+                                style={{
+                                  padding: "8px 16px",
+                                  fontSize: "0.85rem",
+                                  color: "var(--dodger-blue)",
+                                  textAlign: "center",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => {
+                                  setShowNotificationMenu(false);
+                                  setActiveTab("tracked-apps");
+                                }}
+                              >
+                                View all {activeTrackedAppsBehind.length}{" "}
+                                tracked app updates
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {notificationCount === 0 && (
+                          <div
+                            style={{
+                              padding: "40px 16px",
+                              textAlign: "center",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            No new notifications
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   className="avatar-button"
                   onClick={() => {
                     setShowAvatarMenu(!showAvatarMenu);
+                    setShowNotificationMenu(false);
                   }}
                   aria-label="User Menu"
                   title="User Menu"
@@ -3116,6 +4544,32 @@ function App() {
                       <button
                         className="avatar-menu-item"
                         onClick={() => {
+                          setActiveTab("configuration");
+                          setConfigurationTab("batch");
+                          setShowAvatarMenu(false);
+                        }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                        Batch
+                      </button>
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
                           setActiveTab("settings");
                           setShowAvatarMenu(false);
                         }}
@@ -3138,41 +4592,8 @@ function App() {
                       <button
                         className="avatar-menu-item"
                         onClick={() => {
-                          console.log("🔄 Navigating to batch-logs page...");
-                          console.log("Current activeTab before:", activeTab);
-                          setActiveTab("batch-logs");
-                          setShowAvatarMenu(false);
-                          console.log("✅ Active tab set to batch-logs");
-                          // Force a re-render check
-                          setTimeout(() => {
-                            console.log("ActiveTab after timeout:", activeTab);
-                          }, 100);
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                          <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                        Batch Processing
-                      </button>
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          // Toggle between light and dark (skip system for quick toggle)
-                          const newScheme = darkMode ? "light" : "dark";
-                          handleColorSchemeChange(newScheme);
+                          // Toggle dark mode temporarily without changing saved preference
+                          handleTemporaryThemeToggle();
                         }}
                       >
                         <svg
@@ -3249,8 +4670,8 @@ function App() {
             transition: "margin-top 0.3s ease-out",
           }}
         >
-          {/* Tabs - Only show when not in Settings or Batch Logs */}
-          {activeTab !== "settings" && activeTab !== "batch-logs" && (
+          {/* Tabs - Show for all tabs except old settings page and configuration */}
+          {activeTab !== "settings" && activeTab !== "configuration" && (
             <div className="tabs-container">
               <div className="tabs">
                 <button
@@ -3259,65 +4680,97 @@ function App() {
                 >
                   📊 Summary
                 </button>
-                {(portainerInstances || [])
-                  .filter((inst) => inst != null && inst.name)
-                  .map((instance, index) => (
-                    <button
-                      key={instance.name}
-                      className={`tab ${
-                        activeTab === instance.name ? "active" : ""
-                      } ${draggedTabIndex === index ? "dragging" : ""}`}
-                      onClick={() => setActiveTab(instance.name)}
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedTabIndex(index);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/html", index);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const draggedIndex = parseInt(
-                          e.dataTransfer.getData("text/html")
-                        );
-                        if (draggedIndex !== index) {
-                          handleReorderTabs(draggedIndex, index);
-                        }
-                        setDraggedTabIndex(null);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedTabIndex(null);
-                      }}
-                    >
-                      {instance.name}
-                      {instance.withUpdates.length > 0 && (
-                        <span className="tab-badge">
-                          {instance.withUpdates.length}
-                        </span>
-                      )}
-                    </button>
-                  ))}
                 <button
-                  className={`tab add-instance-tab ${
-                    portainerInstances.length > 0
-                      ? "add-instance-icon-only"
-                      : ""
-                  }`}
-                  onClick={() => {
-                    setEditingPortainerInstance(null);
-                    setShowAddPortainerModal(true);
-                  }}
-                  title="Add Portainer Instance"
+                  className={`tab ${activeTab === "portainer" ? "active" : ""}`}
+                  onClick={() => setActiveTab("portainer")}
                 >
-                  {portainerInstances.length === 0 ? (
-                    <>➕ Add Instance</>
-                  ) : (
+                  🐳 Portainer
+                  {containersWithUpdates.length > 0 && (
+                    <span className="tab-badge">
+                      {containersWithUpdates.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  className={`tab ${
+                    activeTab === "tracked-apps" ? "active" : ""
+                  }`}
+                  onClick={() => setActiveTab("tracked-apps")}
+                >
+                  📱 Tracked Apps
+                  {trackedAppsBehind > 0 && (
+                    <span className="tab-badge">{trackedAppsBehind}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Portainer Header and Sub-tabs - Show when Portainer tab is active */}
+          {activeTab === "portainer" && (
+            <>
+              <div className="summary-header">
+                <h2>Portainer</h2>
+              </div>
+              <div className="content-tabs" style={{ marginBottom: "20px" }}>
+                <div className="content-tabs-left">
+                  {(portainerInstances || [])
+                    .filter((inst) => inst != null && inst.name)
+                    .map((instance, index) => (
+                      <button
+                        key={instance.name}
+                        className={`content-tab ${
+                          portainerSubTab === instance.name ? "active" : ""
+                        } ${draggedTabIndex === index ? "dragging" : ""}`}
+                        onClick={() => setPortainerSubTab(instance.name)}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedTabIndex(index);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/html", index);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const draggedIndex = parseInt(
+                            e.dataTransfer.getData("text/html")
+                          );
+                          if (draggedIndex !== index) {
+                            handleReorderTabs(draggedIndex, index);
+                          }
+                          setDraggedTabIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTabIndex(null);
+                        }}
+                      >
+                        {instance.name}
+                        {instance.withUpdates.length > 0 && (
+                          <span className="tab-badge">
+                            {instance.withUpdates.length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  <button
+                    className="content-tab add-instance-tab"
+                    onClick={() => {
+                      setEditingPortainerInstance(null);
+                      setShowAddPortainerModal(true);
+                    }}
+                    title="Add Portainer Instance"
+                    style={{
+                      border: "1px dashed var(--border-color)",
+                      borderRadius: "6px",
+                      opacity: 0.7,
+                    }}
+                  >
                     <svg
-                      width="20"
-                      height="20"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -3328,22 +4781,148 @@ function App() {
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
-                  )}
-                </button>
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === "settings" ? (
               renderSettingsPage()
+            ) : activeTab === "configuration" ? (
+              <div style={{ width: "100%" }}>
+                <div
+                  className="summary-header"
+                  style={{ marginBottom: "20px" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <h2 className="settings-header" style={{ margin: 0 }}>
+                      Batch
+                    </h2>
+                    <button
+                      onClick={() => setActiveTab("summary")}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        background: "var(--dodger-blue)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background =
+                          "var(--dodger-blue-light)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "var(--dodger-blue)";
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                      Return Home
+                    </button>
+                  </div>
+                </div>
+                <div className="content-tabs" style={{ marginBottom: "20px" }}>
+                  <div className="content-tabs-left">
+                    <button
+                      className={`content-tab ${
+                        configurationTab === "batch" ? "active" : ""
+                      }`}
+                      onClick={() => setConfigurationTab("batch")}
+                    >
+                      History
+                    </button>
+                    <button
+                      className={`content-tab ${
+                        configurationTab === "settings" ? "active" : ""
+                      }`}
+                      onClick={() => setConfigurationTab("settings")}
+                    >
+                      Settings
+                    </button>
+                  </div>
+                </div>
+                <div className="content-tab-panel">
+                  {configurationTab === "batch" ? (
+                    <ErrorBoundary>
+                      <BatchLogs
+                        onNavigateHome={() => setActiveTab("summary")}
+                        onTriggerBatch={handleBatchPull}
+                        onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+                      />
+                    </ErrorBoundary>
+                  ) : (
+                    <ErrorBoundary>
+                      <Settings
+                        username={username}
+                        onUsernameUpdate={handleUsernameUpdate}
+                        onLogout={handleLogout}
+                        isFirstLogin={false}
+                        onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+                        onPortainerInstancesChange={() => {
+                          fetchPortainerInstances();
+                          fetchContainers();
+                        }}
+                        activeSection="batch"
+                        onSectionChange={null}
+                        showUserInfoAboveTabs={false}
+                        onEditInstance={(instance) => {
+                          setEditingPortainerInstance(instance);
+                          setShowAddPortainerModal(true);
+                        }}
+                        avatar={avatar}
+                        recentAvatars={recentAvatars}
+                        onAvatarChange={handleAvatarChange}
+                        onRecentAvatarsChange={(avatars) => {
+                          setRecentAvatars(avatars);
+                          fetchRecentAvatars();
+                        }}
+                        onAvatarUploaded={async () => {
+                          await fetchAvatar();
+                        }}
+                        onBatchConfigUpdate={handleBatchConfigUpdate}
+                        colorScheme={colorScheme}
+                        onColorSchemeChange={handleColorSchemeChange}
+                        refreshInstances={fetchPortainerInstances}
+                      />
+                    </ErrorBoundary>
+                  )}
+                </div>
+              </div>
             ) : activeTab === "batch-logs" ? (
               <div style={{ width: "100%" }}>
                 <ErrorBoundary>
                   <BatchLogs
                     onNavigateHome={() => setActiveTab("summary")}
                     onTriggerBatch={handleBatchPull}
+                    onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
                   />
                 </ErrorBoundary>
               </div>
@@ -3459,52 +5038,41 @@ function App() {
                   </div>
                 )}
 
-                {!loading &&
-                  !error &&
-                  (!portainerInstances || portainerInstances.length === 0) && (
-                    <div
-                      className="empty-state"
-                      style={{ textAlign: "center", padding: "60px 20px" }}
-                    >
-                      <h2
-                        style={{
-                          color: "var(--text-primary)",
-                          marginBottom: "15px",
-                        }}
-                      >
-                        No Portainer Instances Configured
-                      </h2>
-                      <p
-                        style={{
-                          color: "var(--text-secondary)",
-                          marginBottom: "30px",
-                          fontSize: "1.1rem",
-                        }}
-                      >
-                        Get started by adding your first Portainer instance.
-                      </p>
-                      <button
-                        className="update-button"
-                        onClick={() => {
-                          setEditingPortainerInstance(null);
-                          setShowAddPortainerModal(true);
-                        }}
-                        style={{ fontSize: "1.1rem", padding: "14px 28px" }}
-                      >
-                        ➕ Add Your First Portainer Instance
-                      </button>
-                    </div>
-                  )}
-
-                {!loading &&
-                  !error &&
-                  portainerInstances &&
-                  portainerInstances.length > 0 && (
-                    <>
-                      {activeTab === "summary" && renderSummary()}
-                      {activeTab !== "summary" && renderPortainerTab(activeTab)}
-                    </>
-                  )}
+                {!loading && !error && (
+                  <>
+                    {activeTab === "summary" && renderSummary()}
+                    {activeTab === "portainer" &&
+                      portainerSubTab &&
+                      renderPortainerTab(portainerSubTab)}
+                    {activeTab === "portainer" &&
+                      !portainerSubTab &&
+                      portainerInstances.length === 0 && (
+                        <div
+                          style={{
+                            textAlign: "center",
+                            padding: "40px",
+                            color: "var(--text-secondary)",
+                          }}
+                        >
+                          <p>
+                            No Portainer instances configured. Add one to get
+                            started.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setEditingPortainerInstance(null);
+                              setShowAddPortainerModal(true);
+                            }}
+                            className="update-button"
+                            style={{ marginTop: "20px" }}
+                          >
+                            Add Portainer Instance
+                          </button>
+                        </div>
+                      )}
+                    {activeTab === "tracked-apps" && renderTrackedApps()}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -3571,6 +5139,12 @@ function App() {
           />
         </ErrorBoundary>
       </div>
+
+      <AddTrackedImageModal
+        isOpen={showAddTrackedImageModal}
+        onClose={() => setShowAddTrackedImageModal(false)}
+        onSuccess={handleTrackedImageModalSuccess}
+      />
     </BatchConfigContext.Provider>
   );
 }

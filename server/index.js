@@ -1321,6 +1321,9 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
   }
 });
 
+// Import batch scheduler
+const batchScheduler = require("./services/batchScheduler");
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);
@@ -1351,4 +1354,7 @@ app.listen(PORT, () => {
     );
   }
   console.log(`Cache TTL: 24 hours`);
+
+  // Start batch scheduler (runs jobs in background even when browser is closed)
+  batchScheduler.startBatchScheduler();
 });
