@@ -83,7 +83,7 @@ function Login({ onLogin }) {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" role="main" aria-label="Login page">
       <div className="login-card">
         <div className="login-header">
           <h1>
@@ -117,6 +117,8 @@ function Login({ onLogin }) {
               autoFocus
               autoComplete="username"
               disabled={loading}
+              aria-required="true"
+              aria-invalid={error && error.includes("username") ? "true" : "false"}
             />
           </div>
           <div className="form-group">
@@ -129,13 +131,21 @@ function Login({ onLogin }) {
               required
               autoComplete="current-password"
               disabled={loading}
+              aria-required="true"
+              aria-invalid={error && error.includes("password") ? "true" : "false"}
             />
           </div>
-          {error && <div className="error-message">{error}</div>}
+          {error && (
+            <div className="error-message" role="alert" aria-live="assertive">
+              {error}
+            </div>
+          )}
           <button
             type="submit"
             className="login-button"
             disabled={loading || !username || !password}
+            aria-busy={loading}
+            aria-label={loading ? "Logging in, please wait" : "Login to your account"}
           >
             {loading ? "Logging in..." : "Login"}
           </button>

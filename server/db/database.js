@@ -53,6 +53,12 @@ function initializeDatabase() {
           console.error("Error creating users table:", err.message);
         } else {
           console.log("Users table ready");
+          // Create indexes for users table
+          db.run("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating username index:", idxErr.message);
+            }
+          });
           // Migrate existing 'admin' roles to 'Administrator'
           db.run(
             "UPDATE users SET role = 'Administrator' WHERE role = 'admin'",
@@ -90,6 +96,17 @@ function initializeDatabase() {
           );
         } else {
           console.log("Portainer instances table ready");
+          // Create indexes for portainer_instances table
+          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating portainer URL index:", idxErr.message);
+            }
+          });
+          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating display_order index:", idxErr.message);
+            }
+          });
           // Add display_order column if it doesn't exist (migration)
           db.run(
             `ALTER TABLE portainer_instances ADD COLUMN display_order INTEGER DEFAULT 0`,
@@ -103,6 +120,43 @@ function initializeDatabase() {
               }
             }
           );
+          // Add api_key and auth_type columns if they don't exist (migration)
+          db.run(
+            `ALTER TABLE portainer_instances ADD COLUMN api_key TEXT`,
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                console.error(
+                  "Error adding api_key column:",
+                  alterErr.message
+                );
+              }
+            }
+          );
+          db.run(
+            `ALTER TABLE portainer_instances ADD COLUMN auth_type TEXT DEFAULT 'password'`,
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                console.error(
+                  "Error adding auth_type column:",
+                  alterErr.message
+                );
+              } else {
+                // Update existing rows to have auth_type = 'password'
+                db.run(
+                  `UPDATE portainer_instances SET auth_type = 'password' WHERE auth_type IS NULL`,
+                  (updateErr) => {
+                    if (updateErr) {
+                      console.error("Error updating auth_type:", updateErr.message);
+                    }
+                  }
+                );
+              }
+            }
+          );
+          // Make username and password nullable for API key auth
+          // Note: SQLite doesn't support ALTER COLUMN, so we'll handle this in application logic
         }
       }
     );
@@ -142,6 +196,17 @@ function initializeDatabase() {
           console.error("Error creating container_cache table:", err.message);
         } else {
           console.log("Container cache table ready");
+          // Create indexes for container_cache table
+          db.run("CREATE INDEX IF NOT EXISTS idx_cache_key ON container_cache(cache_key)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating cache_key index:", idxErr.message);
+            }
+          });
+          db.run("CREATE INDEX IF NOT EXISTS idx_cache_updated_at ON container_cache(updated_at)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating cache updated_at index:", idxErr.message);
+            }
+          });
         }
       }
     );
@@ -199,6 +264,17 @@ function initializeDatabase() {
           console.error("Error creating batch_runs table:", err.message);
         } else {
           console.log("Batch runs table ready");
+          // Create indexes for batch_runs table
+          db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating batch_runs started_at index:", idxErr.message);
+            }
+          });
+          db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating batch_runs status index:", idxErr.message);
+            }
+          });
           // Add job_type column if it doesn't exist (migration)
           db.run(
             `ALTER TABLE batch_runs ADD COLUMN job_type TEXT DEFAULT 'docker-hub-pull'`,
@@ -379,7 +455,7 @@ async function createUser(username, password, role = "admin") {
 function getAllPortainerInstances() {
   return new Promise((resolve, reject) => {
     db.all(
-      "SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
+      "SELECT id, name, url, username, password, api_key, auth_type, display_order, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
       [],
       (err, rows) => {
         if (err) {
@@ -400,7 +476,7 @@ function getAllPortainerInstances() {
 function getPortainerInstanceById(id) {
   return new Promise((resolve, reject) => {
     db.get(
-      "SELECT id, name, url, username, password, display_order, created_at, updated_at FROM portainer_instances WHERE id = ?",
+      "SELECT id, name, url, username, password, api_key, auth_type, display_order, created_at, updated_at FROM portainer_instances WHERE id = ?",
       [id],
       (err, row) => {
         if (err) {
@@ -421,7 +497,7 @@ function getPortainerInstanceById(id) {
  * @param {string} password - Password (will be stored as-is, consider encryption)
  * @returns {Promise<number>} - ID of created instance
  */
-function createPortainerInstance(name, url, username, password) {
+function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'password') {
   return new Promise((resolve, reject) => {
     // Get max display_order to set new instance at the end
     db.get(
@@ -434,9 +510,17 @@ function createPortainerInstance(name, url, username, password) {
         }
         const nextOrder = (row?.max_order ?? -1) + 1;
 
+        // Use appropriate fields based on auth type
+        // IMPORTANT: When creating with a specific auth type, only store data for that method
+        // Use empty strings instead of null to satisfy NOT NULL constraints
+        const finalUsername = authType === 'apikey' ? '' : (username || '');
+        const finalPassword = authType === 'apikey' ? '' : (password || '');
+        // Only store API key when using API key auth, otherwise set to null
+        const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
+
         db.run(
-          "INSERT INTO portainer_instances (name, url, username, password, display_order) VALUES (?, ?, ?, ?, ?)",
-          [name, url, username, password, nextOrder],
+          "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder],
           function (insertErr) {
             if (insertErr) {
               reject(insertErr);
@@ -459,11 +543,19 @@ function createPortainerInstance(name, url, username, password) {
  * @param {string} password - Password
  * @returns {Promise<void>}
  */
-function updatePortainerInstance(id, name, url, username, password) {
+function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'password') {
   return new Promise((resolve, reject) => {
+    // Use appropriate fields based on auth type
+    // IMPORTANT: When switching auth methods, explicitly clear the old method's data
+    // Use empty strings instead of null to satisfy NOT NULL constraints
+    const finalUsername = authType === 'apikey' ? '' : (username || '');
+    const finalPassword = authType === 'apikey' ? '' : (password || '');
+    // Clear API key when using password auth, set it when using API key auth
+    const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
+
     db.run(
-      "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [name, url, username, password, id],
+      "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [name, url, finalUsername, finalPassword, finalApiKey, authType, id],
       function (err) {
         if (err) {
           reject(err);

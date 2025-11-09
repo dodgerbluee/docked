@@ -11,6 +11,7 @@ const {
   validateContainerArray,
 } = require('../utils/validation');
 const { RateLimitExceededError } = require('../utils/retry');
+const { getAllPortainerInstances } = require('../db/database');
 
 /**
  * Get all containers with update status
@@ -130,7 +131,20 @@ async function upgradeContainer(req, res, next) {
       return res.status(400).json(validationError);
     }
 
-    await portainerService.authenticatePortainer(portainerUrl);
+    // Get instance credentials from database
+    const instances = await getAllPortainerInstances();
+    const instance = instances.find(inst => inst.url === portainerUrl);
+    if (!instance) {
+      return res.status(404).json({ error: 'Portainer instance not found' });
+    }
+
+    await portainerService.authenticatePortainer(
+      portainerUrl,
+      instance.username,
+      instance.password,
+      instance.api_key,
+      instance.auth_type || 'password'
+    );
     const result = await containerService.upgradeSingleContainer(
       portainerUrl,
       endpointId,
@@ -164,13 +178,32 @@ async function batchUpgradeContainers(req, res, next) {
       return res.status(400).json(validationError);
     }
 
+    // Get all instances once to avoid repeated DB queries
+    const instances = await getAllPortainerInstances();
+    const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
+
     // Upgrade containers sequentially to avoid conflicts
     const results = [];
     const errors = [];
 
     for (const container of containers) {
       try {
-        await portainerService.authenticatePortainer(container.portainerUrl);
+        const instance = instanceMap.get(container.portainerUrl);
+        if (!instance) {
+          errors.push({
+            containerId: container.containerId,
+            error: `Portainer instance not found: ${container.portainerUrl}`,
+          });
+          continue;
+        }
+
+        await portainerService.authenticatePortainer(
+          container.portainerUrl,
+          instance.username,
+          instance.password,
+          instance.api_key,
+          instance.auth_type || 'password'
+        );
         const result = await containerService.upgradeSingleContainer(
           container.portainerUrl,
           container.endpointId,

@@ -3,9 +3,10 @@
  * Handles HTTP requests for image operations
  */
 
-const containerService = require('../services/containerService');
-const portainerService = require('../services/portainerService');
-const { validateImageArray } = require('../utils/validation');
+const containerService = require("../services/containerService");
+const portainerService = require("../services/portainerService");
+const { validateImageArray } = require("../utils/validation");
+const { getAllPortainerInstances } = require("../db/database");
 
 /**
  * Get unused images
@@ -56,11 +57,30 @@ async function deleteImages(req, res, next) {
       `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
+    // Get all instances once to avoid repeated DB queries
+    const instances = await getAllPortainerInstances();
+    const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
+
     // Delete images
     for (const image of uniqueImages) {
       const { id, portainerUrl, endpointId } = image;
       try {
-        await portainerService.authenticatePortainer(portainerUrl);
+        const instance = instanceMap.get(portainerUrl);
+        if (!instance) {
+          errors.push({
+            id,
+            error: `Portainer instance not found: ${portainerUrl}`,
+          });
+          continue;
+        }
+
+        await portainerService.authenticatePortainer(
+          portainerUrl,
+          instance.username,
+          instance.password,
+          instance.api_key,
+          instance.auth_type || "password"
+        );
         console.log(
           `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`
         );
@@ -90,4 +110,3 @@ module.exports = {
   getUnusedImages,
   deleteImages,
 };
-

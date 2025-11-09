@@ -44,11 +44,30 @@ async function getAvatar(req, res, next) {
       // Return the avatar file
       res.sendFile(avatarPath);
     } else {
-      // Return 404 if no avatar exists
-      res.status(404).json({
-        success: false,
-        error: 'Avatar not found'
-      });
+      // Return default avatar instead of 404
+      // This prevents frontend errors when avatar doesn't exist
+      // Try multiple possible locations for default avatar
+      const possibleDefaultPaths = [
+        path.join(__dirname, '../../client/public/img/default-avatar.jpg'),
+        path.join(__dirname, '../../public/img/default-avatar.jpg'),
+        path.join(process.cwd(), 'client/public/img/default-avatar.jpg'),
+        path.join(process.cwd(), 'public/img/default-avatar.jpg'),
+      ];
+      
+      let defaultAvatarSent = false;
+      for (const defaultPath of possibleDefaultPaths) {
+        if (fs.existsSync(defaultPath)) {
+          res.sendFile(defaultPath);
+          defaultAvatarSent = true;
+          break;
+        }
+      }
+      
+      if (!defaultAvatarSent) {
+        // If no default avatar found, return 204 No Content
+        // Frontend will handle this and use its own default
+        res.status(204).end();
+      }
     }
   } catch (err) {
     next(err);

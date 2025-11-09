@@ -630,9 +630,11 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
     const portainerUrl = instance.url || instance;
     const username = instance.username;
     const password = instance.password;
+    const apiKey = instance.api_key;
+    const authType = instance.auth_type || 'password';
     
     try {
-      await portainerService.authenticatePortainer(portainerUrl, username, password);
+      await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
       const endpoints = await portainerService.getEndpoints(portainerUrl);
       if (endpoints.length === 0) continue;
 
@@ -745,22 +747,24 @@ async function getContainersFromPortainer() {
   for (const instance of portainerInstances) {
     const portainerUrl = instance.url;
     const instanceName = instance.name || new URL(portainerUrl).hostname;
-    const username = instance.username;
-    const password = instance.password;
-    
-    try {
-      await portainerService.authenticatePortainer(portainerUrl, username, password);
-      const endpoints = await portainerService.getEndpoints(portainerUrl);
+      const username = instance.username;
+      const password = instance.password;
+      const apiKey = instance.api_key;
+      const authType = instance.auth_type || 'password';
+      
+      try {
+        await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
+        const endpoints = await portainerService.getEndpoints(portainerUrl);
 
-      if (endpoints.length === 0) {
-        console.log(`No endpoints found for ${portainerUrl}`);
-        continue;
-      }
+        if (endpoints.length === 0) {
+          console.log(`No endpoints found for ${portainerUrl}`);
+          continue;
+        }
 
-      const endpointId = endpoints[0].Id;
-      const containers = await portainerService.getContainers(portainerUrl, endpointId);
+        const endpointId = endpoints[0].Id;
+        const containers = await portainerService.getContainers(portainerUrl, endpointId);
 
-      const containersBasic = await Promise.all(
+        const containersBasic = await Promise.all(
         containers.map(async (container) => {
           try {
             const details = await portainerService.getContainerDetails(
@@ -892,9 +896,11 @@ async function getUnusedImages() {
     const portainerUrl = instance.url;
     const username = instance.username;
     const password = instance.password;
+    const apiKey = instance.api_key;
+    const authType = instance.auth_type || 'password';
     
     try {
-      await portainerService.authenticatePortainer(portainerUrl, username, password);
+      await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
       const endpoints = await portainerService.getEndpoints(portainerUrl);
       if (endpoints.length === 0) continue;
 

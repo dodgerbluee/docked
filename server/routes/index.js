@@ -1,5 +1,17 @@
 /**
  * API Routes
+ * @swagger
+ * tags:
+ *   - name: Health
+ *     description: Health check endpoints
+ *   - name: Authentication
+ *     description: User authentication endpoints
+ *   - name: Containers
+ *     description: Docker container management
+ *   - name: Images
+ *     description: Docker image management
+ *   - name: Portainer
+ *     description: Portainer instance management
  */
 
 const express = require("express");
@@ -14,13 +26,89 @@ const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Health check (public)
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ */
 router.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Authentication routes (public) - must be before authenticate middleware
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: User login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: admin
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 token:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *       401:
+ *         description: Invalid credentials
+ *       400:
+ *         description: Missing required fields
+ */
 router.post("/auth/login", asyncHandler(authController.login));
+
+/**
+ * @swagger
+ * /auth/verify:
+ *   get:
+ *     summary: Verify authentication token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token is valid
+ *       401:
+ *         description: Invalid or expired token
+ */
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Protected routes - require authentication
@@ -78,6 +166,10 @@ router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", asyncHandler(imageController.deleteImages));
 
 // Portainer instance routes
+router.post(
+  "/portainer/instances/validate",
+  asyncHandler(portainerController.validateInstance)
+);
 router.get(
   "/portainer/instances",
   asyncHandler(portainerController.getInstances)

@@ -14,6 +14,7 @@ const {
   deleteDockerHubCredentials,
 } = require('../db/database');
 const { clearCache } = require('../utils/dockerHubCreds');
+const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require('../utils/jwt');
 const fs = require('fs');
 const path = require('path');
 
@@ -54,14 +55,24 @@ async function login(req, res, next) {
       });
     }
 
-    // Generate simple token with user ID (in production, use JWT)
-    // Format: userId:username:timestamp (base64 encoded)
-    // This allows username changes without breaking authentication
-    const token = Buffer.from(`${user.id}:${user.username}:${Date.now()}`).toString('base64');
+    // Generate JWT token
+    const token = generateToken({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    // Generate refresh token
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
 
     res.json({
       success: true,
       token,
+      refreshToken,
       username: user.username,
       role: user.role,
       passwordChanged: user.password_changed === 1,
@@ -88,32 +99,18 @@ async function verifyToken(req, res, next) {
       });
     }
 
-    // Simple token verification (in production, use JWT)
-    // Token format: userId:username:timestamp (base64 encoded)
     try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const parts = decoded.split(':');
-      const userId = parseInt(parts[0]);
-      const username = parts[1]; // Keep for backwards compatibility
-
-      // Look up user by ID (more resilient to username changes)
+      // Try JWT verification first
+      const decoded = verifyJWT(token);
+      
+      // Verify user still exists
       const { getUserById } = require('../db/database');
-      const user = await getUserById(userId);
+      const user = await getUserById(decoded.userId);
       if (!user) {
-        // Fallback to username lookup for old tokens
-        const userByUsername = await getUserByUsername(username);
-        if (!userByUsername) {
-          return res.status(401).json({
-            success: false,
-            error: 'Invalid token',
-          });
-        }
-        res.json({
-          success: true,
-          username: userByUsername.username,
-          role: userByUsername.role,
+        return res.status(401).json({
+          success: false,
+          error: 'User not found',
         });
-        return;
       }
 
       res.json({
@@ -121,11 +118,42 @@ async function verifyToken(req, res, next) {
         username: user.username,
         role: user.role,
       });
-    } catch (err) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid token',
-      });
+    } catch (jwtError) {
+      // Try legacy token format for backward compatibility
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const parts = decoded.split(':');
+        const userId = parseInt(parts[0]);
+        const username = parts[1];
+
+        const { getUserById } = require('../db/database');
+        const user = await getUserById(userId);
+        if (!user) {
+          const userByUsername = await getUserByUsername(username);
+          if (!userByUsername) {
+            return res.status(401).json({
+              success: false,
+              error: 'Invalid token',
+            });
+          }
+          return res.json({
+            success: true,
+            username: userByUsername.username,
+            role: userByUsername.role,
+          });
+        }
+
+        res.json({
+          success: true,
+          username: user.username,
+          role: user.role,
+        });
+      } catch (legacyError) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid token',
+        });
+      }
     }
   } catch (error) {
     next(error);
@@ -335,15 +363,26 @@ async function updateUserUsername(req, res, next) {
     // Update username in database
     await updateUsername(oldUsername, newUsername.trim());
 
-    // Generate new token with updated username but same user ID
+    // Generate new JWT token with updated username but same user ID
     // This ensures authentication continues to work after username change
-    const newToken = Buffer.from(`${userId}:${newUsername.trim()}:${Date.now()}`).toString('base64');
+    const { generateToken, generateRefreshToken } = require('../utils/jwt');
+    const newToken = generateToken({
+      userId: userId,
+      username: newUsername.trim(),
+      role: user.role,
+    });
+    const newRefreshToken = generateRefreshToken({
+      userId: userId,
+      username: newUsername.trim(),
+      role: user.role,
+    });
 
     res.json({
       success: true,
       message: 'Username updated successfully',
       newUsername: newUsername.trim(),
       token: newToken, // Return new token so frontend can update it
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
     next(error);

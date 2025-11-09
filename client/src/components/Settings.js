@@ -19,7 +19,7 @@ function Settings({
   isFirstLogin = false,
   onPasswordUpdateSuccess,
   onPortainerInstancesChange,
-  activeSection = "password",
+  activeSection = "general",
   onSectionChange = null,
   showUserInfoAboveTabs = false,
   onEditInstance = null,
@@ -29,6 +29,9 @@ function Settings({
   onRecentAvatarsChange,
   onAvatarUploaded,
   onBatchConfigUpdate = null,
+  colorScheme = "system",
+  onColorSchemeChange = null,
+  refreshInstances = null,
 }) {
   // Store callbacks in refs to avoid stale closure issues
   const onBatchConfigUpdateRef = useRef(onBatchConfigUpdate);
@@ -115,6 +118,11 @@ function Settings({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  // General settings state (local state before saving)
+  const [localColorScheme, setLocalColorScheme] = useState(colorScheme);
+  const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
+  const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
+
   useEffect(() => {
     fetchUserInfo();
     fetchPortainerInstances();
@@ -132,6 +140,33 @@ function Settings({
       }
     }
   }, [isFirstLogin, activeSection]);
+
+  // Sync local color scheme with prop changes
+  useEffect(() => {
+    setLocalColorScheme(colorScheme);
+    setGeneralSettingsChanged(false);
+  }, [colorScheme]);
+
+  // Refresh instances list when portainer section becomes active
+  // This ensures the auth method badges are up to date after modal edits
+  useEffect(() => {
+    if (currentActiveSection === "portainer") {
+      fetchPortainerInstances();
+    }
+  }, [currentActiveSection]);
+
+  // Also refresh when refreshInstances prop changes (triggered after modal closes)
+  // When editingPortainerInstance becomes null, refreshInstances prop changes
+  // which triggers this effect to refresh the instances list
+  useEffect(() => {
+    if (refreshInstances && currentActiveSection === "portainer") {
+      // Small delay to ensure modal has closed and data is saved
+      const timeout = setTimeout(() => {
+        fetchPortainerInstances();
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [refreshInstances, currentActiveSection]);
 
   const fetchPortainerInstances = async () => {
     try {
@@ -833,6 +868,31 @@ function Settings({
     }
   };
 
+  const handleSaveGeneralSettings = async () => {
+    if (!generalSettingsChanged) return;
+
+    setGeneralSettingsSaving(true);
+    try {
+      if (onColorSchemeChange) {
+        onColorSchemeChange(localColorScheme);
+      }
+      setGeneralSettingsChanged(false);
+      // Show success message
+      setInstanceSuccess("General settings saved successfully!");
+      setTimeout(() => {
+        setInstanceSuccess("");
+      }, 3000);
+    } catch (err) {
+      console.error("Error saving general settings:", err);
+      setInstanceError("Failed to save general settings. Please try again.");
+      setTimeout(() => {
+        setInstanceError("");
+      }, 3000);
+    } finally {
+      setGeneralSettingsSaving(false);
+    }
+  };
+
   const handleSelectAvatar = async (avatarUrl) => {
     // If selecting default avatar, just update the state
     if (avatarUrl === "/img/default-avatar.jpg") {
@@ -932,6 +992,82 @@ function Settings({
 
       {!showUserInfoAboveTabs && (
         <div className="settings-sections">
+          {currentActiveSection === "general" && (
+            <div className="update-section">
+              <h3>General Settings</h3>
+              <form
+                className="update-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveGeneralSettings();
+                }}
+              >
+                <div className="form-group">
+                  <label htmlFor="colorScheme">Color Scheme Preference</label>
+                  <div className="color-scheme-toggle">
+                    <button
+                      type="button"
+                      className={`color-scheme-option ${
+                        localColorScheme === "system" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setLocalColorScheme("system");
+                        setGeneralSettingsChanged(true);
+                      }}
+                    >
+                      <span className="color-scheme-icon">🖥️</span>
+                      <span>System</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`color-scheme-option ${
+                        localColorScheme === "light" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setLocalColorScheme("light");
+                        setGeneralSettingsChanged(true);
+                      }}
+                    >
+                      <span className="color-scheme-icon">☀️</span>
+                      <span>Light</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`color-scheme-option ${
+                        localColorScheme === "dark" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setLocalColorScheme("dark");
+                        setGeneralSettingsChanged(true);
+                      }}
+                    >
+                      <span className="color-scheme-icon">🌙</span>
+                      <span>Dark</span>
+                    </button>
+                  </div>
+                  <small>
+                    Choose how the application theme is determined. "System"
+                    will follow your browser or operating system preference.
+                  </small>
+                </div>
+                {instanceError && (
+                  <div className="error-message">{instanceError}</div>
+                )}
+                {instanceSuccess && (
+                  <div className="success-message">{instanceSuccess}</div>
+                )}
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="update-button"
+                    disabled={!generalSettingsChanged || generalSettingsSaving}
+                  >
+                    {generalSettingsSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
           {currentActiveSection === "username" && (
             <div className="update-section">
               <h3>Change Username</h3>
@@ -1106,10 +1242,54 @@ function Settings({
                           alignItems: "center",
                         }}
                       >
-                        <div>
-                          <strong style={{ color: "var(--text-primary)" }}>
-                            {instance.name}
-                          </strong>
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              marginBottom: "5px",
+                            }}
+                          >
+                            <strong style={{ color: "var(--text-primary)" }}>
+                              {instance.name}
+                            </strong>
+                            {instance.auth_type === "apikey" ? (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "4px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "600",
+                                  background: "rgba(30, 136, 229, 0.15)",
+                                  color: "var(--dodger-blue)",
+                                  border: "1px solid var(--dodger-blue)",
+                                }}
+                              >
+                                🔑 API Key
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "4px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "600",
+                                  background: "rgba(0, 90, 156, 0.15)",
+                                  color: "var(--dodger-blue)",
+                                  border: "1px solid var(--dodger-blue)",
+                                }}
+                              >
+                                🔐 Username / Password
+                              </span>
+                            )}
+                          </div>
                           <div
                             style={{
                               color: "var(--text-secondary)",
@@ -1119,15 +1299,18 @@ function Settings({
                           >
                             {instance.url}
                           </div>
-                          <div
-                            style={{
-                              color: "var(--text-tertiary)",
-                              fontSize: "0.85rem",
-                              marginTop: "3px",
-                            }}
-                          >
-                            Username: {instance.username}
-                          </div>
+                          {instance.auth_type === "password" &&
+                            instance.username && (
+                              <div
+                                style={{
+                                  color: "var(--text-tertiary)",
+                                  fontSize: "0.85rem",
+                                  marginTop: "3px",
+                                }}
+                              >
+                                Username: {instance.username}
+                              </div>
+                            )}
                         </div>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button
@@ -1215,6 +1398,7 @@ function Settings({
                   />
                   <label
                     htmlFor="avatar-upload-input"
+                    className="avatar-button-label"
                     style={{
                       display: "inline-block",
                       padding: "12px 24px",
@@ -1224,6 +1408,9 @@ function Settings({
                       cursor: "pointer",
                       fontWeight: "600",
                       transition: "all 0.3s",
+                      width: "auto",
+                      minWidth: "140px",
+                      textAlign: "center",
                     }}
                     onMouseEnter={(e) => {
                       e.target.style.background = "var(--dodger-blue-light)";
@@ -1329,11 +1516,12 @@ function Settings({
                           fontSize: "24px",
                           cursor: "pointer",
                           padding: "0",
-                          width: "30px",
-                          height: "30px",
+                          width: "20px",
+                          height: "20px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          fontSize: "18px",
                         }}
                       >
                         ×
@@ -1539,38 +1727,41 @@ function Settings({
               )}
 
               {/* Delete Avatar */}
-              <div className="form-group" style={{ marginTop: "32px" }}>
+              <div style={{ marginTop: "32px" }}>
                 <label
                   style={{
                     display: "block",
-                    marginBottom: "12px",
+                    marginBottom: "8px",
                     fontWeight: "600",
                     color: "var(--text-primary)",
                   }}
                 >
                   Delete Avatar
                 </label>
-                <p
+                <small
                   style={{
+                    display: "block",
                     color: "var(--text-secondary)",
-                    fontSize: "0.9rem",
                     marginBottom: "12px",
-                    marginTop: 0,
                   }}
                 >
-                  Delete your current avatar to revert to the original default
+                  Delete your current avatar. It will revert to the default
                   avatar.
-                </p>
+                </small>
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="update-button"
+                  className="update-button avatar-delete-button"
                   style={{
                     background: "rgba(239, 62, 66, 0.2)",
                     borderColor: "var(--dodger-red)",
                     color: "var(--dodger-red)",
                     padding: "8px 16px",
                     fontSize: "0.9rem",
+                    marginTop: 0,
+                    display: "inline-block",
+                    width: "auto",
+                    minWidth: "120px",
                   }}
                 >
                   Delete Avatar
@@ -1898,10 +2089,6 @@ function Settings({
                     configured interval
                   </li>
                   <li>
-                    <strong>Background Processing:</strong> Updates run in the
-                    background and won't interrupt your work
-                  </li>
-                  <li>
                     <strong>Configurable Interval:</strong> Set how often the
                     batch process runs (in minutes or hours)
                   </li>
@@ -2033,39 +2220,48 @@ function Settings({
                           MozAppearance: "textfield",
                         }}
                       />
-                      <select
-                        id="batchIntervalUnit"
-                        value={batchIntervalUnit}
-                        onChange={(e) => {
-                          const newUnit = e.target.value;
-                          setBatchIntervalUnit(newUnit);
-                          // Convert current value to new unit
-                          if (newUnit === "hours") {
-                            // Convert minutes to hours (round to nearest)
-                            const hours =
-                              Math.round(batchIntervalMinutes / 60) || 1;
-                            setBatchIntervalValue(hours);
-                          } else {
-                            // Convert hours to minutes
-                            const minutes = batchIntervalValue * 60;
-                            setBatchIntervalValue(minutes);
-                            setBatchIntervalMinutes(minutes);
-                          }
-                        }}
-                        disabled={batchLoading}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "var(--bg-primary)",
-                          color: "var(--text-primary)",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <option value="minutes">Minutes</option>
-                        <option value="hours">Hours</option>
-                      </select>
+                      <div className="batch-interval-toggle">
+                        <button
+                          type="button"
+                          className={`batch-interval-option ${
+                            batchIntervalUnit === "minutes" ? "active" : ""
+                          }`}
+                          onClick={() => {
+                            if (!batchLoading && batchIntervalUnit !== "minutes") {
+                              const newUnit = "minutes";
+                              setBatchIntervalUnit(newUnit);
+                              // Convert hours to minutes
+                              const minutes = batchIntervalValue * 60;
+                              setBatchIntervalValue(minutes);
+                              setBatchIntervalMinutes(minutes);
+                            }
+                          }}
+                          disabled={batchLoading}
+                          aria-pressed={batchIntervalUnit === "minutes"}
+                        >
+                          Minutes
+                        </button>
+                        <button
+                          type="button"
+                          className={`batch-interval-option ${
+                            batchIntervalUnit === "hours" ? "active" : ""
+                          }`}
+                          onClick={() => {
+                            if (!batchLoading && batchIntervalUnit !== "hours") {
+                              const newUnit = "hours";
+                              setBatchIntervalUnit(newUnit);
+                              // Convert minutes to hours (round to nearest)
+                              const hours =
+                                Math.round(batchIntervalMinutes / 60) || 1;
+                              setBatchIntervalValue(hours);
+                            }
+                          }}
+                          disabled={batchLoading}
+                          aria-pressed={batchIntervalUnit === "hours"}
+                        >
+                          Hours
+                        </button>
+                      </div>
                     </div>
                     <small>
                       How often to fetch updates.{" "}
