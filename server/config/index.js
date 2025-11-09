@@ -54,8 +54,8 @@ const config = {
     },
     auth: {
       windowMs: 15 * 60 * 1000, // 15 minutes
-      // More lenient in development or when running on localhost
-      max: process.env.NODE_ENV === 'production' ? 5 : 50, // Limit each IP to 5 login attempts per windowMs (production) or 50 (development)
+      // More lenient to allow for legitimate login attempts, retries, and page refreshes
+      max: process.env.NODE_ENV === 'production' ? 20 : 50, // Limit each IP to 20 login attempts per windowMs (production) or 50 (development)
       message: 'Too many login attempts, please try again later.',
       standardHeaders: true,
       legacyHeaders: false,
@@ -71,6 +71,12 @@ const config = {
           hostname.includes('127.0.0.1');
         // Skip in development OR if accessing via localhost (even in production mode)
         return process.env.NODE_ENV !== 'production' || isLocalhost;
+      },
+      // Use a custom key generator that works better with proxies
+      keyGenerator: (req) => {
+        // Use the real IP from req.ip (which respects trust proxy setting)
+        // Fallback to connection remoteAddress if req.ip is not set
+        return req.ip || req.connection?.remoteAddress || 'unknown';
       },
     },
   },

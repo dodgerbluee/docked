@@ -143,7 +143,7 @@ async function upgradeContainer(req, res, next) {
       instance.username,
       instance.password,
       instance.api_key,
-      instance.auth_type || 'password'
+      instance.auth_type || 'apikey'
     );
     const result = await containerService.upgradeSingleContainer(
       portainerUrl,
@@ -202,7 +202,7 @@ async function batchUpgradeContainers(req, res, next) {
           instance.username,
           instance.password,
           instance.api_key,
-          instance.auth_type || 'password'
+          instance.auth_type || 'apikey'
         );
         const result = await containerService.upgradeSingleContainer(
           container.portainerUrl,

@@ -631,7 +631,7 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
     const username = instance.username;
     const password = instance.password;
     const apiKey = instance.api_key;
-    const authType = instance.auth_type || 'password';
+    const authType = instance.auth_type || 'apikey';
     
     try {
       await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
@@ -897,7 +897,7 @@ async function getUnusedImages() {
     const username = instance.username;
     const password = instance.password;
     const apiKey = instance.api_key;
-    const authType = instance.auth_type || 'password';
+    const authType = instance.auth_type || 'apikey';
     
     try {
       await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);

@@ -30,7 +30,7 @@ function clearAuthToken(portainerUrl) {
  * @param {boolean} skipCache - If true, skip cache check and always re-authenticate (for validation)
  * @returns {Promise<string>} - Authentication token
  */
-async function authenticatePortainer(portainerUrl, username = null, password = null, apiKey = null, authType = 'password', skipCache = false) {
+async function authenticatePortainer(portainerUrl, username = null, password = null, apiKey = null, authType = 'apikey', skipCache = false) {
   // Check if we already have a valid token for this instance (unless skipping cache for validation)
   if (!skipCache && authTokens.has(portainerUrl)) {
     return authTokens.get(portainerUrl);
@@ -175,7 +175,7 @@ function getAuthHeaders(portainerUrl) {
     throw new Error(`No authentication token for ${portainerUrl}`);
   }
   
-  const authType = authTypes.get(portainerUrl) || 'password';
+  const authType = authTypes.get(portainerUrl) || 'apikey';
   
   // Portainer API keys use X-API-Key header, JWT tokens use Authorization Bearer
   if (authType === 'apikey') {

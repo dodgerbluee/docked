@@ -497,7 +497,7 @@ function getPortainerInstanceById(id) {
  * @param {string} password - Password (will be stored as-is, consider encryption)
  * @returns {Promise<number>} - ID of created instance
  */
-function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'password') {
+function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'apikey') {
   return new Promise((resolve, reject) => {
     // Get max display_order to set new instance at the end
     db.get(
@@ -543,7 +543,7 @@ function createPortainerInstance(name, url, username, password, apiKey = null, a
  * @param {string} password - Password
  * @returns {Promise<void>}
  */
-function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'password') {
+function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'apikey') {
   return new Promise((resolve, reject) => {
     // Use appropriate fields based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
