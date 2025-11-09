@@ -59,17 +59,6 @@ function initializeDatabase() {
               console.error("Error creating username index:", idxErr.message);
             }
           });
-          // Migrate existing 'admin' roles to 'Administrator'
-          db.run(
-            "UPDATE users SET role = 'Administrator' WHERE role = 'admin'",
-            (migrateErr) => {
-              if (migrateErr) {
-                console.error("Error migrating roles:", migrateErr.message);
-              } else {
-                console.log("Role migration completed (admin -> Administrator)");
-              }
-            }
-          );
           // Create default admin user if no users exist
           createDefaultAdmin();
         }
