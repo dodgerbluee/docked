@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  createContext,
+  useContext,
+  useMemo,
+} from "react";
 import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
+import BatchLogs from "./components/BatchLogs";
 import {
   getDockerHubUrl,
   getDockerHubTagsUrl,
@@ -16,6 +25,9 @@ import {
 const API_BASE_URL =
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
+
+// Create Context for batch config
+const BatchConfigContext = createContext(null);
 
 function App() {
   // Authentication state
@@ -33,6 +45,9 @@ function App() {
   });
   const [username, setUsername] = useState(() => {
     return localStorage.getItem("username") || null;
+  });
+  const [userRole, setUserRole] = useState(() => {
+    return localStorage.getItem("userRole") || "Administrator";
   });
   const [passwordChanged, setPasswordChanged] = useState(() => {
     const stored = localStorage.getItem("passwordChanged");
@@ -86,6 +101,102 @@ function App() {
   const [avatar, setAvatar] = useState("/img/default-avatar.jpg");
   const [recentAvatars, setRecentAvatars] = useState([]);
 
+  // Store avatar in ref to access current value without causing callback recreation
+  const avatarRef = useRef(avatar);
+  useEffect(() => {
+    avatarRef.current = avatar;
+  }, [avatar]);
+
+  // Batch processing state
+  const [batchConfig, setBatchConfig] = useState({
+    enabled: false,
+    intervalMinutes: 60,
+  });
+
+  // Memoize context value to ensure React detects changes
+  // MUST be called before any early returns (React Hooks rule)
+  // Only depend on batchConfig - setBatchConfig is stable from useState
+  const batchConfigContextValue = useMemo(
+    () => ({
+      batchConfig,
+      setBatchConfig,
+    }),
+    [batchConfig]
+  );
+
+  const batchIntervalRef = useRef(null);
+  const batchInitialTimeoutRef = useRef(null);
+  const hasRunInitialPullRef = useRef(false); // Track if initial pull has run in this session
+
+  // Memoize avatar change handler to prevent it from being recreated on every render
+  // Use ref to access current avatar value to avoid dependency on avatar state
+  // This ensures the callback reference stays stable and Settings always receives it
+  const handleAvatarChange = useCallback(
+    async (newAvatar) => {
+      const currentAvatar = avatarRef.current;
+
+      // If it's a blob URL, revoke the old one
+      if (currentAvatar && currentAvatar.startsWith("blob:")) {
+        URL.revokeObjectURL(currentAvatar);
+      }
+
+      // If it's the default avatar, set it directly
+      if (newAvatar === "/img/default-avatar.jpg") {
+        setAvatar(newAvatar);
+        return;
+      }
+
+      // If it's an API endpoint, fetch it as a blob to create a fresh blob URL
+      // This ensures the image updates immediately without browser caching issues
+      // Add timestamp to cache-bust and ensure we get the latest version
+      if (newAvatar && newAvatar.startsWith("/api/avatars")) {
+        try {
+          const cacheBustUrl = `${newAvatar}?t=${Date.now()}`;
+          const response = await axios.get(`${API_BASE_URL}${cacheBustUrl}`, {
+            responseType: "blob",
+          });
+          const blobUrl = URL.createObjectURL(response.data);
+          setAvatar(blobUrl);
+        } catch (err) {
+          console.error("Error fetching updated avatar:", err);
+          // Fallback to default on error
+          setAvatar("/img/default-avatar.jpg");
+        }
+      } else {
+        // For other URLs (blob URLs, http URLs, etc.), set directly
+        setAvatar(newAvatar);
+      }
+    },
+    [] // Empty deps - use ref to access current avatar value
+  );
+
+  // Memoize batch config update callback to prevent it from being recreated on every render
+  const handleBatchConfigUpdate = useCallback(async () => {
+    // Refetch batch config after update
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
+      if (response.data.success) {
+        const newConfig = {
+          enabled: response.data.config.enabled || false,
+          intervalMinutes: response.data.config.intervalMinutes || 60,
+        };
+        // Force state update with new object - this will trigger Context update
+        setBatchConfig((prev) => {
+          // Always return new object to ensure React detects the change
+          if (
+            prev.enabled !== newConfig.enabled ||
+            prev.intervalMinutes !== newConfig.intervalMinutes
+          ) {
+            return newConfig;
+          }
+          return { ...newConfig };
+        });
+      }
+    } catch (err) {
+      console.error("Error refetching batch config:", err);
+    }
+  }, [batchConfig]);
+
   // Handle login
   const handleLogin = (token, user, pwdChanged) => {
     // Set axios header immediately before state updates
@@ -103,16 +214,25 @@ function App() {
   };
 
   // Handle username update
-  const handleUsernameUpdate = (newUsername) => {
+  const handleUsernameUpdate = (newUsername, newToken = null) => {
     setUsername(newUsername);
     localStorage.setItem("username", newUsername);
-    // Update token with new username (in production, re-authenticate)
-    const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
-      "base64"
-    );
-    setAuthToken(token);
-    localStorage.setItem("authToken", token);
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    // If server provided a new token (with user ID), use it
+    // Otherwise, fallback to old token generation (for backwards compatibility)
+    if (newToken) {
+      setAuthToken(newToken);
+      localStorage.setItem("authToken", newToken);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+    } else {
+      // Fallback: generate token with username (old format)
+      // This should not happen with updated backend, but kept for safety
+      const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
+        "base64"
+      );
+      setAuthToken(token);
+      localStorage.setItem("authToken", token);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
   };
 
   // Handle password update success
@@ -129,11 +249,23 @@ function App() {
     localStorage.removeItem("passwordChanged");
     setAuthToken(null);
     setUsername(null);
+    setUserRole("Administrator");
     setPasswordChanged(false);
     setIsAuthenticated(false);
     setActiveTab("summary");
     // Clear axios defaults
     delete axios.defaults.headers.common["Authorization"];
+    // Reset initial pull flag on logout
+    hasRunInitialPullRef.current = false;
+    // Clear any running intervals
+    if (batchIntervalRef.current) {
+      clearInterval(batchIntervalRef.current);
+      batchIntervalRef.current = null;
+    }
+    if (batchInitialTimeoutRef.current) {
+      clearTimeout(batchInitialTimeoutRef.current);
+      batchInitialTimeoutRef.current = null;
+    }
   };
 
   // Update body class when dark mode changes
@@ -170,8 +302,325 @@ function App() {
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
       setPortainerInstancesFromAPI([]);
+      // Clear batch interval on logout
+      if (batchIntervalRef.current) {
+        clearInterval(batchIntervalRef.current);
+        batchIntervalRef.current = null;
+      }
     }
   }, [isAuthenticated]);
+
+  // Fetch batch configuration
+  useEffect(() => {
+    if (isAuthenticated && authToken && passwordChanged) {
+      const fetchBatchConfig = async () => {
+        try {
+          const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
+          if (response.data.success) {
+            setBatchConfig({
+              enabled: response.data.config.enabled || false,
+              intervalMinutes: response.data.config.intervalMinutes || 60,
+            });
+          }
+        } catch (err) {
+          console.error("Error fetching batch config:", err);
+        }
+      };
+      fetchBatchConfig();
+    }
+  }, [isAuthenticated, authToken, passwordChanged]);
+
+  // Handle batch pull with logging - memoized to prevent unnecessary re-renders
+  // MUST be defined before the useEffect that uses it
+  const handleBatchPull = useCallback(async () => {
+    let runId = null;
+    const logs = [];
+
+    const log = (message) => {
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] ${message}`;
+      logs.push(logEntry);
+      console.log(logEntry);
+    };
+
+    try {
+      // Create batch run record
+      log("Starting batch pull process...");
+      const runResponse = await axios.post(`${API_BASE_URL}/api/batch/runs`, {
+        status: "running",
+        jobType: "docker-hub-pull",
+      });
+      runId = runResponse.data.runId;
+      log(`Batch run ${runId} created`);
+
+      setPulling(true);
+      setError(null);
+      log("🔄 Pulling fresh data from Docker Hub...");
+
+      // Start the pull operation (don't await yet - let it run in background)
+      log("Initiating Docker Hub API call...");
+      const pullPromise = axios.post(
+        `${API_BASE_URL}/api/containers/pull`,
+        {},
+        {
+          timeout: 300000, // 5 minute timeout for large pulls
+        }
+      );
+
+      // While pulling, fetch any existing cached data to show immediately
+      // This allows the summary page to display while new data is being fetched
+      log("Fetching cached data for immediate display...");
+      try {
+        const cachedResponse = await axios.get(
+          `${API_BASE_URL}/api/containers`
+        );
+        if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
+          setContainers(cachedResponse.data.containers || []);
+          setStacks(cachedResponse.data.stacks || []);
+          setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
+
+          if (cachedResponse.data.portainerInstances) {
+            setPortainerInstancesFromAPI(
+              cachedResponse.data.portainerInstances
+            );
+          }
+          setDataFetched(true);
+          log("Cached data loaded successfully");
+        }
+      } catch (cacheErr) {
+        // If no cached data exists, that's okay - we'll show empty state
+        log("No cached data available yet");
+      }
+
+      // Now wait for the pull to complete
+      log("Waiting for Docker Hub pull to complete...");
+      const response = await pullPromise;
+      log("Docker Hub pull completed successfully");
+
+      // Check if response has success flag
+      if (response.data.success === false) {
+        throw new Error(
+          response.data.error ||
+            response.data.message ||
+            "Failed to pull container data"
+        );
+      }
+
+      // Update state with fresh data
+      let containersChecked = 0;
+      let containersUpdated = 0;
+
+      if (response.data.grouped && response.data.stacks) {
+        setContainers(response.data.containers || []);
+        setStacks(response.data.stacks || []);
+        setUnusedImagesCount(response.data.unusedImagesCount || 0);
+
+        if (response.data.portainerInstances) {
+          setPortainerInstancesFromAPI(response.data.portainerInstances);
+        }
+
+        containersChecked = response.data.containers?.length || 0;
+        containersUpdated =
+          response.data.containers?.filter((c) => c.hasUpdate).length || 0;
+        log(
+          `Processed ${containersChecked} containers, ${containersUpdated} with updates available`
+        );
+
+        // Mark that Docker Hub data has been pulled
+        setDockerHubDataPulled(true);
+        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+      } else {
+        // Backward compatibility: treat as flat array
+        setContainers(Array.isArray(response.data) ? response.data : []);
+        setStacks([]);
+        setUnusedImagesCount(0);
+        containersChecked = Array.isArray(response.data)
+          ? response.data.length
+          : 0;
+        log(`Processed ${containersChecked} containers (legacy format)`);
+      }
+
+      setError(null);
+      setDataFetched(true);
+
+      // Fetch unused images
+      log("Fetching unused images...");
+      await fetchUnusedImages();
+      log("Unused images fetched");
+
+      // Update batch run as completed
+      if (runId) {
+        await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
+          status: "completed",
+          containersChecked,
+          containersUpdated,
+          logs: logs.join("\n"),
+        });
+        log(`Batch run ${runId} marked as completed`);
+      }
+    } catch (err) {
+      let errorMessage = "Failed to pull container data";
+
+      // Handle rate limit errors specially
+      if (
+        err.response?.status === 429 ||
+        err.response?.data?.rateLimitExceeded
+      ) {
+        errorMessage =
+          err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        log(`❌ Rate limit exceeded: ${errorMessage}`);
+        setError(errorMessage);
+        console.error("❌ Docker Hub rate limit exceeded:", errorMessage);
+      } else {
+        errorMessage =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to pull container data";
+        log(`❌ Error: ${errorMessage}`);
+        setError(errorMessage);
+        console.error("Error pulling containers:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error details:", {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status,
+          });
+        }
+      }
+
+      // Update batch run as failed
+      if (runId) {
+        try {
+          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
+            status: "failed",
+            errorMessage,
+            logs: logs.join("\n"),
+          });
+          log(`Batch run ${runId} marked as failed`);
+        } catch (updateErr) {
+          console.error("Error updating batch run:", updateErr);
+        }
+      }
+    } finally {
+      setPulling(false);
+      // Always log completion to help debug missed runs
+      log("Batch pull process finished (success or failure)");
+    }
+  }, []); // Empty deps - fetchUnusedImages is stable, and we use setState functions which are stable
+
+  // Set up batch processing interval
+  useEffect(() => {
+    // ALWAYS clear any existing interval and timeout FIRST to prevent old schedules from running
+    // This is critical - we must clear before setting up new ones
+    if (batchIntervalRef.current) {
+      clearInterval(batchIntervalRef.current);
+      batchIntervalRef.current = null;
+    }
+    if (batchInitialTimeoutRef.current) {
+      clearTimeout(batchInitialTimeoutRef.current);
+      batchInitialTimeoutRef.current = null;
+    }
+
+    // Only set up interval if batch is enabled and user is authenticated
+    if (
+      batchConfig.enabled &&
+      isAuthenticated &&
+      authToken &&
+      passwordChanged &&
+      batchConfig.intervalMinutes > 0
+    ) {
+      const intervalMs = batchConfig.intervalMinutes * 60 * 1000;
+
+      // Set up the interval - use a fresh function reference
+      // Capture the interval value in closure to ensure we use the correct one
+      const currentIntervalMinutes = batchConfig.intervalMinutes;
+      const intervalId = setInterval(() => {
+        // Double-check we're still the active interval before running
+        if (batchIntervalRef.current === intervalId) {
+          // Note: We don't check if pulling is true here because:
+          // 1. State updates are async and may not reflect current state
+          // 2. Even if a previous run is still running, we want the interval to continue
+          // 3. The handleBatchPull function handles its own state management
+
+          // Trigger pull in background with logging
+          // IMPORTANT: Always catch errors to ensure interval continues even if pull fails
+          // The interval will continue running regardless of success or failure
+          handleBatchPull().catch((err) => {
+            console.error(
+              "❌ Error in batch pull (interval will continue):",
+              err
+            );
+          });
+        } else {
+          // Clear this interval if it's no longer active
+          clearInterval(intervalId);
+        }
+      }, intervalMs);
+
+      batchIntervalRef.current = intervalId;
+
+      // Only trigger initial pull if we haven't run it recently (within last hour)
+      // This prevents it from running on every page refresh
+      // Check both localStorage (persists across refreshes) and session ref (current session)
+      const lastInitialPull = localStorage.getItem("lastBatchInitialPull");
+      const now = Date.now();
+      const oneHourAgo = now - 60 * 60 * 1000;
+      const lastPullTimestamp = lastInitialPull ? parseInt(lastInitialPull) : 0;
+      const timeSinceLastPull =
+        lastPullTimestamp > 0 ? now - lastPullTimestamp : Infinity;
+      const shouldRunInitial =
+        !lastInitialPull || lastPullTimestamp < oneHourAgo;
+
+      // Don't run initial pull if:
+      // 1. Already ran in this session, OR
+      // 2. Ran within the last hour (check localStorage)
+      if (!hasRunInitialPullRef.current && shouldRunInitial) {
+        // Set the flag and localStorage IMMEDIATELY to prevent duplicate runs
+        hasRunInitialPullRef.current = true;
+        localStorage.setItem("lastBatchInitialPull", now.toString());
+
+        const timeoutId = setTimeout(() => {
+          handleBatchPull().catch((err) => {
+            console.error("Error in initial batch pull:", err);
+          });
+          batchInitialTimeoutRef.current = null; // Clear ref after timeout fires
+        }, 5000); // Wait 5 seconds after page load
+
+        batchInitialTimeoutRef.current = timeoutId;
+      }
+
+      // Cleanup function - runs when effect re-runs or component unmounts
+      return () => {
+        if (batchIntervalRef.current) {
+          clearInterval(batchIntervalRef.current);
+          batchIntervalRef.current = null;
+        }
+        if (batchInitialTimeoutRef.current) {
+          clearTimeout(batchInitialTimeoutRef.current);
+          batchInitialTimeoutRef.current = null;
+        }
+      };
+    } else if (batchIntervalRef.current || batchInitialTimeoutRef.current) {
+      // If batch is disabled, clear everything
+      if (batchIntervalRef.current) {
+        clearInterval(batchIntervalRef.current);
+        batchIntervalRef.current = null;
+      }
+      if (batchInitialTimeoutRef.current) {
+        clearTimeout(batchInitialTimeoutRef.current);
+        batchInitialTimeoutRef.current = null;
+      }
+    }
+  }, [
+    batchConfig.enabled,
+    batchConfig.intervalMinutes,
+    isAuthenticated,
+    authToken,
+    passwordChanged,
+  ]);
 
   // Fetch Portainer instances separately (independent of container data)
   // This ensures tabs remain visible even while containers are loading
@@ -219,7 +668,9 @@ function App() {
   // Fetch user's avatar from server
   const fetchAvatar = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/avatars`, {
+      // Add cache-busting parameter to ensure we get the latest version
+      const cacheBustUrl = `/api/avatars?t=${Date.now()}`;
+      const response = await axios.get(`${API_BASE_URL}${cacheBustUrl}`, {
         responseType: "blob",
       });
       // Convert blob to object URL
@@ -273,7 +724,11 @@ function App() {
     };
   }, [showAvatarMenu]);
 
-  const fetchContainers = async (showLoading = true, instanceUrl = null, portainerOnly = false) => {
+  const fetchContainers = async (
+    showLoading = true,
+    instanceUrl = null,
+    portainerOnly = false
+  ) => {
     try {
       // Track loading state for specific instance if provided
       if (instanceUrl) {
@@ -295,9 +750,10 @@ function App() {
 
       // Backend will automatically fetch from Portainer if no cache exists
       // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
-      const url = instanceUrl || portainerOnly
-        ? `${API_BASE_URL}/api/containers?portainerOnly=true`
-        : `${API_BASE_URL}/api/containers`;
+      const url =
+        instanceUrl || portainerOnly
+          ? `${API_BASE_URL}/api/containers?portainerOnly=true`
+          : `${API_BASE_URL}/api/containers`;
       const response = await axios.get(url);
       // Handle both grouped and flat response formats
       if (response.data.grouped && response.data.stacks) {
@@ -467,7 +923,10 @@ function App() {
           console.log("✅ Portainer data fetched successfully");
         } catch (fetchError) {
           console.error("❌ Error fetching Portainer data:", fetchError);
-          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+          setError(
+            fetchError.response?.data?.error ||
+              "Failed to fetch Portainer data after clearing cache"
+          );
         } finally {
           setClearing(false);
         }
@@ -493,7 +952,10 @@ function App() {
           console.log("✅ Portainer data fetched successfully");
         } catch (fetchError) {
           console.error("❌ Error fetching Portainer data:", fetchError);
-          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+          setError(
+            fetchError.response?.data?.error ||
+              "Failed to fetch Portainer data after clearing cache"
+          );
         } finally {
           setClearing(false);
         }
@@ -527,7 +989,10 @@ function App() {
           console.log("✅ Portainer data fetched successfully");
         } catch (fetchError) {
           console.error("❌ Error fetching Portainer data:", fetchError);
-          setError(fetchError.response?.data?.error || "Failed to fetch Portainer data after clearing cache");
+          setError(
+            fetchError.response?.data?.error ||
+              "Failed to fetch Portainer data after clearing cache"
+          );
         } finally {
           setClearing(false);
         }
@@ -1126,6 +1591,7 @@ function App() {
     if (
       activeTab !== "summary" &&
       activeTab !== "settings" &&
+      activeTab !== "batch-logs" &&
       !portainerInstancesLoading && // Don't switch during loading
       portainerInstancesFromAPI && // Only check if we have instances loaded
       portainerInstancesFromAPI.length > 0 &&
@@ -1548,22 +2014,14 @@ function App() {
           isFirstLogin={!passwordChanged}
           avatar={avatar}
           recentAvatars={recentAvatars}
-          onAvatarChange={(newAvatar) => {
-            // If it's a blob URL, revoke the old one
-            if (avatar && avatar.startsWith("blob:")) {
-              URL.revokeObjectURL(avatar);
-            }
-            setAvatar(newAvatar);
-          }}
+          onAvatarChange={handleAvatarChange}
           onRecentAvatarsChange={(avatars) => {
-            console.log(
-              "onRecentAvatarsChange called with:",
-              avatars?.length,
-              "avatars"
-            );
             setRecentAvatars(avatars);
             // Refresh recent avatars from server to get latest
             fetchRecentAvatars();
+          }}
+          onAvatarUploaded={async () => {
+            await fetchAvatar();
           }}
           onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
           onPortainerInstancesChange={() => {
@@ -1573,6 +2031,7 @@ function App() {
           activeSection={settingsTab}
           onSectionChange={setSettingsTab}
           showUserInfoAboveTabs={true}
+          onBatchConfigUpdate={handleBatchConfigUpdate}
         />
         <div className="content-tabs">
           <div className="content-tabs-left">
@@ -1620,6 +2079,15 @@ function App() {
             >
               Docker Hub
             </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "batch" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("batch")}
+              disabled={!passwordChanged}
+            >
+              Batch
+            </button>
           </div>
         </div>
         <div className="content-tab-panel">
@@ -1628,6 +2096,22 @@ function App() {
             onUsernameUpdate={handleUsernameUpdate}
             onLogout={handleLogout}
             isFirstLogin={!passwordChanged}
+            avatar={avatar}
+            recentAvatars={recentAvatars}
+            onAvatarChange={handleAvatarChange}
+            onRecentAvatarsChange={(avatars) => {
+              console.log(
+                "onRecentAvatarsChange called with:",
+                avatars?.length,
+                "avatars"
+              );
+              setRecentAvatars(avatars);
+              // Refresh recent avatars from server to get latest
+              fetchRecentAvatars();
+            }}
+            onAvatarUploaded={async () => {
+              await fetchAvatar();
+            }}
             onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
             onPortainerInstancesChange={() => {
               fetchPortainerInstances();
@@ -1640,6 +2124,7 @@ function App() {
               setEditingPortainerInstance(instance);
               setShowAddPortainerModal(true);
             }}
+            onBatchConfigUpdate={handleBatchConfigUpdate}
           />
         </div>
       </div>
@@ -2402,23 +2887,22 @@ function App() {
             isFirstLogin={true}
             avatar={avatar}
             recentAvatars={recentAvatars}
-            onAvatarChange={(newAvatar) => {
-              // If it's a blob URL, revoke the old one
-              if (avatar && avatar.startsWith("blob:")) {
-                URL.revokeObjectURL(avatar);
-              }
-              setAvatar(newAvatar);
-            }}
+            onAvatarChange={handleAvatarChange}
             onRecentAvatarsChange={(avatars) => {
               setRecentAvatars(avatars);
               // Refresh recent avatars from server to get latest
               fetchRecentAvatars();
+            }}
+            onAvatarUploaded={async () => {
+              // Refresh avatar from server after upload to ensure it's up to date
+              await fetchAvatar();
             }}
             onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
             onPortainerInstancesChange={() => {
               fetchPortainerInstances();
               fetchContainers();
             }}
+            onBatchConfigUpdate={handleBatchConfigUpdate}
           />
         </div>
       </div>
@@ -2426,526 +2910,581 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <div className="header-content">
-          <div>
-            <h1>
-              <img
-                src="/img/image.png"
-                alt="Docked"
-                style={{
-                  height: "2em",
-                  verticalAlign: "middle",
-                  marginRight: "8px",
-                  display: "inline-block",
-                }}
-              />
-              <span
-                style={{
-                  display: "inline-block",
-                  transform: "translateY(3px)",
-                }}
-              >
-                Docked
-              </span>
-            </h1>
-          </div>
-          <div className="header-actions">
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <button
-                className="avatar-button"
-                onClick={() => {
-                  setShowAvatarMenu(!showAvatarMenu);
-                }}
-                aria-label="User Menu"
-                title="User Menu"
-              >
+    <BatchConfigContext.Provider value={batchConfigContextValue}>
+      <div className="App">
+        <header className="App-header">
+          <div className="header-content">
+            <div>
+              <h1>
                 <img
-                  src={
-                    avatar.startsWith("blob:") ||
-                    avatar.startsWith("http") ||
-                    avatar.startsWith("/img/")
-                      ? avatar
-                      : `${API_BASE_URL}${avatar}`
-                  }
-                  alt="User Avatar"
-                  className="avatar-image"
+                  src="/img/image.png"
+                  alt="Docked"
                   style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    borderRadius: "6px",
-                  }}
-                  onError={(e) => {
-                    // Fallback to default avatar if server avatar fails to load
-                    e.target.src = "/img/default-avatar.jpg";
+                    height: "2em",
+                    verticalAlign: "middle",
+                    marginRight: "8px",
+                    display: "inline-block",
                   }}
                 />
-              </button>
-              {username && (
-                <div
-                  data-username-role
+                <span
+                  style={{
+                    display: "inline-block",
+                    transform: "translateY(3px)",
+                  }}
+                >
+                  Docked
+                </span>
+              </h1>
+            </div>
+            <div className="header-actions">
+              <div
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  className="avatar-button"
                   onClick={() => {
                     setShowAvatarMenu(!showAvatarMenu);
                   }}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    marginLeft: "0px",
-                    padding: "6px 12px",
-                    cursor: "pointer",
-                  }}
+                  aria-label="User Menu"
+                  title="User Menu"
                 >
-                  <span
+                  <img
+                    key={avatar} // Force re-render when avatar changes
+                    src={
+                      avatar.startsWith("blob:") ||
+                      avatar.startsWith("http") ||
+                      avatar.startsWith("/img/")
+                        ? avatar
+                        : `${API_BASE_URL}${avatar}`
+                    }
+                    alt="User Avatar"
+                    className="avatar-image"
                     style={{
-                      fontSize: "0.9rem",
-                      opacity: 0.95,
-                      color: "white",
-                      lineHeight: "1.2",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "6px",
                     }}
-                  >
-                    {username}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      opacity: 0.8,
-                      color: "white",
-                      lineHeight: "1.2",
-                      marginTop: "2px",
+                    onError={(e) => {
+                      // Fallback to default avatar if server avatar fails to load
+                      e.target.src = "/img/default-avatar.jpg";
                     }}
-                  >
-                    Administrator
-                  </span>
-                </div>
-              )}
-              {showAvatarMenu && (
-                <div className="avatar-menu" style={{ right: 0 }}>
-                  <div className="avatar-menu-actions">
-                    <button
-                      className="avatar-menu-item"
-                      onClick={() => {
-                        setActiveTab("summary");
-                        setShowAvatarMenu(false);
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                        <polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
-                      Home
-                    </button>
-                    <button
-                      className="avatar-menu-item"
-                      onClick={() => {
-                        setActiveTab("settings");
-                        setShowAvatarMenu(false);
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      Settings
-                    </button>
-                    <button
-                      className="avatar-menu-item"
-                      onClick={() => {
-                        setDarkMode(!darkMode);
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        {darkMode ? (
-                          <>
-                            <circle cx="12" cy="12" r="5" />
-                            <line x1="12" y1="1" x2="12" y2="3" />
-                            <line x1="12" y1="21" x2="12" y2="23" />
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                            <line x1="1" y1="12" x2="3" y2="12" />
-                            <line x1="21" y1="12" x2="23" y2="12" />
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                          </>
-                        ) : (
-                          <>
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                          </>
-                        )}
-                      </svg>
-                      {darkMode ? "Light Mode" : "Dark Mode"}
-                    </button>
-                    <div className="avatar-menu-divider"></div>
-                    <button
-                      className="avatar-menu-item"
-                      onClick={() => {
-                        handleLogout();
-                        setShowAvatarMenu(false);
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div
-        className="container"
-        style={{
-          marginTop: pulling ? "70px" : "0",
-          transition: "margin-top 0.3s ease-out",
-        }}
-      >
-        {/* Tabs - Only show when not in Settings */}
-        {activeTab !== "settings" && (
-          <div className="tabs-container">
-            <div className="tabs">
-              <button
-                className={`tab ${activeTab === "summary" ? "active" : ""}`}
-                onClick={() => setActiveTab("summary")}
-              >
-                📊 Summary
-              </button>
-              {(portainerInstances || [])
-                .filter((inst) => inst != null && inst.name)
-                .map((instance, index) => (
-                  <button
-                    key={instance.name}
-                    className={`tab ${
-                      activeTab === instance.name ? "active" : ""
-                    } ${draggedTabIndex === index ? "dragging" : ""}`}
-                    onClick={() => setActiveTab(instance.name)}
-                    draggable
-                    onDragStart={(e) => {
-                      setDraggedTabIndex(index);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/html", index);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const draggedIndex = parseInt(
-                        e.dataTransfer.getData("text/html")
-                      );
-                      if (draggedIndex !== index) {
-                        handleReorderTabs(draggedIndex, index);
-                      }
-                      setDraggedTabIndex(null);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedTabIndex(null);
-                    }}
-                  >
-                    {instance.name}
-                    {instance.withUpdates.length > 0 && (
-                      <span className="tab-badge">
-                        {instance.withUpdates.length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              <button
-                className={`tab add-instance-tab ${
-                  portainerInstances.length > 0 ? "add-instance-icon-only" : ""
-                }`}
-                onClick={() => {
-                  setEditingPortainerInstance(null);
-                  setShowAddPortainerModal(true);
-                }}
-                title="Add Portainer Instance"
-              >
-                {portainerInstances.length === 0 ? (
-                  <>➕ Add Instance</>
-                ) : (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Tab Content */}
-        <div className="tab-content">
-          {activeTab === "settings" ? (
-            renderSettingsPage()
-          ) : (
-            <>
-              {pulling && (
-                <div className="pull-status-banner">
-                  <div className="pull-status-content">
-                    <div className="pull-spinner">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                      </svg>
-                    </div>
-                    <div className="pull-status-text">
-                      <strong>Pulling fresh data from Docker Hub...</strong>
-                      <span>This may take a few moments</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {loading && containers.length === 0 && !pulling && (
-                <div className="loading">Loading containers...</div>
-              )}
-
-              {error && (
-                <div
-                  className={`error ${
-                    error.includes("rate limit") || error.includes("Rate limit")
-                      ? "rate-limit-error"
-                      : ""
-                  }`}
-                >
+                  />
+                </button>
+                {username && (
                   <div
+                    data-username-role
+                    onClick={() => {
+                      setShowAvatarMenu(!showAvatarMenu);
+                    }}
                     style={{
                       display: "flex",
+                      flexDirection: "column",
                       alignItems: "flex-start",
-                      gap: "12px",
+                      marginLeft: "0px",
+                      padding: "6px 12px",
+                      cursor: "pointer",
                     }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <p
-                        style={{
-                          margin: 0,
-                          marginBottom: "8px",
-                          fontWeight: 600,
+                    <span
+                      style={{
+                        fontSize: "1.035rem",
+                        opacity: 0.95,
+                        color: "white",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {username}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.805rem",
+                        opacity: 0.8,
+                        color: "white",
+                        lineHeight: "1.2",
+                        marginTop: "2px",
+                      }}
+                    >
+                      {userRole}
+                    </span>
+                  </div>
+                )}
+                {showAvatarMenu && (
+                  <div className="avatar-menu" style={{ right: 0 }}>
+                    <div className="avatar-menu-actions">
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
+                          setActiveTab("summary");
+                          setShowAvatarMenu(false);
                         }}
                       >
-                        {error.includes("rate limit") ||
-                        error.includes("Rate limit")
-                          ? "⚠️ Docker Hub Rate Limit Exceeded"
-                          : "Error"}
-                      </p>
-                      <p style={{ margin: 0, marginBottom: "12px" }}>{error}</p>
-                      {error.includes("rate limit") ||
-                      error.includes("Rate limit") ? (
-                        <div style={{ marginTop: "12px" }}>
-                          <button
-                            onClick={() => {
-                              setActiveTab("settings");
-                              setSettingsTab("dockerhub");
-                            }}
-                            style={{
-                              padding: "8px 16px",
-                              background: "var(--dodger-blue)",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "6px",
-                              cursor: "pointer",
-                              fontSize: "0.9rem",
-                              fontWeight: "600",
-                              marginRight: "8px",
-                            }}
-                          >
-                            Configure Docker Hub Credentials
-                          </button>
-                          <button
-                            onClick={() => setError(null)}
-                            style={{
-                              padding: "8px 16px",
-                              background: "transparent",
-                              color: "var(--text-primary)",
-                              border: "1px solid var(--border-color)",
-                              borderRadius: "6px",
-                              cursor: "pointer",
-                              fontSize: "0.9rem",
-                            }}
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handlePull}
-                          disabled={pulling || loading}
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         >
-                          {pulling || loading ? "Retrying..." : "Try Again"}
-                        </button>
-                      )}
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                          <polyline points="9 22 9 12 15 12 15 22" />
+                        </svg>
+                        Home
+                      </button>
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
+                          setActiveTab("settings");
+                          setShowAvatarMenu(false);
+                        }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        Settings
+                      </button>
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
+                          console.log("🔄 Navigating to batch-logs page...");
+                          console.log("Current activeTab before:", activeTab);
+                          setActiveTab("batch-logs");
+                          setShowAvatarMenu(false);
+                          console.log("✅ Active tab set to batch-logs");
+                          // Force a re-render check
+                          setTimeout(() => {
+                            console.log("ActiveTab after timeout:", activeTab);
+                          }, 100);
+                        }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                        Batch Processing
+                      </button>
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
+                          setDarkMode(!darkMode);
+                        }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          {darkMode ? (
+                            <>
+                              <circle cx="12" cy="12" r="5" />
+                              <line x1="12" y1="1" x2="12" y2="3" />
+                              <line x1="12" y1="21" x2="12" y2="23" />
+                              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                              <line
+                                x1="18.36"
+                                y1="18.36"
+                                x2="19.78"
+                                y2="19.78"
+                              />
+                              <line x1="1" y1="12" x2="3" y2="12" />
+                              <line x1="21" y1="12" x2="23" y2="12" />
+                              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                            </>
+                          )}
+                        </svg>
+                        {darkMode ? "Light Mode" : "Dark Mode"}
+                      </button>
+                      <div className="avatar-menu-divider"></div>
+                      <button
+                        className="avatar-menu-item"
+                        onClick={() => {
+                          handleLogout();
+                          setShowAvatarMenu(false);
+                        }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        Logout
+                      </button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
 
-              {!loading &&
-                !error &&
-                (!portainerInstances || portainerInstances.length === 0) && (
-                  <div
-                    className="empty-state"
-                    style={{ textAlign: "center", padding: "60px 20px" }}
-                  >
-                    <h2
-                      style={{
-                        color: "var(--text-primary)",
-                        marginBottom: "15px",
-                      }}
-                    >
-                      No Portainer Instances Configured
-                    </h2>
-                    <p
-                      style={{
-                        color: "var(--text-secondary)",
-                        marginBottom: "30px",
-                        fontSize: "1.1rem",
-                      }}
-                    >
-                      Get started by adding your first Portainer instance.
-                    </p>
+        <div
+          className="container"
+          style={{
+            marginTop: pulling ? "70px" : "0",
+            transition: "margin-top 0.3s ease-out",
+          }}
+        >
+          {/* Tabs - Only show when not in Settings or Batch Logs */}
+          {activeTab !== "settings" && activeTab !== "batch-logs" && (
+            <div className="tabs-container">
+              <div className="tabs">
+                <button
+                  className={`tab ${activeTab === "summary" ? "active" : ""}`}
+                  onClick={() => setActiveTab("summary")}
+                >
+                  📊 Summary
+                </button>
+                {(portainerInstances || [])
+                  .filter((inst) => inst != null && inst.name)
+                  .map((instance, index) => (
                     <button
-                      className="update-button"
-                      onClick={() => {
-                        setEditingPortainerInstance(null);
-                        setShowAddPortainerModal(true);
+                      key={instance.name}
+                      className={`tab ${
+                        activeTab === instance.name ? "active" : ""
+                      } ${draggedTabIndex === index ? "dragging" : ""}`}
+                      onClick={() => setActiveTab(instance.name)}
+                      draggable
+                      onDragStart={(e) => {
+                        setDraggedTabIndex(index);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/html", index);
                       }}
-                      style={{ fontSize: "1.1rem", padding: "14px 28px" }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const draggedIndex = parseInt(
+                          e.dataTransfer.getData("text/html")
+                        );
+                        if (draggedIndex !== index) {
+                          handleReorderTabs(draggedIndex, index);
+                        }
+                        setDraggedTabIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedTabIndex(null);
+                      }}
                     >
-                      ➕ Add Your First Portainer Instance
+                      {instance.name}
+                      {instance.withUpdates.length > 0 && (
+                        <span className="tab-badge">
+                          {instance.withUpdates.length}
+                        </span>
+                      )}
                     </button>
+                  ))}
+                <button
+                  className={`tab add-instance-tab ${
+                    portainerInstances.length > 0
+                      ? "add-instance-icon-only"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    setEditingPortainerInstance(null);
+                    setShowAddPortainerModal(true);
+                  }}
+                  title="Add Portainer Instance"
+                >
+                  {portainerInstances.length === 0 ? (
+                    <>➕ Add Instance</>
+                  ) : (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tab Content */}
+          <div className="tab-content">
+            {activeTab === "settings" ? (
+              renderSettingsPage()
+            ) : activeTab === "batch-logs" ? (
+              <div style={{ width: "100%" }}>
+                <BatchLogs
+                  onNavigateHome={() => setActiveTab("summary")}
+                  onTriggerBatch={handleBatchPull}
+                />
+              </div>
+            ) : (
+              <>
+                {pulling && (
+                  <div className="pull-status-banner">
+                    <div className="pull-status-content">
+                      <div className="pull-spinner">
+                        <svg
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                      </div>
+                      <div className="pull-status-text">
+                        <strong>Pulling fresh data from Docker Hub...</strong>
+                        <span>This may take a few moments</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {loading && containers.length === 0 && !pulling && (
+                  <div className="loading">Loading containers...</div>
+                )}
+
+                {error && (
+                  <div
+                    className={`error ${
+                      error.includes("rate limit") ||
+                      error.includes("Rate limit")
+                        ? "rate-limit-error"
+                        : ""
+                    }`}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "12px",
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            marginBottom: "8px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {error.includes("rate limit") ||
+                          error.includes("Rate limit")
+                            ? "⚠️ Docker Hub Rate Limit Exceeded"
+                            : "Error"}
+                        </p>
+                        <p style={{ margin: 0, marginBottom: "12px" }}>
+                          {error}
+                        </p>
+                        {error.includes("rate limit") ||
+                        error.includes("Rate limit") ? (
+                          <div style={{ marginTop: "12px" }}>
+                            <button
+                              onClick={() => {
+                                setActiveTab("settings");
+                                setSettingsTab("dockerhub");
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                background: "var(--dodger-blue)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9rem",
+                                fontWeight: "600",
+                                marginRight: "8px",
+                              }}
+                            >
+                              Configure Docker Hub Credentials
+                            </button>
+                            <button
+                              onClick={() => setError(null)}
+                              style={{
+                                padding: "8px 16px",
+                                background: "transparent",
+                                color: "var(--text-primary)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handlePull}
+                            disabled={pulling || loading}
+                          >
+                            {pulling || loading ? "Retrying..." : "Try Again"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
-              {!loading &&
-                !error &&
-                portainerInstances &&
-                portainerInstances.length > 0 && (
-                  <>
-                    {activeTab === "summary" && renderSummary()}
-                    {activeTab !== "summary" && renderPortainerTab(activeTab)}
-                  </>
-                )}
-            </>
-          )}
+                {!loading &&
+                  !error &&
+                  (!portainerInstances || portainerInstances.length === 0) && (
+                    <div
+                      className="empty-state"
+                      style={{ textAlign: "center", padding: "60px 20px" }}
+                    >
+                      <h2
+                        style={{
+                          color: "var(--text-primary)",
+                          marginBottom: "15px",
+                        }}
+                      >
+                        No Portainer Instances Configured
+                      </h2>
+                      <p
+                        style={{
+                          color: "var(--text-secondary)",
+                          marginBottom: "30px",
+                          fontSize: "1.1rem",
+                        }}
+                      >
+                        Get started by adding your first Portainer instance.
+                      </p>
+                      <button
+                        className="update-button"
+                        onClick={() => {
+                          setEditingPortainerInstance(null);
+                          setShowAddPortainerModal(true);
+                        }}
+                        style={{ fontSize: "1.1rem", padding: "14px 28px" }}
+                      >
+                        ➕ Add Your First Portainer Instance
+                      </button>
+                    </div>
+                  )}
+
+                {!loading &&
+                  !error &&
+                  portainerInstances &&
+                  portainerInstances.length > 0 && (
+                    <>
+                      {activeTab === "summary" && renderSummary()}
+                      {activeTab !== "summary" && renderPortainerTab(activeTab)}
+                    </>
+                  )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      <AddPortainerModal
-        isOpen={showAddPortainerModal}
-        onClose={() => {
-          setShowAddPortainerModal(false);
-          setEditingPortainerInstance(null);
-        }}
-        onSuccess={async (newInstanceData) => {
-          // Refresh Portainer instances list and get the updated instances
-          const updatedInstances = await fetchPortainerInstances();
+        <AddPortainerModal
+          isOpen={showAddPortainerModal}
+          onClose={() => {
+            setShowAddPortainerModal(false);
+            setEditingPortainerInstance(null);
+          }}
+          onSuccess={async (newInstanceData) => {
+            // Refresh Portainer instances list and get the updated instances
+            const updatedInstances = await fetchPortainerInstances();
 
-          // If this is a new instance (not editing), switch to its tab and fetch data
-          if (!editingPortainerInstance && newInstanceData) {
-            // Find the new instance in the updated list to get the correct name
-            // The name might be different if backend used hostname as default
-            const newInstance = updatedInstances.find(
-              (inst) =>
-                inst.id === newInstanceData.id ||
-                inst.url === newInstanceData.url
-            );
+            // If this is a new instance (not editing), switch to its tab and fetch data
+            if (!editingPortainerInstance && newInstanceData) {
+              // Find the new instance in the updated list to get the correct name
+              // The name might be different if backend used hostname as default
+              const newInstance = updatedInstances.find(
+                (inst) =>
+                  inst.id === newInstanceData.id ||
+                  inst.url === newInstanceData.url
+              );
 
-            if (newInstance) {
-              // Use the instance name from the API response (ensures it matches what's in state)
-              const instanceName = newInstance.name;
-              setActiveTab(instanceName);
-              setContentTab("current"); // Start with current containers tab
+              if (newInstance) {
+                // Use the instance name from the API response (ensures it matches what's in state)
+                const instanceName = newInstance.name;
+                setActiveTab(instanceName);
+                setContentTab("current"); // Start with current containers tab
 
-              // Trigger background fetch for this specific instance
-              // This fetches from Portainer without Docker Hub checks
-              // Note: This fetches ALL instances, but that's fine - it will include the new one
-              await fetchContainers(false, newInstance.url);
+                // Trigger background fetch for this specific instance
+                // This fetches from Portainer without Docker Hub checks
+                // Note: This fetches ALL instances, but that's fine - it will include the new one
+                await fetchContainers(false, newInstance.url);
+              } else {
+                // Fallback: use the data we have (shouldn't happen, but be safe)
+                const instanceName =
+                  newInstanceData.name || new URL(newInstanceData.url).hostname;
+                setActiveTab(instanceName);
+                setContentTab("current");
+                await fetchContainers(false, newInstanceData.url);
+              }
             } else {
-              // Fallback: use the data we have (shouldn't happen, but be safe)
-              const instanceName =
-                newInstanceData.name || new URL(newInstanceData.url).hostname;
-              setActiveTab(instanceName);
-              setContentTab("current");
-              await fetchContainers(false, newInstanceData.url);
+              // For edits, just refresh all data
+              fetchContainers();
             }
-          } else {
-            // For edits, just refresh all data
-            fetchContainers();
-          }
 
-          setEditingPortainerInstance(null);
-        }}
-        initialData={editingPortainerInstance}
-        instanceId={editingPortainerInstance?.id || null}
-      />
-    </div>
+            setEditingPortainerInstance(null);
+          }}
+          initialData={editingPortainerInstance}
+          instanceId={editingPortainerInstance?.id || null}
+        />
+      </div>
+    </BatchConfigContext.Provider>
   );
 }
+
+// Export the context for use in other components
+export { BatchConfigContext };
 
 export default App;

@@ -436,10 +436,11 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
       return cached;
     }
     // No cached data found - return empty result instead of fetching from Docker Hub
-    // User must explicitly click "Pull" to fetch fresh data
+    // User must explicitly click "Pull" or batch process must run to fetch fresh data
     if (process.env.DEBUG) {
       console.log('📦 No cached data found, returning empty result. User must click "Pull" to fetch data.');
     }
+    // IMPORTANT: Do NOT call Docker Hub here - only return empty result
     return {
       grouped: true,
       stacks: [],
@@ -448,6 +449,7 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
       unusedImagesCount: 0,
     };
   } else {
+    // Only when forceRefresh=true (explicit pull request or batch process)
     console.log('🔄 Force refresh requested, fetching fresh data from Docker Hub...');
     // Don't clear cache immediately - keep old data visible until new data is ready
     // Cache will be replaced when new data is saved

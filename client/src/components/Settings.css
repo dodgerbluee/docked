@@ -283,6 +283,17 @@ body.dark-mode .avatar-select-button.selected {
   box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
 }
 
+/* Batch interval input - hide spinner arrows */
+#batchInterval::-webkit-outer-spin-button,
+#batchInterval::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#batchInterval {
+  -moz-appearance: textfield;
+}
+
 @media (max-width: 768px) {
   .settings-container {
     padding: 20px;

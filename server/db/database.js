@@ -43,7 +43,7 @@ function initializeDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        role TEXT DEFAULT 'admin',
+        role TEXT DEFAULT 'Administrator',
         password_changed INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -53,6 +53,17 @@ function initializeDatabase() {
           console.error("Error creating users table:", err.message);
         } else {
           console.log("Users table ready");
+          // Migrate existing 'admin' roles to 'Administrator'
+          db.run(
+            "UPDATE users SET role = 'Administrator' WHERE role = 'admin'",
+            (migrateErr) => {
+              if (migrateErr) {
+                console.error("Error migrating roles:", migrateErr.message);
+              } else {
+                console.log("Role migration completed (admin -> Administrator)");
+              }
+            }
+          );
           // Create default admin user if no users exist
           createDefaultAdmin();
         }
@@ -134,6 +145,73 @@ function initializeDatabase() {
         }
       }
     );
+
+    // Create batch_config table (singleton - only one row)
+    db.run(
+      `CREATE TABLE IF NOT EXISTS batch_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        enabled INTEGER DEFAULT 0,
+        interval_minutes INTEGER DEFAULT 60,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => {
+        if (err) {
+          console.error(
+            "Error creating batch_config table:",
+            err.message
+          );
+        } else {
+          console.log("Batch config table ready");
+          // Initialize with default values if no row exists
+          db.get("SELECT id FROM batch_config WHERE id = 1", (initErr, row) => {
+            if (!initErr && !row) {
+              db.run(
+                "INSERT INTO batch_config (id, enabled, interval_minutes) VALUES (1, 0, 60)",
+                (insertErr) => {
+                  if (insertErr) {
+                    console.error("Error initializing batch_config:", insertErr.message);
+                  }
+                }
+              );
+            }
+          });
+        }
+      }
+    );
+
+    // Create batch_runs table to track batch execution history
+    db.run(
+      `CREATE TABLE IF NOT EXISTS batch_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        status TEXT NOT NULL,
+        job_type TEXT DEFAULT 'docker-hub-pull',
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        duration_ms INTEGER,
+        containers_checked INTEGER DEFAULT 0,
+        containers_updated INTEGER DEFAULT 0,
+        error_message TEXT,
+        logs TEXT
+      )`,
+      (err) => {
+        if (err) {
+          console.error("Error creating batch_runs table:", err.message);
+        } else {
+          console.log("Batch runs table ready");
+          // Add job_type column if it doesn't exist (migration)
+          db.run(
+            `ALTER TABLE batch_runs ADD COLUMN job_type TEXT DEFAULT 'docker-hub-pull'`,
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                console.error("Error adding job_type column:", alterErr.message);
+              }
+            }
+          );
+        }
+      }
+    );
   });
 }
 
@@ -156,7 +234,7 @@ async function createDefaultAdmin() {
 
       db.run(
         "INSERT INTO users (username, password_hash, role, password_changed) VALUES (?, ?, ?, ?)",
-        ["admin", passwordHash, "admin", 0],
+        ["admin", passwordHash, "Administrator", 0],
         (err) => {
           if (err) {
             console.error("Error creating default admin:", err.message);
@@ -601,6 +679,215 @@ function clearContainerCache() {
 }
 
 /**
+ * Get batch configuration
+ * @returns {Promise<Object|null>} - Batch configuration or null
+ */
+function getBatchConfig() {
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT enabled, interval_minutes, updated_at FROM batch_config WHERE id = 1",
+      [],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          if (row) {
+            resolve({
+              enabled: row.enabled === 1,
+              intervalMinutes: row.interval_minutes,
+              updatedAt: row.updated_at,
+            });
+          } else {
+            // Return default if no row exists
+            resolve({
+              enabled: false,
+              intervalMinutes: 60,
+              updatedAt: null,
+            });
+          }
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update batch configuration
+ * Uses INSERT OR REPLACE to ensure only one row exists (id = 1)
+ * @param {boolean} enabled - Whether batch processing is enabled
+ * @param {number} intervalMinutes - Interval in minutes between batch runs
+ * @returns {Promise<void>}
+ */
+function updateBatchConfig(enabled, intervalMinutes) {
+  return new Promise((resolve, reject) => {
+    // Validate interval
+    if (intervalMinutes < 1) {
+      reject(new Error("Interval must be at least 1 minute"));
+      return;
+    }
+    if (intervalMinutes > 1440) {
+      reject(new Error("Interval cannot exceed 1440 minutes (24 hours)"));
+      return;
+    }
+
+    db.run(
+      `INSERT OR REPLACE INTO batch_config (id, enabled, interval_minutes, updated_at) 
+       VALUES (1, ?, ?, CURRENT_TIMESTAMP)`,
+      [enabled ? 1 : 0, intervalMinutes],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Create a new batch run record
+ * @param {string} status - Run status ('running', 'completed', 'failed')
+ * @returns {Promise<number>} - ID of created batch run
+ */
+function createBatchRun(status = 'running', jobType = 'docker-hub-pull') {
+  return new Promise((resolve, reject) => {
+    db.run(
+      "INSERT INTO batch_runs (status, job_type, started_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+      [status, jobType],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update batch run with completion information
+ * @param {number} runId - Batch run ID
+ * @param {string} status - Final status ('completed', 'failed')
+ * @param {number} containersChecked - Number of containers checked
+ * @param {number} containersUpdated - Number of containers with updates found
+ * @param {string} errorMessage - Error message if failed
+ * @param {string} logs - Log output from the run
+ * @returns {Promise<void>}
+ */
+function updateBatchRun(runId, status, containersChecked = 0, containersUpdated = 0, errorMessage = null, logs = null) {
+  return new Promise((resolve, reject) => {
+    // Calculate duration
+    db.get(
+      "SELECT started_at FROM batch_runs WHERE id = ?",
+      [runId],
+      (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        if (!row) {
+          reject(new Error('Batch run not found'));
+          return;
+        }
+
+        // Parse started_at as UTC (SQLite DATETIME is stored as UTC without timezone info)
+        const startedAtStr = row.started_at;
+        let startedAt;
+        if (typeof startedAtStr === 'string' && /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)) {
+          // SQLite datetime format - convert to ISO and add Z for UTC
+          startedAt = new Date(startedAtStr.replace(' ', 'T') + 'Z');
+        } else {
+          startedAt = new Date(startedAtStr);
+        }
+        
+        // Use current time in UTC for consistency
+        const completedAt = new Date();
+        const durationMs = completedAt.getTime() - startedAt.getTime();
+
+        db.run(
+          `UPDATE batch_runs 
+           SET status = ?, completed_at = CURRENT_TIMESTAMP, duration_ms = ?, 
+               containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
+           WHERE id = ?`,
+          [status, durationMs, containersChecked, containersUpdated, errorMessage, logs, runId],
+          function (updateErr) {
+            if (updateErr) {
+              reject(updateErr);
+            } else {
+              resolve();
+            }
+          }
+        );
+      }
+    );
+  });
+}
+
+/**
+ * Get batch run by ID
+ * @param {number} runId - Batch run ID
+ * @returns {Promise<Object|null>} - Batch run or null
+ */
+function getBatchRunById(runId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT * FROM batch_runs WHERE id = ?",
+      [runId],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get recent batch runs
+ * @param {number} limit - Maximum number of runs to return (default: 50)
+ * @returns {Promise<Array>} - Array of batch runs
+ */
+function getRecentBatchRuns(limit = 50) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      "SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT ?",
+      [limit],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get the most recent batch run
+ * @returns {Promise<Object|null>} - Most recent batch run or null
+ */
+function getLatestBatchRun() {
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT 1",
+      [],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
  * Close database connection
  */
 function closeDatabase() {
@@ -636,5 +923,12 @@ module.exports = {
   getContainerCache,
   setContainerCache,
   clearContainerCache,
+  getBatchConfig,
+  updateBatchConfig,
+  createBatchRun,
+  updateBatchRun,
+  getBatchRunById,
+  getRecentBatchRuns,
+  getLatestBatchRun,
   closeDatabase,
 };

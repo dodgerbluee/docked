@@ -14,6 +14,8 @@ const {
   deleteDockerHubCredentials,
 } = require('../db/database');
 const { clearCache } = require('../utils/dockerHubCreds');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Login endpoint
@@ -52,8 +54,10 @@ async function login(req, res, next) {
       });
     }
 
-    // Generate simple token (in production, use JWT)
-    const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
+    // Generate simple token with user ID (in production, use JWT)
+    // Format: userId:username:timestamp (base64 encoded)
+    // This allows username changes without breaking authentication
+    const token = Buffer.from(`${user.id}:${user.username}:${Date.now()}`).toString('base64');
 
     res.json({
       success: true,
@@ -85,16 +89,31 @@ async function verifyToken(req, res, next) {
     }
 
     // Simple token verification (in production, use JWT)
+    // Token format: userId:username:timestamp (base64 encoded)
     try {
       const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const [username] = decoded.split(':');
+      const parts = decoded.split(':');
+      const userId = parseInt(parts[0]);
+      const username = parts[1]; // Keep for backwards compatibility
 
-      const user = await getUserByUsername(username);
+      // Look up user by ID (more resilient to username changes)
+      const { getUserById } = require('../db/database');
+      const user = await getUserById(userId);
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid token',
+        // Fallback to username lookup for old tokens
+        const userByUsername = await getUserByUsername(username);
+        if (!userByUsername) {
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid token',
+          });
+        }
+        res.json({
+          success: true,
+          username: userByUsername.username,
+          role: userByUsername.role,
         });
+        return;
       }
 
       res.json({
@@ -307,13 +326,24 @@ async function updateUserUsername(req, res, next) {
       });
     }
 
-    // Update username
+    // Get user ID before updating username
+    const userId = user.id;
+    
+    // Migrate avatar from old username directory to user ID directory before username change
+    await migrateAvatarFromUsername(userId, oldUsername);
+    
+    // Update username in database
     await updateUsername(oldUsername, newUsername.trim());
+
+    // Generate new token with updated username but same user ID
+    // This ensures authentication continues to work after username change
+    const newToken = Buffer.from(`${userId}:${newUsername.trim()}:${Date.now()}`).toString('base64');
 
     res.json({
       success: true,
       message: 'Username updated successfully',
       newUsername: newUsername.trim(),
+      token: newToken, // Return new token so frontend can update it
     });
   } catch (error) {
     next(error);
@@ -418,6 +448,63 @@ async function deleteDockerHubCreds(req, res, next) {
     });
   } catch (error) {
     next(error);
+  }
+}
+
+/**
+ * Migrate avatar from username-based directory to user ID-based directory
+ * Called when username is updated to preserve avatar files
+ * @param {number} userId - User ID
+ * @param {string} oldUsername - Old username (for finding avatar directory)
+ */
+async function migrateAvatarFromUsername(userId, oldUsername) {
+  try {
+    const DATA_DIR = process.env.DATA_DIR || '/data';
+    const AVATARS_DIR = path.join(DATA_DIR, 'avatars');
+    const oldAvatarDir = path.join(AVATARS_DIR, oldUsername);
+    const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
+    
+    // If old directory doesn't exist, nothing to migrate
+    if (!fs.existsSync(oldAvatarDir)) {
+      return;
+    }
+    
+    // If new directory already exists, don't overwrite
+    if (fs.existsSync(newAvatarDir)) {
+      return;
+    }
+    
+    // Create new directory
+    fs.mkdirSync(newAvatarDir, { recursive: true });
+    
+    // Copy main avatar if it exists
+    const oldAvatarPath = path.join(oldAvatarDir, 'avatar.jpg');
+    if (fs.existsSync(oldAvatarPath)) {
+      const newAvatarPath = path.join(newAvatarDir, 'avatar.jpg');
+      fs.copyFileSync(oldAvatarPath, newAvatarPath);
+    }
+    
+    // Copy recent avatars directory if it exists
+    const oldRecentDir = path.join(oldAvatarDir, 'recent');
+    if (fs.existsSync(oldRecentDir)) {
+      const newRecentDir = path.join(newAvatarDir, 'recent');
+      fs.mkdirSync(newRecentDir, { recursive: true });
+      
+      // Copy all recent avatar files
+      const recentFiles = fs.readdirSync(oldRecentDir);
+      recentFiles.forEach(file => {
+        const oldFilePath = path.join(oldRecentDir, file);
+        const newFilePath = path.join(newRecentDir, file);
+        if (fs.statSync(oldFilePath).isFile() && file.endsWith('.jpg')) {
+          fs.copyFileSync(oldFilePath, newFilePath);
+        }
+      });
+    }
+    
+    console.log(`Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`);
+  } catch (err) {
+    console.error('Error migrating avatar during username update:', err);
+    // Don't throw - migration failure shouldn't break username update
   }
 }
 

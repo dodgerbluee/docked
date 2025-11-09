@@ -19,6 +19,10 @@ RUN npm run build
 # Stage 2: Build backend and serve frontend
 FROM node:18-alpine
 
+# Set timezone
+RUN apk add --no-cache tzdata
+ENV TZ=America/Chicago
+
 WORKDIR /app
 
 # Install build tools for sqlite3 native module

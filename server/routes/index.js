@@ -8,6 +8,7 @@ const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
+const batchController = require("../controllers/batchController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -109,5 +110,14 @@ router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentA
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
 router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
 router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
+
+// Batch configuration routes
+router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
+router.post("/batch/config", asyncHandler(batchController.updateBatchConfigHandler));
+router.post("/batch/runs", asyncHandler(batchController.createBatchRunHandler));
+router.put("/batch/runs/:id", asyncHandler(batchController.updateBatchRunHandler));
+router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
+router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
+router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
 module.exports = router;
