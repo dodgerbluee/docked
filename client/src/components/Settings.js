@@ -50,7 +50,10 @@ function Settings({
   // Use prop if provided, otherwise use internal state
   const [internalActiveSection, setInternalActiveSection] =
     useState(activeSection);
-  const currentActiveSection = activeSection || internalActiveSection;
+  // If first login, always show password section regardless of activeSection prop
+  const currentActiveSection = isFirstLogin 
+    ? "password" 
+    : (activeSection || internalActiveSection);
   const setActiveSection = onSectionChange || setInternalActiveSection;
 
   // Portainer instances state
@@ -128,18 +131,18 @@ function Settings({
     fetchPortainerInstances();
     fetchDockerHubCredentials();
     fetchBatchConfig();
-    // Update internal state when prop changes
-    if (activeSection) {
-      setInternalActiveSection(activeSection);
-    }
+    // If first login, always show password section (priority over activeSection)
     if (isFirstLogin) {
       if (onSectionChange) {
         onSectionChange("password");
       } else {
         setInternalActiveSection("password");
       }
+    } else if (activeSection) {
+      // Only update internal state when prop changes if not first login
+      setInternalActiveSection(activeSection);
     }
-  }, [isFirstLogin, activeSection]);
+  }, [isFirstLogin, activeSection, onSectionChange]);
 
   // Sync local color scheme with prop changes
   useEffect(() => {
