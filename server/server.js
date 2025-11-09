@@ -17,6 +17,10 @@ const swaggerSpec = require("./config/swagger");
 
 const app = express();
 
+// Trust proxy - required when running behind a reverse proxy (Docker, nginx, etc.)
+// This allows Express to correctly identify the client IP from X-Forwarded-For headers
+app.set('trust proxy', true);
+
 // Security middleware configuration - must be defined before middleware
 // Note: CSP disabled on localhost and in development for Safari compatibility
 // In production with HTTPS, CSP allows blob: URLs for images to support avatar functionality
