@@ -51,9 +51,9 @@ function Settings({
   const [internalActiveSection, setInternalActiveSection] =
     useState(activeSection);
   // If first login, always show password section regardless of activeSection prop
-  const currentActiveSection = isFirstLogin 
-    ? "password" 
-    : (activeSection || internalActiveSection);
+  const currentActiveSection = isFirstLogin
+    ? "password"
+    : activeSection || internalActiveSection;
   const setActiveSection = onSectionChange || setInternalActiveSection;
 
   // Portainer instances state
@@ -92,14 +92,24 @@ function Settings({
   const [dockerHubLoading, setDockerHubLoading] = useState(false);
   const [dockerHubCredentials, setDockerHubCredentials] = useState(null);
 
-  // Batch configuration state
-  const [batchEnabled, setBatchEnabled] = useState(false);
-  const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(60);
-  const [batchIntervalValue, setBatchIntervalValue] = useState(60);
-  const [batchIntervalUnit, setBatchIntervalUnit] = useState("minutes"); // "minutes" or "hours"
+  // Batch configuration state - separate for each job type
+  const [batchConfigs, setBatchConfigs] = useState({
+    "docker-hub-pull": {
+      enabled: false,
+      intervalMinutes: 60,
+      intervalValue: 60,
+      intervalUnit: "minutes",
+    },
+    "tracked-apps-check": {
+      enabled: false,
+      intervalMinutes: 60,
+      intervalValue: 60,
+      intervalUnit: "minutes",
+    },
+  });
   const [batchError, setBatchError] = useState("");
   const [batchSuccess, setBatchSuccess] = useState("");
-  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState({});
 
   // Avatar upload state
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -204,19 +214,36 @@ function Settings({
     try {
       const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
       if (response.data.success) {
-        setBatchEnabled(response.data.config.enabled || false);
-        const minutes = response.data.config.intervalMinutes || 60;
-        setBatchIntervalMinutes(minutes);
+        const configs = response.data.config || {};
+        const newConfigs = { ...batchConfigs };
 
-        // Convert minutes to display value and unit
-        // If it's a multiple of 60, show in hours; otherwise show in minutes
-        if (minutes >= 60 && minutes % 60 === 0) {
-          setBatchIntervalUnit("hours");
-          setBatchIntervalValue(minutes / 60);
-        } else {
-          setBatchIntervalUnit("minutes");
-          setBatchIntervalValue(minutes);
-        }
+        // Update each job type config
+        ["docker-hub-pull", "tracked-apps-check"].forEach((jobType) => {
+          const config = configs[jobType] || {
+            enabled: false,
+            intervalMinutes: 60,
+          };
+          const minutes = config.intervalMinutes || 60;
+
+          // Convert minutes to display value and unit
+          if (minutes >= 60 && minutes % 60 === 0) {
+            newConfigs[jobType] = {
+              enabled: config.enabled || false,
+              intervalMinutes: minutes,
+              intervalValue: minutes / 60,
+              intervalUnit: "hours",
+            };
+          } else {
+            newConfigs[jobType] = {
+              enabled: config.enabled || false,
+              intervalMinutes: minutes,
+              intervalValue: minutes,
+              intervalUnit: "minutes",
+            };
+          }
+        });
+
+        setBatchConfigs(newConfigs);
       }
     } catch (err) {
       console.error("Error fetching batch config:", err);
@@ -445,7 +472,7 @@ function Settings({
     try {
       // Determine which token to use for validation
       const tokenToValidate = dockerHubToken.trim() || null;
-      
+
       // If we have a new token, validate it first
       if (tokenToValidate) {
         try {
@@ -544,66 +571,71 @@ function Settings({
     e.preventDefault();
     setBatchError("");
     setBatchSuccess("");
-    setBatchLoading(true);
-
-    // Convert display value to minutes based on selected unit
-    const intervalMinutes =
-      batchIntervalUnit === "hours"
-        ? batchIntervalValue * 60
-        : batchIntervalValue;
+    setBatchLoading({ "docker-hub-pull": true, "tracked-apps-check": true });
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/batch/config`, {
-        enabled: batchEnabled,
-        intervalMinutes: intervalMinutes,
-      });
+      // Save both configs
+      const promises = ["docker-hub-pull", "tracked-apps-check"].map(
+        async (jobType) => {
+          const config = batchConfigs[jobType];
 
-      // Update the minutes state for consistency
-      setBatchIntervalMinutes(intervalMinutes);
+          // Convert display value to minutes based on selected unit
+          const intervalMinutes =
+            config.intervalUnit === "hours"
+              ? config.intervalValue * 60
+              : config.intervalValue;
 
-      if (response.data.success) {
-        setBatchSuccess("Batch configuration updated successfully!");
-        setTimeout(() => setBatchSuccess(""), 3000);
-        // Notify parent component to refetch batch config
-        // Use ref to get the latest callback value (avoids stale closure)
-        const callback = onBatchConfigUpdateRef.current;
-        console.log("🔔 Settings: Calling onBatchConfigUpdate callback");
-        console.log(
-          "🔍 Settings: onBatchConfigUpdate at call time (from ref):",
-          {
-            exists: !!callback,
-            isFunction: typeof callback === "function",
-            value: callback,
-          }
-        );
-        if (callback && typeof callback === "function") {
-          console.log("✅ Settings: onBatchConfigUpdate exists, calling it...");
-          try {
-            await callback();
-            console.log("✅ Settings: onBatchConfigUpdate completed");
-          } catch (err) {
-            console.error(
-              "❌ Settings: Error calling onBatchConfigUpdate:",
-              err
+          const response = await axios.post(
+            `${API_BASE_URL}/api/batch/config`,
+            {
+              jobType: jobType,
+              enabled: config.enabled,
+              intervalMinutes: intervalMinutes,
+            }
+          );
+
+          if (response.data.success) {
+            // Update local state with the saved config
+            const updatedConfigs = { ...batchConfigs };
+            updatedConfigs[jobType] = {
+              ...config,
+              intervalMinutes: intervalMinutes,
+            };
+            setBatchConfigs(updatedConfigs);
+            return true;
+          } else {
+            throw new Error(
+              response.data.error || "Failed to update batch configuration"
             );
           }
-        } else {
-          console.error(
-            "❌ Settings: onBatchConfigUpdate is null/undefined or not a function!"
-          );
         }
-      } else {
-        setBatchError(
-          response.data.error || "Failed to update batch configuration"
-        );
+      );
+
+      await Promise.all(promises);
+
+      setBatchSuccess("Batch configurations updated successfully!");
+      setTimeout(() => setBatchSuccess(""), 3000);
+
+      // Notify parent component to refetch batch config
+      const callback = onBatchConfigUpdateRef.current;
+      if (callback && typeof callback === "function") {
+        try {
+          await callback();
+        } catch (err) {
+          console.error("Error calling onBatchConfigUpdate:", err);
+        }
       }
     } catch (err) {
       setBatchError(
         err.response?.data?.error ||
+          err.message ||
           "Failed to update batch configuration. Please try again."
       );
     } finally {
-      setBatchLoading(false);
+      setBatchLoading({
+        "docker-hub-pull": false,
+        "tracked-apps-check": false,
+      });
     }
   };
 
@@ -2089,235 +2121,515 @@ function Settings({
           {currentActiveSection === "batch" && (
             <div className="update-section">
               <h3>Batch Processing Configuration</h3>
-              <div
-                style={{
-                  background: "var(--bg-secondary)",
-                  padding: "15px",
-                  borderRadius: "8px",
-                  marginBottom: "20px",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                <h4 style={{ marginTop: 0, color: "var(--text-primary)" }}>
-                  What is this?
-                </h4>
-                <p
-                  style={{
-                    color: "var(--text-secondary)",
-                    lineHeight: "1.6",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Batch processing automatically fetches container update
-                  information from Docker Hub at regular intervals in the
-                  background. This keeps your container data up-to-date without
-                  manual intervention.
-                </p>
-                <h4 style={{ color: "var(--text-primary)" }}>How it works:</h4>
-                <ul
-                  style={{
-                    color: "var(--text-secondary)",
-                    lineHeight: "1.6",
-                    marginBottom: 0,
-                    paddingLeft: "20px",
-                  }}
-                >
-                  <li>
-                    <strong>Automatic Updates:</strong> When enabled, the system
-                    will automatically pull fresh data from Docker Hub at the
-                    configured interval
-                  </li>
-                  <li>
-                    <strong>Configurable Interval:</strong> Set how often the
-                    batch process runs (in minutes or hours)
-                  </li>
-                  <li>
-                    <strong>Rate Limit Aware:</strong> The system respects
-                    Docker Hub rate limits and will adjust accordingly
-                  </li>
-                </ul>
-              </div>
 
               <form onSubmit={handleBatchConfigSubmit} className="update-form">
-                <div className="form-group">
-                  <label
-                    htmlFor="batchEnabled"
+                {/* Docker Hub Scan Configuration */}
+                <div style={{ marginBottom: "30px" }}>
+                  <h4
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      cursor: "pointer",
+                      marginTop: 0,
+                      marginBottom: "20px",
+                      color: "var(--text-primary)",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      id="batchEnabled"
-                      checked={batchEnabled}
-                      onChange={(e) => setBatchEnabled(e.target.checked)}
-                      disabled={batchLoading}
-                      style={{
-                        width: "20px",
-                        height: "20px",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontWeight: "600",
-                        color: "var(--text-primary)",
-                      }}
-                    >
-                      Enable Batch Processing
-                    </span>
-                  </label>
-                  <small>
-                    When enabled, Docker Hub data will be fetched automatically
-                    at the configured interval
-                  </small>
-                </div>
-
-                {batchEnabled && (
-                  <div className="form-group">
-                    <label htmlFor="batchInterval">Update Interval</label>
-                    <div
+                    Docker Hub Scan
+                  </h4>
+                  <div className="form-group" style={{ marginTop: 0 }}>
+                    <label
+                      htmlFor="dockerHubScanEnabled"
                       style={{
                         display: "flex",
-                        gap: "8px",
                         alignItems: "center",
+                        gap: "12px",
+                        cursor: "pointer",
                       }}
                     >
                       <input
-                        type="text"
-                        inputMode="numeric"
-                        id="batchInterval"
-                        value={batchIntervalValue}
-                        onKeyPress={(e) => {
-                          // Only allow digits (0-9)
-                          if (
-                            !/[0-9]/.test(e.key) &&
-                            e.key !== "Backspace" &&
-                            e.key !== "Delete" &&
-                            e.key !== "ArrowLeft" &&
-                            e.key !== "ArrowRight" &&
-                            e.key !== "Tab"
-                          ) {
-                            e.preventDefault();
-                          }
-                        }}
+                        type="checkbox"
+                        id="dockerHubScanEnabled"
+                        checked={batchConfigs["docker-hub-pull"].enabled}
                         onChange={(e) => {
-                          // Only allow digits
-                          const inputValue = e.target.value.replace(
-                            /[^0-9]/g,
-                            ""
-                          );
-                          if (inputValue === "") {
-                            setBatchIntervalValue("");
-                            return;
-                          }
-                          const numValue = parseInt(inputValue, 10);
-                          if (isNaN(numValue)) {
-                            return;
-                          }
-                          // Validate against min/max
-                          const max = batchIntervalUnit === "hours" ? 24 : 1440;
-                          const validatedValue = Math.max(
-                            1,
-                            Math.min(numValue, max)
-                          );
-                          setBatchIntervalValue(validatedValue);
-                          // Update minutes for validation
-                          const minutes =
-                            batchIntervalUnit === "hours"
-                              ? validatedValue * 60
-                              : validatedValue;
-                          setBatchIntervalMinutes(minutes);
+                          const updatedConfigs = { ...batchConfigs };
+                          updatedConfigs["docker-hub-pull"].enabled =
+                            e.target.checked;
+                          setBatchConfigs(updatedConfigs);
                         }}
-                        onBlur={(e) => {
-                          // Ensure value is set on blur if empty
-                          if (
-                            e.target.value === "" ||
-                            parseInt(e.target.value, 10) < 1
-                          ) {
-                            setBatchIntervalValue(1);
-                            const minutes =
-                              batchIntervalUnit === "hours" ? 60 : 1;
-                            setBatchIntervalMinutes(minutes);
-                          }
-                        }}
-                        required
-                        disabled={batchLoading}
+                        disabled={batchLoading["docker-hub-pull"]}
                         style={{
-                          width: "80px",
-                          padding: "6px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "var(--bg-primary)",
-                          color: "var(--text-primary)",
-                          fontSize: "14px",
-                          textAlign: "center",
-                          WebkitAppearance: "none",
-                          MozAppearance: "textfield",
+                          width: "20px",
+                          height: "20px",
+                          cursor: "pointer",
                         }}
                       />
-                      <div className="batch-interval-toggle">
-                        <button
-                          type="button"
-                          className={`batch-interval-option ${
-                            batchIntervalUnit === "minutes" ? "active" : ""
-                          }`}
-                          onClick={() => {
-                            if (!batchLoading && batchIntervalUnit !== "minutes") {
-                              const newUnit = "minutes";
-                              setBatchIntervalUnit(newUnit);
-                              // Convert hours to minutes
-                              const minutes = batchIntervalValue * 60;
-                              setBatchIntervalValue(minutes);
-                              setBatchIntervalMinutes(minutes);
-                            }
-                          }}
-                          disabled={batchLoading}
-                          aria-pressed={batchIntervalUnit === "minutes"}
-                        >
-                          Minutes
-                        </button>
-                        <button
-                          type="button"
-                          className={`batch-interval-option ${
-                            batchIntervalUnit === "hours" ? "active" : ""
-                          }`}
-                          onClick={() => {
-                            if (!batchLoading && batchIntervalUnit !== "hours") {
-                              const newUnit = "hours";
-                              setBatchIntervalUnit(newUnit);
-                              // Convert minutes to hours (round to nearest)
-                              const hours =
-                                Math.round(batchIntervalMinutes / 60) || 1;
-                              setBatchIntervalValue(hours);
-                            }
-                          }}
-                          disabled={batchLoading}
-                          aria-pressed={batchIntervalUnit === "hours"}
-                        >
-                          Hours
-                        </button>
-                      </div>
-                    </div>
-                    <small>
-                      How often to fetch updates.{" "}
-                      {batchIntervalUnit === "hours"
-                        ? `Range: 1-24 hours (${
-                            batchIntervalValue * 60
-                          } minutes)`
-                        : `Range: 1-1440 minutes (${
-                            batchIntervalMinutes >= 60
-                              ? `${(batchIntervalMinutes / 60).toFixed(
-                                  1
-                                )} hours`
-                              : `${batchIntervalMinutes} minutes`
-                          })`}
+                      <span
+                        style={{
+                          fontWeight: "600",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        Enable Docker Hub Scan
+                      </span>
+                    </label>
+                    <small
+                      style={{
+                        color: "var(--text-secondary)",
+                        lineHeight: "1.5",
+                        display: "block",
+                        marginTop: "4px",
+                        paddingLeft: "32px",
+                      }}
+                    >
+                      Fetches container update information from Docker Hub at
+                      defined interval. Respects Docker Hub rate limits.
                     </small>
                   </div>
-                )}
+
+                  {batchConfigs["docker-hub-pull"].enabled && (
+                    <div className="form-group" style={{ marginTop: "20px" }}>
+                      <label htmlFor="dockerHubScanInterval" style={{ paddingLeft: "32px" }}>
+                        Update Interval
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center",
+                          paddingLeft: "32px",
+                        }}
+                      >
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          id="dockerHubScanInterval"
+                          value={batchConfigs["docker-hub-pull"].intervalValue}
+                          onKeyPress={(e) => {
+                            if (
+                              !/[0-9]/.test(e.key) &&
+                              e.key !== "Backspace" &&
+                              e.key !== "Delete" &&
+                              e.key !== "ArrowLeft" &&
+                              e.key !== "ArrowRight" &&
+                              e.key !== "Tab"
+                            ) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => {
+                            const inputValue = e.target.value.replace(
+                              /[^0-9]/g,
+                              ""
+                            );
+                            if (inputValue === "") {
+                              const updatedConfigs = { ...batchConfigs };
+                              updatedConfigs["docker-hub-pull"].intervalValue =
+                                "";
+                              setBatchConfigs(updatedConfigs);
+                              return;
+                            }
+                            const numValue = parseInt(inputValue, 10);
+                            if (isNaN(numValue)) return;
+                            const max =
+                              batchConfigs["docker-hub-pull"].intervalUnit ===
+                              "hours"
+                                ? 24
+                                : 1440;
+                            const validatedValue = Math.max(
+                              1,
+                              Math.min(numValue, max)
+                            );
+                            const updatedConfigs = { ...batchConfigs };
+                            updatedConfigs["docker-hub-pull"].intervalValue =
+                              validatedValue;
+                            const minutes =
+                              updatedConfigs["docker-hub-pull"].intervalUnit ===
+                              "hours"
+                                ? validatedValue * 60
+                                : validatedValue;
+                            updatedConfigs["docker-hub-pull"].intervalMinutes =
+                              minutes;
+                            setBatchConfigs(updatedConfigs);
+                          }}
+                          onBlur={(e) => {
+                            if (
+                              e.target.value === "" ||
+                              parseInt(e.target.value, 10) < 1
+                            ) {
+                              const updatedConfigs = { ...batchConfigs };
+                              updatedConfigs[
+                                "docker-hub-pull"
+                              ].intervalValue = 1;
+                              const minutes =
+                                updatedConfigs["docker-hub-pull"]
+                                  .intervalUnit === "hours"
+                                  ? 60
+                                  : 1;
+                              updatedConfigs[
+                                "docker-hub-pull"
+                              ].intervalMinutes = minutes;
+                              setBatchConfigs(updatedConfigs);
+                            }
+                          }}
+                          required
+                          disabled={batchLoading["docker-hub-pull"]}
+                          style={{
+                            width: "80px",
+                            padding: "6px 8px",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-color)",
+                            background: "var(--bg-primary)",
+                            color: "var(--text-primary)",
+                            fontSize: "14px",
+                            textAlign: "center",
+                            WebkitAppearance: "none",
+                            MozAppearance: "textfield",
+                          }}
+                        />
+                        <div className="batch-interval-toggle">
+                          <button
+                            type="button"
+                            className={`batch-interval-option ${
+                              batchConfigs["docker-hub-pull"].intervalUnit ===
+                              "minutes"
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (
+                                !batchLoading["docker-hub-pull"] &&
+                                batchConfigs["docker-hub-pull"].intervalUnit !==
+                                  "minutes"
+                              ) {
+                                const updatedConfigs = { ...batchConfigs };
+                                const minutes =
+                                  updatedConfigs["docker-hub-pull"]
+                                    .intervalValue * 60;
+                                updatedConfigs["docker-hub-pull"].intervalUnit =
+                                  "minutes";
+                                updatedConfigs[
+                                  "docker-hub-pull"
+                                ].intervalValue = minutes;
+                                updatedConfigs[
+                                  "docker-hub-pull"
+                                ].intervalMinutes = minutes;
+                                setBatchConfigs(updatedConfigs);
+                              }
+                            }}
+                            disabled={batchLoading["docker-hub-pull"]}
+                          >
+                            Minutes
+                          </button>
+                          <button
+                            type="button"
+                            className={`batch-interval-option ${
+                              batchConfigs["docker-hub-pull"].intervalUnit ===
+                              "hours"
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (
+                                !batchLoading["docker-hub-pull"] &&
+                                batchConfigs["docker-hub-pull"].intervalUnit !==
+                                  "hours"
+                              ) {
+                                const updatedConfigs = { ...batchConfigs };
+                                const hours =
+                                  Math.round(
+                                    updatedConfigs["docker-hub-pull"]
+                                      .intervalMinutes / 60
+                                  ) || 1;
+                                updatedConfigs["docker-hub-pull"].intervalUnit =
+                                  "hours";
+                                updatedConfigs[
+                                  "docker-hub-pull"
+                                ].intervalValue = hours;
+                                setBatchConfigs(updatedConfigs);
+                              }
+                            }}
+                            disabled={batchLoading["docker-hub-pull"]}
+                          >
+                            Hours
+                          </button>
+                        </div>
+                      </div>
+                      <small style={{ paddingLeft: "32px", display: "block" }}>
+                        How often to fetch updates.{" "}
+                        {batchConfigs["docker-hub-pull"].intervalUnit ===
+                        "hours"
+                          ? `Range: 1-24 hours (${
+                              batchConfigs["docker-hub-pull"].intervalValue * 60
+                            } minutes)`
+                          : `Range: 1-1440 minutes (${
+                              batchConfigs["docker-hub-pull"].intervalMinutes >=
+                              60
+                                ? `${(
+                                    batchConfigs["docker-hub-pull"]
+                                      .intervalMinutes / 60
+                                  ).toFixed(1)} hours`
+                                : `${batchConfigs["docker-hub-pull"].intervalMinutes} minutes`
+                            })`}
+                      </small>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tracked Apps Scan Configuration */}
+                <div style={{ marginBottom: "30px" }}>
+                  <h4
+                    style={{
+                      marginTop: 0,
+                      marginBottom: "20px",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Tracked Apps Scan
+                  </h4>
+                  <div className="form-group" style={{ marginTop: 0 }}>
+                    <label
+                      htmlFor="trackedAppsScanEnabled"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        id="trackedAppsScanEnabled"
+                        checked={batchConfigs["tracked-apps-check"].enabled}
+                        onChange={(e) => {
+                          const updatedConfigs = { ...batchConfigs };
+                          updatedConfigs["tracked-apps-check"].enabled =
+                            e.target.checked;
+                          setBatchConfigs(updatedConfigs);
+                        }}
+                        disabled={batchLoading["tracked-apps-check"]}
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontWeight: "600",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        Enable Tracked Apps Scan
+                      </span>
+                    </label>
+                    <small
+                      style={{
+                        color: "var(--text-secondary)",
+                        lineHeight: "1.5",
+                        display: "block",
+                        marginTop: "4px",
+                        paddingLeft: "32px",
+                      }}
+                    >
+                      Automatically checks tracked GitHub repositories for new
+                      releases at regular intervals. Keeps your tracked apps
+                      up-to-date and notifies you when updates are available.
+                    </small>
+                  </div>
+
+                  {batchConfigs["tracked-apps-check"].enabled && (
+                    <div className="form-group" style={{ marginTop: "20px" }}>
+                      <label htmlFor="trackedAppsScanInterval" style={{ paddingLeft: "32px" }}>
+                        Update Interval
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center",
+                          paddingLeft: "32px",
+                        }}
+                      >
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          id="trackedAppsScanInterval"
+                          value={
+                            batchConfigs["tracked-apps-check"].intervalValue
+                          }
+                          onKeyPress={(e) => {
+                            if (
+                              !/[0-9]/.test(e.key) &&
+                              e.key !== "Backspace" &&
+                              e.key !== "Delete" &&
+                              e.key !== "ArrowLeft" &&
+                              e.key !== "ArrowRight" &&
+                              e.key !== "Tab"
+                            ) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => {
+                            const inputValue = e.target.value.replace(
+                              /[^0-9]/g,
+                              ""
+                            );
+                            if (inputValue === "") {
+                              const updatedConfigs = { ...batchConfigs };
+                              updatedConfigs[
+                                "tracked-apps-check"
+                              ].intervalValue = "";
+                              setBatchConfigs(updatedConfigs);
+                              return;
+                            }
+                            const numValue = parseInt(inputValue, 10);
+                            if (isNaN(numValue)) return;
+                            const max =
+                              batchConfigs["tracked-apps-check"]
+                                .intervalUnit === "hours"
+                                ? 24
+                                : 1440;
+                            const validatedValue = Math.max(
+                              1,
+                              Math.min(numValue, max)
+                            );
+                            const updatedConfigs = { ...batchConfigs };
+                            updatedConfigs["tracked-apps-check"].intervalValue =
+                              validatedValue;
+                            const minutes =
+                              updatedConfigs["tracked-apps-check"]
+                                .intervalUnit === "hours"
+                                ? validatedValue * 60
+                                : validatedValue;
+                            updatedConfigs[
+                              "tracked-apps-check"
+                            ].intervalMinutes = minutes;
+                            setBatchConfigs(updatedConfigs);
+                          }}
+                          onBlur={(e) => {
+                            if (
+                              e.target.value === "" ||
+                              parseInt(e.target.value, 10) < 1
+                            ) {
+                              const updatedConfigs = { ...batchConfigs };
+                              updatedConfigs[
+                                "tracked-apps-check"
+                              ].intervalValue = 1;
+                              const minutes =
+                                updatedConfigs["tracked-apps-check"]
+                                  .intervalUnit === "hours"
+                                  ? 60
+                                  : 1;
+                              updatedConfigs[
+                                "tracked-apps-check"
+                              ].intervalMinutes = minutes;
+                              setBatchConfigs(updatedConfigs);
+                            }
+                          }}
+                          required
+                          disabled={batchLoading["tracked-apps-check"]}
+                          style={{
+                            width: "80px",
+                            padding: "6px 8px",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-color)",
+                            background: "var(--bg-primary)",
+                            color: "var(--text-primary)",
+                            fontSize: "14px",
+                            textAlign: "center",
+                            WebkitAppearance: "none",
+                            MozAppearance: "textfield",
+                          }}
+                        />
+                        <div className="batch-interval-toggle">
+                          <button
+                            type="button"
+                            className={`batch-interval-option ${
+                              batchConfigs["tracked-apps-check"]
+                                .intervalUnit === "minutes"
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (
+                                !batchLoading["tracked-apps-check"] &&
+                                batchConfigs["tracked-apps-check"]
+                                  .intervalUnit !== "minutes"
+                              ) {
+                                const updatedConfigs = { ...batchConfigs };
+                                const minutes =
+                                  updatedConfigs["tracked-apps-check"]
+                                    .intervalValue * 60;
+                                updatedConfigs[
+                                  "tracked-apps-check"
+                                ].intervalUnit = "minutes";
+                                updatedConfigs[
+                                  "tracked-apps-check"
+                                ].intervalValue = minutes;
+                                updatedConfigs[
+                                  "tracked-apps-check"
+                                ].intervalMinutes = minutes;
+                                setBatchConfigs(updatedConfigs);
+                              }
+                            }}
+                            disabled={batchLoading["tracked-apps-check"]}
+                          >
+                            Minutes
+                          </button>
+                          <button
+                            type="button"
+                            className={`batch-interval-option ${
+                              batchConfigs["tracked-apps-check"]
+                                .intervalUnit === "hours"
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (
+                                !batchLoading["tracked-apps-check"] &&
+                                batchConfigs["tracked-apps-check"]
+                                  .intervalUnit !== "hours"
+                              ) {
+                                const updatedConfigs = { ...batchConfigs };
+                                const hours =
+                                  Math.round(
+                                    updatedConfigs["tracked-apps-check"]
+                                      .intervalMinutes / 60
+                                  ) || 1;
+                                updatedConfigs[
+                                  "tracked-apps-check"
+                                ].intervalUnit = "hours";
+                                updatedConfigs[
+                                  "tracked-apps-check"
+                                ].intervalValue = hours;
+                                setBatchConfigs(updatedConfigs);
+                              }
+                            }}
+                            disabled={batchLoading["tracked-apps-check"]}
+                          >
+                            Hours
+                          </button>
+                        </div>
+                      </div>
+                      <small style={{ paddingLeft: "32px", display: "block" }}>
+                        How often to check for updates.{" "}
+                        {batchConfigs["tracked-apps-check"].intervalUnit ===
+                        "hours"
+                          ? `Range: 1-24 hours (${
+                              batchConfigs["tracked-apps-check"].intervalValue *
+                              60
+                            } minutes)`
+                          : `Range: 1-1440 minutes (${
+                              batchConfigs["tracked-apps-check"]
+                                .intervalMinutes >= 60
+                                ? `${(
+                                    batchConfigs["tracked-apps-check"]
+                                      .intervalMinutes / 60
+                                  ).toFixed(1)} hours`
+                                : `${batchConfigs["tracked-apps-check"].intervalMinutes} minutes`
+                            })`}
+                      </small>
+                    </div>
+                  )}
+                </div>
 
                 {batchError && (
                   <div className="error-message">{batchError}</div>
@@ -2329,10 +2641,18 @@ function Settings({
                   type="submit"
                   className="update-button"
                   disabled={
-                    batchLoading || (batchEnabled && batchIntervalValue < 1)
+                    batchLoading["docker-hub-pull"] ||
+                    batchLoading["tracked-apps-check"] ||
+                    (batchConfigs["docker-hub-pull"].enabled &&
+                      batchConfigs["docker-hub-pull"].intervalValue < 1) ||
+                    (batchConfigs["tracked-apps-check"].enabled &&
+                      batchConfigs["tracked-apps-check"].intervalValue < 1)
                   }
                 >
-                  {batchLoading ? "Saving..." : "Save Configuration"}
+                  {batchLoading["docker-hub-pull"] ||
+                  batchLoading["tracked-apps-check"]
+                    ? "Saving..."
+                    : "Save Configuration"}
                 </button>
               </form>
             </div>

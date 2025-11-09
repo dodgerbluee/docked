@@ -13,17 +13,23 @@ const API_BASE_URL =
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
 
-function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
-  // Get batchConfig from Context - this will automatically update when state changes
+function BatchLogs({ onNavigateHome = null, onTriggerBatch = null, onTriggerTrackedAppsBatch = null }) {
+  // Get batchConfigs from Context - this will automatically update when state changes
   const contextValue = useContext(BatchConfigContext);
-  const batchConfig = contextValue?.batchConfig;
+  const batchConfigs = contextValue?.batchConfig || {};
+  
+  // Check if any job type is enabled
+  const hasEnabledJobs = (batchConfigs['docker-hub-pull']?.enabled || false) || 
+                         (batchConfigs['tracked-apps-check']?.enabled || false);
   
   const [latestRun, setLatestRun] = useState(null);
+  const [latestRunsByJobType, setLatestRunsByJobType] = useState({});
   const [recentRuns, setRecentRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [triggeringBatch, setTriggeringBatch] = useState(false);
+  const [triggeringTrackedAppsBatch, setTriggeringTrackedAppsBatch] = useState(false);
   const [nextScheduledRun, setNextScheduledRun] = useState(null);
   const lastTriggeredIntervalRef = useRef(null);
   const lastCalculatedRunIdRef = useRef(null);
@@ -31,16 +37,19 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
   const baseScheduledTimeRef = useRef(null); // Store the base scheduled time that doesn't change
   const lastDependencyKeyRef = useRef(null); // Track the last dependency key to prevent unnecessary recalculations
   
-  // Log whenever batchConfig changes from Context
+  // Log whenever batchConfigs changes from Context and reset dependency tracking
   useEffect(() => {
-    console.log("📥 BatchLogs received batchConfig from Context:", {
-      batchConfig,
-      enabled: batchConfig?.enabled,
-      intervalMinutes: batchConfig?.intervalMinutes,
-      isNull: batchConfig === null,
-      isUndefined: batchConfig === undefined
+    console.log("📥 BatchLogs received batchConfigs from Context:", {
+      batchConfigs,
+      dockerHubEnabled: batchConfigs['docker-hub-pull']?.enabled,
+      trackedAppsEnabled: batchConfigs['tracked-apps-check']?.enabled,
     });
-  }, [batchConfig]);
+    // Reset dependency tracking when configs change to force recalculation
+    lastDependencyKeyRef.current = null;
+    baseScheduledTimeRef.current = null;
+    lastCalculatedRunIdRef.current = null;
+    lastCalculatedIntervalRef.current = null;
+  }, [batchConfigs]);
 
   useEffect(() => {
     fetchLatestRun();
@@ -54,12 +63,16 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Update next scheduled run when batchConfig or recentRuns change
+  // Update next scheduled run when batchConfigs or recentRuns change
   useEffect(() => {
     // Create a stable dependency key
     const completed = recentRuns.find(r => r.status === 'completed');
     const running = recentRuns.find(r => r.status === 'running');
-    const dependencyKey = `${batchConfig?.enabled}-${batchConfig?.intervalMinutes}-${completed ? `${completed.id}-${completed.completed_at}` : running ? `${running.id}-${running.started_at}` : 'none'}`;
+    const dockerHubEnabled = batchConfigs['docker-hub-pull']?.enabled || false;
+    const trackedAppsEnabled = batchConfigs['tracked-apps-check']?.enabled || false;
+    const dockerHubInterval = batchConfigs['docker-hub-pull']?.intervalMinutes || 60;
+    const trackedAppsInterval = batchConfigs['tracked-apps-check']?.intervalMinutes || 60;
+    const dependencyKey = `${dockerHubEnabled}-${dockerHubInterval}-${trackedAppsEnabled}-${trackedAppsInterval}-${completed ? `${completed.id}-${completed.completed_at}` : running ? `${running.id}-${running.started_at}` : 'none'}`;
     
     // Only recalculate if the dependency key actually changed
     if (lastDependencyKeyRef.current === dependencyKey && baseScheduledTimeRef.current !== null) {
@@ -72,17 +85,20 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
     lastDependencyKeyRef.current = dependencyKey;
     
     console.log("🔄 BatchLogs useEffect triggered", {
-      batchConfig,
-      batchConfigEnabled: batchConfig?.enabled,
-      batchConfigInterval: batchConfig?.intervalMinutes,
+      batchConfigs,
+      dockerHubEnabled,
+      trackedAppsEnabled,
       recentRunsLength: recentRuns.length,
       dependencyKey
     });
     
     // Recalculate next scheduled run whenever dependencies change
-    // This ensures the display updates immediately when batchConfig changes
-    if (!batchConfig || !batchConfig.enabled || !batchConfig.intervalMinutes) {
-      console.log("⚠️ BatchConfig invalid, setting nextScheduledRun to null");
+    // Use docker-hub-pull config for next scheduled run calculation (or first enabled one)
+    const activeConfig = dockerHubEnabled ? batchConfigs['docker-hub-pull'] : 
+                        (trackedAppsEnabled ? batchConfigs['tracked-apps-check'] : null);
+    
+    if (!activeConfig || !activeConfig.enabled || !activeConfig.intervalMinutes) {
+      console.log("⚠️ No active batch config, setting nextScheduledRun to null");
       setNextScheduledRun(null);
       lastCalculatedRunIdRef.current = null;
       lastCalculatedIntervalRef.current = null;
@@ -90,6 +106,7 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
       return;
     }
     
+    const batchConfig = activeConfig; // Use for compatibility with rest of the function
     const now = new Date();
     const intervalMs = batchConfig.intervalMinutes * 60 * 1000;
     let calculatedNextRun = null;
@@ -178,13 +195,14 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
     console.log("✅ Setting nextScheduledRun:", calculatedNextRun);
     setNextScheduledRun(calculatedNextRun);
   }, [
-    // Depend on batchConfig and recentRuns, but use ref-based tracking inside to prevent unnecessary recalculations
-    batchConfig,
+    // Depend on batchConfigs and recentRuns, but use ref-based tracking inside to prevent unnecessary recalculations
+    batchConfigs,
     recentRuns,
   ]);
 
   const fetchLatestRun = async () => {
     try {
+      // Fetch latest run overall (for backward compatibility)
       const response = await axios.get(`${API_BASE_URL}/api/batch/runs/latest`);
       if (response.data.success) {
         setLatestRun(response.data.run || null);
@@ -193,9 +211,16 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
           setSelectedRun(response.data.run);
         }
       }
+      
+      // Fetch latest runs by job type
+      const byJobTypeResponse = await axios.get(`${API_BASE_URL}/api/batch/runs/latest?byJobType=true`);
+      if (byJobTypeResponse.data.success) {
+        setLatestRunsByJobType(byJobTypeResponse.data.runs || {});
+      }
     } catch (err) {
       console.error("Error fetching latest batch run:", err);
       setLatestRun(null);
+      setLatestRunsByJobType({});
       if (loading) {
         setError("Failed to load batch run information");
       }
@@ -206,7 +231,7 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
 
   const fetchRecentRuns = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=50`);
+      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=20`);
       if (response.data.success) {
         setRecentRuns(response.data.runs || []);
       }
@@ -272,7 +297,8 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
 
   const getJobTypeBadge = (jobType) => {
     const jobTypes = {
-      'docker-hub-pull': { bg: "rgba(0, 90, 156, 0.2)", color: "var(--dodger-blue)", text: "Docker Hub Pull" },
+      'docker-hub-pull': { bg: "rgba(0, 90, 156, 0.2)", color: "var(--dodger-blue)", text: "Docker Hub Scan" },
+      'tracked-apps-check': { bg: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6", text: "Tracked Apps Scan" },
       // Future job types can be added here
       // 'image-cleanup': { bg: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6", text: "Image Cleanup" },
       // 'backup': { bg: "rgba(34, 197, 94, 0.2)", color: "#22c55e", text: "Backup" },
@@ -326,9 +352,15 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
   };
 
   const getNextScheduledRun = () => {
-    if (!batchConfig || !batchConfig.enabled || !batchConfig.intervalMinutes) {
+    // Use docker-hub-pull config for next scheduled run calculation (or first enabled one)
+    const activeConfig = batchConfigs['docker-hub-pull']?.enabled ? batchConfigs['docker-hub-pull'] : 
+                        (batchConfigs['tracked-apps-check']?.enabled ? batchConfigs['tracked-apps-check'] : null);
+    
+    if (!activeConfig || !activeConfig.enabled || !activeConfig.intervalMinutes) {
       return null;
     }
+    
+    const batchConfig = activeConfig; // Use for compatibility with rest of the function
 
     // Find the most recent completed run
     const lastCompletedRun = recentRuns.find(run => run.status === 'completed');
@@ -390,64 +422,6 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
 
   return (
     <div className="settings-page">
-      <div className="summary-header">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          <h2 className="settings-header">Batch Processing</h2>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <button
-              onClick={() => {
-                if (onNavigateHome) {
-                  onNavigateHome();
-                } else {
-                  window.location.reload();
-                }
-              }}
-              style={{
-                padding: "10px 20px",
-                fontSize: "1rem",
-                fontWeight: "600",
-                background: "var(--dodger-blue)",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--dodger-blue-light)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--dodger-blue)";
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Return Home
-            </button>
-          </div>
-        </div>
-      </div>
       <div className="settings-container">
 
       {error && (
@@ -463,119 +437,238 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
       )}
 
       {/* Next Scheduled Run */}
-      {batchConfig && batchConfig.enabled && (
-        <div
-          style={{
-            background: "var(--bg-secondary)",
-            padding: "20px",
-            borderRadius: "8px",
-            marginBottom: "30px",
-            border: "1px solid var(--border-color)",
-          }}
-        >
-          <h3 style={{ marginTop: 0, color: "var(--text-primary)", marginBottom: "20px" }}>
-            Next Scheduled Run
-          </h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "200px 1fr",
-            gap: "15px",
-            alignItems: "center",
-            padding: "12px",
-            background: "var(--bg-tertiary)",
-            borderRadius: "6px",
-          }}>
-            <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
-              {getJobTypeBadge('docker-hub-pull')}
-            </div>
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "12px",
-              flexWrap: "wrap",
-              justifyContent: "space-between"
+      <div
+        style={{
+          background: "var(--bg-secondary)",
+          padding: "20px",
+          borderRadius: "8px",
+          marginBottom: "30px",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h3 style={{ marginTop: 0, color: "var(--text-primary)", marginBottom: "20px" }}>
+          Next Scheduled Runs
+        </h3>
+        {hasEnabledJobs ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {/* Docker Hub Scan */}
+            {batchConfigs['docker-hub-pull']?.enabled && (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "200px 1fr",
+              gap: "15px",
+              alignItems: "center",
+              padding: "12px",
+              background: "var(--bg-tertiary)",
+              borderRadius: "6px",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                <span style={{ color: "var(--text-primary)", fontWeight: "500" }}>
-                  {formatNextRun(nextScheduledRun)}
-                </span>
-                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                  (Interval: {batchConfig && batchConfig.intervalMinutes ? (
-                    batchConfig.intervalMinutes === 60
-                      ? "1 hour"
-                      : batchConfig.intervalMinutes < 60
-                      ? `${batchConfig.intervalMinutes} minutes`
-                      : `${(batchConfig.intervalMinutes / 60).toFixed(1)} hours`
-                  ) : "N/A"})
-                </span>
+              <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
+                {getJobTypeBadge('docker-hub-pull')}
               </div>
-              <button
-                onClick={async () => {
-                  if (onTriggerBatch) {
-                    setTriggeringBatch(true);
-                    try {
-                      await onTriggerBatch();
-                      // Refresh the runs after triggering
-                      setTimeout(() => {
-                        fetchLatestRun();
-                        fetchRecentRuns();
-                      }, 1000);
-                    } catch (err) {
-                      console.error("Error triggering batch:", err);
-                    } finally {
-                      setTriggeringBatch(false);
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "12px",
+                flexWrap: "wrap",
+                justifyContent: "space-between"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--text-primary)", fontWeight: "500" }}>
+                    {formatNextRun(nextScheduledRun)}
+                  </span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    (Interval: {batchConfigs['docker-hub-pull']?.intervalMinutes ? (
+                      batchConfigs['docker-hub-pull'].intervalMinutes === 60
+                        ? "1 hour"
+                        : batchConfigs['docker-hub-pull'].intervalMinutes < 60
+                        ? `${batchConfigs['docker-hub-pull'].intervalMinutes} minutes`
+                        : (() => {
+                            const hours = batchConfigs['docker-hub-pull'].intervalMinutes / 60;
+                            return hours % 1 === 0 ? `${hours} hours` : `${hours.toFixed(1)} hours`;
+                          })()
+                    ) : "N/A"})
+                  </span>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (onTriggerBatch) {
+                      setTriggeringBatch(true);
+                      try {
+                        await onTriggerBatch();
+                        // Refresh the runs after triggering
+                        setTimeout(() => {
+                          fetchLatestRun();
+                          fetchRecentRuns();
+                        }, 1000);
+                      } catch (err) {
+                        console.error("Error triggering batch:", err);
+                      } finally {
+                        setTriggeringBatch(false);
+                      }
                     }
-                  }
-                }}
-                disabled={triggeringBatch}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  background: triggeringBatch ? "var(--text-secondary)" : "var(--dodger-blue)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: triggeringBatch ? "not-allowed" : "pointer",
-                  transition: "all 0.2s",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  opacity: triggeringBatch ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!triggeringBatch) {
-                    e.currentTarget.style.background = "var(--dodger-blue-light)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!triggeringBatch) {
-                    e.currentTarget.style.background = "var(--dodger-blue)";
-                  }
-                }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  }}
+                  disabled={triggeringBatch}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: "0.85rem",
+                    fontWeight: "600",
+                    background: triggeringBatch ? "var(--text-secondary)" : "var(--dodger-blue)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: triggeringBatch ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    opacity: triggeringBatch ? 0.6 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!triggeringBatch) {
+                      e.currentTarget.style.background = "var(--dodger-blue-light)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!triggeringBatch) {
+                      e.currentTarget.style.background = "var(--dodger-blue)";
+                    }
+                  }}
                 >
-                  <polyline points="23 4 23 10 17 10" />
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
-                {triggeringBatch ? "Running..." : "Run Now"}
-              </button>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  {triggeringBatch ? "Running..." : "Run Now"}
+                </button>
+              </div>
             </div>
+            )}
+            {/* Tracked Apps Scan */}
+            {batchConfigs['tracked-apps-check']?.enabled && (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "200px 1fr",
+              gap: "15px",
+              alignItems: "center",
+              padding: "12px",
+              background: "var(--bg-tertiary)",
+              borderRadius: "6px",
+            }}>
+              <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
+                {getJobTypeBadge('tracked-apps-check')}
+              </div>
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "12px",
+                flexWrap: "wrap",
+                justifyContent: "space-between"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--text-primary)", fontWeight: "500" }}>
+                    {formatNextRun(nextScheduledRun)}
+                  </span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    (Interval: {batchConfigs['tracked-apps-check']?.intervalMinutes ? (
+                      batchConfigs['tracked-apps-check'].intervalMinutes === 60
+                        ? "1 hour"
+                        : batchConfigs['tracked-apps-check'].intervalMinutes < 60
+                        ? `${batchConfigs['tracked-apps-check'].intervalMinutes} minutes`
+                        : (() => {
+                            const hours = batchConfigs['tracked-apps-check'].intervalMinutes / 60;
+                            return hours % 1 === 0 ? `${hours} hours` : `${hours.toFixed(1)} hours`;
+                          })()
+                    ) : "N/A"})
+                  </span>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (onTriggerTrackedAppsBatch) {
+                      setTriggeringTrackedAppsBatch(true);
+                      try {
+                        await onTriggerTrackedAppsBatch();
+                        // Refresh the runs after triggering
+                        setTimeout(() => {
+                          fetchLatestRun();
+                          fetchRecentRuns();
+                        }, 1000);
+                      } catch (err) {
+                        console.error("Error triggering tracked apps batch:", err);
+                      } finally {
+                        setTriggeringTrackedAppsBatch(false);
+                      }
+                    }
+                  }}
+                  disabled={triggeringTrackedAppsBatch}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: "0.85rem",
+                    fontWeight: "600",
+                    background: triggeringTrackedAppsBatch ? "var(--text-secondary)" : "#8b5cf6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: triggeringTrackedAppsBatch ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    opacity: triggeringTrackedAppsBatch ? 0.6 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!triggeringTrackedAppsBatch) {
+                      e.currentTarget.style.background = "#7c3aed";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!triggeringTrackedAppsBatch) {
+                      e.currentTarget.style.background = "#8b5cf6";
+                    }
+                  }}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  {triggeringTrackedAppsBatch ? "Running..." : "Run Now"}
+                </button>
+              </div>
+            </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div
+            style={{
+              padding: "20px",
+              textAlign: "center",
+              color: "var(--text-secondary)",
+            }}
+          >
+            No batch jobs are currently scheduled. Enable batch processing in Settings to schedule automatic runs.
+          </div>
+        )}
+      </div>
 
-      {/* Latest Run Summary */}
-      {latestRun && (
+      {/* Latest Run Summary - Show last run for each job type */}
+      {(latestRunsByJobType['docker-hub-pull'] || latestRunsByJobType['tracked-apps-check']) && (
         <div
           style={{
             background: "var(--bg-secondary)",
@@ -655,58 +748,112 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
                 Details
               </div>
             </div>
-            {/* Table Row */}
-            <div style={{ display: "table-row" }}>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                {getJobTypeBadge(latestRun.job_type)}
+            {/* Table Rows - One for each job type */}
+            {latestRunsByJobType['docker-hub-pull'] && (
+              <div style={{ display: "table-row" }}>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {getJobTypeBadge('docker-hub-pull')}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {getStatusBadge(latestRunsByJobType['docker-hub-pull'].status)}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {formatDate(latestRunsByJobType['docker-hub-pull'].started_at)}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {latestRunsByJobType['docker-hub-pull'].completed_at ? formatDate(latestRunsByJobType['docker-hub-pull'].completed_at) : "N/A"}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {latestRunsByJobType['docker-hub-pull'].duration_ms ? formatDuration(latestRunsByJobType['docker-hub-pull'].duration_ms) : "N/A"}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  <div style={{ marginBottom: "4px" }}>{latestRunsByJobType['docker-hub-pull'].containers_checked || 0} containers checked</div>
+                  <div>{latestRunsByJobType['docker-hub-pull'].containers_updated || 0} updates found</div>
+                </div>
               </div>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                {getStatusBadge(latestRun.status)}
+            )}
+            {latestRunsByJobType['tracked-apps-check'] && (
+              <div style={{ display: "table-row" }}>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {getJobTypeBadge('tracked-apps-check')}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {getStatusBadge(latestRunsByJobType['tracked-apps-check'].status)}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {formatDate(latestRunsByJobType['tracked-apps-check'].started_at)}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {latestRunsByJobType['tracked-apps-check'].completed_at ? formatDate(latestRunsByJobType['tracked-apps-check'].completed_at) : "N/A"}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  {latestRunsByJobType['tracked-apps-check'].duration_ms ? formatDuration(latestRunsByJobType['tracked-apps-check'].duration_ms) : "N/A"}
+                </div>
+                <div style={{
+                  display: "table-cell",
+                  padding: "12px",
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--border-color)",
+                }}>
+                  <div style={{ marginBottom: "4px" }}>{latestRunsByJobType['tracked-apps-check'].containers_checked || 0} apps checked</div>
+                  <div>{latestRunsByJobType['tracked-apps-check'].containers_updated || 0} updates found</div>
+                </div>
               </div>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                color: "var(--text-primary)",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                {formatDate(latestRun.started_at)}
-              </div>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                color: "var(--text-primary)",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                {latestRun.completed_at ? formatDate(latestRun.completed_at) : "N/A"}
-              </div>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                color: "var(--text-primary)",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                {latestRun.duration_ms ? formatDuration(latestRun.duration_ms) : "N/A"}
-              </div>
-              <div style={{
-                display: "table-cell",
-                padding: "12px",
-                color: "var(--text-primary)",
-                borderBottom: "1px solid var(--border-color)",
-              }}>
-                <div style={{ marginBottom: "4px" }}>{latestRun.containers_checked || 0} containers checked</div>
-                <div>{latestRun.containers_updated || 0} updates found</div>
-              </div>
-            </div>
+            )}
           </div>
-          {latestRun.error_message && (
+          {/* Error messages for each job type */}
+          {latestRunsByJobType['docker-hub-pull']?.error_message && (
             <div
               style={{
                 marginTop: "15px",
@@ -717,7 +864,21 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
                 color: "var(--dodger-red)",
               }}
             >
-              <strong>Error:</strong> {latestRun.error_message}
+              <strong>Docker Hub Scan Error:</strong> {latestRunsByJobType['docker-hub-pull'].error_message}
+            </div>
+          )}
+          {latestRunsByJobType['tracked-apps-check']?.error_message && (
+            <div
+              style={{
+                marginTop: "15px",
+                padding: "12px",
+                background: "rgba(239, 62, 66, 0.1)",
+                border: "1px solid var(--dodger-red)",
+                borderRadius: "6px",
+                color: "var(--dodger-red)",
+              }}
+            >
+              <strong>Tracked Apps Scan Error:</strong> {latestRunsByJobType['tracked-apps-check'].error_message}
             </div>
           )}
         </div>
@@ -823,7 +984,9 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
                         marginTop: "3px",
                       }}
                     >
-                      {run.containers_checked} containers
+                      {run.job_type === 'tracked-apps-check' 
+                        ? `${run.containers_checked} apps, ${run.containers_updated || 0} updates`
+                        : `${run.containers_checked} containers, ${run.containers_updated || 0} updates`}
                     </div>
                   )}
                 </div>
