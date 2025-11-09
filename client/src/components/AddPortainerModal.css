@@ -54,12 +54,12 @@
 .modal-close {
   background: transparent;
   border: none;
-  font-size: 2rem;
+  font-size: 1.5rem;
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,6 +114,131 @@ body.dark-mode .modal-form .form-group input:focus {
 .modal-form .form-group input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Modern Auth Type Toggle */
+.auth-type-toggle {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: 10px;
+  border: 2px solid var(--border-color);
+  transition: all 0.3s;
+}
+
+.auth-type-toggle:focus-within {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.1);
+}
+
+body.dark-mode .auth-type-toggle:focus-within {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+}
+
+.auth-type-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.auth-type-option:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.auth-type-option.active {
+  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 90, 156, 0.3);
+}
+
+body.dark-mode .auth-type-option.active {
+  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
+  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.3);
+}
+
+.auth-type-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Protocol Toggle */
+.protocol-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 2px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.protocol-toggle:focus-within {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.1);
+}
+
+body.dark-mode .protocol-toggle:focus-within {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+}
+
+.protocol-option {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.protocol-option:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.protocol-option.active {
+  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 90, 156, 0.3);
+}
+
+body.dark-mode .protocol-option.active {
+  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
+  box-shadow: 0 2px 6px rgba(30, 136, 229, 0.3);
+}
+
+.protocol-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-type-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.auth-type-option.active .auth-type-icon {
+  filter: brightness(0) invert(1);
 }
 
 .modal-form .form-group small {

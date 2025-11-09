@@ -26,6 +26,10 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
   const [triggeringBatch, setTriggeringBatch] = useState(false);
   const [nextScheduledRun, setNextScheduledRun] = useState(null);
   const lastTriggeredIntervalRef = useRef(null);
+  const lastCalculatedRunIdRef = useRef(null);
+  const lastCalculatedIntervalRef = useRef(null);
+  const baseScheduledTimeRef = useRef(null); // Store the base scheduled time that doesn't change
+  const lastDependencyKeyRef = useRef(null); // Track the last dependency key to prevent unnecessary recalculations
   
   // Log whenever batchConfig changes from Context
   useEffect(() => {
@@ -52,13 +56,27 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
 
   // Update next scheduled run when batchConfig or recentRuns change
   useEffect(() => {
+    // Create a stable dependency key
+    const completed = recentRuns.find(r => r.status === 'completed');
+    const running = recentRuns.find(r => r.status === 'running');
+    const dependencyKey = `${batchConfig?.enabled}-${batchConfig?.intervalMinutes}-${completed ? `${completed.id}-${completed.completed_at}` : running ? `${running.id}-${running.started_at}` : 'none'}`;
+    
+    // Only recalculate if the dependency key actually changed
+    if (lastDependencyKeyRef.current === dependencyKey && baseScheduledTimeRef.current !== null) {
+      // Dependencies haven't changed - use the stored base time
+      setNextScheduledRun(new Date(baseScheduledTimeRef.current));
+      return;
+    }
+    
+    // Update the dependency key
+    lastDependencyKeyRef.current = dependencyKey;
+    
     console.log("🔄 BatchLogs useEffect triggered", {
       batchConfig,
       batchConfigEnabled: batchConfig?.enabled,
       batchConfigInterval: batchConfig?.intervalMinutes,
-      batchConfigString: JSON.stringify(batchConfig),
       recentRunsLength: recentRuns.length,
-      latestRunId: latestRun?.id
+      dependencyKey
     });
     
     // Recalculate next scheduled run whenever dependencies change
@@ -66,6 +84,9 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
     if (!batchConfig || !batchConfig.enabled || !batchConfig.intervalMinutes) {
       console.log("⚠️ BatchConfig invalid, setting nextScheduledRun to null");
       setNextScheduledRun(null);
+      lastCalculatedRunIdRef.current = null;
+      lastCalculatedIntervalRef.current = null;
+      baseScheduledTimeRef.current = null;
       return;
     }
     
@@ -101,9 +122,34 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
         }
         calculatedNextRun = new Date(startedAt.getTime() + intervalMs);
       } else {
-        // No runs at all - calculate next run from current time
+        // No runs at all - only calculate once per interval change, don't recalculate on every refresh
+        // Check if we've already calculated for this interval
+        if (lastCalculatedRunIdRef.current === 'none' && lastCalculatedIntervalRef.current === batchConfig.intervalMinutes) {
+          // Already calculated for this interval, don't recalculate
+          return;
+        }
+        // First time calculating - use current time
         calculatedNextRun = new Date(now.getTime() + intervalMs);
       }
+    }
+
+    // Only recalculate if the last run ID or interval actually changed
+    const currentKey = `${lastRunId || 'none'}-${batchConfig.intervalMinutes}`;
+    const lastKey = `${lastCalculatedRunIdRef.current}-${lastCalculatedIntervalRef.current}`;
+    
+    if (currentKey === lastKey && baseScheduledTimeRef.current !== null) {
+      // Same run and interval - don't recalculate, use the stored base time
+      // This prevents the time from incrementing on every refresh
+      setNextScheduledRun(new Date(baseScheduledTimeRef.current));
+      return;
+    }
+
+    // Update refs to track what we calculated
+    lastCalculatedRunIdRef.current = lastRunId;
+    lastCalculatedIntervalRef.current = batchConfig.intervalMinutes;
+    // Store the base scheduled time (timestamp) so we don't recalculate
+    if (calculatedNextRun) {
+      baseScheduledTimeRef.current = calculatedNextRun.getTime();
     }
 
     // If the calculated next run is in the past (interval was increased), 
@@ -123,6 +169,7 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
       }
       // Recalculate from current time instead
       calculatedNextRun = new Date(now.getTime() + intervalMs);
+      baseScheduledTimeRef.current = calculatedNextRun.getTime();
     } else {
       // Reset the trigger guard when next run is not in the past
       lastTriggeredIntervalRef.current = null;
@@ -131,15 +178,9 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
     console.log("✅ Setting nextScheduledRun:", calculatedNextRun);
     setNextScheduledRun(calculatedNextRun);
   }, [
-    // Depend on the entire batchConfig object - Context will provide new reference when it changes
+    // Depend on batchConfig and recentRuns, but use ref-based tracking inside to prevent unnecessary recalculations
     batchConfig,
-    // Also depend on the serialized key to force update detection
-    batchConfig ? `${batchConfig.enabled}-${batchConfig.intervalMinutes}` : 'null',
-    recentRuns.length,
-    recentRuns.map(r => `${r.id}-${r.status}-${r.completed_at}`).join(','),
-    latestRun?.id,
-    latestRun?.completed_at,
-    latestRun?.started_at
+    recentRuns,
   ]);
 
   const fetchLatestRun = async () => {
@@ -855,4 +896,5 @@ function BatchLogs({ onNavigateHome = null, onTriggerBatch = null }) {
 }
 
 export default BatchLogs;
+
 

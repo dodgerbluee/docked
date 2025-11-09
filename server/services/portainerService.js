@@ -8,24 +8,70 @@ const config = require('../config');
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
+// Store auth type per Portainer instance to determine correct header format
+const authTypes = new Map();
+
+/**
+ * Clear authentication token for a specific Portainer instance
+ * @param {string} portainerUrl - Portainer instance URL
+ */
+function clearAuthToken(portainerUrl) {
+  authTokens.delete(portainerUrl);
+  authTypes.delete(portainerUrl);
+}
 
 /**
  * Authenticate with a specific Portainer instance
  * @param {string} portainerUrl - Portainer instance URL
- * @param {string} username - Username for this instance
- * @param {string} password - Password for this instance
+ * @param {string} username - Username for this instance (required for password auth)
+ * @param {string} password - Password for this instance (required for password auth)
+ * @param {string} apiKey - API key for this instance (required for API key auth)
+ * @param {string} authType - Authentication type: 'password' or 'apikey'
+ * @param {boolean} skipCache - If true, skip cache check and always re-authenticate (for validation)
  * @returns {Promise<string>} - Authentication token
  */
-async function authenticatePortainer(portainerUrl, username = null, password = null) {
-  // Check if we already have a valid token for this instance
-  if (authTokens.has(portainerUrl)) {
+async function authenticatePortainer(portainerUrl, username = null, password = null, apiKey = null, authType = 'password', skipCache = false) {
+  // Check if we already have a valid token for this instance (unless skipping cache for validation)
+  if (!skipCache && authTokens.has(portainerUrl)) {
     return authTokens.get(portainerUrl);
   }
 
-  // Use provided credentials (required)
-  if (!username || !password) {
-    throw new Error('Username and password are required for Portainer authentication');
+  // Validate credentials based on auth type
+  if (authType === 'apikey') {
+    if (!apiKey) {
+      throw new Error('API key is required for API key authentication');
+    }
+    // For API key auth, validate the key by making an actual API call
+    // Portainer API keys use X-API-Key header, not Authorization Bearer
+    try {
+      // Test the API key by making a request to a protected endpoint
+      const testResponse = await axios.get(
+        `${portainerUrl}/api/endpoints`,
+        {
+          headers: {
+            'X-API-Key': apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      // If we get here, the API key is valid
+      authTokens.set(portainerUrl, apiKey);
+      authTypes.set(portainerUrl, 'apikey');
+      return apiKey;
+    } catch (apiKeyError) {
+      if (apiKeyError.response?.status === 401 || apiKeyError.response?.status === 403) {
+        throw new Error('Invalid API key. Please check your API key and try again.');
+      }
+      // For other errors (network, etc.), throw the original error
+      throw new Error(`Failed to validate API key: ${apiKeyError.message}`);
+    }
+  } else {
+    // Password-based authentication
+    if (!username || !password) {
+      throw new Error('Username and password are required for Portainer authentication');
+    }
   }
+
   const authUsername = username;
   const authPassword = password;
 
@@ -53,6 +99,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
 
     // Store token for this instance
     authTokens.set(portainerUrl, authToken);
+    authTypes.set(portainerUrl, 'password');
     return authToken;
   } catch (error) {
     // Enhanced error logging
@@ -89,6 +136,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
                 `Alternative authentication format succeeded for ${portainerUrl}`
               );
               authTokens.set(portainerUrl, altToken);
+              authTypes.set(portainerUrl, 'password');
               return altToken;
             }
           } catch (altError) {
@@ -119,17 +167,28 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
 /**
  * Get Portainer API headers for a specific instance
  * @param {string} portainerUrl - Portainer instance URL
- * @returns {Object} - Headers object with Authorization
+ * @returns {Object} - Headers object with Authorization or X-API-Key
  */
 function getAuthHeaders(portainerUrl) {
   const token = authTokens.get(portainerUrl);
   if (!token) {
     throw new Error(`No authentication token for ${portainerUrl}`);
   }
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
+  
+  const authType = authTypes.get(portainerUrl) || 'password';
+  
+  // Portainer API keys use X-API-Key header, JWT tokens use Authorization Bearer
+  if (authType === 'apikey') {
+    return {
+      'X-API-Key': token,
+      'Content-Type': 'application/json',
+    };
+  } else {
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
 }
 
 /**
@@ -441,6 +500,7 @@ async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 10
 
 module.exports = {
   authenticatePortainer,
+  clearAuthToken,
   getEndpoints,
   getContainers,
   getContainerDetails,

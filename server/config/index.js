@@ -31,10 +31,67 @@ const config = {
     // Note: Docker Hub credentials are now managed through the Settings UI.
     // The delay is dynamically adjusted in dockerRegistryService based on actual credentials availability
     dockerHubDelay: 1000, // Default delay for anonymous (authenticated uses 500ms)
+    api: {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      // More lenient in development to avoid blocking legitimate requests
+      max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP to 100 requests per windowMs (production) or 1000 (development)
+      message: 'Too many requests from this IP, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+      // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
+      skip: (req) => {
+        const ip = req.ip || req.connection?.remoteAddress || '';
+        const hostname = req.hostname || req.get('host') || '';
+        const isLocalhost = 
+          ip === '::1' || 
+          ip === '127.0.0.1' || 
+          ip === '::ffff:127.0.0.1' ||
+          hostname.includes('localhost') ||
+          hostname.includes('127.0.0.1');
+        // Skip in development OR if accessing via localhost (even in production mode)
+        return process.env.NODE_ENV !== 'production' || isLocalhost;
+      },
+    },
+    auth: {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      // More lenient in development or when running on localhost
+      max: process.env.NODE_ENV === 'production' ? 5 : 50, // Limit each IP to 5 login attempts per windowMs (production) or 50 (development)
+      message: 'Too many login attempts, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+      // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
+      skip: (req) => {
+        const ip = req.ip || req.connection?.remoteAddress || '';
+        const hostname = req.hostname || req.get('host') || '';
+        const isLocalhost = 
+          ip === '::1' || 
+          ip === '127.0.0.1' || 
+          ip === '::ffff:127.0.0.1' ||
+          hostname.includes('localhost') ||
+          hostname.includes('127.0.0.1');
+        // Skip in development OR if accessing via localhost (even in production mode)
+        return process.env.NODE_ENV !== 'production' || isLocalhost;
+      },
+    },
   },
   retry: {
     maxRetries: 3,
     baseDelay: 1000,
+  },
+  jwt: {
+    secret: process.env.JWT_SECRET || 'change-this-secret-in-production-use-strong-random-string',
+    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  },
+  cors: {
+    origin: process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+      : (process.env.NODE_ENV === 'production' 
+          ? ['https://yourdomain.com'] // Update with your production domain
+          : true), // Allow all origins in development for Safari compatibility
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   },
 };
 

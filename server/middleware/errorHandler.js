@@ -2,6 +2,8 @@
  * Error handling middleware
  */
 
+const logger = require('../utils/logger');
+
 /**
  * Global error handler middleware
  * @param {Error} err - Error object
@@ -10,7 +12,16 @@
  * @param {Function} next - Express next function
  */
 function errorHandler(err, req, res, next) {
-  console.error('Error:', err);
+  // Log error with context
+  logger.error('Request error', {
+    error: err.message,
+    stack: err.stack,
+    method: req.method,
+    url: req.url,
+    ip: req.ip,
+    userId: req.user?.id,
+    statusCode: err.status || err.statusCode || 500,
+  });
 
   // Default error
   const status = err.status || err.statusCode || 500;
@@ -18,8 +29,12 @@ function errorHandler(err, req, res, next) {
 
   // Don't leak error details in production
   const errorResponse = {
+    success: false,
     error: message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      details: err.details,
+    }),
   };
 
   res.status(status).json(errorResponse);

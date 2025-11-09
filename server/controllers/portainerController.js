@@ -12,6 +12,81 @@ const {
   updatePortainerInstanceOrder,
 } = require('../db/database');
 const { validateRequiredFields } = require('../utils/validation');
+const portainerService = require('../services/portainerService');
+
+/**
+ * Validate Portainer instance credentials without creating the instance
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function validateInstance(req, res, next) {
+  try {
+    const { url, username, password, apiKey, authType = 'password' } = req.body;
+
+    // Validate required fields based on auth type
+    if (authType === 'apikey') {
+      const validationError = validateRequiredFields(
+        { url, apiKey },
+        ['url', 'apiKey']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
+    } else {
+      const validationError = validateRequiredFields(
+        { url, username, password },
+        ['url', 'username', 'password']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
+    }
+
+    // Validate URL format
+    try {
+      const urlObj = new URL(url);
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL must use http:// or https://',
+        });
+      }
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid URL format',
+      });
+    }
+
+    // Test authentication - skip cache to ensure we validate the actual credentials provided
+    try {
+      await portainerService.authenticatePortainer(
+        url.trim(),
+        username || null,
+        password || null,
+        apiKey || null,
+        authType,
+        true // skipCache = true for validation
+      );
+      
+      // If we get here, authentication succeeded
+      res.json({
+        success: true,
+        message: 'Authentication successful',
+      });
+    } catch (authError) {
+      // Authentication failed - clear any cached token for this URL
+      portainerService.clearAuthToken(url.trim());
+      return res.status(401).json({
+        success: false,
+        error: authError.message || 'Authentication failed. Please check your credentials.',
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
 
 /**
  * Get all Portainer instances
@@ -22,8 +97,8 @@ const { validateRequiredFields } = require('../utils/validation');
 async function getInstances(req, res, next) {
   try {
     const instances = await getAllPortainerInstances();
-    // Don't return passwords in the response
-    const safeInstances = instances.map(({ password, ...rest }) => rest);
+    // Don't return passwords or API keys in the response
+    const safeInstances = instances.map(({ password, api_key, ...rest }) => rest);
     res.json({
       success: true,
       instances: safeInstances,
@@ -51,8 +126,8 @@ async function getInstance(req, res, next) {
       });
     }
 
-    // Don't return password in the response
-    const { password, ...safeInstance } = instance;
+    // Don't return password or API key in the response
+    const { password, api_key, ...safeInstance } = instance;
     res.json({
       success: true,
       instance: safeInstance,
@@ -70,15 +145,25 @@ async function getInstance(req, res, next) {
  */
 async function createInstance(req, res, next) {
   try {
-    const { name, url, username, password } = req.body;
+    const { name, url, username, password, apiKey, authType = 'password' } = req.body;
 
-    // Validate required fields
-    const validationError = validateRequiredFields(
-      { name, url, username, password },
-      ['name', 'url', 'username', 'password']
-    );
-    if (validationError) {
-      return res.status(400).json(validationError);
+    // Validate required fields based on auth type
+    if (authType === 'apikey') {
+      const validationError = validateRequiredFields(
+        { name, url, apiKey },
+        ['name', 'url', 'apiKey']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
+    } else {
+      const validationError = validateRequiredFields(
+        { name, url, username, password },
+        ['name', 'url', 'username', 'password']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
     }
 
     // Validate URL format
@@ -102,11 +187,14 @@ async function createInstance(req, res, next) {
     const instanceName = name.trim() || new URL(url).hostname;
 
     // Create instance
+    // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
     const id = await createPortainerInstance(
       instanceName,
       url.trim(),
-      username.trim(),
-      password
+      authType === 'apikey' ? '' : (username ? username.trim() : ''),
+      authType === 'apikey' ? '' : (password || ''),
+      apiKey || null,
+      authType
     );
 
     res.json({
@@ -135,7 +223,7 @@ async function createInstance(req, res, next) {
 async function updateInstance(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, url, username, password } = req.body;
+    const { name, url, username, password, apiKey, authType } = req.body;
 
     // Check if instance exists
     const existing = await getPortainerInstanceById(parseInt(id));
@@ -146,13 +234,33 @@ async function updateInstance(req, res, next) {
       });
     }
 
-    // Validate required fields (password is optional when updating)
-    const validationError = validateRequiredFields(
-      { name, url, username },
-      ['name', 'url', 'username']
-    );
-    if (validationError) {
-      return res.status(400).json(validationError);
+    // Use existing authType if not provided
+    const finalAuthType = authType || existing.auth_type || 'password';
+
+    // Validate required fields based on auth type
+    if (finalAuthType === 'apikey') {
+      const validationError = validateRequiredFields(
+        { name, url },
+        ['name', 'url']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
+      // For API key auth, apiKey is required if not updating (keeping existing)
+      if (!apiKey && !existing.api_key) {
+        return res.status(400).json({
+          success: false,
+          error: 'API key is required for API key authentication',
+        });
+      }
+    } else {
+      const validationError = validateRequiredFields(
+        { name, url, username },
+        ['name', 'url', 'username']
+      );
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
     }
 
     // Validate URL format
@@ -175,19 +283,37 @@ async function updateInstance(req, res, next) {
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
     
-    // If password is empty and we're updating, keep the existing password
-    let passwordToUse = password;
-    if (!password && existing.password) {
-      passwordToUse = existing.password;
+    // Handle credentials based on auth type
+    // IMPORTANT: When switching auth methods, explicitly clear the old method's data
+    let passwordToUse = null;
+    let apiKeyToUse = null;
+    
+    // Check if auth type is changing
+    const authTypeChanged = existing.auth_type !== finalAuthType;
+    
+    if (finalAuthType === 'apikey') {
+      // For API key auth, use provided apiKey or keep existing (if not switching)
+      apiKeyToUse = apiKey || (authTypeChanged ? null : existing.api_key);
+      // Always clear password data when using API key auth
+      passwordToUse = '';
+    } else {
+      // For password auth, use provided password or keep existing (if not switching)
+      passwordToUse = password || (authTypeChanged ? '' : existing.password);
+      // Always clear API key data when using password auth
+      apiKeyToUse = null;
     }
 
     // Update instance
+    // For API key auth, use empty strings for username/password to satisfy NOT NULL constraints
+    // For password auth, use null for API key to clear it
     await updatePortainerInstance(
       parseInt(id),
       instanceName,
       url.trim(),
-      username.trim(),
-      passwordToUse
+      finalAuthType === 'apikey' ? '' : (username ? username.trim() : ''),
+      passwordToUse || '',
+      apiKeyToUse,
+      finalAuthType
     );
 
     res.json({
@@ -276,6 +402,7 @@ async function updateInstanceOrder(req, res, next) {
 }
 
 module.exports = {
+  validateInstance,
   getInstances,
   getInstance,
   createInstance,

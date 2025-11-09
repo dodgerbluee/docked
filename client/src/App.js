@@ -6,19 +6,28 @@ import React, {
   createContext,
   useContext,
   useMemo,
+  Suspense,
+  lazy,
 } from "react";
 import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
-import Settings from "./components/Settings";
-import AddPortainerModal from "./components/AddPortainerModal";
-import BatchLogs from "./components/BatchLogs";
+import ErrorBoundary from "./components/ErrorBoundary";
 import {
   getDockerHubUrl,
   getDockerHubTagsUrl,
   getGitHubRepoUrl,
   formatTimeAgo,
 } from "./utils/formatters";
+
+// Lazy load heavy components
+// Temporarily disabled to debug React error #426
+// const Settings = lazy(() => import("./components/Settings"));
+// const AddPortainerModal = lazy(() => import("./components/AddPortainerModal"));
+// const BatchLogs = lazy(() => import("./components/BatchLogs"));
+import Settings from "./components/Settings";
+import AddPortainerModal from "./components/AddPortainerModal";
+import BatchLogs from "./components/BatchLogs";
 
 // In production, API is served from same origin, so use relative URLs
 // In development, use localhost
@@ -64,7 +73,7 @@ function App() {
   const [draggedTabIndex, setDraggedTabIndex] = useState(null);
   const [dataFetched, setDataFetched] = useState(false); // Track if data has been fetched
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("password"); // 'username', 'password', 'portainer', 'dockerhub'
+  const [settingsTab, setSettingsTab] = useState("general"); // 'general', 'username', 'password', 'portainer', 'dockerhub', 'avatar', 'batch'
 
   const [containers, setContainers] = useState([]);
   const [stacks, setStacks] = useState([]);
@@ -93,10 +102,20 @@ function App() {
     const saved = localStorage.getItem("dockerHubDataPulled");
     return saved ? JSON.parse(saved) : false;
   });
+  // Color scheme preference: 'system', 'light', or 'dark'
+  const [colorScheme, setColorScheme] = useState(() => {
+    // Check localStorage for saved preference, default to 'system'
+    const saved = localStorage.getItem("colorScheme");
+    return saved || 'system';
+  });
+  
+  // Derived dark mode state based on color scheme preference
   const [darkMode, setDarkMode] = useState(() => {
-    // Check localStorage for saved preference
-    const saved = localStorage.getItem("darkMode");
-    return saved ? JSON.parse(saved) : false;
+    if (colorScheme === 'system') {
+      // Check system preference
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return colorScheme === 'dark';
   });
   const [avatar, setAvatar] = useState("/img/default-avatar.jpg");
   const [recentAvatars, setRecentAvatars] = useState([]);
@@ -268,6 +287,33 @@ function App() {
     }
   };
 
+  // Update dark mode based on color scheme preference
+  useEffect(() => {
+    if (colorScheme === 'system') {
+      // Listen to system preference changes
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e) => {
+        setDarkMode(e.matches);
+      };
+      
+      // Set initial value
+      setDarkMode(mediaQuery.matches);
+      
+      // Listen for changes
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        // Fallback for older browsers
+        mediaQuery.addListener(handleChange);
+        return () => mediaQuery.removeListener(handleChange);
+      }
+    } else {
+      // Use explicit preference
+      setDarkMode(colorScheme === 'dark');
+    }
+  }, [colorScheme]);
+
   // Update body class when dark mode changes
   useEffect(() => {
     if (darkMode) {
@@ -275,8 +321,13 @@ function App() {
     } else {
       document.body.classList.remove("dark-mode");
     }
-    localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
+
+  // Handle color scheme preference change from Settings
+  const handleColorSchemeChange = useCallback((newColorScheme) => {
+    setColorScheme(newColorScheme);
+    localStorage.setItem("colorScheme", newColorScheme);
+  }, []);
 
   // Fetch cached data on page load/refresh (no Docker Hub calls)
   // This loads data from the database cache without triggering Docker Hub API calls
@@ -679,16 +730,19 @@ function App() {
       if (avatar && avatar.startsWith("blob:")) {
         URL.revokeObjectURL(avatar);
       }
+      // Only set state if component is still mounted
       setAvatar(avatarUrl);
     } catch (err) {
       // Avatar not found or error - use default
-      if (err.response?.status !== 404) {
+      // Handle both 404 and 204 (No Content) responses
+      if (err.response?.status !== 404 && err.response?.status !== 204) {
         console.error("Error fetching avatar:", err);
       }
       // Revoke old blob URL if it exists
       if (avatar && avatar.startsWith("blob:")) {
         URL.revokeObjectURL(avatar);
       }
+      // Only set state if component is still mounted
       setAvatar("/img/default-avatar.jpg");
     }
   };
@@ -2032,9 +2086,20 @@ function App() {
           onSectionChange={setSettingsTab}
           showUserInfoAboveTabs={true}
           onBatchConfigUpdate={handleBatchConfigUpdate}
+          colorScheme={colorScheme}
+          onColorSchemeChange={handleColorSchemeChange}
         />
         <div className="content-tabs">
           <div className="content-tabs-left">
+            <button
+              className={`content-tab ${
+                settingsTab === "general" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("general")}
+              disabled={!passwordChanged}
+            >
+              General
+            </button>
             <button
               className={`content-tab ${
                 settingsTab === "username" ? "active" : ""
@@ -2091,41 +2156,46 @@ function App() {
           </div>
         </div>
         <div className="content-tab-panel">
-          <Settings
-            username={username}
-            onUsernameUpdate={handleUsernameUpdate}
-            onLogout={handleLogout}
-            isFirstLogin={!passwordChanged}
-            avatar={avatar}
-            recentAvatars={recentAvatars}
-            onAvatarChange={handleAvatarChange}
-            onRecentAvatarsChange={(avatars) => {
-              console.log(
-                "onRecentAvatarsChange called with:",
-                avatars?.length,
-                "avatars"
-              );
-              setRecentAvatars(avatars);
-              // Refresh recent avatars from server to get latest
-              fetchRecentAvatars();
-            }}
-            onAvatarUploaded={async () => {
-              await fetchAvatar();
-            }}
-            onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
-            onPortainerInstancesChange={() => {
-              fetchPortainerInstances();
-              fetchContainers();
-            }}
-            activeSection={settingsTab}
-            onSectionChange={setSettingsTab}
-            showUserInfoAboveTabs={false}
-            onEditInstance={(instance) => {
-              setEditingPortainerInstance(instance);
-              setShowAddPortainerModal(true);
-            }}
-            onBatchConfigUpdate={handleBatchConfigUpdate}
-          />
+          <ErrorBoundary>
+            <Settings
+              username={username}
+              onUsernameUpdate={handleUsernameUpdate}
+              onLogout={handleLogout}
+              isFirstLogin={!passwordChanged}
+              avatar={avatar}
+              recentAvatars={recentAvatars}
+              onAvatarChange={handleAvatarChange}
+              onRecentAvatarsChange={(avatars) => {
+                console.log(
+                  "onRecentAvatarsChange called with:",
+                  avatars?.length,
+                  "avatars"
+                );
+                setRecentAvatars(avatars);
+                // Refresh recent avatars from server to get latest
+                fetchRecentAvatars();
+              }}
+              onAvatarUploaded={async () => {
+                await fetchAvatar();
+              }}
+              onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+              onPortainerInstancesChange={() => {
+                fetchPortainerInstances();
+                fetchContainers();
+              }}
+              activeSection={settingsTab}
+              onSectionChange={setSettingsTab}
+              showUserInfoAboveTabs={false}
+              onEditInstance={(instance) => {
+                setEditingPortainerInstance(instance);
+                setShowAddPortainerModal(true);
+              }}
+              refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
+              onBatchConfigUpdate={handleBatchConfigUpdate}
+              colorScheme={colorScheme}
+              onColorSchemeChange={handleColorSchemeChange}
+            />
+          </ErrorBoundary>
         </div>
       </div>
     );
@@ -3095,7 +3165,9 @@ function App() {
                       <button
                         className="avatar-menu-item"
                         onClick={() => {
-                          setDarkMode(!darkMode);
+                          // Toggle between light and dark (skip system for quick toggle)
+                          const newScheme = darkMode ? 'light' : 'dark';
+                          handleColorSchemeChange(newScheme);
                         }}
                       >
                         <svg
@@ -3263,10 +3335,12 @@ function App() {
               renderSettingsPage()
             ) : activeTab === "batch-logs" ? (
               <div style={{ width: "100%" }}>
-                <BatchLogs
-                  onNavigateHome={() => setActiveTab("summary")}
-                  onTriggerBatch={handleBatchPull}
-                />
+                <ErrorBoundary>
+                  <BatchLogs
+                    onNavigateHome={() => setActiveTab("summary")}
+                    onTriggerBatch={handleBatchPull}
+                  />
+                </ErrorBoundary>
               </div>
             ) : (
               <>
@@ -3431,12 +3505,13 @@ function App() {
           </div>
         </div>
 
-        <AddPortainerModal
-          isOpen={showAddPortainerModal}
-          onClose={() => {
-            setShowAddPortainerModal(false);
-            setEditingPortainerInstance(null);
-          }}
+        <ErrorBoundary>
+          <AddPortainerModal
+            isOpen={showAddPortainerModal}
+            onClose={() => {
+              setShowAddPortainerModal(false);
+              setEditingPortainerInstance(null);
+            }}
           onSuccess={async (newInstanceData) => {
             // Refresh Portainer instances list and get the updated instances
             const updatedInstances = await fetchPortainerInstances();
@@ -3475,10 +3550,20 @@ function App() {
             }
 
             setEditingPortainerInstance(null);
+            
+            // Trigger refresh in Settings component to update the auth method badges
+            // If we're on the settings page, trigger a refresh
+            if (activeTab === "settings" && settingsTab === "portainer") {
+              // The Settings component will refresh when the portainer section is active
+              // But we can also force a refresh by calling fetchPortainerInstances
+              // which will update App's state, and Settings will pick it up
+              await fetchPortainerInstances();
+            }
           }}
           initialData={editingPortainerInstance}
           instanceId={editingPortainerInstance?.id || null}
         />
+        </ErrorBoundary>
       </div>
     </BatchConfigContext.Provider>
   );

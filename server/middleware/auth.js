@@ -1,12 +1,15 @@
 /**
  * Authentication Middleware
- * Verifies tokens and protects routes
+ * Verifies JWT tokens and protects routes
+ * Supports backward compatibility with legacy base64 tokens
  */
 
 const { getUserByUsername, getUserById } = require('../db/database');
+const { verifyToken } = require('../utils/jwt');
 
 /**
  * Middleware to verify authentication token
+ * Supports both JWT tokens (new) and base64 tokens (legacy)
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -22,40 +25,83 @@ async function authenticate(req, res, next) {
       });
     }
 
-    // Simple token verification (in production, use JWT)
-    // Token format: userId:username:timestamp (base64 encoded)
-    // Use user ID for authentication to allow username changes
     try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const parts = decoded.split(':');
-      const userId = parseInt(parts[0]);
-      const username = parts[1]; // Keep for backwards compatibility, but use ID for lookup
-
-      // Look up user by ID (more resilient to username changes)
-      const user = await getUserById(userId);
-      if (!user) {
-        // Fallback to username lookup for old tokens
-        const userByUsername = await getUserByUsername(username);
-        if (!userByUsername) {
+      // Try JWT verification first (new tokens)
+      try {
+        const decoded = verifyToken(token);
+        
+        // Verify user still exists
+        const user = await getUserById(decoded.userId);
+        if (!user) {
           return res.status(401).json({
             success: false,
-            error: 'Invalid token',
+            error: 'User not found',
           });
         }
-        // Store user info in request for use in controllers
-        req.user = { id: userByUsername.id, username: userByUsername.username, role: userByUsername.role };
-        next();
-        return;
+
+        // Store user info in request
+        req.user = {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+        };
+
+        return next();
+      } catch (jwtError) {
+        // If JWT verification fails, try legacy base64 token format
+        // This provides backward compatibility during migration
+        if (jwtError.message === 'Token expired' || jwtError.message === 'Invalid token') {
+          // Try legacy token format
+          try {
+            const decoded = Buffer.from(token, 'base64').toString('utf-8');
+            const parts = decoded.split(':');
+            
+            if (parts.length >= 2) {
+              const userId = parseInt(parts[0]);
+              const username = parts[1];
+
+              // Look up user by ID (more resilient to username changes)
+              const user = await getUserById(userId);
+              if (!user) {
+                // Fallback to username lookup for old tokens
+                const userByUsername = await getUserByUsername(username);
+                if (!userByUsername) {
+                  return res.status(401).json({
+                    success: false,
+                    error: 'Invalid token',
+                  });
+                }
+                req.user = {
+                  id: userByUsername.id,
+                  username: userByUsername.username,
+                  role: userByUsername.role,
+                };
+                return next();
+              }
+
+              req.user = {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+              };
+              return next();
+            }
+          } catch (legacyError) {
+            // Both JWT and legacy token failed
+            return res.status(401).json({
+              success: false,
+              error: 'Invalid token',
+            });
+          }
+        }
+        
+        // Re-throw JWT errors that aren't about invalid/expired tokens
+        throw jwtError;
       }
-
-      // Store user info in request for use in controllers
-      req.user = { id: user.id, username: user.username, role: user.role };
-
-      next();
     } catch (err) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid token',
+        error: err.message || 'Invalid token',
       });
     }
   } catch (error) {
