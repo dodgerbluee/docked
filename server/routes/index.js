@@ -132,6 +132,10 @@ router.get(
   asyncHandler(authController.getDockerHubCreds)
 );
 router.post(
+  "/docker-hub/credentials/validate",
+  asyncHandler(authController.validateDockerHubCreds)
+);
+router.post(
   "/docker-hub/credentials",
   asyncHandler(authController.updateDockerHubCreds)
 );

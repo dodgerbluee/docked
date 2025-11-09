@@ -443,11 +443,47 @@ function Settings({
     setDockerHubLoading(true);
 
     try {
+      // Determine which token to use for validation
+      const tokenToValidate = dockerHubToken.trim() || null;
+      
+      // If we have a new token, validate it first
+      if (tokenToValidate) {
+        try {
+          // Validate authentication before saving
+          const validateData = {
+            username: dockerHubUsername.trim(),
+            token: tokenToValidate,
+          };
+
+          const validateResponse = await axios.post(
+            `${API_BASE_URL}/api/docker-hub/credentials/validate`,
+            validateData
+          );
+
+          if (!validateResponse.data.success) {
+            setDockerHubError(
+              validateResponse.data.error || "Authentication validation failed"
+            );
+            setDockerHubLoading(false);
+            return;
+          }
+        } catch (validateErr) {
+          // Validation failed - show error
+          setDockerHubError(
+            validateErr.response?.data?.error ||
+              "Authentication failed. Please check your username and token."
+          );
+          setDockerHubLoading(false);
+          return;
+        }
+      }
+
+      // Authentication successful (or no new token provided), now save the credentials
       const response = await axios.post(
         `${API_BASE_URL}/api/docker-hub/credentials`,
         {
           username: dockerHubUsername.trim(),
-          token: dockerHubToken.trim(),
+          token: tokenToValidate || "", // Empty string if no new token (will use existing)
         }
       );
 
