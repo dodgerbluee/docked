@@ -143,9 +143,9 @@ function AddTrackedImageModal({
   useEffect(() => {
     // Only auto-populate if display name is empty OR matches the last auto-populated name
     // This allows updating when selection changes, but preserves manual edits
+    const currentName = (formData.name || "").trim();
     const shouldUpdate =
-      formData.name.trim() === "" ||
-      formData.name.trim() === lastAutoPopulatedName.current;
+      currentName === "" || currentName === lastAutoPopulatedName.current;
 
     if (shouldUpdate) {
       let nameToSet = "";
@@ -161,7 +161,7 @@ function AddTrackedImageModal({
         formData.githubRepo
       ) {
         // Extract from manual GitHub repo entry
-        const repo = formData.githubRepo.trim();
+        const repo = (formData.githubRepo || "").trim();
         // Handle both "owner/repo" and "https://github.com/owner/repo" formats
         const match = repo.match(
           /(?:github\.com\/)?([^\/]+\/([^\/]+))(?:\/|$)/
@@ -187,7 +187,7 @@ function AddTrackedImageModal({
         formData.imageName
       ) {
         // Extract from manual Docker image entry
-        const image = formData.imageName.trim();
+        const image = (formData.imageName || "").trim();
         // Remove tag if present (e.g., "image:tag" -> "image")
         const imageWithoutTag = image.split(":")[0];
         const parts = imageWithoutTag.split("/");
@@ -240,26 +240,26 @@ function AddTrackedImageModal({
 
     try {
       const payload = {
-        name: formData.name.trim(),
+        name: (formData.name || "").trim(),
         sourceType: sourceType,
       };
 
       if (sourceType === "github") {
         if (usePredefined && selectedPredefinedRepo) {
-          payload.githubRepo = selectedPredefinedRepo.value.trim();
+          payload.githubRepo = (selectedPredefinedRepo.value || "").trim();
         } else {
-          payload.githubRepo = formData.githubRepo.trim();
+          payload.githubRepo = (formData.githubRepo || "").trim();
         }
       } else {
         if (usePredefinedDocker && selectedPredefinedImage) {
-          payload.imageName = selectedPredefinedImage.value.trim();
+          payload.imageName = (selectedPredefinedImage.value || "").trim();
         } else {
-          payload.imageName = formData.imageName.trim();
+          payload.imageName = (formData.imageName || "").trim();
         }
       }
 
       // Add current version if provided
-      if (formData.currentVersion.trim()) {
+      if (formData.currentVersion && formData.currentVersion.trim()) {
         payload.current_version = formData.currentVersion.trim();
       }
 

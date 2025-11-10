@@ -973,12 +973,17 @@ function App() {
 
   const handleSaveEditTrackedImage = async (id) => {
     try {
+      const payload = {};
+      if (editTrackedImageName) {
+        payload.name = editTrackedImageName.trim();
+      }
+      if (editTrackedImageCurrentVersion) {
+        payload.current_version = editTrackedImageCurrentVersion.trim();
+      }
+      
       const response = await axios.put(
         `${API_BASE_URL}/api/tracked-images/${id}`,
-        {
-          name: editTrackedImageName.trim(),
-          current_version: editTrackedImageCurrentVersion.trim() || null,
-        }
+        payload
       );
       if (response.data.success) {
         await fetchTrackedImages();
@@ -1260,16 +1265,18 @@ function App() {
         }
 
         // Update portainerInstances from API response (includes container counts)
-        // CRITICAL: Always preserve all instances from portainerInstancesFromAPI
-        // and merge in container data from the response
+        // When portainerOnly=true, use response directly to ensure deleted instances are removed
         if (response.data.portainerInstances) {
-          // If we already have instances, merge the container data while preserving all instances
-          if (
+          if (portainerOnly || instanceUrl) {
+            // When fetching fresh from Portainer, use response directly
+            // This ensures deleted instances are removed
+            setPortainerInstancesFromAPI(response.data.portainerInstances);
+          } else if (
             portainerInstancesFromAPI &&
             Array.isArray(portainerInstancesFromAPI) &&
             portainerInstancesFromAPI.length > 0
           ) {
-            // Start with all existing instances to preserve them
+            // For cached data, merge container data while preserving instances from API
             const existingInstancesMap = new Map();
             portainerInstancesFromAPI.forEach((inst) => {
               existingInstancesMap.set(inst.url, inst);
@@ -1288,7 +1295,7 @@ function App() {
                   upToDate: apiInst.upToDate || existingInst.upToDate || [],
                 });
               } else {
-                // New instance from response (shouldn't happen, but be safe)
+                // New instance from response
                 existingInstancesMap.set(apiInst.url, {
                   name: apiInst.name,
                   url: apiInst.url,
@@ -1301,14 +1308,17 @@ function App() {
               }
             });
 
-            // Convert back to array, preserving order from portainerInstancesFromAPI
-            const updatedInstances = portainerInstancesFromAPI.map(
-              (existingInst) => {
+            // Only keep instances that exist in the response (removes deleted ones)
+            const responseUrls = new Set(
+              response.data.portainerInstances.map((inst) => inst.url)
+            );
+            const updatedInstances = portainerInstancesFromAPI
+              .filter((inst) => responseUrls.has(inst.url))
+              .map((existingInst) => {
                 return (
                   existingInstancesMap.get(existingInst.url) || existingInst
                 );
-              }
-            );
+              });
 
             // Add any new instances from response that weren't in our list
             response.data.portainerInstances.forEach((apiInst) => {
@@ -2654,9 +2664,10 @@ function App() {
             await fetchAvatar();
           }}
           onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
-          onPortainerInstancesChange={() => {
-            fetchPortainerInstances();
-            fetchContainers();
+          onPortainerInstancesChange={async () => {
+            await fetchPortainerInstances();
+            // Use portainerOnly=true to get fresh data without deleted instances
+            await fetchContainers(false, null, true);
           }}
           activeSection={settingsTab}
           onSectionChange={setSettingsTab}
