@@ -100,11 +100,12 @@ export function getDockerHubTagsUrl(imageName) {
     repo = parts[0];
   }
   
-  // Remove registry prefixes
+  // Remove registry prefixes (lscr.io is LinuxServer.io's registry, but images are also on Docker Hub)
   repo = repo
     .replace(/^docker\.io\//, '')
     .replace(/^registry-1\.docker\.io\//, '')
-    .replace(/^registry\.docker\.io\//, '');
+    .replace(/^registry\.docker\.io\//, '')
+    .replace(/^lscr\.io\//, '');
   
   // Format: https://hub.docker.com/r/{namespace}/{repo}/tags
   if (repo.includes('/')) {
@@ -138,11 +139,12 @@ export function getDockerHubUrl(imageName, tag = null) {
     }
   }
   
-  // Remove registry prefixes
+  // Remove registry prefixes (lscr.io is LinuxServer.io's registry, but images are also on Docker Hub)
   repo = repo
     .replace(/^docker\.io\//, '')
     .replace(/^registry-1\.docker\.io\//, '')
-    .replace(/^registry\.docker\.io\//, '');
+    .replace(/^registry\.docker\.io\//, '')
+    .replace(/^lscr\.io\//, '');
   
   // Use the provided tag, or fallback to 'latest'
   const tagForUrl = imageTag || 'latest';

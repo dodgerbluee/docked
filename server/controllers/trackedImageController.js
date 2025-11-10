@@ -13,6 +13,8 @@ const {
 } = require('../db/database');
 const { validateRequiredFields } = require('../utils/validation');
 const trackedImageService = require('../services/trackedImageService');
+const githubService = require('../services/githubService');
+const { clearLatestVersionsForAllTrackedImages } = require('../db/database');
 
 /**
  * Get all tracked images
@@ -25,15 +27,34 @@ async function getTrackedImages(req, res, next) {
     const images = await getAllTrackedImages();
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
-    const formattedImages = images.map(image => ({
-      ...image,
-      has_update: Boolean(image.has_update), // Convert 0/1 to boolean
-      current_version: image.current_version ? String(image.current_version) : null,
-      latest_version: image.latest_version ? String(image.latest_version) : null,
-      source_type: image.source_type || 'docker', // Default to 'docker' for existing records
-      github_repo: image.github_repo || null,
-      currentVersionPublishDate: image.current_version_publish_date || null,
-    }));
+    const formattedImages = images.map(image => {
+      // For GitHub repos, only include latest_version if we have a publish date
+      // This ensures we don't show "Latest: v1.0.0" with "Released: Not available"
+      let latestVersion = image.latest_version ? String(image.latest_version) : null;
+      let currentVersionPublishDate = image.current_version_publish_date || null;
+      
+      // If this is a GitHub repo and we have a latest_version but no publish date,
+      // clear the latest_version to prevent showing invalid data
+      if (image.source_type === 'github' && latestVersion && !currentVersionPublishDate) {
+        // Check if this is the current version - if so, we might still want to show it
+        // but we should clear latest_version if it doesn't have a publish date
+        if (image.current_version !== latestVersion) {
+          // Latest version doesn't match current and has no publish date - clear it
+          latestVersion = null;
+        }
+      }
+      
+      return {
+        ...image,
+        has_update: Boolean(image.has_update), // Convert 0/1 to boolean
+        current_version: image.current_version ? String(image.current_version) : null,
+        latest_version: latestVersion,
+        source_type: image.source_type || 'docker', // Default to 'docker' for existing records
+        github_repo: image.github_repo || null,
+        currentVersionPublishDate: currentVersionPublishDate,
+        latestVersionPublishDate: image.latest_version_publish_date || null,
+      };
+    });
     res.json({
       success: true,
       images: formattedImages,
@@ -315,6 +336,32 @@ async function checkTrackedImageUpdate(req, res, next) {
   }
 }
 
+/**
+ * Clear latest version data for all tracked images
+ * This clears the latest_version, latest_digest, has_update, and current_version_publish_date
+ * Also clears the GitHub release cache
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function clearGitHubCache(req, res, next) {
+  try {
+    // Clear latest version data for all tracked images
+    const rowsUpdated = await clearLatestVersionsForAllTrackedImages();
+    
+    // Also clear the GitHub release cache
+    githubService.clearReleaseCache();
+    
+    res.json({
+      success: true,
+      message: `Cleared latest version data for ${rowsUpdated} tracked app(s)`,
+      rowsUpdated: rowsUpdated,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getTrackedImages,
   getTrackedImage,
@@ -323,5 +370,6 @@ module.exports = {
   deleteTrackedImage: deleteTrackedImageEndpoint,
   checkTrackedImagesUpdates,
   checkTrackedImageUpdate,
+  clearGitHubCache,
 };
 

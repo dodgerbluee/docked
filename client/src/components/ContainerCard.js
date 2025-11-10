@@ -63,27 +63,7 @@ const ContainerCard = memo(
                 <strong>Current:</strong>{' '}
                 <span className="version-badge current">
                   {container.currentDigest ? (
-                    <a
-                      href={
-                        container.currentTag || container.currentVersion
-                          ? getDockerHubUrl(
-                              container.image,
-                              container.currentTag || container.currentVersion
-                            )
-                          : getDockerHubTagsUrl(container.image)
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="digest-link"
-                      title={
-                        container.currentTag || container.currentVersion
-                          ? "View layer on Docker Hub"
-                          : "View tags on Docker Hub"
-                      }
-                    >
-                      sha256:{container.currentDigest}
-                    </a>
+                    `sha256:${container.currentDigest}`
                   ) : (
                     container.currentVersion ||
                     container.currentTag ||
@@ -126,27 +106,7 @@ const ContainerCard = memo(
             <p className="tag-info">
               <strong>Digest:</strong>{' '}
               <span className="version-badge current">
-                <a
-                  href={
-                    container.currentTag || container.currentVersion
-                      ? getDockerHubUrl(
-                          container.image,
-                          container.currentTag || container.currentVersion
-                        )
-                      : getDockerHubTagsUrl(container.image)
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="digest-link"
-                  title={
-                    container.currentTag || container.currentVersion
-                      ? "View layer on Docker Hub"
-                      : "View tags on Docker Hub"
-                  }
-                >
-                  sha256:{container.currentDigest}
-                </a>
+                sha256:{container.currentDigest}
               </span>
             </p>
           )}

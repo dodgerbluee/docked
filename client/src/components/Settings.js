@@ -133,6 +133,8 @@ function Settings({
 
   // General settings state (local state before saving)
   const [localColorScheme, setLocalColorScheme] = useState(colorScheme);
+  const [logLevel, setLogLevel] = useState('info');
+  const [localLogLevel, setLocalLogLevel] = useState('info');
   const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
 
@@ -141,6 +143,7 @@ function Settings({
     fetchPortainerInstances();
     fetchDockerHubCredentials();
     fetchBatchConfig();
+    fetchLogLevel();
     // If first login, always show password section (priority over activeSection)
     if (isFirstLogin) {
       if (onSectionChange) {
@@ -159,6 +162,11 @@ function Settings({
     setLocalColorScheme(colorScheme);
     setGeneralSettingsChanged(false);
   }, [colorScheme]);
+
+  // Sync local log level with fetched log level
+  useEffect(() => {
+    setLocalLogLevel(logLevel);
+  }, [logLevel]);
 
   // Refresh instances list when portainer section becomes active
   // This ensures the auth method badges are up to date after modal edits
@@ -208,6 +216,22 @@ function Settings({
     } catch (err) {
       console.error("Error fetching Docker Hub credentials:", err);
     }
+  };
+
+  const fetchLogLevel = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/batch/log-level`);
+      if (response.data.success) {
+        setLogLevel(response.data.logLevel || 'info');
+      }
+    } catch (err) {
+      console.error("Error fetching log level:", err);
+    }
+  };
+
+  const handleLogLevelChange = (newLevel) => {
+    setLocalLogLevel(newLevel);
+    setGeneralSettingsChanged(true);
   };
 
   const fetchBatchConfig = async () => {
@@ -947,6 +971,22 @@ function Settings({
       if (onColorSchemeChange) {
         onColorSchemeChange(localColorScheme);
       }
+
+      // Save log level if it changed
+      if (localLogLevel !== logLevel) {
+        try {
+          const response = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
+            logLevel: localLogLevel,
+          });
+          if (response.data.success) {
+            setLogLevel(localLogLevel);
+          }
+        } catch (err) {
+          console.error("Error setting log level:", err);
+          throw new Error("Failed to save log level");
+        }
+      }
+
       setGeneralSettingsChanged(false);
       // Show success message
       setInstanceSuccess("General settings saved successfully!");
@@ -1119,6 +1159,34 @@ function Settings({
                   <small>
                     Choose how the application theme is determined. "System"
                     will follow your browser or operating system preference.
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="logLevel">Batch Logging Level</label>
+                  <div className="color-scheme-toggle">
+                    <button
+                      type="button"
+                      className={`color-scheme-option ${
+                        localLogLevel === "info" ? "active" : ""
+                      }`}
+                      onClick={() => handleLogLevelChange("info")}
+                    >
+                      <span className="color-scheme-icon">ℹ️</span>
+                      <span>Info</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`color-scheme-option ${
+                        localLogLevel === "debug" ? "active" : ""
+                      }`}
+                      onClick={() => handleLogLevelChange("debug")}
+                    >
+                      <span className="color-scheme-icon">🔍</span>
+                      <span>Debug</span>
+                    </button>
+                  </div>
+                  <small>
+                    Control the verbosity of batch job logs. "Info" shows core events (job starts, completions, errors). "Debug" includes detailed scheduling and comparison information.
                   </small>
                 </div>
                 {instanceError && (

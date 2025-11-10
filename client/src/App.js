@@ -168,6 +168,7 @@ function App() {
     return null;
   });
   const [clearing, setClearing] = useState(false);
+  const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set()); // Track loading state per instance
   // Tracked images state
   const [trackedImages, setTrackedImages] = useState([]);
@@ -877,23 +878,11 @@ function App() {
       if (response.data.success) {
         const images = response.data.images || [];
 
-        // Sort by version age (newest first)
+        // Sort alphabetically by name
         const sortedImages = images.sort((a, b) => {
-          const getSortDate = (img) => {
-            if (img.currentVersionPublishDate) {
-              return new Date(img.currentVersionPublishDate).getTime();
-            }
-            if (img.last_checked) {
-              return new Date(img.last_checked).getTime();
-            }
-            return 0;
-          };
-
-          const dateA = getSortDate(a);
-          const dateB = getSortDate(b);
-
-          // Newest first (larger timestamp first)
-          return dateB - dateA;
+          const nameA = (a.name || "").toLowerCase();
+          const nameB = (b.name || "").toLowerCase();
+          return nameA.localeCompare(nameB);
         });
 
         setTrackedImages(sortedImages);
@@ -1500,6 +1489,49 @@ function App() {
         console.error("Error clearing cache:", err);
         setClearing(false);
       }
+    }
+  };
+
+  const handleClearGitHubCache = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to clear the latest version data for all tracked apps? This will reset the 'Latest' version information and force fresh data to be fetched on the next check."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setClearingGitHubCache(true);
+      setTrackedImageError(null);
+      console.log("🗑️ Clearing latest version data for tracked apps...");
+
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/tracked-images/cache`
+      );
+
+      if (response.data && response.data.success) {
+        console.log("✅ Latest version data cleared successfully");
+        const message =
+          response.data.message || "Latest version data cleared successfully";
+        setTrackedImageSuccess(message);
+        setTimeout(() => setTrackedImageSuccess(""), 3000);
+
+        // Refresh tracked images to show updated data
+        await fetchTrackedImages();
+      } else {
+        setTrackedImageError("Failed to clear latest version data");
+      }
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to clear latest version data";
+      setTrackedImageError(errorMessage);
+      console.error("Error clearing latest version data:", err);
+    } finally {
+      setClearingGitHubCache(false);
     }
   };
 
@@ -2175,16 +2207,38 @@ function App() {
 
   // Calculate tracked apps statistics
   const totalTrackedApps = trackedImages.length;
-  const trackedAppsUpToDate = trackedImages.filter(
-    (img) =>
+
+  // Helper function to check if an app has unknown latest version
+  const isUnknown = (img) =>
+    !img.latest_version ||
+    img.latest_version === "Unknown" ||
+    (typeof img.latest_version === "string" &&
+      img.latest_version.trim() === "");
+
+  // Count unknown apps first
+  const trackedAppsUnknown = trackedImages.filter(isUnknown).length;
+
+  // Up to date: apps that are not unknown, not behind, and have matching versions
+  const trackedAppsUpToDate = trackedImages.filter((img) => {
+    // Exclude unknown apps
+    if (isUnknown(img)) return false;
+
+    // Must not have updates and versions should match
+    return (
       !img.has_update ||
       (img.current_version &&
         img.latest_version &&
         img.current_version === img.latest_version)
-  ).length;
-  const trackedAppsBehind = trackedImages.filter(
-    (img) => img.has_update
-  ).length;
+    );
+  }).length;
+
+  // Behind: apps that have updates (excluding unknown apps)
+  const trackedAppsBehind = trackedImages.filter((img) => {
+    // Exclude unknown apps
+    if (isUnknown(img)) return false;
+
+    return img.has_update;
+  }).length;
 
   // Filter out dismissed notifications, but show again if version has changed
   const activeContainersWithUpdates = containersWithUpdates.filter(
@@ -2230,6 +2284,7 @@ function App() {
     totalTrackedApps: totalTrackedApps,
     trackedAppsUpToDate: trackedAppsUpToDate,
     trackedAppsBehind: trackedAppsBehind,
+    trackedAppsUnknown: trackedAppsUnknown,
     portainerStats: (portainerInstances || [])
       .filter((p) => p != null) // Filter out any null/undefined entries
       .map((p) => ({
@@ -2360,30 +2415,7 @@ function App() {
                           <strong>Current:</strong>{" "}
                           <span className="version-badge current">
                             {container.currentDigest ? (
-                              <a
-                                href={
-                                  container.currentTag ||
-                                  container.currentVersion
-                                    ? getDockerHubUrl(
-                                        container.image,
-                                        container.currentTag ||
-                                          container.currentVersion
-                                      )
-                                    : getDockerHubTagsUrl(container.image)
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="digest-link"
-                                title={
-                                  container.currentTag ||
-                                  container.currentVersion
-                                    ? "View layer on Docker Hub"
-                                    : "View tags on Docker Hub"
-                                }
-                              >
-                                sha256:{container.currentDigest}
-                              </a>
+                              `sha256:${container.currentDigest}`
                             ) : (
                               container.currentVersion ||
                               container.currentTag ||
@@ -2941,6 +2973,12 @@ function App() {
               <div className="stat-value">{summaryStats.trackedAppsBehind}</div>
               <div className="stat-label">Apps Behind</div>
             </div>
+            <div className="stat-card unused-images">
+              <div className="stat-value">
+                {summaryStats.trackedAppsUnknown}
+              </div>
+              <div className="stat-label">Unknown</div>
+            </div>
           </div>
         </div>
       </div>
@@ -2970,31 +3008,92 @@ function App() {
               gap: "10px",
             }}
           >
-            <button
-              onClick={handleCheckTrackedImagesUpdates}
-              className="pull-button"
-              disabled={checkingUpdates || trackedImages.length === 0}
-              style={{
-                padding: "10px 20px",
-                fontSize: "1rem",
-                fontWeight: "600",
-                background: checkingUpdates
-                  ? "var(--bg-secondary)"
-                  : "var(--dodger-blue)",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor:
-                  checkingUpdates || trackedImages.length === 0
-                    ? "not-allowed"
-                    : "pointer",
-                opacity:
-                  checkingUpdates || trackedImages.length === 0 ? 0.6 : 1,
-                transition: "all 0.2s",
-              }}
-            >
-              {checkingUpdates ? "Checking..." : "Check for Updates"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button
+                onClick={handleCheckTrackedImagesUpdates}
+                className="pull-button"
+                disabled={checkingUpdates || trackedImages.length === 0}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  background: checkingUpdates
+                    ? "var(--bg-secondary)"
+                    : "var(--dodger-blue)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    checkingUpdates || trackedImages.length === 0
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity:
+                    checkingUpdates || trackedImages.length === 0 ? 0.6 : 1,
+                  transition: "all 0.2s",
+                }}
+              >
+                {checkingUpdates ? "Checking..." : "Check for Updates"}
+              </button>
+              <button
+                className="clear-button"
+                onClick={handleClearGitHubCache}
+                disabled={clearingGitHubCache || checkingUpdates}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  background: clearingGitHubCache
+                    ? "var(--bg-secondary)"
+                    : "var(--dodger-red)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    clearingGitHubCache || checkingUpdates
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity: clearingGitHubCache || checkingUpdates ? 0.6 : 1,
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: "44px",
+                  lineHeight: "1.5",
+                }}
+                title="Clear latest version data for all tracked apps"
+                aria-label="Clear latest versions"
+              >
+                {clearingGitHubCache ? (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ animation: "spin 1s linear infinite" }}
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {lastScanTime && (
               <div
                 style={{
@@ -3024,310 +3123,357 @@ function App() {
                   gap: "15px",
                 }}
               >
-                {trackedImages.map((image) => (
-                  <div
-                    key={image.id}
-                    style={{
-                      background: "var(--bg-secondary)",
-                      padding: "10px",
-                      borderRadius: "8px",
-                      border: image.has_update
-                        ? "2px solid var(--dodger-red)"
-                        : "1px solid var(--border-color)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: "bold",
-                          color: "var(--text-primary)",
-                          marginBottom: "3px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {image.current_version &&
-                          image.latest_version &&
-                          image.current_version === image.latest_version && (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: "14px",
-                                height: "14px",
-                                borderRadius: "50%",
-                                background: "rgba(34, 197, 94, 0.15)",
-                                color: "#22c55e",
-                                fontSize: "10px",
-                                fontWeight: "bold",
-                                flexShrink: 0,
-                              }}
-                            >
-                              ✓
-                            </span>
-                          )}
-                        <span style={{ fontSize: "1.05rem" }}>
-                          {image.name}
-                        </span>
-                        {(!image.source_type ||
-                          image.source_type === "docker") && (
-                          <span
-                            style={{
-                              fontSize: "0.9rem",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            🐳 Docker
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text-secondary)",
-                          fontSize: "0.95rem",
-                          marginBottom: "3px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <span
-                          style={{
-                            wordBreak: "break-word",
-                            fontSize: "0.9rem",
-                          }}
-                        >
-                          {image.github_repo || image.image_name}
-                        </span>
-                        {image.releaseUrl && (
-                          <a
-                            href={image.releaseUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: "var(--dodger-blue)",
-                              textDecoration: "none",
-                              fontSize: "0.9rem",
-                            }}
-                          >
-                            View Release →
-                          </a>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.9rem",
-                          color: "var(--text-tertiary)",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "2px",
-                        }}
-                      >
-                        <div>Current: {image.current_version || "Not set"}</div>
-                        {image.latest_version && image.has_update && (
-                          <div style={{ color: "var(--dodger-blue)" }}>
-                            Latest: {image.latest_version}
-                          </div>
-                        )}
-                        {image.has_update && (
-                          <div
-                            style={{
-                              color: "var(--dodger-blue)",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            ⬆ Update Available
-                          </div>
-                        )}
-                        {image.currentVersionPublishDate ? (
-                          <div>
-                            Released:{" "}
-                            {new Date(
-                              image.currentVersionPublishDate
-                            ).toLocaleDateString()}
-                          </div>
-                        ) : image.source_type === "github" &&
-                          image.current_version ? (
-                          <div
-                            style={{
-                              color: "var(--text-tertiary)",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            Released: Not available
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
+                {trackedImages.map((image) => {
+                  // Check if there's no valid latest version
+                  const hasNoLatestVersion =
+                    !image.latest_version ||
+                    image.latest_version === "Unknown" ||
+                    image.latest_version.trim() === "";
+
+                  // Determine border color and width
+                  // Use the same color as unused-images stat-card
+                  let borderStyle = "1px solid var(--border-color)";
+                  if (image.has_update) {
+                    borderStyle = "2px solid var(--dodger-red)";
+                  } else if (hasNoLatestVersion) {
+                    // Use the same color as unused-images (text-secondary in light, text-primary in dark)
+                    borderStyle = "2px solid var(--text-secondary)";
+                  }
+
+                  return (
                     <div
+                      key={image.id}
+                      className={
+                        hasNoLatestVersion && !image.has_update
+                          ? "tracked-app-unknown-border"
+                          : ""
+                      }
                       style={{
+                        background: "var(--bg-secondary)",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        border: borderStyle,
                         display: "flex",
-                        gap: "4px",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        marginTop: "3px",
+                        flexDirection: "column",
+                        gap: "6px",
                       }}
                     >
-                      {editingTrackedImage === image.id ? (
-                        <>
-                          <input
-                            type="text"
-                            value={editTrackedImageName}
-                            onChange={(e) =>
-                              setEditTrackedImageName(e.target.value)
-                            }
-                            style={{
-                              padding: "5px 10px",
-                              fontSize: "0.9rem",
-                              borderRadius: "6px",
-                              border: "1px solid var(--border-color)",
-                              background: "var(--bg-primary)",
-                              color: "var(--text-primary)",
-                              width: "100px",
-                            }}
-                            placeholder="Name"
-                          />
-                          <input
-                            type="text"
-                            value={editTrackedImageCurrentVersion}
-                            onChange={(e) =>
-                              setEditTrackedImageCurrentVersion(e.target.value)
-                            }
-                            style={{
-                              padding: "5px 10px",
-                              fontSize: "0.9rem",
-                              borderRadius: "6px",
-                              border: "1px solid var(--border-color)",
-                              background: "var(--bg-primary)",
-                              color: "var(--text-primary)",
-                              width: "95px",
-                            }}
-                            placeholder="Version"
-                          />
-                          <button
-                            onClick={() => handleSaveEditTrackedImage(image.id)}
-                            className="update-button"
-                            style={{
-                              padding: "5px 10px",
-                              fontSize: "0.9rem",
-                              background: "rgba(30, 144, 255, 0.2)",
-                              borderColor: "var(--dodger-blue)",
-                              color: "var(--dodger-blue)",
-                            }}
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={handleCancelEditTrackedImage}
-                            className="update-button"
-                            style={{
-                              padding: "5px 10px",
-                              fontSize: "0.9rem",
-                              background: "rgba(128, 128, 128, 0.2)",
-                              borderColor: "var(--text-secondary)",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {image.latest_version &&
-                            (image.has_update ||
-                              !image.current_version ||
-                              image.current_version !==
-                                image.latest_version) && (
-                              <button
-                                onClick={() =>
-                                  handleUpgradeTrackedImage(
-                                    image.id,
-                                    image.latest_version
-                                  )
-                                }
-                                className="update-button"
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontWeight: "bold",
+                            color: "var(--text-primary)",
+                            marginBottom: "3px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {image.current_version &&
+                            image.latest_version &&
+                            image.current_version === image.latest_version && (
+                              <span
                                 style={{
-                                  padding: "5px 12px",
-                                  fontSize: "0.9rem",
-                                  background: "rgba(30, 144, 255, 0.2)",
-                                  borderColor: "var(--dodger-blue)",
-                                  color: "var(--dodger-blue)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: "14px",
+                                  height: "14px",
+                                  borderRadius: "50%",
+                                  background: "rgba(34, 197, 94, 0.15)",
+                                  color: "#22c55e",
+                                  fontSize: "10px",
+                                  fontWeight: "bold",
+                                  flexShrink: 0,
                                 }}
                               >
-                                Mark Upgraded
-                              </button>
+                                ✓
+                              </span>
                             )}
-                          {image.source_type === "github" &&
-                            image.github_repo && (
-                              <button
-                                onClick={() => {
-                                  const repoUrl = image.github_repo.startsWith(
-                                    "http"
-                                  )
-                                    ? image.github_repo
-                                    : `https://github.com/${image.github_repo}`;
-                                  window.open(
-                                    repoUrl,
-                                    "_blank",
-                                    "noopener,noreferrer"
-                                  );
-                                }}
-                                className="update-button"
-                                style={{
-                                  padding: "5px 12px",
-                                  fontSize: "0.9rem",
-                                  background: "rgba(30, 144, 255, 0.2)",
-                                  borderColor: "var(--dodger-blue)",
-                                  color: "var(--dodger-blue)",
-                                }}
-                                title="Open GitHub repository"
-                              >
-                                🐙 GitHub
-                              </button>
-                            )}
-                          <button
-                            onClick={() => handleEditTrackedImage(image)}
-                            className="update-button"
+                          <span style={{ fontSize: "1.05rem" }}>
+                            {image.name}
+                          </span>
+                          {(!image.source_type ||
+                            image.source_type === "docker") && (
+                            <span
+                              style={{
+                                fontSize: "0.9rem",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              🐳 Docker
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            color: "var(--text-secondary)",
+                            fontSize: "0.95rem",
+                            marginBottom: "3px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span
                             style={{
-                              padding: "5px 12px",
+                              wordBreak: "break-word",
                               fontSize: "0.9rem",
-                              background: "rgba(128, 128, 128, 0.2)",
-                              borderColor: "var(--text-secondary)",
-                              color: "var(--text-secondary)",
                             }}
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTrackedImage(image.id)}
-                            className="update-button"
-                            style={{
-                              padding: "5px 10px",
-                              fontSize: "0.95rem",
-                              background: "rgba(239, 62, 66, 0.2)",
-                              borderColor: "var(--dodger-red)",
-                              color: "var(--dodger-red)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              minWidth: "32px",
-                            }}
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
-                        </>
-                      )}
+                            {image.github_repo || image.image_name}
+                          </span>
+                          {image.releaseUrl && (
+                            <a
+                              href={image.releaseUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "var(--dodger-blue)",
+                                textDecoration: "none",
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              View Release →
+                            </a>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.9rem",
+                            color: "var(--text-tertiary)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "2px",
+                          }}
+                        >
+                          <div>
+                            Current: {image.current_version || "Not set"}
+                          </div>
+                          {image.latest_version && image.has_update && (
+                            <div style={{ color: "var(--dodger-blue)" }}>
+                              Latest: {image.latest_version}
+                            </div>
+                          )}
+                          {image.has_update && (
+                            <div
+                              style={{
+                                color: "var(--dodger-blue)",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              ⬆ Update Available
+                            </div>
+                          )}
+                          {(() => {
+                            // For GitHub repos, show the release date for the version being displayed
+                            // If we have a latest version that's different from current, show its publish date
+                            // Otherwise, show the current version's publish date
+                            let publishDate = null;
+                            if (image.source_type === "github") {
+                              if (
+                                image.latest_version &&
+                                image.has_update &&
+                                image.latestVersionPublishDate
+                              ) {
+                                // Show latest version's publish date if available and different from current
+                                publishDate = image.latestVersionPublishDate;
+                              } else if (image.currentVersionPublishDate) {
+                                // Otherwise show current version's publish date
+                                publishDate = image.currentVersionPublishDate;
+                              }
+                            } else {
+                              publishDate = image.currentVersionPublishDate;
+                            }
+
+                            return publishDate ? (
+                              <div>
+                                Released:{" "}
+                                {new Date(publishDate).toLocaleDateString()}
+                              </div>
+                            ) : image.source_type === "github" &&
+                              (image.current_version ||
+                                image.latest_version) ? (
+                              <div
+                                style={{
+                                  color: "var(--text-tertiary)",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                Released: Not available
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "4px",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          marginTop: "3px",
+                        }}
+                      >
+                        {editingTrackedImage === image.id ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editTrackedImageName}
+                              onChange={(e) =>
+                                setEditTrackedImageName(e.target.value)
+                              }
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "0.9rem",
+                                borderRadius: "6px",
+                                border: "1px solid var(--border-color)",
+                                background: "var(--bg-primary)",
+                                color: "var(--text-primary)",
+                                width: "100px",
+                              }}
+                              placeholder="Name"
+                            />
+                            <input
+                              type="text"
+                              value={editTrackedImageCurrentVersion}
+                              onChange={(e) =>
+                                setEditTrackedImageCurrentVersion(
+                                  e.target.value
+                                )
+                              }
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "0.9rem",
+                                borderRadius: "6px",
+                                border: "1px solid var(--border-color)",
+                                background: "var(--bg-primary)",
+                                color: "var(--text-primary)",
+                                width: "95px",
+                              }}
+                              placeholder="Version"
+                            />
+                            <button
+                              onClick={() =>
+                                handleSaveEditTrackedImage(image.id)
+                              }
+                              className="update-button"
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "0.9rem",
+                                background: "rgba(30, 144, 255, 0.2)",
+                                borderColor: "var(--dodger-blue)",
+                                color: "var(--dodger-blue)",
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={handleCancelEditTrackedImage}
+                              className="update-button"
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "0.9rem",
+                                background: "rgba(128, 128, 128, 0.2)",
+                                borderColor: "var(--text-secondary)",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {image.latest_version &&
+                              (image.has_update ||
+                                !image.current_version ||
+                                image.current_version !==
+                                  image.latest_version) && (
+                                <button
+                                  onClick={() =>
+                                    handleUpgradeTrackedImage(
+                                      image.id,
+                                      image.latest_version
+                                    )
+                                  }
+                                  className="update-button"
+                                  style={{
+                                    padding: "5px 12px",
+                                    fontSize: "0.9rem",
+                                    background: "rgba(30, 144, 255, 0.2)",
+                                    borderColor: "var(--dodger-blue)",
+                                    color: "var(--dodger-blue)",
+                                  }}
+                                >
+                                  Mark Upgraded
+                                </button>
+                              )}
+                            {image.source_type === "github" &&
+                              image.github_repo && (
+                                <button
+                                  onClick={() => {
+                                    const repoUrl =
+                                      image.github_repo.startsWith("http")
+                                        ? image.github_repo
+                                        : `https://github.com/${image.github_repo}`;
+                                    window.open(
+                                      repoUrl,
+                                      "_blank",
+                                      "noopener,noreferrer"
+                                    );
+                                  }}
+                                  className="update-button"
+                                  style={{
+                                    padding: "5px 12px",
+                                    fontSize: "0.9rem",
+                                    background: "rgba(30, 144, 255, 0.2)",
+                                    borderColor: "var(--dodger-blue)",
+                                    color: "var(--dodger-blue)",
+                                  }}
+                                  title="Open GitHub repository"
+                                >
+                                  🐙 GitHub
+                                </button>
+                              )}
+                            <button
+                              onClick={() => handleEditTrackedImage(image)}
+                              className="update-button"
+                              style={{
+                                padding: "5px 12px",
+                                fontSize: "0.9rem",
+                                background: "rgba(128, 128, 128, 0.2)",
+                                borderColor: "var(--text-secondary)",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTrackedImage(image.id)}
+                              className="update-button"
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "0.95rem",
+                                background: "rgba(239, 62, 66, 0.2)",
+                                borderColor: "var(--dodger-red)",
+                                color: "var(--dodger-red)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: "32px",
+                              }}
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (

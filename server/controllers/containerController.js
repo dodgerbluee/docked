@@ -182,21 +182,52 @@ async function batchUpgradeContainers(req, res, next) {
     const instances = await getAllPortainerInstances();
     const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
 
-    // Upgrade containers sequentially to avoid conflicts
-    const results = [];
-    const errors = [];
-
+    // Group containers by Portainer instance for efficient authentication
+    const containersByInstance = new Map();
     for (const container of containers) {
+      const instance = instanceMap.get(container.portainerUrl);
+      if (!instance) {
+        continue; // Will be handled in the upgrade promises
+      }
+      if (!containersByInstance.has(container.portainerUrl)) {
+        containersByInstance.set(container.portainerUrl, {
+          instance,
+          containers: []
+        });
+      }
+      containersByInstance.get(container.portainerUrl).containers.push(container);
+    }
+
+    // Authenticate all Portainer instances upfront
+    const authPromises = Array.from(containersByInstance.entries()).map(
+      async ([portainerUrl, { instance }]) => {
+        try {
+          await portainerService.authenticatePortainer(
+            portainerUrl,
+            instance.username,
+            instance.password,
+            instance.api_key,
+            instance.auth_type || 'apikey'
+          );
+          return { portainerUrl, success: true };
+        } catch (error) {
+          console.error(`Failed to authenticate Portainer instance ${portainerUrl}:`, error);
+          return { portainerUrl, success: false, error: error.message };
+        }
+      }
+    );
+    await Promise.all(authPromises);
+
+    // Upgrade all containers concurrently
+    const upgradePromises = containers.map(async (container) => {
       try {
         const instance = instanceMap.get(container.portainerUrl);
         if (!instance) {
-          errors.push({
-            containerId: container.containerId,
-            error: `Portainer instance not found: ${container.portainerUrl}`,
-          });
-          continue;
+          throw new Error(`Portainer instance not found: ${container.portainerUrl}`);
         }
 
+        // Authenticate for this instance (may be redundant but ensures we have a valid session)
+        // This is safe to call multiple times as it will reuse existing sessions if available
         await portainerService.authenticatePortainer(
           container.portainerUrl,
           instance.username,
@@ -204,22 +235,53 @@ async function batchUpgradeContainers(req, res, next) {
           instance.api_key,
           instance.auth_type || 'apikey'
         );
+
         const result = await containerService.upgradeSingleContainer(
           container.portainerUrl,
           container.endpointId,
           container.containerId,
           container.imageName
         );
-        results.push(result);
+        return { success: true, result, containerId: container.containerId };
       } catch (error) {
         console.error(
           `Error upgrading container ${container.containerId}:`,
           error
         );
-        errors.push({
+        return {
+          success: false,
           containerId: container.containerId,
           containerName: container.containerName || 'Unknown',
           error: error.message,
+        };
+      }
+    });
+
+    // Wait for all upgrades to complete (whether successful or failed)
+    const upgradeResults = await Promise.allSettled(upgradePromises);
+
+    // Separate results and errors
+    const results = [];
+    const errors = [];
+
+    for (const settledResult of upgradeResults) {
+      if (settledResult.status === 'fulfilled') {
+        const upgradeResult = settledResult.value;
+        if (upgradeResult.success) {
+          results.push(upgradeResult.result);
+        } else {
+          errors.push({
+            containerId: upgradeResult.containerId,
+            containerName: upgradeResult.containerName,
+            error: upgradeResult.error,
+          });
+        }
+      } else {
+        // Promise was rejected (shouldn't happen since we catch all errors, but handle it)
+        errors.push({
+          containerId: 'unknown',
+          containerName: 'Unknown',
+          error: settledResult.reason?.message || 'Unknown error',
         });
       }
     }

@@ -487,6 +487,11 @@ body.dark-mode .tab.active {
   font-weight: 700;
   min-width: 21px;
   text-align: center;
+  margin-left: 0px;
+}
+
+.content-tab .tab-badge {
+  margin-left: 8px;
 }
 
 .add-instance-tab {
@@ -648,6 +653,15 @@ body.dark-mode .stat-card.unused-images {
 
 body.dark-mode .stat-card.unused-images .stat-value {
   color: var(--text-primary);
+}
+
+/* Tracked app card border for unknown versions - matches unused-images color */
+.tracked-app-unknown-border {
+  border-color: var(--text-secondary) !important;
+}
+
+body.dark-mode .tracked-app-unknown-border {
+  border-color: var(--text-primary) !important;
 }
 
 .stat-value {
