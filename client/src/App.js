@@ -2789,106 +2789,6 @@ function App() {
       <div className="summary-page">
         <div className="summary-header">
           <h2>Summary</h2>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: "10px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <button
-                className="pull-button"
-                onClick={handlePull}
-                disabled={pulling || loading || clearing}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  background: pulling
-                    ? "var(--bg-secondary)"
-                    : "var(--dodger-blue)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor:
-                    pulling || loading || clearing ? "not-allowed" : "pointer",
-                  opacity: pulling || loading || clearing ? 0.6 : 1,
-                  transition: "all 0.2s",
-                }}
-              >
-                {pulling ? "Checking..." : "Check for Updates"}
-              </button>
-              <button
-                className="clear-button"
-                onClick={handleClear}
-                disabled={clearing || pulling || loading}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  background: clearing
-                    ? "var(--bg-secondary)"
-                    : "var(--dodger-red)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor:
-                    clearing || pulling || loading ? "not-allowed" : "pointer",
-                  opacity: clearing || pulling || loading ? 0.6 : 1,
-                  transition: "all 0.2s",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minWidth: "44px",
-                  lineHeight: "1.5",
-                }}
-                title="Clear all cached data"
-                aria-label="Clear cache"
-              >
-                {clearing ? (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ animation: "spin 1s linear infinite" }}
-                  >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                ) : (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {lastPullTime && (
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Last scanned: {lastPullTime.toLocaleString()}
-              </div>
-            )}
-          </div>
         </div>
         <h3 style={{ marginBottom: "20px", color: "var(--text-primary)" }}>
           Portainer Summary
@@ -2902,15 +2802,15 @@ function App() {
             <div className="stat-value">{summaryStats.totalContainers}</div>
             <div className="stat-label">Total Containers</div>
           </div>
+          <div className="stat-card current">
+            <div className="stat-value">{summaryStats.containersUpToDate}</div>
+            <div className="stat-label">Up to Date</div>
+          </div>
           <div className="stat-card update-available">
             <div className="stat-value">
               {summaryStats.containersWithUpdates}
             </div>
             <div className="stat-label">Updates Available</div>
-          </div>
-          <div className="stat-card current">
-            <div className="stat-value">{summaryStats.containersUpToDate}</div>
-            <div className="stat-label">Up to Date</div>
           </div>
           <div className="stat-card unused-images">
             <div className="stat-value">{summaryStats.unusedImages}</div>
@@ -2978,11 +2878,11 @@ function App() {
               <div className="stat-value">
                 {summaryStats.trackedAppsUpToDate}
               </div>
-              <div className="stat-label">Apps Up to Date</div>
+              <div className="stat-label">Up to Date</div>
             </div>
             <div className="stat-card update-available">
               <div className="stat-value">{summaryStats.trackedAppsBehind}</div>
-              <div className="stat-label">Apps Behind</div>
+              <div className="stat-label">Updates Available</div>
             </div>
             <div className="stat-card unused-images">
               <div className="stat-value">
@@ -3112,7 +3012,15 @@ function App() {
                   color: "var(--text-secondary)",
                 }}
               >
-                Last scanned: {lastScanTime.toLocaleString()}
+                Last scanned: {lastScanTime.toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  second: 'numeric',
+                  hour12: true
+                })}
               </div>
             )}
           </div>
@@ -4868,6 +4776,114 @@ function App() {
             <>
               <div className="summary-header">
                 <h2>Portainer</h2>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <button
+                      className="pull-button"
+                      onClick={handlePull}
+                      disabled={pulling || loading || clearing}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        background: pulling
+                          ? "var(--bg-secondary)"
+                          : "var(--dodger-blue)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor:
+                          pulling || loading || clearing ? "not-allowed" : "pointer",
+                        opacity: pulling || loading || clearing ? 0.6 : 1,
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      {pulling ? "Checking..." : "Check for Updates"}
+                    </button>
+                    <button
+                      className="clear-button"
+                      onClick={handleClear}
+                      disabled={clearing || pulling || loading}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        background: clearing
+                          ? "var(--bg-secondary)"
+                          : "var(--dodger-red)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor:
+                          clearing || pulling || loading ? "not-allowed" : "pointer",
+                        opacity: clearing || pulling || loading ? 0.6 : 1,
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "44px",
+                        lineHeight: "1.5",
+                      }}
+                      title="Clear all cached data"
+                      aria-label="Clear cache"
+                    >
+                      {clearing ? (
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{ animation: "spin 1s linear infinite" }}
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {lastPullTime && (
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Last scanned: {lastPullTime.toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        second: 'numeric',
+                        hour12: true
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="content-tabs" style={{ marginBottom: "20px" }}>
                 <div className="content-tabs-left">

@@ -213,14 +213,29 @@ async function checkGitHubTrackedImage(trackedImage) {
       latestVersion = latestRelease.tag_name;
       
       // Compare with current version to determine if update is available
-      // Normalize versions for comparison (remove "v" prefix)
-      const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
+      // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
+      // This must match the normalization in trackedImageController.js
+      const normalizeVersion = (v) => {
+        if (!v) return '';
+        return String(v).replace(/^v/i, '').trim().toLowerCase();
+      };
       
       if (trackedImage.current_version) {
         const normalizedCurrent = normalizeVersion(trackedImage.current_version);
         const normalizedLatest = normalizeVersion(latestVersion);
-        // If normalized versions are different, there's an update
-        hasUpdate = normalizedCurrent !== normalizedLatest;
+        // If normalized versions are different and both are valid, there's an update
+        // If they match (after normalization), there's no update
+        if (normalizedCurrent !== '' && normalizedLatest !== '') {
+          hasUpdate = normalizedCurrent !== normalizedLatest;
+          // Debug logging to help diagnose version comparison issues
+          if (normalizedCurrent === normalizedLatest && trackedImage.has_update) {
+            console.log(`[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`);
+          }
+        } else {
+          // If we can't normalize one or both versions, default to no update
+          // (we can't reliably determine if there's an update)
+          hasUpdate = false;
+        }
         
         // Get publish date for current version
         // If normalized versions match and we have published_at, use the latest release date
@@ -299,7 +314,11 @@ async function checkGitHubTrackedImage(trackedImage) {
 
   // Update current version if we don't have one yet
   let currentVersionToStore = trackedImage.current_version;
-  const normalizeVersionForComparison = (v) => v ? v.replace(/^v/, '') : '';
+  // Normalize versions for comparison (must match normalization in checkGitHubTrackedImage)
+  const normalizeVersionForComparison = (v) => {
+    if (!v) return '';
+    return String(v).replace(/^v/i, '').trim().toLowerCase();
+  };
   
   if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
     currentVersionToStore = latestVersion;
