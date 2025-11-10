@@ -3,7 +3,7 @@
  * Popup form to add a new tracked image or GitHub repository
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import Select from "react-select";
 import "./AddPortainerModal.css";
@@ -57,6 +57,7 @@ function AddTrackedImageModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const lastAutoPopulatedName = useRef("");
 
   // Get already tracked items to filter them out
   const getTrackedGitHubRepos = () => {
@@ -138,6 +139,81 @@ function AddTrackedImageModal({
     }),
   };
 
+  // Auto-populate display name from selected repository/image
+  useEffect(() => {
+    // Only auto-populate if display name is empty OR matches the last auto-populated name
+    // This allows updating when selection changes, but preserves manual edits
+    const shouldUpdate =
+      formData.name.trim() === "" ||
+      formData.name.trim() === lastAutoPopulatedName.current;
+
+    if (shouldUpdate) {
+      let nameToSet = "";
+
+      if (sourceType === "github" && usePredefined && selectedPredefinedRepo) {
+        // Extract text after last slash from GitHub repo
+        const repo = selectedPredefinedRepo.value || selectedPredefinedRepo;
+        const parts = repo.split("/");
+        nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
+      } else if (
+        sourceType === "github" &&
+        !usePredefined &&
+        formData.githubRepo
+      ) {
+        // Extract from manual GitHub repo entry
+        const repo = formData.githubRepo.trim();
+        // Handle both "owner/repo" and "https://github.com/owner/repo" formats
+        const match = repo.match(
+          /(?:github\.com\/)?([^\/]+\/([^\/]+))(?:\/|$)/
+        );
+        if (match) {
+          nameToSet = match[2] || match[1].split("/")[1];
+        } else {
+          const parts = repo.split("/");
+          nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
+        }
+      } else if (
+        sourceType === "docker" &&
+        usePredefinedDocker &&
+        selectedPredefinedImage
+      ) {
+        // Extract text after last slash from Docker image
+        const image = selectedPredefinedImage.value || selectedPredefinedImage;
+        const parts = image.split("/");
+        nameToSet = parts.length > 1 ? parts[parts.length - 1] : image;
+      } else if (
+        sourceType === "docker" &&
+        !usePredefinedDocker &&
+        formData.imageName
+      ) {
+        // Extract from manual Docker image entry
+        const image = formData.imageName.trim();
+        // Remove tag if present (e.g., "image:tag" -> "image")
+        const imageWithoutTag = image.split(":")[0];
+        const parts = imageWithoutTag.split("/");
+        nameToSet =
+          parts.length > 1 ? parts[parts.length - 1] : imageWithoutTag;
+      }
+
+      if (nameToSet) {
+        // Capitalize first letter
+        const capitalizedName =
+          nameToSet.charAt(0).toUpperCase() + nameToSet.slice(1);
+        lastAutoPopulatedName.current = capitalizedName;
+        setFormData((prev) => ({ ...prev, name: capitalizedName }));
+      }
+    }
+  }, [
+    selectedPredefinedRepo,
+    selectedPredefinedImage,
+    formData.githubRepo,
+    formData.imageName,
+    formData.name,
+    sourceType,
+    usePredefined,
+    usePredefinedDocker,
+  ]);
+
   // Clear error and reset form when modal opens or closes
   useEffect(() => {
     if (isOpen) {
@@ -153,6 +229,7 @@ function AddTrackedImageModal({
       setUsePredefinedDocker(true);
       setSelectedPredefinedRepo(null);
       setSelectedPredefinedImage(null);
+      lastAutoPopulatedName.current = "";
     }
   }, [isOpen]);
 
