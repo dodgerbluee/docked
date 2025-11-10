@@ -17,10 +17,15 @@ const API_BASE_URL =
 const PREDEFINED_GITHUB_REPOS = [
   "AdguardTeam/AdGuardHome",
   "goauthentik/authentik",
+  "henrygd/beszel",
   "home-assistant/core",
+  "homebridge/homebridge",
   "jellyfin/jellyfin",
   "linuxserver/docker-plex",
+  "ollama/ollama",
   "open-webui/open-webui",
+  "pterodactyl/panel",
+  "pterodactyl/wings",
 ];
 
 // Predefined Docker images (in alphabetical order)
@@ -33,7 +38,12 @@ const PREDEFINED_DOCKER_IMAGES = [
   "pterodactyl/wings",
 ];
 
-function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }) {
+function AddTrackedImageModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  trackedImages = [],
+}) {
   const [sourceType, setSourceType] = useState("github"); // 'docker' or 'github'
   const [usePredefined, setUsePredefined] = useState(true); // For GitHub repos - default to predefined
   const [usePredefinedDocker, setUsePredefinedDocker] = useState(true); // For Docker images - default to predefined
@@ -66,61 +76,65 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }
     const tracked = trackedImages
       .filter((img) => img.source_type === "github" && img.github_repo)
       .map((img) => img.github_repo);
-    return PREDEFINED_GITHUB_REPOS.filter((repo) => !tracked.includes(repo))
-      .map((repo) => ({ value: repo, label: repo }));
+    return PREDEFINED_GITHUB_REPOS.filter(
+      (repo) => !tracked.includes(repo)
+    ).map((repo) => ({ value: repo, label: repo }));
   }, [trackedImages]);
 
   const dockerImageOptions = useMemo(() => {
     const tracked = trackedImages
       .filter((img) => img.source_type === "docker" && img.image_name)
       .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
-    return PREDEFINED_DOCKER_IMAGES.filter((image) => !tracked.includes(image))
-      .map((image) => ({ value: image, label: image }));
+    return PREDEFINED_DOCKER_IMAGES.filter(
+      (image) => !tracked.includes(image)
+    ).map((image) => ({ value: image, label: image }));
   }, [trackedImages]);
 
   // Custom styles for react-select to match existing design
   const selectStyles = {
     control: (base, state) => ({
       ...base,
-      border: `2px solid ${state.isFocused ? 'var(--dodger-blue)' : 'var(--border-color)'}`,
-      borderRadius: '8px',
-      backgroundColor: 'var(--bg-primary)',
-      color: 'var(--text-primary)',
-      boxShadow: state.isFocused ? '0 0 0 3px rgba(0, 90, 156, 0.1)' : 'none',
-      '&:hover': {
-        borderColor: 'var(--dodger-blue)',
+      border: `2px solid ${
+        state.isFocused ? "var(--dodger-blue)" : "var(--border-color)"
+      }`,
+      borderRadius: "8px",
+      backgroundColor: "var(--bg-primary)",
+      color: "var(--text-primary)",
+      boxShadow: state.isFocused ? "0 0 0 3px rgba(0, 90, 156, 0.1)" : "none",
+      "&:hover": {
+        borderColor: "var(--dodger-blue)",
       },
     }),
     menu: (base) => ({
       ...base,
-      backgroundColor: 'var(--bg-primary)',
-      border: '2px solid var(--border-color)',
-      borderRadius: '8px',
+      backgroundColor: "var(--bg-primary)",
+      border: "2px solid var(--border-color)",
+      borderRadius: "8px",
       zIndex: 9999,
     }),
     option: (base, state) => ({
       ...base,
-      backgroundColor: state.isFocused 
-        ? 'var(--bg-secondary)' 
-        : state.isSelected 
-        ? 'var(--dodger-blue)' 
-        : 'var(--bg-primary)',
-      color: state.isSelected ? 'white' : 'var(--text-primary)',
-      '&:active': {
-        backgroundColor: 'var(--dodger-blue)',
+      backgroundColor: state.isFocused
+        ? "var(--bg-secondary)"
+        : state.isSelected
+        ? "var(--dodger-blue)"
+        : "var(--bg-primary)",
+      color: state.isSelected ? "white" : "var(--text-primary)",
+      "&:active": {
+        backgroundColor: "var(--dodger-blue)",
       },
     }),
     input: (base) => ({
       ...base,
-      color: 'var(--text-primary)',
+      color: "var(--text-primary)",
     }),
     singleValue: (base) => ({
       ...base,
-      color: 'var(--text-primary)',
+      color: "var(--text-primary)",
     }),
     placeholder: (base) => ({
       ...base,
-      color: 'var(--text-tertiary)',
+      color: "var(--text-tertiary)",
     }),
   };
 
@@ -265,21 +279,6 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="name">Display Name *</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              placeholder="e.g., Home Assistant"
-              disabled={loading}
-            />
-            <small>A friendly name for this tracked item</small>
-          </div>
-
           {sourceType === "docker" ? (
             <>
               <div className="form-group">
@@ -350,7 +349,8 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }
                     disabled={loading}
                   />
                   <small>
-                    Docker image name with optional tag (e.g., username/repo:tag)
+                    Docker image name with optional tag (e.g.,
+                    username/repo:tag)
                   </small>
                 </div>
               )}
@@ -431,6 +431,21 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }
               )}
             </>
           )}
+
+          <div className="form-group">
+            <label htmlFor="name">Display Name *</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              placeholder="e.g., Home Assistant"
+              disabled={loading}
+            />
+            <small>A friendly name for this tracked item</small>
+          </div>
 
           <div className="form-group">
             <label htmlFor="currentVersion">Current Version (Optional)</label>
