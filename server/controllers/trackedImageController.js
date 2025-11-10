@@ -28,19 +28,25 @@ async function getTrackedImages(req, res, next) {
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
     const formattedImages = images.map(image => {
-      // For GitHub repos, only include latest_version if we have a publish date
-      // This ensures we don't show "Latest: v1.0.0" with "Released: Not available"
       let latestVersion = image.latest_version ? String(image.latest_version) : null;
       let currentVersionPublishDate = image.current_version_publish_date || null;
+      let latestVersionPublishDate = image.latest_version_publish_date || null;
       
-      // If this is a GitHub repo and we have a latest_version but no publish date,
-      // clear the latest_version to prevent showing invalid data
-      if (image.source_type === 'github' && latestVersion && !currentVersionPublishDate) {
-        // Check if this is the current version - if so, we might still want to show it
-        // but we should clear latest_version if it doesn't have a publish date
-        if (image.current_version !== latestVersion) {
-          // Latest version doesn't match current and has no publish date - clear it
-          latestVersion = null;
+      // For GitHub repos, ensure we have publish date for latest version when it's different from current
+      // This ensures we can show the release date for the latest version
+      if (image.source_type === 'github' && latestVersion) {
+        // Normalize versions for comparison (remove "v" prefix)
+        const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
+        const normalizedCurrent = normalizeVersion(image.current_version || '');
+        const normalizedLatest = normalizeVersion(latestVersion);
+        
+        // If latest version is different from current and has no publish date, we should still show it
+        // but we need to make sure we have the publish date stored
+        // The issue is that latest_version_publish_date should be set when there's an update
+        if (normalizedCurrent !== normalizedLatest && !latestVersionPublishDate) {
+          // If we have latest_version but no latest_version_publish_date, 
+          // it means the update check didn't properly store it
+          // We should still show the version, but the publish date will be "Not available"
         }
       }
       
@@ -52,7 +58,7 @@ async function getTrackedImages(req, res, next) {
         source_type: image.source_type || 'docker', // Default to 'docker' for existing records
         github_repo: image.github_repo || null,
         currentVersionPublishDate: currentVersionPublishDate,
-        latestVersionPublishDate: image.latest_version_publish_date || null,
+        latestVersionPublishDate: latestVersionPublishDate,
       };
     });
     res.json({
@@ -216,24 +222,28 @@ async function updateTrackedImageEndpoint(req, res, next) {
     }
 
     // Check if new imageName conflicts with existing
-    if (imageName && imageName.trim() !== existing.image_name) {
-      const conflict = await getTrackedImageByImageName(imageName.trim());
-      if (conflict && conflict.id !== parseInt(id)) {
-        return res.status(400).json({
-          success: false,
-          error: 'An image with this name is already being tracked',
-        });
+    if (imageName && imageName !== null) {
+      const trimmedImageName = String(imageName).trim();
+      if (trimmedImageName !== existing.image_name) {
+        const conflict = await getTrackedImageByImageName(trimmedImageName);
+        if (conflict && conflict.id !== parseInt(id)) {
+          return res.status(400).json({
+            success: false,
+            error: 'An image with this name is already being tracked',
+          });
+        }
       }
     }
 
     // Update tracked image
     const updateData = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (imageName !== undefined) updateData.image_name = imageName.trim();
-    if (current_version !== undefined) {
-      updateData.current_version = current_version.trim();
+    if (name !== undefined && name !== null) updateData.name = String(name).trim();
+    if (imageName !== undefined && imageName !== null) updateData.image_name = String(imageName).trim();
+    if (current_version !== undefined && current_version !== null) {
+      const trimmedVersion = String(current_version).trim();
+      updateData.current_version = trimmedVersion;
       // If updating current_version to match latest_version, also update has_update flag
-      if (existing.latest_version && current_version.trim() === existing.latest_version) {
+      if (existing.latest_version && trimmedVersion === existing.latest_version) {
         updateData.has_update = 0;
       }
     }

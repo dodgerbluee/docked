@@ -207,9 +207,9 @@ async function checkGitHubTrackedImage(trackedImage) {
     // Get latest release from GitHub - ONLY use this for latest version
     latestRelease = await githubService.getLatestRelease(githubRepo);
     
-    // Only set latestVersion if we have a valid release with a published_at date
-    // This ensures all valid releases have a release time
-    if (latestRelease && latestRelease.tag_name && latestRelease.published_at) {
+    // Set latestVersion if we have a release with a tag_name
+    // We'll use published_at if available, but don't require it
+    if (latestRelease && latestRelease.tag_name) {
       latestVersion = latestRelease.tag_name;
       
       // Compare with current version to determine if update is available
@@ -223,10 +223,10 @@ async function checkGitHubTrackedImage(trackedImage) {
         hasUpdate = normalizedCurrent !== normalizedLatest;
         
         // Get publish date for current version
-        // If normalized versions match, use the latest release date we already have
-        if (normalizedCurrent === normalizedLatest) {
+        // If normalized versions match and we have published_at, use the latest release date
+        if (normalizedCurrent === normalizedLatest && latestRelease.published_at) {
           currentVersionPublishDate = latestRelease.published_at;
-        } else {
+        } else if (normalizedCurrent !== normalizedLatest) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitHub tags may vary
           try {
@@ -253,12 +253,14 @@ async function checkGitHubTrackedImage(trackedImage) {
       } else {
         // If no current version set, this is the first check - no update yet
         hasUpdate = false;
-        // Use latest release date as the current version publish date since we'll set current to latest
-        currentVersionPublishDate = latestRelease.published_at;
+        // Use latest release date as the current version publish date if available
+        if (latestRelease.published_at) {
+          currentVersionPublishDate = latestRelease.published_at;
+        }
       }
-    } else if (latestRelease && latestRelease.tag_name && !latestRelease.published_at) {
-      // Release exists but has no published_at - log warning and don't use it
-      console.warn(`GitHub release ${latestRelease.tag_name} for ${githubRepo} has no published_at date - skipping`);
+    } else if (latestRelease && !latestRelease.tag_name) {
+      // Release exists but has no tag_name - log warning
+      console.warn(`GitHub release for ${githubRepo} has no tag_name - skipping`);
     }
   } catch (error) {
     // If rate limit exceeded, propagate the error
@@ -277,15 +279,21 @@ async function checkGitHubTrackedImage(trackedImage) {
     last_checked: new Date().toISOString(),
   };
 
-  // Only update latest_version if we have a valid release with published_at
-  // This ensures all valid releases have a release time
-  if (latestVersion && latestRelease && latestRelease.published_at) {
+  // Store latest_version if we have it from the release
+  // Always store it if we have latestVersion and latestRelease, regardless of published_at
+  // This ensures we show the latest version even if publish date is missing
+  if (latestVersion && latestRelease) {
     const versionStr = String(latestVersion).trim();
     if (versionStr !== '' && versionStr !== 'null' && versionStr !== 'undefined') {
       updateData.latest_version = versionStr;
     }
-  } else {
-    // Clear latest_version if we don't have a valid release
+  } else if (hasUpdate && trackedImage.latest_version) {
+    // If we have an update but couldn't get latest version, preserve existing latest_version
+    // This prevents clearing the version when there's a known update
+    updateData.latest_version = trackedImage.latest_version;
+  } else if (!hasUpdate && !latestVersion) {
+    // Only clear latest_version if we don't have an update and don't have a latest version
+    // This prevents clearing valid version data when there's no update
     updateData.latest_version = null;
   }
 
@@ -325,8 +333,15 @@ async function checkGitHubTrackedImage(trackedImage) {
       // If they match, clear latest_version_publish_date since current_version_publish_date covers it
       updateData.latest_version_publish_date = null;
     }
+  } else if (hasUpdate && trackedImage.latest_version_publish_date) {
+    // If we have an update but no published_at, preserve existing latest_version_publish_date
+    // This prevents clearing the publish date when there's a known update
+    updateData.latest_version_publish_date = trackedImage.latest_version_publish_date;
   } else {
-    updateData.latest_version_publish_date = null;
+    // Only clear if we don't have an update
+    if (!hasUpdate) {
+      updateData.latest_version_publish_date = null;
+    }
   }
 
   await updateTrackedImage(trackedImage.id, updateData);
@@ -336,9 +351,10 @@ async function checkGitHubTrackedImage(trackedImage) {
     ? String(currentVersionToStore) 
     : (trackedImage.current_version ? String(trackedImage.current_version) : 'Not checked');
   
-  // Only show latest version if we have a valid release with published_at
-  const displayLatestVersion = (latestVersion && latestRelease && latestRelease.published_at)
-    ? String(latestVersion) 
+  // Show latest version if we have it from the release or from database
+  // Always prefer the latestVersion from the release if available
+  const displayLatestVersion = latestVersion
+    ? String(latestVersion)
     : (trackedImage.latest_version ? String(trackedImage.latest_version) : 'Unknown');
 
   return {
