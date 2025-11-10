@@ -3,8 +3,9 @@
  * Popup form to add a new tracked image or GitHub repository
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import Select from "react-select";
 import "./AddPortainerModal.css";
 
 // In production, API is served from same origin, so use relative URLs
@@ -22,10 +23,22 @@ const PREDEFINED_GITHUB_REPOS = [
   "open-webui/open-webui",
 ];
 
-function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
+// Predefined Docker images (in alphabetical order)
+const PREDEFINED_DOCKER_IMAGES = [
+  "henrygd/beszel",
+  "homebridge/homebridge",
+  "ollama/ollama",
+  "open-webui/open-webui",
+  "pterodactyl/panel",
+  "pterodactyl/wings",
+];
+
+function AddTrackedImageModal({ isOpen, onClose, onSuccess, trackedImages = [] }) {
   const [sourceType, setSourceType] = useState("github"); // 'docker' or 'github'
   const [usePredefined, setUsePredefined] = useState(true); // For GitHub repos - default to predefined
-  const [selectedPredefinedRepo, setSelectedPredefinedRepo] = useState("");
+  const [usePredefinedDocker, setUsePredefinedDocker] = useState(true); // For Docker images - default to predefined
+  const [selectedPredefinedRepo, setSelectedPredefinedRepo] = useState(null);
+  const [selectedPredefinedImage, setSelectedPredefinedImage] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     imageName: "",
@@ -34,6 +47,82 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Get already tracked items to filter them out
+  const getTrackedGitHubRepos = () => {
+    return trackedImages
+      .filter((img) => img.source_type === "github" && img.github_repo)
+      .map((img) => img.github_repo);
+  };
+
+  const getTrackedDockerImages = () => {
+    return trackedImages
+      .filter((img) => img.source_type === "docker" && img.image_name)
+      .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
+  };
+
+  // Get available options for react-select (filter out already tracked)
+  const githubRepoOptions = useMemo(() => {
+    const tracked = trackedImages
+      .filter((img) => img.source_type === "github" && img.github_repo)
+      .map((img) => img.github_repo);
+    return PREDEFINED_GITHUB_REPOS.filter((repo) => !tracked.includes(repo))
+      .map((repo) => ({ value: repo, label: repo }));
+  }, [trackedImages]);
+
+  const dockerImageOptions = useMemo(() => {
+    const tracked = trackedImages
+      .filter((img) => img.source_type === "docker" && img.image_name)
+      .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
+    return PREDEFINED_DOCKER_IMAGES.filter((image) => !tracked.includes(image))
+      .map((image) => ({ value: image, label: image }));
+  }, [trackedImages]);
+
+  // Custom styles for react-select to match existing design
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      border: `2px solid ${state.isFocused ? 'var(--dodger-blue)' : 'var(--border-color)'}`,
+      borderRadius: '8px',
+      backgroundColor: 'var(--bg-primary)',
+      color: 'var(--text-primary)',
+      boxShadow: state.isFocused ? '0 0 0 3px rgba(0, 90, 156, 0.1)' : 'none',
+      '&:hover': {
+        borderColor: 'var(--dodger-blue)',
+      },
+    }),
+    menu: (base) => ({
+      ...base,
+      backgroundColor: 'var(--bg-primary)',
+      border: '2px solid var(--border-color)',
+      borderRadius: '8px',
+      zIndex: 9999,
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused 
+        ? 'var(--bg-secondary)' 
+        : state.isSelected 
+        ? 'var(--dodger-blue)' 
+        : 'var(--bg-primary)',
+      color: state.isSelected ? 'white' : 'var(--text-primary)',
+      '&:active': {
+        backgroundColor: 'var(--dodger-blue)',
+      },
+    }),
+    input: (base) => ({
+      ...base,
+      color: 'var(--text-primary)',
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: 'var(--text-primary)',
+    }),
+    placeholder: (base) => ({
+      ...base,
+      color: 'var(--text-tertiary)',
+    }),
+  };
 
   // Clear error and reset form when modal opens or closes
   useEffect(() => {
@@ -47,7 +136,9 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
       });
       setSourceType("github");
       setUsePredefined(true);
-      setSelectedPredefinedRepo("");
+      setUsePredefinedDocker(true);
+      setSelectedPredefinedRepo(null);
+      setSelectedPredefinedImage(null);
     }
   }, [isOpen]);
 
@@ -64,12 +155,16 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
 
       if (sourceType === "github") {
         if (usePredefined && selectedPredefinedRepo) {
-          payload.githubRepo = selectedPredefinedRepo.trim();
+          payload.githubRepo = selectedPredefinedRepo.value.trim();
         } else {
           payload.githubRepo = formData.githubRepo.trim();
         }
       } else {
-        payload.imageName = formData.imageName.trim();
+        if (usePredefinedDocker && selectedPredefinedImage) {
+          payload.imageName = selectedPredefinedImage.value.trim();
+        } else {
+          payload.imageName = formData.imageName.trim();
+        }
       }
 
       // Add current version if provided
@@ -138,7 +233,8 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
                   if (!loading) {
                     setSourceType("github");
                     setUsePredefined(true);
-                    setSelectedPredefinedRepo("");
+                    setSelectedPredefinedRepo(null);
+                    setSelectedPredefinedImage(null);
                   }
                 }}
                 disabled={loading}
@@ -155,8 +251,9 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
                 onClick={() => {
                   if (!loading) {
                     setSourceType("docker");
-                    setUsePredefined(false);
-                    setSelectedPredefinedRepo("");
+                    setUsePredefinedDocker(true);
+                    setSelectedPredefinedRepo(null);
+                    setSelectedPredefinedImage(null);
                   }
                 }}
                 disabled={loading}
@@ -184,22 +281,80 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
           </div>
 
           {sourceType === "docker" ? (
-            <div className="form-group">
-              <label htmlFor="imageName">Image Name *</label>
-              <input
-                type="text"
-                id="imageName"
-                name="imageName"
-                value={formData.imageName}
-                onChange={handleChange}
-                required
-                placeholder="e.g., homeassistant/home-assistant:latest"
-                disabled={loading}
-              />
-              <small>
-                Docker image name with optional tag (e.g., username/repo:tag)
-              </small>
-            </div>
+            <>
+              <div className="form-group">
+                <label>Image Selection *</label>
+                <div className="auth-type-toggle">
+                  <button
+                    type="button"
+                    className={`auth-type-option ${
+                      usePredefinedDocker ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      if (!loading) {
+                        setUsePredefinedDocker(true);
+                        setFormData({ ...formData, imageName: "" });
+                      }
+                    }}
+                    disabled={loading}
+                    aria-pressed={usePredefinedDocker}
+                  >
+                    <span>Predefined</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`auth-type-option ${
+                      !usePredefinedDocker ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      if (!loading) {
+                        setUsePredefinedDocker(false);
+                        setSelectedPredefinedImage("");
+                      }
+                    }}
+                    disabled={loading}
+                    aria-pressed={!usePredefinedDocker}
+                  >
+                    <span>Manual Entry</span>
+                  </button>
+                </div>
+              </div>
+
+              {usePredefinedDocker ? (
+                <div className="form-group">
+                  <label htmlFor="predefinedImage">Select Docker Image *</label>
+                  <Select
+                    id="predefinedImage"
+                    value={selectedPredefinedImage}
+                    onChange={setSelectedPredefinedImage}
+                    options={dockerImageOptions}
+                    placeholder="Select a Docker image..."
+                    isSearchable
+                    isDisabled={loading}
+                    styles={selectStyles}
+                    required
+                  />
+                  <small>Choose from predefined Docker images</small>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label htmlFor="imageName">Image Name *</label>
+                  <input
+                    type="text"
+                    id="imageName"
+                    name="imageName"
+                    value={formData.imageName}
+                    onChange={handleChange}
+                    required
+                    placeholder="e.g., homeassistant/home-assistant:latest"
+                    disabled={loading}
+                  />
+                  <small>
+                    Docker image name with optional tag (e.g., username/repo:tag)
+                  </small>
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div className="form-group">
@@ -243,57 +398,17 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
               {usePredefined ? (
                 <div className="form-group">
                   <label htmlFor="predefinedRepo">Select Repository *</label>
-                  <select
+                  <Select
                     id="predefinedRepo"
                     value={selectedPredefinedRepo}
-                    onChange={(e) => setSelectedPredefinedRepo(e.target.value)}
+                    onChange={setSelectedPredefinedRepo}
+                    options={githubRepoOptions}
+                    placeholder="Select a repository..."
+                    isSearchable
+                    isDisabled={loading}
+                    styles={selectStyles}
                     required
-                    disabled={loading}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      fontSize: "1rem",
-                      borderRadius: "8px",
-                      border: "2px solid var(--border-color)",
-                      background: "var(--bg-primary)",
-                      color: "var(--text-primary)",
-                      cursor: loading ? "not-allowed" : "pointer",
-                      transition: "all 0.2s ease",
-                      appearance: "none",
-                      WebkitAppearance: "none",
-                      MozAppearance: "none",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 12px center",
-                      paddingRight: "40px",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "var(--dodger-blue)";
-                      e.target.style.boxShadow =
-                        "0 0 0 3px rgba(0, 90, 156, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "var(--border-color)";
-                      e.target.style.boxShadow = "none";
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!loading && document.activeElement !== e.target) {
-                        e.target.style.borderColor = "var(--dodger-blue)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (document.activeElement !== e.target) {
-                        e.target.style.borderColor = "var(--border-color)";
-                      }
-                    }}
-                  >
-                    <option value="">Select a repository...</option>
-                    {PREDEFINED_GITHUB_REPOS.map((repo) => (
-                      <option key={repo} value={repo}>
-                        {repo}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <small>Choose from predefined GitHub repositories</small>
                 </div>
               ) : (
@@ -351,7 +466,9 @@ function AddTrackedImageModal({ isOpen, onClose, onSuccess }) {
               disabled={
                 loading ||
                 !formData.name ||
-                (sourceType === "docker" && !formData.imageName) ||
+                (sourceType === "docker" &&
+                  ((usePredefinedDocker && !selectedPredefinedImage) ||
+                    (!usePredefinedDocker && !formData.imageName))) ||
                 (sourceType === "github" &&
                   ((usePredefined && !selectedPredefinedRepo) ||
                     (!usePredefined && !formData.githubRepo)))

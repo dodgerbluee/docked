@@ -110,17 +110,13 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Rate limiting - only apply in production
 // In development, skip rate limiting to avoid blocking legitimate requests
+// Note: Auth endpoints (login, update-password) are NOT rate limited to avoid 429 errors in production
 if (process.env.NODE_ENV === "production") {
-  // Rate limiting - stricter for auth endpoints (must come first to exclude from general limiter)
-  const authLimiter = rateLimit(config.rateLimit.auth);
-  app.use("/api/auth/login", authLimiter);
-  app.use("/api/auth/update-password", authLimiter);
-
   // Rate limiting - general API rate limiter (excludes auth endpoints)
   const apiLimiter = rateLimit({
     ...config.rateLimit.api,
     skip: (req) => {
-      // Skip auth endpoints - they have their own rate limiter
+      // Skip auth endpoints - no rate limiting for login/update-password
       if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/update-password')) {
         return true;
       }
