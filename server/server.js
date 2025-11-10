@@ -108,28 +108,10 @@ app.use(cors(config.cors));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Rate limiting - only apply in production
-// In development, skip rate limiting to avoid blocking legitimate requests
-// Note: Auth endpoints (login, update-password) are NOT rate limited to avoid 429 errors in production
-if (process.env.NODE_ENV === "production") {
-  // Rate limiting - general API rate limiter (excludes auth endpoints)
-  const apiLimiter = rateLimit({
-    ...config.rateLimit.api,
-    skip: (req) => {
-      // Skip auth endpoints - no rate limiting for login/update-password
-      if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/update-password')) {
-        return true;
-      }
-      // Use the original skip logic for other endpoints
-      return config.rateLimit.api.skip ? config.rateLimit.api.skip(req) : false;
-    },
-  });
-  app.use("/api/", apiLimiter);
-} else {
-  // In development, use very lenient rate limiting or skip entirely
-  // This prevents accidental rate limit issues during development
-  logger.info("Rate limiting disabled in development mode");
-}
+// Rate limiting - DISABLED for all API endpoints
+// We only rate limit Docker Hub requests, not our own API
+// This prevents 429 errors when deploying to Portainer or other production environments
+logger.info("API rate limiting disabled - only Docker Hub requests are rate limited");
 
 // API Documentation
 app.use(
