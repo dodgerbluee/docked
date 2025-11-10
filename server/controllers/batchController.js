@@ -13,6 +13,8 @@ const {
   getRecentBatchRuns,
   getBatchRunById,
 } = require('../db/database');
+const batchSystem = require('../services/batch');
+const { setLogLevel: setBatchLogLevel, getLogLevel: getBatchLogLevel } = require('../services/batch/Logger');
 
 /**
  * Get batch configuration
@@ -52,6 +54,27 @@ async function updateBatchConfigHandler(req, res, next) {
         success: false,
         error: 'jobType is required and must be a string',
       });
+    }
+
+    // Validate job type is registered
+    const registeredJobTypes = batchSystem.getRegisteredJobTypes();
+    if (!registeredJobTypes.includes(jobType)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
+      });
+    }
+
+    // Validate with handler if available
+    const handler = batchSystem.getHandler(jobType);
+    if (handler) {
+      const validation = handler.validateConfig({ enabled, intervalMinutes });
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          error: validation.error || 'Invalid configuration',
+        });
+      }
     }
 
     if (typeof enabled !== 'boolean') {
@@ -242,6 +265,131 @@ async function getBatchRunByIdHandler(req, res, next) {
   }
 }
 
+/**
+ * Trigger a batch job manually
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function triggerBatchJobHandler(req, res, next) {
+  try {
+    const { jobType } = req.body;
+
+    if (!jobType || typeof jobType !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'jobType is required and must be a string',
+      });
+    }
+
+    // Validate job type is registered
+    const registeredJobTypes = batchSystem.getRegisteredJobTypes();
+    if (!registeredJobTypes.includes(jobType)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
+      });
+    }
+
+    // Execute the job (don't await - let it run in background)
+    // Pass isManual=true to mark this as a manually triggered run
+    batchSystem.executeJob(jobType, true)
+      .then(result => {
+        console.log(`✅ Manually triggered job ${jobType} completed:`, result);
+      })
+      .catch(err => {
+        console.error(`❌ Manually triggered job ${jobType} failed:`, err);
+      });
+
+    res.json({
+      success: true,
+      message: `Job ${jobType} triggered successfully. Check batch logs for execution details.`,
+    });
+  } catch (error) {
+    console.error('Error triggering batch job:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to trigger batch job',
+    });
+  }
+}
+
+/**
+ * Get batch system status
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getBatchStatusHandler(req, res, next) {
+  try {
+    const status = batchSystem.getStatus();
+    res.json({
+      success: true,
+      status,
+    });
+  } catch (error) {
+    console.error('Error fetching batch status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch batch status',
+    });
+  }
+}
+
+/**
+ * Get log level
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getLogLevelHandler(req, res, next) {
+  try {
+    const level = getBatchLogLevel();
+    res.json({
+      success: true,
+      logLevel: level,
+    });
+  } catch (error) {
+    console.error('Error getting log level:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get log level',
+    });
+  }
+}
+
+/**
+ * Set log level
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function setLogLevelHandler(req, res, next) {
+  try {
+    const { logLevel } = req.body;
+
+    if (!logLevel || (logLevel !== 'info' && logLevel !== 'debug')) {
+      return res.status(400).json({
+        success: false,
+        error: 'logLevel must be "info" or "debug"',
+      });
+    }
+
+    setBatchLogLevel(logLevel);
+    res.json({
+      success: true,
+      logLevel,
+      message: `Log level set to ${logLevel}`,
+    });
+  } catch (error) {
+    console.error('Error setting log level:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to set log level',
+    });
+  }
+}
+
 module.exports = {
   getBatchConfigHandler,
   updateBatchConfigHandler,
@@ -250,5 +398,9 @@ module.exports = {
   getLatestBatchRunHandler,
   getRecentBatchRunsHandler,
   getBatchRunByIdHandler,
+  triggerBatchJobHandler,
+  getBatchStatusHandler,
+  getLogLevelHandler,
+  setLogLevelHandler,
 };
 

@@ -31,7 +31,6 @@ async function checkImageUpdates(
 
   // Get current image digest if available
   let currentDigest = null;
-  let currentTagFromDigest = null;
   if (containerDetails) {
     currentDigest = await dockerRegistryService.getCurrentImageDigest(
       containerDetails,
@@ -39,20 +38,6 @@ async function checkImageUpdates(
       portainerUrl,
       endpointId
     );
-    
-    // Try to find the actual version tag from the digest
-    // This ensures we link to the correct version page even if the container is using "latest"
-    // Uses aggressive caching to minimize Docker Hub API calls
-    if (currentDigest) {
-      // Reduced logging - only in debug mode
-      if (process.env.DEBUG) {
-        console.log(`   🔍 Looking up version tag for current digest...`);
-      }
-      currentTagFromDigest = await dockerRegistryService.getTagFromDigest(repo, currentDigest);
-      if (process.env.DEBUG && currentTagFromDigest) {
-        console.log(`   ✅ Found version tag for current digest: ${currentTagFromDigest}`);
-      }
-    }
   }
 
   // Get the image digest from registry for the current tag
@@ -112,8 +97,8 @@ async function checkImageUpdates(
   }
 
   return {
-    currentTag: currentTagFromDigest || currentTag, // Use version from digest lookup if available
-    currentVersion: currentTagFromDigest || currentTag,
+    currentTag: currentTag,
+    currentVersion: currentTag,
     currentDigest: formatDigest(currentDigest),
     currentDigestFull: currentDigest,
     hasUpdate: hasUpdate,

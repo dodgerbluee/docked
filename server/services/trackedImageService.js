@@ -204,31 +204,61 @@ async function checkGitHubTrackedImage(trackedImage) {
   let currentVersionPublishDate = null;
 
   try {
-    // Get latest release from GitHub
+    // Get latest release from GitHub - ONLY use this for latest version
     latestRelease = await githubService.getLatestRelease(githubRepo);
     
-    if (latestRelease && latestRelease.tag_name) {
+    // Only set latestVersion if we have a valid release with a published_at date
+    // This ensures all valid releases have a release time
+    if (latestRelease && latestRelease.tag_name && latestRelease.published_at) {
       latestVersion = latestRelease.tag_name;
       
       // Compare with current version to determine if update is available
+      // Normalize versions for comparison (remove "v" prefix)
+      const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
+      
       if (trackedImage.current_version) {
-        // Simple string comparison - if different, there's an update
-        hasUpdate = trackedImage.current_version !== latestVersion;
+        const normalizedCurrent = normalizeVersion(trackedImage.current_version);
+        const normalizedLatest = normalizeVersion(latestVersion);
+        // If normalized versions are different, there's an update
+        hasUpdate = normalizedCurrent !== normalizedLatest;
         
         // Get publish date for current version
-        try {
-          currentVersionRelease = await githubService.getReleaseByTag(githubRepo, trackedImage.current_version);
-          if (currentVersionRelease && currentVersionRelease.published_at) {
-            currentVersionPublishDate = currentVersionRelease.published_at;
+        // If normalized versions match, use the latest release date we already have
+        if (normalizedCurrent === normalizedLatest) {
+          currentVersionPublishDate = latestRelease.published_at;
+        } else {
+          // Current version is different from latest, fetch its release info
+          // Try both with and without "v" prefix since GitHub tags may vary
+          try {
+            let currentVersionTag = trackedImage.current_version;
+            currentVersionRelease = await githubService.getReleaseByTag(githubRepo, currentVersionTag);
+            
+            // If not found and doesn't start with "v", try with "v" prefix
+            if (!currentVersionRelease && !currentVersionTag.startsWith('v')) {
+              currentVersionRelease = await githubService.getReleaseByTag(githubRepo, `v${currentVersionTag}`);
+            }
+            // If not found and starts with "v", try without "v" prefix
+            else if (!currentVersionRelease && currentVersionTag.startsWith('v')) {
+              currentVersionRelease = await githubService.getReleaseByTag(githubRepo, currentVersionTag.substring(1));
+            }
+            
+            if (currentVersionRelease && currentVersionRelease.published_at) {
+              currentVersionPublishDate = currentVersionRelease.published_at;
+            }
+          } catch (err) {
+            // Non-blocking - if we can't get current version release, continue
+            console.error(`Error fetching current version release for ${githubRepo}:${trackedImage.current_version}:`, err.message);
           }
-        } catch (err) {
-          // Non-blocking - if we can't get current version release, continue
-          console.error(`Error fetching current version release for ${githubRepo}:${trackedImage.current_version}:`, err.message);
         }
       } else {
         // If no current version set, this is the first check - no update yet
         hasUpdate = false;
+        // Use latest release date as the current version publish date since we'll set current to latest
+        currentVersionPublishDate = latestRelease.published_at;
       }
+    } else if (latestRelease && latestRelease.tag_name && !latestRelease.published_at) {
+      // Release exists but has no published_at - log warning and don't use it
+      console.warn(`GitHub release ${latestRelease.tag_name} for ${githubRepo} has no published_at date - skipping`);
     }
   } catch (error) {
     // If rate limit exceeded, propagate the error
@@ -238,6 +268,7 @@ async function checkGitHubTrackedImage(trackedImage) {
     // For other errors, log and continue (will show no update)
     console.error(`Error checking GitHub repo ${githubRepo}:`, error.message);
     latestVersion = null;
+    latestRelease = null;
   }
 
   // Update the tracked image in database
@@ -246,24 +277,56 @@ async function checkGitHubTrackedImage(trackedImage) {
     last_checked: new Date().toISOString(),
   };
 
-  // Only update latest_version if we have a valid value
-  if (latestVersion) {
+  // Only update latest_version if we have a valid release with published_at
+  // This ensures all valid releases have a release time
+  if (latestVersion && latestRelease && latestRelease.published_at) {
     const versionStr = String(latestVersion).trim();
     if (versionStr !== '' && versionStr !== 'null' && versionStr !== 'undefined') {
       updateData.latest_version = versionStr;
     }
+  } else {
+    // Clear latest_version if we don't have a valid release
+    updateData.latest_version = null;
   }
 
   // Update current version if we don't have one yet
   let currentVersionToStore = trackedImage.current_version;
-  if (!currentVersionToStore && latestVersion) {
+  const normalizeVersionForComparison = (v) => v ? v.replace(/^v/, '') : '';
+  
+  if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
     currentVersionToStore = latestVersion;
     updateData.current_version = latestVersion;
+    currentVersionPublishDate = latestRelease.published_at;
+  } else if (currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
+    // If normalized current version matches normalized latest version, use latest release publish date
+    const normalizedCurrent = normalizeVersionForComparison(currentVersionToStore);
+    const normalizedLatest = normalizeVersionForComparison(latestVersion);
+    if (normalizedCurrent === normalizedLatest) {
+      currentVersionPublishDate = latestRelease.published_at;
+    }
   }
 
   // Store current version publish date if we have it
   if (currentVersionPublishDate) {
     updateData.current_version_publish_date = currentVersionPublishDate;
+  }
+  
+  // Also store latest version publish date if we have it and it's different from current
+  // This ensures we can display the release date for the latest version
+  if (latestRelease && latestRelease.published_at && latestVersion) {
+    // Normalize versions for comparison
+    const normalizedCurrent = normalizeVersionForComparison(currentVersionToStore || '');
+    const normalizedLatest = normalizeVersionForComparison(latestVersion);
+    
+    // If normalized current version doesn't match normalized latest, store latest's publish date separately
+    if (normalizedCurrent !== normalizedLatest) {
+      updateData.latest_version_publish_date = latestRelease.published_at;
+    } else {
+      // If they match, clear latest_version_publish_date since current_version_publish_date covers it
+      updateData.latest_version_publish_date = null;
+    }
+  } else {
+    updateData.latest_version_publish_date = null;
   }
 
   await updateTrackedImage(trackedImage.id, updateData);
@@ -273,7 +336,8 @@ async function checkGitHubTrackedImage(trackedImage) {
     ? String(currentVersionToStore) 
     : (trackedImage.current_version ? String(trackedImage.current_version) : 'Not checked');
   
-  const displayLatestVersion = latestVersion 
+  // Only show latest version if we have a valid release with published_at
+  const displayLatestVersion = (latestVersion && latestRelease && latestRelease.published_at)
     ? String(latestVersion) 
     : (trackedImage.latest_version ? String(trackedImage.latest_version) : 'Unknown');
 
@@ -288,7 +352,7 @@ async function checkGitHubTrackedImage(trackedImage) {
     latestVersion: displayLatestVersion,
     latestDigest: null,
     hasUpdate: Boolean(hasUpdate),
-    latestPublishDate: latestRelease?.published_at || null,
+    latestPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
     currentVersionPublishDate: currentVersionPublishDate,
     releaseUrl: latestRelease?.html_url || null,
   };

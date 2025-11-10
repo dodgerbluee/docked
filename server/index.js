@@ -1322,10 +1322,11 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
 });
 
 // Import batch scheduler
-const batchScheduler = require("./services/batchScheduler");
+const batchSystem = require("./services/batch");
 
+console.log('[SERVER] About to call app.listen() on port', PORT);
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`[SERVER] ✅ Server running on port ${PORT}`);
   console.log(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);
   console.log(`Portainer Username: ${PORTAINER_USERNAME}`);
   // Debug: Show password info without exposing it
@@ -1355,6 +1356,15 @@ app.listen(PORT, () => {
   }
   console.log(`Cache TTL: 24 hours`);
 
-  // Start batch scheduler (runs jobs in background even when browser is closed)
-  batchScheduler.startBatchScheduler();
+  // Start batch system (runs jobs in background even when browser is closed)
+  console.log('[SERVER] Attempting to start batch system...');
+  batchSystem.start()
+    .then(() => {
+      console.log('[SERVER] ✅ Batch system started successfully');
+    })
+    .catch(err => {
+      console.error('[SERVER] ❌ ERROR starting batch system:', err.message);
+      console.error('[SERVER] Stack:', err.stack);
+      console.error('Error starting batch system:', err);
+    });
 });

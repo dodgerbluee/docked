@@ -270,10 +270,19 @@ async function getReleaseByTag(repoInput, tagName) {
   }
 }
 
+/**
+ * Clear GitHub release cache
+ */
+function clearReleaseCache() {
+  releaseCache.clear();
+  console.log('🗑️ GitHub release cache cleared');
+}
+
 module.exports = {
   parseGitHubRepo,
   getLatestRelease,
   getAllReleases,
   getReleaseByTag,
+  clearReleaseCache,
 };
 

@@ -211,6 +211,10 @@ router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
 // Batch configuration routes
 router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
 router.post("/batch/config", asyncHandler(batchController.updateBatchConfigHandler));
+router.get("/batch/status", asyncHandler(batchController.getBatchStatusHandler));
+router.post("/batch/trigger", asyncHandler(batchController.triggerBatchJobHandler));
+router.get("/batch/log-level", asyncHandler(batchController.getLogLevelHandler));
+router.post("/batch/log-level", asyncHandler(batchController.setLogLevelHandler));
 router.post("/batch/runs", asyncHandler(batchController.createBatchRunHandler));
 router.put("/batch/runs/:id", asyncHandler(batchController.updateBatchRunHandler));
 router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
@@ -218,12 +222,14 @@ router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
 // Tracked images routes
+// IMPORTANT: More specific routes must come before parameterized routes
 router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
-router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
 router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.post("/tracked-images/check-updates", asyncHandler(trackedImageController.checkTrackedImagesUpdates));
+router.delete("/tracked-images/cache", asyncHandler(trackedImageController.clearGitHubCache));
+router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
 router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
 router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
-router.post("/tracked-images/check-updates", asyncHandler(trackedImageController.checkTrackedImagesUpdates));
 router.post("/tracked-images/:id/check-update", asyncHandler(trackedImageController.checkTrackedImageUpdate));
 
 module.exports = router;

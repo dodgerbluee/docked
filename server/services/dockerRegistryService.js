@@ -210,10 +210,17 @@ async function getLatestImageDigest(imageRepo, tag = "latest") {
         return { digest: digest, tag: tag };
       }
       return null;
+    case "lscr":
+      // lscr.io images are also available on Docker Hub under the same name
+      // Strip the lscr.io/ prefix and query Docker Hub
+      const lscrDigest = await getImageDigestFromDockerHub(registry.repo, tag);
+      if (lscrDigest) {
+        return { digest: lscrDigest, tag: tag };
+      }
+      return null;
     case "ghcr":
     case "gitlab":
     case "gcr":
-    case "lscr":
       // These registries would need their own implementation
       // For now, return null
       return null;
@@ -371,8 +378,13 @@ async function getCurrentImageDigest(
 async function getTagPublishDate(imageRepo, tag = "latest") {
   if (!imageRepo) return null;
 
-  // Check cache first
-  const cacheKey = `publishDate:${imageRepo}:${tag}`;
+  // Handle lscr.io images - strip prefix for Docker Hub lookup
+  // lscr.io images are also available on Docker Hub under the same name
+  const registry = detectRegistry(imageRepo);
+  const repoForLookup = registry.type === 'lscr' ? registry.repo : imageRepo;
+
+  // Check cache first (use normalized repo for cache key)
+  const cacheKey = `publishDate:${repoForLookup}:${tag}`;
   const cached = digestCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -385,12 +397,12 @@ async function getTagPublishDate(imageRepo, tag = "latest") {
     const delay = (creds.token && creds.username) ? 500 : 1000;
     await rateLimitDelay(delay);
 
-    // Parse image repository
+    // Parse image repository (use the normalized repo without lscr.io prefix)
     let namespace = "library";
-    let repository = imageRepo;
+    let repository = repoForLookup;
 
-    if (imageRepo.includes("/")) {
-      const parts = imageRepo.split("/");
+    if (repoForLookup.includes("/")) {
+      const parts = repoForLookup.split("/");
       namespace = parts[0];
       repository = parts.slice(1).join("/");
     }
@@ -455,18 +467,23 @@ async function getTagFromDigest(imageRepo, digest) {
   const shortDigest = digestToMatch.replace("sha256:", "").substring(0, 12);
   const shortDigestWithPrefix = `sha256:${shortDigest}`;
 
+  // Handle lscr.io images - strip prefix for Docker Hub lookup
+  // lscr.io images are also available on Docker Hub under the same name
+  const registry = detectRegistry(imageRepo);
+  const repoForLookup = registry.type === 'lscr' ? registry.repo : imageRepo;
+
   // Check cache first (cache key: repo:shortDigest -> tag)
-  const cacheKey = `tag:${imageRepo}:${shortDigestWithPrefix}`;
+  const cacheKey = `tag:${repoForLookup}:${shortDigestWithPrefix}`;
   const cached = digestCache.get(cacheKey);
   if (cached && typeof cached === "string") {
     console.log(
-      `      ✅ Cache HIT for tag lookup: ${imageRepo}@${shortDigest}... -> ${cached}`
+      `      ✅ Cache HIT for tag lookup: ${repoForLookup}@${shortDigest}... -> ${cached}`
     );
     return cached;
   }
 
   console.log(
-    `      🔍 Looking up tag for digest ${shortDigest}... in ${imageRepo}`
+    `      🔍 Looking up tag for digest ${shortDigest}... in ${repoForLookup}`
   );
 
   try {
@@ -476,12 +493,12 @@ async function getTagFromDigest(imageRepo, digest) {
     const delay = (creds.token && creds.username) ? 500 : 1000;
     await rateLimitDelay(delay);
 
-    // Parse image repository
+    // Parse image repository (use the normalized repo without lscr.io prefix)
     let namespace = "library";
-    let repository = imageRepo;
+    let repository = repoForLookup;
 
-    if (imageRepo.includes("/")) {
-      const parts = imageRepo.split("/");
+    if (repoForLookup.includes("/")) {
+      const parts = repoForLookup.split("/");
       namespace = parts[0];
       repository = parts.slice(1).join("/");
     }

@@ -248,6 +248,7 @@ function initializeDatabase() {
                     latest_digest TEXT,
                     has_update INTEGER DEFAULT 0,
                     current_version_publish_date TEXT,
+                    latest_version_publish_date TEXT,
                     last_checked DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -262,9 +263,12 @@ function initializeDatabase() {
                     const githubRepoSelect = hasGithubRepo ? 'github_repo' : 'NULL';
                     const sourceTypeSelect = hasSourceType ? 'source_type' : "'docker'";
                     
+                    const hasLatestVersionPublishDate = columns.some(col => col.name === 'latest_version_publish_date');
+                    const latestVersionPublishDateSelect = hasLatestVersionPublishDate ? 'latest_version_publish_date' : 'NULL';
+                    
                     db.run(`
                       INSERT INTO tracked_images_new 
-                      (id, name, image_name, github_repo, source_type, current_version, current_digest, latest_version, latest_digest, has_update, last_checked, created_at, updated_at)
+                      (id, name, image_name, github_repo, source_type, current_version, current_digest, latest_version, latest_digest, has_update, current_version_publish_date, latest_version_publish_date, last_checked, created_at, updated_at)
                       SELECT 
                         id, 
                         name, 
@@ -275,7 +279,9 @@ function initializeDatabase() {
                         current_digest, 
                         latest_version, 
                         latest_digest, 
-                        has_update, 
+                        has_update,
+                        current_version_publish_date,
+                        ${latestVersionPublishDateSelect} as latest_version_publish_date,
                         last_checked, 
                         created_at, 
                         updated_at
@@ -308,6 +314,23 @@ function initializeDatabase() {
                   }
                 });
               });
+            }
+          });
+          
+          // Check if latest_version_publish_date column exists, add it if not
+          db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
+            if (!pragmaErr && columns) {
+              const hasLatestVersionPublishDate = columns.some(col => col.name === 'latest_version_publish_date');
+              if (!hasLatestVersionPublishDate) {
+                console.log("Adding latest_version_publish_date column to tracked_images...");
+                db.run("ALTER TABLE tracked_images ADD COLUMN latest_version_publish_date TEXT", (alterErr) => {
+                  if (alterErr) {
+                    console.error("Error adding latest_version_publish_date column:", alterErr.message);
+                  } else {
+                    console.log("Successfully added latest_version_publish_date column");
+                  }
+                });
+              }
             }
           });
           
@@ -605,8 +628,15 @@ function initializeDatabase() {
             `ALTER TABLE batch_runs ADD COLUMN job_type TEXT DEFAULT 'docker-hub-pull'`,
             (alterErr) => {
               // Ignore error if column already exists
+            }
+          );
+          // Add is_manual column if it doesn't exist (migration)
+          db.run(
+            `ALTER TABLE batch_runs ADD COLUMN is_manual INTEGER DEFAULT 0`,
+            (alterErr) => {
+              // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error("Error adding job_type column:", alterErr.message);
+                console.error("Error adding is_manual column:", alterErr.message);
               }
             }
           );
@@ -1197,13 +1227,15 @@ function updateBatchConfig(jobType, enabled, intervalMinutes) {
 /**
  * Create a new batch run record
  * @param {string} status - Run status ('running', 'completed', 'failed')
+ * @param {string} jobType - Job type ('docker-hub-pull', 'tracked-apps-check', etc.)
+ * @param {boolean} isManual - Whether this run was manually triggered
  * @returns {Promise<number>} - ID of created batch run
  */
-function createBatchRun(status = 'running', jobType = 'docker-hub-pull') {
+function createBatchRun(status = 'running', jobType = 'docker-hub-pull', isManual = false) {
   return new Promise((resolve, reject) => {
     db.run(
-      "INSERT INTO batch_runs (status, job_type, started_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-      [status, jobType],
+      "INSERT INTO batch_runs (status, job_type, is_manual, started_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+      [status, jobType, isManual ? 1 : 0],
       function (err) {
         if (err) {
           reject(err);
@@ -1546,6 +1578,10 @@ function updateTrackedImage(id, updateData) {
       fields.push('current_version_publish_date = ?');
       values.push(updateData.current_version_publish_date);
     }
+    if (updateData.latest_version_publish_date !== undefined) {
+      fields.push('latest_version_publish_date = ?');
+      values.push(updateData.latest_version_publish_date);
+    }
 
     if (fields.length === 0) {
       resolve();
@@ -1588,6 +1624,32 @@ function deleteTrackedImage(id) {
   });
 }
 
+/**
+ * Clear latest version data for all tracked images
+ * This resets latest_version, latest_digest, has_update, and current_version_publish_date
+ * @returns {Promise<number>} - Number of rows updated
+ */
+function clearLatestVersionsForAllTrackedImages() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE tracked_images 
+       SET latest_version = NULL, 
+           latest_digest = NULL, 
+           has_update = 0,
+           current_version_publish_date = NULL,
+           updated_at = CURRENT_TIMESTAMP`,
+      [],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      }
+    );
+  });
+}
+
 module.exports = {
   db,
   getUserByUsername,
@@ -1611,6 +1673,7 @@ module.exports = {
   createTrackedImage,
   updateTrackedImage,
   deleteTrackedImage,
+  clearLatestVersionsForAllTrackedImages,
   getContainerCache,
   setContainerCache,
   clearContainerCache,
