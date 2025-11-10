@@ -243,16 +243,57 @@ async function updateTrackedImageEndpoint(req, res, next) {
       const trimmedVersion = String(current_version).trim();
       updateData.current_version = trimmedVersion;
       // If updating current_version to match latest_version, also update has_update flag
-      if (existing.latest_version && trimmedVersion === existing.latest_version) {
-        updateData.has_update = 0;
+      // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
+      const normalizeVersion = (v) => {
+        if (!v) return '';
+        return String(v).replace(/^v/i, '').trim().toLowerCase();
+      };
+      
+      // When user upgrades, set current_version AND sync latest_version to match
+      // This ensures they stay in sync and batch checks won't re-detect an update
+      // ALWAYS clear has_update when user explicitly upgrades
+      updateData.has_update = 0;
+      
+      // If there's a stored latest_version, check if we should sync it
+      if (existing.latest_version) {
+        const normalizedCurrent = normalizeVersion(trimmedVersion);
+        const normalizedLatest = normalizeVersion(existing.latest_version);
+        
+        if (normalizedCurrent === normalizedLatest && normalizedCurrent !== '') {
+          // Versions match after normalization - sync latest_version to current_version format
+          // This ensures they're in perfect sync and batch checks won't re-detect updates
+          updateData.latest_version = trimmedVersion;
+          
+          // If we have a latest_version_publish_date, use it as current_version_publish_date
+          // since current and latest are now the same
+          if (existing.latest_version_publish_date) {
+            updateData.current_version_publish_date = existing.latest_version_publish_date;
+          }
+          // Clear latest_version_publish_date since current and latest are now the same
+          updateData.latest_version_publish_date = null;
+        } else {
+          // Versions don't match after normalization - user might be upgrading to a different version
+          // Still sync latest_version to current_version to keep them in sync
+          updateData.latest_version = trimmedVersion;
+        }
+      } else {
+        // No latest_version stored - set it to match current_version
+        updateData.latest_version = trimmedVersion;
       }
     }
 
     await updateTrackedImage(parseInt(id), updateData);
 
+    // Fetch the updated image to return current state
+    const updatedImage = await getTrackedImageById(parseInt(id));
+
     res.json({
       success: true,
       message: 'Tracked image updated successfully',
+      image: updatedImage ? {
+        ...updatedImage,
+        has_update: Boolean(updatedImage.has_update),
+      } : null,
     });
   } catch (error) {
     // Handle unique constraint violation
