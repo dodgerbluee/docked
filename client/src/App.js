@@ -10,13 +10,14 @@ import React, {
   lazy,
 } from "react";
 import axios from "axios";
-import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone } from "lucide-react";
+import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2 } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
 import {
   getDockerHubUrl,
   getDockerHubTagsUrl,
+  getDockerHubRepoUrl,
   getGitHubRepoUrl,
   formatTimeAgo,
 } from "./utils/formatters";
@@ -202,10 +203,7 @@ function App() {
   const [trackedImageSuccess, setTrackedImageSuccess] = useState("");
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(null);
-  const [editingTrackedImage, setEditingTrackedImage] = useState(null);
-  const [editTrackedImageName, setEditTrackedImageName] = useState("");
-  const [editTrackedImageCurrentVersion, setEditTrackedImageCurrentVersion] =
-    useState("");
+  const [editingTrackedImageData, setEditingTrackedImageData] = useState(null);
   const [showAddTrackedImageModal, setShowAddTrackedImageModal] =
     useState(false);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
@@ -986,48 +984,8 @@ function App() {
   };
 
   const handleEditTrackedImage = (image) => {
-    setEditingTrackedImage(image.id);
-    setEditTrackedImageName(image.name);
-    setEditTrackedImageCurrentVersion(image.current_version || "");
-  };
-
-  const handleCancelEditTrackedImage = () => {
-    setEditingTrackedImage(null);
-    setEditTrackedImageName("");
-    setEditTrackedImageCurrentVersion("");
-  };
-
-  const handleSaveEditTrackedImage = async (id) => {
-    try {
-      const payload = {};
-      if (editTrackedImageName) {
-        payload.name = editTrackedImageName.trim();
-      }
-      if (editTrackedImageCurrentVersion) {
-        payload.current_version = editTrackedImageCurrentVersion.trim();
-      }
-      
-      const response = await axios.put(
-        `${API_BASE_URL}/api/tracked-images/${id}`,
-        payload
-      );
-      if (response.data.success) {
-        await fetchTrackedImages();
-        setEditingTrackedImage(null);
-        setEditTrackedImageName("");
-        setEditTrackedImageCurrentVersion("");
-        setTrackedImageSuccess("Tracked image updated successfully!");
-        setTimeout(() => setTrackedImageSuccess(""), 3000);
-      } else {
-        setTrackedImageError(
-          response.data.error || "Failed to update tracked image"
-        );
-      }
-    } catch (err) {
-      setTrackedImageError(
-        err.response?.data?.error || "Failed to update tracked image"
-      );
-    }
+    setEditingTrackedImageData(image);
+    setShowAddTrackedImageModal(true);
   };
 
   const handleCheckTrackedImagesUpdates = async () => {
@@ -2382,7 +2340,10 @@ function App() {
         {!isCollapsed && (
           <>
             {showUpdates && stackContainersWithUpdates.length > 0 && (
-              <div className="containers-grid">
+              <div
+                className="containers-grid"
+                style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+              >
                 {stackContainersWithUpdates.map((container) => {
                   const isPortainer = isPortainerContainer(container);
                   return (
@@ -2433,19 +2394,8 @@ function App() {
                             : ""
                         }
                       >
-                        {container.portainerName && (
-                          <p className="portainer-info">
-                            <strong>Portainer:</strong>{" "}
-                            <span className="portainer-badge">
-                              {container.portainerName}
-                            </span>
-                          </p>
-                        )}
                         <p className="image-info">
                           <strong>Image:</strong> {container.image}
-                        </p>
-                        <p className="status-info">
-                          <strong>Status:</strong> {container.status}
                         </p>
                         <p className="tag-info">
                           <strong>Current:</strong>{" "}
@@ -2496,32 +2446,74 @@ function App() {
                             {formatTimeAgo(container.latestPublishDate)}
                           </p>
                         )}
-                      </div>
-                      <div
-                        className="card-footer"
-                        title={
-                          isPortainer
-                            ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
-                            : ""
-                        }
-                      >
-                        <button
-                          className="upgrade-button"
-                          onClick={() => handleUpgrade(container)}
-                          disabled={
-                            upgrading[container.id] ||
-                            isPortainerContainer(container)
-                          }
-                          title={
-                            isPortainerContainer(container)
-                              ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
-                              : ""
-                          }
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            marginTop: "3px",
+                          }}
                         >
-                          {upgrading[container.id]
-                            ? "Upgrading..."
-                            : "Upgrade Now"}
-                        </button>
+                          <button
+                            className="update-button"
+                            onClick={() => handleUpgrade(container)}
+                            disabled={
+                              upgrading[container.id] ||
+                              isPortainerContainer(container)
+                            }
+                            title={
+                              isPortainerContainer(container)
+                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                                : ""
+                            }
+                            style={{
+                              padding: "5px 12px",
+                              fontSize: "0.9rem",
+                              background: "rgba(30, 144, 255, 0.2)",
+                              borderColor: "var(--dodger-blue)",
+                              color: "var(--dodger-blue)",
+                            }}
+                          >
+                            {upgrading[container.id]
+                              ? "Upgrading..."
+                              : "Upgrade Now"}
+                          </button>
+                          {container.image && (
+                            <button
+                              className="update-button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const dockerHubUrl = getDockerHubRepoUrl(container.image);
+                                if (dockerHubUrl) {
+                                  window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
+                                }
+                              }}
+                              style={{
+                                padding: "5px 12px",
+                                fontSize: "0.9rem",
+                                background: "rgba(128, 128, 128, 0.2)",
+                                borderColor: "var(--text-secondary)",
+                                color: "var(--text-secondary)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                              title="View on Docker Hub"
+                            >
+                              <img
+                                src="/img/docker-mark-white.svg"
+                                alt="Docker"
+                                className="docker-hub-icon"
+                                style={{
+                                  width: "16px",
+                                  height: "16px",
+                                }}
+                              />
+                              hub
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -2529,7 +2521,10 @@ function App() {
               </div>
             )}
             {!showUpdates && stackContainersUpToDate.length > 0 && (
-              <div className="containers-grid">
+              <div
+                className="containers-grid"
+                style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+              >
                 {stackContainersUpToDate.map((container) => {
                   const isPortainer = isPortainerContainer(container);
                   return (
@@ -2562,23 +2557,12 @@ function App() {
                             : ""
                         }
                       >
-                        {container.portainerName && (
-                          <p className="portainer-info">
-                            <strong>Portainer:</strong>{" "}
-                            <span className="portainer-badge">
-                              {container.portainerName}
-                            </span>
-                          </p>
-                        )}
                         <p className="image-info">
                           <strong>Image:</strong> {container.image}
                         </p>
-                        <p className="status-info">
-                          <strong>Status:</strong> {container.status}
-                        </p>
                         {container.currentDigest && (
                           <p className="tag-info">
-                            <strong>Digest:</strong>{" "}
+                            <strong>Current:</strong>{" "}
                             <span className="version-badge current">
                               <a
                                 href={
@@ -2606,6 +2590,63 @@ function App() {
                               </a>
                             </span>
                           </p>
+                        )}
+                        {container.currentVersionPublishDate && (
+                          <p
+                            className="publish-info"
+                            style={{
+                              fontSize: "0.8rem",
+                              color: "var(--text-tertiary)",
+                              marginTop: "4px",
+                            }}
+                          >
+                            <strong>Published:</strong>{" "}
+                            {formatTimeAgo(container.currentVersionPublishDate)}
+                          </p>
+                        )}
+                        {container.image && (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "4px",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                              marginTop: "3px",
+                            }}
+                          >
+                            <button
+                              className="update-button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const dockerHubUrl = getDockerHubRepoUrl(container.image);
+                                if (dockerHubUrl) {
+                                  window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
+                                }
+                              }}
+                              style={{
+                                padding: "5px 12px",
+                                fontSize: "0.9rem",
+                                background: "rgba(128, 128, 128, 0.2)",
+                                borderColor: "var(--text-secondary)",
+                                color: "var(--text-secondary)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                              title="View on Docker Hub"
+                            >
+                              <img
+                                src="/img/docker-mark-white.svg"
+                                alt="Docker"
+                                className="docker-hub-icon"
+                                style={{
+                                  width: "16px",
+                                  height: "16px",
+                                }}
+                              />
+                              hub
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2635,25 +2676,21 @@ function App() {
             <h2 className="settings-header">Settings</h2>
             <button
               onClick={() => setActiveTab("summary")}
+              className="update-button"
               style={{
                 padding: "10px 20px",
                 fontSize: "1rem",
                 fontWeight: "600",
-                background: "var(--dodger-blue)",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                transition: "all 0.2s",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
+                marginTop: "0",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--dodger-blue-light)";
+                e.currentTarget.style.background = "rgba(30, 144, 255, 0.3)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--dodger-blue)";
+                e.currentTarget.style.background = "rgba(30, 144, 255, 0.2)";
               }}
             >
               <svg
@@ -2701,6 +2738,8 @@ function App() {
           onBatchConfigUpdate={handleBatchConfigUpdate}
           colorScheme={colorScheme}
           onColorSchemeChange={handleColorSchemeChange}
+          onClearPortainerData={handleClear}
+          onClearTrackedAppData={handleClearGitHubCache}
         />
         <div className="content-tabs">
           <div className="content-tabs-left">
@@ -2984,65 +3023,6 @@ function App() {
               >
                 {checkingUpdates ? "Checking..." : "Check for Updates"}
               </button>
-              <button
-                className="clear-button"
-                onClick={handleClearGitHubCache}
-                disabled={clearingGitHubCache || checkingUpdates}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  background: clearingGitHubCache
-                    ? "var(--bg-secondary)"
-                    : "var(--dodger-red)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor:
-                    clearingGitHubCache || checkingUpdates
-                      ? "not-allowed"
-                      : "pointer",
-                  opacity: clearingGitHubCache || checkingUpdates ? 0.6 : 1,
-                  transition: "all 0.2s",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minWidth: "44px",
-                  lineHeight: "1.5",
-                }}
-                title="Clear latest version data for all tracked apps"
-                aria-label="Clear latest versions"
-              >
-                {clearingGitHubCache ? (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ animation: "spin 1s linear infinite" }}
-                  >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                ) : (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                )}
-              </button>
             </div>
             {lastScanTime && (
               <div
@@ -3275,170 +3255,86 @@ function App() {
                           marginTop: "3px",
                         }}
                       >
-                        {editingTrackedImage === image.id ? (
-                          <>
-                            <input
-                              type="text"
-                              value={editTrackedImageName}
-                              onChange={(e) =>
-                                setEditTrackedImageName(e.target.value)
-                              }
-                              style={{
-                                padding: "5px 10px",
-                                fontSize: "0.9rem",
-                                borderRadius: "6px",
-                                border: "1px solid var(--border-color)",
-                                background: "var(--bg-primary)",
-                                color: "var(--text-primary)",
-                                width: "100px",
-                              }}
-                              placeholder="Name"
-                            />
-                            <input
-                              type="text"
-                              value={editTrackedImageCurrentVersion}
-                              onChange={(e) =>
-                                setEditTrackedImageCurrentVersion(
-                                  e.target.value
-                                )
-                              }
-                              style={{
-                                padding: "5px 10px",
-                                fontSize: "0.9rem",
-                                borderRadius: "6px",
-                                border: "1px solid var(--border-color)",
-                                background: "var(--bg-primary)",
-                                color: "var(--text-primary)",
-                                width: "95px",
-                              }}
-                              placeholder="Version"
-                            />
+                        {image.latest_version &&
+                          (image.has_update ||
+                            !image.current_version ||
+                            image.current_version !==
+                              image.latest_version) && (
                             <button
                               onClick={() =>
-                                handleSaveEditTrackedImage(image.id)
+                                handleUpgradeTrackedImage(
+                                  image.id,
+                                  image.latest_version
+                                )
                               }
                               className="update-button"
                               style={{
-                                padding: "5px 10px",
+                                padding: "5px 12px",
                                 fontSize: "0.9rem",
                                 background: "rgba(30, 144, 255, 0.2)",
                                 borderColor: "var(--dodger-blue)",
                                 color: "var(--dodger-blue)",
                               }}
                             >
-                              Save
+                              Mark Upgraded
                             </button>
+                          )}
+                        {image.source_type === "github" &&
+                          image.github_repo && (
                             <button
-                              onClick={handleCancelEditTrackedImage}
+                              onClick={() => {
+                                const repoUrl =
+                                  image.github_repo.startsWith("http")
+                                    ? image.github_repo
+                                    : `https://github.com/${image.github_repo}`;
+                                window.open(
+                                  repoUrl,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                );
+                              }}
                               className="update-button"
+                              title="Open GitHub repository"
                               style={{
-                                padding: "5px 10px",
+                                padding: "5px 12px",
                                 fontSize: "0.9rem",
                                 background: "rgba(128, 128, 128, 0.2)",
                                 borderColor: "var(--text-secondary)",
                                 color: "var(--text-secondary)",
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {image.latest_version &&
-                              (image.has_update ||
-                                !image.current_version ||
-                                image.current_version !==
-                                  image.latest_version) && (
-                                <button
-                                  onClick={() =>
-                                    handleUpgradeTrackedImage(
-                                      image.id,
-                                      image.latest_version
-                                    )
-                                  }
-                                  className="update-button"
-                                  style={{
-                                    padding: "5px 12px",
-                                    fontSize: "0.9rem",
-                                    background: "rgba(30, 144, 255, 0.2)",
-                                    borderColor: "var(--dodger-blue)",
-                                    color: "var(--dodger-blue)",
-                                  }}
-                                >
-                                  Mark Upgraded
-                                </button>
-                              )}
-                            {image.source_type === "github" &&
-                              image.github_repo && (
-                                <button
-                                  onClick={() => {
-                                    const repoUrl =
-                                      image.github_repo.startsWith("http")
-                                        ? image.github_repo
-                                        : `https://github.com/${image.github_repo}`;
-                                    window.open(
-                                      repoUrl,
-                                      "_blank",
-                                      "noopener,noreferrer"
-                                    );
-                                  }}
-                                  className="update-button"
-                                  title="Open GitHub repository"
-                                  style={{
-                                    padding: "5px 12px",
-                                    fontSize: "0.9rem",
-                                    background: "rgba(128, 128, 128, 0.2)",
-                                    borderColor: "var(--text-secondary)",
-                                    color: "var(--text-secondary)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                  }}
-                                >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                  >
-                                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                                  </svg>
-                                  GitHub
-                                </button>
-                              )}
-                            <button
-                              onClick={() => handleEditTrackedImage(image)}
-                              className="update-button"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(30, 144, 255, 0.2)",
-                                borderColor: "var(--dodger-blue)",
-                                color: "var(--dodger-blue)",
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTrackedImage(image.id)}
-                              className="update-button"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(239, 62, 66, 0.2)",
-                                borderColor: "var(--dodger-red)",
-                                color: "var(--dodger-red)",
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "center",
+                                gap: "6px",
                               }}
-                              title="Delete"
                             >
-                              🗑️
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                              </svg>
+                              GitHub
                             </button>
-                          </>
-                        )}
+                          )}
+                        <button
+                          onClick={() => handleEditTrackedImage(image)}
+                          className="update-button"
+                          title="Edit"
+                          style={{
+                            padding: "5px 12px",
+                            fontSize: "0.9rem",
+                            background: "rgba(128, 128, 128, 0.2)",
+                            borderColor: "var(--border-color)",
+                            color: "var(--text-secondary)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Pencil size={16} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -4216,36 +4112,34 @@ function App() {
                       padding: "0",
                       background: "transparent",
                       color: "white",
-                      border: "2px solid rgba(255, 255, 255, 0.5)",
-                      borderRadius: "50%",
+                      border: "none",
+                      borderRadius: "0",
                       cursor: "pointer",
                       transition: "all 0.3s",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      width: "36px",
-                      height: "36px",
+                      width: "auto",
+                      height: "auto",
                       position: "relative",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.borderColor = "rgba(255, 255, 255, 0.8)";
                       e.target.style.transform = "translateY(-2px)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.borderColor = "rgba(255, 255, 255, 0.5)";
                       e.target.style.transform = "translateY(0)";
                     }}
                   >
                     <Bell
-                      size={18}
+                      size={25}
                       style={{ display: "block", transform: "translateY(0.5px)" }}
                     />
                     {notificationCount > 0 && (
                       <span
                         style={{
                           position: "absolute",
-                          top: "2px",
-                          right: "2px",
+                          top: "-4px",
+                          right: "-4px",
                           background: "var(--dodger-red)",
                           color: "white",
                           borderRadius: "50%",
@@ -4940,63 +4834,6 @@ function App() {
                     >
                       {pulling ? "Checking..." : "Check for Updates"}
                     </button>
-                    <button
-                      className="clear-button"
-                      onClick={handleClear}
-                      disabled={clearing || pulling || loading}
-                      style={{
-                        padding: "10px 20px",
-                        fontSize: "1rem",
-                        fontWeight: "600",
-                        background: clearing
-                          ? "var(--bg-secondary)"
-                          : "var(--dodger-red)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor:
-                          clearing || pulling || loading ? "not-allowed" : "pointer",
-                        opacity: clearing || pulling || loading ? 0.6 : 1,
-                        transition: "all 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: "44px",
-                        lineHeight: "1.5",
-                      }}
-                      title="Clear all cached data"
-                      aria-label="Clear cache"
-                    >
-                      {clearing ? (
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{ animation: "spin 1s linear infinite" }}
-                        >
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                        </svg>
-                      ) : (
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      )}
-                    </button>
                   </div>
                   {lastPullTime && (
                     <div
@@ -5126,26 +4963,21 @@ function App() {
                     </h2>
                     <button
                       onClick={() => setActiveTab("summary")}
+                      className="update-button"
                       style={{
                         padding: "10px 20px",
                         fontSize: "1rem",
                         fontWeight: "600",
-                        background: "var(--dodger-blue)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
+                        marginTop: "0",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background =
-                          "var(--dodger-blue-light)";
+                        e.currentTarget.style.background = "rgba(30, 144, 255, 0.3)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "var(--dodger-blue)";
+                        e.currentTarget.style.background = "rgba(30, 144, 255, 0.2)";
                       }}
                     >
                       <svg
@@ -5447,7 +5279,12 @@ function App() {
 
       <AddTrackedImageModal
         isOpen={showAddTrackedImageModal}
-        onClose={() => setShowAddTrackedImageModal(false)}
+        onClose={() => {
+          setShowAddTrackedImageModal(false);
+          setEditingTrackedImageData(null);
+        }}
+        initialData={editingTrackedImageData}
+        onDelete={handleDeleteTrackedImage}
         onSuccess={handleTrackedImageModalSuccess}
         trackedImages={trackedImages}
       />

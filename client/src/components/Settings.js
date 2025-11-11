@@ -44,6 +44,8 @@ function Settings({
   colorScheme = "system",
   onColorSchemeChange = null,
   refreshInstances = null,
+  onClearPortainerData = null,
+  onClearTrackedAppData = null,
 }) {
   // Store callbacks in refs to avoid stale closure issues
   const onBatchConfigUpdateRef = useRef(onBatchConfigUpdate);
@@ -139,6 +141,10 @@ function Settings({
   const [avatarPan, setAvatarPan] = useState({ x: 0, y: 0 });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Clear data state
+  const [clearingPortainerData, setClearingPortainerData] = useState(false);
+  const [clearingTrackedAppData, setClearingTrackedAppData] = useState(false);
 
   // General settings state (local state before saving)
   const [localColorScheme, setLocalColorScheme] = useState(colorScheme);
@@ -1192,6 +1198,95 @@ function Settings({
                   </button>
                 </div>
               </form>
+              <div style={{ marginTop: "30px", paddingTop: "30px", borderTop: "1px solid var(--border-color)" }}>
+                <h4 style={{ marginBottom: "15px", color: "var(--text-primary)" }}>Data Management</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "600px" }}>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!onClearPortainerData) return;
+                        setClearingPortainerData(true);
+                        try {
+                          await onClearPortainerData();
+                        } finally {
+                          setClearingPortainerData(false);
+                        }
+                      }}
+                      disabled={clearingPortainerData}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        background: clearingPortainerData
+                          ? "var(--bg-secondary)"
+                          : "var(--dodger-red)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: clearingPortainerData ? "not-allowed" : "pointer",
+                        opacity: clearingPortainerData ? 0.6 : 1,
+                        transition: "all 0.2s",
+                        width: "auto",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
+                    </button>
+                    <small style={{ 
+                      display: "block", 
+                      marginTop: "8px", 
+                      color: "var(--text-secondary)",
+                      fontSize: "0.85rem",
+                      lineHeight: "1.4"
+                    }}>
+                      Removes all cached container information from Portainer instances. This will clear container data, stacks, and unused images until you pull again. Portainer instance configurations will be preserved.
+                    </small>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!onClearTrackedAppData) return;
+                        setClearingTrackedAppData(true);
+                        try {
+                          await onClearTrackedAppData();
+                        } finally {
+                          setClearingTrackedAppData(false);
+                        }
+                      }}
+                      disabled={clearingTrackedAppData}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        background: clearingTrackedAppData
+                          ? "var(--bg-secondary)"
+                          : "var(--dodger-red)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: clearingTrackedAppData ? "not-allowed" : "pointer",
+                        opacity: clearingTrackedAppData ? 0.6 : 1,
+                        transition: "all 0.2s",
+                        width: "auto",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      {clearingTrackedAppData ? "Clearing..." : "Clear Tracked Application Data"}
+                    </button>
+                    <small style={{ 
+                      display: "block", 
+                      marginTop: "8px", 
+                      color: "var(--text-secondary)",
+                      fontSize: "0.85rem",
+                      lineHeight: "1.4"
+                    }}>
+                      Clears the latest version data for all tracked apps. This will reset the "Latest" version information and force fresh data to be fetched on the next check. Your tracked app configurations will be preserved.
+                    </small>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           {currentActiveSection === "username" && (
@@ -1529,8 +1624,9 @@ function Settings({
                     style={{
                       display: "inline-block",
                       padding: "12px 24px",
-                      background: "var(--dodger-blue)",
-                      color: "white",
+                      background: "rgba(30, 144, 255, 0.2)",
+                      color: "var(--dodger-blue)",
+                      border: "1px solid var(--dodger-blue)",
                       borderRadius: "8px",
                       cursor: "pointer",
                       fontWeight: "600",
@@ -1540,11 +1636,11 @@ function Settings({
                       textAlign: "center",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.background = "var(--dodger-blue-light)";
+                      e.target.style.background = "rgba(30, 144, 255, 0.3)";
                       e.target.style.transform = "translateY(-2px)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.background = "var(--dodger-blue)";
+                      e.target.style.background = "rgba(30, 144, 255, 0.2)";
                       e.target.style.transform = "translateY(0)";
                     }}
                   >
@@ -2161,9 +2257,9 @@ function Settings({
                     style={{
                       padding: "10px 20px",
                       fontSize: "1rem",
-                      background: "var(--dodger-blue)",
-                      color: "white",
-                      border: "none",
+                      background: "rgba(30, 144, 255, 0.2)",
+                      color: "var(--dodger-blue)",
+                      border: "1px solid var(--dodger-blue)",
                     }}
                   >
                     Create Entry
@@ -2932,9 +3028,9 @@ function Settings({
                             marginLeft: '8px',
                             padding: '4px 12px',
                             fontSize: '0.85rem',
-                            background: 'var(--dodger-blue)',
-                            color: 'white',
-                            border: 'none',
+                            background: 'rgba(30, 144, 255, 0.2)',
+                            color: 'var(--dodger-blue)',
+                            border: '1px solid var(--dodger-blue)',
                             borderRadius: '4px',
                             cursor: 'pointer',
                           }}

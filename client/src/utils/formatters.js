@@ -162,6 +162,34 @@ export function getDockerHubTagsUrl(imageName) {
 }
 
 /**
+ * Get Docker Hub repository URL (main page, not tags or layers)
+ * @param {string} imageName - Full image name (e.g., "nginx:latest" or "user/repo:tag")
+ * @returns {string} - Docker Hub repository URL
+ */
+export function getDockerHubRepoUrl(imageName) {
+  if (!imageName) return null;
+
+  // Parse image name (remove tag if present)
+  let repo = imageName;
+  if (imageName.includes(":")) {
+    const parts = imageName.split(":");
+    repo = parts[0];
+  }
+
+  // Remove registry prefixes
+  repo = stripRegistryPrefix(repo);
+
+  // Format: https://hub.docker.com/r/{namespace}/{repo}
+  if (repo.includes("/")) {
+    // User image
+    return `https://hub.docker.com/r/${repo}`;
+  } else {
+    // Official image (library)
+    return `https://hub.docker.com/r/library/${repo}`;
+  }
+}
+
+/**
  * Get Docker Hub URL for an image layer page
  * @param {string} imageName - Full image name (e.g., "nginx:latest" or "user/repo:tag")
  * @param {string} tag - Tag/version to use in the URL (required)
