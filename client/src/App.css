@@ -40,6 +40,73 @@ body.dark-mode {
   margin: 0 auto;
 }
 
+/* Reusable danger/red button classes */
+.danger-button {
+  background: rgba(239, 62, 66, 0.2) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.3) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.danger-button-filled {
+  background: var(--dodger-red) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.danger-button-filled:hover:not(:disabled) {
+  background: var(--dodger-red-light) !important;
+}
+
+.danger-button-filled:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Reusable primary/blue button class */
+.primary-button {
+  padding: 10px 20px;
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+  border: 1px solid var(--dodger-blue);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 0;
+}
+
+body.dark-mode .primary-button {
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 90, 156, 0.4);
+}
+
+body.dark-mode .primary-button:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
+}
+
+.primary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .App-header {
   color: var(--text-primary);
   margin-bottom: 30px;
@@ -1300,25 +1367,31 @@ body.dark-mode .portainer-badge {
 }
 
 .delete-image-button {
-  background: var(--dodger-red);
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--dodger-red) 0%, #c02a2e 100%);
   color: white;
   border: none;
-  padding: 8px 16px;
   border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
   font-size: 0.9rem;
-  transition: background 0.2s;
-  width: 100%;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
 .delete-image-button:hover:not(:disabled) {
-  background: var(--dodger-red-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 62, 66, 0.4);
+}
+
+.delete-image-button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .delete-image-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .image-tags-header {
@@ -1392,9 +1465,9 @@ body.dark-mode .image-tag-badge.no-tag {
 }
 
 .delete-images-button {
-  background: var(--dodger-red);
-  color: white;
-  border: none;
+  background: var(--dodger-red) !important;
+  color: white !important;
+  border: none !important;
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
@@ -1405,7 +1478,7 @@ body.dark-mode .image-tag-badge.no-tag {
 }
 
 .delete-images-button:hover:not(:disabled) {
-  background: var(--dodger-red-light);
+  background: var(--dodger-red-light) !important;
 }
 
 .delete-images-button:disabled {

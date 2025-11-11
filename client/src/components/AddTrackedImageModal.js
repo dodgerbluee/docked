@@ -606,13 +606,12 @@ function AddTrackedImageModal({
             {initialData && onDelete && (
               <button
                 type="button"
-                className="modal-button delete"
+                className="update-button danger-button"
                 onClick={handleDelete}
                 disabled={loading}
                 style={{
-                  background: "var(--dodger-red)",
-                  color: "white",
                   marginRight: "auto",
+                  marginTop: 0,
                 }}
               >
                 {loading ? "Deleting..." : "Delete"}
