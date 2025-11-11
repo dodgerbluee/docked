@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./Settings.css";
+import DockerHubCredsModal from "./DockerHubCredsModal";
 
 // In production, API is served from same origin, so use relative URLs
 const API_BASE_URL =
@@ -85,12 +86,9 @@ function Settings({
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   // Docker Hub credentials state
-  const [dockerHubUsername, setDockerHubUsername] = useState("");
-  const [dockerHubToken, setDockerHubToken] = useState("");
-  const [dockerHubError, setDockerHubError] = useState("");
-  const [dockerHubSuccess, setDockerHubSuccess] = useState("");
-  const [dockerHubLoading, setDockerHubLoading] = useState(false);
   const [dockerHubCredentials, setDockerHubCredentials] = useState(null);
+  const [showDockerHubModal, setShowDockerHubModal] = useState(false);
+  const [dockerHubSuccess, setDockerHubSuccess] = useState("");
 
   // Batch configuration state - separate for each job type
   const [batchConfigs, setBatchConfigs] = useState({
@@ -209,9 +207,6 @@ function Settings({
       );
       if (response.data.success) {
         setDockerHubCredentials(response.data.credentials);
-        if (response.data.credentials) {
-          setDockerHubUsername(response.data.credentials.username || "");
-        }
       }
     } catch (err) {
       console.error("Error fetching Docker Hub credentials:", err);
@@ -487,75 +482,10 @@ function Settings({
     setInstanceError("");
   };
 
-  const handleDockerHubSubmit = async (e) => {
-    e.preventDefault();
-    setDockerHubError("");
-    setDockerHubSuccess("");
-    setDockerHubLoading(true);
-
-    try {
-      // Determine which token to use for validation
-      const tokenToValidate = dockerHubToken.trim() || null;
-
-      // If we have a new token, validate it first
-      if (tokenToValidate) {
-        try {
-          // Validate authentication before saving
-          const validateData = {
-            username: dockerHubUsername.trim(),
-            token: tokenToValidate,
-          };
-
-          const validateResponse = await axios.post(
-            `${API_BASE_URL}/api/docker-hub/credentials/validate`,
-            validateData
-          );
-
-          if (!validateResponse.data.success) {
-            setDockerHubError(
-              validateResponse.data.error || "Authentication validation failed"
-            );
-            setDockerHubLoading(false);
-            return;
-          }
-        } catch (validateErr) {
-          // Validation failed - show error
-          setDockerHubError(
-            validateErr.response?.data?.error ||
-              "Authentication failed. Please check your username and token."
-          );
-          setDockerHubLoading(false);
-          return;
-        }
-      }
-
-      // Authentication successful (or no new token provided), now save the credentials
-      const response = await axios.post(
-        `${API_BASE_URL}/api/docker-hub/credentials`,
-        {
-          username: dockerHubUsername.trim(),
-          token: tokenToValidate || "", // Empty string if no new token (will use existing)
-        }
-      );
-
-      if (response.data.success) {
-        setDockerHubSuccess("Docker Hub credentials updated successfully!");
-        setDockerHubToken("");
-        await fetchDockerHubCredentials();
-        setTimeout(() => setDockerHubSuccess(""), 3000);
-      } else {
-        setDockerHubError(
-          response.data.error || "Failed to update Docker Hub credentials"
-        );
-      }
-    } catch (err) {
-      setDockerHubError(
-        err.response?.data?.error ||
-          "Failed to update Docker Hub credentials. Please try again."
-      );
-    } finally {
-      setDockerHubLoading(false);
-    }
+  const handleDockerHubModalSuccess = async () => {
+    setDockerHubSuccess("Docker Hub credentials saved successfully!");
+    await fetchDockerHubCredentials();
+    setTimeout(() => setDockerHubSuccess(""), 3000);
   };
 
   const handleDeleteDockerHubCreds = async () => {
@@ -573,21 +503,12 @@ function Settings({
       );
       if (response.data.success) {
         setDockerHubSuccess("Docker Hub credentials removed successfully!");
-        setDockerHubUsername("");
-        setDockerHubToken("");
         setDockerHubCredentials(null);
         await fetchDockerHubCredentials();
         setTimeout(() => setDockerHubSuccess(""), 3000);
-      } else {
-        setDockerHubError(
-          response.data.error || "Failed to remove Docker Hub credentials"
-        );
       }
     } catch (err) {
-      setDockerHubError(
-        err.response?.data?.error ||
-          "Failed to remove Docker Hub credentials. Please try again."
-      );
+      console.error("Failed to remove Docker Hub credentials:", err);
     }
   };
 
@@ -1989,20 +1910,21 @@ function Settings({
               <div
                 style={{
                   background: "var(--bg-secondary)",
-                  padding: "15px",
+                  padding: "20px",
                   borderRadius: "8px",
                   marginBottom: "20px",
                   border: "1px solid var(--border-color)",
                 }}
               >
-                <h4 style={{ marginTop: 0, color: "var(--text-primary)" }}>
+                <h4 style={{ marginTop: 0, color: "var(--text-primary)", marginBottom: "12px" }}>
                   What is this used for?
                 </h4>
                 <p
                   style={{
                     color: "var(--text-secondary)",
                     lineHeight: "1.6",
-                    marginBottom: "10px",
+                    marginBottom: "15px",
+                    paddingBottom: "5px",
                   }}
                 >
                   Docker Hub authentication allows the application to use your
@@ -2042,6 +1964,7 @@ function Settings({
                     fontSize: "0.9rem",
                     marginTop: "10px",
                     marginBottom: 0,
+                    fontStyle: "italic",
                   }}
                 >
                   <strong>Note:</strong> Your credentials are stored securely in
@@ -2059,7 +1982,13 @@ function Settings({
                 </p>
               </div>
 
-              {dockerHubCredentials && (
+              {dockerHubSuccess && (
+                <div className="success-message" style={{ marginBottom: "20px" }}>
+                  {dockerHubSuccess}
+                </div>
+              )}
+
+              {dockerHubCredentials ? (
                 <div
                   style={{
                     background: "var(--bg-secondary)",
@@ -2109,80 +2038,78 @@ function Settings({
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={handleDeleteDockerHubCreds}
-                      className="update-button"
-                      style={{
-                        padding: "8px 16px",
-                        fontSize: "0.9rem",
-                        background: "rgba(239, 62, 66, 0.2)",
-                        borderColor: "var(--dodger-red)",
-                        color: "var(--dodger-red)",
-                      }}
-                    >
-                      Remove
-                    </button>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button
+                        onClick={() => setShowDockerHubModal(true)}
+                        className="update-button"
+                        style={{
+                          padding: "8px 16px",
+                          fontSize: "0.9rem",
+                          background: "rgba(30, 144, 255, 0.2)",
+                          borderColor: "var(--dodger-blue)",
+                          color: "var(--dodger-blue)",
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={handleDeleteDockerHubCreds}
+                        className="update-button"
+                        style={{
+                          padding: "8px 16px",
+                          fontSize: "0.9rem",
+                          background: "rgba(239, 62, 66, 0.2)",
+                          borderColor: "var(--dodger-red)",
+                          color: "var(--dodger-red)",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: "var(--bg-secondary)",
+                    padding: "20px",
+                    borderRadius: "8px",
+                    marginBottom: "20px",
+                    border: "1px solid var(--border-color)",
+                    textAlign: "center",
+                  }}
+                >
+                  <p
+                    style={{
+                      color: "var(--text-secondary)",
+                      marginBottom: "15px",
+                    }}
+                  >
+                    No Docker Hub credentials configured. Add credentials to
+                    increase your rate limits.
+                  </p>
+                  <button
+                    onClick={() => setShowDockerHubModal(true)}
+                    className="update-button"
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: "1rem",
+                      background: "var(--dodger-blue)",
+                      color: "white",
+                      border: "none",
+                    }}
+                  >
+                    Create Entry
+                  </button>
                 </div>
               )}
 
-              <form onSubmit={handleDockerHubSubmit} className="update-form">
-                <div className="form-group">
-                  <label htmlFor="dockerHubUsername">Docker Hub Username</label>
-                  <input
-                    type="text"
-                    id="dockerHubUsername"
-                    value={dockerHubUsername}
-                    onChange={(e) => setDockerHubUsername(e.target.value)}
-                    required
-                    placeholder="your-dockerhub-username"
-                    disabled={dockerHubLoading}
-                  />
-                  <small>Your Docker Hub account username</small>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="dockerHubToken">Personal Access Token</label>
-                  <input
-                    type="password"
-                    id="dockerHubToken"
-                    value={dockerHubToken}
-                    onChange={(e) => setDockerHubToken(e.target.value)}
-                    required={!dockerHubCredentials}
-                    placeholder={
-                      dockerHubCredentials
-                        ? "Leave blank to keep current token"
-                        : "dckr_pat_..."
-                    }
-                    disabled={dockerHubLoading}
-                  />
-                  <small>
-                    {dockerHubCredentials
-                      ? "Leave blank to keep the current token, or enter a new token to update"
-                      : "Create a Personal Access Token at hub.docker.com/settings/security"}
-                  </small>
-                </div>
-                {dockerHubError && (
-                  <div className="error-message">{dockerHubError}</div>
-                )}
-                {dockerHubSuccess && (
-                  <div className="success-message">{dockerHubSuccess}</div>
-                )}
-                <button
-                  type="submit"
-                  className="update-button"
-                  disabled={
-                    dockerHubLoading ||
-                    !dockerHubUsername ||
-                    (!dockerHubToken && !dockerHubCredentials)
-                  }
-                >
-                  {dockerHubLoading
-                    ? "Saving..."
-                    : dockerHubCredentials
-                    ? "Update Credentials"
-                    : "Save Credentials"}
-                </button>
-              </form>
+              <DockerHubCredsModal
+                isOpen={showDockerHubModal}
+                onClose={() => setShowDockerHubModal(false)}
+                onSuccess={handleDockerHubModalSuccess}
+                existingCredentials={dockerHubCredentials}
+              />
             </div>
           )}
 

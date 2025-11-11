@@ -13,6 +13,7 @@ const {
 } = require('../db/database');
 const { validateRequiredFields } = require('../utils/validation');
 const portainerService = require('../services/portainerService');
+const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
 
 /**
  * Validate Portainer instance credentials without creating the instance
@@ -186,6 +187,36 @@ async function createInstance(req, res, next) {
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
 
+    // Resolve URL to IP address for fallback when DNS fails
+    let ipAddress = await resolveUrlToIp(url.trim());
+    if (ipAddress) {
+      console.log(`Resolved ${url.trim()} to IP: ${ipAddress}`);
+      
+      // Try to detect the actual backend IP if behind a proxy
+      // This is useful when the resolved IP is a proxy (like nginx proxy manager)
+      // and we need the actual Portainer instance IP
+      try {
+        const backendIp = await detectBackendIp(
+          ipAddress,
+          url.trim(),
+          apiKey || null,
+          username || null,
+          password || null,
+          authType
+        );
+        
+        if (backendIp && backendIp !== ipAddress) {
+          console.log(`Detected backend IP ${backendIp} (proxy was ${ipAddress})`);
+          ipAddress = backendIp; // Use the detected backend IP instead
+        }
+      } catch (detectError) {
+        // Non-fatal - if detection fails, use the proxy IP
+        console.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+      }
+    } else {
+      console.warn(`Failed to resolve ${url.trim()} to IP address - will use URL only`);
+    }
+
     // Create instance
     // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
     const id = await createPortainerInstance(
@@ -194,7 +225,8 @@ async function createInstance(req, res, next) {
       authType === 'apikey' ? '' : (username ? username.trim() : ''),
       authType === 'apikey' ? '' : (password || ''),
       apiKey || null,
-      authType
+      authType,
+      ipAddress
     );
 
     res.json({
@@ -283,6 +315,40 @@ async function updateInstance(req, res, next) {
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
     
+    // Resolve URL to IP address for fallback when DNS fails
+    // Only resolve if URL changed, otherwise keep existing IP
+    let ipAddress = existing.ip_address;
+    if (url.trim() !== existing.url) {
+      let resolvedIp = await resolveUrlToIp(url.trim());
+      if (resolvedIp) {
+        console.log(`Resolved ${url.trim()} to IP: ${resolvedIp}`);
+        
+        // Try to detect the actual backend IP if behind a proxy
+        try {
+          const backendIp = await detectBackendIp(
+            resolvedIp,
+            url.trim(),
+            apiKey || existing.api_key || null,
+            username || existing.username || null,
+            password || existing.password || null,
+            finalAuthType
+          );
+          
+          if (backendIp && backendIp !== resolvedIp) {
+            console.log(`Detected backend IP ${backendIp} (proxy was ${resolvedIp})`);
+            resolvedIp = backendIp;
+          }
+        } catch (detectError) {
+          // Non-fatal - if detection fails, use the proxy IP
+          console.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+        }
+        
+        ipAddress = resolvedIp;
+      } else {
+        console.warn(`Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`);
+      }
+    }
+    
     // Handle credentials based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
     let passwordToUse = null;
@@ -313,7 +379,8 @@ async function updateInstance(req, res, next) {
       finalAuthType === 'apikey' ? '' : (username ? username.trim() : ''),
       passwordToUse || '',
       apiKeyToUse,
-      finalAuthType
+      finalAuthType,
+      ipAddress
     );
 
     res.json({
