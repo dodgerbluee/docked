@@ -2877,13 +2877,9 @@ function Settings({
                   <li>Click <strong>"New Webhook"</strong></li>
                   <li>Choose the channel where you want notifications</li>
                   <li>Copy the webhook URL</li>
-                  <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
-                  <li>Optionally add a server name for easy identification</li>
+                  <li>Edit the webhook in Discord and rename it to <strong>Docked</strong></li>
                   <li>
-                    <strong>Recommended:</strong> Edit the webhook in Discord and rename it to <strong>"Docked"</strong>
-                  </li>
-                  <li>
-                    <strong>Recommended:</strong> Use the Docked logo as the webhook avatar
+                    Use the Docked logo as the webhook avatar
                     <button
                       onClick={() => {
                         const link = document.createElement('a');
@@ -2907,6 +2903,8 @@ function Settings({
                       Download Logo
                     </button>
                   </li>
+                  <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
+                  <li>Optionally add a server name for easy identification</li>
                 </ol>
               </div>
             </div>
