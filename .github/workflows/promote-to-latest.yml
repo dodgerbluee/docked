@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         if: github.event.inputs.create_release == 'true'
@@ -122,6 +124,45 @@ jobs:
           echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "Final tag: $TAG_NAME (version: $RELEASE_VERSION)"
 
+      - name: Get commits since previous release
+        id: commits
+        if: github.event.inputs.create_release == 'true'
+        run: |
+          # Find the previous -latest tag or the latest regular release tag
+          PREVIOUS_LATEST_TAG=$(git tag -l "*-latest" | sort -V | tail -1)
+          PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "latest" | sort -V | tail -1)
+          
+          # Determine which tag to use as the base
+          if [ -n "$PREVIOUS_LATEST_TAG" ]; then
+            # Use the previous -latest tag if it exists
+            BASE_TAG="$PREVIOUS_LATEST_TAG"
+            echo "Using previous -latest tag: $BASE_TAG"
+          elif [ -n "$PREVIOUS_RELEASE_TAG" ]; then
+            # Otherwise use the latest regular release tag
+            BASE_TAG="$PREVIOUS_RELEASE_TAG"
+            echo "Using previous release tag: $BASE_TAG"
+          else
+            # No previous tags, use the initial commit
+            BASE_TAG=""
+            echo "No previous tags found, using all commits"
+          fi
+          
+          # Get commits between BASE_TAG and HEAD
+          if [ -z "$BASE_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --reverse)
+          else
+            COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --reverse)
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No new commits since previous release"
+          fi
+          
+          # Store in output (escape newlines for GitHub Actions)
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: github.event.inputs.create_release == 'true'
         env:
@@ -129,7 +170,7 @@ jobs:
         run: |
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
           RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
-          RELEASE_NAME="Release v$RELEASE_VERSION (Promoted to Latest)"
+          RELEASE_NAME="v$RELEASE_VERSION"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
           
           RELEASE_BODY=$(cat <<EOF
@@ -141,6 +182,12 @@ jobs:
           **Promoted at:** $RELEASE_DATE
           
           This image has been tested and verified as stable.
+          
+          ---
+          
+          ## 📝 Commits in This Release
+          
+          ${{ steps.commits.outputs.commits }}
           EOF
           )
           
