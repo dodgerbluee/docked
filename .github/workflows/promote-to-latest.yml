@@ -65,21 +65,71 @@ jobs:
           
           echo "✓ Successfully promoted dev to latest"
 
-      - name: Get current version
+      - name: Install dependencies
+        if: github.event.inputs.create_release == 'true'
+        run: npm install
+
+      - name: Get current version and determine release tag
         id: version
         if: github.event.inputs.create_release == 'true'
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $VERSION"
+          # Get current version from package.json
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          
+          # Fetch all tags to find the latest -latest tag
+          git fetch --tags --force
+          
+          # Find all existing -latest tags and extract their base versions
+          LATEST_TAG=$(git tag -l "*-latest" | sort -V | tail -1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing -latest tag, use current version
+            TAG_NAME="v${BASE_VERSION}-latest"
+            RELEASE_VERSION="$BASE_VERSION"
+            echo "No existing -latest tag found, using base version: $BASE_VERSION"
+          else
+            # Extract version from latest tag (e.g., v1.0.0-latest -> 1.0.0)
+            LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/v\(.*\)-latest/\1/')
+            echo "Latest -latest tag: $LATEST_TAG (version: $LATEST_VERSION)"
+            
+            # Use semver to compare and increment versions
+            RELEASE_VERSION=$(node -e "
+              const semver = require('semver');
+              const baseVersion = '$BASE_VERSION';
+              const latestVersion = '$LATEST_VERSION';
+              
+              // Compare versions - if current version is newer, use it; otherwise increment patch
+              if (semver.gt(baseVersion, latestVersion)) {
+                console.log(baseVersion);
+              } else {
+                // Increment patch version from latest tag
+                console.log(semver.inc(latestVersion, 'patch'));
+              }
+            ")
+            
+            # Determine which version was used for logging
+            if [ "$RELEASE_VERSION" = "$BASE_VERSION" ]; then
+              echo "Current version ($BASE_VERSION) is newer than latest tag ($LATEST_VERSION), using current version"
+            else
+              echo "Incrementing patch version: $LATEST_VERSION -> $RELEASE_VERSION"
+            fi
+            
+            TAG_NAME="v${RELEASE_VERSION}-latest"
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Final tag: $TAG_NAME (version: $RELEASE_VERSION)"
 
       - name: Create GitHub Release
         if: github.event.inputs.create_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v${{ steps.version.outputs.version }}-latest"
-          RELEASE_NAME="Release v${{ steps.version.outputs.version }} (Promoted to Latest)"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          RELEASE_NAME="Release v$RELEASE_VERSION (Promoted to Latest)"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
           
           RELEASE_BODY=$(cat <<EOF
@@ -110,7 +160,7 @@ jobs:
           echo "**Image:** \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ github.event.inputs.create_release }}" == "true" ]; then
-            echo "**GitHub Release:** Created [v${{ steps.version.outputs.version }}-latest](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }}-latest)" >> $GITHUB_STEP_SUMMARY
+            echo "**GitHub Release:** Created [${{ steps.version.outputs.tag_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag_name }})" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           echo "**Promoted by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
