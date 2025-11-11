@@ -26,9 +26,15 @@ if (!fs.existsSync(DATA_DIR)) {
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
     console.error("Error opening database:", err.message);
+    console.error("Stack:", err.stack);
   } else {
     console.log(`Connected to SQLite database at ${DB_PATH}`);
-    initializeDatabase();
+    try {
+      initializeDatabase();
+    } catch (initError) {
+      console.error("Error initializing database:", initError);
+      console.error("Stack:", initError.stack);
+    }
   }
 });
 
@@ -624,6 +630,59 @@ function initializeDatabase() {
           db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
               console.error("Error creating settings key index:", idxErr.message);
+            }
+          });
+        }
+      }
+    );
+
+    // Create discord_webhooks table for multiple webhook configurations
+    db.run(
+      `CREATE TABLE IF NOT EXISTS discord_webhooks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        webhook_url TEXT NOT NULL,
+        server_name TEXT,
+        channel_name TEXT,
+        enabled INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => {
+        if (err) {
+          console.error("Error creating discord_webhooks table:", err.message);
+        } else {
+          console.log("Discord webhooks table ready");
+          // Create index for discord_webhooks table
+          db.run("CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating discord_webhooks enabled index:", idxErr.message);
+            }
+          });
+          
+          // Add avatar_url column if it doesn't exist (migration)
+          db.run("ALTER TABLE discord_webhooks ADD COLUMN avatar_url TEXT", (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              console.error("Error adding avatar_url column:", alterErr.message);
+            } else if (!alterErr) {
+              console.log("Added avatar_url column to discord_webhooks table");
+            }
+          });
+          
+          // Add guild_id and channel_id columns if they don't exist (migration)
+          db.run("ALTER TABLE discord_webhooks ADD COLUMN guild_id TEXT", (alterErr) => {
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              console.error("Error adding guild_id column:", alterErr.message);
+            } else if (!alterErr) {
+              console.log("Added guild_id column to discord_webhooks table");
+            }
+          });
+          
+          db.run("ALTER TABLE discord_webhooks ADD COLUMN channel_id TEXT", (alterErr) => {
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              console.error("Error adding channel_id column:", alterErr.message);
+            } else if (!alterErr) {
+              console.log("Added channel_id column to discord_webhooks table");
             }
           });
         }
@@ -1738,6 +1797,189 @@ function setSetting(key, value) {
   });
 }
 
+/**
+ * Get all Discord webhooks
+ * @returns {Promise<Array>} - Array of webhook objects
+ */
+function getAllDiscordWebhooks() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      "SELECT id, webhook_url, server_name, channel_name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks ORDER BY created_at ASC",
+      [],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Don't expose full webhook URL for security, just indicate if it's set
+          const sanitized = rows.map(row => ({
+            id: row.id,
+            webhookUrl: row.webhook_url ? '***configured***' : null,
+            serverName: row.server_name || null,
+            channelName: row.channel_name || null,
+            avatarUrl: row.avatar_url || null,
+            guildId: row.guild_id || null,
+            channelId: row.channel_id || null,
+            enabled: row.enabled === 1,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            hasWebhook: !!row.webhook_url,
+          }));
+          resolve(sanitized);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get a Discord webhook by ID (with full URL for internal use)
+ * @param {number} id - Webhook ID
+ * @returns {Promise<Object|null>} - Webhook object or null
+ */
+function getDiscordWebhookById(id) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT id, webhook_url, server_name, channel_name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks WHERE id = ?",
+      [id],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Create a new Discord webhook
+ * @param {string} webhookUrl - Webhook URL
+ * @param {string} serverName - Server name (optional)
+ * @param {string} channelName - Channel name (optional)
+ * @param {boolean} enabled - Whether webhook is enabled
+ * @param {string} avatarUrl - Avatar URL (optional)
+ * @param {string} guildId - Guild ID (optional)
+ * @param {string} channelId - Channel ID (optional)
+ * @returns {Promise<number>} - ID of created webhook
+ */
+function createDiscordWebhook(webhookUrl, serverName = null, channelName = null, enabled = true, avatarUrl = null, guildId = null, channelId = null) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      "INSERT INTO discord_webhooks (webhook_url, server_name, channel_name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+      [webhookUrl, serverName, channelName, avatarUrl, guildId, channelId, enabled ? 1 : 0],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update a Discord webhook
+ * @param {number} id - Webhook ID
+ * @param {Object} updateData - Data to update
+ * @returns {Promise<void>}
+ */
+function updateDiscordWebhook(id, updateData) {
+  return new Promise((resolve, reject) => {
+    const fields = [];
+    const values = [];
+
+    if (updateData.webhookUrl !== undefined) {
+      fields.push('webhook_url = ?');
+      values.push(updateData.webhookUrl);
+    }
+    if (updateData.serverName !== undefined) {
+      fields.push('server_name = ?');
+      values.push(updateData.serverName);
+    }
+    if (updateData.channelName !== undefined) {
+      fields.push('channel_name = ?');
+      values.push(updateData.channelName);
+    }
+    if (updateData.avatarUrl !== undefined) {
+      fields.push('avatar_url = ?');
+      values.push(updateData.avatarUrl);
+    }
+    if (updateData.guildId !== undefined) {
+      fields.push('guild_id = ?');
+      values.push(updateData.guildId);
+    }
+    if (updateData.channelId !== undefined) {
+      fields.push('channel_id = ?');
+      values.push(updateData.channelId);
+    }
+    if (updateData.enabled !== undefined) {
+      fields.push('enabled = ?');
+      values.push(updateData.enabled ? 1 : 0);
+    }
+
+    if (fields.length === 0) {
+      resolve();
+      return;
+    }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    const sql = `UPDATE discord_webhooks SET ${fields.join(', ')} WHERE id = ?`;
+
+    db.run(sql, values, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Delete a Discord webhook
+ * @param {number} id - Webhook ID
+ * @returns {Promise<void>}
+ */
+function deleteDiscordWebhook(id) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      "DELETE FROM discord_webhooks WHERE id = ?",
+      [id],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get all enabled Discord webhooks (for sending notifications)
+ * @returns {Promise<Array>} - Array of enabled webhook objects with full URLs
+ */
+function getEnabledDiscordWebhooks() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      "SELECT id, webhook_url, server_name, channel_name FROM discord_webhooks WHERE enabled = 1",
+      [],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      }
+    );
+  });
+}
+
 module.exports = {
   db,
   getUserByUsername,
@@ -1776,5 +2018,11 @@ module.exports = {
   getLatestBatchRunsByJobType,
   getSetting,
   setSetting,
+  getAllDiscordWebhooks,
+  getDiscordWebhookById,
+  createDiscordWebhook,
+  updateDiscordWebhook,
+  deleteDiscordWebhook,
+  getEnabledDiscordWebhooks,
   closeDatabase,
 };

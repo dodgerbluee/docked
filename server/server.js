@@ -145,29 +145,39 @@ app.use(errorHandler);
 const batchSystem = require("./services/batch");
 
 // Start server
-app.listen(config.port, () => {
-  logger.info(`Server running on port ${config.port}`, {
-    environment: process.env.NODE_ENV || "development",
-    port: config.port,
-  });
-
-  if (process.env.NODE_ENV === "development") {
-    logger.info(`Portainer URLs: ${config.portainer.urls.join(", ")}`);
-    logger.info(`Portainer Username: ${config.portainer.username}`);
-    logger.info(
-      `Docker Hub authentication: Configure via Settings UI for higher rate limits`
-    );
-    logger.info(`Cache TTL: 24 hours`);
-  }
-
-  // Start batch system (runs jobs in background even when browser is closed)
-  batchSystem.start()
-    .then(() => {
-      logger.info('Batch system started successfully');
-    })
-    .catch(err => {
-      logger.error('Error starting batch system', { error: err.message, stack: err.stack });
+try {
+  app.listen(config.port, () => {
+    logger.info(`Server running on port ${config.port}`, {
+      environment: process.env.NODE_ENV || "development",
+      port: config.port,
     });
-});
+
+    if (process.env.NODE_ENV === "development") {
+      logger.info(`Portainer URLs: ${config.portainer.urls.join(", ")}`);
+      logger.info(`Portainer Username: ${config.portainer.username}`);
+      logger.info(
+        `Docker Hub authentication: Configure via Settings UI for higher rate limits`
+      );
+      logger.info(`Cache TTL: 24 hours`);
+    }
+
+    // Start batch system (runs jobs in background even when browser is closed)
+    batchSystem.start()
+      .then(() => {
+        logger.info('Batch system started successfully');
+      })
+      .catch(err => {
+        logger.error('Error starting batch system', { error: err.message, stack: err.stack });
+      });
+  }).on('error', (err) => {
+    logger.error('Server listen error:', { error: err.message, stack: err.stack, port: config.port });
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`Port ${config.port} is already in use`);
+    }
+  });
+} catch (error) {
+  logger.error('Failed to start server:', { error: error.message, stack: error.stack });
+  process.exit(1);
+}
 
 module.exports = app;
