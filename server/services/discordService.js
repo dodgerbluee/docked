@@ -71,7 +71,7 @@ async function testWebhook(webhookUrl) {
       embeds: [{
         title: '🔧 Webhook Test',
         description: 'This is a test notification from Docked. If you see this, your webhook is configured correctly!',
-        color: 3066993, // Green
+        color: 23196, // Dodger Blue (#005A9C)
         timestamp: new Date().toISOString(),
         footer: { text: 'Docked System' },
       }],
@@ -345,16 +345,16 @@ function formatVersionUpdateNotification(imageData) {
   const embed = {
     title: '🆕 Version Available',
     description: `A new version of **${name}** is now available!`,
-    color: 3066993, // Green
+    color: 23196, // Dodger Blue (#005A9C)
     fields: [
-      {
-        name: 'Current Version',
-        value: currentVersion || 'Unknown',
-        inline: true,
-      },
       {
         name: 'Latest Version',
         value: latestVersionDisplay,
+        inline: true,
+      },
+      {
+        name: 'Current Version',
+        value: currentVersion || 'Unknown',
         inline: true,
       },
       {
