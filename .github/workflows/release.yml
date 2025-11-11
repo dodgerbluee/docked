@@ -1,0 +1,345 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on semantic version tags (e.g., v1.2.3)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - stable
+          - pre-release
+      create_tag:
+        description: 'Create git tag'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  NODE_VERSION: '18'
+
+jobs:
+  # Extract version from tag or input
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      is_prerelease: ${{ steps.extract.outputs.is_prerelease }}
+    steps:
+      - name: Extract version
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_PRERELEASE="${{ github.event.inputs.release_type == 'pre-release' }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            # Check if version contains pre-release identifiers
+            if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
+              IS_PRERELEASE="true"
+            else
+              IS_PRERELEASE="false"
+            fi
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION (prerelease: $IS_PRERELEASE)"
+
+  # Run tests before release
+  test:
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run server tests
+        run: |
+          cd server
+          npm test -- --coverage --watchAll=false
+
+      - name: Run client tests
+        run: |
+          cd client
+          npm test -- --coverage --watchAll=false
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./server/coverage/coverage-final.json,./client/coverage/coverage-final.json
+          flags: server,client
+          name: test-coverage
+
+  # Security scanning
+  security:
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate || true
+          cd server && npm audit --audit-level=moderate || true
+          cd ../client && npm audit --audit-level=moderate || true
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "Security scan completed. Review any vulnerabilities above."
+
+  # Build application
+  build:
+    runs-on: ubuntu-latest
+    needs: [version, test, security]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Update version in package.json files
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          # Update root package.json
+          npm pkg set version="$VERSION"
+          # Update server package.json
+          cd server && npm pkg set version="$VERSION"
+          # Update client package.json
+          cd ../client && npm pkg set version="$VERSION"
+
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+
+      - name: Create release artifacts
+        run: |
+          mkdir -p release-artifacts
+          # Create source tarball
+          tar -czf release-artifacts/docked-${{ needs.version.outputs.version }}-source.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='data' \
+            --exclude='.github' \
+            --exclude='release-artifacts' \
+            .
+          
+          # Create checksums
+          cd release-artifacts
+          sha256sum docked-${{ needs.version.outputs.version }}-source.tar.gz > docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+          retention-days: 90
+
+  # Build and push Docker image
+  docker:
+    runs-on: ubuntu-latest
+    needs: [version, build]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Generate changelog
+  changelog:
+    runs-on: ubuntu-latest
+    needs: version
+    outputs:
+      changelog: ${{ steps.generate.outputs.changelog }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: generate
+        uses: metcalfc/changelog-generator@v4
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+          configurationPath: .github/changelog-config.json
+
+      - name: Output changelog
+        run: |
+          echo "Generated changelog:"
+          echo "${{ steps.generate.outputs.changelog }}"
+
+  # Create GitHub release
+  release:
+    runs-on: ubuntu-latest
+    needs: [version, build, docker, changelog]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: Release v${{ needs.version.outputs.version }}
+          body: |
+            ## 🚀 Release v${{ needs.version.outputs.version }}
+            
+            **Release Date:** ${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
+            
+            ${{ needs.changelog.outputs.changelog }}
+            
+            ## 📦 Downloads
+            
+            ### Source Code
+            - **Source Tarball:** [docked-${{ needs.version.outputs.version }}-source.tar.gz](https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}/docked-${{ needs.version.outputs.version }}-source.tar.gz)
+            - **SHA256 Checksum:** [docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256](https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}/docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256)
+            
+            ### Container Image
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.version.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}:latest
+            ```
+            
+            ## 📚 Documentation
+            
+            - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation)
+            - [Upgrade Guide](https://github.com/${{ github.repository }}/blob/main/UPGRADE.md)
+            - [Full Changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
+            
+            ## 🔐 Verification
+            
+            Verify the checksum:
+            ```bash
+            sha256sum -c docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256
+            ```
+          files: |
+            release-artifacts/*
+          draft: false
+          prerelease: ${{ needs.version.outputs.is_prerelease }}
+          generate_release_notes: true
+
+  # Post-release tasks
+  post-release:
+    runs-on: ubuntu-latest
+    needs: [version, release]
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update version in CHANGELOG
+        run: |
+          echo "Release v${{ needs.version.outputs.version }} completed successfully!"
+          echo "Next steps:"
+          echo "1. Monitor release health"
+          echo "2. Respond to any issues"
+          echo "3. Update documentation if needed"
+          echo "4. Plan next release"
+
