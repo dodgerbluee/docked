@@ -400,16 +400,6 @@ function formatVersionUpdateNotification(imageData) {
     color: 23196, // Dodger Blue (#005A9C)
     fields: [
       {
-        name: 'Latest Version',
-        value: latestDisplay,
-        inline: true,
-      },
-      {
-        name: 'Current Version',
-        value: currentDisplay,
-        inline: true,
-      },
-      {
         name: 'Source',
         value: sourceDisplay,
         inline: false,
