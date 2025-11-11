@@ -16,6 +16,36 @@ export function formatBytes(bytes) {
 }
 
 /**
+ * Parse a UTC timestamp from SQLite/database format
+ * SQLite stores timestamps in UTC without timezone info (YYYY-MM-DD HH:MM:SS)
+ * @param {string} dateString - Date string from database
+ * @returns {Date} - Date object parsed as UTC
+ */
+export function parseUTCTimestamp(dateString) {
+  if (!dateString) return null;
+
+  if (typeof dateString === "string") {
+    // Check if it's a SQLite datetime format (YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS)
+    if (/^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(dateString)) {
+      // SQLite datetime without timezone - assume UTC and add 'Z'
+      return new Date(dateString.replace(" ", "T") + "Z");
+    } else if (
+      dateString.includes("T") &&
+      !dateString.includes("Z") &&
+      !dateString.match(/[+-]\d{2}:\d{2}$/)
+    ) {
+      // ISO string without timezone - assume UTC
+      return new Date(dateString + "Z");
+    } else {
+      // Already has timezone info or is in a different format
+      return new Date(dateString);
+    }
+  } else {
+    return new Date(dateString);
+  }
+}
+
+/**
  * Format a date string to "time ago" format
  * @param {string} dateString - ISO date string
  * @returns {string} - Formatted string (e.g., "2 days ago", "3 hours ago")

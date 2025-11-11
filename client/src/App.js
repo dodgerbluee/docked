@@ -20,6 +20,7 @@ import {
   getDockerHubRepoUrl,
   getGitHubRepoUrl,
   formatTimeAgo,
+  parseUTCTimestamp,
 } from "./utils/formatters";
 
 // Lazy load heavy components
@@ -254,6 +255,9 @@ function App() {
 
   const batchIntervalRef = useRef(null);
   const lastCheckedBatchRunIdRef = useRef(null); // Track last checked batch run ID for Docker Hub pulls
+  const lastCheckedBatchRunStatusRef = useRef(null); // Track last checked batch run status for Docker Hub pulls
+  const lastCheckedTrackedAppsBatchRunIdRef = useRef(null); // Track last checked batch run ID for tracked apps checks
+  const lastCheckedTrackedAppsBatchRunStatusRef = useRef(null); // Track last checked batch run status for tracked apps checks
   const batchInitialTimeoutRef = useRef(null);
   const hasRunInitialPullRef = useRef(false);
   const lastImageDeleteTimeRef = useRef(0); // Track when images were deleted to prevent count overwrite
@@ -521,23 +525,100 @@ function App() {
           `${API_BASE_URL}/api/batch/runs/latest?byJobType=true`
         );
         if (response.data.success && response.data.runs) {
+          // Check Docker Hub pull batch run
           const dockerHubRun = response.data.runs["docker-hub-pull"];
-          if (
-            dockerHubRun &&
-            dockerHubRun.status === "completed" &&
-            dockerHubRun.completed_at &&
-            dockerHubRun.id !== lastCheckedBatchRunIdRef.current
-          ) {
-            // New completed run detected
-            lastCheckedBatchRunIdRef.current = dockerHubRun.id;
-            const completedAt = new Date(dockerHubRun.completed_at);
-            // Only update if this is a new run (not the one we already processed)
+          if (dockerHubRun) {
+            // Always update the refs to track current state
+            const previousStatus = lastCheckedBatchRunStatusRef.current;
+            const previousId = lastCheckedBatchRunIdRef.current;
+            
             if (
-              !lastPullTime ||
-              completedAt.getTime() > lastPullTime.getTime()
+              dockerHubRun.status === "completed" &&
+              dockerHubRun.completed_at
             ) {
-              setLastPullTime(completedAt);
-              localStorage.setItem("lastPullTime", completedAt.toISOString());
+              // Parse as UTC timestamp (SQLite stores in UTC without timezone info)
+              const completedAt = parseUTCTimestamp(dockerHubRun.completed_at);
+              
+              // Check if this is a new run OR if the same run just completed (status changed from running to completed)
+              const isNewRun = dockerHubRun.id !== previousId;
+              const justCompleted = 
+                dockerHubRun.id === previousId &&
+                previousStatus !== "completed" &&
+                previousStatus !== null;
+              
+              // Update timestamp if:
+              // 1. It's a new run (different ID)
+              // 2. The same run just completed (status changed from running to completed)
+              // 3. We haven't seen this completed run before (both refs are null)
+              // 4. The timestamp is newer than what we have stored
+              const shouldUpdate = 
+                isNewRun || 
+                justCompleted || 
+                (previousId === null && previousStatus === null) ||
+                (!lastPullTime || completedAt.getTime() > lastPullTime.getTime());
+              
+              if (shouldUpdate) {
+                lastCheckedBatchRunIdRef.current = dockerHubRun.id;
+                lastCheckedBatchRunStatusRef.current = dockerHubRun.status;
+                setLastPullTime(completedAt);
+                localStorage.setItem("lastPullTime", completedAt.toISOString());
+              } else {
+                // Update status ref even if we don't update the timestamp
+                lastCheckedBatchRunIdRef.current = dockerHubRun.id;
+                lastCheckedBatchRunStatusRef.current = dockerHubRun.status;
+              }
+            } else {
+              // Run exists but not completed - update status ref
+              lastCheckedBatchRunIdRef.current = dockerHubRun.id;
+              lastCheckedBatchRunStatusRef.current = dockerHubRun.status;
+            }
+          }
+
+          // Check tracked apps check batch run
+          const trackedAppsRun = response.data.runs["tracked-apps-check"];
+          if (trackedAppsRun) {
+            // Always update the refs to track current state
+            const previousStatus = lastCheckedTrackedAppsBatchRunStatusRef.current;
+            const previousId = lastCheckedTrackedAppsBatchRunIdRef.current;
+            
+            if (
+              trackedAppsRun.status === "completed" &&
+              trackedAppsRun.completed_at
+            ) {
+              // Parse as UTC timestamp (SQLite stores in UTC without timezone info)
+              const completedAt = parseUTCTimestamp(trackedAppsRun.completed_at);
+              
+              // Check if this is a new run OR if the same run just completed (status changed from running to completed)
+              const isNewRun = trackedAppsRun.id !== previousId;
+              const justCompleted = 
+                trackedAppsRun.id === previousId &&
+                previousStatus !== "completed" &&
+                previousStatus !== null;
+              
+              // Update timestamp if:
+              // 1. It's a new run (different ID)
+              // 2. The same run just completed (status changed from running to completed)
+              // 3. We haven't seen this completed run before (both refs are null)
+              // 4. The timestamp is newer than what we have stored
+              const shouldUpdate = 
+                isNewRun || 
+                justCompleted || 
+                (previousId === null && previousStatus === null) ||
+                (!lastScanTime || completedAt.getTime() > lastScanTime.getTime());
+              
+              if (shouldUpdate) {
+                lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
+                lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
+                setLastScanTime(completedAt);
+              } else {
+                // Update status ref even if we don't update the timestamp
+                lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
+                lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
+              }
+            } else {
+              // Run exists but not completed - update status ref
+              lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
+              lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
             }
           }
         }
@@ -550,8 +631,8 @@ function App() {
     // Check immediately
     checkBatchRuns();
 
-    // Then check every 30 seconds
-    const interval = setInterval(checkBatchRuns, 30000);
+    // Poll every 5 seconds to catch batch completions quickly
+    const interval = setInterval(checkBatchRuns, 5000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated, authToken, passwordChanged, lastPullTime]);
@@ -916,9 +997,14 @@ function App() {
           const mostRecentCheck = images
             .map((img) => img.last_checked)
             .filter(Boolean)
-            .sort((a, b) => new Date(b) - new Date(a))[0];
+            .sort((a, b) => {
+              const dateA = parseUTCTimestamp(a);
+              const dateB = parseUTCTimestamp(b);
+              return dateB.getTime() - dateA.getTime();
+            })[0];
           if (mostRecentCheck) {
-            setLastScanTime(new Date(mostRecentCheck));
+            // Parse as UTC timestamp (database stores in UTC without timezone info)
+            setLastScanTime(parseUTCTimestamp(mostRecentCheck));
           }
         }
       }
@@ -2794,7 +2880,7 @@ function App() {
               onClick={() => setSettingsTab("discord")}
               disabled={!passwordChanged}
             >
-              Discord
+              Notifications
             </button>
             <button
               className={`content-tab ${
@@ -3104,7 +3190,8 @@ function App() {
                   color: "var(--text-secondary)",
                 }}
               >
-                Last scanned: {lastScanTime.toLocaleString(undefined, {
+                Last scanned: {lastScanTime.toLocaleString("en-US", {
+                  timeZone: "America/Chicago",
                   year: 'numeric',
                   month: 'numeric',
                   day: 'numeric',
@@ -4940,7 +5027,8 @@ function App() {
                         color: "var(--text-secondary)",
                       }}
                     >
-                      Last scanned: {lastPullTime.toLocaleString(undefined, {
+                      Last scanned: {lastPullTime.toLocaleString("en-US", {
+                        timeZone: "America/Chicago",
                         year: 'numeric',
                         month: 'numeric',
                         day: 'numeric',

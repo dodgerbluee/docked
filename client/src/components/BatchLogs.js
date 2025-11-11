@@ -636,34 +636,21 @@ function BatchLogs({
                         }
                       }}
                       disabled={triggeringBatch}
+                      className="update-button"
                       style={{
-                        padding: "6px 12px",
-                        fontSize: "0.85rem",
+                        padding: "8px 16px",
+                        fontSize: "0.9rem",
                         fontWeight: "600",
-                        background: triggeringBatch
-                          ? "var(--text-secondary)"
-                          : "var(--dodger-blue)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
+                        background: "rgba(30, 144, 255, 0.2)",
+                        color: "var(--dodger-blue)",
+                        border: "1px solid var(--dodger-blue)",
+                        borderRadius: "8px",
                         cursor: triggeringBatch ? "not-allowed" : "pointer",
-                        transition: "all 0.2s",
+                        transition: "all 0.3s",
                         display: "flex",
                         alignItems: "center",
                         gap: "4px",
-                        opacity: triggeringBatch ? 0.6 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!triggeringBatch) {
-                          e.currentTarget.style.background =
-                            "var(--dodger-blue-light)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!triggeringBatch) {
-                          e.currentTarget.style.background =
-                            "var(--dodger-blue)";
-                        }
+                        marginTop: 0,
                       }}
                     >
                       <svg
@@ -775,34 +762,23 @@ function BatchLogs({
                         }
                       }}
                       disabled={triggeringTrackedAppsBatch}
+                      className="update-button purple-button"
                       style={{
-                        padding: "6px 12px",
-                        fontSize: "0.85rem",
+                        padding: "8px 16px",
+                        fontSize: "0.9rem",
                         fontWeight: "600",
-                        background: triggeringTrackedAppsBatch
-                          ? "var(--text-secondary)"
-                          : "#8b5cf6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
+                        background: "rgba(139, 92, 246, 0.2)",
+                        color: "#8b5cf6",
+                        border: "1px solid #8b5cf6",
+                        borderRadius: "8px",
                         cursor: triggeringTrackedAppsBatch
                           ? "not-allowed"
                           : "pointer",
-                        transition: "all 0.2s",
+                        transition: "all 0.3s",
                         display: "flex",
                         alignItems: "center",
                         gap: "4px",
-                        opacity: triggeringTrackedAppsBatch ? 0.6 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!triggeringTrackedAppsBatch) {
-                          e.currentTarget.style.background = "#7c3aed";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!triggeringTrackedAppsBatch) {
-                          e.currentTarget.style.background = "#8b5cf6";
-                        }
+                        marginTop: 0,
                       }}
                     >
                       <svg

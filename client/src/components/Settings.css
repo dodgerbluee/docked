@@ -267,6 +267,28 @@ body.dark-mode .update-button:hover:not(:disabled) {
   transform: none;
 }
 
+/* Purple button styling */
+.update-button.purple-button {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+}
+
+body.dark-mode .update-button.purple-button {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #a78bfa !important;
+  border-color: #a78bfa !important;
+}
+
+.update-button.purple-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+body.dark-mode .update-button.purple-button:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
+}
+
 /* Test button - matches unused-images styling */
 .update-button.test-button {
   background: var(--bg-tertiary) !important;

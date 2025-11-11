@@ -3077,16 +3077,16 @@ function Settings({
                 <h4 style={{ marginTop: 0, marginBottom: "12px", color: "var(--text-primary)" }}>
                   How to Set Up Discord Webhooks
                 </h4>
-                <ol style={{ color: "var(--text-secondary)", lineHeight: "1.8", margin: 0, paddingLeft: "20px" }}>
-                  <li>Open your Discord server</li>
-                  <li>Go to <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong></li>
-                  <li>Click <strong>"New Webhook"</strong></li>
-                  <li>
+                <ol style={{ color: "var(--text-secondary)", lineHeight: "1.4", margin: 0, paddingLeft: "20px" }}>
+                  <li style={{ marginBottom: "3px" }}>Open your Discord server</li>
+                  <li style={{ marginBottom: "3px" }}>Go to <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong></li>
+                  <li style={{ marginBottom: "3px" }}>Click <strong>"New Webhook"</strong></li>
+                  <li style={{ marginBottom: "3px" }}>
                     Open and customize the webhook details:
-                    <ul style={{ marginTop: "8px", marginBottom: "8px", paddingLeft: "20px" }}>
-                      <li>Choose the channel where you want notifications</li>
-                      <li>Rename it <strong><i>Docked</i></strong></li>
-                      <li>
+                    <ul style={{ marginTop: "3px", marginBottom: "4px", paddingLeft: "20px" }}>
+                      <li style={{ marginBottom: "1px" }}>Choose the channel where you want notifications</li>
+                      <li style={{ marginBottom: "1px" }}>Rename it <strong><i>Docked</i></strong></li>
+                      <li style={{ marginBottom: "1px" }}>
                         Use the Docked logo as the webhook avatar
                         <button
                           onClick={() => {
@@ -3101,9 +3101,9 @@ function Settings({
                             marginLeft: '8px',
                             padding: '4px 12px',
                             fontSize: '0.85rem',
-                            background: 'rgba(30, 144, 255, 0.2)',
-                            color: 'var(--dodger-blue)',
-                            border: '1px solid var(--dodger-blue)',
+                            background: 'rgba(128, 128, 128, 0.2)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--text-secondary)',
                             borderRadius: '4px',
                             cursor: 'pointer',
                           }}
@@ -3113,9 +3113,9 @@ function Settings({
                       </li>
                     </ul>
                   </li>
-                  <li>Copy the webhook URL</li>
-                  <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
-                  <li>Optionally add a server name for easy identification</li>
+                  <li style={{ marginBottom: "4px" }}>Copy the webhook URL</li>
+                  <li style={{ marginBottom: "4px" }}>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
+                  <li style={{ marginBottom: "4px" }}>Optionally add a server name for easy identification</li>
                 </ol>
               </div>
             </div>
