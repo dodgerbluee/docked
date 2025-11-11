@@ -234,9 +234,13 @@ router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteT
 router.post("/tracked-images/:id/check-update", asyncHandler(trackedImageController.checkTrackedImageUpdate));
 
 // Discord notification routes
-router.get("/discord/config", asyncHandler(discordController.getDiscordConfig));
-router.post("/discord/config", asyncHandler(discordController.updateDiscordConfig));
+router.get("/discord/webhooks", asyncHandler(discordController.getDiscordWebhooks));
+router.get("/discord/webhooks/:id", asyncHandler(discordController.getDiscordWebhook));
+router.post("/discord/webhooks", asyncHandler(discordController.createDiscordWebhook));
+router.put("/discord/webhooks/:id", asyncHandler(discordController.updateDiscordWebhook));
+router.delete("/discord/webhooks/:id", asyncHandler(discordController.deleteDiscordWebhook));
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
+router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
 module.exports = router;

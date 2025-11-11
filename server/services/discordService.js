@@ -9,8 +9,13 @@
  * - Deduplication
  */
 
-const { getSetting, setSetting } = require('../db/database');
+const axios = require('axios');
 const logger = require('../utils/logger');
+
+// Lazy load database functions to avoid initialization issues
+function getDatabase() {
+  return require('../db/database');
+}
 
 // Discord webhook rate limits: 30 requests per 60 seconds per webhook
 const DISCORD_RATE_LIMIT = 30;
@@ -36,55 +41,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Get Discord configuration from settings
- * @returns {Promise<Object>} - Discord configuration
- */
-async function getDiscordConfig() {
-  try {
-    const webhookUrl = await getSetting('discord_webhook_url');
-    const channelId = await getSetting('discord_channel_id');
-    const enabled = await getSetting('discord_enabled');
-    
-    return {
-      webhookUrl: webhookUrl || null,
-      channelId: channelId || null,
-      enabled: enabled === 'true',
-    };
-  } catch (error) {
-    logger.error('Error getting Discord config:', error);
-    return {
-      webhookUrl: null,
-      channelId: null,
-      enabled: false,
-    };
-  }
-}
-
-/**
- * Update Discord configuration
- * @param {Object} config - Configuration object
- * @param {string} config.webhookUrl - Webhook URL
- * @param {string} config.channelId - Channel ID (optional, for future use)
- * @param {boolean} config.enabled - Whether notifications are enabled
- * @returns {Promise<void>}
- */
-async function updateDiscordConfig(config) {
-  try {
-    if (config.webhookUrl !== undefined) {
-      await setSetting('discord_webhook_url', config.webhookUrl || '');
-    }
-    if (config.channelId !== undefined) {
-      await setSetting('discord_channel_id', config.channelId || '');
-    }
-    if (config.enabled !== undefined) {
-      await setSetting('discord_enabled', config.enabled ? 'true' : 'false');
-    }
-  } catch (error) {
-    logger.error('Error updating Discord config:', error);
-    throw error;
-  }
-}
 
 /**
  * Validate webhook URL format
@@ -121,16 +77,15 @@ async function testWebhook(webhookUrl) {
       }],
     };
 
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
+    const response = await axios.post(webhookUrl, testPayload, {
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(testPayload),
+      validateStatus: () => true, // Don't throw on any status
     });
 
-    if (response.ok) {
+    if (response.status >= 200 && response.status < 300) {
       return { success: true };
     } else {
-      const errorText = await response.text().catch(() => 'Unknown error');
+      const errorText = response.data ? JSON.stringify(response.data) : response.statusText || 'Unknown error';
       return { success: false, error: `Webhook returned status ${response.status}: ${errorText}` };
     }
   } catch (error) {
@@ -268,10 +223,9 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
         }
       }
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
+      const response = await axios.post(webhookUrl, payload, {
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        validateStatus: () => true, // Don't throw on any status, handle manually
       });
 
       // Record request for rate limiting
@@ -279,7 +233,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
 
       if (response.status === 429) {
         // Rate limited - get retry-after header
-        const retryAfter = parseInt(response.headers.get('retry-after') || '60');
+        const retryAfter = parseInt(response.headers['retry-after'] || '60');
         const waitTime = retryAfter * 1000;
         
         logger.warn(`Discord rate limit hit, waiting ${waitTime}ms`);
@@ -292,11 +246,11 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
         }
       }
 
-      if (response.ok) {
+      if (response.status >= 200 && response.status < 300) {
         logger.info('Discord notification sent successfully');
         return { success: true };
       } else {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = response.data ? JSON.stringify(response.data) : response.statusText || 'Unknown error';
         const error = `HTTP ${response.status}: ${errorText}`;
         
         // Don't retry on client errors (4xx) except 429
@@ -435,10 +389,11 @@ function formatVersionUpdateNotification(imageData) {
  * @returns {Promise<void>}
  */
 async function queueNotification(imageData) {
-  // Check if enabled
-  const config = await getDiscordConfig();
-  if (!config.enabled || !config.webhookUrl) {
-    logger.debug('Discord notifications disabled or webhook not configured');
+  // Get all enabled webhooks
+  const { getEnabledDiscordWebhooks } = getDatabase();
+  const webhooks = await getEnabledDiscordWebhooks();
+  if (!webhooks || webhooks.length === 0) {
+    logger.debug('No enabled Discord webhooks configured');
     return;
   }
 
@@ -449,22 +404,26 @@ async function queueNotification(imageData) {
     return;
   }
 
-  // Check queue size
-  if (notificationQueue.length >= MAX_QUEUE_SIZE) {
-    logger.error(`Discord notification queue full (${MAX_QUEUE_SIZE}), dropping notification`);
-    return;
-  }
-
-  // Format and queue notification
+  // Format notification payload once
   const payload = formatVersionUpdateNotification(imageData);
-  notificationQueue.push({
-    webhookUrl: config.webhookUrl,
-    payload,
-    imageData,
-    dedupKey,
-  });
 
-  logger.debug(`Queued Discord notification for ${imageData.name}`);
+  // Queue notification for each enabled webhook
+  for (const webhook of webhooks) {
+    // Check queue size
+    if (notificationQueue.length >= MAX_QUEUE_SIZE) {
+      logger.error(`Discord notification queue full (${MAX_QUEUE_SIZE}), dropping notification`);
+      continue;
+    }
+
+    notificationQueue.push({
+      webhookUrl: webhook.webhook_url,
+      payload,
+      imageData,
+      dedupKey,
+    });
+
+    logger.debug(`Queued Discord notification for ${imageData.name} to webhook ${webhook.id}`);
+  }
 
   // Start processing queue if not already processing
   if (!isProcessingQueue) {
@@ -525,9 +484,11 @@ async function processNotificationQueue() {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 async function sendNotificationImmediate(imageData) {
-  const config = await getDiscordConfig();
-  if (!config.enabled || !config.webhookUrl) {
-    return { success: false, error: 'Discord notifications disabled or webhook not configured' };
+  // Get all enabled webhooks
+  const { getEnabledDiscordWebhooks } = getDatabase();
+  const webhooks = await getEnabledDiscordWebhooks();
+  if (!webhooks || webhooks.length === 0) {
+    return { success: false, error: 'No enabled Discord webhooks configured' };
   }
 
   // Check for duplicates
@@ -537,7 +498,9 @@ async function sendNotificationImmediate(imageData) {
   }
 
   const payload = formatVersionUpdateNotification(imageData);
-  const result = await sendNotificationWithRetry(config.webhookUrl, payload);
+  
+  // Send to first enabled webhook
+  const result = await sendNotificationWithRetry(webhooks[0].webhook_url, payload);
 
   if (result.success) {
     recordNotification(dedupKey);
@@ -546,11 +509,82 @@ async function sendNotificationImmediate(imageData) {
   return result;
 }
 
+/**
+ * Get webhook information from Discord API
+ * @param {string} webhookUrl - Webhook URL
+ * @returns {Promise<{success: boolean, name?: string, channel_id?: string, guild_id?: string, avatar?: string, avatar_url?: string, error?: string}>}
+ */
+async function getWebhookInfo(webhookUrl) {
+  if (!validateWebhookUrl(webhookUrl)) {
+    return { success: false, error: 'Invalid webhook URL format' };
+  }
+
+  try {
+    // Discord allows GET requests to webhook URLs to retrieve webhook information
+    const response = await axios.get(webhookUrl, {
+      validateStatus: () => true, // Don't throw on any status
+    });
+
+    if (response.status === 200 && response.data) {
+      const data = response.data;
+      
+      // Construct avatar URL if avatar hash is provided
+      let avatarUrl = null;
+      if (data.avatar) {
+        // Discord CDN URL format: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
+        // Extract webhook ID from URL
+        const webhookIdMatch = webhookUrl.match(/\/webhooks\/(\d+)\//);
+        if (webhookIdMatch) {
+          const webhookId = webhookIdMatch[1];
+          const avatarHash = data.avatar;
+          // Discord avatars can be .png, .jpg, .webp, or .gif
+          // Try .png first, but the actual format might vary
+          avatarUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.png`;
+        }
+      }
+
+      return {
+        success: true,
+        name: data.name || null,
+        channel_id: data.channel_id || null,
+        guild_id: data.guild_id || null,
+        avatar: data.avatar || null,
+        avatar_url: avatarUrl,
+        type: data.type || null,
+        id: data.id || null,
+        application_id: data.application_id || null,
+        source_guild: data.source_guild ? {
+          id: data.source_guild.id,
+          name: data.source_guild.name,
+          icon: data.source_guild.icon ? '***present***' : null,
+        } : null,
+        source_channel: data.source_channel ? {
+          id: data.source_channel.id,
+          name: data.source_channel.name,
+        } : null,
+      };
+    } else {
+      logger.warn('Failed to fetch webhook info:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+      });
+      return { success: false, error: `Failed to fetch webhook info: ${response.status}` };
+    }
+  } catch (error) {
+    logger.error('Error fetching webhook info:', {
+      error: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+    });
+    return { success: false, error: error.message || 'Failed to fetch webhook information' };
+  }
+}
+
 module.exports = {
-  getDiscordConfig,
-  updateDiscordConfig,
   validateWebhookUrl,
   testWebhook,
+  getWebhookInfo,
   queueNotification,
   sendNotificationImmediate,
   formatVersionUpdateNotification,

@@ -6,7 +6,19 @@
 const dockerRegistryService = require('./dockerRegistryService');
 const githubService = require('./githubService');
 const { updateTrackedImage } = require('../db/database');
-const discordService = require('./discordService');
+// Lazy load discordService to avoid loading issues during module initialization
+let discordService = null;
+function getDiscordService() {
+  if (!discordService) {
+    try {
+      discordService = require('./discordService');
+    } catch (error) {
+      console.error('Error loading discordService:', error);
+      return null;
+    }
+  }
+  return discordService;
+}
 
 /**
  * Check for updates on a single tracked image
@@ -179,16 +191,19 @@ async function checkTrackedImage(trackedImage) {
   // Send Discord notification if update detected (only if newly detected, not if already had update)
   if (hasUpdate && !trackedImage.has_update) {
     try {
-      await discordService.queueNotification({
-        id: trackedImage.id,
-        name: trackedImage.name,
-        imageName: imageName,
-        githubRepo: null,
-        sourceType: 'docker',
-        currentVersion: displayCurrentVersion,
-        latestVersion: displayLatestVersion,
-        latestVersionPublishDate: latestPublishDate,
-      });
+      const discord = getDiscordService();
+      if (discord && discord.queueNotification) {
+        await discord.queueNotification({
+          id: trackedImage.id,
+          name: trackedImage.name,
+          imageName: imageName,
+          githubRepo: null,
+          sourceType: 'docker',
+          currentVersion: displayCurrentVersion,
+          latestVersion: displayLatestVersion,
+          latestVersionPublishDate: latestPublishDate,
+        });
+      }
     } catch (error) {
       // Don't fail the update check if notification fails
       console.error('Error sending Discord notification:', error);
@@ -399,17 +414,20 @@ async function checkGitHubTrackedImage(trackedImage) {
   // Send Discord notification if update detected (only if newly detected, not if already had update)
   if (hasUpdate && !trackedImage.has_update) {
     try {
-      await discordService.queueNotification({
-        id: trackedImage.id,
-        name: trackedImage.name,
-        imageName: null,
-        githubRepo: githubRepo,
-        sourceType: 'github',
-        currentVersion: displayCurrentVersion,
-        latestVersion: displayLatestVersion,
-        latestVersionPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
-        releaseUrl: latestRelease?.html_url || null,
-      });
+      const discord = getDiscordService();
+      if (discord && discord.queueNotification) {
+        await discord.queueNotification({
+          id: trackedImage.id,
+          name: trackedImage.name,
+          imageName: null,
+          githubRepo: githubRepo,
+          sourceType: 'github',
+          currentVersion: displayCurrentVersion,
+          latestVersion: displayLatestVersion,
+          latestVersionPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
+          releaseUrl: latestRelease?.html_url || null,
+        });
+      }
     } catch (error) {
       // Don't fail the update check if notification fails
       console.error('Error sending Discord notification:', error);

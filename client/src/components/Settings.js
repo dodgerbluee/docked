@@ -4,9 +4,11 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import axios from "axios";
 import "./Settings.css";
 import DockerHubCredsModal from "./DockerHubCredsModal";
+import DiscordWebhookModal from "./DiscordWebhookModal";
 
 // In production, API is served from same origin, so use relative URLs
 const API_BASE_URL =
@@ -137,16 +139,10 @@ function Settings({
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
 
   // Discord settings state
-  const [discordConfig, setDiscordConfig] = useState({
-    webhookUrl: '',
-    channelId: '',
-    enabled: false,
-    hasWebhook: false,
-  });
-  const [discordLoading, setDiscordLoading] = useState(false);
-  const [discordError, setDiscordError] = useState('');
-  const [discordSuccess, setDiscordSuccess] = useState('');
-  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [discordWebhooks, setDiscordWebhooks] = useState([]);
+  const [showDiscordModal, setShowDiscordModal] = useState(false);
+  const [editingDiscordWebhook, setEditingDiscordWebhook] = useState(null);
+  const [discordSuccess, setDiscordSuccess] = useState("");
 
   useEffect(() => {
     fetchUserInfo();
@@ -154,7 +150,7 @@ function Settings({
     fetchDockerHubCredentials();
     fetchBatchConfig();
     fetchLogLevel();
-    fetchDiscordConfig();
+    fetchDiscordWebhooks();
     // If first login, always show password section (priority over activeSection)
     if (isFirstLogin) {
       if (onSectionChange) {
@@ -237,20 +233,41 @@ function Settings({
     }
   };
 
-  const fetchDiscordConfig = async () => {
+  const fetchDiscordWebhooks = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/discord/config`);
+      const response = await axios.get(`${API_BASE_URL}/api/discord/webhooks`);
       if (response.data.success) {
-        const config = response.data.config;
-        setDiscordConfig({
-          webhookUrl: '', // Don't expose the actual URL, user needs to re-enter if they want to change it
-          channelId: config.channelId || '',
-          enabled: config.enabled || false,
-          hasWebhook: config.hasWebhook || false,
-        });
+        setDiscordWebhooks(response.data.webhooks || []);
       }
     } catch (err) {
-      console.error("Error fetching Discord config:", err);
+      console.error("Error fetching Discord webhooks:", err);
+    }
+  };
+
+  const handleDiscordModalSuccess = async () => {
+    setDiscordSuccess("Discord webhook saved successfully!");
+    await fetchDiscordWebhooks();
+    setTimeout(() => setDiscordSuccess(""), 3000);
+  };
+
+  const handleDeleteDiscordWebhook = async (id) => {
+    if (!window.confirm("Are you sure you want to remove this Discord webhook?")) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/discord/webhooks/${id}`
+      );
+
+      if (response.data.success) {
+        setDiscordSuccess("Discord webhook removed successfully!");
+        await fetchDiscordWebhooks();
+        setTimeout(() => setDiscordSuccess(""), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to remove Discord webhook:", err);
+      alert(err.response?.data?.error || "Failed to remove Discord webhook");
     }
   };
 
@@ -2688,229 +2705,225 @@ function Settings({
               <h3>Discord Notifications</h3>
               <p style={{ color: "var(--text-secondary)", marginBottom: "20px" }}>
                 Configure Discord webhooks to receive notifications when new versions of tracked software are available.
+                You can add up to 3 webhooks.
               </p>
 
-              <form
-                className="update-form"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setDiscordLoading(true);
-                  setDiscordError("");
-                  setDiscordSuccess("");
-
-                  try {
-                    // If webhook URL is empty but we have one configured, don't send it (preserve existing)
-                    const webhookUrlToSend = discordConfig.webhookUrl.trim()
-                      ? discordConfig.webhookUrl.trim()
-                      : (discordConfig.hasWebhook ? undefined : null);
-
-                    const response = await axios.post(
-                      `${API_BASE_URL}/api/discord/config`,
-                      {
-                        ...(webhookUrlToSend !== undefined && { webhookUrl: webhookUrlToSend }),
-                        channelId: discordConfig.channelId || null,
-                        enabled: discordConfig.enabled,
-                      }
-                    );
-
-                    if (response.data.success) {
-                      setDiscordSuccess("Discord configuration saved successfully!");
-                      setTimeout(() => setDiscordSuccess(""), 3000);
-                      await fetchDiscordConfig();
-                    } else {
-                      throw new Error(response.data.error || "Failed to save configuration");
-                    }
-                  } catch (err) {
-                    console.error("Error saving Discord config:", err);
-                    setDiscordError(
-                      err.response?.data?.error || err.message || "Failed to save Discord configuration"
-                    );
-                    setTimeout(() => setDiscordError(""), 5000);
-                  } finally {
-                    setDiscordLoading(false);
-                  }
-                }}
-              >
-                <div className="form-group">
-                  <label htmlFor="discordEnabled">
-                    <input
-                      type="checkbox"
-                      id="discordEnabled"
-                      checked={discordConfig.enabled}
-                      onChange={(e) => {
-                        setDiscordConfig({
-                          ...discordConfig,
-                          enabled: e.target.checked,
-                        });
-                      }}
-                      disabled={discordLoading}
-                      style={{
-                        width: "20px",
-                        height: "20px",
-                        cursor: "pointer",
-                        marginRight: "8px",
-                      }}
-                    />
-                    <span style={{ fontWeight: "600", color: "var(--text-primary)" }}>
-                      Enable Discord Notifications
-                    </span>
-                  </label>
-                  <small
-                    style={{
-                      color: "var(--text-secondary)",
-                      lineHeight: "1.5",
-                      display: "block",
-                      marginTop: "4px",
-                      paddingLeft: "32px",
-                    }}
-                  >
-                    When enabled, you'll receive Discord notifications when new versions of tracked software are detected.
-                  </small>
+              {discordSuccess && (
+                <div className="success-message" style={{ marginBottom: "20px" }}>
+                  {discordSuccess}
                 </div>
+              )}
 
-                {discordConfig.enabled && (
-                  <>
-                    <div className="form-group" style={{ marginTop: "20px" }}>
-                      <label htmlFor="discordWebhookUrl">
-                        Discord Webhook URL
-                        {discordConfig.hasWebhook && (
-                          <span style={{ color: "var(--dodger-blue)", marginLeft: "8px", fontSize: "0.9em" }}>
-                            (Webhook is configured)
-                          </span>
-                        )}
-                      </label>
-                      <input
-                        type="text"
-                        id="discordWebhookUrl"
-                        value={discordConfig.webhookUrl}
-                        onChange={(e) => {
-                          setDiscordConfig({
-                            ...discordConfig,
-                            webhookUrl: e.target.value,
-                            hasWebhook: false, // Clear hasWebhook flag when user edits
-                          });
-                        }}
-                        placeholder="https://discord.com/api/webhooks/..."
-                        disabled={discordLoading}
-                        required={discordConfig.enabled}
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "var(--bg-primary)",
-                          color: "var(--text-primary)",
-                          fontSize: "14px",
-                        }}
-                      />
-                      <small style={{ color: "var(--text-secondary)", marginTop: "4px", display: "block" }}>
-                        {discordConfig.hasWebhook
-                          ? "A webhook is already configured. Enter a new webhook URL to replace it, or leave empty to keep the current one."
-                          : "Create a webhook in your Discord server settings. Go to Server Settings → Integrations → Webhooks → New Webhook."}
-                      </small>
-                    </div>
-
-                    <div className="form-group" style={{ marginTop: "20px" }}>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!discordConfig.webhookUrl) {
-                            setDiscordError("Please enter a webhook URL first");
-                            return;
-                          }
-
-                          setTestingWebhook(true);
-                          setDiscordError("");
-                          setDiscordSuccess("");
-
-                          try {
-                            const response = await axios.post(
-                              `${API_BASE_URL}/api/discord/test`,
-                              {
-                                webhookUrl: discordConfig.webhookUrl,
-                              }
-                            );
-
-                            if (response.data.success) {
-                              setDiscordSuccess("Webhook test successful! Check your Discord channel.");
-                              setTimeout(() => setDiscordSuccess(""), 5000);
-                            } else {
-                              throw new Error(response.data.error || "Webhook test failed");
-                            }
-                          } catch (err) {
-                            console.error("Error testing webhook:", err);
-                            setDiscordError(
-                              err.response?.data?.error || err.message || "Failed to test webhook"
-                            );
-                            setTimeout(() => setDiscordError(""), 5000);
-                          } finally {
-                            setTestingWebhook(false);
-                          }
-                        }}
-                        disabled={discordLoading || testingWebhook || !discordConfig.webhookUrl}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "var(--bg-secondary)",
-                          color: "var(--text-primary)",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                        }}
-                      >
-                        {testingWebhook ? "Testing..." : "Test Webhook"}
-                      </button>
-                    </div>
-
+              {discordWebhooks.length > 0 && (
+                <div style={{ marginBottom: "20px" }}>
+                  {discordWebhooks.map((webhook) => (
                     <div
+                      key={webhook.id}
                       style={{
-                        marginTop: "20px",
-                        padding: "16px",
                         background: "var(--bg-secondary)",
-                        borderRadius: "6px",
+                        padding: "15px",
+                        borderRadius: "8px",
+                        marginBottom: "12px",
                         border: "1px solid var(--border-color)",
                       }}
                     >
-                      <h4 style={{ marginTop: 0, marginBottom: "12px", color: "var(--text-primary)" }}>
-                        How to Set Up Discord Webhooks
-                      </h4>
-                      <ol style={{ color: "var(--text-secondary)", lineHeight: "1.8", margin: 0, paddingLeft: "20px" }}>
-                        <li>Open your Discord server</li>
-                        <li>Go to <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong></li>
-                        <li>Click <strong>"New Webhook"</strong></li>
-                        <li>Choose the channel where you want notifications</li>
-                        <li>Copy the webhook URL</li>
-                        <li>Paste it in the field above</li>
-                        <li>Click <strong>"Test Webhook"</strong> to verify it works</li>
-                      </ol>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          {webhook.avatarUrl && (
+                            <img
+                              src={webhook.avatarUrl}
+                              alt="Server avatar"
+                              style={{
+                                width: "48px",
+                                height: "48px",
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                                border: "2px solid var(--border-color)",
+                              }}
+                              onError={(e) => {
+                                // If image fails to load, hide it
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          )}
+                          <div>
+                            <strong style={{ color: "var(--text-primary)" }}>
+                              {webhook.serverName || "Unnamed Server"}
+                            </strong>
+                            {webhook.channelName && (
+                              <div
+                                style={{
+                                  color: "var(--text-secondary)",
+                                  fontSize: "0.9rem",
+                                  marginTop: "5px",
+                                }}
+                              >
+                                Channel: {webhook.channelName}
+                              </div>
+                            )}
+                          <div
+                            style={{
+                              color: "var(--text-tertiary)",
+                              fontSize: "0.85rem",
+                              marginTop: "3px",
+                            }}
+                          >
+                            {webhook.enabled ? (
+                              <span style={{ color: "var(--dodger-blue)" }}>✓ Enabled</span>
+                            ) : (
+                              <span style={{ color: "var(--text-tertiary)" }}>✗ Disabled</span>
+                            )}
+                            {webhook.updatedAt && (
+                              <span style={{ marginLeft: "10px" }}>
+                                • Last updated:{" "}
+                                {new Date(webhook.updatedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingDiscordWebhook(webhook);
+                              setShowDiscordModal(true);
+                            }}
+                            className="update-button"
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: "0.9rem",
+                              background: "rgba(30, 144, 255, 0.2)",
+                              borderColor: "var(--dodger-blue)",
+                              color: "var(--dodger-blue)",
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDiscordWebhook(webhook.id)}
+                            className="update-button"
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: "0.9rem",
+                              background: "rgba(239, 62, 66, 0.2)",
+                              borderColor: "var(--dodger-red)",
+                              color: "var(--dodger-red)",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </>
-                )}
+                  ))}
+                </div>
+              )}
 
-                {discordError && (
-                  <div className="error-message" style={{ marginTop: "16px" }}>
-                    {discordError}
-                  </div>
-                )}
-                {discordSuccess && (
-                  <div className="success-message" style={{ marginTop: "16px" }}>
-                    {discordSuccess}
-                  </div>
-                )}
-
+              {discordWebhooks.length < 3 && (
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Add Webhook button clicked');
+                    console.log('Current showDiscordModal state:', showDiscordModal);
+                    flushSync(() => {
+                      setEditingDiscordWebhook(null);
+                      setShowDiscordModal(true);
+                    });
+                    console.log('After state update, showDiscordModal should be:', true);
+                  }}
                   className="update-button"
-                  disabled={discordLoading || testingWebhook || (discordConfig.enabled && !discordConfig.webhookUrl && !discordConfig.hasWebhook)}
-                  style={{ marginTop: "20px" }}
+                  style={{
+                    marginTop: "10px",
+                    background: "rgba(30, 144, 255, 0.2)",
+                    borderColor: "var(--dodger-blue)",
+                    color: "var(--dodger-blue)",
+                  }}
                 >
-                  {discordLoading ? "Saving..." : "Save Configuration"}
+                  + Add Webhook
                 </button>
-              </form>
+              )}
+
+              {discordWebhooks.length >= 3 && (
+                <p style={{ color: "var(--text-tertiary)", fontSize: "0.9rem", marginTop: "10px" }}>
+                  Maximum of 3 webhooks reached. Remove an existing webhook to add a new one.
+                </p>
+              )}
+
+              <div
+                style={{
+                  marginTop: "30px",
+                  padding: "16px",
+                  background: "var(--bg-secondary)",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h4 style={{ marginTop: 0, marginBottom: "12px", color: "var(--text-primary)" }}>
+                  How to Set Up Discord Webhooks
+                </h4>
+                <ol style={{ color: "var(--text-secondary)", lineHeight: "1.8", margin: 0, paddingLeft: "20px" }}>
+                  <li>Open your Discord server</li>
+                  <li>Go to <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong></li>
+                  <li>Click <strong>"New Webhook"</strong></li>
+                  <li>Choose the channel where you want notifications</li>
+                  <li>Copy the webhook URL</li>
+                  <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
+                  <li>Optionally add a server name for easy identification</li>
+                  <li>
+                    <strong>Recommended:</strong> Edit the webhook in Discord and rename it to <strong>"Docked"</strong>
+                  </li>
+                  <li>
+                    <strong>Recommended:</strong> Use the Docked logo as the webhook avatar
+                    <button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = '/img/image.png';
+                        link.download = 'docked-logo.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      style={{
+                        marginLeft: '8px',
+                        padding: '4px 12px',
+                        fontSize: '0.85rem',
+                        background: 'var(--dodger-blue)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Download Logo
+                    </button>
+                  </li>
+                </ol>
+              </div>
             </div>
           )}
         </div>
       )}
+      
+      {/* Modals - rendered outside conditional sections so they're always in DOM */}
+      <DiscordWebhookModal
+        isOpen={showDiscordModal}
+        onClose={() => {
+          setShowDiscordModal(false);
+          setEditingDiscordWebhook(null);
+        }}
+        onSuccess={handleDiscordModalSuccess}
+        existingWebhook={editingDiscordWebhook}
+      />
     </>
   );
 }
