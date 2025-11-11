@@ -54,28 +54,37 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
   };
 
   const handleTestWebhook = async () => {
-    if (!formData.webhookUrl.trim()) {
-      setError('Please enter a webhook URL to test');
-      return;
-    }
-
     setTestingWebhook(true);
     setError('');
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/discord/test`,
-        {
-          webhookUrl: formData.webhookUrl.trim(),
+      let webhookUrl = formData.webhookUrl.trim();
+      
+      // If editing and no URL provided, test the existing webhook by ID
+      if (!webhookUrl && existingWebhook?.hasWebhook) {
+        const response = await axios.post(
+          `${API_BASE_URL}/api/discord/webhooks/${existingWebhook.id}/test`
+        );
+        
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Webhook test failed');
         }
-      );
+      } else if (webhookUrl) {
+        // Test with provided URL
+        const response = await axios.post(
+          `${API_BASE_URL}/api/discord/test`,
+          {
+            webhookUrl: webhookUrl,
+          }
+        );
 
-      if (response.data.success) {
-        // Show success message briefly
-        setError('');
-        alert('Webhook test successful! Check your Discord channel.');
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Webhook test failed');
+        }
       } else {
-        throw new Error(response.data.error || 'Webhook test failed');
+        setError('Please enter a webhook URL to test');
+        setTestingWebhook(false);
+        return;
       }
     } catch (err) {
       setError(
@@ -280,12 +289,12 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
             <small>When enabled, notifications will be sent to this webhook</small>
           </div>
 
-          {formData.webhookUrl && (
+          {(formData.webhookUrl || existingWebhook?.hasWebhook) && (
             <div className="form-group">
               <button
                 type="button"
                 onClick={handleTestWebhook}
-                disabled={loading || testingWebhook || !formData.webhookUrl.trim()}
+                disabled={loading || testingWebhook || (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '6px',

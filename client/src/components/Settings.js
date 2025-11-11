@@ -271,6 +271,21 @@ function Settings({
     }
   };
 
+  const handleTestDiscordWebhook = async (webhookId) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/discord/webhooks/${webhookId}/test`
+      );
+
+      if (!response.data.success) {
+        alert(response.data.error || "Webhook test failed");
+      }
+    } catch (err) {
+      console.error("Failed to test Discord webhook:", err);
+      alert(err.response?.data?.error || "Failed to test Discord webhook");
+    }
+  };
+
   const handleLogLevelChange = (newLevel) => {
     setLocalLogLevel(newLevel);
     setGeneralSettingsChanged(true);
@@ -2777,7 +2792,7 @@ function Settings({
                             {webhook.enabled ? (
                               <span style={{ color: "var(--dodger-blue)" }}>✓ Enabled</span>
                             ) : (
-                              <span style={{ color: "var(--text-tertiary)" }}>✗ Disabled</span>
+                              <span style={{ color: "var(--dodger-red)" }}>✗ Disabled</span>
                             )}
                             {webhook.updatedAt && (
                               <span style={{ marginLeft: "10px" }}>
@@ -2806,6 +2821,20 @@ function Settings({
                             }}
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleTestDiscordWebhook(webhook.id);
+                            }}
+                            className="update-button test-button"
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Test
                           </button>
                           <button
                             onClick={() => handleDeleteDiscordWebhook(webhook.id)}
@@ -2875,34 +2904,39 @@ function Settings({
                   <li>Open your Discord server</li>
                   <li>Go to <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong></li>
                   <li>Click <strong>"New Webhook"</strong></li>
-                  <li>Choose the channel where you want notifications</li>
-                  <li>Copy the webhook URL</li>
-                  <li>Edit the webhook in Discord and rename it to <strong>Docked</strong></li>
                   <li>
-                    Use the Docked logo as the webhook avatar
-                    <button
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = '/img/image.png';
-                        link.download = 'docked-logo.png';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                      }}
-                      style={{
-                        marginLeft: '8px',
-                        padding: '4px 12px',
-                        fontSize: '0.85rem',
-                        background: 'var(--dodger-blue)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Download Logo
-                    </button>
+                    Open and customize the webhook details:
+                    <ul style={{ marginTop: "8px", marginBottom: "8px", paddingLeft: "20px" }}>
+                      <li>Choose the channel where you want notifications</li>
+                      <li>Rename it <strong><i>Docked</i></strong></li>
+                      <li>
+                        Use the Docked logo as the webhook avatar
+                        <button
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = '/img/image.png';
+                            link.download = 'docked-logo.png';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          style={{
+                            marginLeft: '8px',
+                            padding: '4px 12px',
+                            fontSize: '0.85rem',
+                            background: 'var(--dodger-blue)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Download Logo
+                        </button>
+                      </li>
+                    </ul>
                   </li>
+                  <li>Copy the webhook URL</li>
                   <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
                   <li>Optionally add a server name for easy identification</li>
                 </ol>
