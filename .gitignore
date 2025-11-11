@@ -1,9 +1,51 @@
+# Dependencies
 node_modules/
-*/.env
-.env
-.DS_Store
-*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
 client/build/
-server/node_modules/
-client/node_modules/
-data
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+data/users.db
+data/users.db-journal
+data/avatars/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# Release artifacts
+release-artifacts/
+*.tar.gz
+*.zip
+*.sha256
+*.asc
+
+# Temporary files
+tmp/
+temp/

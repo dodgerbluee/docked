@@ -1,0 +1,89 @@
+{
+  "issuePrefixes": ["#"],
+  "issueRegex": "#(\\d+)",
+  "commitTypes": [
+    {
+      "type": "feat",
+      "section": "✨ Features",
+      "hidden": false
+    },
+    {
+      "type": "fix",
+      "section": "🐛 Bug Fixes",
+      "hidden": false
+    },
+    {
+      "type": "perf",
+      "section": "⚡ Performance Improvements",
+      "hidden": false
+    },
+    {
+      "type": "refactor",
+      "section": "♻️ Code Refactoring",
+      "hidden": false
+    },
+    {
+      "type": "docs",
+      "section": "📚 Documentation",
+      "hidden": false
+    },
+    {
+      "type": "style",
+      "section": "💄 Styles",
+      "hidden": false
+    },
+    {
+      "type": "chore",
+      "section": "🔧 Chores",
+      "hidden": false
+    },
+    {
+      "type": "test",
+      "section": "✅ Tests",
+      "hidden": false
+    },
+    {
+      "type": "build",
+      "section": "🏗️ Build System",
+      "hidden": false
+    },
+    {
+      "type": "ci",
+      "section": "👷 CI/CD",
+      "hidden": false
+    },
+    {
+      "type": "revert",
+      "section": "⏪ Reverts",
+      "hidden": false
+    },
+    {
+      "type": "security",
+      "section": "🔒 Security",
+      "hidden": false
+    }
+  ],
+  "commitIgnorePattern": "^Merge|^Revert|^docs|^style|^chore|^test|^build|^ci",
+  "breakingNote": "⚠️ **BREAKING CHANGE:**",
+  "sections": {
+    "✨ Features": {
+      "title": "✨ Features"
+    },
+    "🐛 Bug Fixes": {
+      "title": "🐛 Bug Fixes"
+    },
+    "⚡ Performance Improvements": {
+      "title": "⚡ Performance Improvements"
+    },
+    "🔒 Security": {
+      "title": "🔒 Security"
+    },
+    "♻️ Code Refactoring": {
+      "title": "♻️ Code Refactoring"
+    },
+    "📚 Documentation": {
+      "title": "📚 Documentation"
+    }
+  }
+}
+
