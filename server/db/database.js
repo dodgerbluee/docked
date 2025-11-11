@@ -144,6 +144,19 @@ function initializeDatabase() {
               }
             }
           );
+          // Add ip_address column if it doesn't exist (migration)
+          db.run(
+            `ALTER TABLE portainer_instances ADD COLUMN ip_address TEXT`,
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                console.error(
+                  "Error adding ip_address column:",
+                  alterErr.message
+                );
+              }
+            }
+          );
           // Make username and password nullable for API key auth
           // Note: SQLite doesn't support ALTER COLUMN, so we'll handle this in application logic
         }
@@ -810,7 +823,7 @@ async function createUser(username, password, role = "admin") {
 function getAllPortainerInstances() {
   return new Promise((resolve, reject) => {
     db.all(
-      "SELECT id, name, url, username, password, api_key, auth_type, display_order, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
+      "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
       [],
       (err, rows) => {
         if (err) {
@@ -831,7 +844,7 @@ function getAllPortainerInstances() {
 function getPortainerInstanceById(id) {
   return new Promise((resolve, reject) => {
     db.get(
-      "SELECT id, name, url, username, password, api_key, auth_type, display_order, created_at, updated_at FROM portainer_instances WHERE id = ?",
+      "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances WHERE id = ?",
       [id],
       (err, row) => {
         if (err) {
@@ -850,9 +863,12 @@ function getPortainerInstanceById(id) {
  * @param {string} url - Portainer URL
  * @param {string} username - Username
  * @param {string} password - Password (will be stored as-is, consider encryption)
+ * @param {string} apiKey - API key (for API key auth)
+ * @param {string} authType - Authentication type
+ * @param {string} ipAddress - IP address (optional, will be resolved if not provided)
  * @returns {Promise<number>} - ID of created instance
  */
-function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'apikey') {
+function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'apikey', ipAddress = null) {
   return new Promise((resolve, reject) => {
     // Get max display_order to set new instance at the end
     db.get(
@@ -874,8 +890,8 @@ function createPortainerInstance(name, url, username, password, apiKey = null, a
         const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
 
         db.run(
-          "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder],
+          "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder, ipAddress],
           function (insertErr) {
             if (insertErr) {
               reject(insertErr);
@@ -896,9 +912,12 @@ function createPortainerInstance(name, url, username, password, apiKey = null, a
  * @param {string} url - Portainer URL
  * @param {string} username - Username
  * @param {string} password - Password
+ * @param {string} apiKey - API key (for API key auth)
+ * @param {string} authType - Authentication type
+ * @param {string} ipAddress - IP address (optional)
  * @returns {Promise<void>}
  */
-function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'apikey') {
+function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'apikey', ipAddress = null) {
   return new Promise((resolve, reject) => {
     // Use appropriate fields based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
@@ -909,8 +928,8 @@ function updatePortainerInstance(id, name, url, username, password, apiKey = nul
     const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
 
     db.run(
-      "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [name, url, finalUsername, finalPassword, finalApiKey, authType, id],
+      "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, ip_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [name, url, finalUsername, finalPassword, finalApiKey, authType, ipAddress, id],
       function (err) {
         if (err) {
           reject(err);
