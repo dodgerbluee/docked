@@ -9,13 +9,23 @@ A modern web application for managing Docker container updates through Portainer
 - 🎨 **Modern UI**: Clean, responsive interface with real-time status updates
 - 🔄 **One-Click Upgrades**: Upgrade containers with a single click
 - 🔌 **Portainer Integration**: Seamlessly connects to your Portainer instance
+- 📦 **Professional Releases**: Automated release process following industry best practices
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v18 or higher)
 - npm or yarn
 - Portainer instance running and accessible
 - Docker containers managed by Portainer
+
+## Versioning
+
+Docked follows [Semantic Versioning 2.0.0](https://semver.org/):
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for new functionality in a backward compatible manner
+- **PATCH** version for backward compatible bug fixes
+
+See [RELEASE.md](RELEASE.md) for details on our release process.
 
 ## Installation
 
@@ -165,6 +175,41 @@ The following are configured through the Settings UI in the application:
 
 - The current implementation uses a simplified update check. For production use, you may want to enhance the `checkImageUpdates` function to actually query Docker Hub or your registry API to compare image tags/versions.
 - The application uses the first available Portainer endpoint. To support multiple endpoints, you can extend the code.
+
+## Releases
+
+### Latest Release
+
+Check the [Releases](https://github.com/your-org/docked/releases) page for the latest version.
+
+### Upgrade Guide
+
+See [UPGRADE.md](UPGRADE.md) for detailed upgrade instructions.
+
+### Release Process
+
+Our release process follows industry best practices. See [RELEASE.md](RELEASE.md) for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`npm test`)
+5. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat:` New feature
+   - `fix:` Bug fix
+   - `docs:` Documentation changes
+   - `style:` Code style changes
+   - `refactor:` Code refactoring
+   - `test:` Adding or updating tests
+   - `chore:` Maintenance tasks
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
