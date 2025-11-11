@@ -1191,7 +1191,7 @@ function Settings({
                 <div className="form-actions">
                   <button
                     type="submit"
-                    className="update-button"
+                    className="primary-button"
                     disabled={!generalSettingsChanged || generalSettingsSaving}
                   >
                     {generalSettingsSaving ? "Saving..." : "Save Changes"}
@@ -1214,19 +1214,11 @@ function Settings({
                         }
                       }}
                       disabled={clearingPortainerData}
+                      className="update-button danger-button"
                       style={{
                         padding: "10px 20px",
                         fontSize: "1rem",
-                        fontWeight: "600",
-                        background: clearingPortainerData
-                          ? "var(--bg-secondary)"
-                          : "var(--dodger-red)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: clearingPortainerData ? "not-allowed" : "pointer",
-                        opacity: clearingPortainerData ? 0.6 : 1,
-                        transition: "all 0.2s",
+                        marginTop: 0,
                         width: "auto",
                         alignSelf: "flex-start",
                       }}
@@ -1256,19 +1248,11 @@ function Settings({
                         }
                       }}
                       disabled={clearingTrackedAppData}
+                      className="update-button danger-button"
                       style={{
                         padding: "10px 20px",
                         fontSize: "1rem",
-                        fontWeight: "600",
-                        background: clearingTrackedAppData
-                          ? "var(--bg-secondary)"
-                          : "var(--dodger-red)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: clearingTrackedAppData ? "not-allowed" : "pointer",
-                        opacity: clearingTrackedAppData ? 0.6 : 1,
-                        transition: "all 0.2s",
+                        marginTop: 0,
                         width: "auto",
                         alignSelf: "flex-start",
                       }}
@@ -1328,7 +1312,7 @@ function Settings({
                 )}
                 <button
                   type="submit"
-                  className="update-button"
+                  className="primary-button"
                   disabled={
                     usernameLoading || !newUsername || !usernamePassword
                   }
@@ -1407,7 +1391,7 @@ function Settings({
                 )}
                 <button
                   type="submit"
-                  className="update-button"
+                  className="primary-button"
                   disabled={
                     passwordLoading ||
                     !newPassword ||
@@ -1543,20 +1527,17 @@ function Settings({
                                 handleEditInstance(instance);
                               }
                             }}
-                            className="update-button"
+                            className="primary-button"
                             style={{ padding: "8px 16px", fontSize: "0.9rem" }}
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleDeleteInstance(instance.id)}
-                            className="update-button"
+                            className="update-button danger-button"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
-                              background: "rgba(239, 62, 66, 0.2)",
-                              borderColor: "var(--dodger-red)",
-                              color: "var(--dodger-red)",
                             }}
                           >
                             Delete
@@ -1905,7 +1886,7 @@ function Settings({
                             handleAvatarUpload();
                           }}
                           disabled={avatarUploading}
-                          className="update-button"
+                          className="primary-button"
                           style={{ flex: 1 }}
                         >
                           {avatarUploading ? "Processing..." : "Upload Avatar"}
@@ -1974,11 +1955,8 @@ function Settings({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="update-button avatar-delete-button"
+                  className="update-button danger-button avatar-delete-button"
                   style={{
-                    background: "rgba(239, 62, 66, 0.2)",
-                    borderColor: "var(--dodger-red)",
-                    color: "var(--dodger-red)",
                     padding: "8px 16px",
                     fontSize: "0.9rem",
                     marginTop: 0,
@@ -2051,12 +2029,7 @@ function Settings({
                       <button
                         type="button"
                         onClick={handleDeleteAvatar}
-                        className="update-button"
-                        style={{
-                          background: "rgba(239, 62, 66, 0.2)",
-                          borderColor: "var(--dodger-red)",
-                          color: "var(--dodger-red)",
-                        }}
+                        className="update-button danger-button"
                       >
                         Delete
                       </button>
@@ -2204,11 +2177,10 @@ function Settings({
                     <div style={{ display: "flex", gap: "10px" }}>
                       <button
                         onClick={() => setShowDockerHubModal(true)}
-                        className="update-button"
+                        className="primary-button"
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.9rem",
-                          background: "rgba(30, 144, 255, 0.2)",
                           borderColor: "var(--dodger-blue)",
                           color: "var(--dodger-blue)",
                         }}
@@ -2217,13 +2189,10 @@ function Settings({
                       </button>
                       <button
                         onClick={handleDeleteDockerHubCreds}
-                        className="update-button"
+                        className="update-button danger-button"
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.9rem",
-                          background: "rgba(239, 62, 66, 0.2)",
-                          borderColor: "var(--dodger-red)",
-                          color: "var(--dodger-red)",
                         }}
                       >
                         Remove
@@ -2253,13 +2222,10 @@ function Settings({
                   </p>
                   <button
                     onClick={() => setShowDockerHubModal(true)}
-                    className="update-button"
+                    className="primary-button"
                     style={{
                       padding: "10px 20px",
                       fontSize: "1rem",
-                      background: "rgba(30, 144, 255, 0.2)",
-                      color: "var(--dodger-blue)",
-                      border: "1px solid var(--dodger-blue)",
                     }}
                   >
                     Create Entry
@@ -2797,7 +2763,7 @@ function Settings({
                 )}
                 <button
                   type="submit"
-                  className="update-button"
+                  className="primary-button"
                   disabled={
                     batchLoading["docker-hub-pull"] ||
                     batchLoading["tracked-apps-check"] ||
@@ -2912,11 +2878,10 @@ function Settings({
                               setEditingDiscordWebhook(webhook);
                               setShowDiscordModal(true);
                             }}
-                            className="update-button"
+                            className="primary-button"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
-                              background: "rgba(30, 144, 255, 0.2)",
                               borderColor: "var(--dodger-blue)",
                               color: "var(--dodger-blue)",
                             }}
@@ -2942,13 +2907,10 @@ function Settings({
                           </button>
                           <button
                             onClick={() => handleDeleteDiscordWebhook(webhook.id)}
-                            className="update-button"
+                            className="update-button danger-button"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
-                              background: "rgba(239, 62, 66, 0.2)",
-                              borderColor: "var(--dodger-red)",
-                              color: "var(--dodger-red)",
                             }}
                           >
                             Remove
@@ -2974,12 +2936,9 @@ function Settings({
                     });
                     console.log('After state update, showDiscordModal should be:', true);
                   }}
-                  className="update-button"
+                  className="primary-button"
                   style={{
                     marginTop: "10px",
-                    background: "rgba(30, 144, 255, 0.2)",
-                    borderColor: "var(--dodger-blue)",
-                    color: "var(--dodger-blue)",
                   }}
                 >
                   + Add Webhook

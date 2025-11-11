@@ -276,6 +276,28 @@ body.dark-mode .update-button.test-button:hover:not(:disabled) {
   width: auto !important;
 }
 
+/* Reusable danger/red button class */
+.danger-button {
+  background: rgba(239, 62, 66, 0.2) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.3) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.danger-button-filled {
+  background: var(--dodger-red) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.danger-button-filled:hover:not(:disabled) {
+  background: var(--dodger-red-light) !important;
+}
+
 .avatar-delete-button {
   display: inline-block !important;
   width: auto !important;

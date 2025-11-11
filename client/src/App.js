@@ -2676,21 +2676,11 @@ function App() {
             <h2 className="settings-header">Settings</h2>
             <button
               onClick={() => setActiveTab("summary")}
-              className="update-button"
+              className="primary-button"
               style={{
-                padding: "10px 20px",
-                fontSize: "1rem",
-                fontWeight: "600",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                marginTop: "0",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(30, 144, 255, 0.3)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(30, 144, 255, 0.2)";
               }}
             >
               <svg
@@ -3698,9 +3688,26 @@ function App() {
               <>
                 {selectedImages.size > 0 && (
                   <button
-                    className="delete-images-button"
+                    className="danger-button"
                     onClick={handleDeleteImages}
                     disabled={deletingImages}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      background: "transparent",
+                      color: "var(--dodger-red)",
+                      border: "1px solid var(--dodger-red)",
+                      borderRadius: "6px",
+                      fontSize: "0.85rem",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      marginTop: 0,
+                      marginBottom: 0,
+                      whiteSpace: "nowrap",
+                    }}
                   >
                     {deletingImages
                       ? `Deleting ${selectedImages.size}...`
@@ -3923,49 +3930,49 @@ function App() {
                     </p>
                   </div>
                 </div>
-                <div className="unused-images-grid">
+                <div
+                  className="containers-grid"
+                  style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+                >
                   {portainerUnusedImages.map((image) => (
-                    <div key={image.id} className="unused-image-card">
-                      <div className="image-card-header">
-                        <div className="image-info">
-                          <div className="image-tags-header">
-                            <strong>Image Tags:</strong>
-                          </div>
-                          <div className="image-tags">
-                            {image.repoTags && image.repoTags.length > 0 ? (
-                              image.repoTags.map((tag, idx) => (
-                                <span key={idx} className="image-tag-badge">
-                                  {tag}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="image-tag-badge no-tag">
-                                &lt;none&gt;
-                              </span>
-                            )}
-                          </div>
-                          <div className="image-meta">
-                            <span className="image-size">
-                              <strong>Size:</strong> {formatBytes(image.size)}
-                            </span>
-                            <span className="image-portainer">
-                              <strong>Portainer:</strong> {image.portainerName}
-                            </span>
-                          </div>
-                        </div>
-                        <label className="image-checkbox">
+                    <div key={image.id} className="container-card update-available">
+                      <div className="card-header">
+                        <h3>
+                          {image.repoTags && image.repoTags.length > 0
+                            ? image.repoTags[0]
+                            : "<none>"}
+                        </h3>
+                        <label className="container-checkbox">
                           <input
                             type="checkbox"
                             checked={selectedImages.has(image.id)}
                             onChange={() => handleToggleImageSelect(image.id)}
+                            disabled={deletingImages}
                           />
                         </label>
                       </div>
-                      <div className="image-card-footer">
+                      <div className="card-body">
+                        {image.repoTags && image.repoTags.length > 1 && (
+                          <p className="image-info">
+                            <strong>Tags:</strong>{" "}
+                            {image.repoTags.slice(1).join(", ")}
+                          </p>
+                        )}
+                        <p className="tag-info">
+                          <strong>Size:</strong> {formatBytes(image.size)}
+                        </p>
+                        <p className="tag-info">
+                          <strong>Portainer:</strong> {image.portainerName}
+                        </p>
                         <button
-                          className="delete-image-button"
+                          className="update-button danger-button"
                           onClick={() => handleDeleteImage(image)}
                           disabled={deletingImages}
+                          style={{
+                            padding: "5px 12px",
+                            fontSize: "0.9rem",
+                            marginTop: "10px",
+                          }}
                         >
                           {deletingImages ? "Deleting..." : "Delete Image"}
                         </button>
@@ -4099,7 +4106,7 @@ function App() {
                   gap: "10px",
                 }}
               >
-                <div style={{ position: "relative", marginRight: "10px" }}>
+                <div style={{ position: "relative", marginRight: "18px" }}>
                   <button
                     className="notification-button"
                     onClick={() => {
@@ -4963,21 +4970,11 @@ function App() {
                     </h2>
                     <button
                       onClick={() => setActiveTab("summary")}
-                      className="update-button"
+                      className="primary-button"
                       style={{
-                        padding: "10px 20px",
-                        fontSize: "1rem",
-                        fontWeight: "600",
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
-                        marginTop: "0",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(30, 144, 255, 0.3)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(30, 144, 255, 0.2)";
                       }}
                     >
                       <svg
