@@ -14,6 +14,8 @@ import {
   Search,
   Lock,
   AlertTriangle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import "./Settings.css";
 import DockerHubCredsModal from "./DockerHubCredsModal";
@@ -1527,20 +1529,48 @@ function Settings({
                                 handleEditInstance(instance);
                               }
                             }}
-                            className="primary-button"
-                            style={{ padding: "8px 16px", fontSize: "0.9rem" }}
+                            className="update-button"
+                            title="Edit"
+                            style={{ 
+                              padding: "8px 16px", 
+                              fontSize: "0.9rem",
+                              lineHeight: "1.5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 0,
+                              boxSizing: "border-box",
+                              height: "auto",
+                              minHeight: 0,
+                              borderWidth: "1px",
+                              fontWeight: "600",
+                              background: "rgba(128, 128, 128, 0.2)",
+                              borderColor: "var(--text-secondary)",
+                              color: "var(--text-secondary)",
+                            }}
                           >
-                            Edit
+                            <Pencil size={16} />
                           </button>
                           <button
                             onClick={() => handleDeleteInstance(instance.id)}
                             className="update-button danger-button"
+                            title="Delete"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
+                              lineHeight: "1.5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 0,
+                              boxSizing: "border-box",
+                              height: "auto",
+                              minHeight: 0,
+                              borderWidth: "1px",
+                              fontWeight: "600",
                             }}
                           >
-                            Delete
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -1610,6 +1640,7 @@ function Settings({
                       border: "1px solid var(--dodger-blue)",
                       borderRadius: "8px",
                       cursor: "pointer",
+                      fontSize: "1rem",
                       fontWeight: "600",
                       transition: "all 0.3s",
                       width: "auto",
@@ -1957,12 +1988,12 @@ function Settings({
                   onClick={() => setShowDeleteConfirm(true)}
                   className="update-button danger-button avatar-delete-button"
                   style={{
-                    padding: "8px 16px",
-                    fontSize: "0.9rem",
+                    padding: "10px 20px",
+                    fontSize: "1rem",
                     marginTop: 0,
                     display: "inline-block",
                     width: "auto",
-                    minWidth: "120px",
+                    alignSelf: "flex-start",
                   }}
                 >
                   Delete Avatar
@@ -2177,25 +2208,48 @@ function Settings({
                     <div style={{ display: "flex", gap: "10px" }}>
                       <button
                         onClick={() => setShowDockerHubModal(true)}
-                        className="primary-button"
+                        className="update-button"
+                        title="Edit"
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.9rem",
-                          borderColor: "var(--dodger-blue)",
-                          color: "var(--dodger-blue)",
+                          lineHeight: "1.5",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginTop: 0,
+                          boxSizing: "border-box",
+                          height: "auto",
+                          minHeight: 0,
+                          borderWidth: "1px",
+                          fontWeight: "600",
+                          background: "rgba(128, 128, 128, 0.2)",
+                          borderColor: "var(--text-secondary)",
+                          color: "var(--text-secondary)",
                         }}
                       >
-                        Edit
+                        <Pencil size={16} />
                       </button>
                       <button
                         onClick={handleDeleteDockerHubCreds}
                         className="update-button danger-button"
+                        title="Delete"
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.9rem",
+                          lineHeight: "1.5",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginTop: 0,
+                          boxSizing: "border-box",
+                          height: "auto",
+                          minHeight: 0,
+                          borderWidth: "1px",
+                          fontWeight: "600",
                         }}
                       >
-                        Remove
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
@@ -2793,8 +2847,8 @@ function Settings({
               {discordSuccess && (
                 <div className="success-message" style={{ marginBottom: "20px" }}>
                   {discordSuccess}
-                </div>
-              )}
+        </div>
+      )}
 
               {discordWebhooks.length > 0 && (
                 <div style={{ marginBottom: "20px" }}>
@@ -2878,15 +2932,27 @@ function Settings({
                               setEditingDiscordWebhook(webhook);
                               setShowDiscordModal(true);
                             }}
-                            className="primary-button"
+                            className="update-button"
+                            title="Edit"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
-                              borderColor: "var(--dodger-blue)",
-                              color: "var(--dodger-blue)",
+                              lineHeight: "1.5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 0,
+                              boxSizing: "border-box",
+                              height: "auto",
+                              minHeight: 0,
+                              borderWidth: "1px",
+                              fontWeight: "600",
+                              background: "rgba(128, 128, 128, 0.2)",
+                              borderColor: "var(--text-secondary)",
+                              color: "var(--text-secondary)",
                             }}
                           >
-                            Edit
+                            <Pencil size={16} />
                           </button>
                           <button
                             onClick={(e) => {
@@ -2898,9 +2964,19 @@ function Settings({
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
-                              background: "rgba(128, 128, 128, 0.2)",
-                              borderColor: "var(--text-secondary)",
-                              color: "var(--text-secondary)",
+                              lineHeight: "1.5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 0,
+                              boxSizing: "border-box",
+                              height: "auto",
+                              minHeight: 0,
+                              borderWidth: "1px",
+                              fontWeight: "600",
+                              background: "rgba(30, 144, 255, 0.2)",
+                              borderColor: "var(--dodger-blue)",
+                              color: "var(--dodger-blue)",
                             }}
                           >
                             Test
@@ -2908,12 +2984,23 @@ function Settings({
                           <button
                             onClick={() => handleDeleteDiscordWebhook(webhook.id)}
                             className="update-button danger-button"
+                            title="Delete"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
+                              lineHeight: "1.5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 0,
+                              boxSizing: "border-box",
+                              height: "auto",
+                              minHeight: 0,
+                              borderWidth: "1px",
+                              fontWeight: "600",
                             }}
                           >
-                            Remove
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>

@@ -10,7 +10,7 @@ import React, {
   lazy,
 } from "react";
 import axios from "axios";
-import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2 } from "lucide-react";
+import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -2455,30 +2455,6 @@ function App() {
                             marginTop: "3px",
                           }}
                         >
-                          <button
-                            className="update-button"
-                            onClick={() => handleUpgrade(container)}
-                            disabled={
-                              upgrading[container.id] ||
-                              isPortainerContainer(container)
-                            }
-                            title={
-                              isPortainerContainer(container)
-                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
-                                : ""
-                            }
-                            style={{
-                              padding: "5px 12px",
-                              fontSize: "0.9rem",
-                              background: "rgba(30, 144, 255, 0.2)",
-                              borderColor: "var(--dodger-blue)",
-                              color: "var(--dodger-blue)",
-                            }}
-                          >
-                            {upgrading[container.id]
-                              ? "Upgrading..."
-                              : "Upgrade Now"}
-                          </button>
                           {container.image && (
                             <button
                               className="update-button"
@@ -2513,6 +2489,31 @@ function App() {
                               hub
                             </button>
                           )}
+                          <button
+                            className="update-button"
+                            onClick={() => handleUpgrade(container)}
+                            disabled={
+                              upgrading[container.id] ||
+                              isPortainerContainer(container)
+                            }
+                            title={
+                              isPortainerContainer(container)
+                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                                : ""
+                            }
+                            style={{
+                              padding: "5px 12px",
+                              fontSize: "0.9rem",
+                              background: "rgba(30, 144, 255, 0.2)",
+                              borderColor: "var(--dodger-blue)",
+                              color: "var(--dodger-blue)",
+                              marginLeft: "auto",
+                            }}
+                          >
+                            {upgrading[container.id]
+                              ? "Updating..."
+                              : "Update"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2898,30 +2899,86 @@ function App() {
               <div
                 key={stat.name}
                 className="instance-card"
-                onClick={() => {
-                  setActiveTab("portainer");
-                  setPortainerSubTab(stat.name);
-                }}
               >
-                <div className="instance-header">
+                <div 
+                  className="instance-header"
+                  onClick={() => {
+                    setActiveTab("portainer");
+                    setPortainerSubTab(stat.name);
+                    setContentTab("updates");
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
                   <h4>{stat.name}</h4>
+                  {stat.url && (
+                    <a
+                      href={stat.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--text-primary)",
+                        textDecoration: "none",
+                      }}
+                      title={`Open ${stat.name} in Portainer`}
+                    >
+                      <ExternalLink size={18} />
+                    </a>
+                  )}
                 </div>
                 <div className="instance-stats">
-                  <div className="instance-stat">
+                  <div 
+                    className="instance-stat"
+                    onClick={() => {
+                      setActiveTab("portainer");
+                      setPortainerSubTab(stat.name);
+                      setContentTab("updates");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <span className="stat-number">{stat.total}</span>
                     <span className="stat-text">Total</span>
                   </div>
-                  <div className="instance-stat">
+                  <div 
+                    className="instance-stat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTab("portainer");
+                      setPortainerSubTab(stat.name);
+                      setContentTab("updates");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <span className="stat-number update">
                       {stat.withUpdates}
                     </span>
                     <span className="stat-text">Updates</span>
                   </div>
-                  <div className="instance-stat">
+                  <div 
+                    className="instance-stat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTab("portainer");
+                      setPortainerSubTab(stat.name);
+                      setContentTab("current");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <span className="stat-number current">{stat.upToDate}</span>
                     <span className="stat-text">Current</span>
                   </div>
-                  <div className="instance-stat">
+                  <div 
+                    className="instance-stat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTab("portainer");
+                      setPortainerSubTab(stat.name);
+                      setContentTab("unused");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <span className="stat-number">{stat.unusedImages}</span>
                     <span className="stat-text">Unused</span>
                   </div>
@@ -3245,30 +3302,23 @@ function App() {
                           marginTop: "3px",
                         }}
                       >
-                        {image.latest_version &&
-                          (image.has_update ||
-                            !image.current_version ||
-                            image.current_version !==
-                              image.latest_version) && (
-                            <button
-                              onClick={() =>
-                                handleUpgradeTrackedImage(
-                                  image.id,
-                                  image.latest_version
-                                )
-                              }
-                              className="update-button"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(30, 144, 255, 0.2)",
-                                borderColor: "var(--dodger-blue)",
-                                color: "var(--dodger-blue)",
-                              }}
-                            >
-                              Mark Upgraded
-                            </button>
-                          )}
+                        <button
+                          onClick={() => handleEditTrackedImage(image)}
+                          className="update-button"
+                          title="Edit"
+                          style={{
+                            padding: "5px 12px",
+                            fontSize: "0.9rem",
+                            background: "rgba(128, 128, 128, 0.2)",
+                            borderColor: "var(--border-color)",
+                            color: "var(--text-secondary)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Pencil size={16} />
+                        </button>
                         {image.source_type === "github" &&
                           image.github_repo && (
                             <button
@@ -3308,23 +3358,31 @@ function App() {
                               GitHub
                             </button>
                           )}
-                        <button
-                          onClick={() => handleEditTrackedImage(image)}
-                          className="update-button"
-                          title="Edit"
-                          style={{
-                            padding: "5px 12px",
-                            fontSize: "0.9rem",
-                            background: "rgba(128, 128, 128, 0.2)",
-                            borderColor: "var(--border-color)",
-                            color: "var(--text-secondary)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Pencil size={16} />
-                        </button>
+                        {image.latest_version &&
+                          (image.has_update ||
+                            !image.current_version ||
+                            image.current_version !==
+                              image.latest_version) && (
+                            <button
+                              onClick={() =>
+                                handleUpgradeTrackedImage(
+                                  image.id,
+                                  image.latest_version
+                                )
+                              }
+                              className="update-button"
+                              style={{
+                                padding: "5px 12px",
+                                fontSize: "0.9rem",
+                                background: "rgba(30, 144, 255, 0.2)",
+                                borderColor: "var(--dodger-blue)",
+                                color: "var(--dodger-blue)",
+                                marginLeft: "auto",
+                              }}
+                            >
+                              Mark Updated
+                            </button>
+                          )}
                       </div>
                     </div>
                   );
@@ -3359,7 +3417,7 @@ function App() {
                   <div
                     style={{
                       fontSize: "2rem",
-                      color: "var(--dodger-blue)",
+                      color: "var(--text-secondary)",
                       fontWeight: "600",
                     }}
                   >
@@ -3407,7 +3465,7 @@ function App() {
                   <div
                     style={{
                       fontSize: "2rem",
-                      color: "var(--dodger-blue)",
+                      color: "var(--text-secondary)",
                       fontWeight: "600",
                     }}
                   >
@@ -4779,7 +4837,14 @@ function App() {
                   className={`tab ${activeTab === "portainer" ? "active" : ""}`}
                   onClick={() => setActiveTab("portainer")}
                 >
-                  <WhaleIcon size={18} />
+                  <svg 
+                    width="18" 
+                    height="18" 
+                    viewBox="0 0 24 24"
+                    style={{ display: "block" }}
+                  >
+                    <path fill="currentColor" d="M12.504 0v1.023l-.01-.015l-6.106 3.526H3.417v.751h5.359v3.638h1.942V5.284h1.786V15.7c.027 0 .54-.01.751.091V5.285h.531v10.608c.293.147.55.312.751.54V5.286h6.046v-.75h-1.267l-6.061-3.5V0zm0 1.87v2.664H7.889zm.751.031l4.56 2.633h-4.56zM9.142 5.285h1.21v1.686h-1.21zm-4.736 2.73v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm-2.19 2.171v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm2.18 0v1.951h1.942v-1.95zM4.36 12.43a3.73 3.73 0 0 0-.494 1.851c0 1.227.604 2.308 1.52 2.986c.239-.064.477-.1.724-.11c.1 0 .165.01.266.019c.284-1.191 1.383-1.988 2.665-1.988c.724 0 1.438.201 1.924.668c.229-.476.302-1.007.302-1.575c0-.65-.165-1.292-.494-1.85zm4.828 3.16c-1.21 0-2.226.844-2.492 1.97a1 1 0 0 0-.275-.009a2.56 2.56 0 0 0-2.564 2.556a2.565 2.565 0 0 0 3.096 2.5A2.58 2.58 0 0 0 9.233 24c.862 0 1.622-.43 2.09-1.081a2.557 2.557 0 0 0 4.186-1.97c0-.567-.193-1.099-.504-1.52a2.557 2.557 0 0 0-3.866-2.94a2.57 2.57 0 0 0-1.951-.898z"/>
+                  </svg>
                   Portainer
                   {containersWithUpdates.length > 0 && (
                     <span className="tab-badge">
