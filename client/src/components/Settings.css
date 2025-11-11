@@ -288,14 +288,13 @@ body.dark-mode .update-button.test-button:hover:not(:disabled) {
 /* Color Scheme Toggle */
 .color-scheme-toggle {
   display: inline-flex;
-  gap: 8px;
-  padding: 3px;
+  gap: 6px;
+  padding: 2px;
   background: var(--bg-secondary);
   border: 2px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   transition: all 0.3s ease;
-  width: auto;
-  max-width: 400px;
+  width: 320px;
 }
 
 .color-scheme-toggle:focus-within {
@@ -314,17 +313,18 @@ body.dark-mode .color-scheme-toggle:focus-within {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 8px;
+  gap: 3px;
+  padding: 6px 6px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  min-width: 0;
 }
 
 .color-scheme-option:hover:not(:disabled) {
@@ -349,8 +349,15 @@ body.dark-mode .color-scheme-option.active {
 }
 
 .color-scheme-icon {
-  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+}
+
+/* Batch Logging Level - match button size to Color Scheme Preference */
+.batch-logging-toggle {
+  width: 214px;
 }
 
 /* Batch Interval Toggle */

@@ -10,6 +10,7 @@ import React, {
   lazy,
 } from "react";
 import axios from "axios";
+import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -29,6 +30,31 @@ import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
 import AddTrackedImageModal from "./components/AddTrackedImageModal";
+
+// Custom whale icon component matching lucide-react style
+// Represents Docker/Portainer (Docker's logo is a whale)
+const WhaleIcon = ({ size = 18, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    {/* Whale icon - simple whale outline matching lucide-react style */}
+    <path d="M3 13c0-4 3-7 6-7s6 3 6 7" />
+    <path d="M15 13c0 4 3 7 6 7s6-3 6-7" />
+    <path d="M9 6c0-1.5 1-2.5 2.5-2.5s2.5 1 2.5 2.5" />
+    <circle cx="6.5" cy="12.5" r="1" fill="currentColor" />
+    <path d="M3 13v4c0 1.5 1.5 2.5 3 2.5h1" />
+    <path d="M21 13v4c0 1.5-1.5 2.5-3 2.5h-1" />
+    <path d="M12 4v3" />
+  </svg>
+);
 
 // In production, API is served from same origin, so use relative URLs
 // In development, use localhost
@@ -2740,6 +2766,15 @@ function App() {
             >
               Discord
             </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "userdetails" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("userdetails")}
+              disabled={!passwordChanged}
+            >
+              User Details
+            </button>
           </div>
         </div>
         <div className="content-tab-panel">
@@ -2912,13 +2947,6 @@ function App() {
         <div className="summary-header">
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <h2>Tracked Apps</h2>
-            <button
-              onClick={() => setShowAddTrackedImageModal(true)}
-              className="add-tracked-app-button"
-              title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
-            >
-              +
-            </button>
           </div>
           <div
             style={{
@@ -2939,9 +2967,11 @@ function App() {
                   fontWeight: "600",
                   background: checkingUpdates
                     ? "var(--bg-secondary)"
+                    : "rgba(30, 144, 255, 0.2)",
+                  color: checkingUpdates
+                    ? "var(--text-secondary)"
                     : "var(--dodger-blue)",
-                  color: "white",
-                  border: "none",
+                  border: checkingUpdates ? "none" : "1px solid var(--dodger-blue)",
                   borderRadius: "6px",
                   cursor:
                     checkingUpdates || trackedImages.length === 0
@@ -3353,16 +3383,28 @@ function App() {
                                     );
                                   }}
                                   className="update-button"
+                                  title="Open GitHub repository"
                                   style={{
                                     padding: "5px 12px",
                                     fontSize: "0.9rem",
-                                    background: "rgba(30, 144, 255, 0.2)",
-                                    borderColor: "var(--dodger-blue)",
-                                    color: "var(--dodger-blue)",
+                                    background: "rgba(128, 128, 128, 0.2)",
+                                    borderColor: "var(--text-secondary)",
+                                    color: "var(--text-secondary)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
                                   }}
-                                  title="Open GitHub repository"
                                 >
-                                  🐙 GitHub
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                                  </svg>
+                                  GitHub
                                 </button>
                               )}
                             <button
@@ -3371,9 +3413,9 @@ function App() {
                               style={{
                                 padding: "5px 12px",
                                 fontSize: "0.9rem",
-                                background: "rgba(128, 128, 128, 0.2)",
-                                borderColor: "var(--text-secondary)",
-                                color: "var(--text-secondary)",
+                                background: "rgba(30, 144, 255, 0.2)",
+                                borderColor: "var(--dodger-blue)",
+                                color: "var(--dodger-blue)",
                               }}
                             >
                               Edit
@@ -3382,15 +3424,14 @@ function App() {
                               onClick={() => handleDeleteTrackedImage(image.id)}
                               className="update-button"
                               style={{
-                                padding: "5px 10px",
-                                fontSize: "0.95rem",
+                                padding: "5px 12px",
+                                fontSize: "0.9rem",
                                 background: "rgba(239, 62, 66, 0.2)",
                                 borderColor: "var(--dodger-red)",
                                 color: "var(--dodger-red)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minWidth: "32px",
                               }}
                               title="Delete"
                             >
@@ -3402,17 +3443,92 @@ function App() {
                     </div>
                   );
                 })}
+                <div
+                  key="add-new-app"
+                  onClick={() => setShowAddTrackedImageModal(true)}
+                  style={{
+                    background: "var(--bg-secondary)",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "2px dashed var(--border-color)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: "200px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    gap: "8px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                    e.currentTarget.style.background = "var(--bg-tertiary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-color)";
+                    e.currentTarget.style.background = "var(--bg-secondary)";
+                  }}
+                  title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
+                >
+                  <div
+                    style={{
+                      fontSize: "2rem",
+                      color: "var(--dodger-blue)",
+                      fontWeight: "600",
+                    }}
+                  >
+                    +
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "40px",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <p>No tracked apps yet. Click the "+" button to add one.</p>
+            <div style={{ marginTop: "20px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: "15px",
+                }}
+              >
+                <div
+                  key="add-new-app"
+                  onClick={() => setShowAddTrackedImageModal(true)}
+                  style={{
+                    background: "var(--bg-secondary)",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "2px dashed var(--border-color)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: "200px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    gap: "8px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                    e.currentTarget.style.background = "var(--bg-tertiary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-color)";
+                    e.currentTarget.style.background = "var(--bg-secondary)";
+                  }}
+                  title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
+                >
+                  <div
+                    style={{
+                      fontSize: "2rem",
+                      color: "var(--dodger-blue)",
+                      fontWeight: "600",
+                    }}
+                  >
+                    +
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -4040,7 +4156,23 @@ function App() {
       <div className="App">
         <header className="App-header">
           <div className="header-content">
-            <div>
+            <div
+              onClick={() => {
+                setActiveTab("summary");
+                setShowNotificationMenu(false);
+                setShowAvatarMenu(false);
+              }}
+              style={{
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.8";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+            >
               <h1>
                 <img
                   src="/img/image.png"
@@ -4071,7 +4203,7 @@ function App() {
                   gap: "10px",
                 }}
               >
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", marginRight: "10px" }}>
                   <button
                     className="notification-button"
                     onClick={() => {
@@ -4081,60 +4213,48 @@ function App() {
                     aria-label="Notifications"
                     title="Notifications"
                     style={{
-                      padding: "10px",
-                      background: "rgba(255, 255, 255, 0.2)",
+                      padding: "0",
+                      background: "transparent",
                       color: "white",
-                      border: "2px solid rgba(255, 255, 255, 0.3)",
-                      borderRadius: "8px",
+                      border: "2px solid rgba(255, 255, 255, 0.5)",
+                      borderRadius: "50%",
                       cursor: "pointer",
                       transition: "all 0.3s",
-                      backdropFilter: "blur(10px)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      width: "44px",
-                      height: "44px",
+                      width: "36px",
+                      height: "36px",
                       position: "relative",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255, 255, 255, 0.3)";
-                      e.target.style.borderColor = "rgba(255, 255, 255, 0.5)";
+                      e.target.style.borderColor = "rgba(255, 255, 255, 0.8)";
                       e.target.style.transform = "translateY(-2px)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.background = "rgba(255, 255, 255, 0.2)";
-                      e.target.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                      e.target.style.borderColor = "rgba(255, 255, 255, 0.5)";
                       e.target.style.transform = "translateY(0)";
                     }}
                   >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                    </svg>
+                    <Bell
+                      size={18}
+                      style={{ display: "block", transform: "translateY(0.5px)" }}
+                    />
                     {notificationCount > 0 && (
                       <span
                         style={{
                           position: "absolute",
-                          top: "4px",
-                          right: "4px",
+                          top: "2px",
+                          right: "2px",
                           background: "var(--dodger-red)",
                           color: "white",
                           borderRadius: "50%",
-                          width: "18px",
-                          height: "18px",
+                          width: "16px",
+                          height: "16px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "0.7rem",
+                          fontSize: "0.65rem",
                           fontWeight: "bold",
                           border: "2px solid white",
                           zIndex: 10,
@@ -4562,7 +4682,6 @@ function App() {
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "flex-start",
-                      marginLeft: "0px",
                       padding: "6px 12px",
                       cursor: "pointer",
                     }}
@@ -4752,13 +4871,15 @@ function App() {
                   className={`tab ${activeTab === "summary" ? "active" : ""}`}
                   onClick={() => setActiveTab("summary")}
                 >
-                  📊 Summary
+                  <LayoutDashboard size={18} />
+                  Summary
                 </button>
                 <button
                   className={`tab ${activeTab === "portainer" ? "active" : ""}`}
                   onClick={() => setActiveTab("portainer")}
                 >
-                  🐳 Portainer
+                  <WhaleIcon size={18} />
+                  Portainer
                   {containersWithUpdates.length > 0 && (
                     <span className="tab-badge">
                       {containersWithUpdates.length}
@@ -4771,7 +4892,8 @@ function App() {
                   }`}
                   onClick={() => setActiveTab("tracked-apps")}
                 >
-                  📱 Tracked Apps
+                  <MonitorSmartphone size={18} />
+                  Tracked Apps
                   {trackedAppsBehind > 0 && (
                     <span className="tab-badge">{trackedAppsBehind}</span>
                   )}
@@ -4804,9 +4926,11 @@ function App() {
                         fontWeight: "600",
                         background: pulling
                           ? "var(--bg-secondary)"
+                          : "rgba(30, 144, 255, 0.2)",
+                        color: pulling
+                          ? "var(--text-secondary)"
                           : "var(--dodger-blue)",
-                        color: "white",
-                        border: "none",
+                        border: pulling ? "none" : "1px solid var(--dodger-blue)",
                         borderRadius: "6px",
                         cursor:
                           pulling || loading || clearing ? "not-allowed" : "pointer",
@@ -4945,9 +5069,19 @@ function App() {
                     }}
                     title="Add Portainer Instance"
                     style={{
-                      border: "1px dashed var(--border-color)",
+                      border: "2px dashed var(--border-color)",
                       borderRadius: "6px",
-                      opacity: 0.7,
+                      opacity: 1,
+                      background: "var(--bg-secondary)",
+                      fontWeight: "600",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                      e.currentTarget.style.background = "var(--bg-tertiary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border-color)";
+                      e.currentTarget.style.background = "var(--bg-secondary)";
                     }}
                   >
                     <svg
@@ -5237,19 +5371,8 @@ function App() {
                           }}
                         >
                           <p>
-                            No Portainer instances configured. Add one to get
-                            started.
+                            No Portainer instances configured. Add one using the + icon in the tabs above.
                           </p>
-                          <button
-                            onClick={() => {
-                              setEditingPortainerInstance(null);
-                              setShowAddPortainerModal(true);
-                            }}
-                            className="update-button"
-                            style={{ marginTop: "20px" }}
-                          >
-                            Add Portainer Instance
-                          </button>
                         </div>
                       )}
                     {activeTab === "tracked-apps" && renderTrackedApps()}

@@ -6,6 +6,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import axios from "axios";
+import {
+  Monitor,
+  Sun,
+  Moon,
+  Info,
+  Search,
+  Lock,
+  AlertTriangle,
+} from "lucide-react";
 import "./Settings.css";
 import DockerHubCredsModal from "./DockerHubCredsModal";
 import DiscordWebhookModal from "./DiscordWebhookModal";
@@ -1061,26 +1070,11 @@ function Settings({
     <>
       {isFirstLogin && (
         <div className="first-login-warning">
-          <h2>⚠️ First Time Login</h2>
+          <h2>
+            <AlertTriangle size={20} style={{ display: "inline-block", verticalAlign: "middle", marginRight: "8px" }} />
+            First Time Login
+          </h2>
           <p>You must change your password before accessing the application.</p>
-        </div>
-      )}
-
-      {showUserInfoAboveTabs && userInfo && (
-        <div className="user-info-section">
-          <h3>User Information</h3>
-          <div className="info-item">
-            <strong>Username:</strong> {userInfo.username}
-          </div>
-          <div className="info-item">
-            <strong>Role:</strong> {userInfo.role}
-          </div>
-          {userInfo.created_at && (
-            <div className="info-item">
-              <strong>Account Created:</strong>{" "}
-              {new Date(userInfo.created_at).toLocaleDateString()}
-            </div>
-          )}
         </div>
       )}
 
@@ -1109,7 +1103,9 @@ function Settings({
                         setGeneralSettingsChanged(true);
                       }}
                     >
-                      <span className="color-scheme-icon">🖥️</span>
+                      <span className="color-scheme-icon">
+                        <Monitor size={16} />
+                      </span>
                       <span>System</span>
                     </button>
                     <button
@@ -1122,7 +1118,9 @@ function Settings({
                         setGeneralSettingsChanged(true);
                       }}
                     >
-                      <span className="color-scheme-icon">☀️</span>
+                      <span className="color-scheme-icon">
+                        <Sun size={16} />
+                      </span>
                       <span>Light</span>
                     </button>
                     <button
@@ -1135,7 +1133,9 @@ function Settings({
                         setGeneralSettingsChanged(true);
                       }}
                     >
-                      <span className="color-scheme-icon">🌙</span>
+                      <span className="color-scheme-icon">
+                        <Moon size={16} />
+                      </span>
                       <span>Dark</span>
                     </button>
                   </div>
@@ -1146,7 +1146,7 @@ function Settings({
                 </div>
                 <div className="form-group">
                   <label htmlFor="logLevel">Batch Logging Level</label>
-                  <div className="color-scheme-toggle">
+                  <div className="color-scheme-toggle batch-logging-toggle">
                     <button
                       type="button"
                       className={`color-scheme-option ${
@@ -1154,7 +1154,9 @@ function Settings({
                       }`}
                       onClick={() => handleLogLevelChange("info")}
                     >
-                      <span className="color-scheme-icon">ℹ️</span>
+                      <span className="color-scheme-icon">
+                        <Info size={16} />
+                      </span>
                       <span>Info</span>
                     </button>
                     <button
@@ -1164,7 +1166,9 @@ function Settings({
                       }`}
                       onClick={() => handleLogLevelChange("debug")}
                     >
-                      <span className="color-scheme-icon">🔍</span>
+                      <span className="color-scheme-icon">
+                        <Search size={16} />
+                      </span>
                       <span>Debug</span>
                     </button>
                   </div>
@@ -1408,7 +1412,8 @@ function Settings({
                                   border: "1px solid var(--dodger-blue)",
                                 }}
                               >
-                                🔐 Username / Password
+                                <Lock size={14} style={{ display: "inline-block", verticalAlign: "middle", marginRight: "4px" }} />
+                                Username / Password
                               </span>
                             )}
                           </div>
@@ -2828,10 +2833,13 @@ function Settings({
                               e.stopPropagation();
                               handleTestDiscordWebhook(webhook.id);
                             }}
-                            className="update-button test-button"
+                            className="update-button"
                             style={{
                               padding: "8px 16px",
                               fontSize: "0.9rem",
+                              background: "rgba(128, 128, 128, 0.2)",
+                              borderColor: "var(--text-secondary)",
+                              color: "var(--text-secondary)",
                             }}
                           >
                             Test
@@ -2941,6 +2949,30 @@ function Settings({
                   <li>Optionally add a server name for easy identification</li>
                 </ol>
               </div>
+            </div>
+          )}
+
+          {currentActiveSection === "userdetails" && (
+            <div className="update-section">
+              <h3>User Information</h3>
+              {userInfo ? (
+                <div className="user-info-section" style={{ marginTop: "20px" }}>
+                  <div className="info-item">
+                    <strong>Username:</strong> {userInfo.username}
+                  </div>
+                  <div className="info-item">
+                    <strong>Role:</strong> {userInfo.role}
+                  </div>
+                  {userInfo.created_at && (
+                    <div className="info-item">
+                      <strong>Account Created:</strong>{" "}
+                      {new Date(userInfo.created_at).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-secondary)" }}>Loading user information...</p>
+              )}
             </div>
           )}
         </div>
