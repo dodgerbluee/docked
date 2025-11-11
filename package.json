@@ -17,7 +17,8 @@
     "author": "",
     "license": "MIT",
     "devDependencies": {
-        "concurrently": "^8.2.2"
+        "concurrently": "^8.2.2",
+        "semver": "^7.6.0"
     }
 }
 
