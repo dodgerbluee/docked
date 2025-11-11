@@ -239,6 +239,7 @@ router.get("/discord/webhooks/:id", asyncHandler(discordController.getDiscordWeb
 router.post("/discord/webhooks", asyncHandler(discordController.createDiscordWebhook));
 router.put("/discord/webhooks/:id", asyncHandler(discordController.updateDiscordWebhook));
 router.delete("/discord/webhooks/:id", asyncHandler(discordController.deleteDiscordWebhook));
+router.post("/discord/webhooks/:id/test", asyncHandler(discordController.testDiscordWebhookById));
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));

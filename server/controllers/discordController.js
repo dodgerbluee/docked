@@ -322,6 +322,47 @@ async function testDiscordWebhook(req, res, next) {
 }
 
 /**
+ * Test Discord webhook by ID
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function testDiscordWebhookById(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    // Get webhook from database
+    const { getDiscordWebhookById } = getDatabase();
+    const webhook = await getDiscordWebhookById(parseInt(id));
+    
+    if (!webhook || !webhook.webhook_url) {
+      return res.status(404).json({
+        success: false,
+        error: 'Webhook not found or webhook URL not configured',
+      });
+    }
+
+    const discord = getDiscordService();
+    const result = await discord.testWebhook(webhook.webhook_url);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Webhook test successful! Check your Discord channel.',
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Webhook test failed',
+      });
+    }
+  } catch (error) {
+    logger.error('Error testing Discord webhook by ID:', error);
+    next(error);
+  }
+}
+
+/**
  * Get webhook information from Discord
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -399,6 +440,7 @@ module.exports = {
   updateDiscordWebhook: updateDiscordWebhookEndpoint,
   deleteDiscordWebhook: deleteDiscordWebhookEndpoint,
   testDiscordWebhook,
+  testDiscordWebhookById,
   getWebhookInfo,
   getDiscordBotInvite,
 };

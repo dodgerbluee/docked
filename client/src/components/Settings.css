@@ -238,6 +238,27 @@ body.dark-mode .update-button:hover:not(:disabled) {
   transform: none;
 }
 
+/* Test button - matches unused-images styling */
+.update-button.test-button {
+  background: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+body.dark-mode .update-button.test-button {
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.update-button.test-button:hover:not(:disabled) {
+  background: var(--bg-tertiary) !important;
+  box-shadow: 0 2px 8px var(--shadow) !important;
+}
+
+body.dark-mode .update-button.test-button:hover:not(:disabled) {
+  background: var(--bg-tertiary) !important;
+}
+
 /* Form Actions */
 .form-actions {
   margin-top: 30px;
