@@ -1361,7 +1361,7 @@ function App() {
     }
   };
 
-  const handleClear = async () => {
+  const handleClear = useCallback(async () => {
     if (
       !window.confirm(
         "Are you sure you want to clear all cached data? This will remove all container information until you pull again."
@@ -1484,9 +1484,9 @@ function App() {
         setClearing(false);
       }
     }
-  };
+  }, [fetchContainers]);
 
-  const handleClearGitHubCache = async () => {
+  const handleClearGitHubCache = useCallback(async () => {
     if (
       !window.confirm(
         "Are you sure you want to clear the latest version data for all tracked apps? This will reset the 'Latest' version information and force fresh data to be fetched on the next check."
@@ -1527,7 +1527,7 @@ function App() {
     } finally {
       setClearingGitHubCache(false);
     }
-  };
+  }, [fetchTrackedImages]);
 
   const handlePull = async () => {
     try {
@@ -2662,7 +2662,7 @@ function App() {
   };
 
   // Render Settings page with tabs
-  const renderSettingsPage = () => {
+  const renderSettingsPage = useCallback(() => {
     return (
       <div className="settings-page">
         <div className="summary-header">
@@ -2850,12 +2850,38 @@ function App() {
               onBatchConfigUpdate={handleBatchConfigUpdate}
               colorScheme={colorScheme}
               onColorSchemeChange={handleColorSchemeChange}
+              onClearPortainerData={handleClear}
+              onClearTrackedAppData={handleClearGitHubCache}
             />
           </ErrorBoundary>
         </div>
       </div>
     );
-  };
+  }, [
+    username,
+    passwordChanged,
+    avatar,
+    recentAvatars,
+    settingsTab,
+    colorScheme,
+    editingPortainerInstance,
+    handleUsernameUpdate,
+    handleLogout,
+    handleAvatarChange,
+    handlePasswordUpdateSuccess,
+    handleBatchConfigUpdate,
+    handleColorSchemeChange,
+    handleClear,
+    handleClearGitHubCache,
+    fetchRecentAvatars,
+    fetchAvatar,
+    fetchPortainerInstances,
+    fetchContainers,
+    setActiveTab,
+    setSettingsTab,
+    setEditingPortainerInstance,
+    setShowAddPortainerModal,
+  ]);
 
   // Render summary page
   const renderSummary = () => {
@@ -3399,10 +3425,10 @@ function App() {
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    minHeight: "200px",
                     cursor: "pointer",
                     transition: "all 0.2s",
                     gap: "8px",
+                    height: "100%",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--dodger-blue)";
@@ -3447,10 +3473,10 @@ function App() {
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    minHeight: "200px",
                     cursor: "pointer",
                     transition: "all 0.2s",
                     gap: "8px",
+                    height: "100%",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--dodger-blue)";

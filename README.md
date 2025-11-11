@@ -1,4 +1,4 @@
-# Dockaverger
+# Docked
 
 A modern web application for managing Docker container updates through Portainer integration.
 
@@ -23,7 +23,7 @@ A modern web application for managing Docker container updates through Portainer
 
 ```bash
 git clone <repository-url>
-cd dockaverger
+cd docked
 ```
 
 2. Install all dependencies:

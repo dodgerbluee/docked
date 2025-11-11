@@ -410,7 +410,7 @@ async function getTagPublishDate(imageRepo, tag = "latest") {
     // Use Docker Hub HTTP API v2 to get tag info
     const hubApiUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags/${tag}/`;
     const hubHeaders = {
-      "User-Agent": "Dockaverger/1.0",
+      "User-Agent": "Docked/1.0",
     };
 
     // Use credentials already fetched above for rate limiting
@@ -506,7 +506,7 @@ async function getTagFromDigest(imageRepo, digest) {
     // Use Docker Hub HTTP API v2
     const hubApiUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags/?page_size=100`;
     const hubHeaders = {
-      "User-Agent": "Dockaverger/1.0",
+      "User-Agent": "Docked/1.0",
     };
 
     // Use credentials already fetched above for rate limiting

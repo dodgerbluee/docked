@@ -3,7 +3,7 @@ stages:
   - docker
 
 variables:
-  DOCKER_IMAGE_NAME: dockaverger
+  DOCKER_IMAGE_NAME: docked
   DOCKER_REGISTRY: registry.gitlab.com
   IMAGE_VERSION: "0.1.0"
 

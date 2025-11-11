@@ -85,7 +85,7 @@ async function getLatestRelease(repoInput) {
     
     const headers = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Dockaverger/1.0',
+      'User-Agent': 'Docked/1.0',
     };
 
     // Add GitHub token if available for higher rate limits
@@ -170,7 +170,7 @@ async function getAllReleases(repoInput, limit = 10) {
     
     const headers = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Dockaverger/1.0',
+      'User-Agent': 'Docked/1.0',
     };
 
     // Add GitHub token if available for higher rate limits
@@ -234,7 +234,7 @@ async function getReleaseByTag(repoInput, tagName) {
     
     const headers = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Dockaverger/1.0',
+      'User-Agent': 'Docked/1.0',
     };
 
     // Add GitHub token if available for higher rate limits

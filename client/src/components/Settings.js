@@ -62,6 +62,7 @@ function Settings({
     onAvatarChangeRef.current = onAvatarChange;
   }, [onAvatarChange]);
 
+
   const [userInfo, setUserInfo] = useState(null);
   // Use prop if provided, otherwise use internal state
   const [internalActiveSection, setInternalActiveSection] =
@@ -1206,14 +1207,23 @@ function Settings({
                   <div>
                     <button
                       type="button"
-                      onClick={async () => {
-                        if (!onClearPortainerData) return;
-                        setClearingPortainerData(true);
-                        try {
-                          await onClearPortainerData();
-                        } finally {
-                          setClearingPortainerData(false);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!onClearPortainerData) {
+                          alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
+                          return;
                         }
+                        setClearingPortainerData(true);
+                        onClearPortainerData()
+                          .then(() => {
+                            setClearingPortainerData(false);
+                          })
+                          .catch((error) => {
+                            console.error("Error clearing Portainer data:", error);
+                            alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
+                            setClearingPortainerData(false);
+                          });
                       }}
                       disabled={clearingPortainerData}
                       className="update-button danger-button"
@@ -1223,6 +1233,10 @@ function Settings({
                         marginTop: 0,
                         width: "auto",
                         alignSelf: "flex-start",
+                        cursor: "pointer",
+                        pointerEvents: "auto",
+                        zIndex: 10,
+                        position: "relative",
                       }}
                     >
                       {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
@@ -1240,14 +1254,23 @@ function Settings({
                   <div>
                     <button
                       type="button"
-                      onClick={async () => {
-                        if (!onClearTrackedAppData) return;
-                        setClearingTrackedAppData(true);
-                        try {
-                          await onClearTrackedAppData();
-                        } finally {
-                          setClearingTrackedAppData(false);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!onClearTrackedAppData) {
+                          alert("Error: Clear Tracked App Data handler is not available. Please refresh the page.");
+                          return;
                         }
+                        setClearingTrackedAppData(true);
+                        onClearTrackedAppData()
+                          .then(() => {
+                            setClearingTrackedAppData(false);
+                          })
+                          .catch((error) => {
+                            console.error("Error clearing tracked app data:", error);
+                            alert("Error clearing tracked app data: " + (error.message || "Unknown error"));
+                            setClearingTrackedAppData(false);
+                          });
                       }}
                       disabled={clearingTrackedAppData}
                       className="update-button danger-button"
@@ -1257,6 +1280,10 @@ function Settings({
                         marginTop: 0,
                         width: "auto",
                         alignSelf: "flex-start",
+                        cursor: "pointer",
+                        pointerEvents: "auto",
+                        zIndex: 10,
+                        position: "relative",
                       }}
                     >
                       {clearingTrackedAppData ? "Clearing..." : "Clear Tracked Application Data"}
