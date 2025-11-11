@@ -606,6 +606,30 @@ function initializeDatabase() {
       }
     );
 
+    // Create settings table for application settings
+    db.run(
+      `CREATE TABLE IF NOT EXISTS settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT UNIQUE NOT NULL,
+        value TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => {
+        if (err) {
+          console.error("Error creating settings table:", err.message);
+        } else {
+          console.log("Settings table ready");
+          // Create index for settings table
+          db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
+            if (idxErr && !idxErr.message.includes("already exists")) {
+              console.error("Error creating settings key index:", idxErr.message);
+            }
+          });
+        }
+      }
+    );
+
     // Create batch_runs table to track batch execution history
     db.run(
       `CREATE TABLE IF NOT EXISTS batch_runs (
@@ -1669,6 +1693,51 @@ function clearLatestVersionsForAllTrackedImages() {
   });
 }
 
+/**
+ * Get a setting value by key
+ * @param {string} key - Setting key
+ * @returns {Promise<string|null>} - Setting value or null if not found
+ */
+function getSetting(key) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT value FROM settings WHERE key = ?",
+      [key],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row ? row.value : null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Set a setting value by key
+ * @param {string} key - Setting key
+ * @param {string} value - Setting value
+ * @returns {Promise<void>}
+ */
+function setSetting(key, value) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO settings (key, value, updated_at) 
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
+      [key, value, value],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
 module.exports = {
   db,
   getUserByUsername,
@@ -1705,5 +1774,7 @@ module.exports = {
   getLatestBatchRun,
   getLatestBatchRunByJobType,
   getLatestBatchRunsByJobType,
+  getSetting,
+  setSetting,
   closeDatabase,
 };

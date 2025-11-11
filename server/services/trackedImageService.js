@@ -6,6 +6,7 @@
 const dockerRegistryService = require('./dockerRegistryService');
 const githubService = require('./githubService');
 const { updateTrackedImage } = require('../db/database');
+const discordService = require('./discordService');
 
 /**
  * Check for updates on a single tracked image
@@ -173,6 +174,25 @@ async function checkTrackedImage(trackedImage) {
     displayLatestVersion = String(trackedImage.latest_version);
   } else if (trackedImage.latest_version) {
     displayLatestVersion = String(trackedImage.latest_version);
+  }
+
+  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  if (hasUpdate && !trackedImage.has_update) {
+    try {
+      await discordService.queueNotification({
+        id: trackedImage.id,
+        name: trackedImage.name,
+        imageName: imageName,
+        githubRepo: null,
+        sourceType: 'docker',
+        currentVersion: displayCurrentVersion,
+        latestVersion: displayLatestVersion,
+        latestVersionPublishDate: latestPublishDate,
+      });
+    } catch (error) {
+      // Don't fail the update check if notification fails
+      console.error('Error sending Discord notification:', error);
+    }
   }
   
   return {
@@ -375,6 +395,26 @@ async function checkGitHubTrackedImage(trackedImage) {
   const displayLatestVersion = latestVersion
     ? String(latestVersion)
     : (trackedImage.latest_version ? String(trackedImage.latest_version) : 'Unknown');
+
+  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  if (hasUpdate && !trackedImage.has_update) {
+    try {
+      await discordService.queueNotification({
+        id: trackedImage.id,
+        name: trackedImage.name,
+        imageName: null,
+        githubRepo: githubRepo,
+        sourceType: 'github',
+        currentVersion: displayCurrentVersion,
+        latestVersion: displayLatestVersion,
+        latestVersionPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
+        releaseUrl: latestRelease?.html_url || null,
+      });
+    } catch (error) {
+      // Don't fail the update check if notification fails
+      console.error('Error sending Discord notification:', error);
+    }
+  }
 
   return {
     id: trackedImage.id,

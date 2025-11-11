@@ -10,11 +10,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3002
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - DATA_DIR=/data
       - TZ=America/Chicago
     volumes:
-      # Persist database outside codebase
       - ./data:/data
     networks:
       - docked-network
