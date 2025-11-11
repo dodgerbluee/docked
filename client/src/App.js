@@ -2593,7 +2593,6 @@ function App() {
                               background: "rgba(30, 144, 255, 0.2)",
                               borderColor: "var(--dodger-blue)",
                               color: "var(--dodger-blue)",
-                              marginLeft: "auto",
                             }}
                           >
                             {upgrading[container.id]
@@ -3122,7 +3121,11 @@ function App() {
               </div>
               <div className="stat-label">Up to Date</div>
             </div>
-            <div className="stat-card update-available">
+            <div 
+              className="stat-card update-available"
+              onClick={() => setActiveTab("tracked-apps")}
+              style={{ cursor: "pointer" }}
+            >
               <div className="stat-value">{summaryStats.trackedAppsBehind}</div>
               <div className="stat-label">Updates Available</div>
             </div>
@@ -3183,25 +3186,6 @@ function App() {
                 {checkingUpdates ? "Checking..." : "Check for Updates"}
               </button>
             </div>
-            {lastScanTime && (
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Last scanned: {lastScanTime.toLocaleString("en-US", {
-                  timeZone: "America/Chicago",
-                  year: 'numeric',
-                  month: 'numeric',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: 'numeric',
-                  second: 'numeric',
-                  hour12: true
-                })}
-              </div>
-            )}
           </div>
         </div>
         <div className="tracked-apps-list" style={{ marginTop: "20px" }}>
@@ -3521,7 +3505,6 @@ function App() {
                                 background: "rgba(30, 144, 255, 0.2)",
                                 borderColor: "var(--dodger-blue)",
                                 color: "var(--dodger-blue)",
-                                marginLeft: "auto",
                               }}
                             >
                               Mark Updated
@@ -3620,6 +3603,28 @@ function App() {
             </div>
           )}
         </div>
+        {lastScanTime && (
+          <div
+            style={{
+              fontSize: "0.85rem",
+              color: "var(--text-secondary)",
+              textAlign: "right",
+              marginTop: "20px",
+              paddingRight: "10px",
+            }}
+          >
+            Last scanned: {lastScanTime.toLocaleString("en-US", {
+              timeZone: "America/Chicago",
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: 'numeric',
+              second: 'numeric',
+              hour12: true
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -3745,7 +3750,7 @@ function App() {
         {isLoading && (
           <div
             className="instance-loading-indicator"
-            style={{ marginBottom: "20px" }}
+            style={{ marginBottom: "12px" }}
           >
             <svg
               width="16"
@@ -3765,7 +3770,7 @@ function App() {
         )}
 
         {/* Content Tabs */}
-        <div className="content-tabs">
+        <div className="content-tabs" style={{ marginTop: "0", marginBottom: "16px" }}>
           <div className="content-tabs-left">
             <button
               className={`content-tab ${
@@ -3773,7 +3778,7 @@ function App() {
               }`}
               onClick={() => setContentTab("updates")}
             >
-              Updates Available ({instanceContainersWithUpdates.length})
+              Updates ({instanceContainersWithUpdates.length})
             </button>
             <button
               className={`content-tab ${
@@ -3781,7 +3786,7 @@ function App() {
               }`}
               onClick={() => setContentTab("current")}
             >
-              Current Containers ({instanceContainersUpToDate.length})
+              Current ({instanceContainersUpToDate.length})
             </button>
             <button
               className={`content-tab ${
@@ -3789,7 +3794,7 @@ function App() {
               }`}
               onClick={() => setContentTab("unused")}
             >
-              Unused Images ({portainerUnusedImages.length})
+              Unused ({portainerUnusedImages.length})
             </button>
           </div>
           <div className="content-tabs-right">
@@ -3803,8 +3808,8 @@ function App() {
                       disabled={batchUpgrading}
                     >
                       {batchUpgrading
-                        ? `Upgrading ${selectedContainers.size}...`
-                        : `Upgrade Selected (${selectedContainers.size})`}
+                        ? `Updating ${selectedContainers.size}...`
+                        : `Update Selected (${selectedContainers.size})`}
                     </button>
                   )}
                   <label className="select-all-checkbox">
@@ -3824,38 +3829,38 @@ function App() {
                     />
                     Select All
                   </label>
+                  {instanceInfo && instanceInfo.url && (
+                    <button
+                      className="portainer-open-button"
+                      onClick={() => {
+                        window.open(
+                          instanceInfo.url,
+                          "_blank",
+                          "noopener,noreferrer"
+                        );
+                      }}
+                      title={`Open ${portainerName} in Portainer`}
+                      aria-label={`Open ${portainerName} Portainer instance`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      <span>Open in Portainer</span>
+                    </button>
+                  )}
                 </>
               )}
-            {contentTab === "updates" && instanceInfo && instanceInfo.url && (
-              <button
-                className="portainer-open-button"
-                onClick={() => {
-                  window.open(
-                    instanceInfo.url,
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                }}
-                title={`Open ${portainerName} in Portainer`}
-                aria-label={`Open ${portainerName} Portainer instance`}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-                <span>Open in Portainer</span>
-              </button>
-            )}
             {contentTab === "current" && instanceInfo && instanceInfo.url && (
               <button
                 className="portainer-open-button"
@@ -4018,6 +4023,28 @@ function App() {
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, true)
                 )}
+                {lastPullTime && (
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "var(--text-secondary)",
+                      textAlign: "right",
+                      marginTop: "20px",
+                      paddingRight: "10px",
+                    }}
+                  >
+                    Last scanned: {lastPullTime.toLocaleString("en-US", {
+                      timeZone: "America/Chicago",
+                      year: 'numeric',
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: 'numeric',
+                      second: 'numeric',
+                      hour12: true
+                    })}
+                  </div>
+                )}
               </>
             ) : (
               <div className="empty-state">
@@ -4069,6 +4096,28 @@ function App() {
               <>
                 {groupedStacks.map((stack) =>
                   renderStackGroup(stack, stack.containers, false)
+                )}
+                {lastPullTime && (
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "var(--text-secondary)",
+                      textAlign: "right",
+                      marginTop: "20px",
+                      paddingRight: "10px",
+                    }}
+                  >
+                    Last scanned: {lastPullTime.toLocaleString("en-US", {
+                      timeZone: "America/Chicago",
+                      year: 'numeric',
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: 'numeric',
+                      second: 'numeric',
+                      hour12: true
+                    })}
+                  </div>
                 )}
               </>
             ) : (
@@ -5051,107 +5100,6 @@ function App() {
                       {pulling ? "Checking..." : "Check for Updates"}
                     </button>
                   </div>
-                  {lastPullTime && (
-                    <div
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      Last scanned: {lastPullTime.toLocaleString("en-US", {
-                        timeZone: "America/Chicago",
-                        year: 'numeric',
-                        month: 'numeric',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: 'numeric',
-                        second: 'numeric',
-                        hour12: true
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="content-tabs" style={{ marginBottom: "20px" }}>
-                <div className="content-tabs-left">
-                  {(portainerInstances || [])
-                    .filter((inst) => inst != null && inst.name)
-                    .map((instance, index) => (
-                      <button
-                        key={instance.name}
-                        className={`content-tab ${
-                          portainerSubTab === instance.name ? "active" : ""
-                        } ${draggedTabIndex === index ? "dragging" : ""}`}
-                        onClick={() => setPortainerSubTab(instance.name)}
-                        draggable
-                        onDragStart={(e) => {
-                          setDraggedTabIndex(index);
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/html", index);
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const draggedIndex = parseInt(
-                            e.dataTransfer.getData("text/html")
-                          );
-                          if (draggedIndex !== index) {
-                            handleReorderTabs(draggedIndex, index);
-                          }
-                          setDraggedTabIndex(null);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedTabIndex(null);
-                        }}
-                      >
-                        {instance.name}
-                        {instance.withUpdates.length > 0 && (
-                          <span className="tab-badge">
-                            {instance.withUpdates.length}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  <button
-                    className="content-tab add-instance-tab"
-                    onClick={() => {
-                      setEditingPortainerInstance(null);
-                      setShowAddPortainerModal(true);
-                    }}
-                    title="Add Portainer Instance"
-                    style={{
-                      border: "2px dashed var(--border-color)",
-                      borderRadius: "6px",
-                      opacity: 1,
-                      background: "var(--bg-secondary)",
-                      fontWeight: "600",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                      e.currentTarget.style.background = "var(--bg-tertiary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-color)";
-                      e.currentTarget.style.background = "var(--bg-secondary)";
-                    }}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                  </button>
                 </div>
               </div>
             </>
@@ -5396,24 +5344,102 @@ function App() {
                 {!loading && !error && (
                   <>
                     {activeTab === "summary" && renderSummary()}
-                    {activeTab === "portainer" &&
-                      portainerSubTab &&
-                      renderPortainerTab(portainerSubTab)}
-                    {activeTab === "portainer" &&
-                      !portainerSubTab &&
-                      portainerInstances.length === 0 && (
-                        <div
-                          style={{
-                            textAlign: "center",
-                            padding: "40px",
-                            color: "var(--text-secondary)",
-                          }}
-                        >
-                          <p>
-                            No Portainer instances configured. Add one using the + icon in the tabs above.
-                          </p>
-                        </div>
-                      )}
+                    {activeTab === "portainer" && (
+                      <>
+                        {portainerInstances.length > 0 ? (
+                          <div className="portainer-sidebar-layout">
+                            <div className="portainer-sidebar">
+                              <div className="portainer-sidebar-header">
+                                <h3>Instances</h3>
+                              </div>
+                              <div className="portainer-sidebar-list">
+                                {(portainerInstances || [])
+                                  .filter((inst) => inst != null && inst.name)
+                                  .map((instance, index) => (
+                                    <button
+                                      key={instance.name}
+                                      className={`portainer-sidebar-item ${
+                                        portainerSubTab === instance.name ? "active" : ""
+                                      } ${draggedTabIndex === index ? "dragging" : ""}`}
+                                      onClick={() => setPortainerSubTab(instance.name)}
+                                      draggable
+                                      onDragStart={(e) => {
+                                        setDraggedTabIndex(index);
+                                        e.dataTransfer.effectAllowed = "move";
+                                        e.dataTransfer.setData("text/html", index);
+                                      }}
+                                      onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = "move";
+                                      }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        const draggedIndex = parseInt(
+                                          e.dataTransfer.getData("text/html")
+                                        );
+                                        if (draggedIndex !== index) {
+                                          handleReorderTabs(draggedIndex, index);
+                                        }
+                                        setDraggedTabIndex(null);
+                                      }}
+                                      onDragEnd={() => {
+                                        setDraggedTabIndex(null);
+                                      }}
+                                    >
+                                      <span className="portainer-sidebar-item-name">
+                                        {instance.name}
+                                      </span>
+                                      {instance.withUpdates.length > 0 && (
+                                        <span className="portainer-sidebar-badge">
+                                          {instance.withUpdates.length}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
+                                <button
+                                  className="portainer-sidebar-item portainer-sidebar-add"
+                                  onClick={() => {
+                                    setEditingPortainerInstance(null);
+                                    setShowAddPortainerModal(true);
+                                  }}
+                                  title="Add Portainer Instance"
+                                >
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                  </svg>
+                                  <span>Add Instance</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="portainer-content-area">
+                              {portainerSubTab && renderPortainerTab(portainerSubTab)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "40px",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            <p>
+                              No Portainer instances configured. Add one using the + button in the sidebar.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
                     {activeTab === "tracked-apps" && renderTrackedApps()}
                   </>
                 )}
