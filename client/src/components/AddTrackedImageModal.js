@@ -43,6 +43,8 @@ function AddTrackedImageModal({
   onClose,
   onSuccess,
   trackedImages = [],
+  initialData = null,
+  onDelete = null,
 }) {
   const [sourceType, setSourceType] = useState("github"); // 'docker' or 'github'
   const [usePredefined, setUsePredefined] = useState(true); // For GitHub repos - default to predefined
@@ -214,24 +216,51 @@ function AddTrackedImageModal({
     usePredefinedDocker,
   ]);
 
-  // Clear error and reset form when modal opens or closes
+  // Clear error and reset form when modal opens or closes, or populate with initialData for editing
   useEffect(() => {
     if (isOpen) {
       setError("");
-      setFormData({
-        name: "",
-        imageName: "",
-        githubRepo: "",
-        currentVersion: "",
-      });
-      setSourceType("github");
-      setUsePredefined(true);
-      setUsePredefinedDocker(true);
-      setSelectedPredefinedRepo(null);
-      setSelectedPredefinedImage(null);
-      lastAutoPopulatedName.current = "";
+      if (initialData) {
+        // Edit mode - populate form with existing data
+        setFormData({
+          name: initialData.name || "",
+          imageName: initialData.image_name || "",
+          githubRepo: initialData.github_repo || "",
+          currentVersion: initialData.current_version || "",
+        });
+        setSourceType(initialData.source_type || "github");
+        // For predefined options, we'll need to check if the repo/image matches predefined lists
+        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(initialData.github_repo);
+        const isPredefinedImage = PREDEFINED_DOCKER_IMAGES.some(img => 
+          initialData.image_name && initialData.image_name.split(":")[0] === img
+        );
+        setUsePredefined(isPredefinedRepo);
+        setUsePredefinedDocker(isPredefinedImage);
+        if (isPredefinedRepo) {
+          setSelectedPredefinedRepo({ value: initialData.github_repo, label: initialData.github_repo });
+        }
+        if (isPredefinedImage && initialData.image_name) {
+          const imageWithoutTag = initialData.image_name.split(":")[0];
+          setSelectedPredefinedImage({ value: imageWithoutTag, label: imageWithoutTag });
+        }
+        lastAutoPopulatedName.current = initialData.name || "";
+      } else {
+        // Add mode - reset form
+        setFormData({
+          name: "",
+          imageName: "",
+          githubRepo: "",
+          currentVersion: "",
+        });
+        setSourceType("github");
+        setUsePredefined(true);
+        setUsePredefinedDocker(true);
+        setSelectedPredefinedRepo(null);
+        setSelectedPredefinedImage(null);
+        lastAutoPopulatedName.current = "";
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -263,10 +292,20 @@ function AddTrackedImageModal({
         payload.current_version = formData.currentVersion.trim();
       }
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/tracked-images`,
-        payload
-      );
+      let response;
+      if (initialData) {
+        // Edit mode - use PUT
+        response = await axios.put(
+          `${API_BASE_URL}/api/tracked-images/${initialData.id}`,
+          payload
+        );
+      } else {
+        // Add mode - use POST
+        response = await axios.post(
+          `${API_BASE_URL}/api/tracked-images`,
+          payload
+        );
+      }
 
       if (response.data.success) {
         // Reset form
@@ -280,12 +319,32 @@ function AddTrackedImageModal({
         onSuccess();
         onClose();
       } else {
-        setError(response.data.error || "Failed to add tracked item");
+        setError(response.data.error || (initialData ? "Failed to update tracked item" : "Failed to add tracked item"));
       }
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          "Failed to add tracked item. Please try again."
+          (initialData ? "Failed to update tracked item. Please try again." : "Failed to add tracked item. Please try again.")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!initialData || !onDelete) return;
+
+    setError("");
+    setLoading(true);
+
+    try {
+      await onDelete(initialData.id);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Failed to delete tracked item. Please try again."
       );
     } finally {
       setLoading(false);
@@ -305,7 +364,7 @@ function AddTrackedImageModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Add Tracked App</h2>
+          <h2>{initialData ? "Edit Tracked App" : "Add Tracked App"}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -544,6 +603,21 @@ function AddTrackedImageModal({
           {error && <div className="error-message">{error}</div>}
 
           <div className="modal-actions">
+            {initialData && onDelete && (
+              <button
+                type="button"
+                className="modal-button delete"
+                onClick={handleDelete}
+                disabled={loading}
+                style={{
+                  background: "var(--dodger-red)",
+                  color: "white",
+                  marginRight: "auto",
+                }}
+              >
+                {loading ? "Deleting..." : "Delete"}
+              </button>
+            )}
             <button
               type="button"
               className="modal-button cancel"
@@ -566,7 +640,7 @@ function AddTrackedImageModal({
                     (!usePredefined && !formData.githubRepo)))
               }
             >
-              {loading ? "Adding..." : "Add Tracked App"}
+              {loading ? (initialData ? "Updating..." : "Adding...") : (initialData ? "Update Tracked App" : "Add Tracked App")}
             </button>
           </div>
         </form>

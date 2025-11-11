@@ -96,6 +96,18 @@ async function checkImageUpdates(
     }
   }
 
+  // Get publish date for current tag (non-blocking - don't fail if this errors)
+  let currentPublishDate = null;
+  if (currentTag) {
+    try {
+      currentPublishDate = await dockerRegistryService.getTagPublishDate(repo, currentTag);
+    } catch (error) {
+      // Don't fail the entire update check if publish date fetch fails
+      // Silently continue - publish date is nice to have but not critical
+      currentPublishDate = null;
+    }
+  }
+
   return {
     currentTag: currentTag,
     currentVersion: currentTag,
@@ -107,6 +119,7 @@ async function checkImageUpdates(
     latestDigest: formatDigest(latestDigest),
     latestDigestFull: latestDigest,
     latestPublishDate: latestPublishDate,
+    currentVersionPublishDate: currentPublishDate,
     imageRepo: repo,
   };
 }
@@ -553,6 +566,7 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
               currentDigestFull: updateInfo.currentDigestFull,
               latestDigestFull: updateInfo.latestDigestFull,
               latestPublishDate: updateInfo.latestPublishDate,
+              currentVersionPublishDate: updateInfo.currentVersionPublishDate,
               imageRepo: updateInfo.imageRepo,
               stackName: stackName,
             };
@@ -785,6 +799,24 @@ async function getContainersFromPortainer() {
               ? imageId.split(':')[1].substring(0, 12) 
               : imageId.substring(0, 12);
 
+            // Extract tag from image name
+            const imageParts = imageName.includes(':')
+              ? imageName.split(':')
+              : [imageName, 'latest'];
+            const repo = imageParts[0];
+            const currentTag = imageParts[1];
+
+            // Get publish date for current tag (non-blocking - don't fail if this errors)
+            let currentPublishDate = null;
+            if (currentTag) {
+              try {
+                currentPublishDate = await dockerRegistryService.getTagPublishDate(repo, currentTag);
+              } catch (error) {
+                // Don't fail if publish date fetch fails
+                currentPublishDate = null;
+              }
+            }
+
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
             const stackName =
@@ -803,11 +835,12 @@ async function getContainersFromPortainer() {
               portainerName: instanceName,
               hasUpdate: false, // No Docker Hub check
               currentDigest: currentDigest,
-              currentTag: null,
-              currentVersion: null,
+              currentTag: currentTag,
+              currentVersion: currentTag,
               latestDigest: null,
               latestTag: null,
               latestVersion: null,
+              currentVersionPublishDate: currentPublishDate,
               stackName: stackName,
               imageId: details.Image,
             };

@@ -204,9 +204,9 @@ body.dark-mode .success-message {
 
 .update-button {
   padding: 12px 24px;
-  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
-  color: white;
-  border: none;
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+  border: 1px solid var(--dodger-blue);
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
@@ -216,7 +216,9 @@ body.dark-mode .success-message {
 }
 
 body.dark-mode .update-button {
-  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
 }
 
 .update-button:hover:not(:disabled) {
@@ -333,14 +335,15 @@ body.dark-mode .color-scheme-toggle:focus-within {
 }
 
 .color-scheme-option.active {
-  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
-  color: white;
-  box-shadow: 0 2px 6px rgba(0, 90, 156, 0.3);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+  box-shadow: none;
 }
 
 body.dark-mode .color-scheme-option.active {
-  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
-  box-shadow: 0 2px 6px rgba(30, 136, 229, 0.3);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue-light);
+  box-shadow: none;
 }
 
 .color-scheme-option:disabled {
@@ -400,14 +403,15 @@ body.dark-mode .batch-interval-toggle:focus-within {
 }
 
 .batch-interval-option.active {
-  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
-  color: white;
-  box-shadow: 0 2px 6px rgba(0, 90, 156, 0.3);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+  box-shadow: none;
 }
 
 body.dark-mode .batch-interval-option.active {
-  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
-  box-shadow: 0 2px 6px rgba(30, 136, 229, 0.3);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue-light);
+  box-shadow: none;
 }
 
 .batch-interval-option:disabled {

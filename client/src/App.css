@@ -1082,9 +1082,9 @@ body.dark-mode .up-to-date-section h2 {
 
 .batch-upgrade-button {
   padding: 6px 14px;
-  background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
-  color: white;
-  border: none;
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+  border: 1px solid var(--dodger-blue);
   border-radius: 6px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -1094,7 +1094,9 @@ body.dark-mode .up-to-date-section h2 {
 }
 
 body.dark-mode .batch-upgrade-button {
-  background: linear-gradient(135deg, var(--dodger-blue-light) 0%, var(--dodger-blue) 100%);
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
 }
 
 .batch-upgrade-button:hover:not(:disabled) {
@@ -1152,7 +1154,7 @@ body.dark-mode .batch-upgrade-button:hover:not(:disabled) {
 }
 
 .container-card.update-available {
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
 }
 
 .card-header {
@@ -1595,6 +1597,16 @@ body.dark-mode .upgrade-button:hover:not(:disabled) {
 .container-card.portainer-disabled .container-checkbox input[type="checkbox"]:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.docker-hub-icon {
+  filter: brightness(0) saturate(100%);
+  opacity: 0.7;
+}
+
+body.dark-mode .docker-hub-icon {
+  filter: brightness(0) invert(1);
+  opacity: 1;
 }
 
 .container-card.portainer-disabled .upgrade-button:disabled {
