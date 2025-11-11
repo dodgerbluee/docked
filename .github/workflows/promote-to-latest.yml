@@ -1,0 +1,127 @@
+name: Promote Dev to Latest
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "promote" to confirm promoting dev to latest'
+        required: true
+        type: string
+      create_release:
+        description: 'Create a GitHub release for this promotion'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: github.event.inputs.create_release == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if dev image exists
+        run: |
+          if ! docker manifest inspect ${{ env.REGISTRY }}/${{ github.repository }}:dev > /dev/null 2>&1; then
+            echo "❌ Error: dev image not found at ${{ env.REGISTRY }}/${{ github.repository }}:dev"
+            echo "Please ensure a dev image has been built first."
+            exit 1
+          fi
+          echo "✓ Found dev image"
+
+      - name: Tag dev as latest
+        run: |
+          # Pull the dev image (this will work for multi-arch images)
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}:dev
+          
+          # Tag it as latest
+          docker tag ${{ env.REGISTRY }}/${{ github.repository }}:dev ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          
+          # Push the latest tag
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          
+          echo "✓ Successfully promoted dev to latest"
+
+      - name: Get current version
+        id: version
+        if: github.event.inputs.create_release == 'true'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Create GitHub Release
+        if: github.event.inputs.create_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v${{ steps.version.outputs.version }}-latest"
+          RELEASE_NAME="Release v${{ steps.version.outputs.version }} (Promoted to Latest)"
+          RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          RELEASE_BODY=$(cat <<EOF
+          This release marks the promotion of the **dev** image to **latest** after testing.
+          
+          **Docker Image:** \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`
+          
+          **Promoted by:** @${{ github.actor }}
+          **Promoted at:** $RELEASE_DATE
+          
+          This image has been tested and verified as stable.
+          EOF
+          )
+          
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "$RELEASE_BODY" \
+            --repo ${{ github.repository }}
+          
+          echo "✓ Created GitHub release: $TAG_NAME"
+
+      - name: Get image info
+        run: |
+          echo "## Promotion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully promoted **dev** to **latest**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.create_release }}" == "true" ]; then
+            echo "**GitHub Release:** Created [v${{ steps.version.outputs.version }}-latest](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }}-latest)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "**Promoted by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Promoted at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  validation:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm != 'promote'
+    steps:
+      - name: Validation failed
+        run: |
+          echo "❌ Promotion cancelled. You must type 'promote' in the confirmation field."
+          exit 1
+
