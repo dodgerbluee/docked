@@ -291,6 +291,39 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
  * @param {Object} imageData - Tracked image data
  * @returns {Object} - Discord embed payload
  */
+/**
+ * Generate Docker Hub repository URL from image name
+ * @param {string} imageName - Image name (e.g., "jc21/nginx-proxy-manager:latest")
+ * @returns {string|null} - Docker Hub URL or null
+ */
+function getDockerHubRepoUrl(imageName) {
+  if (!imageName) return null;
+
+  // Parse image name (remove tag if present)
+  let repo = imageName;
+  if (imageName.includes(':')) {
+    const parts = imageName.split(':');
+    repo = parts[0];
+  }
+
+  // Remove registry prefixes
+  const registryPrefixes = ['docker.io/', 'registry-1.docker.io/'];
+  for (const prefix of registryPrefixes) {
+    if (repo.startsWith(prefix)) {
+      repo = repo.replace(prefix, '');
+    }
+  }
+
+  // Format: https://hub.docker.com/r/{namespace}/{repo}
+  if (repo.includes('/')) {
+    // User image
+    return `https://hub.docker.com/r/${repo}`;
+  } else {
+    // Official image (library)
+    return `https://hub.docker.com/r/library/${repo}`;
+  }
+}
+
 function formatVersionUpdateNotification(imageData) {
   const {
     name,
@@ -301,9 +334,19 @@ function formatVersionUpdateNotification(imageData) {
     latestVersion,
     latestVersionPublishDate,
     releaseUrl,
+    notificationType, // 'tracked-app' or 'portainer-container'
   } = imageData;
 
-  // Determine source display with hyperlink for GitHub
+  // Determine notification title based on type
+  let notificationTitle;
+  if (notificationType === 'portainer-container') {
+    notificationTitle = 'New Portainer Container Update Available 🫙';
+  } else {
+    // Default to tracked app
+    notificationTitle = '🆕 Tracked Application Update Available';
+  }
+
+  // Determine source display with hyperlink
   let sourceDisplay;
   if (sourceType === 'github' && githubRepo) {
     const repoUrl = `https://github.com/${githubRepo}`;
@@ -311,18 +354,27 @@ function formatVersionUpdateNotification(imageData) {
   } else if (sourceType === 'github') {
     sourceDisplay = 'GitHub: Unknown';
   } else {
-    sourceDisplay = `Docker: ${imageName || 'Unknown'}`;
+    // Docker - create hyperlink to Docker Hub
+    const dockerHubUrl = getDockerHubRepoUrl(imageName);
+    if (dockerHubUrl) {
+      sourceDisplay = `[Docker: ${imageName || 'Unknown'}](${dockerHubUrl})`;
+    } else {
+      sourceDisplay = `Docker: ${imageName || 'Unknown'}`;
+    }
   }
 
-  // Format latest version with hyperlink to release page if available
-  let latestVersionDisplay = latestVersion || 'Unknown';
+  // Format versions (no SHAs)
+  let latestDisplay = latestVersion || 'Unknown';
+  let currentDisplay = currentVersion || 'Unknown';
+
+  // For GitHub, format latest version with hyperlink to release page if available
   if (sourceType === 'github' && releaseUrl && latestVersion) {
     // Use the release URL if available
-    latestVersionDisplay = `[${latestVersion}](${releaseUrl})`;
+    latestDisplay = `[${latestVersion}](${releaseUrl})`;
   } else if (sourceType === 'github' && githubRepo && latestVersion) {
     // Fallback: construct release URL from repo and tag
     const constructedReleaseUrl = `https://github.com/${githubRepo}/releases/tag/${latestVersion}`;
-    latestVersionDisplay = `[${latestVersion}](${constructedReleaseUrl})`;
+    latestDisplay = `[${latestVersion}](${constructedReleaseUrl})`;
   }
 
   // Format publish date
@@ -343,18 +395,18 @@ function formatVersionUpdateNotification(imageData) {
 
   // Create embed
   const embed = {
-    title: '🆕 Version Available',
+    title: notificationTitle,
     description: `A new version of **${name}** is now available!`,
     color: 23196, // Dodger Blue (#005A9C)
     fields: [
       {
         name: 'Latest Version',
-        value: latestVersionDisplay,
+        value: latestDisplay,
         inline: true,
       },
       {
         name: 'Current Version',
-        value: currentVersion || 'Unknown',
+        value: currentDisplay,
         inline: true,
       },
       {

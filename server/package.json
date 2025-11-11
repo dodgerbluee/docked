@@ -1,7 +1,7 @@
 {
-    "name": "dockaverger-server",
+    "name": "docked-server",
     "version": "1.0.0",
-    "description": "Backend server for Dockaverger",
+    "description": "Backend server for Docked",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

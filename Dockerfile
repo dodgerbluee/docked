@@ -1,4 +1,4 @@
-# Multi-stage build for Dockaverger
+# Multi-stage build for Docked
 # Stage 1: Build React frontend
 FROM node:18-alpine AS frontend-builder
 

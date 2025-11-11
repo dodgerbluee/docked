@@ -119,7 +119,7 @@ app.use(
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
     customCss: ".swagger-ui .topbar { display: none }",
-    customSiteTitle: "Dockaverger API Documentation",
+    customSiteTitle: "Docked API Documentation",
   })
 );
 

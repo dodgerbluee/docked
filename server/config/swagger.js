@@ -8,9 +8,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Dockaverger API',
+      title: 'Docked API',
       version: '1.0.0',
-      description: 'API documentation for Dockaverger - Docker container management application',
+      description: 'API documentation for Docked - Docker container management application',
       contact: {
         name: 'API Support',
       },

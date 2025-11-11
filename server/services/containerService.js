@@ -8,6 +8,20 @@ const dockerRegistryService = require('./dockerRegistryService');
 const config = require('../config');
 const { getAllPortainerInstances, getContainerCache, setContainerCache, clearContainerCache } = require('../db/database');
 
+// Lazy load discordService to avoid loading issues during module initialization
+let discordService = null;
+function getDiscordService() {
+  if (!discordService) {
+    try {
+      discordService = require('./discordService');
+    } catch (error) {
+      console.error('Error loading discordService:', error);
+      return null;
+    }
+  }
+  return discordService;
+}
+
 /**
  * Check if an image has updates available
  * @param {string} imageName - Image name (repo:tag)
@@ -443,6 +457,12 @@ async function upgradeSingleContainer(
  * @returns {Promise<Object>} - Containers with update information
  */
 async function getAllContainersWithUpdates(forceRefresh = false) {
+  // Get previous cache to compare for newly detected updates
+  let previousCache = null;
+  if (forceRefresh) {
+    previousCache = await getContainerCache('containers');
+  }
+
   // Check cache first unless force refresh is requested
   if (!forceRefresh) {
     const cached = await getContainerCache('containers');
@@ -734,6 +754,54 @@ async function getAllContainersWithUpdates(forceRefresh = false) {
   } catch (error) {
     console.error('Error saving container cache:', error.message);
     // Continue even if cache save fails
+  }
+
+  // Send Discord notifications for newly detected container updates
+  if (previousCache && previousCache.containers) {
+    try {
+      const discord = getDiscordService();
+      if (discord && discord.queueNotification) {
+        // Create a map of previous containers by unique identifier
+        // Use combination of id, portainerUrl, and endpointId for uniqueness
+        const previousContainersMap = new Map();
+        previousCache.containers.forEach(container => {
+          const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
+          previousContainersMap.set(key, container);
+        });
+
+        // Check each new container for newly detected updates
+        for (const container of allContainers) {
+          if (container.hasUpdate) {
+            const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
+            const previousContainer = previousContainersMap.get(key);
+            
+            // Only notify if this is a newly detected update (didn't have update before)
+            if (!previousContainer || !previousContainer.hasUpdate) {
+              // Format container data for notification
+              const imageName = container.image || 'Unknown';
+              const currentVersion = container.currentVersion || container.currentTag || 'Unknown';
+              const latestVersion = container.newVersion || container.latestTag || container.latestVersion || 'Unknown';
+              
+              await discord.queueNotification({
+                id: container.id,
+                name: container.name,
+                imageName: imageName,
+                githubRepo: null,
+                sourceType: 'docker',
+                currentVersion: currentVersion,
+                latestVersion: latestVersion,
+                latestVersionPublishDate: container.latestPublishDate || null,
+                releaseUrl: null, // Containers don't have release URLs
+                notificationType: 'portainer-container',
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Don't fail the update check if notification fails
+      console.error('Error sending Discord notifications for container updates:', error);
+    }
   }
 
   return result;

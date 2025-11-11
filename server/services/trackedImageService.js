@@ -202,6 +202,7 @@ async function checkTrackedImage(trackedImage) {
           currentVersion: displayCurrentVersion,
           latestVersion: displayLatestVersion,
           latestVersionPublishDate: latestPublishDate,
+          notificationType: 'tracked-app',
         });
       }
     } catch (error) {
@@ -426,6 +427,7 @@ async function checkGitHubTrackedImage(trackedImage) {
           latestVersion: displayLatestVersion,
           latestVersionPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
           releaseUrl: latestRelease?.html_url || null,
+          notificationType: 'tracked-app',
         });
       }
     } catch (error) {

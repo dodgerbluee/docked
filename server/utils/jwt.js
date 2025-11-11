@@ -19,8 +19,8 @@ const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || config.jwt?
 function generateToken(payload, expiresIn = JWT_EXPIRES_IN) {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn,
-    issuer: 'dockaverger',
-    audience: 'dockaverger-users',
+    issuer: 'docked',
+    audience: 'docked-users',
   });
 }
 
@@ -32,8 +32,8 @@ function generateToken(payload, expiresIn = JWT_EXPIRES_IN) {
 function generateRefreshToken(payload) {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN,
-    issuer: 'dockaverger',
-    audience: 'dockaverger-users',
+    issuer: 'docked',
+    audience: 'docked-users',
   });
 }
 
@@ -45,8 +45,8 @@ function generateRefreshToken(payload) {
 function verifyToken(token) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, {
-      issuer: 'dockaverger',
-      audience: 'dockaverger-users',
+      issuer: 'docked',
+      audience: 'docked-users',
     });
     return decoded;
   } catch (error) {
