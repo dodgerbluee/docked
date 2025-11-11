@@ -132,6 +132,33 @@ body.dark-mode .section-tab.active {
   gap: 20px;
 }
 
+/* Ensure primary-button in forms matches the Return Home button and active color scheme option */
+.update-form .primary-button {
+  padding: 10px 20px !important;
+  background: rgba(30, 144, 255, 0.2) !important;
+  color: var(--dodger-blue) !important;
+  border: 1px solid var(--dodger-blue) !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin-top: 0 !important;
+}
+
+body.dark-mode .update-form .primary-button {
+  background: rgba(30, 144, 255, 0.2) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+.update-form .primary-button:disabled {
+  color: var(--dodger-blue) !important;
+  opacity: 0.6 !important;
+}
+
+body.dark-mode .update-form .primary-button:disabled {
+  color: var(--dodger-blue-light) !important;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -265,7 +292,6 @@ body.dark-mode .update-button.test-button:hover:not(:disabled) {
 .form-actions {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
 }

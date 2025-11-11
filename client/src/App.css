@@ -789,6 +789,21 @@ body.dark-mode .instance-card:hover {
   border-bottom: 1px solid var(--border-color);
 }
 
+.instance-header a {
+  transition: all 0.2s;
+  opacity: 0.7;
+  color: var(--text-primary) !important;
+}
+
+.instance-header a:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+body.dark-mode .instance-header a {
+  color: var(--text-primary) !important;
+}
+
 .instance-header h4 {
   margin: 0;
   color: var(--text-primary);
@@ -810,6 +825,13 @@ body.dark-mode .instance-card:hover {
   min-width: 0;
   overflow: visible;
   padding: 0 4px;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.instance-stat:hover {
+  background: var(--bg-tertiary);
+  transform: scale(1.05);
 }
 
 .instance-stat .stat-number {

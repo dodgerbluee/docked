@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import Select from "react-select";
+import { Trash2 } from "lucide-react";
 import "./AddPortainerModal.css";
 
 // In production, API is served from same origin, so use relative URLs
@@ -609,12 +610,17 @@ function AddTrackedImageModal({
                 className="update-button danger-button"
                 onClick={handleDelete}
                 disabled={loading}
+                title={loading ? "Deleting..." : "Delete"}
                 style={{
                   marginRight: "auto",
                   marginTop: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "8px 16px",
                 }}
               >
-                {loading ? "Deleting..." : "Delete"}
+                {loading ? "Deleting..." : <Trash2 size={16} />}
               </button>
             )}
             <button
