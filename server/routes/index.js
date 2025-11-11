@@ -22,6 +22,7 @@ const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedImageController = require("../controllers/trackedImageController");
+const discordController = require("../controllers/discordController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -231,5 +232,11 @@ router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTracked
 router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
 router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
 router.post("/tracked-images/:id/check-update", asyncHandler(trackedImageController.checkTrackedImageUpdate));
+
+// Discord notification routes
+router.get("/discord/config", asyncHandler(discordController.getDiscordConfig));
+router.post("/discord/config", asyncHandler(discordController.updateDiscordConfig));
+router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
+router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
 module.exports = router;

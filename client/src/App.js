@@ -2731,6 +2731,15 @@ function App() {
             >
               Docker Hub
             </button>
+            <button
+              className={`content-tab ${
+                settingsTab === "discord" ? "active" : ""
+              }`}
+              onClick={() => setSettingsTab("discord")}
+              disabled={!passwordChanged}
+            >
+              Discord
+            </button>
           </div>
         </div>
         <div className="content-tab-panel">
