@@ -203,11 +203,12 @@ jobs:
           RELEASE_NAME="v$RELEASE_VERSION"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
           
-          # Create changelog link
+          # Create changelog link in Sonarr format (v1.0.0...v1.0.1)
           if [ -n "${{ steps.commits.outputs.previous_tag }}" ]; then
-            CHANGELOG_LINK="[Full Changelog](https://github.com/${{ github.repository }}/compare/${{ steps.commits.outputs.previous_tag }}...${TAG_NAME})"
+            PREV_TAG="${{ steps.commits.outputs.previous_tag }}"
+            CHANGELOG_LINK="[${PREV_TAG}...${TAG_NAME}](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG_NAME})"
           else
-            CHANGELOG_LINK="[Full Changelog](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
+            CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
           fi
           
           RELEASE_BODY=$(cat <<EOF
