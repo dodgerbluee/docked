@@ -111,27 +111,9 @@ async function checkImageUpdates(
     }
   }
 
-  // Get publish date for current tag (non-blocking - don't fail if this errors)
-  let currentPublishDate = null;
-  if (currentTag) {
-    try {
-      currentPublishDate = await dockerRegistryService.getTagPublishDate(repo, currentTag);
-    } catch (error) {
-      // Don't fail the entire update check if publish date fetch fails
-      // Silently continue - publish date is nice to have but not critical
-      currentPublishDate = null;
-    }
-  }
-
-  // Check if image exists in Docker Hub (non-blocking - don't fail if this errors)
-  let existsInDockerHub = false;
-  try {
-    existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo);
-  } catch (error) {
-    // Don't fail the entire update check if Docker Hub existence check fails
-    // Silently continue - assume false if check fails
-    existsInDockerHub = false;
-  }
+  // Determine if image exists in Docker Hub based on whether we got a valid response from getLatestImageDigest
+  // If latestImageInfo is not null, the image exists in Docker Hub
+  const existsInDockerHub = latestImageInfo !== null;
 
   return {
     currentTag: currentTag,
@@ -144,7 +126,7 @@ async function checkImageUpdates(
     latestDigest: formatDigest(latestDigest),
     latestDigestFull: latestDigest,
     latestPublishDate: latestPublishDate,
-    currentVersionPublishDate: currentPublishDate,
+    currentVersionPublishDate: null,
     imageRepo: repo,
     existsInDockerHub: existsInDockerHub,
   };
@@ -902,17 +884,6 @@ async function getContainersFromPortainer() {
             const repo = imageParts[0];
             const currentTag = imageParts[1];
 
-            // Get publish date for current tag (non-blocking - don't fail if this errors)
-            let currentPublishDate = null;
-            if (currentTag) {
-              try {
-                currentPublishDate = await dockerRegistryService.getTagPublishDate(repo, currentTag);
-              } catch (error) {
-                // Don't fail if publish date fetch fails
-                currentPublishDate = null;
-              }
-            }
-
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
             const stackName =
@@ -920,14 +891,9 @@ async function getContainersFromPortainer() {
               labels['com.docker.stack.namespace'] ||
               null;
 
-            // Check if image exists in Docker Hub (non-blocking)
-            let existsInDockerHub = false;
-            try {
-              existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo);
-            } catch (error) {
-              // Silently continue - assume false if check fails
-              existsInDockerHub = false;
-            }
+            // In portainerOnly mode, we don't check Docker Hub, so existsInDockerHub is unknown
+            // It will be determined when Docker Hub data is pulled
+            const existsInDockerHub = false;
 
             return {
               id: container.Id,
@@ -945,7 +911,7 @@ async function getContainersFromPortainer() {
               latestDigest: null,
               latestTag: null,
               latestVersion: null,
-              currentVersionPublishDate: currentPublishDate,
+              currentVersionPublishDate: null,
               stackName: stackName,
               imageId: details.Image,
               existsInDockerHub: existsInDockerHub,
