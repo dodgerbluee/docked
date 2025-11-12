@@ -60,101 +60,54 @@ jobs:
             echo "No existing tags found, using base version: $BASE_VERSION"
           fi
           
-          # Use @semantic-release/commit-analyzer to determine version increment
+          # Analyze commits to determine version increment (manual implementation)
           INCREMENT_TYPE=$(node -e "
-            (async () => {
-              try {
-                const analyzeCommits = require('@semantic-release/commit-analyzer');
-                const { execSync } = require('child_process');
-                
-                const baseTag = '$BASE_TAG_FOR_COMPARE';
-                
-                // Get commits since base tag
-                const commitRange = baseTag ? \`\${baseTag}..HEAD\` : 'HEAD';
-                const commits = execSync(\`git log \${commitRange} --pretty=format:'%H|%s|%b' --reverse\`, { encoding: 'utf8' })
-                  .trim()
-                  .split('\\n')
-                  .filter(c => c.trim())
-                  .map(line => {
-                    const [hash, subject, ...bodyParts] = line.split('|');
-                    return {
-                      hash,
-                      message: subject + (bodyParts.length ? '\\n\\n' + bodyParts.join('\\n') : ''),
-                      gitTags: baseTag ? [baseTag] : []
-                    };
-                  });
-                
-                // Analyze commits with angular preset (conventional commits)
-                const result = await analyzeCommits({
-                  commits,
-                  logger: { 
-                    log: (msg) => console.error('LOG:', msg),
-                    error: (msg) => console.error('ERROR:', msg)
-                  },
-                  options: {
-                    preset: 'angular'
-                  }
-                });
-                
-                console.error('Analysis result:', result, 'Type:', typeof result);
-                
-                // Map semantic-release result to increment type
-                // Result can be: null, false, 'major', 'minor', 'patch', or an object with releaseType
-                let incrementType = 'patch';
-                
-                if (result === null || result === false) {
-                  incrementType = 'patch';
-                } else if (typeof result === 'string') {
-                  incrementType = result;
-                } else if (result && result.releaseType) {
-                  incrementType = result.releaseType;
-                } else if (result === 'major' || result === 'minor' || result === 'patch') {
-                  incrementType = result;
-                }
-                
-                console.log(incrementType);
-              } catch (err) {
-                console.error('Error analyzing commits:', err.message);
-                console.error('Stack:', err.stack);
-                // Fallback: manually analyze commits
-                let hasBreaking = false;
-                let hasFeat = false;
-                let hasFix = false;
-                
-                for (const commit of commits) {
-                  const msg = commit.message || '';
-                  const lines = msg.split('\\n');
-                  const subject = lines[0] || '';
-                  const body = lines.slice(1).join('\\n');
-                  
-                  // Check for breaking changes
-                  if (subject.match(/^[a-z]+(\(.+\))?!:/) || body.match(/BREAKING CHANGE/i)) {
-                    hasBreaking = true;
-                    break;
-                  }
-                  
-                  // Check for feat commits
-                  if (subject.match(/^feat(\(.+\))?:/)) {
-                    hasFeat = true;
-                  }
-                  
-                  // Check for fix commits
-                  if (subject.match(/^fix(\(.+\))?:/)) {
-                    hasFix = true;
-                  }
-                }
-                
-                if (hasBreaking) {
-                  console.log('major');
-                } else if (hasFeat) {
-                  console.log('minor');
-                } else if (hasFix) {
-                  console.log('patch');
-                } else {
-                  console.log('patch');
-                }
+            const { execSync } = require('child_process');
+            
+            const baseTag = '$BASE_TAG_FOR_COMPARE';
+            
+            // Get commits since base tag using a delimiter that won't appear in commit messages
+            const commitRange = baseTag ? \`\${baseTag}..HEAD\` : 'HEAD';
+            const commitOutput = execSync(\`git log \${commitRange} --pretty=format:'%H|||%s|||%b' --reverse\`, { encoding: 'utf8' });
+            const commitLines = commitOutput.trim().split('\\n').filter(c => c.trim());
+            
+            // Analyze commits using conventional commit rules
+            let hasBreaking = false;
+            let hasFeat = false;
+            let hasFix = false;
+            
+            for (const line of commitLines) {
+              const parts = line.split('|||');
+              const subject = (parts[1] || '').trim();
+              const body = (parts[2] || '').trim();
+              
+              // Check for breaking changes (highest priority)
+              if (subject.match(/^[a-z]+(\([^)]+\))?!:/) || body.match(/BREAKING CHANGE/i)) {
+                hasBreaking = true;
+                break;
               }
-            })();
+              
+              // Check for feat commits
+              if (subject.match(/^feat(\([^)]+\))?:/)) {
+                hasFeat = true;
+              }
+              
+              // Check for fix commits
+              if (subject.match(/^fix(\([^)]+\))?:/)) {
+                hasFix = true;
+              }
+            }
+            
+            // Determine increment type (breaking > feat > fix)
+            if (hasBreaking) {
+              console.log('major');
+            } else if (hasFeat) {
+              console.log('minor');
+            } else if (hasFix) {
+              console.log('patch');
+            } else {
+              console.log('patch');
+            }
           " || echo "patch")
           
           # Clean and validate increment type
