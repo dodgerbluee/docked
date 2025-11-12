@@ -163,10 +163,11 @@ jobs:
           
           # Get commits between BASE_TAG and HEAD, filtering for conventional commits only (exclude merge commits)
           # Pattern matches: type(scope): or type: (with optional scope)
+          # Use || true to prevent grep from failing when no matches are found
           if [ -z "$BASE_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" | head -50)
+            COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true) | head -50)
           else
-            COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:")
+            COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true))
           fi
           
           if [ -z "$COMMITS" ]; then
