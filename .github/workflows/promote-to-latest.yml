@@ -18,7 +18,7 @@ env:
 
 jobs:
   promote:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest 
     if: github.event.inputs.confirm == 'promote'
     permissions:
       contents: write
