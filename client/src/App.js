@@ -2259,50 +2259,119 @@ function App() {
     }
   }, [activeTab, portainerInstances]);
 
-  // Match sidebar height to stacks container height
+  // Match sidebar height to stacks container height, but ensure it's never shorter than needed for Add Instance button
   useEffect(() => {
     if (activeTab !== "portainer") return;
 
+    let isUpdating = false;
+    let rafId = null;
+
     const updateSidebarHeight = () => {
+      // Prevent infinite loops
+      if (isUpdating) return;
+      
       const stacksContainer = document.querySelector(".stacks-container");
       const sidebar = document.querySelector(".portainer-sidebar");
       
-      if (stacksContainer && sidebar) {
-        const stacksHeight = stacksContainer.offsetHeight;
-        if (stacksHeight > 0) {
-          sidebar.style.height = `${stacksHeight}px`;
-        } else {
-          sidebar.style.height = "auto";
-        }
-      } else {
-        const sidebar = document.querySelector(".portainer-sidebar");
-        if (sidebar) {
-          sidebar.style.height = "auto";
-        }
+      if (!sidebar) {
+        return;
       }
+      
+      isUpdating = true;
+      
+      // Use requestAnimationFrame to batch DOM reads/writes and avoid layout thrashing
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      
+      rafId = requestAnimationFrame(() => {
+        try {
+          // Temporarily set height to auto to measure natural content height
+          sidebar.style.height = "auto";
+          
+          // Force a reflow to get accurate measurements
+          void sidebar.offsetHeight;
+          
+          // Get the natural content height (scrollHeight includes all content including Add Instance button)
+          // This is the minimum height needed to show all sidebar content
+          const minRequiredHeight = sidebar.scrollHeight;
+          
+          // Get stacks container height
+          let finalHeight = minRequiredHeight;
+          if (stacksContainer && stacksContainer.offsetHeight > 0) {
+            const stacksHeight = stacksContainer.offsetHeight;
+            
+            // Match stacks height, but never go below minimum required height
+            // This ensures sidebar matches stacks when tall, but never cuts off content when short
+            finalHeight = Math.max(stacksHeight, minRequiredHeight);
+          }
+          
+          sidebar.style.height = `${finalHeight}px`;
+        } catch (error) {
+          console.error("Error updating sidebar height:", error);
+          // Fallback to auto if something goes wrong
+          sidebar.style.height = "auto";
+        } finally {
+          isUpdating = false;
+          rafId = null;
+        }
+      });
     };
 
     // Update on mount and when content changes
     updateSidebarHeight();
     
-    // Use MutationObserver to watch for content changes
-    const observer = new MutationObserver(updateSidebarHeight);
+    // Use MutationObserver to watch for content changes, but ignore style changes to prevent loops
+    const observer = new MutationObserver((mutations) => {
+      // Only update if the mutation is not a style change on the sidebar itself
+      const shouldUpdate = mutations.some(mutation => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          // Ignore style changes on the sidebar itself to prevent loops
+          return mutation.target !== document.querySelector(".portainer-sidebar");
+        }
+        return true;
+      });
+      
+      if (shouldUpdate) {
+        updateSidebarHeight();
+      }
+    });
+    
     const stacksContainer = document.querySelector(".stacks-container");
+    const sidebar = document.querySelector(".portainer-sidebar");
+    
     if (stacksContainer) {
       observer.observe(stacksContainer, {
         childList: true,
         subtree: true,
-        attributes: true,
-        attributeFilter: ["style", "class"],
+        attributes: false, // Don't watch attributes to reduce triggers
+      });
+    }
+    
+    // Observe sidebar for structural changes (not style)
+    if (sidebar) {
+      observer.observe(sidebar, {
+        childList: true,
+        subtree: true,
+        attributes: false, // Don't watch attributes to prevent loops
       });
     }
 
-    // Also update on window resize
-    window.addEventListener("resize", updateSidebarHeight);
+    // Also update on window resize (debounced)
+    let resizeTimeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateSidebarHeight, 100);
+    };
+    window.addEventListener("resize", handleResize);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", updateSidebarHeight);
+      window.removeEventListener("resize", handleResize);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      clearTimeout(resizeTimeout);
     };
   }, [activeTab, contentTab, containersWithUpdates, containersUpToDate, selectedPortainerInstances]);
 
@@ -2323,6 +2392,16 @@ function App() {
     });
     return allContainersWithUpdates;
   }, [selectedPortainerInstances, portainerInstances, containersByPortainer]);
+
+  // Calculate filtered unused images for selected instances (for header Select All)
+  const portainerUnusedImagesFiltered = useMemo(() => {
+    const instancesToShow = selectedPortainerInstances.size > 0
+      ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+      : portainerInstances;
+    
+    const selectedUrls = new Set(instancesToShow.map((inst) => inst?.url).filter(Boolean));
+    return unusedImages.filter((img) => selectedUrls.has(img.portainerUrl));
+  }, [selectedPortainerInstances, portainerInstances, unusedImages]);
 
   // Sort Portainer instances alphabetically by name
   portainerInstances.sort((a, b) => {
@@ -4375,34 +4454,6 @@ function App() {
               </div>
             ) : portainerUnusedImages.length > 0 ? (
               <>
-                {selectedImages.size > 0 && (
-                  <div style={{ marginBottom: "16px" }}>
-                    <button
-                      className="danger-button"
-                      onClick={handleDeleteImages}
-                      disabled={deletingImages}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "6px 12px",
-                        background: "transparent",
-                        color: "var(--dodger-red)",
-                        border: "1px solid var(--dodger-red)",
-                        borderRadius: "6px",
-                        fontSize: "0.85rem",
-                        fontWeight: "500",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {deletingImages
-                        ? `Deleting ${selectedImages.size}...`
-                        : `Delete Selected (${selectedImages.size})`}
-                    </button>
-                  </div>
-                )}
                 <div className="section-header">
                   <div>
                     <p className="unused-images-total-size">
@@ -5347,6 +5398,64 @@ function App() {
                           onChange={() =>
                             handleSelectAll(aggregatedContainersWithUpdates)
                           }
+                        />
+                        <span style={{ color: "var(--text-primary)" }}>Select All</span>
+                      </label>
+                    </>
+                  )}
+                  {contentTab === "unused" && (
+                    <>
+                      {selectedImages.size > 0 && (
+                        <button
+                          className="danger-button"
+                          onClick={handleDeleteImages}
+                          disabled={deletingImages}
+                          style={{
+                            margin: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 12px",
+                            background: "transparent",
+                            color: "var(--dodger-red)",
+                            border: "1px solid var(--dodger-red)",
+                            borderRadius: "6px",
+                            fontSize: "0.85rem",
+                            fontWeight: "500",
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {deletingImages
+                            ? `Deleting ${selectedImages.size}...`
+                            : `Delete Selected (${selectedImages.size})`}
+                        </button>
+                      )}
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            portainerUnusedImagesFiltered.length > 0 &&
+                            portainerUnusedImagesFiltered.every((img) => selectedImages.has(img.id))
+                          }
+                          onChange={() => {
+                            const allSelected = portainerUnusedImagesFiltered.every((img) => selectedImages.has(img.id));
+                            if (allSelected) {
+                              setSelectedImages(new Set());
+                            } else {
+                              setSelectedImages(new Set(portainerUnusedImagesFiltered.map((img) => img.id)));
+                            }
+                          }}
                         />
                         <span style={{ color: "var(--text-primary)" }}>Select All</span>
                       </label>
