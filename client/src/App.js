@@ -2506,25 +2506,45 @@ function App() {
                             : ""
                         }
                       >
-                        <h3>{container.name}</h3>
-                        {container.hasUpdate && (
-                          <label className="container-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={selectedContainers.has(container.id)}
-                              onChange={() => handleToggleSelect(container.id)}
-                              disabled={
-                                upgrading[container.id] ||
-                                isPortainerContainer(container)
-                              }
-                              title={
-                                isPortainer
-                                  ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
-                                  : ""
-                              }
-                            />
-                          </label>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                          {container.hasUpdate && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "14px",
+                                height: "14px",
+                                borderRadius: "50%",
+                                background: "rgba(239, 62, 66, 0.15)",
+                                color: "#EF3E42",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                flexShrink: 0,
+                              }}
+                              title="Update Available"
+                            >
+                              !
+                            </span>
+                          )}
+                          <h3 style={{ margin: 0 }}>{container.name}</h3>
+                        </div>
+                        <label className="container-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedContainers.has(container.id)}
+                            onChange={() => handleToggleSelect(container.id)}
+                            disabled={
+                              upgrading[container.id] ||
+                              isPortainerContainer(container)
+                            }
+                            title={
+                              isPortainer
+                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                                : ""
+                            }
+                          />
+                        </label>
                       </div>
                       <div
                         className="card-body"
@@ -2651,7 +2671,39 @@ function App() {
                             : ""
                         }
                       >
-                        <h3>{container.name}</h3>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "14px",
+                              height: "14px",
+                              borderRadius: "50%",
+                              background: "rgba(34, 197, 94, 0.15)",
+                              color: "#22c55e",
+                              fontSize: "10px",
+                              fontWeight: "bold",
+                              flexShrink: 0,
+                            }}
+                          >
+                            ✓
+                          </span>
+                          <h3 style={{ margin: 0 }}>{container.name}</h3>
+                        </div>
+                        <label className="container-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedContainers.has(container.id)}
+                            onChange={() => handleToggleSelect(container.id)}
+                            disabled={isPortainerContainer(container)}
+                            title={
+                              isPortainer
+                                ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                                : ""
+                            }
+                          />
+                        </label>
                       </div>
                       <div
                         className="card-body"
