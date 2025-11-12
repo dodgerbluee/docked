@@ -194,6 +194,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        id: create_release
         if: github.event.inputs.create_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -237,6 +238,10 @@ jobs:
             --repo ${{ github.repository }}
           
           echo "✓ Created GitHub release: $TAG_NAME"
+          
+          # Store the actual release version for the summary
+          echo "actual_tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "actual_release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
 
       - name: Get image info
         if: github.event.inputs.create_release == 'true'
@@ -246,10 +251,10 @@ jobs:
           echo "✅ Successfully promoted **dev** to **latest**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Docker Images:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.create_release.outputs.actual_release_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**GitHub Release:** Created [${{ steps.version.outputs.tag_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "**GitHub Release:** Created [${{ steps.create_release.outputs.actual_tag_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.create_release.outputs.actual_tag_name }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Promoted by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "**Promoted at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
