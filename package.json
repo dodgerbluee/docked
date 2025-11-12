@@ -18,7 +18,8 @@
     "license": "MIT",
     "devDependencies": {
         "concurrently": "^8.2.2",
-        "semver": "^7.6.0"
+        "semver": "^7.6.0",
+        "@semantic-release/commit-analyzer": "^11.1.0"
     }
 }
 
