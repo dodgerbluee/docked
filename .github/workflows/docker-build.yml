@@ -33,16 +33,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image (branch push - dev tag only)
+      - name: Build and push Docker image (branch push - skip, handled by pre-release workflow)
         if: github.ref_type != 'tag'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository }}:dev
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+        run: |
+          echo "Skipping Docker build on branch push. Pre-release workflow will handle this."
 
       - name: Extract version for tag
         if: github.ref_type == 'tag'
