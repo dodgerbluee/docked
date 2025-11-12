@@ -23,19 +23,24 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: read
+      issues: read
     steps:
       - name: Check repository permissions
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { data: user } = await github.rest.users.getAuthenticated();
             const { data: repo } = await github.rest.repos.get({
               owner: context.repo.owner,
               repo: context.repo.repo
             });
             
+            // Get the actor (user who triggered the workflow)
+            const actor = context.actor;
+            
             // Check if user is owner
-            const isOwner = repo.owner.login.toLowerCase() === user.login.toLowerCase();
+            const isOwner = repo.owner.login.toLowerCase() === actor.toLowerCase();
             
             // Check if user has admin permissions
             let hasAdmin = false;
@@ -43,7 +48,7 @@ jobs:
               const { data: permissions } = await github.rest.repos.getCollaboratorPermissionLevel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                username: user.login
+                username: actor
               });
               hasAdmin = permissions.permission === 'admin';
             } catch (error) {
@@ -55,7 +60,7 @@ jobs:
               core.setFailed('Only repository owners and admins can promote to latest. You must be the repository owner or have admin permissions.');
             }
             
-            core.info(`User ${user.login} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
+            core.info(`User ${actor} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
 
       - name: Checkout code
         uses: actions/checkout@v4
