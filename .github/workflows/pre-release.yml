@@ -1,0 +1,190 @@
+name: Pre-Release (Dev)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  pre-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Get current version and determine next dev version
+        id: version
+        run: |
+          # Get current version from package.json
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          
+          # Fetch all tags
+          git fetch --tags --force
+          
+          # Find the latest dev tag (e.g., v1.0.3-dev)
+          LATEST_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -1)
+          
+          # Find the latest formal release tag (e.g., v1.0.3)
+          LATEST_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
+          
+          if [ -z "$LATEST_DEV_TAG" ] && [ -z "$LATEST_RELEASE_TAG" ]; then
+            # No existing tags, use current version
+            DEV_VERSION="$BASE_VERSION"
+            echo "No existing tags found, using base version: $BASE_VERSION"
+          elif [ -n "$LATEST_DEV_TAG" ]; then
+            # Extract version from latest dev tag (e.g., v1.0.3-dev -> 1.0.3)
+            LATEST_DEV_VERSION=$(echo "$LATEST_DEV_TAG" | sed 's/^v\(.*\)-dev$/\1/')
+            echo "Latest dev tag: $LATEST_DEV_TAG (version: $LATEST_DEV_VERSION)"
+            
+            # Use semver to increment patch version
+            DEV_VERSION=$(node -e "const semver = require('semver'); console.log(semver.inc('$LATEST_DEV_VERSION', 'patch'));")
+            echo "Incrementing dev version: $LATEST_DEV_VERSION -> $DEV_VERSION"
+          else
+            # Only formal release exists, increment from it
+            LATEST_RELEASE_VERSION=$(echo "$LATEST_RELEASE_TAG" | sed 's/^v//')
+            echo "Latest release tag: $LATEST_RELEASE_TAG (version: $LATEST_RELEASE_VERSION)"
+            
+            # Use semver to increment patch version
+            DEV_VERSION=$(node -e "const semver = require('semver'); console.log(semver.inc('$LATEST_RELEASE_VERSION', 'patch'));")
+            echo "Incrementing from release version: $LATEST_RELEASE_VERSION -> $DEV_VERSION"
+          fi
+          
+          TAG_NAME="v${DEV_VERSION}-dev"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
+          echo "Final dev tag: $TAG_NAME (version: $DEV_VERSION)"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.dev_version }}-dev
+            ${{ env.REGISTRY }}/${{ github.repository }}:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag_name }}" -m "Pre-release ${{ steps.version.outputs.tag_name }}"
+          git push origin "${{ steps.version.outputs.tag_name }}"
+
+      - name: Get commits since previous dev release
+        id: commits
+        run: |
+          # Find the previous dev tag
+          PREVIOUS_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -2 | head -1)
+          
+          # Determine which tag to use as the base
+          if [ -n "$PREVIOUS_DEV_TAG" ]; then
+            BASE_TAG="$PREVIOUS_DEV_TAG"
+            echo "Using previous dev tag: $BASE_TAG"
+          else
+            # No previous dev tag, use latest formal release or all commits
+            PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
+            if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
+              BASE_TAG="$PREVIOUS_RELEASE_TAG"
+              echo "Using previous release tag: $BASE_TAG"
+            else
+              BASE_TAG=""
+              echo "No previous tags found, using all commits"
+            fi
+          fi
+          
+          # Get commits between BASE_TAG and HEAD, filtering for conventional commits only
+          # Pattern matches: type(scope): or type: (with optional scope)
+          if [ -z "$BASE_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" | head -20)
+          else
+            COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:")
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            COMMITS_LIST="- No conventional commits since previous release"
+          else
+            COMMITS_LIST=$(echo "$COMMITS" | while IFS='|' read -r subject hash fullhash; do
+              echo "- $subject ([${hash:0:7}](https://github.com/${{ github.repository }}/commit/$fullhash))"
+            done)
+          fi
+          
+          # Store in output
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Pre-Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          DEV_VERSION="${{ steps.version.outputs.dev_version }}"
+          RELEASE_NAME="v$DEV_VERSION-dev"
+          RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          # Get previous release tag for changelog link
+          PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
+          if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
+            CHANGELOG_LINK="[Full Changelog](https://github.com/${{ github.repository }}/compare/${PREVIOUS_RELEASE_TAG}...${TAG_NAME})"
+          else
+            CHANGELOG_LINK="[Full Changelog](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
+          fi
+          
+          RELEASE_BODY=$(cat <<EOF
+          **Docker Images:**
+          - \`${{ env.REGISTRY }}/${{ github.repository }}:$DEV_VERSION-dev\`
+          - \`${{ env.REGISTRY }}/${{ github.repository }}:dev\`
+          
+          **Released at:** $RELEASE_DATE
+          
+          ---
+          
+          ## 📝 Commits in This Release
+          
+          ${{ steps.commits.outputs.commits }}
+          
+          ---
+          
+          $CHANGELOG_LINK
+          EOF
+          )
+          
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "$RELEASE_BODY" \
+            --prerelease \
+            --repo ${{ github.repository }}
+          
+          echo "✓ Created GitHub pre-release: $TAG_NAME"
+
