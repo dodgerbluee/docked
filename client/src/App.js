@@ -262,6 +262,7 @@ function App() {
   const batchInitialTimeoutRef = useRef(null);
   const hasRunInitialPullRef = useRef(false);
   const lastImageDeleteTimeRef = useRef(0); // Track when images were deleted to prevent count overwrite
+  const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
 
   // Memoize avatar change handler to prevent it from being recreated on every render
   // Use ref to access current avatar value to avoid dependency on avatar state
@@ -683,7 +684,18 @@ function App() {
           `${API_BASE_URL}/api/containers`
         );
         if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
-          setContainers(cachedResponse.data.containers || []);
+          // Preserve hasUpdate:false for containers that were successfully updated
+          const apiContainers = cachedResponse.data.containers || [];
+          const updatedContainers = apiContainers.map((apiContainer) => {
+            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+              if (!apiContainer.hasUpdate) {
+                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+              }
+              return { ...apiContainer, hasUpdate: false };
+            }
+            return apiContainer;
+          });
+          setContainers(updatedContainers);
           setStacks(cachedResponse.data.stacks || []);
           setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
 
@@ -719,7 +731,18 @@ function App() {
       let containersUpdated = 0;
 
       if (response.data.grouped && response.data.stacks) {
-        setContainers(response.data.containers || []);
+        // Preserve hasUpdate:false for containers that were successfully updated
+        const apiContainers = response.data.containers || [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers);
         setStacks(response.data.stacks || []);
         setUnusedImagesCount(response.data.unusedImagesCount || 0);
 
@@ -727,7 +750,7 @@ function App() {
           setPortainerInstancesFromAPI(response.data.portainerInstances);
         }
 
-        containersChecked = response.data.containers?.length || 0;
+        containersChecked = updatedContainers.length || 0;
         containersUpdated =
           response.data.containers?.filter((c) => c.hasUpdate).length || 0;
         log(
@@ -743,12 +766,21 @@ function App() {
         localStorage.setItem("lastPullTime", pullTime.toISOString());
       } else {
         // Backward compatibility: treat as flat array
-        setContainers(Array.isArray(response.data) ? response.data : []);
+        // Preserve hasUpdate:false for containers that were successfully updated
+        const apiContainers = Array.isArray(response.data) ? response.data : [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers);
         setStacks([]);
         setUnusedImagesCount(0);
-        containersChecked = Array.isArray(response.data)
-          ? response.data.length
-          : 0;
+        containersChecked = updatedContainers.length || 0;
         log(`Processed ${containersChecked} containers (legacy format)`);
       }
 
@@ -1311,7 +1343,22 @@ function App() {
       const response = await axios.get(url);
       // Handle both grouped and flat response formats
       if (response.data.grouped && response.data.stacks) {
-        setContainers(response.data.containers || []); // Keep flat list for filtering
+        // Preserve hasUpdate:false for containers that were successfully updated
+        // This prevents cards from reappearing after a successful update
+        const apiContainers = response.data.containers || [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          // If this container was successfully updated, preserve hasUpdate:false
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            // If API naturally says hasUpdate:false, we can clear the ref entry
+            // This allows new updates to show up in the future
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers); // Keep flat list for filtering
         setStacks(response.data.stacks || []);
         // Only update unused images count if we haven't just deleted images
         // (within the last 2 seconds) to prevent overwriting manual updates
@@ -1414,7 +1461,21 @@ function App() {
         }
       } else {
         // Backward compatibility: treat as flat array
-        setContainers(Array.isArray(response.data) ? response.data : []);
+        // Preserve hasUpdate:false for containers that were successfully updated
+        const apiContainers = Array.isArray(response.data) ? response.data : [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          // If this container was successfully updated, preserve hasUpdate:false
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            // If API naturally says hasUpdate:false, we can clear the ref entry
+            // This allows new updates to show up in the future
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers);
         setStacks([]);
         setUnusedImagesCount(0);
       }
@@ -1639,7 +1700,18 @@ function App() {
           `${API_BASE_URL}/api/containers`
         );
         if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
-          setContainers(cachedResponse.data.containers || []);
+          // Preserve hasUpdate:false for containers that were successfully updated
+          const apiContainers = cachedResponse.data.containers || [];
+          const updatedContainers = apiContainers.map((apiContainer) => {
+            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+              if (!apiContainer.hasUpdate) {
+                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+              }
+              return { ...apiContainer, hasUpdate: false };
+            }
+            return apiContainer;
+          });
+          setContainers(updatedContainers);
           setStacks(cachedResponse.data.stacks || []);
           setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
 
@@ -1669,7 +1741,18 @@ function App() {
 
       // Update state with fresh data
       if (response.data.grouped && response.data.stacks) {
-        setContainers(response.data.containers || []);
+        // Preserve hasUpdate:false for containers that were successfully updated
+        const apiContainers = response.data.containers || [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers);
         setStacks(response.data.stacks || []);
         setUnusedImagesCount(response.data.unusedImagesCount || 0);
 
@@ -1686,7 +1769,18 @@ function App() {
         localStorage.setItem("lastPullTime", pullTime.toISOString());
       } else {
         // Backward compatibility: treat as flat array
-        setContainers(Array.isArray(response.data) ? response.data : []);
+        // Preserve hasUpdate:false for containers that were successfully updated
+        const apiContainers = Array.isArray(response.data) ? response.data : [];
+        const updatedContainers = apiContainers.map((apiContainer) => {
+          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+            if (!apiContainer.hasUpdate) {
+              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+            }
+            return { ...apiContainer, hasUpdate: false };
+          }
+          return apiContainer;
+        });
+        setContainers(updatedContainers);
         setStacks([]);
         setUnusedImagesCount(0);
       }
@@ -1946,6 +2040,10 @@ function App() {
       );
 
       if (response.data.success) {
+        // Track this container as successfully updated to preserve hasUpdate:false
+        // even if the API refetch returns stale data
+        successfullyUpdatedContainersRef.current.add(container.id);
+        
         // Mark container as up to date (no longer has updates)
         setContainers((prevContainers) =>
           prevContainers.map((c) =>
@@ -1966,6 +2064,7 @@ function App() {
             `To: ${newImage}`
         );
         // Refresh containers in background to update cache
+        // The refetch will preserve hasUpdate:false for this container
         fetchContainers();
       }
     } catch (err) {
@@ -2079,6 +2178,13 @@ function App() {
       const successfulIds = new Set(
         response.data.results?.map((r) => r.containerId) || []
       );
+      
+      // Track successfully updated containers to preserve hasUpdate:false
+      // even if the API refetch returns stale data
+      successfulIds.forEach((containerId) => {
+        successfullyUpdatedContainersRef.current.add(containerId);
+      });
+      
       setContainers((prevContainers) =>
         prevContainers.map((c) =>
           successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c
