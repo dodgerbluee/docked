@@ -3,6 +3,8 @@
  * Initializes and exports the batch manager with all registered job handlers
  */
 
+const logger = require('../../utils/logger');
+
 // Lazy load batch manager to avoid initialization issues
 let batchManager = null;
 
@@ -21,14 +23,14 @@ function registerHandlers() {
     const DockerHubPullHandler = require("./handlers/DockerHubPullHandler");
     manager.registerHandler(new DockerHubPullHandler());
   } catch (error) {
-    console.error("Error registering DockerHubPullHandler:", error);
+    logger.error("Error registering DockerHubPullHandler:", error);
   }
 
   try {
     const TrackedAppsCheckHandler = require("./handlers/TrackedAppsCheckHandler");
     manager.registerHandler(new TrackedAppsCheckHandler());
   } catch (error) {
-    console.error("Error registering TrackedAppsCheckHandler:", error);
+    logger.error("Error registering TrackedAppsCheckHandler:", error);
   }
 }
 
@@ -42,7 +44,7 @@ async function start() {
     const manager = getBatchManager();
     await manager.start();
   } catch (err) {
-    console.error("❌ Failed to start batch system:", err);
+    logger.error("❌ Failed to start batch system:", err);
     throw err;
   }
 }

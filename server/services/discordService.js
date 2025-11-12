@@ -398,26 +398,59 @@ function formatVersionUpdateNotification(imageData) {
     title: notificationTitle,
     description: `A new version of **${name}** is now available!`,
     color: 23196, // Dodger Blue (#005A9C)
-    fields: [
-      {
-        name: 'Source',
-        value: sourceDisplay,
-        inline: false,
-      },
-    ],
+    fields: [],
     timestamp: new Date().toISOString(),
     footer: {
       text: 'Docked System',
     },
   };
 
-  // Add publish date if available
-  if (latestVersionPublishDate) {
+  // For tracked applications, organize fields in specific order
+  if (notificationType === 'tracked-app') {
+    // Top row: Latest Version (left) and Release Date (right) - inline
     embed.fields.push({
-      name: 'Release Date',
-      value: publishDateText,
+      name: 'Latest Version',
+      value: latestDisplay,
       inline: true,
     });
+    
+    if (latestVersionPublishDate) {
+      embed.fields.push({
+        name: 'Release Date',
+        value: publishDateText,
+        inline: true,
+      });
+    }
+    
+    // Underneath: Source (full width)
+    embed.fields.push({
+      name: 'Source',
+      value: sourceDisplay,
+      inline: false,
+    });
+    
+    // Underneath Source: Current Version
+    embed.fields.push({
+      name: 'Current Version',
+      value: currentDisplay,
+      inline: false,
+    });
+  } else {
+    // For portainer containers, keep original layout
+    embed.fields.push({
+      name: 'Source',
+      value: sourceDisplay,
+      inline: false,
+    });
+    
+    // Add publish date if available
+    if (latestVersionPublishDate) {
+      embed.fields.push({
+        name: 'Release Date',
+        value: publishDateText,
+        inline: true,
+      });
+    }
   }
 
   return {

@@ -7,6 +7,7 @@
 const { createBatchRun, updateBatchRun } = require('../../db/database');
 const BatchLogger = require('./Logger');
 const Scheduler = require('./Scheduler');
+const logger = require('../../utils/logger');
 
 class BatchManager {
   constructor() {
@@ -27,7 +28,7 @@ class BatchManager {
     }
 
     this.handlers.set(jobType, handler);
-    console.log(`✅ Registered batch job handler: ${jobType} (${handler.getDisplayName()})`);
+    logger.info(`✅ Registered batch job handler: ${jobType} (${handler.getDisplayName()})`);
   }
 
   /**
@@ -144,16 +145,16 @@ class BatchManager {
    */
   async start() {
     if (this.handlers.size === 0) {
-      console.warn('⚠️  No job handlers registered. Batch manager will not start.');
+      logger.warn('⚠️  No job handlers registered. Batch manager will not start.');
       return;
     }
 
-    console.log(`🚀 Starting batch manager with ${this.handlers.size} registered job handler(s)`);
+    logger.info(`🚀 Starting batch manager with ${this.handlers.size} registered job handler(s)`);
     
     try {
       await this.scheduler.start();
     } catch (err) {
-      console.error('❌ Failed to start batch system:', err);
+      logger.error('❌ Failed to start batch system:', err);
       throw err;
     }
   }
@@ -163,7 +164,7 @@ class BatchManager {
    */
   stop() {
     this.scheduler.stop();
-    console.log('⏹️  Batch manager stopped');
+    logger.info('⏹️  Batch manager stopped');
   }
 
   /**

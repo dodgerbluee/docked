@@ -7,6 +7,7 @@ const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
 const { validateImageArray } = require("../utils/validation");
 const { getAllPortainerInstances } = require("../db/database");
+const logger = require("../utils/logger");
 
 /**
  * Get unused images
@@ -53,7 +54,7 @@ async function deleteImages(req, res, next) {
       }
     }
 
-    console.log(
+    logger.info(
       `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
@@ -81,13 +82,13 @@ async function deleteImages(req, res, next) {
           instance.api_key,
           instance.auth_type || "apikey"
         );
-        console.log(
+        logger.info(
           `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`
         );
         await portainerService.deleteImage(portainerUrl, endpointId, id, true);
         results.push({ id, success: true });
       } catch (error) {
-        console.error(
+        logger.error(
           `Failed to delete image ${id.substring(0, 12)}:`,
           error.message
         );

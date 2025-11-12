@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { validateRequiredFields } = require('../utils/validation');
+const logger = require('../utils/logger');
 
 // Use DATA_DIR environment variable or default to /data
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -14,7 +15,7 @@ const AVATARS_DIR = path.join(DATA_DIR, 'avatars');
 // Ensure avatars directory exists
 if (!fs.existsSync(AVATARS_DIR)) {
   fs.mkdirSync(AVATARS_DIR, { recursive: true });
-  console.log(`Created avatars directory: ${AVATARS_DIR}`);
+  logger.info(`Created avatars directory: ${AVATARS_DIR}`);
 }
 
 /**
@@ -399,9 +400,9 @@ async function migrateAvatarFromUsername(userId, username) {
       });
     }
     
-    console.log(`Migrated avatar from username directory (${username}) to user ID directory (${userId})`);
+    logger.info(`Migrated avatar from username directory (${username}) to user ID directory (${userId})`);
   } catch (err) {
-    console.error('Error migrating avatar:', err);
+    logger.error('Error migrating avatar:', err);
     // Don't throw - migration failure shouldn't break the request
   }
 }

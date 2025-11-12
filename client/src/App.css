@@ -1605,33 +1605,33 @@ body.dark-mode .content-tab.active {
 
 .version-badge {
   display: inline-block;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 0;
+  border-radius: 0;
   font-size: 0.8rem;
   font-weight: 600;
   margin-left: 6px;
 }
 
 .version-badge.current {
-  background: rgba(0, 90, 156, 0.1);
+  background: none;
   color: var(--dodger-blue);
-  border: 1px solid var(--dodger-blue);
+  border: none;
 }
 
 body.dark-mode .version-badge.current {
-  background: rgba(30, 136, 229, 0.2);
+  background: none;
   color: var(--dodger-blue-light);
-  border-color: var(--dodger-blue-light);
+  border: none;
 }
 
 .version-badge.new {
-  background: rgba(239, 62, 66, 0.1);
+  background: none;
   color: var(--dodger-red);
-  border: 1px solid var(--dodger-red);
+  border: none;
 }
 
 body.dark-mode .version-badge.new {
-  background: rgba(239, 62, 66, 0.2);
+  background: none;
 }
 
 .digest-link {
@@ -1739,6 +1739,11 @@ body.dark-mode .docker-hub-icon {
   gap: 20px;
   min-height: 600px;
   margin-top: -8px;
+  align-items: flex-start;
+}
+
+.stacks-container {
+  min-height: 0;
 }
 
 .portainer-sidebar {
@@ -1750,9 +1755,6 @@ body.dark-mode .docker-hub-icon {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  height: fit-content;
-  max-height: calc(100vh - 250px);
-  overflow-y: auto;
 }
 
 .portainer-sidebar-header {

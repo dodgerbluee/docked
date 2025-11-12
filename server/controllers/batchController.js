@@ -15,6 +15,7 @@ const {
 } = require('../db/database');
 const batchSystem = require('../services/batch');
 const { setLogLevel: setBatchLogLevel, getLogLevel: getBatchLogLevel } = require('../services/batch/Logger');
+const logger = require('../utils/logger');
 
 /**
  * Get batch configuration
@@ -30,7 +31,7 @@ async function getBatchConfigHandler(req, res, next) {
       config: configs, // Return all configs as an object
     });
   } catch (error) {
-    console.error('Error fetching batch config:', error);
+    logger.error('Error fetching batch config:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch batch configuration',
@@ -101,7 +102,7 @@ async function updateBatchConfigHandler(req, res, next) {
       message: 'Batch configuration updated successfully',
     });
   } catch (error) {
-    console.error('Error updating batch config:', error);
+    logger.error('Error updating batch config:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to update batch configuration',
@@ -124,7 +125,7 @@ async function createBatchRunHandler(req, res, next) {
       runId,
     });
   } catch (error) {
-    console.error('Error creating batch run:', error);
+    logger.error('Error creating batch run:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to create batch run',
@@ -164,7 +165,7 @@ async function updateBatchRunHandler(req, res, next) {
       message: 'Batch run updated successfully',
     });
   } catch (error) {
-    console.error('Error updating batch run:', error);
+    logger.error('Error updating batch run:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to update batch run',
@@ -197,7 +198,7 @@ async function getLatestBatchRunHandler(req, res, next) {
       });
     }
   } catch (error) {
-    console.error('Error fetching latest batch run:', error);
+    logger.error('Error fetching latest batch run:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch latest batch run',
@@ -220,7 +221,7 @@ async function getRecentBatchRunsHandler(req, res, next) {
       runs,
     });
   } catch (error) {
-    console.error('Error fetching recent batch runs:', error);
+    logger.error('Error fetching recent batch runs:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch recent batch runs',
@@ -257,7 +258,7 @@ async function getBatchRunByIdHandler(req, res, next) {
       run,
     });
   } catch (error) {
-    console.error('Error fetching batch run:', error);
+    logger.error('Error fetching batch run:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch batch run',
@@ -295,10 +296,10 @@ async function triggerBatchJobHandler(req, res, next) {
     // Pass isManual=true to mark this as a manually triggered run
     batchSystem.executeJob(jobType, true)
       .then(result => {
-        console.log(`✅ Manually triggered job ${jobType} completed:`, result);
+        logger.info(`✅ Manually triggered job ${jobType} completed:`, result);
       })
       .catch(err => {
-        console.error(`❌ Manually triggered job ${jobType} failed:`, err);
+        logger.error(`❌ Manually triggered job ${jobType} failed:`, err);
       });
 
     res.json({
@@ -306,7 +307,7 @@ async function triggerBatchJobHandler(req, res, next) {
       message: `Job ${jobType} triggered successfully. Check batch logs for execution details.`,
     });
   } catch (error) {
-    console.error('Error triggering batch job:', error);
+    logger.error('Error triggering batch job:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to trigger batch job',
@@ -328,7 +329,7 @@ async function getBatchStatusHandler(req, res, next) {
       status,
     });
   } catch (error) {
-    console.error('Error fetching batch status:', error);
+    logger.error('Error fetching batch status:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch batch status',
@@ -350,7 +351,7 @@ async function getLogLevelHandler(req, res, next) {
       logLevel: level,
     });
   } catch (error) {
-    console.error('Error getting log level:', error);
+    logger.error('Error getting log level:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get log level',
@@ -382,7 +383,7 @@ async function setLogLevelHandler(req, res, next) {
       message: `Log level set to ${logLevel}`,
     });
   } catch (error) {
-    console.error('Error setting log level:', error);
+    logger.error('Error setting log level:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to set log level',

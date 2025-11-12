@@ -98,7 +98,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
         const instance = instances.find(inst => inst.url === portainerUrl);
         
         if (instance && instance.ip_address) {
-          console.log(`DNS resolution failed for ${portainerUrl}, using IP fallback: ${instance.ip_address}`);
+          logger.info(`DNS resolution failed for ${portainerUrl}, using IP fallback: ${instance.ip_address}`);
           
           // Try multiple URL variations with the IP address
           const originalUrl = new URL(portainerUrl);
@@ -128,7 +128,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
           // Try each variation until one works
           for (const ipUrl of ipUrlVariations) {
             try {
-              console.log(`Trying IP fallback URL: ${ipUrl}`);
+              logger.info(`Trying IP fallback URL: ${ipUrl}`);
               
               // Update auth token map to use IP URL as key if we have a token
               if (authTokens.has(portainerUrl)) {
@@ -145,7 +145,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
               // The requestFn should merge IP config using getIpFallbackConfig
               try {
                 const result = await requestFn(ipUrl);
-                console.log(`IP fallback succeeded with: ${ipUrl}`);
+                logger.info(`IP fallback succeeded with: ${ipUrl}`);
                 return result;
               } catch (ipError) {
                 // Check if it's an SSL/certificate error
@@ -157,7 +157,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
                                   ipError.message?.includes('self-signed');
                 
                 if (isSSLError) {
-                  console.warn(`SSL error with IP fallback - request function may need to merge IP config: ${ipError.message}`);
+                  logger.warn(`SSL error with IP fallback - request function may need to merge IP config: ${ipError.message}`);
                 }
                 throw ipError;
               }
@@ -165,14 +165,14 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
               // If this variation failed, try the next one
               // Only log if it's the last variation
               if (ipUrl === ipUrlVariations[ipUrlVariations.length - 1]) {
-                console.error(`All IP fallback variations failed for ${portainerUrl}. Last attempt (${ipUrl}):`, ipError.message);
+                logger.error(`All IP fallback variations failed for ${portainerUrl}. Last attempt (${ipUrl}):`, ipError.message);
               }
               // Continue to next variation
             }
           }
         }
       } catch (ipError) {
-        console.error(`IP fallback failed for ${portainerUrl}:`, ipError.message);
+        logger.error(`IP fallback failed for ${portainerUrl}:`, ipError.message);
       }
     }
     
@@ -259,7 +259,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
     // Portainer returns jwt in response.data
     const authToken = response.data.jwt || response.data.token;
     if (!authToken) {
-      console.error(`No token in response for ${portainerUrl}:`, response.data);
+      logger.error(`No token in response for ${portainerUrl}:`, response.data);
       throw new Error('Authentication response missing token');
     }
 
@@ -270,9 +270,9 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
   } catch (error) {
     // Enhanced error logging
     if (error.response) {
-      console.error(`Portainer authentication failed for ${portainerUrl}:`);
-      console.error('Status:', error.response.status);
-      console.error('Status Text:', error.response.statusText);
+      logger.error(`Portainer authentication failed for ${portainerUrl}:`);
+      logger.error('Status:', error.response.status);
+      logger.error('Status Text:', error.response.statusText);
 
       // Try alternative authentication formats
       if (error.response.status === 422) {
@@ -282,7 +282,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
         ];
 
         for (const format of altFormats) {
-          console.log(
+          logger.info(
             `Attempting alternative authentication format for ${portainerUrl}...`,
             Object.keys(format)
           );
@@ -298,7 +298,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
             );
             const altToken = altResponse.data.jwt || altResponse.data.token;
             if (altToken) {
-              console.log(
+              logger.info(
                 `Alternative authentication format succeeded for ${portainerUrl}`
               );
               authTokens.set(portainerUrl, altToken);
@@ -307,7 +307,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
             }
           } catch (altError) {
             if (altError.response) {
-              console.error(
+              logger.error(
                 `Alternative format failed for ${portainerUrl}:`,
                 altError.response.status,
                 altError.response.data
@@ -317,7 +317,7 @@ async function authenticatePortainer(portainerUrl, username = null, password = n
         }
       }
     } else {
-      console.error(
+      logger.error(
         `Portainer authentication failed for ${portainerUrl}:`,
         error.message
       );

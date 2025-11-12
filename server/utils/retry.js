@@ -3,6 +3,7 @@
  */
 
 const { recordRateLimitError, recordSuccess } = require('./rateLimiter');
+const logger = require('./logger');
 
 /**
  * Custom error for rate limit threshold exceeded
@@ -49,7 +50,7 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
           const delay = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s
           // Only log first few errors to avoid spam
           if (attempt < 2) {
-            console.warn(
+            logger.warn(
               `⚠️  Rate limited (429) by Docker Hub, waiting ${delay / 1000}s before retry (attempt ${
                 attempt + 1
               }/${maxRetries})`

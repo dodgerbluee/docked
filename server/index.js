@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 require("dotenv").config();
+const logger = require("./utils/logger");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -73,7 +74,7 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
       // If it's a 429 (rate limit) and we have retries left, wait and retry
       if (error.response?.status === 429 && attempt < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(
+        logger.info(
           `Rate limited, retrying in ${delay}ms (attempt ${
             attempt + 1
           }/${maxRetries})`
@@ -111,7 +112,7 @@ async function authenticatePortainer(portainerUrl) {
     // Portainer returns jwt in response.data
     const authToken = response.data.jwt || response.data.token;
     if (!authToken) {
-      console.error(`No token in response for ${portainerUrl}:`, response.data);
+      logger.error(`No token in response for ${portainerUrl}:`, response.data);
       throw new Error("Authentication response missing token");
     }
 
@@ -121,14 +122,14 @@ async function authenticatePortainer(portainerUrl) {
   } catch (error) {
     // Enhanced error logging
     if (error.response) {
-      console.error(`Portainer authentication failed for ${portainerUrl}:`);
-      console.error("Status:", error.response.status);
-      console.error("Status Text:", error.response.statusText);
-      console.error(
+      logger.error(`Portainer authentication failed for ${portainerUrl}:`);
+      logger.error("Status:", error.response.status);
+      logger.error("Status Text:", error.response.statusText);
+      logger.error(
         "Response Data:",
         JSON.stringify(error.response.data, null, 2)
       );
-      console.error("Request URL:", error.config?.url);
+      logger.error("Request URL:", error.config?.url);
 
       // Log payload with password masked for security, but show length and special chars
       const payloadForLog = error.config?.data
@@ -137,23 +138,23 @@ async function authenticatePortainer(portainerUrl) {
       if (payloadForLog && (payloadForLog.password || payloadForLog.Password)) {
         const pwdKey = payloadForLog.password ? "password" : "Password";
         const pwdValue = payloadForLog[pwdKey];
-        console.error("Password length:", pwdValue?.length || 0);
-        console.error(
+        logger.error("Password length:", pwdValue?.length || 0);
+        logger.error(
           "Password contains #:",
           pwdValue?.includes("#") ? "YES" : "NO"
         );
-        console.error(
+        logger.error(
           "Password first 2 chars:",
           pwdValue?.substring(0, 2) || "N/A"
         );
-        console.error(
+        logger.error(
           "Password last 2 chars:",
           pwdValue?.substring(pwdValue.length - 2) || "N/A"
         );
         // Mask password in log
         payloadForLog[pwdKey] = "***MASKED***";
       }
-      console.error("Request Payload:", JSON.stringify(payloadForLog, null, 2));
+      logger.error("Request Payload:", JSON.stringify(payloadForLog, null, 2));
 
       // Try alternative authentication formats
       if (error.response.status === 422) {
@@ -163,7 +164,7 @@ async function authenticatePortainer(portainerUrl) {
         ];
 
         for (const format of altFormats) {
-          console.log(
+          logger.info(
             `Attempting alternative authentication format for ${portainerUrl}...`,
             Object.keys(format)
           );
@@ -179,7 +180,7 @@ async function authenticatePortainer(portainerUrl) {
             );
             const altToken = altResponse.data.jwt || altResponse.data.token;
             if (altToken) {
-              console.log(
+              logger.info(
                 `Alternative authentication format succeeded for ${portainerUrl}`
               );
               authTokens.set(portainerUrl, altToken);
@@ -187,7 +188,7 @@ async function authenticatePortainer(portainerUrl) {
             }
           } catch (altError) {
             if (altError.response) {
-              console.error(
+              logger.error(
                 `Alternative format failed for ${portainerUrl}:`,
                 altError.response.status,
                 altError.response.data
@@ -197,7 +198,7 @@ async function authenticatePortainer(portainerUrl) {
         }
       }
     } else {
-      console.error(
+      logger.error(
         `Portainer authentication failed for ${portainerUrl}:`,
         error.message
       );
@@ -361,7 +362,7 @@ async function getDockerRegistryToken(namespace, repository) {
     const response = await axios.get(authUrl, config);
     return response.data?.token || null;
   } catch (error) {
-    console.error(
+    logger.error(
       `Error getting Docker Registry token for ${namespace}/${repository}:`,
       error.message
     );
@@ -395,7 +396,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
     // Get authentication token
     const token = await getDockerRegistryToken(namespace, repository);
     if (!token) {
-      console.error(
+      logger.error(
         `Failed to get authentication token for ${namespace}/${repository}`
       );
       return null;
@@ -428,7 +429,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
   } catch (error) {
     // Only log non-404 errors and non-429 errors (429s are handled by retry)
     if (error.response?.status !== 404 && error.response?.status !== 429) {
-      console.error(
+      logger.error(
         `Error fetching index digest for ${imageRepo}:${tag}:`,
         error.message
       );
@@ -525,7 +526,7 @@ async function getCurrentImageDigest(
 
         // Debug: log available RepoDigests for troubleshooting
         if (imageData.RepoDigests.length > 1) {
-          console.log(
+          logger.info(
             `Image ${imageName} has ${imageData.RepoDigests.length} RepoDigests:`,
             imageData.RepoDigests.map((rd) => rd.split("@sha256:")[0])
           );
@@ -579,7 +580,7 @@ async function getCurrentImageDigest(
         const firstRepoDigest = imageData.RepoDigests[0];
         if (firstRepoDigest && firstRepoDigest.includes("@sha256:")) {
           const digest = firstRepoDigest.split("@sha256:")[1];
-          console.log(
+          logger.info(
             `Warning: Using first RepoDigest for ${imageName} as fallback: ${digest.substring(
               0,
               12
@@ -591,7 +592,7 @@ async function getCurrentImageDigest(
     } catch (error) {
       // If image inspection fails, we can't get the digest
       // Return null and let the comparison fall back to tag-based comparison
-      console.log(
+      logger.info(
         `Could not inspect image ${imageId} to get digest: ${error.message}`
       );
     }
@@ -808,7 +809,7 @@ app.get("/api/containers", async (req, res) => {
         const endpoints = await getEndpoints(portainerUrl);
 
         if (endpoints.length === 0) {
-          console.log(`No endpoints found for ${portainerUrl}`);
+          logger.info(`No endpoints found for ${portainerUrl}`);
           continue;
         }
 
@@ -865,7 +866,7 @@ app.get("/api/containers", async (req, res) => {
 
         allContainers.push(...containersWithUpdates);
       } catch (error) {
-        console.error(
+        logger.error(
           `Error fetching containers from ${portainerUrl}:`,
           error.message
         );
@@ -940,7 +941,7 @@ app.get("/api/containers", async (req, res) => {
           }
         }
       } catch (error) {
-        console.error(
+        logger.error(
           `Error counting unused images from ${portainerUrl}:`,
           error.message
         );
@@ -955,7 +956,7 @@ app.get("/api/containers", async (req, res) => {
       unusedImagesCount: unusedImagesCount,
     });
   } catch (error) {
-    console.error("Error fetching containers:", error);
+    logger.error("Error fetching containers:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1070,7 +1071,7 @@ app.post("/api/containers/:containerId/upgrade", async (req, res) => {
       ...result,
     });
   } catch (error) {
-    console.error("Error upgrading container:", error);
+    logger.error("Error upgrading container:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1120,7 +1121,7 @@ app.get("/api/images/unused", async (req, res) => {
             usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
 
           if (!isUsed) {
-            console.log(image);
+            logger.info(image);
             // Extract repository tags/names
             let repoTags = image.RepoTags;
 
@@ -1157,7 +1158,7 @@ app.get("/api/images/unused", async (req, res) => {
                   }
                 } catch (err) {
                   // If inspection fails, use default
-                  console.log(
+                  logger.info(
                     `Could not inspect image ${image.Id}: ${err.message}`
                   );
                 }
@@ -1181,7 +1182,7 @@ app.get("/api/images/unused", async (req, res) => {
           }
         }
       } catch (error) {
-        console.error(
+        logger.error(
           `Error fetching unused images from ${portainerUrl}:`,
           error.message
         );
@@ -1190,7 +1191,7 @@ app.get("/api/images/unused", async (req, res) => {
 
     res.json({ unusedImages });
   } catch (error) {
-    console.error("Error fetching unused images:", error);
+    logger.error("Error fetching unused images:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1217,7 +1218,7 @@ app.post("/api/images/delete", async (req, res) => {
       }
     }
 
-    console.log(
+    logger.info(
       `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
@@ -1231,13 +1232,13 @@ app.post("/api/images/delete", async (req, res) => {
 
       try {
         await authenticatePortainer(portainerUrl);
-        console.log(
+        logger.info(
           `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`
         );
         await deleteImage(portainerUrl, endpointId, id, true);
         results.push({ id, success: true });
       } catch (error) {
-        console.error(
+        logger.error(
           `Failed to delete image ${id.substring(0, 12)}:`,
           error.message
         );
@@ -1252,7 +1253,7 @@ app.post("/api/images/delete", async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error("Error deleting images:", error);
+    logger.error("Error deleting images:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1297,7 +1298,7 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
         );
         results.push(result);
       } catch (error) {
-        console.error(
+        logger.error(
           `Error upgrading container ${container.containerId}:`,
           error
         );
@@ -1316,7 +1317,7 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
       errors: errors,
     });
   } catch (error) {
-    console.error("Error in batch upgrade:", error);
+    logger.error("Error in batch upgrade:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1324,47 +1325,47 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
 // Import batch scheduler
 const batchSystem = require("./services/batch");
 
-console.log('[SERVER] About to call app.listen() on port', PORT);
+logger.info('[SERVER] About to call app.listen() on port', PORT);
 app.listen(PORT, () => {
-  console.log(`[SERVER] ✅ Server running on port ${PORT}`);
-  console.log(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);
-  console.log(`Portainer Username: ${PORTAINER_USERNAME}`);
+  logger.info(`[SERVER] ✅ Server running on port ${PORT}`);
+  logger.info(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);
+  logger.info(`Portainer Username: ${PORTAINER_USERNAME}`);
   // Debug: Show password info without exposing it
-  console.log(`Password length: ${PORTAINER_PASSWORD.length}`);
-  console.log(
+  logger.info(`Password length: ${PORTAINER_PASSWORD.length}`);
+  logger.info(
     `Password contains #: ${PORTAINER_PASSWORD.includes("#") ? "YES" : "NO"}`
   );
   if (PORTAINER_PASSWORD.length > 0) {
-    console.log(`Password first char: ${PORTAINER_PASSWORD[0]}`);
-    console.log(
+    logger.info(`Password first char: ${PORTAINER_PASSWORD[0]}`);
+    logger.info(
       `Password last char: ${PORTAINER_PASSWORD[PORTAINER_PASSWORD.length - 1]}`
     );
   }
   // Docker Hub token status
   if (DOCKER_HUB_TOKEN && DOCKER_HUB_USERNAME) {
-    console.log(
+    logger.info(
       `Docker Hub authentication: Configured (higher rate limits enabled)`
     );
-    console.log(`  Username: ${DOCKER_HUB_USERNAME}`);
+    logger.info(`  Username: ${DOCKER_HUB_USERNAME}`);
   } else {
-    console.log(
+    logger.info(
       `Docker Hub authentication: Not configured (using anonymous rate limits)`
     );
-    console.log(
+    logger.info(
       `  Set DOCKER_HUB_USERNAME and DOCKER_HUB_TOKEN for higher rate limits`
     );
   }
-  console.log(`Cache TTL: 24 hours`);
+  logger.info(`Cache TTL: 24 hours`);
 
   // Start batch system (runs jobs in background even when browser is closed)
-  console.log('[SERVER] Attempting to start batch system...');
+  logger.info('[SERVER] Attempting to start batch system...');
   batchSystem.start()
     .then(() => {
-      console.log('[SERVER] ✅ Batch system started successfully');
+      logger.info('[SERVER] ✅ Batch system started successfully');
     })
     .catch(err => {
-      console.error('[SERVER] ❌ ERROR starting batch system:', err.message);
-      console.error('[SERVER] Stack:', err.stack);
-      console.error('Error starting batch system:', err);
+      logger.error('[SERVER] ❌ ERROR starting batch system:', err.message);
+      logger.error('[SERVER] Stack:', err.stack);
+      logger.error('Error starting batch system:', err);
     });
 });

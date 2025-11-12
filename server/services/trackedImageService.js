@@ -6,6 +6,7 @@
 const dockerRegistryService = require('./dockerRegistryService');
 const githubService = require('./githubService');
 const { updateTrackedImage } = require('../db/database');
+const logger = require('../utils/logger');
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
 function getDiscordService() {
@@ -13,7 +14,7 @@ function getDiscordService() {
     try {
       discordService = require('./discordService');
     } catch (error) {
-      console.error('Error loading discordService:', error);
+      logger.error('Error loading discordService:', error);
       return null;
     }
   }
@@ -207,7 +208,7 @@ async function checkTrackedImage(trackedImage) {
       }
     } catch (error) {
       // Don't fail the update check if notification fails
-      console.error('Error sending Discord notification:', error);
+      logger.error('Error sending Discord notification:', error);
     }
   }
   
@@ -265,7 +266,7 @@ async function checkGitHubTrackedImage(trackedImage) {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
           if (normalizedCurrent === normalizedLatest && trackedImage.has_update) {
-            console.log(`[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`);
+            logger.debug(`[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`);
           }
         } else {
           // If we can't normalize one or both versions, default to no update
@@ -298,7 +299,7 @@ async function checkGitHubTrackedImage(trackedImage) {
             }
           } catch (err) {
             // Non-blocking - if we can't get current version release, continue
-            console.error(`Error fetching current version release for ${githubRepo}:${trackedImage.current_version}:`, err.message);
+            logger.error(`Error fetching current version release for ${githubRepo}:${trackedImage.current_version}:`, err.message);
           }
         }
       } else {
@@ -311,7 +312,7 @@ async function checkGitHubTrackedImage(trackedImage) {
       }
     } else if (latestRelease && !latestRelease.tag_name) {
       // Release exists but has no tag_name - log warning
-      console.warn(`GitHub release for ${githubRepo} has no tag_name - skipping`);
+      logger.warn(`GitHub release for ${githubRepo} has no tag_name - skipping`);
     }
   } catch (error) {
     // If rate limit exceeded, propagate the error
@@ -319,7 +320,7 @@ async function checkGitHubTrackedImage(trackedImage) {
       throw new Error(error.message);
     }
     // For other errors, log and continue (will show no update)
-    console.error(`Error checking GitHub repo ${githubRepo}:`, error.message);
+    logger.error(`Error checking GitHub repo ${githubRepo}:`, error.message);
     latestVersion = null;
     latestRelease = null;
   }
@@ -432,7 +433,7 @@ async function checkGitHubTrackedImage(trackedImage) {
       }
     } catch (error) {
       // Don't fail the update check if notification fails
-      console.error('Error sending Discord notification:', error);
+      logger.error('Error sending Discord notification:', error);
     }
   }
 
@@ -471,7 +472,7 @@ async function checkAllTrackedImages(trackedImages) {
         throw error;
       }
       // For other errors, log and continue with other images
-      console.error(`Error checking tracked image ${image.name}:`, error.message);
+      logger.error(`Error checking tracked image ${image.name}:`, error.message);
       results.push({
         id: image.id,
         name: image.name,
