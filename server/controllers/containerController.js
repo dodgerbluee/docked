@@ -12,6 +12,7 @@ const {
 } = require('../utils/validation');
 const { RateLimitExceededError } = require('../utils/retry');
 const { getAllPortainerInstances } = require('../db/database');
+const logger = require('../utils/logger');
 
 /**
  * Get all containers with update status
@@ -37,7 +38,7 @@ async function getContainers(req, res, next) {
     
     // If cache is empty or has no containers, fetch from Portainer only (NO Docker Hub)
     if (!cached || !cached.containers || cached.containers.length === 0) {
-      console.log('📦 No cached data found, automatically fetching from Portainer (no Docker Hub checks)...');
+      logger.info('📦 No cached data found, automatically fetching from Portainer (no Docker Hub checks)...');
       const portainerResult = await containerService.getContainersFromPortainer();
       // Don't cache this result - user must click "Pull" to cache with Docker Hub data
       res.json(portainerResult);
@@ -48,12 +49,12 @@ async function getContainers(req, res, next) {
     res.json(cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
-    console.error('Error getting containers:', error);
+    logger.error('Error getting containers:', error);
     try {
       const portainerResult = await containerService.getContainersFromPortainer();
       res.json(portainerResult);
     } catch (portainerError) {
-      console.error('Error fetching from Portainer:', portainerError);
+      logger.error('Error fetching from Portainer:', portainerError);
       res.json({
         grouped: true,
         stacks: [],
@@ -74,11 +75,11 @@ async function getContainers(req, res, next) {
  */
 async function pullContainers(req, res, next) {
   try {
-    console.log('🔄 Pull request received - this is the ONLY endpoint that calls Docker Hub...');
+    logger.info('🔄 Pull request received - this is the ONLY endpoint that calls Docker Hub...');
     // Force refresh - this is the ONLY place that should call Docker Hub
     // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process
     const result = await containerService.getAllContainersWithUpdates(true);
-    console.log('✅ Pull completed successfully');
+    logger.info('✅ Pull completed successfully');
     res.json({
       success: true,
       message: 'Container data pulled successfully',
@@ -87,7 +88,7 @@ async function pullContainers(req, res, next) {
   } catch (error) {
     // Handle rate limit exceeded errors specially
     if (error.isRateLimitExceeded || error instanceof RateLimitExceededError) {
-      console.error('❌ Docker Hub rate limit exceeded - stopping pull operation');
+      logger.error('❌ Docker Hub rate limit exceeded - stopping pull operation');
       return res.status(429).json({
         success: false,
         error: error.message || 'Docker Hub rate limit exceeded',
@@ -96,7 +97,7 @@ async function pullContainers(req, res, next) {
       });
     }
     
-    console.error('❌ Error in pullContainers:', error);
+    logger.error('❌ Error in pullContainers:', error);
     // Return a more detailed error response
     res.status(500).json({
       success: false,
@@ -211,7 +212,7 @@ async function batchUpgradeContainers(req, res, next) {
           );
           return { portainerUrl, success: true };
         } catch (error) {
-          console.error(`Failed to authenticate Portainer instance ${portainerUrl}:`, error);
+          logger.error(`Failed to authenticate Portainer instance ${portainerUrl}:`, error);
           return { portainerUrl, success: false, error: error.message };
         }
       }
@@ -244,7 +245,7 @@ async function batchUpgradeContainers(req, res, next) {
         );
         return { success: true, result, containerId: container.containerId };
       } catch (error) {
-        console.error(
+        logger.error(
           `Error upgrading container ${container.containerId}:`,
           error
         );
@@ -307,13 +308,13 @@ async function clearCache(req, res, next) {
   try {
     const { clearContainerCache } = require('../db/database');
     await clearContainerCache();
-    console.log('🗑️ Container cache cleared');
+    logger.info('🗑️ Container cache cleared');
     res.json({
       success: true,
       message: 'Cache cleared successfully',
     });
   } catch (error) {
-    console.error('❌ Error clearing cache:', error);
+    logger.error('❌ Error clearing cache:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to clear cache',

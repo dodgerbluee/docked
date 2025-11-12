@@ -10,6 +10,7 @@ const { rateLimitDelay } = require("../utils/rateLimiter");
 const { retryWithBackoff } = require("../utils/retry");
 const { getDockerHubCreds } = require("../utils/dockerHubCreds");
 const portainerService = require("./portainerService");
+const logger = require("../utils/logger");
 
 // Cache for image digests
 const digestCache = new Cache();
@@ -77,7 +78,7 @@ async function getDockerRegistryToken(namespace, repository) {
     const response = await axios.get(authUrl, requestConfig);
     return response.data?.token || null;
   } catch (error) {
-    console.error(
+    logger.error(
       `Error getting Docker Registry token for ${namespace}/${repository}:`,
       error.message
     );
@@ -98,14 +99,14 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
   if (cached) {
     // Reduced logging - only log cache hits in debug mode
     if (process.env.DEBUG) {
-      console.log(`      ✅ Cache HIT for ${imageRepo}:${tag}`);
+      logger.debug(`      ✅ Cache HIT for ${imageRepo}:${tag}`);
     }
     return cached;
   }
 
   // Only log cache misses for important operations
   if (process.env.DEBUG) {
-    console.log(`      🔄 Cache MISS - fetching ${imageRepo}:${tag} from Docker Hub`);
+    logger.debug(`      🔄 Cache MISS - fetching ${imageRepo}:${tag} from Docker Hub`);
   }
 
   try {
@@ -128,7 +129,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
     // Get authentication token (reduced logging)
     const token = await getDockerRegistryToken(namespace, repository);
     if (!token) {
-      console.error(
+      logger.error(
         `❌ Failed to get authentication token for ${namespace}/${repository}`
       );
       return null;
@@ -170,7 +171,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
 
     // Only log failures, not every status check
     if (response.status !== 200) {
-      console.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
+      logger.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
     }
     return null;
   } catch (error) {
@@ -181,7 +182,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
     
     // Only log non-404 errors and non-429 errors (429s are handled by retry)
     if (error.response?.status !== 404 && error.response?.status !== 429) {
-      console.error(
+      logger.error(
         `❌ Error fetching index digest for ${imageRepo}:${tag}:`,
         error.message
       );
@@ -197,7 +198,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
  * @returns {Promise<Object|null>} - Object with digest and tag, or null
  */
 async function getLatestImageDigest(imageRepo, tag = "latest") {
-  console.log(
+  logger.debug(
     `      🐳 Docker Registry: Fetching digest for ${imageRepo}:${tag}`
   );
   const registry = detectRegistry(imageRepo);
@@ -245,7 +246,7 @@ async function getCurrentImageDigest(
 ) {
   // Reduced logging - only in debug mode
   if (process.env.DEBUG) {
-    console.log(`      🔍 Getting current digest for ${imageName}`);
+    logger.debug(`      🔍 Getting current digest for ${imageName}`);
   }
 
   // First check if image name already contains a digest
@@ -253,7 +254,7 @@ async function getCurrentImageDigest(
   if (configImage && configImage.includes("@sha256:")) {
     const digest = configImage.split("@sha256:")[1];
     if (process.env.DEBUG) {
-      console.log(
+      logger.debug(
         `      ✅ Found digest in image name: sha256:${digest.substring(
           0,
           12
@@ -304,7 +305,7 @@ async function getCurrentImageDigest(
             if (normalizedRepoPart === normalizedTargetRepo) {
               const digest = repoDigest.split("@sha256:")[1];
               if (process.env.DEBUG) {
-                console.log(
+                logger.debug(
                   `      ✅ Found exact match digest: sha256:${digest.substring(
                     0,
                     12
@@ -330,7 +331,7 @@ async function getCurrentImageDigest(
             ) {
               const digest = repoDigest.split("@sha256:")[1];
               if (process.env.DEBUG) {
-                console.log(
+                logger.debug(
                   `      ✅ Found partial match digest: sha256:${digest.substring(
                     0,
                     12
@@ -347,7 +348,7 @@ async function getCurrentImageDigest(
         if (firstRepoDigest && firstRepoDigest.includes("@sha256:")) {
           const digest = firstRepoDigest.split("@sha256:")[1];
           if (process.env.DEBUG) {
-            console.log(
+            logger.debug(
               `Warning: Using first RepoDigest for ${imageName} as fallback: ${digest.substring(
                 0,
                 12
@@ -359,7 +360,7 @@ async function getCurrentImageDigest(
       }
     } catch (error) {
       // If image inspection fails, we can't get the digest
-      console.log(
+      logger.debug(
         `Could not inspect image ${imageId} to get digest: ${error.message}`
       );
     }
@@ -438,7 +439,7 @@ async function getTagPublishDate(imageRepo, tag = "latest") {
     return null;
   } catch (error) {
     if (error.response?.status !== 404) {
-      console.error(`      ❌ Error fetching publish date for ${imageRepo}:${tag}:`, error.message);
+      logger.error(`      ❌ Error fetching publish date for ${imageRepo}:${tag}:`, error.message);
     }
     return null;
   }
@@ -476,13 +477,13 @@ async function getTagFromDigest(imageRepo, digest) {
   const cacheKey = `tag:${repoForLookup}:${shortDigestWithPrefix}`;
   const cached = digestCache.get(cacheKey);
   if (cached && typeof cached === "string") {
-    console.log(
+    logger.debug(
       `      ✅ Cache HIT for tag lookup: ${repoForLookup}@${shortDigest}... -> ${cached}`
     );
     return cached;
   }
 
-  console.log(
+  logger.debug(
     `      🔍 Looking up tag for digest ${shortDigest}... in ${repoForLookup}`
   );
 
@@ -535,7 +536,7 @@ async function getTagFromDigest(imageRepo, digest) {
           tagInfo.digest &&
           tagInfo.digest.startsWith(shortDigestWithPrefix)
         ) {
-          console.log(
+          logger.debug(
             `      ✅ Found matching tag by main digest: ${tagInfo.name}`
           );
           digestCache.set(cacheKey, tagInfo.name, config.cache.digestCacheTTL);
@@ -547,7 +548,7 @@ async function getTagFromDigest(imageRepo, digest) {
           for (const image of tagInfo.images) {
             const imageDigest = image.digest;
             if (imageDigest && imageDigest.startsWith(shortDigestWithPrefix)) {
-              console.log(
+              logger.debug(
                 `      ✅ Found matching tag by image digest: ${tagInfo.name}`
               );
               digestCache.set(
@@ -563,7 +564,7 @@ async function getTagFromDigest(imageRepo, digest) {
     }
 
     // If not found in first page, cache null result for shorter time to avoid repeated lookups
-    console.log(
+    logger.debug(
       `      ⚠️  Could not find tag for digest ${shortDigest}... in first 100 tags`
     );
     // Cache null result for 1 hour to avoid repeated failed lookups
@@ -572,7 +573,7 @@ async function getTagFromDigest(imageRepo, digest) {
   } catch (error) {
     // Only log non-404 errors
     if (error.response?.status !== 404) {
-      console.error(`      ❌ Error looking up tag for digest:`, error.message);
+      logger.error(`      ❌ Error looking up tag for digest:`, error.message);
     }
     // Cache error result for shorter time
     digestCache.set(cacheKey, null, 60 * 60 * 1000);
@@ -593,6 +594,45 @@ function clearDigestCache(imageRepo, tag) {
   }
 }
 
+/**
+ * Check if an image exists in Docker Hub
+ * @param {string} imageRepo - Image repository
+ * @returns {Promise<boolean>} - True if image exists in Docker Hub, false otherwise
+ */
+async function checkImageExistsInDockerHub(imageRepo) {
+  const registry = detectRegistry(imageRepo);
+  
+  // Only check Docker Hub images (including lscr.io which are also on Docker Hub)
+  if (registry.type !== "dockerhub" && registry.type !== "lscr") {
+    return false;
+  }
+
+  // Try to get the digest for the "latest" tag first
+  // If that fails, try common tags for LinuxServer.io images
+  try {
+    let digest = await getImageDigestFromDockerHub(registry.repo, "latest");
+    if (digest) {
+      return true;
+    }
+    
+    // For LinuxServer.io images, try common tags if "latest" doesn't exist
+    if (registry.type === "lscr") {
+      const commonTags = ["develop", "nightly", "beta", "stable"];
+      for (const tag of commonTags) {
+        digest = await getImageDigestFromDockerHub(registry.repo, tag);
+        if (digest) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    // If there's an error (like 404), the image doesn't exist
+    return false;
+  }
+}
+
 module.exports = {
   detectRegistry,
   getLatestImageDigest,
@@ -600,4 +640,5 @@ module.exports = {
   getTagFromDigest,
   getTagPublishDate,
   clearDigestCache,
+  checkImageExistsInDockerHub,
 };

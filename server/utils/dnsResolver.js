@@ -5,6 +5,7 @@
 
 const dns = require('dns').promises;
 const { URL } = require('url');
+const logger = require('./logger');
 
 /**
  * Resolve a URL to its IP address
@@ -30,7 +31,7 @@ async function resolveUrlToIp(urlString) {
     
     return null;
   } catch (error) {
-    console.error(`Failed to resolve ${urlString} to IP:`, error.message);
+    logger.error(`Failed to resolve ${urlString} to IP:`, error.message);
     return null;
   }
 }
@@ -61,7 +62,7 @@ function urlWithIp(originalUrl, ipAddress) {
     
     return url.toString();
   } catch (error) {
-    console.error(`Failed to convert URL ${originalUrl} with IP ${ipAddress}:`, error.message);
+    logger.error(`Failed to convert URL ${originalUrl} with IP ${ipAddress}:`, error.message);
     return originalUrl;
   }
 }
@@ -162,7 +163,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
             );
             // If we get a response (even 401 means the server is there), this might be the backend
             if (response.status === 200 || response.status === 401) {
-              console.log(`Detected potential backend IP: ${testIp}:${port} (status: ${response.status})`);
+              logger.info(`Detected potential backend IP: ${testIp}:${port} (status: ${response.status})`);
               return testIp;
             }
           } else if (username && password) {
@@ -177,7 +178,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
                 }
               );
               if (authResponse.data.jwt || authResponse.data.token) {
-                console.log(`Detected backend IP via authentication: ${testIp}:${port}`);
+                logger.info(`Detected backend IP via authentication: ${testIp}:${port}`);
                 return testIp;
               }
             } catch (authErr) {
@@ -188,7 +189,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
               }
               // 401 means server is there, might be the backend
               if (authErr.response?.status === 401) {
-                console.log(`Detected potential backend IP: ${testIp}:${port} (auth failed but server exists)`);
+                logger.info(`Detected potential backend IP: ${testIp}:${port} (auth failed but server exists)`);
                 return testIp;
               }
             }
@@ -200,7 +201,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
           }
           // Other errors might mean the server exists
           if (error.response) {
-            console.log(`Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status})`);
+            logger.info(`Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status})`);
             return testIp;
           }
         }
@@ -209,7 +210,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
     
     return null; // Could not detect backend IP
   } catch (error) {
-    console.error(`Error detecting backend IP:`, error.message);
+    logger.error(`Error detecting backend IP:`, error.message);
     return null;
   }
 }

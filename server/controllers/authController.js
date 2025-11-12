@@ -607,9 +607,11 @@ async function migrateAvatarFromUsername(userId, oldUsername) {
       });
     }
     
-    console.log(`Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`);
+    const logger = require('../utils/logger');
+    logger.info(`Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`);
   } catch (err) {
-    console.error('Error migrating avatar during username update:', err);
+    const logger = require('../utils/logger');
+    logger.error('Error migrating avatar during username update:', err);
     // Don't throw - migration failure shouldn't break username update
   }
 }

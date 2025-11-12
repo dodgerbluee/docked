@@ -5,6 +5,7 @@
  */
 
 const { getSetting, setSetting } = require('../db/database');
+const logger = require('./logger');
 
 const LOG_LEVEL_KEY = 'log_level';
 const DEFAULT_LOG_LEVEL = 'info';
@@ -18,7 +19,7 @@ async function getLogLevel() {
     const level = await getSetting(LOG_LEVEL_KEY);
     return level || DEFAULT_LOG_LEVEL;
   } catch (err) {
-    console.error('Error getting log level:', err);
+    logger.error('Error getting log level:', err);
     return DEFAULT_LOG_LEVEL;
   }
 }
@@ -35,7 +36,7 @@ async function setLogLevel(level) {
   try {
     await setSetting(LOG_LEVEL_KEY, level);
   } catch (err) {
-    console.error('Error setting log level:', err);
+    logger.error('Error setting log level:', err);
     throw err;
   }
 }
@@ -84,7 +85,7 @@ async function initializeLogLevel() {
     const level = await getLogLevel();
     updateCachedLogLevel(level);
   } catch (err) {
-    console.error('Error initializing log level:', err);
+    logger.error('Error initializing log level:', err);
   }
 }
 

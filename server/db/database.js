@@ -10,6 +10,7 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 const bcrypt = require("bcrypt");
+const logger = require("../utils/logger");
 
 // Use DATA_DIR environment variable or default to /data
 // This allows the database to be stored outside the codebase
@@ -19,21 +20,21 @@ const DB_PATH = path.join(DATA_DIR, "users.db");
 // Ensure the data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  console.log(`Created data directory: ${DATA_DIR}`);
+  logger.info(`Created data directory: ${DATA_DIR}`);
 }
 
 // Create database connection
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
-    console.error("Error opening database:", err.message);
-    console.error("Stack:", err.stack);
+    logger.error("Error opening database:", err.message);
+    logger.error("Stack:", err.stack);
   } else {
-    console.log(`Connected to SQLite database at ${DB_PATH}`);
+    logger.info(`Connected to SQLite database at ${DB_PATH}`);
     try {
       initializeDatabase();
     } catch (initError) {
-      console.error("Error initializing database:", initError);
-      console.error("Stack:", initError.stack);
+      logger.error("Error initializing database:", initError);
+      logger.error("Stack:", initError.stack);
     }
   }
 });
@@ -56,13 +57,13 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error("Error creating users table:", err.message);
+          logger.error("Error creating users table:", err.message);
         } else {
-          console.log("Users table ready");
+          logger.info("Users table ready");
           // Create indexes for users table
           db.run("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating username index:", idxErr.message);
+              logger.error("Error creating username index:", idxErr.message);
             }
           });
           // Create default admin user if no users exist
@@ -85,21 +86,21 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error(
+          logger.error(
             "Error creating portainer_instances table:",
             err.message
           );
         } else {
-          console.log("Portainer instances table ready");
+          logger.info("Portainer instances table ready");
           // Create indexes for portainer_instances table
           db.run("CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating portainer URL index:", idxErr.message);
+              logger.error("Error creating portainer URL index:", idxErr.message);
             }
           });
           db.run("CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating display_order index:", idxErr.message);
+              logger.error("Error creating display_order index:", idxErr.message);
             }
           });
           // Add display_order column if it doesn't exist (migration)
@@ -108,7 +109,7 @@ function initializeDatabase() {
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error(
+                logger.error(
                   "Error adding display_order column:",
                   alterErr.message
                 );
@@ -121,7 +122,7 @@ function initializeDatabase() {
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error(
+                logger.error(
                   "Error adding api_key column:",
                   alterErr.message
                 );
@@ -133,7 +134,7 @@ function initializeDatabase() {
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error(
+                logger.error(
                   "Error adding auth_type column:",
                   alterErr.message
                 );
@@ -143,7 +144,7 @@ function initializeDatabase() {
                   `UPDATE portainer_instances SET auth_type = 'password' WHERE auth_type IS NULL`,
                   (updateErr) => {
                     if (updateErr) {
-                      console.error("Error updating auth_type:", updateErr.message);
+                      logger.error("Error updating auth_type:", updateErr.message);
                     }
                   }
                 );
@@ -156,7 +157,7 @@ function initializeDatabase() {
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error(
+                logger.error(
                   "Error adding ip_address column:",
                   alterErr.message
                 );
@@ -180,12 +181,12 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error(
+          logger.error(
             "Error creating docker_hub_credentials table:",
             err.message
           );
         } else {
-          console.log("Docker Hub credentials table ready");
+          logger.info("Docker Hub credentials table ready");
         }
       }
     );
@@ -211,30 +212,30 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error(
+          logger.error(
             "Error creating tracked_images table:",
             err.message
           );
         } else {
-          console.log("Tracked images table ready");
+          logger.info("Tracked images table ready");
           
           // Migrate existing tracked_images table to add new columns if needed
           db.run("ALTER TABLE tracked_images ADD COLUMN github_repo TEXT", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding github_repo column:", alterErr.message);
+              logger.error("Error adding github_repo column:", alterErr.message);
             }
           });
           db.run("ALTER TABLE tracked_images ADD COLUMN source_type TEXT DEFAULT 'docker'", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding source_type column:", alterErr.message);
+              logger.error("Error adding source_type column:", alterErr.message);
             }
           });
           db.run("ALTER TABLE tracked_images ADD COLUMN current_version_publish_date TEXT", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding current_version_publish_date column:", alterErr.message);
+              logger.error("Error adding current_version_publish_date column:", alterErr.message);
             }
           });
           
@@ -242,11 +243,11 @@ function initializeDatabase() {
           // to remove the NOT NULL constraint from image_name
           db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_images'", [], (err, row) => {
             if (!err && row && row.sql && row.sql.includes('image_name TEXT NOT NULL')) {
-              console.log("Migrating tracked_images table to allow NULL image_name...");
+              logger.info("Migrating tracked_images table to allow NULL image_name...");
               // Check if new columns already exist
               db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
                 if (pragmaErr) {
-                  console.error("Error checking table info:", pragmaErr.message);
+                  logger.error("Error checking table info:", pragmaErr.message);
                   return;
                 }
                 
@@ -275,7 +276,7 @@ function initializeDatabase() {
                   )
                 `, (createErr) => {
                   if (createErr) {
-                    console.error("Error creating new tracked_images table:", createErr.message);
+                    logger.error("Error creating new tracked_images table:", createErr.message);
                   } else {
                     // Copy data from old table to new table
                     // Use COALESCE to handle existing columns or defaults
@@ -307,19 +308,19 @@ function initializeDatabase() {
                       FROM tracked_images
                     `, (copyErr) => {
                       if (copyErr) {
-                        console.error("Error copying data to new table:", copyErr.message);
+                        logger.error("Error copying data to new table:", copyErr.message);
                       } else {
                         // Drop old table
                         db.run("DROP TABLE tracked_images", (dropErr) => {
                           if (dropErr) {
-                            console.error("Error dropping old tracked_images table:", dropErr.message);
+                            logger.error("Error dropping old tracked_images table:", dropErr.message);
                           } else {
                             // Rename new table
                             db.run("ALTER TABLE tracked_images_new RENAME TO tracked_images", (renameErr) => {
                               if (renameErr) {
-                                console.error("Error renaming tracked_images table:", renameErr.message);
+                                logger.error("Error renaming tracked_images table:", renameErr.message);
                               } else {
-                                console.log("Successfully migrated tracked_images table");
+                                logger.info("Successfully migrated tracked_images table");
                                 // Recreate indexes
                                 db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)", () => {});
                                 db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)", () => {});
@@ -341,12 +342,12 @@ function initializeDatabase() {
             if (!pragmaErr && columns) {
               const hasLatestVersionPublishDate = columns.some(col => col.name === 'latest_version_publish_date');
               if (!hasLatestVersionPublishDate) {
-                console.log("Adding latest_version_publish_date column to tracked_images...");
+                logger.info("Adding latest_version_publish_date column to tracked_images...");
                 db.run("ALTER TABLE tracked_images ADD COLUMN latest_version_publish_date TEXT", (alterErr) => {
                   if (alterErr) {
-                    console.error("Error adding latest_version_publish_date column:", alterErr.message);
+                    logger.error("Error adding latest_version_publish_date column:", alterErr.message);
                   } else {
-                    console.log("Successfully added latest_version_publish_date column");
+                    logger.info("Successfully added latest_version_publish_date column");
                   }
                 });
               }
@@ -356,17 +357,17 @@ function initializeDatabase() {
           // Create indexes
           db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating tracked_images name index:", idxErr.message);
+              logger.error("Error creating tracked_images name index:", idxErr.message);
             }
           });
           db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating tracked_images image_name index:", idxErr.message);
+              logger.error("Error creating tracked_images image_name index:", idxErr.message);
             }
           });
           db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating tracked_images github_repo index:", idxErr.message);
+              logger.error("Error creating tracked_images github_repo index:", idxErr.message);
             }
           });
         }
@@ -384,18 +385,18 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error("Error creating container_cache table:", err.message);
+          logger.error("Error creating container_cache table:", err.message);
         } else {
-          console.log("Container cache table ready");
+          logger.info("Container cache table ready");
           // Create indexes for container_cache table
           db.run("CREATE INDEX IF NOT EXISTS idx_cache_key ON container_cache(cache_key)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating cache_key index:", idxErr.message);
+              logger.error("Error creating cache_key index:", idxErr.message);
             }
           });
           db.run("CREATE INDEX IF NOT EXISTS idx_cache_updated_at ON container_cache(updated_at)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating cache updated_at index:", idxErr.message);
+              logger.error("Error creating cache updated_at index:", idxErr.message);
             }
           });
         }
@@ -414,16 +415,16 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error(
+          logger.error(
             "Error creating batch_config table:",
             err.message
           );
         } else {
-          console.log("Batch config table ready");
+          logger.info("Batch config table ready");
           // Check if job_type column exists and if there's a CHECK constraint on id
           db.all("PRAGMA table_info(batch_config)", (pragmaErr, columns) => {
             if (pragmaErr) {
-              console.error("Error checking batch_config schema:", pragmaErr.message);
+              logger.error("Error checking batch_config schema:", pragmaErr.message);
               return;
             }
             
@@ -432,7 +433,7 @@ function initializeDatabase() {
             // Check for CHECK constraint by looking at table creation SQL
             db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='batch_config'", (sqlErr, tableInfo) => {
               if (sqlErr) {
-                console.error("Error checking batch_config SQL:", sqlErr.message);
+                logger.error("Error checking batch_config SQL:", sqlErr.message);
                 return;
               }
               
@@ -440,18 +441,18 @@ function initializeDatabase() {
               const needsMigration = !hasJobType || hasCheckConstraint;
               
               if (needsMigration) {
-                console.log("Migrating batch_config table to remove CHECK constraint and add job_type column...");
+                logger.info("Migrating batch_config table to remove CHECK constraint and add job_type column...");
                 // Always recreate the table to remove CHECK constraint
                 db.run("BEGIN TRANSACTION", (beginErr) => {
                   if (beginErr) {
-                    console.error("Error beginning transaction:", beginErr.message);
+                    logger.error("Error beginning transaction:", beginErr.message);
                     return;
                   }
                   
                   // Get existing data
                   db.all("SELECT * FROM batch_config", [], (selectErr, oldRows) => {
                     if (selectErr) {
-                      console.error("Error reading old batch_config:", selectErr.message);
+                      logger.error("Error reading old batch_config:", selectErr.message);
                       db.run("ROLLBACK");
                       return;
                     }
@@ -459,7 +460,7 @@ function initializeDatabase() {
                     // Drop old table
                     db.run("DROP TABLE batch_config", (dropErr) => {
                       if (dropErr) {
-                        console.error("Error dropping batch_config:", dropErr.message);
+                        logger.error("Error dropping batch_config:", dropErr.message);
                         db.run("ROLLBACK");
                         return;
                       }
@@ -476,7 +477,7 @@ function initializeDatabase() {
                         )`,
                         (createErr) => {
                           if (createErr) {
-                            console.error("Error recreating batch_config:", createErr.message);
+                            logger.error("Error recreating batch_config:", createErr.message);
                             db.run("ROLLBACK");
                             return;
                           }
@@ -489,20 +490,20 @@ function initializeDatabase() {
                               [oldRow.enabled || 0, oldRow.interval_minutes || 60],
                               (insertErr) => {
                                 if (insertErr) {
-                                  console.error("Error migrating docker-hub-pull config:", insertErr.message);
+                                  logger.error("Error migrating docker-hub-pull config:", insertErr.message);
                                 }
                                 // Also ensure tracked-apps-check exists
                                 db.run(
                                   "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
                                   (insertErr2) => {
                                     if (insertErr2) {
-                                      console.error("Error creating tracked-apps-check config:", insertErr2.message);
+                                      logger.error("Error creating tracked-apps-check config:", insertErr2.message);
                                     }
                                     db.run("COMMIT", (commitErr) => {
                                       if (commitErr) {
-                                        console.error("Error committing transaction:", commitErr.message);
+                                        logger.error("Error committing transaction:", commitErr.message);
                                       } else {
-                                        console.log("✅ Successfully migrated batch_config table (removed CHECK constraint)");
+                                        logger.info("✅ Successfully migrated batch_config table (removed CHECK constraint)");
                                       }
                                     });
                                   }
@@ -515,19 +516,19 @@ function initializeDatabase() {
                               "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
                               (insertErr1) => {
                                 if (insertErr1) {
-                                  console.error("Error creating docker-hub-pull config:", insertErr1.message);
+                                  logger.error("Error creating docker-hub-pull config:", insertErr1.message);
                                 }
                                 db.run(
                                   "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
                                   (insertErr2) => {
                                     if (insertErr2) {
-                                      console.error("Error creating tracked-apps-check config:", insertErr2.message);
+                                      logger.error("Error creating tracked-apps-check config:", insertErr2.message);
                                     }
                                     db.run("COMMIT", (commitErr) => {
                                       if (commitErr) {
-                                        console.error("Error committing transaction:", commitErr.message);
+                                        logger.error("Error committing transaction:", commitErr.message);
                                       } else {
-                                        console.log("✅ Successfully recreated batch_config table (removed CHECK constraint)");
+                                        logger.info("✅ Successfully recreated batch_config table (removed CHECK constraint)");
                                       }
                                     });
                                   }
@@ -552,7 +553,7 @@ function initializeDatabase() {
                   // Delete old row
                   db.run("DELETE FROM batch_config WHERE id = 1", (delErr) => {
                     if (delErr) {
-                      console.error("Error deleting old batch_config:", delErr.message);
+                      logger.error("Error deleting old batch_config:", delErr.message);
                     } else {
                       // Insert new rows for each job type
                       db.run(
@@ -560,7 +561,7 @@ function initializeDatabase() {
                         [enabled, intervalMinutes],
                         (insertErr1) => {
                           if (insertErr1) {
-                            console.error("Error migrating docker-hub-pull config:", insertErr1.message);
+                            logger.error("Error migrating docker-hub-pull config:", insertErr1.message);
                           }
                         }
                       );
@@ -569,9 +570,9 @@ function initializeDatabase() {
                         [enabled, intervalMinutes],
                         (insertErr2) => {
                           if (insertErr2) {
-                            console.error("Error migrating tracked-apps-check config:", insertErr2.message);
+                            logger.error("Error migrating tracked-apps-check config:", insertErr2.message);
                           } else {
-                            console.log("✅ Migrated batch_config to per-job-type format");
+                            logger.info("✅ Migrated batch_config to per-job-type format");
                           }
                         }
                       );
@@ -585,7 +586,7 @@ function initializeDatabase() {
                         "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
                         (insertErr1) => {
                           if (insertErr1) {
-                            console.error("Error initializing docker-hub-pull config:", insertErr1.message);
+                            logger.error("Error initializing docker-hub-pull config:", insertErr1.message);
                           }
                         }
                       );
@@ -597,7 +598,7 @@ function initializeDatabase() {
                         "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
                         (insertErr2) => {
                           if (insertErr2) {
-                            console.error("Error initializing tracked-apps-check config:", insertErr2.message);
+                            logger.error("Error initializing tracked-apps-check config:", insertErr2.message);
                           }
                         }
                       );
@@ -623,13 +624,13 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error("Error creating settings table:", err.message);
+          logger.error("Error creating settings table:", err.message);
         } else {
-          console.log("Settings table ready");
+          logger.info("Settings table ready");
           // Create index for settings table
           db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating settings key index:", idxErr.message);
+              logger.error("Error creating settings key index:", idxErr.message);
             }
           });
         }
@@ -649,13 +650,13 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error("Error creating discord_webhooks table:", err.message);
+          logger.error("Error creating discord_webhooks table:", err.message);
         } else {
-          console.log("Discord webhooks table ready");
+          logger.info("Discord webhooks table ready");
           // Create index for discord_webhooks table
           db.run("CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating discord_webhooks enabled index:", idxErr.message);
+              logger.error("Error creating discord_webhooks enabled index:", idxErr.message);
             }
           });
           
@@ -663,26 +664,26 @@ function initializeDatabase() {
           db.run("ALTER TABLE discord_webhooks ADD COLUMN avatar_url TEXT", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding avatar_url column:", alterErr.message);
+              logger.error("Error adding avatar_url column:", alterErr.message);
             } else if (!alterErr) {
-              console.log("Added avatar_url column to discord_webhooks table");
+              logger.info("Added avatar_url column to discord_webhooks table");
             }
           });
           
           // Add guild_id and channel_id columns if they don't exist (migration)
           db.run("ALTER TABLE discord_webhooks ADD COLUMN guild_id TEXT", (alterErr) => {
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding guild_id column:", alterErr.message);
+              logger.error("Error adding guild_id column:", alterErr.message);
             } else if (!alterErr) {
-              console.log("Added guild_id column to discord_webhooks table");
+              logger.info("Added guild_id column to discord_webhooks table");
             }
           });
           
           db.run("ALTER TABLE discord_webhooks ADD COLUMN channel_id TEXT", (alterErr) => {
             if (alterErr && !alterErr.message.includes("duplicate column")) {
-              console.error("Error adding channel_id column:", alterErr.message);
+              logger.error("Error adding channel_id column:", alterErr.message);
             } else if (!alterErr) {
-              console.log("Added channel_id column to discord_webhooks table");
+              logger.info("Added channel_id column to discord_webhooks table");
             }
           });
         }
@@ -705,18 +706,18 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          console.error("Error creating batch_runs table:", err.message);
+          logger.error("Error creating batch_runs table:", err.message);
         } else {
-          console.log("Batch runs table ready");
+          logger.info("Batch runs table ready");
           // Create indexes for batch_runs table
           db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating batch_runs started_at index:", idxErr.message);
+              logger.error("Error creating batch_runs started_at index:", idxErr.message);
             }
           });
           db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              console.error("Error creating batch_runs status index:", idxErr.message);
+              logger.error("Error creating batch_runs status index:", idxErr.message);
             }
           });
           // Add job_type column if it doesn't exist (migration)
@@ -732,7 +733,7 @@ function initializeDatabase() {
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                console.error("Error adding is_manual column:", alterErr.message);
+                logger.error("Error adding is_manual column:", alterErr.message);
               }
             }
           );
@@ -748,7 +749,7 @@ function initializeDatabase() {
 async function createDefaultAdmin() {
   db.get("SELECT COUNT(*) as count FROM users", async (err, row) => {
     if (err) {
-      console.error("Error checking users:", err.message);
+      logger.error("Error checking users:", err.message);
       return;
     }
 
@@ -764,12 +765,12 @@ async function createDefaultAdmin() {
         ["admin", passwordHash, "Administrator", 0],
         (err) => {
           if (err) {
-            console.error("Error creating default admin:", err.message);
+            logger.error("Error creating default admin:", err.message);
           } else {
-            console.log(
+            logger.info(
               "Default admin user created (username: admin, password: admin)"
             );
-            console.log("⚠️  Password change will be required on first login!");
+            logger.info("⚠️  Password change will be required on first login!");
           }
         }
       );
@@ -1175,7 +1176,7 @@ function getContainerCache(cacheKey) {
             try {
               resolve(JSON.parse(row.cache_data));
             } catch (parseErr) {
-              console.error("Error parsing cached data:", parseErr);
+              logger.error("Error parsing cached data:", parseErr);
               resolve(null);
             }
           } else {
@@ -1523,7 +1524,7 @@ function closeDatabase() {
       if (err) {
         reject(err);
       } else {
-        console.log("Database connection closed");
+        logger.info("Database connection closed");
         resolve();
       }
     });

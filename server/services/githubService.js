@@ -275,7 +275,8 @@ async function getReleaseByTag(repoInput, tagName) {
  */
 function clearReleaseCache() {
   releaseCache.clear();
-  console.log('🗑️ GitHub release cache cleared');
+  const logger = require('../utils/logger');
+  logger.info('🗑️ GitHub release cache cleared');
 }
 
 module.exports = {

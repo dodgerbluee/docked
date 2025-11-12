@@ -10,7 +10,7 @@ import React, {
   lazy,
 } from "react";
 import axios from "axios";
-import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink, RefreshCw } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -162,7 +162,8 @@ function App() {
   }, [dismissedTrackedAppNotifications]);
   const [settingsTab, setSettingsTab] = useState("general"); // 'general', 'username', 'password', 'portainer', 'dockerhub', 'avatar', 'batch'
   const [configurationTab, setConfigurationTab] = useState("batch"); // 'batch' or 'settings'
-  const [portainerSubTab, setPortainerSubTab] = useState(null); // Portainer instance name when in Portainer tab
+  const [portainerSubTab, setPortainerSubTab] = useState(null); // Portainer instance name when in Portainer tab (deprecated - will be removed)
+  const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(new Set()); // Filter for Portainer instances
 
   const [containers, setContainers] = useState([]);
   const [stacks, setStacks] = useState([]);
@@ -2244,31 +2245,84 @@ function App() {
     portainerInstancesLoading,
   ]);
 
-  // When Portainer tab is selected, set the first instance as the sub-tab if none is selected
+  // Initialize selectedPortainerInstances to empty (show all) when Portainer tab is first opened
+  // Empty set means show all instances
   useEffect(() => {
     if (
       activeTab === "portainer" &&
-      !portainerSubTab &&
-      portainerInstances.length > 0
+      selectedPortainerInstances.size === 0 &&
+      portainerInstances.length > 0 &&
+      !portainerInstances.some((inst) => selectedPortainerInstances.has(inst.name))
     ) {
-      setPortainerSubTab(portainerInstances[0].name);
-    } else if (
-      activeTab === "portainer" &&
-      portainerSubTab &&
-      portainerInstances.length > 0
-    ) {
-      // If the selected sub-tab instance no longer exists, switch to first available
-      const instanceExists = portainerInstances.find(
-        (inst) => inst.name === portainerSubTab
-      );
-      if (!instanceExists) {
-        setPortainerSubTab(portainerInstances[0].name);
-      }
-    } else if (activeTab !== "portainer") {
-      // Clear sub-tab when leaving Portainer tab
-      setPortainerSubTab(null);
+      // Start with empty set - show all by default
+      // No need to set anything, empty set is the default
     }
-  }, [activeTab, portainerInstances, portainerSubTab]);
+  }, [activeTab, portainerInstances]);
+
+  // Match sidebar height to stacks container height
+  useEffect(() => {
+    if (activeTab !== "portainer") return;
+
+    const updateSidebarHeight = () => {
+      const stacksContainer = document.querySelector(".stacks-container");
+      const sidebar = document.querySelector(".portainer-sidebar");
+      
+      if (stacksContainer && sidebar) {
+        const stacksHeight = stacksContainer.offsetHeight;
+        if (stacksHeight > 0) {
+          sidebar.style.height = `${stacksHeight}px`;
+        } else {
+          sidebar.style.height = "auto";
+        }
+      } else {
+        const sidebar = document.querySelector(".portainer-sidebar");
+        if (sidebar) {
+          sidebar.style.height = "auto";
+        }
+      }
+    };
+
+    // Update on mount and when content changes
+    updateSidebarHeight();
+    
+    // Use MutationObserver to watch for content changes
+    const observer = new MutationObserver(updateSidebarHeight);
+    const stacksContainer = document.querySelector(".stacks-container");
+    if (stacksContainer) {
+      observer.observe(stacksContainer, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["style", "class"],
+      });
+    }
+
+    // Also update on window resize
+    window.addEventListener("resize", updateSidebarHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSidebarHeight);
+    };
+  }, [activeTab, contentTab, containersWithUpdates, containersUpToDate, selectedPortainerInstances]);
+
+
+  // Calculate aggregated containers for selected instances (for header Select All)
+  const aggregatedContainersWithUpdates = useMemo(() => {
+    const instancesToShow = selectedPortainerInstances.size > 0
+      ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+      : portainerInstances;
+    
+    let allContainersWithUpdates = [];
+    instancesToShow.forEach((instance) => {
+      const portainerUrl = instance?.url;
+      const portainerData = portainerUrl ? containersByPortainer[portainerUrl] : null;
+      if (portainerData?.withUpdates) {
+        allContainersWithUpdates = allContainersWithUpdates.concat(portainerData.withUpdates);
+      }
+    });
+    return allContainersWithUpdates;
+  }, [selectedPortainerInstances, portainerInstances, containersByPortainer]);
 
   // Sort Portainer instances alphabetically by name
   portainerInstances.sort((a, b) => {
@@ -2483,42 +2537,6 @@ function App() {
                         <p className="image-info">
                           <strong>Image:</strong> {container.image}
                         </p>
-                        <p className="tag-info">
-                          <strong>Current:</strong>{" "}
-                          <span className="version-badge current">
-                            {container.currentDigest ? (
-                              `sha256:${container.currentDigest}`
-                            ) : (
-                              container.currentVersion ||
-                              container.currentTag ||
-                              "latest"
-                            )}
-                          </span>
-                        </p>
-                        <p className="tag-info">
-                          <strong>Latest:</strong>{" "}
-                          <span className="version-badge new">
-                            {container.latestDigest ? (
-                              <a
-                                href={getDockerHubUrl(
-                                  container.image,
-                                  container.latestTag || container.newVersion
-                                )}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="digest-link"
-                                title="View layer on Docker Hub"
-                              >
-                                sha256:{container.latestDigest}
-                              </a>
-                            ) : (
-                              container.newVersion ||
-                              container.latestTag ||
-                              "latest"
-                            )}
-                          </span>
-                        </p>
                         {container.latestPublishDate && (
                           <p
                             className="publish-info"
@@ -2541,7 +2559,7 @@ function App() {
                             marginTop: "3px",
                           }}
                         >
-                          {container.image && (
+                          {container.image && container.existsInDockerHub !== false && (
                             <button
                               className="update-button"
                               onClick={(e) => {
@@ -2690,7 +2708,7 @@ function App() {
                             {formatTimeAgo(container.currentVersionPublishDate)}
                           </p>
                         )}
-                        {container.image && (
+                        {container.image && container.existsInDockerHub !== false && (
                           <div
                             style={{
                               display: "flex",
@@ -2987,17 +3005,39 @@ function App() {
             <div className="stat-value">{summaryStats.totalContainers}</div>
             <div className="stat-label">Total Containers</div>
           </div>
-          <div className="stat-card current">
+          <div 
+            className="stat-card update-available"
+            onClick={() => {
+              setActiveTab("portainer");
+              setSelectedPortainerInstances(new Set());
+              setContentTab("updates");
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <div className="stat-value">{summaryStats.containersWithUpdates}</div>
+            <div className="stat-label">Updates Available</div>
+          </div>
+          <div 
+            className="stat-card current"
+            onClick={() => {
+              setActiveTab("portainer");
+              setSelectedPortainerInstances(new Set());
+              setContentTab("current");
+            }}
+            style={{ cursor: "pointer" }}
+          >
             <div className="stat-value">{summaryStats.containersUpToDate}</div>
             <div className="stat-label">Up to Date</div>
           </div>
-          <div className="stat-card update-available">
-            <div className="stat-value">
-              {summaryStats.containersWithUpdates}
-            </div>
-            <div className="stat-label">Updates Available</div>
-          </div>
-          <div className="stat-card unused-images">
+          <div 
+            className="stat-card unused-images"
+            onClick={() => {
+              setActiveTab("portainer");
+              setSelectedPortainerInstances(new Set());
+              setContentTab("unused");
+            }}
+            style={{ cursor: "pointer" }}
+          >
             <div className="stat-value">{summaryStats.unusedImages}</div>
             <div className="stat-label">Unused Images</div>
           </div>
@@ -3015,7 +3055,7 @@ function App() {
                   className="instance-header"
                   onClick={() => {
                     setActiveTab("portainer");
-                    setPortainerSubTab(stat.name);
+                    setSelectedPortainerInstances(new Set([stat.name]));
                     setContentTab("updates");
                   }}
                   style={{ cursor: "pointer" }}
@@ -3044,7 +3084,7 @@ function App() {
                     className="instance-stat"
                     onClick={() => {
                       setActiveTab("portainer");
-                      setPortainerSubTab(stat.name);
+                      setSelectedPortainerInstances(new Set([stat.name]));
                       setContentTab("updates");
                     }}
                     style={{ cursor: "pointer" }}
@@ -3057,7 +3097,7 @@ function App() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setActiveTab("portainer");
-                      setPortainerSubTab(stat.name);
+                      setSelectedPortainerInstances(new Set([stat.name]));
                       setContentTab("updates");
                     }}
                     style={{ cursor: "pointer" }}
@@ -3072,7 +3112,7 @@ function App() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setActiveTab("portainer");
-                      setPortainerSubTab(stat.name);
+                      setSelectedPortainerInstances(new Set([stat.name]));
                       setContentTab("current");
                     }}
                     style={{ cursor: "pointer" }}
@@ -3085,7 +3125,7 @@ function App() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setActiveTab("portainer");
-                      setPortainerSubTab(stat.name);
+                      setSelectedPortainerInstances(new Set([stat.name]));
                       setContentTab("unused");
                     }}
                     style={{ cursor: "pointer" }}
@@ -3145,48 +3185,51 @@ function App() {
   const renderTrackedApps = () => {
     return (
       <div className="summary-page">
-        <div className="summary-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <h2>Tracked Apps</h2>
-          </div>
-          <div
+        <div className="summary-header" style={{ alignItems: "center" }}>
+          <h2>Tracked Apps</h2>
+          <button
+            onClick={handleCheckTrackedImagesUpdates}
+            disabled={checkingUpdates || trackedImages.length === 0}
+            title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
             style={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: "10px",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6px",
+              background: "transparent",
+              border: "1px solid var(--border-color)",
+              borderRadius: "6px",
+              cursor:
+                checkingUpdates || trackedImages.length === 0
+                  ? "not-allowed"
+                  : "pointer",
+              opacity:
+                checkingUpdates || trackedImages.length === 0 ? 0.5 : 1,
+              transition: "all 0.2s",
+              color: checkingUpdates
+                ? "var(--text-secondary)"
+                : "var(--text-primary)",
+            }}
+            onMouseEnter={(e) => {
+              if (!checkingUpdates && trackedImages.length > 0) {
+                e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                e.currentTarget.style.color = "var(--dodger-blue)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!checkingUpdates && trackedImages.length > 0) {
+                e.currentTarget.style.borderColor = "var(--border-color)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <button
-                onClick={handleCheckTrackedImagesUpdates}
-                className="pull-button"
-                disabled={checkingUpdates || trackedImages.length === 0}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  background: checkingUpdates
-                    ? "var(--bg-secondary)"
-                    : "rgba(30, 144, 255, 0.2)",
-                  color: checkingUpdates
-                    ? "var(--text-secondary)"
-                    : "var(--dodger-blue)",
-                  border: checkingUpdates ? "none" : "1px solid var(--dodger-blue)",
-                  borderRadius: "6px",
-                  cursor:
-                    checkingUpdates || trackedImages.length === 0
-                      ? "not-allowed"
-                      : "pointer",
-                  opacity:
-                    checkingUpdates || trackedImages.length === 0 ? 0.6 : 1,
-                  transition: "all 0.2s",
-                }}
-              >
-                {checkingUpdates ? "Checking..." : "Check for Updates"}
-              </button>
-            </div>
-          </div>
+            <RefreshCw
+              size={18}
+              style={{
+                animation: checkingUpdates ? "spin 1s linear infinite" : "none",
+              }}
+            />
+          </button>
         </div>
         <div className="tracked-apps-list" style={{ marginTop: "20px" }}>
           {trackedImageError && (
@@ -3198,14 +3241,32 @@ function App() {
 
           {trackedImages.length > 0 ? (
             <div style={{ marginTop: "20px" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: "15px",
-                }}
-              >
-                {trackedImages.map((image) => {
+              {/* Separate apps with updates from those without */}
+              {(() => {
+                const appsWithUpdates = trackedImages.filter((img) => img.has_update);
+                const appsWithoutUpdates = trackedImages.filter((img) => !img.has_update);
+                
+                return (
+                  <>
+                    {/* Apps with updates - shown at the top */}
+                    {appsWithUpdates.length > 0 && (
+                      <div style={{ marginBottom: "30px" }}>
+                        <h3 style={{ 
+                          marginBottom: "15px", 
+                          color: "var(--text-primary)",
+                          fontSize: "1.1rem",
+                          fontWeight: "600"
+                        }}>
+                          Apps with Updates
+                        </h3>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: "15px",
+                          }}
+                        >
+                          {appsWithUpdates.map((image) => {
                   // Check if there's no valid latest version
                   const hasNoLatestVersion =
                     !image.latest_version ||
@@ -3215,9 +3276,7 @@ function App() {
                   // Determine border color and width
                   // Use the same color as unused-images stat-card
                   let borderStyle = "1px solid var(--border-color)";
-                  if (image.has_update) {
-                    borderStyle = "2px solid var(--dodger-red)";
-                  } else if (hasNoLatestVersion) {
+                  if (hasNoLatestVersion) {
                     // Use the same color as unused-images (text-secondary in light, text-primary in dark)
                     borderStyle = "2px solid var(--text-secondary)";
                   }
@@ -3250,11 +3309,32 @@ function App() {
                             alignItems: "center",
                             gap: "4px",
                             flexWrap: "wrap",
+                            justifyContent: "space-between",
                           }}
                         >
-                          {image.current_version &&
-                            image.latest_version &&
-                            image.current_version === image.latest_version && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                            {image.current_version &&
+                              image.latest_version &&
+                              image.current_version === image.latest_version && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: "14px",
+                                    height: "14px",
+                                    borderRadius: "50%",
+                                    background: "rgba(34, 197, 94, 0.15)",
+                                    color: "#22c55e",
+                                    fontSize: "10px",
+                                    fontWeight: "bold",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  ✓
+                                </span>
+                              )}
+                            {image.has_update && (
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -3263,19 +3343,21 @@ function App() {
                                   width: "14px",
                                   height: "14px",
                                   borderRadius: "50%",
-                                  background: "rgba(34, 197, 94, 0.15)",
-                                  color: "#22c55e",
+                                  background: "rgba(239, 62, 66, 0.15)",
+                                  color: "#EF3E42",
                                   fontSize: "10px",
                                   fontWeight: "bold",
                                   flexShrink: 0,
                                 }}
+                                title="Update Available"
                               >
-                                ✓
+                                !
                               </span>
                             )}
-                          <span style={{ fontSize: "1.05rem" }}>
-                            {image.name}
-                          </span>
+                            <span style={{ fontSize: "1.05rem" }}>
+                              {image.name}
+                            </span>
+                          </div>
                         </div>
                         <div
                           style={{
@@ -3326,16 +3408,6 @@ function App() {
                           {image.latest_version && image.has_update && (
                             <div style={{ color: "var(--dodger-blue)" }}>
                               Latest: {image.latest_version}
-                            </div>
-                          )}
-                          {image.has_update && (
-                            <div
-                              style={{
-                                color: "var(--dodger-blue)",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              ⬆ Update Available
                             </div>
                           )}
                           {(() => {
@@ -3507,51 +3579,407 @@ function App() {
                                 color: "var(--dodger-blue)",
                               }}
                             >
-                              Mark Updated
+                              Updated
                             </button>
                           )}
                       </div>
                     </div>
                   );
-                })}
-                <div
-                  key="add-new-app"
-                  onClick={() => setShowAddTrackedImageModal(true)}
-                  style={{
-                    background: "var(--bg-secondary)",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "2px dashed var(--border-color)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    gap: "8px",
-                    height: "100%",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                    e.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-color)";
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
-                >
-                  <div
-                    style={{
-                      fontSize: "2rem",
-                      color: "var(--text-secondary)",
-                      fontWeight: "600",
-                    }}
-                  >
-                    +
-                  </div>
-                </div>
-              </div>
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Apps without updates - shown below */}
+                    {(appsWithoutUpdates.length > 0 || appsWithUpdates.length === 0) && (
+                      <div>
+                        {appsWithUpdates.length > 0 && appsWithoutUpdates.length > 0 && (
+                          <h3 style={{ 
+                            marginBottom: "15px", 
+                            marginTop: "20px",
+                            color: "var(--text-primary)",
+                            fontSize: "1.1rem",
+                            fontWeight: "600"
+                          }}>
+                            All Other Apps
+                          </h3>
+                        )}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: "15px",
+                          }}
+                        >
+                          {appsWithoutUpdates.map((image) => {
+                            // Check if there's no valid latest version
+                            const hasNoLatestVersion =
+                              !image.latest_version ||
+                              image.latest_version === "Unknown" ||
+                              image.latest_version.trim() === "";
+
+                            // Determine border color and width
+                            let borderStyle = "1px solid var(--border-color)";
+                            if (hasNoLatestVersion) {
+                              borderStyle = "2px solid var(--text-secondary)";
+                            }
+
+                            return (
+                              <div
+                                key={image.id}
+                                className={
+                                  hasNoLatestVersion && !image.has_update
+                                    ? "tracked-app-unknown-border"
+                                    : ""
+                                }
+                                style={{
+                                  background: "var(--bg-secondary)",
+                                  padding: "10px",
+                                  borderRadius: "8px",
+                                  border: borderStyle,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "6px",
+                                }}
+                              >
+                                <div style={{ flex: 1 }}>
+                                  <div
+                                    style={{
+                                      fontWeight: "bold",
+                                      color: "var(--text-primary)",
+                                      marginBottom: "3px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      flexWrap: "wrap",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                                      {image.current_version &&
+                                        image.latest_version &&
+                                        image.current_version === image.latest_version && (
+                                          <span
+                                            style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              width: "14px",
+                                              height: "14px",
+                                              borderRadius: "50%",
+                                              background: "rgba(34, 197, 94, 0.15)",
+                                              color: "#22c55e",
+                                              fontSize: "10px",
+                                              fontWeight: "bold",
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            ✓
+                                          </span>
+                                        )}
+                                      {image.has_update && (
+                                        <span
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            width: "14px",
+                                            height: "14px",
+                                            borderRadius: "50%",
+                                            background: "rgba(239, 62, 66, 0.15)",
+                                            color: "#EF3E42",
+                                            fontSize: "10px",
+                                            fontWeight: "bold",
+                                            flexShrink: 0,
+                                          }}
+                                          title="Update Available"
+                                        >
+                                          ⬆
+                                        </span>
+                                      )}
+                                      <span style={{ fontSize: "1.05rem" }}>
+                                        {image.name}
+                                      </span>
+                                    </div>
+                                    {image.has_update && (
+                                      <span
+                                        style={{
+                                          fontSize: "0.85rem",
+                                          color: "var(--dodger-red)",
+                                          fontWeight: "600",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        Update Available
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div
+                                    style={{
+                                      color: "var(--text-secondary)",
+                                      fontSize: "0.95rem",
+                                      marginBottom: "3px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        wordBreak: "break-word",
+                                        fontSize: "0.9rem",
+                                      }}
+                                    >
+                                      {image.github_repo || image.image_name}
+                                    </span>
+                                    {image.releaseUrl && (
+                                      <a
+                                        href={image.releaseUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          color: "var(--dodger-blue)",
+                                          textDecoration: "none",
+                                          fontSize: "0.9rem",
+                                        }}
+                                      >
+                                        View Release →
+                                      </a>
+                                    )}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.9rem",
+                                      color: "var(--text-tertiary)",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: "2px",
+                                    }}
+                                  >
+                                    <div>
+                                      Current: {image.current_version || "Not set"}
+                                    </div>
+                                    {image.latest_version && image.has_update && (
+                                      <div style={{ color: "var(--dodger-blue)" }}>
+                                        Latest: {image.latest_version}
+                                      </div>
+                                    )}
+                                    {(() => {
+                                      let publishDate = null;
+                                      if (image.source_type === "github") {
+                                        if (
+                                          image.latest_version &&
+                                          image.has_update &&
+                                          image.latestVersionPublishDate
+                                        ) {
+                                          publishDate = image.latestVersionPublishDate;
+                                        } else if (image.currentVersionPublishDate) {
+                                          publishDate = image.currentVersionPublishDate;
+                                        }
+                                      } else {
+                                        publishDate = image.currentVersionPublishDate;
+                                      }
+
+                                      return publishDate ? (
+                                        <div>
+                                          Released:{" "}
+                                          {new Date(publishDate).toLocaleDateString()}
+                                        </div>
+                                      ) : image.source_type === "github" &&
+                                        (image.current_version ||
+                                          image.latest_version) ? (
+                                        <div
+                                          style={{
+                                            color: "var(--text-tertiary)",
+                                            fontStyle: "italic",
+                                          }}
+                                        >
+                                          Released: Not available
+                                        </div>
+                                      ) : null;
+                                    })()}
+                                  </div>
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "4px",
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                    marginTop: "3px",
+                                  }}
+                                >
+                                  <button
+                                    onClick={() => handleEditTrackedImage(image)}
+                                    className="update-button"
+                                    title="Edit"
+                                    style={{
+                                      padding: "5px 12px",
+                                      fontSize: "0.9rem",
+                                      background: "rgba(128, 128, 128, 0.2)",
+                                      borderColor: "var(--border-color)",
+                                      color: "var(--text-secondary)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  {image.source_type === "github" &&
+                                    image.github_repo && (
+                                      <button
+                                        onClick={() => {
+                                          const repoUrl =
+                                            image.github_repo.startsWith("http")
+                                              ? image.github_repo
+                                              : `https://github.com/${image.github_repo}`;
+                                          window.open(
+                                            repoUrl,
+                                            "_blank",
+                                            "noopener,noreferrer"
+                                          );
+                                        }}
+                                        className="update-button"
+                                        title="Open GitHub repository"
+                                        style={{
+                                          padding: "5px 12px",
+                                          fontSize: "0.9rem",
+                                          background: "rgba(128, 128, 128, 0.2)",
+                                          borderColor: "var(--text-secondary)",
+                                          color: "var(--text-secondary)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                        }}
+                                      >
+                                        <svg
+                                          width="16"
+                                          height="16"
+                                          viewBox="0 0 24 24"
+                                          fill="currentColor"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                        >
+                                          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                                        </svg>
+                                        GitHub
+                                      </button>
+                                    )}
+                                  {(!image.source_type ||
+                                    image.source_type === "docker") &&
+                                    image.image_name && (
+                                      <button
+                                        onClick={() => {
+                                          const dockerHubUrl = getDockerHubRepoUrl(
+                                            image.image_name
+                                          );
+                                          if (dockerHubUrl) {
+                                            window.open(
+                                              dockerHubUrl,
+                                              "_blank",
+                                              "noopener,noreferrer"
+                                            );
+                                          }
+                                        }}
+                                        className="update-button"
+                                        title="Open Docker Hub repository"
+                                        style={{
+                                          padding: "5px 12px",
+                                          fontSize: "0.9rem",
+                                          background: "rgba(128, 128, 128, 0.2)",
+                                          borderColor: "var(--text-secondary)",
+                                          color: "var(--text-secondary)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                        }}
+                                      >
+                                        <img
+                                          src="/img/docker-mark-white.svg"
+                                          alt="Docker"
+                                          className="docker-hub-icon"
+                                          style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            display: "inline-block",
+                                          }}
+                                        />
+                                        Docker Hub
+                                      </button>
+                                    )}
+                                  {image.latest_version &&
+                                    (image.has_update ||
+                                      !image.current_version ||
+                                      image.current_version !==
+                                        image.latest_version) && (
+                                      <button
+                                        onClick={() =>
+                                          handleUpgradeTrackedImage(
+                                            image.id,
+                                            image.latest_version
+                                          )
+                                        }
+                                        className="update-button"
+                                        style={{
+                                          padding: "5px 12px",
+                                          fontSize: "0.9rem",
+                                          background: "rgba(30, 144, 255, 0.2)",
+                                          borderColor: "var(--dodger-blue)",
+                                          color: "var(--dodger-blue)",
+                                        }}
+                                      >
+                                        Updated
+                                      </button>
+                                    )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {/* Add new app button - always at the end of "All Other Apps" row */}
+                          <div
+                            key="add-new-app"
+                            onClick={() => setShowAddTrackedImageModal(true)}
+                            style={{
+                              background: "var(--bg-secondary)",
+                              padding: "10px",
+                              borderRadius: "8px",
+                              border: "2px dashed var(--border-color)",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.2s",
+                              gap: "8px",
+                              height: "100%",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                              e.currentTarget.style.background = "var(--bg-tertiary)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = "var(--border-color)";
+                              e.currentTarget.style.background = "var(--bg-secondary)";
+                            }}
+                            title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
+                          >
+                            <div
+                              style={{
+                                fontSize: "2rem",
+                                color: "var(--text-secondary)",
+                                fontWeight: "600",
+                              }}
+                            >
+                              +
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <div style={{ marginTop: "20px" }}>
@@ -3620,7 +4048,6 @@ function App() {
               day: 'numeric',
               hour: 'numeric',
               minute: 'numeric',
-              second: 'numeric',
               hour12: true
             })}
           </div>
@@ -3629,91 +4056,35 @@ function App() {
     );
   };
 
-  // Render containers for a specific Portainer instance
-  const renderPortainerTab = (portainerName) => {
-    // Find the instance info first to get the URL
-    // Check both portainerInstances (merged with container data) and portainerInstancesFromAPI (raw from API)
-    let instanceInfo = portainerInstances.find(
-      (inst) => inst.name === portainerName
-    );
+  // Render containers aggregated from all selected Portainer instances
+  const renderPortainerTab = () => {
+    // Get selected instances (empty set = show all, otherwise filter to selected)
+    const instancesToShow = selectedPortainerInstances.size > 0
+      ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+      : portainerInstances; // Empty set means show all
 
-    // If not found in merged list, check the API list directly (for newly added instances)
-    if (
-      !instanceInfo &&
-      portainerInstancesFromAPI &&
-      portainerInstancesFromAPI.length > 0
-    ) {
-      instanceInfo = portainerInstancesFromAPI.find(
-        (inst) => inst.name === portainerName
-      );
-    }
+    // Aggregate containers from all selected instances
+    let allContainersWithUpdates = [];
+    let allContainersUpToDate = [];
+    let allContainers = [];
+    let isLoading = false;
 
-    // If still no instance info found, show loading state (instance might be loading)
-    if (!instanceInfo) {
-      return (
-        <div className="portainer-tab-content">
-          <div
-            className="instance-loading-indicator"
-            style={{ marginBottom: "20px" }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ animation: "spin 1s linear infinite" }}
-            >
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-            <span>Loading instance...</span>
-          </div>
-          <div className="empty-state">
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
-              }}
-            >
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{
-                  animation: "spin 1s linear infinite",
-                  opacity: 0.6,
-                }}
-              >
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-              <p>Loading Portainer instance data...</p>
-            </div>
-          </div>
-        </div>
-      );
-    }
+    instancesToShow.forEach((instance) => {
+      const portainerUrl = instance?.url;
+      const portainerData = portainerUrl ? containersByPortainer[portainerUrl] : null;
+      if (portainerData) {
+        allContainersWithUpdates = allContainersWithUpdates.concat(portainerData.withUpdates || []);
+        allContainersUpToDate = allContainersUpToDate.concat(portainerData.upToDate || []);
+        allContainers = allContainers.concat(portainerData.containers || []);
+      }
+      if (portainerUrl && loadingInstances.has(portainerUrl)) {
+        isLoading = true;
+      }
+    });
 
-    // Match by URL instead of name for stability
-    const portainerUrl = instanceInfo?.url;
-    const portainerData = portainerUrl
-      ? containersByPortainer[portainerUrl]
-      : null;
-
-    // Always render the tab, even if no data yet
-    const instanceContainersWithUpdates = portainerData?.withUpdates || [];
-    const instanceContainersUpToDate = portainerData?.upToDate || [];
-    const instanceContainers = portainerData?.containers || [];
-    const isLoading = loadingInstances.has(portainerUrl);
+    const instanceContainersWithUpdates = allContainersWithUpdates;
+    const instanceContainersUpToDate = allContainersUpToDate;
+    const instanceContainers = allContainers;
 
     // Group by stack for this instance
     const instanceStacks = instanceContainers.reduce((acc, container) => {
@@ -3736,9 +4107,10 @@ function App() {
       return a.stackName.localeCompare(b.stackName);
     });
 
-    // Filter unused images for this portainer by URL instead of name
+    // Filter unused images for selected portainers
+    const selectedUrls = new Set(instancesToShow.map((inst) => inst?.url).filter(Boolean));
     const portainerUnusedImages = unusedImages.filter(
-      (img) => img.portainerUrl === portainerUrl
+      (img) => selectedUrls.has(img.portainerUrl)
     );
 
     // Check if we have any data at all
@@ -3768,223 +4140,6 @@ function App() {
             <span>Loading data...</span>
           </div>
         )}
-
-        {/* Content Tabs */}
-        <div className="content-tabs" style={{ marginTop: "0", marginBottom: "16px" }}>
-          <div className="content-tabs-left">
-            <button
-              className={`content-tab ${
-                contentTab === "updates" ? "active" : ""
-              }`}
-              onClick={() => setContentTab("updates")}
-            >
-              Updates ({instanceContainersWithUpdates.length})
-            </button>
-            <button
-              className={`content-tab ${
-                contentTab === "current" ? "active" : ""
-              }`}
-              onClick={() => setContentTab("current")}
-            >
-              Current ({instanceContainersUpToDate.length})
-            </button>
-            <button
-              className={`content-tab ${
-                contentTab === "unused" ? "active" : ""
-              }`}
-              onClick={() => setContentTab("unused")}
-            >
-              Unused ({portainerUnusedImages.length})
-            </button>
-          </div>
-          <div className="content-tabs-right">
-            {contentTab === "updates" &&
-              instanceContainersWithUpdates.length > 0 && (
-                <>
-                  {selectedContainers.size > 0 && (
-                    <button
-                      className="batch-upgrade-button"
-                      onClick={handleBatchUpgrade}
-                      disabled={batchUpgrading}
-                    >
-                      {batchUpgrading
-                        ? `Updating ${selectedContainers.size}...`
-                        : `Update Selected (${selectedContainers.size})`}
-                    </button>
-                  )}
-                  <label className="select-all-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={
-                        instanceContainersWithUpdates.filter(
-                          (c) => !isPortainerContainer(c)
-                        ).length > 0 &&
-                        instanceContainersWithUpdates
-                          .filter((c) => !isPortainerContainer(c))
-                          .every((c) => selectedContainers.has(c.id))
-                      }
-                      onChange={() =>
-                        handleSelectAll(instanceContainersWithUpdates)
-                      }
-                    />
-                    Select All
-                  </label>
-                  {instanceInfo && instanceInfo.url && (
-                    <button
-                      className="portainer-open-button"
-                      onClick={() => {
-                        window.open(
-                          instanceInfo.url,
-                          "_blank",
-                          "noopener,noreferrer"
-                        );
-                      }}
-                      title={`Open ${portainerName} in Portainer`}
-                      aria-label={`Open ${portainerName} Portainer instance`}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        <polyline points="15 3 21 3 21 9" />
-                        <line x1="10" y1="14" x2="21" y2="3" />
-                      </svg>
-                      <span>Open in Portainer</span>
-                    </button>
-                  )}
-                </>
-              )}
-            {contentTab === "current" && instanceInfo && instanceInfo.url && (
-              <button
-                className="portainer-open-button"
-                onClick={() => {
-                  window.open(
-                    instanceInfo.url,
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                }}
-                title={`Open ${portainerName} in Portainer`}
-                aria-label={`Open ${portainerName} Portainer instance`}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-                <span>Open in Portainer</span>
-              </button>
-            )}
-            {contentTab === "unused" && portainerUnusedImages.length > 0 && (
-              <>
-                {selectedImages.size > 0 && (
-                  <button
-                    className="danger-button"
-                    onClick={handleDeleteImages}
-                    disabled={deletingImages}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 12px",
-                      background: "transparent",
-                      color: "var(--dodger-red)",
-                      border: "1px solid var(--dodger-red)",
-                      borderRadius: "6px",
-                      fontSize: "0.85rem",
-                      fontWeight: "500",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      marginTop: 0,
-                      marginBottom: 0,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {deletingImages
-                      ? `Deleting ${selectedImages.size}...`
-                      : `Delete Selected (${selectedImages.size})`}
-                  </button>
-                )}
-                <label className="select-all-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={
-                      portainerUnusedImages.length > 0 &&
-                      portainerUnusedImages.every((img) =>
-                        selectedImages.has(img.id)
-                      )
-                    }
-                    onChange={() => {
-                      const allSelected = portainerUnusedImages.every((img) =>
-                        selectedImages.has(img.id)
-                      );
-                      if (allSelected) {
-                        const newSet = new Set(selectedImages);
-                        portainerUnusedImages.forEach((img) =>
-                          newSet.delete(img.id)
-                        );
-                        setSelectedImages(newSet);
-                      } else {
-                        const newSet = new Set(selectedImages);
-                        portainerUnusedImages.forEach((img) =>
-                          newSet.add(img.id)
-                        );
-                        setSelectedImages(newSet);
-                      }
-                    }}
-                  />
-                  Select All
-                </label>
-                {instanceInfo && instanceInfo.url && (
-                  <button
-                    className="portainer-open-button"
-                    onClick={() => {
-                      window.open(
-                        instanceInfo.url,
-                        "_blank",
-                        "noopener,noreferrer"
-                      );
-                    }}
-                    title={`Open ${portainerName} in Portainer`}
-                    aria-label={`Open ${portainerName} Portainer instance`}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                    <span>Open in Portainer</span>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
 
         {/* Updates Tab */}
         {contentTab === "updates" && (
@@ -4020,9 +4175,11 @@ function App() {
               </div>
             ) : instanceContainersWithUpdates.length > 0 ? (
               <>
-                {groupedStacks.map((stack) =>
-                  renderStackGroup(stack, stack.containers, true)
-                )}
+                <div className="stacks-container">
+                  {groupedStacks.map((stack) =>
+                    renderStackGroup(stack, stack.containers, true)
+                  )}
+                </div>
                 {lastPullTime && (
                   <div
                     style={{
@@ -4040,7 +4197,6 @@ function App() {
                       day: 'numeric',
                       hour: 'numeric',
                       minute: 'numeric',
-                      second: 'numeric',
                       hour12: true
                     })}
                   </div>
@@ -4094,9 +4250,11 @@ function App() {
               </div>
             ) : instanceContainersUpToDate.length > 0 ? (
               <>
-                {groupedStacks.map((stack) =>
-                  renderStackGroup(stack, stack.containers, false)
-                )}
+                <div className="stacks-container">
+                  {groupedStacks.map((stack) =>
+                    renderStackGroup(stack, stack.containers, false)
+                  )}
+                </div>
                 {lastPullTime && (
                   <div
                     style={{
@@ -4114,7 +4272,6 @@ function App() {
                       day: 'numeric',
                       hour: 'numeric',
                       minute: 'numeric',
-                      second: 'numeric',
                       hour12: true
                     })}
                   </div>
@@ -4166,6 +4323,34 @@ function App() {
               </div>
             ) : portainerUnusedImages.length > 0 ? (
               <>
+                {selectedImages.size > 0 && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <button
+                      className="danger-button"
+                      onClick={handleDeleteImages}
+                      disabled={deletingImages}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        background: "transparent",
+                        color: "var(--dodger-red)",
+                        border: "1px solid var(--dodger-red)",
+                        borderRadius: "6px",
+                        fontSize: "0.85rem",
+                        fontWeight: "500",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {deletingImages
+                        ? `Deleting ${selectedImages.size}...`
+                        : `Delete Selected (${selectedImages.size})`}
+                    </button>
+                  </div>
+                )}
                 <div className="section-header">
                   <div>
                     <p className="unused-images-total-size">
@@ -5028,7 +5213,11 @@ function App() {
                 </button>
                 <button
                   className={`tab ${activeTab === "portainer" ? "active" : ""}`}
-                  onClick={() => setActiveTab("portainer")}
+                  onClick={() => {
+                    setActiveTab("portainer");
+                    setSelectedPortainerInstances(new Set());
+                    setContentTab("updates");
+                  }}
                 >
                   <svg 
                     width="18" 
@@ -5064,42 +5253,93 @@ function App() {
           {/* Portainer Header and Sub-tabs - Show when Portainer tab is active */}
           {activeTab === "portainer" && (
             <>
-              <div className="summary-header">
+              <div className="summary-header" style={{ alignItems: "center" }}>
                 <h2>Portainer</h2>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    gap: "10px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <button
-                      className="pull-button"
-                      onClick={handlePull}
-                      disabled={pulling || loading || clearing}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  {contentTab === "updates" && (
+                    <>
+                      {selectedContainers.size > 0 && (
+                        <button
+                          className="batch-upgrade-button"
+                          onClick={handleBatchUpgrade}
+                          disabled={batchUpgrading}
+                          style={{
+                            margin: 0,
+                          }}
+                        >
+                          {batchUpgrading
+                            ? `Updating ${selectedContainers.size}...`
+                            : `Update Selected (${selectedContainers.size})`}
+                        </button>
+                      )}
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            aggregatedContainersWithUpdates.filter(
+                              (c) => !isPortainerContainer(c)
+                            ).length > 0 &&
+                            aggregatedContainersWithUpdates
+                              .filter((c) => !isPortainerContainer(c))
+                              .every((c) => selectedContainers.has(c.id))
+                          }
+                          onChange={() =>
+                            handleSelectAll(aggregatedContainersWithUpdates)
+                          }
+                        />
+                        <span style={{ color: "var(--text-primary)" }}>Select All</span>
+                      </label>
+                    </>
+                  )}
+                  <button
+                    onClick={handlePull}
+                    disabled={pulling || loading || clearing}
+                    title={pulling ? "Checking for updates..." : "Check for updates"}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "6px",
+                      background: "transparent",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "6px",
+                      cursor:
+                        pulling || loading || clearing ? "not-allowed" : "pointer",
+                      opacity: pulling || loading || clearing ? 0.5 : 1,
+                      transition: "all 0.2s",
+                      color: pulling
+                        ? "var(--text-secondary)"
+                        : "var(--text-primary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!pulling && !loading && !clearing) {
+                        e.currentTarget.style.borderColor = "var(--dodger-blue)";
+                        e.currentTarget.style.color = "var(--dodger-blue)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!pulling && !loading && !clearing) {
+                        e.currentTarget.style.borderColor = "var(--border-color)";
+                        e.currentTarget.style.color = "var(--text-primary)";
+                      }
+                    }}
+                  >
+                    <RefreshCw
+                      size={18}
                       style={{
-                        padding: "10px 20px",
-                        fontSize: "1rem",
-                        fontWeight: "600",
-                        background: pulling
-                          ? "var(--bg-secondary)"
-                          : "rgba(30, 144, 255, 0.2)",
-                        color: pulling
-                          ? "var(--text-secondary)"
-                          : "var(--dodger-blue)",
-                        border: pulling ? "none" : "1px solid var(--dodger-blue)",
-                        borderRadius: "6px",
-                        cursor:
-                          pulling || loading || clearing ? "not-allowed" : "pointer",
-                        opacity: pulling || loading || clearing ? 0.6 : 1,
-                        transition: "all 0.2s",
+                        animation: pulling ? "spin 1s linear infinite" : "none",
                       }}
-                    >
-                      {pulling ? "Checking..." : "Check for Updates"}
-                    </button>
-                  </div>
+                    />
+                  </button>
                 </div>
               </div>
             </>
@@ -5348,12 +5588,9 @@ function App() {
                       <>
                         {portainerInstances.length > 0 ? (
                           <div className="portainer-sidebar-layout">
-                            <div className="portainer-sidebar">
-                              <div className="portainer-sidebar-header">
-                                <h3>Instances</h3>
-                              </div>
-                              <div className="portainer-sidebar-list">
-                                {(portainerInstances || [])
+                            <div className="portainer-sidebar" style={{ marginTop: "20px" }}>
+                                {/* Removed instance list - now using filter below */}
+                                {false && (portainerInstances || [])
                                   .filter((inst) => inst != null && inst.name)
                                   .map((instance, index) => (
                                     <button
@@ -5396,6 +5633,129 @@ function App() {
                                       )}
                                     </button>
                                   ))}
+                              {/* Views Toolbar */}
+                              <div style={{ 
+                                display: "flex", 
+                                flexDirection: "column",
+                                gap: "8px", 
+                                marginTop: "20px",
+                              }}>
+                                <button
+                                  className={`portainer-sidebar-item ${
+                                    contentTab === "updates" ? "active" : ""
+                                  }`}
+                                  onClick={() => setContentTab("updates")}
+                                  style={{
+                                    padding: "10px 16px",
+                                    fontSize: "0.95rem",
+                                  }}
+                                >
+                                  <span className="portainer-sidebar-item-name">
+                                    Updates
+                                  </span>
+                                </button>
+                                <button
+                                  className={`portainer-sidebar-item ${
+                                    contentTab === "current" ? "active" : ""
+                                  }`}
+                                  onClick={() => setContentTab("current")}
+                                  style={{
+                                    padding: "10px 16px",
+                                    fontSize: "0.95rem",
+                                  }}
+                                >
+                                  <span className="portainer-sidebar-item-name">
+                                    Current
+                                  </span>
+                                </button>
+                                <button
+                                  className={`portainer-sidebar-item ${
+                                    contentTab === "unused" ? "active" : ""
+                                  }`}
+                                  onClick={() => setContentTab("unused")}
+                                  style={{
+                                    padding: "10px 16px",
+                                    fontSize: "0.95rem",
+                                  }}
+                                >
+                                  <span className="portainer-sidebar-item-name">
+                                    Unused
+                                  </span>
+                                </button>
+                              </div>
+                              <div className="portainer-sidebar-header" style={{ marginTop: "30px" }}>
+                                <h3>Filter by Instance</h3>
+                              </div>
+                              <div style={{ padding: "12px" }}>
+                                <div
+                                  style={{
+                                    background: "var(--bg-primary)",
+                                    border: "2px solid var(--border-color)",
+                                    borderRadius: "8px",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {(portainerInstances || [])
+                                    .filter((inst) => inst != null && inst.name)
+                                    .map((instance) => (
+                                      <label
+                                        key={instance.name}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          padding: "10px 12px",
+                                          cursor: "pointer",
+                                          gap: "10px",
+                                          borderBottom: "1px solid var(--border-color)",
+                                          transition: "background-color 0.2s",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.backgroundColor = "transparent";
+                                        }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedPortainerInstances.has(instance.name)}
+                                          onChange={(e) => {
+                                            setSelectedPortainerInstances((prev) => {
+                                              const next = new Set(prev);
+                                              
+                                              if (e.target.checked) {
+                                                // Add this instance to selection
+                                                next.add(instance.name);
+                                                
+                                                // Check if all instances are now selected
+                                                const allInstances = portainerInstances
+                                                  .filter((inst) => inst != null && inst.name);
+                                                const allSelected = allInstances.length > 0 &&
+                                                  allInstances.every((inst) => next.has(inst.name));
+                                                
+                                                // If all are selected, clear all to show all
+                                                if (allSelected) {
+                                                  return new Set();
+                                                }
+                                                
+                                                return next;
+                                              } else {
+                                                // Remove this instance from selection
+                                                next.delete(instance.name);
+                                                return next;
+                                              }
+                                            });
+                                          }}
+                                          style={{
+                                            cursor: "pointer",
+                                          }}
+                                        />
+                                        <span style={{ color: "var(--text-primary)", flex: 1 }}>
+                                          {instance.name}
+                                        </span>
+                                      </label>
+                                    ))}
+                                </div>
                                 <button
                                   className="portainer-sidebar-item portainer-sidebar-add"
                                   onClick={() => {
@@ -5403,6 +5763,10 @@ function App() {
                                     setShowAddPortainerModal(true);
                                   }}
                                   title="Add Portainer Instance"
+                                  style={{
+                                    width: "100%",
+                                    marginTop: "30px",
+                                  }}
                                 >
                                   <svg
                                     width="16"
@@ -5422,7 +5786,7 @@ function App() {
                               </div>
                             </div>
                             <div className="portainer-content-area">
-                              {portainerSubTab && renderPortainerTab(portainerSubTab)}
+                              {renderPortainerTab()}
                             </div>
                           </div>
                         ) : (

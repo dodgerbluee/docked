@@ -13,6 +13,7 @@ const {
 } = require('../db/database');
 const { validateRequiredFields } = require('../utils/validation');
 const portainerService = require('../services/portainerService');
+const logger = require('../utils/logger');
 const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
 
 /**
@@ -190,7 +191,7 @@ async function createInstance(req, res, next) {
     // Resolve URL to IP address for fallback when DNS fails
     let ipAddress = await resolveUrlToIp(url.trim());
     if (ipAddress) {
-      console.log(`Resolved ${url.trim()} to IP: ${ipAddress}`);
+      logger.info(`Resolved ${url.trim()} to IP: ${ipAddress}`);
       
       // Try to detect the actual backend IP if behind a proxy
       // This is useful when the resolved IP is a proxy (like nginx proxy manager)
@@ -206,15 +207,15 @@ async function createInstance(req, res, next) {
         );
         
         if (backendIp && backendIp !== ipAddress) {
-          console.log(`Detected backend IP ${backendIp} (proxy was ${ipAddress})`);
+          logger.info(`Detected backend IP ${backendIp} (proxy was ${ipAddress})`);
           ipAddress = backendIp; // Use the detected backend IP instead
         }
       } catch (detectError) {
         // Non-fatal - if detection fails, use the proxy IP
-        console.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+        logger.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
       }
     } else {
-      console.warn(`Failed to resolve ${url.trim()} to IP address - will use URL only`);
+      logger.warn(`Failed to resolve ${url.trim()} to IP address - will use URL only`);
     }
 
     // Create instance
@@ -321,7 +322,7 @@ async function updateInstance(req, res, next) {
     if (url.trim() !== existing.url) {
       let resolvedIp = await resolveUrlToIp(url.trim());
       if (resolvedIp) {
-        console.log(`Resolved ${url.trim()} to IP: ${resolvedIp}`);
+        logger.info(`Resolved ${url.trim()} to IP: ${resolvedIp}`);
         
         // Try to detect the actual backend IP if behind a proxy
         try {
@@ -335,17 +336,17 @@ async function updateInstance(req, res, next) {
           );
           
           if (backendIp && backendIp !== resolvedIp) {
-            console.log(`Detected backend IP ${backendIp} (proxy was ${resolvedIp})`);
+            logger.info(`Detected backend IP ${backendIp} (proxy was ${resolvedIp})`);
             resolvedIp = backendIp;
           }
         } catch (detectError) {
           // Non-fatal - if detection fails, use the proxy IP
-          console.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+          logger.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
         }
         
         ipAddress = resolvedIp;
       } else {
-        console.warn(`Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`);
+        logger.warn(`Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`);
       }
     }
     

@@ -5,6 +5,7 @@
  */
 
 const { getDockerHubCredentials } = require('../db/database');
+const logger = require('./logger');
 
 // Cache credentials in memory to avoid DB queries on every request
 let cachedCreds = null;
@@ -35,7 +36,7 @@ async function getDockerHubCreds() {
       return cachedCreds;
     }
   } catch (error) {
-    console.error('Error fetching Docker Hub credentials from database:', error.message);
+    logger.error('Error fetching Docker Hub credentials from database:', error.message);
   }
 
   // No credentials available
