@@ -1,0 +1,60 @@
+.statCard {
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px var(--shadow);
+  transition: transform 0.3s;
+  border: 2px solid var(--border-color);
+}
+
+.statCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+/* Variant classes - applied alongside statCard */
+.updateAvailable {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-red);
+}
+
+.current {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+}
+
+.unusedImages {
+  background: var(--bg-tertiary);
+  border-color: var(--text-secondary);
+}
+
+.unusedImages .statValue {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .unusedImages {
+  border-color: var(--text-primary);
+}
+
+body.dark-mode .unusedImages .statValue {
+  color: var(--text-primary);
+}
+
+.statValue {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.statLabel {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
