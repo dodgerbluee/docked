@@ -32,6 +32,7 @@ import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
 import TrackedAppsPage from "./pages/TrackedAppsPage";
+import SummaryPage from "./pages/SummaryPage";
 import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
 
 // Custom whale icon component matching lucide-react style
@@ -2413,13 +2414,7 @@ function App() {
     return nameA.localeCompare(nameB);
   });
 
-  // Calculate unused images per Portainer instance
-  // Match by URL instead of name for stability
-  const unusedImagesByPortainer = unusedImages.reduce((acc, img) => {
-    const portainerUrl = img.portainerUrl || "Unknown";
-    acc[portainerUrl] = (acc[portainerUrl] || 0) + 1;
-    return acc;
-  }, {});
+  // unusedImagesByPortainer is now calculated in useSummaryStats hook
 
   // Calculate tracked apps statistics using utility function
   const trackedAppsStats = calculateTrackedAppsStats(
@@ -2459,28 +2454,7 @@ function App() {
   const notificationCount =
     activeContainersWithUpdates.length + activeTrackedAppsBehind.length;
 
-  // Calculate summary statistics
-  const summaryStats = {
-    totalPortainers: (portainerInstances || []).length,
-    totalContainers: containers.length,
-    containersWithUpdates: containersWithUpdates.length,
-    containersUpToDate: containersUpToDate.length,
-    unusedImages: unusedImagesCount,
-    totalTrackedApps: totalTrackedApps,
-    trackedAppsUpToDate: trackedAppsUpToDate,
-    trackedAppsBehind: trackedAppsBehind,
-    trackedAppsUnknown: trackedAppsUnknown,
-    portainerStats: (portainerInstances || [])
-      .filter((p) => p != null) // Filter out any null/undefined entries
-      .map((p) => ({
-        name: p.name || "Unknown",
-        url: p.url || "",
-        total: (p.containers || []).length,
-        withUpdates: (p.withUpdates || []).length,
-        upToDate: (p.upToDate || []).length,
-        unusedImages: unusedImagesByPortainer[p.url] || 0, // Match by URL instead of name
-      })),
-  };
+  // Summary statistics are now calculated in the useSummaryStats hook within SummaryPage component
 
   // Render a stack group
   const renderStackGroup = (stack, containersInStack, showUpdates) => {
@@ -3089,198 +3063,21 @@ function App() {
     setShowAddPortainerModal,
   ]);
 
-  // Render summary page
+  // Render summary page - now using SummaryPage component
   const renderSummary = () => {
     return (
-      <div className="summary-page">
-        <div className="summary-header">
-          <h2>Summary</h2>
-        </div>
-        <h3 style={{ marginBottom: "20px", color: "var(--text-primary)" }}>
-          Portainer Summary
-        </h3>
-        <div className="summary-stats">
-          <div className="stat-card">
-            <div className="stat-value">{summaryStats.totalPortainers}</div>
-            <div className="stat-label">Portainer Instances</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">{summaryStats.totalContainers}</div>
-            <div className="stat-label">Total Containers</div>
-          </div>
-          <div 
-            className="stat-card update-available"
-            onClick={() => {
-              setActiveTab("portainer");
-              setSelectedPortainerInstances(new Set());
-              setContentTab("updates");
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <div className="stat-value">{summaryStats.containersWithUpdates}</div>
-            <div className="stat-label">Updates Available</div>
-          </div>
-          <div 
-            className="stat-card current"
-            onClick={() => {
-              setActiveTab("portainer");
-              setSelectedPortainerInstances(new Set());
-              setContentTab("current");
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <div className="stat-value">{summaryStats.containersUpToDate}</div>
-            <div className="stat-label">Up to Date</div>
-          </div>
-          <div 
-            className="stat-card unused-images"
-            onClick={() => {
-              setActiveTab("portainer");
-              setSelectedPortainerInstances(new Set());
-              setContentTab("unused");
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <div className="stat-value">{summaryStats.unusedImages}</div>
-            <div className="stat-label">Unused Images</div>
-          </div>
-        </div>
-
-        <div className="portainer-instances-list">
-          <h3>Portainer Instances</h3>
-          <div className="instances-grid">
-            {summaryStats.portainerStats.map((stat) => (
-              <div
-                key={stat.name}
-                className="instance-card"
-              >
-                <div 
-                  className="instance-header"
-                  onClick={() => {
-                    setActiveTab("portainer");
-                    setSelectedPortainerInstances(new Set([stat.name]));
-                    setContentTab("updates");
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  <h4>{stat.name}</h4>
-                  {stat.url && (
-                    <a
-                      href={stat.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        color: "var(--text-primary)",
-                        textDecoration: "none",
-                      }}
-                      title={`Open ${stat.name} in Portainer`}
-                    >
-                      <ExternalLink size={18} />
-                    </a>
-                  )}
-                </div>
-                <div className="instance-stats">
-                  <div 
-                    className="instance-stat"
-                    onClick={() => {
-                      setActiveTab("portainer");
-                      setSelectedPortainerInstances(new Set([stat.name]));
-                      setContentTab("updates");
-                    }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <span className="stat-number">{stat.total}</span>
-                    <span className="stat-text">Total</span>
-                  </div>
-                  <div 
-                    className="instance-stat"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTab("portainer");
-                      setSelectedPortainerInstances(new Set([stat.name]));
-                      setContentTab("updates");
-                    }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <span className="stat-number update">
-                      {stat.withUpdates}
-                    </span>
-                    <span className="stat-text">Updates</span>
-                  </div>
-                  <div 
-                    className="instance-stat"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTab("portainer");
-                      setSelectedPortainerInstances(new Set([stat.name]));
-                      setContentTab("current");
-                    }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <span className="stat-number current">{stat.upToDate}</span>
-                    <span className="stat-text">Current</span>
-                  </div>
-                  <div 
-                    className="instance-stat"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTab("portainer");
-                      setSelectedPortainerInstances(new Set([stat.name]));
-                      setContentTab("unused");
-                    }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <span className="stat-number">{stat.unusedImages}</span>
-                    <span className="stat-text">Unused</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className="tracked-apps-summary"
-          style={{
-            marginTop: "40px",
-            paddingTop: "30px",
-            borderTop: "2px solid var(--border-color)",
-          }}
-        >
-          <h3 style={{ marginBottom: "20px", color: "var(--text-primary)" }}>
-            Tracked Apps Summary
-          </h3>
-          <div className="summary-stats">
-            <div className="stat-card">
-              <div className="stat-value">{summaryStats.totalTrackedApps}</div>
-              <div className="stat-label">Tracked Apps</div>
-            </div>
-            <div className="stat-card current">
-              <div className="stat-value">
-                {summaryStats.trackedAppsUpToDate}
-              </div>
-              <div className="stat-label">Up to Date</div>
-            </div>
-            <div 
-              className="stat-card update-available"
-              onClick={() => setActiveTab("tracked-apps")}
-              style={{ cursor: "pointer" }}
-            >
-              <div className="stat-value">{summaryStats.trackedAppsBehind}</div>
-              <div className="stat-label">Updates Available</div>
-            </div>
-            <div className="stat-card unused-images">
-              <div className="stat-value">
-                {summaryStats.trackedAppsUnknown}
-              </div>
-              <div className="stat-label">Unknown</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SummaryPage
+        portainerInstances={portainerInstances}
+        containers={containers}
+        unusedImages={unusedImages}
+        unusedImagesCount={unusedImagesCount}
+        trackedImages={trackedImages}
+        dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
+        onNavigateToPortainer={() => setActiveTab("portainer")}
+        onNavigateToTrackedApps={() => setActiveTab("tracked-apps")}
+        onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+        onSetContentTab={setContentTab}
+      />
     );
   };
 

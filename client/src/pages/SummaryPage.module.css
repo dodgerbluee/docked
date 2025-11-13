@@ -1,0 +1,59 @@
+.summaryPage {
+  padding: 0;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  width: 100%;
+}
+
+.summaryPage h2,
+.summaryHeader h2 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.sectionTitle {
+  margin-bottom: 20px;
+  color: var(--text-primary);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.summaryStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.portainerInstancesList {
+  margin-top: 30px;
+}
+
+.portainerInstancesList h3 {
+  color: var(--text-primary);
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+}
+
+.instancesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.trackedAppsSummary {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 2px solid var(--border-color);
+}
+

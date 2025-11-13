@@ -1,0 +1,107 @@
+.instanceCard {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 6px var(--shadow);
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid var(--border-color);
+}
+
+.instanceCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px var(--shadow);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .instanceCard:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.instanceHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.instanceHeader h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.externalLink {
+  display: flex;
+  align-items: center;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.externalLink:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+body.dark-mode .externalLink {
+  color: var(--text-primary);
+}
+
+.instanceStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.instanceStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  overflow: visible;
+  padding: 0 4px;
+  transition: all 0.2s;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.instanceStat:hover {
+  background: var(--bg-tertiary);
+  transform: scale(1.05);
+}
+
+.statNumber {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.statNumberUpdate {
+  color: var(--dodger-red);
+}
+
+.statNumberCurrent {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .statNumberCurrent {
+  color: var(--dodger-blue-light);
+}
+
+.statText {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
