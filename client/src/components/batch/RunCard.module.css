@@ -1,0 +1,48 @@
+.runCard {
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.runCard:hover {
+  background: var(--bg-tertiary);
+}
+
+.runCard.selected {
+  background: var(--bg-tertiary);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runId {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.stats {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+}
+

@@ -12,6 +12,10 @@
   --dodger-blue-dark: #003d6b;
   --dodger-red: #EF3E42;
   --dodger-red-light: #ff6b6f;
+  --tracked-apps-purple: #8b5cf6;
+  --tracked-apps-purple-light: #a78bfa;
+  --success-green: #22c55e;
+  --success-green-light: #4ade80;
   --border-color: #e0e0e0;
   --shadow: rgba(0, 0, 0, 0.1);
   --header-bg: linear-gradient(135deg, #005A9C 0%, #003d6b 100%);
@@ -38,6 +42,10 @@ body.dark-mode {
   --dodger-blue-dark: #1565c0;
   --dodger-red: #EF3E42;
   --dodger-red-light: #ff6b6f;
+  --tracked-apps-purple: #8b5cf6;
+  --tracked-apps-purple-light: #a78bfa;
+  --success-green: #22c55e;
+  --success-green-light: #4ade80;
   --border-color: #404040;
   --shadow: rgba(0, 0, 0, 0.5);
   --header-bg: #1a1a1a;
@@ -1008,21 +1016,7 @@ body.dark-mode .instance-stat .stat-number.current {
   padding: 16px;
 }
 
-.error.rate-limit-error {
-  background: rgba(255, 193, 7, 0.15);
-  border-color: #ff9800;
-  color: #e65100;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.9;
-  }
-}
+/* Rate limit error styling is now handled by Alert component with warning variant */
 
 .error button {
   margin-top: 12px;

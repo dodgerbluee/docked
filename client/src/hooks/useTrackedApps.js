@@ -74,8 +74,21 @@ export function useTrackedApps() {
     fetchTrackedImages();
   }, [fetchTrackedImages]);
 
-  const handleTrackedImageModalSuccess = useCallback(async () => {
+  const handleTrackedImageModalSuccess = useCallback(async (imageId) => {
     await fetchTrackedImages();
+    
+    // If we have an image ID, check the version for that specific app
+    if (imageId) {
+      try {
+        await axios.post(`${API_BASE_URL}/api/tracked-images/${imageId}/check-update`);
+        // Refresh tracked images after version check to get updated version info
+        await fetchTrackedImages();
+      } catch (err) {
+        // Silently fail - version check is not critical, just a nice-to-have
+        console.error('Error checking version for tracked app:', err);
+      }
+    }
+    
     // No success message for add/edit - modal closing is sufficient feedback
   }, [fetchTrackedImages]);
 

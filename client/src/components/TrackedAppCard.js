@@ -5,7 +5,7 @@
 
 import React, { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Pencil } from 'lucide-react';
+import { Pencil, ArrowUp } from 'lucide-react';
 import { getDockerHubRepoUrl } from '../utils/formatters';
 import GitHubIcon from './icons/GitHubIcon';
 import Button from './ui/Button';
@@ -148,11 +148,10 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
           onClick={handleEdit}
           variant="outline"
           size="sm"
-          icon={Pencil}
           title="Edit"
           aria-label="Edit"
         >
-          Edit
+          <Pencil size={21} />
         </Button>
 
         {image.source_type === 'github' && image.github_repo && (
@@ -164,7 +163,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
             aria-label="Open GitHub repository"
           >
             <GitHubIcon size={16} />
-            <span style={{ marginLeft: '6px' }}>GitHub</span>
+            <span style={{ marginLeft: '4px' }}>GitHub</span>
           </Button>
         )}
 
@@ -182,7 +181,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
                 alt="Docker"
                 className={styles.dockerIcon}
               />
-              <span style={{ marginLeft: '6px' }}>Docker Hub</span>
+              <span style={{ marginLeft: '4px' }}>Docker Hub</span>
             </Button>
           )}
 
@@ -192,8 +191,12 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
             image.current_version !== image.latest_version) && (
             <Button
               onClick={handleUpgrade}
-              variant="primary"
+              variant="outline"
               size="sm"
+              icon={ArrowUp}
+              iconPosition="left"
+              title="Update to latest version"
+              aria-label="Update to latest version"
             >
               Updated
             </Button>

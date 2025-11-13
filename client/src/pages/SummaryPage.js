@@ -98,7 +98,6 @@ const SummaryPage = ({
             value={summaryStats.totalPortainers}
             label="Portainer Instances"
           />
-          <StatCard value={summaryStats.totalContainers} label="Total Containers" />
           <StatCard
             value={summaryStats.containersWithUpdates}
             label="Updates Available"
@@ -152,16 +151,16 @@ const SummaryPage = ({
               onClick={handleTrackedAppsClick}
             />
             <StatCard
-              value={summaryStats.trackedAppsUpToDate}
-              label="Up to Date"
-              variant={STAT_CARD_VARIANTS.CURRENT}
+              value={summaryStats.trackedAppsBehind}
+              label="Updates Available"
+              variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
               clickable
               onClick={handleTrackedAppsClick}
             />
             <StatCard
-              value={summaryStats.trackedAppsBehind}
-              label="Updates Available"
-              variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
+              value={summaryStats.trackedAppsUpToDate}
+              label="Up to Date"
+              variant={STAT_CARD_VARIANTS.CURRENT}
               clickable
               onClick={handleTrackedAppsClick}
             />

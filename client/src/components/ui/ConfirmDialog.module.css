@@ -3,14 +3,54 @@
 }
 
 .message {
-  color: var(--text-secondary);
-  margin-bottom: 24px;
+  color: var(--text-primary);
+  margin: 0 0 24px 0;
   line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 .actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.cancelButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.cancelButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+.confirmButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.confirmButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+.dangerConfirmButton {
+  background: transparent !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.dangerConfirmButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
 }
 

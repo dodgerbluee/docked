@@ -316,7 +316,10 @@ function AddTrackedImageModal({
           currentVersion: "",
         });
         setSourceType("github");
-        onSuccess();
+        // Pass the image ID to onSuccess so it can check the version
+        // For create: response.data.id, for update: response.data.image.id
+        const imageId = response.data.image?.id || response.data.id || initialData?.id;
+        onSuccess(imageId);
         onClose();
       } else {
         setError(

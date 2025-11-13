@@ -34,8 +34,12 @@ import BatchLogs from "./components/BatchLogs";
 import TrackedAppsPage from "./pages/TrackedAppsPage";
 import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
+import BatchPage from "./pages/BatchPage";
 import Button from "./components/ui/Button";
+import Alert from "./components/ui/Alert";
+import Modal from "./components/ui/Modal";
 import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
+import rateLimitStyles from "./components/RateLimitError.module.css";
 
 // Custom whale icon component matching lucide-react style
 // Represents Docker/Portainer (Docker's logo is a whale)
@@ -107,6 +111,8 @@ function App() {
   const [dataFetched, setDataFetched] = useState(false); // Track if data has been fetched
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+  const logoutInProgressRef = React.useRef(false); // Prevent multiple simultaneous logout calls
+  const handleLogoutRef = React.useRef(null); // Store logout function for interceptor
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
   const [dismissedContainerNotifications, setDismissedContainerNotifications] =
@@ -165,7 +171,7 @@ function App() {
     }
   }, [dismissedTrackedAppNotifications]);
   const [settingsTab, setSettingsTab] = useState("general"); // 'general', 'username', 'password', 'portainer', 'dockerhub', 'avatar', 'batch'
-  const [configurationTab, setConfigurationTab] = useState("batch"); // 'batch' or 'settings'
+  const [configurationTab, setConfigurationTab] = useState("history"); // 'history' or 'settings'
   const [portainerSubTab, setPortainerSubTab] = useState(null); // Portainer instance name when in Portainer tab (deprecated - will be removed)
   const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(new Set()); // Filter for Portainer instances
 
@@ -212,6 +218,7 @@ function App() {
     const saved = localStorage.getItem("dockerHubDataPulled");
     return saved ? JSON.parse(saved) : false;
   });
+  const [dockerHubCredentials, setDockerHubCredentials] = useState(null);
   // Color scheme preference: 'system', 'light', or 'dark'
   const [colorScheme, setColorScheme] = useState(() => {
     // Check localStorage for saved preference, default to 'system'
@@ -381,7 +388,7 @@ function App() {
   };
 
   // Handle logout
-  const handleLogout = () => {
+  const handleLogout = React.useCallback(() => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("username");
     localStorage.removeItem("passwordChanged");
@@ -404,7 +411,12 @@ function App() {
       clearTimeout(batchInitialTimeoutRef.current);
       batchInitialTimeoutRef.current = null;
     }
-  };
+  }, []);
+
+  // Keep ref updated with latest logout function
+  React.useEffect(() => {
+    handleLogoutRef.current = handleLogout;
+  }, [handleLogout]);
 
   // Update dark mode based on color scheme preference
   useEffect(() => {
@@ -453,6 +465,25 @@ function App() {
     setDarkMode((prev) => !prev);
   }, []);
 
+  // Fetch Docker Hub credentials
+  const fetchDockerHubCredentials = useCallback(async () => {
+    if (!isAuthenticated || !authToken) return null;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/docker-hub/credentials`);
+      if (response.data.success) {
+        setDockerHubCredentials(response.data.credentials);
+        return response.data.credentials;
+      } else {
+        setDockerHubCredentials(null);
+        return null;
+      }
+    } catch (err) {
+      // If credentials don't exist, that's fine - set to null
+      setDockerHubCredentials(null);
+      return null;
+    }
+  }, [isAuthenticated, authToken]);
+
   // Fetch cached data on page load/refresh (no Docker Hub calls)
   // This loads data from the database cache without triggering Docker Hub API calls
   // If no cache exists, backend will automatically fetch from Portainer (no Docker Hub)
@@ -462,13 +493,15 @@ function App() {
       if (!axios.defaults.headers.common["Authorization"]) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
       }
+      // Fetch Docker Hub credentials
+      fetchDockerHubCredentials();
       // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
       // Only fetch if we haven't fetched yet (don't refetch after clearing)
       if (!dataFetched) {
         fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
       }
     }
-  }, [isAuthenticated, authToken, passwordChanged]);
+  }, [isAuthenticated, authToken, passwordChanged, fetchDockerHubCredentials]);
 
   // Reset dataFetched and dockerHubDataPulled when logging out
   useEffect(() => {
@@ -806,10 +839,19 @@ function App() {
         err.response?.status === 429 ||
         err.response?.data?.rateLimitExceeded
       ) {
-        errorMessage =
-          err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        // Refetch credentials to ensure we have the latest state
+        const currentCreds = await fetchDockerHubCredentials().catch(() => null);
+        const hasCredentials = currentCreds || dockerHubCredentials;
+        
+        // Set message based on whether credentials exist
+        // Always use a clean message - don't trust server message which may include configure text
+        let errorMessage;
+        if (hasCredentials) {
+          errorMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+        } else {
+          errorMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        }
+        
         log(`❌ Rate limit exceeded: ${errorMessage}`);
         setError(errorMessage);
         console.error("❌ Docker Hub rate limit exceeded:", errorMessage);
@@ -1696,10 +1738,19 @@ function App() {
         err.response?.status === 429 ||
         err.response?.data?.rateLimitExceeded
       ) {
-        const rateLimitMessage =
-          err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        // Refetch credentials to ensure we have the latest state
+        const currentCreds = await fetchDockerHubCredentials().catch(() => null);
+        const hasCredentials = currentCreds || dockerHubCredentials;
+        
+        // Set message based on whether credentials exist
+        // Always use a clean message - don't trust server message which may include configure text
+        let rateLimitMessage;
+        if (hasCredentials) {
+          rateLimitMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+        } else {
+          rateLimitMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+        }
+        
         setError(rateLimitMessage);
         console.error("❌ Docker Hub rate limit exceeded:", rateLimitMessage);
       } else {
@@ -2865,7 +2916,7 @@ function App() {
 
   // Render Tracked Apps tab - now using TrackedAppsPage component
   const renderTrackedApps = () => {
-    return <TrackedAppsPage onDeleteTrackedImage={fetchTrackedImages} />;
+    return <TrackedAppsPage onDeleteTrackedImage={fetchTrackedImages} onUpgradeTrackedImage={fetchTrackedImages} onEditTrackedImage={fetchTrackedImages} />;
   };
 
   // OLD renderTrackedApps function removed - functionality moved to TrackedAppsPage component
@@ -3232,6 +3283,38 @@ function App() {
       delete axios.defaults.headers.common["Authorization"];
     }
   }, [authToken, isAuthenticated]);
+
+  // Set up axios interceptor to handle 401 errors globally
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // Check if it's a 401 error and not from the login endpoint
+        if (
+          error.response?.status === 401 &&
+          !error.config?.url?.includes("/api/auth/login") &&
+          !logoutInProgressRef.current &&
+          handleLogoutRef.current
+        ) {
+          // Token is invalid - clear auth data and redirect to login
+          console.warn("Authentication token invalid, logging out...");
+          logoutInProgressRef.current = true;
+          // Use handleLogout to properly clean up all state
+          handleLogoutRef.current();
+          // Reset flag after a short delay to allow for re-authentication
+          setTimeout(() => {
+            logoutInProgressRef.current = false;
+          }, 1000);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Cleanup interceptor on unmount
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []); // Interceptor setup only needs to run once
 
   // Show login page if not authenticated
   if (!isAuthenticated) {
@@ -3866,7 +3949,7 @@ function App() {
                         className="avatar-menu-item"
                         onClick={() => {
                           setActiveTab("configuration");
-                          setConfigurationTab("batch");
+                          setConfigurationTab("history");
                           setShowAvatarMenu(false);
                         }}
                       >
@@ -4188,8 +4271,9 @@ function App() {
                 onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
                 onPortainerInstancesChange={async () => {
                   await fetchPortainerInstances();
-                  // Use portainerOnly=true to get fresh data without deleted instances
-                  await fetchContainers(false, null, true);
+                  // Fetch from cache (which has been updated by the delete handler)
+                  // This preserves Docker Hub update data for remaining instances
+                  await fetchContainers(false);
                 }}
                 onAvatarChange={handleAvatarChange}
                 onRecentAvatarsChange={(avatars) => {
@@ -4220,109 +4304,26 @@ function App() {
                 onTabChange={setSettingsTab}
               />
             ) : activeTab === "configuration" ? (
-              <div style={{ width: "100%" }}>
-                <div
-                  className="summary-header"
-                  style={{ marginBottom: "20px" }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <h2 className="settings-header" style={{ margin: 0 }}>
-                      Batch
-                    </h2>
-                    <Button
-                      onClick={() => setActiveTab("summary")}
-                      variant="outline"
-                      icon={Home}
-                      iconPosition="left"
-                    >
-                      Return Home
-                    </Button>
-                  </div>
-                </div>
-                <div className="content-tabs" style={{ marginBottom: "20px" }}>
-                  <div className="content-tabs-left">
-                    <button
-                      className={`content-tab ${
-                        configurationTab === "batch" ? "active" : ""
-                      }`}
-                      onClick={() => setConfigurationTab("batch")}
-                    >
-                      History
-                    </button>
-                    <button
-                      className={`content-tab ${
-                        configurationTab === "settings" ? "active" : ""
-                      }`}
-                      onClick={() => setConfigurationTab("settings")}
-                    >
-                      Settings
-                    </button>
-                  </div>
-                </div>
-                <div className="content-tab-panel">
-                  {configurationTab === "batch" ? (
-                    <ErrorBoundary>
-                      <BatchLogs
-                        onNavigateHome={() => setActiveTab("summary")}
-                        onTriggerBatch={handleBatchPull}
-                        onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
-                      />
-                    </ErrorBoundary>
-                  ) : (
-                    <ErrorBoundary>
-                      <Settings
-                        username={username}
-                        onUsernameUpdate={handleUsernameUpdate}
-                        onLogout={handleLogout}
-                        isFirstLogin={false}
-                        onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
-                        onPortainerInstancesChange={() => {
-                          fetchPortainerInstances();
-                          fetchContainers();
-                        }}
-                        activeSection="batch"
-                        onSectionChange={null}
-                        showUserInfoAboveTabs={false}
-                        onEditInstance={(instance) => {
-                          setEditingPortainerInstance(instance);
-                          setShowAddPortainerModal(true);
-                        }}
-                        avatar={avatar}
-                        recentAvatars={recentAvatars}
-                        onAvatarChange={handleAvatarChange}
-                        onRecentAvatarsChange={(avatars) => {
-                          setRecentAvatars(avatars);
-                          fetchRecentAvatars();
-                        }}
-                        onAvatarUploaded={async () => {
-                          await fetchAvatar();
-                        }}
-                        onBatchConfigUpdate={handleBatchConfigUpdate}
-                        colorScheme={colorScheme}
-                        onColorSchemeChange={handleColorSchemeChange}
-                        refreshInstances={fetchPortainerInstances}
-                      />
-                    </ErrorBoundary>
-                  )}
-                </div>
-              </div>
+              <BatchPage
+                onBatchConfigUpdate={handleBatchConfigUpdate}
+                colorScheme={colorScheme}
+                onColorSchemeChange={handleColorSchemeChange}
+                onReturnHome={() => setActiveTab("summary")}
+                onTriggerBatch={handleBatchPull}
+                onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+                activeTab={configurationTab}
+                onTabChange={setConfigurationTab}
+              />
             ) : activeTab === "batch-logs" ? (
-              <div style={{ width: "100%" }}>
-                <ErrorBoundary>
-                  <BatchLogs
-                    onNavigateHome={() => setActiveTab("summary")}
-                    onTriggerBatch={handleBatchPull}
-                    onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
-                  />
-                </ErrorBoundary>
-              </div>
+              <BatchPage
+                onBatchConfigUpdate={handleBatchConfigUpdate}
+                colorScheme={colorScheme}
+                onColorSchemeChange={handleColorSchemeChange}
+                onReturnHome={() => setActiveTab("summary")}
+                onTriggerBatch={handleBatchPull}
+                onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+                activeTab="history"
+              />
             ) : (
               <>
                 {pulling && (
@@ -4353,89 +4354,108 @@ function App() {
                   <div className="loading">Loading containers...</div>
                 )}
 
-                {error && (
-                  <div
-                    className={`error ${
-                      error.includes("rate limit") ||
-                      error.includes("Rate limit")
-                        ? "rate-limit-error"
-                        : ""
-                    }`}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "12px",
-                      }}
+                {/* Rate limit error as overlay modal on any page */}
+                {error &&
+                  (error.includes("rate limit") || error.includes("Rate limit")) && (
+                    <Modal
+                      isOpen={true}
+                      onClose={() => setError(null)}
+                      title="⚠️ Docker Hub Rate Limit Exceeded"
+                      size="md"
                     >
-                      <div style={{ flex: 1 }}>
-                        <p
-                          style={{
-                            margin: 0,
-                            marginBottom: "8px",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {error.includes("rate limit") ||
-                          error.includes("Rate limit")
-                            ? "⚠️ Docker Hub Rate Limit Exceeded"
-                            : "Error"}
-                        </p>
-                        <p style={{ margin: 0, marginBottom: "12px" }}>
-                          {error}
-                        </p>
-                        {error.includes("rate limit") ||
-                        error.includes("Rate limit") ? (
-                          <div style={{ marginTop: "12px" }}>
-                            <button
+                      <div className={rateLimitStyles.rateLimitContent}>
+                        <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
+                        <div className={rateLimitStyles.rateLimitActions}>
+                          {!dockerHubCredentials && (
+                            <Button
                               onClick={() => {
+                                setError(null);
                                 setActiveTab("settings");
                                 setSettingsTab("dockerhub");
                               }}
-                              style={{
-                                padding: "8px 16px",
-                                background: "var(--dodger-blue)",
-                                color: "white",
-                                border: "none",
-                                borderRadius: "6px",
-                                cursor: "pointer",
-                                fontSize: "0.9rem",
-                                fontWeight: "600",
-                                marginRight: "8px",
-                              }}
+                              variant="outline"
+                              size="sm"
+                              className={rateLimitStyles.configureButton}
                             >
                               Configure Docker Hub Credentials
-                            </button>
-                            <button
+                            </Button>
+                          )}
+                          <Button
+                            onClick={() => setError(null)}
+                            variant="outline"
+                            size="sm"
+                            className={rateLimitStyles.dismissButton}
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    </Modal>
+                  )}
+
+                {/* Other errors (non-rate limit) */}
+                {error &&
+                  !(error.includes("rate limit") || error.includes("Rate limit")) && (
+                    <Alert
+                      variant={
+                        error.includes("rate limit") || error.includes("Rate limit")
+                          ? "warning"
+                          : "error"
+                      }
+                      className={
+                        error.includes("rate limit") || error.includes("Rate limit")
+                          ? rateLimitStyles.rateLimitError
+                          : ""
+                      }
+                    >
+                      <div className={rateLimitStyles.rateLimitContent}>
+                        <h4 className={rateLimitStyles.rateLimitTitle}>
+                          {error.includes("rate limit") || error.includes("Rate limit")
+                            ? "⚠️ Docker Hub Rate Limit Exceeded"
+                            : "Error"}
+                        </h4>
+                        <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
+                        {error.includes("rate limit") || error.includes("Rate limit") ? (
+                          <div className={rateLimitStyles.rateLimitActions}>
+                            {!dockerHubCredentials && (
+                              <Button
+                                onClick={() => {
+                                  setActiveTab("settings");
+                                  setSettingsTab("dockerhub");
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className={rateLimitStyles.configureButton}
+                              >
+                                Configure Docker Hub Credentials
+                              </Button>
+                            )}
+                            <Button
                               onClick={() => setError(null)}
-                              style={{
-                                padding: "8px 16px",
-                                background: "transparent",
-                                color: "var(--text-primary)",
-                                border: "1px solid var(--border-color)",
-                                borderRadius: "6px",
-                                cursor: "pointer",
-                                fontSize: "0.9rem",
-                              }}
+                              variant="outline"
+                              size="sm"
                             >
                               Dismiss
-                            </button>
+                            </Button>
                           </div>
                         ) : (
-                          <button
-                            onClick={handlePull}
-                            disabled={pulling || loading}
-                          >
-                            {pulling || loading ? "Retrying..." : "Try Again"}
-                          </button>
+                          <div className={rateLimitStyles.rateLimitActions}>
+                            <Button
+                              onClick={handlePull}
+                              disabled={pulling || loading}
+                              variant="primary"
+                              size="sm"
+                            >
+                              {pulling || loading ? "Retrying..." : "Try Again"}
+                            </Button>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                )}
+                    </Alert>
+                  )}
 
-                {!loading && !error && (
+                {/* Render summary page even when there's an error (error modal will overlay) */}
+                {!loading && (
                   <>
                     {activeTab === "summary" && renderSummary()}
                     {activeTab === "portainer" && (
@@ -4690,21 +4710,178 @@ function App() {
                 if (newInstance) {
                   // Use the instance name from the API response (ensures it matches what's in state)
                   const instanceName = newInstance.name;
-                  setActiveTab(instanceName);
-                  setContentTab("current"); // Start with current containers tab
-
-                  // Trigger background fetch for this specific instance
-                  // This fetches from Portainer without Docker Hub checks
-                  // Note: This fetches ALL instances, but that's fine - it will include the new one
-                  await fetchContainers(false, newInstance.url);
+                  
+                  // Ensure the instance is in state before setting active tab to prevent safety check redirect
+                  // The state should already be updated by fetchPortainerInstances, but we ensure it's set
+                  if (updatedInstances.length > 0) {
+                    setPortainerInstancesFromAPI(updatedInstances);
+                  }
+                  
+                  // Set loading state to show spinner while fetching data
+                  setLoading(true);
+                  
+                  // Trigger Docker Hub pull for the new instance
+                  // This will automatically fetch from Portainer and Docker Hub for this instance
+                  // and merge the data with existing cache, preserving other instances' containers
+                  try {
+                    const pullResponse = await axios.post(
+                      `${API_BASE_URL}/api/containers/pull`,
+                      { portainerUrl: newInstance.url },
+                      { timeout: 300000 } // 5 minute timeout
+                    );
+                    
+                    // Use the response data directly to update state (preserves existing containers)
+                    // This ensures we have the latest data without waiting for cache
+                    if (pullResponse.data && pullResponse.data.grouped && pullResponse.data.stacks) {
+                      const apiContainers = pullResponse.data.containers || [];
+                      const updatedContainers = apiContainers.map((apiContainer) => {
+                        if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+                          if (!apiContainer.hasUpdate) {
+                            successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+                          }
+                          return { ...apiContainer, hasUpdate: false };
+                        }
+                        return apiContainer;
+                      });
+                      setContainers(updatedContainers);
+                      setStacks(pullResponse.data.stacks || []);
+                      setUnusedImagesCount(pullResponse.data.unusedImagesCount || 0);
+                      
+                      // Update portainerInstances from response
+                      if (pullResponse.data.portainerInstances) {
+                        setPortainerInstancesFromAPI(pullResponse.data.portainerInstances);
+                      }
+                      
+                      // Check if Docker Hub data is present
+                      const hasDockerHubData = apiContainers.some(
+                        (container) =>
+                          container.latestDigest ||
+                          container.latestTag ||
+                          container.latestVersion
+                      );
+                      if (hasDockerHubData) {
+                        setDockerHubDataPulled(true);
+                        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+                      }
+                      
+                      // Fetch unused images to complete the update
+                      await fetchUnusedImages();
+                    } else {
+                      // Fallback to fetching from cache if response format is unexpected
+                      await fetchContainers(false);
+                    }
+                    
+                    // After data is loaded, redirect to Summary page
+                    setActiveTab("summary");
+                    setContentTab("current");
+                  } catch (pullErr) {
+                    // If Docker Hub pull fails, still try to fetch from Portainer to get basic data
+                    console.error('Error pulling Docker Hub data for new instance:', pullErr);
+                    try {
+                      // Fetch from Portainer only to get basic container data
+                      // This will include the new instance and merge with existing cache
+                      await fetchContainers(false, null, true);
+                      // After data is loaded, redirect to Summary page
+                      setActiveTab("summary");
+                      setContentTab("current");
+                    } catch (fetchErr) {
+                      console.error('Error fetching Portainer data for new instance:', fetchErr);
+                      // Even if fetch fails, redirect to Summary page
+                      setActiveTab("summary");
+                      setContentTab("current");
+                    }
+                  } finally {
+                    // Clear loading state
+                    setLoading(false);
+                  }
                 } else {
                   // Fallback: use the data we have (shouldn't happen, but be safe)
                   const instanceName =
                     newInstanceData.name ||
                     new URL(newInstanceData.url).hostname;
-                  setActiveTab(instanceName);
-                  setContentTab("current");
-                  await fetchContainers(false, newInstanceData.url);
+                  
+                  // Ensure the instance is in state before setting active tab to prevent safety check redirect
+                  if (updatedInstances.length > 0) {
+                    setPortainerInstancesFromAPI(updatedInstances);
+                  }
+                  
+                  // Set loading state to show spinner while fetching data
+                  setLoading(true);
+                  
+                  // Trigger Docker Hub pull for the new instance
+                  // This will automatically fetch from Portainer and Docker Hub for this instance
+                  // and merge the data with existing cache, preserving other instances' containers
+                  try {
+                    const pullResponse = await axios.post(
+                      `${API_BASE_URL}/api/containers/pull`,
+                      { portainerUrl: newInstanceData.url },
+                      { timeout: 300000 } // 5 minute timeout
+                    );
+                    
+                    // Use the response data directly to update state (preserves existing containers)
+                    // This ensures we have the latest data without waiting for cache
+                    if (pullResponse.data && pullResponse.data.grouped && pullResponse.data.stacks) {
+                      const apiContainers = pullResponse.data.containers || [];
+                      const updatedContainers = apiContainers.map((apiContainer) => {
+                        if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+                          if (!apiContainer.hasUpdate) {
+                            successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+                          }
+                          return { ...apiContainer, hasUpdate: false };
+                        }
+                        return apiContainer;
+                      });
+                      setContainers(updatedContainers);
+                      setStacks(pullResponse.data.stacks || []);
+                      setUnusedImagesCount(pullResponse.data.unusedImagesCount || 0);
+                      
+                      // Update portainerInstances from response
+                      if (pullResponse.data.portainerInstances) {
+                        setPortainerInstancesFromAPI(pullResponse.data.portainerInstances);
+                      }
+                      
+                      // Check if Docker Hub data is present
+                      const hasDockerHubData = apiContainers.some(
+                        (container) =>
+                          container.latestDigest ||
+                          container.latestTag ||
+                          container.latestVersion
+                      );
+                      if (hasDockerHubData) {
+                        setDockerHubDataPulled(true);
+                        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+                      }
+                      
+                      // Fetch unused images to complete the update
+                      await fetchUnusedImages();
+                    } else {
+                      // Fallback to fetching from cache if response format is unexpected
+                      await fetchContainers(false);
+                    }
+                    
+                    // After data is loaded, redirect to Summary page
+                    setActiveTab("summary");
+                    setContentTab("current");
+                  } catch (pullErr) {
+                    // If Docker Hub pull fails, still try to fetch from Portainer to get basic data
+                    console.error('Error pulling Docker Hub data for new instance:', pullErr);
+                    try {
+                      // Fetch from Portainer only to get basic container data
+                      // This will include the new instance and merge with existing cache
+                      await fetchContainers(false, null, true);
+                      // After data is loaded, redirect to Summary page
+                      setActiveTab("summary");
+                      setContentTab("current");
+                    } catch (fetchErr) {
+                      console.error('Error fetching Portainer data for new instance:', fetchErr);
+                      // Even if fetch fails, redirect to Summary page
+                      setActiveTab("summary");
+                      setContentTab("current");
+                    }
+                  } finally {
+                    // Clear loading state
+                    setLoading(false);
+                  }
                 }
               } else {
                 // For edits, just refresh all data

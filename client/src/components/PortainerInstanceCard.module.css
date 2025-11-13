@@ -62,7 +62,7 @@ body.dark-mode .externalLink {
 
 .instanceStats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
@@ -92,6 +92,14 @@ body.dark-mode .externalLink {
   margin-bottom: 4px;
 }
 
+.statNumberTotal {
+  color: var(--text-primary);
+}
+
+body.dark-mode .statNumberTotal {
+  color: var(--text-primary);
+}
+
 .statNumberUpdate {
   color: var(--dodger-red);
 }
@@ -102,6 +110,14 @@ body.dark-mode .externalLink {
 
 body.dark-mode .statNumberCurrent {
   color: var(--dodger-blue-light);
+}
+
+.statNumberUnused {
+  color: #666666;
+}
+
+body.dark-mode .statNumberUnused {
+  color: #999999;
 }
 
 .statText {

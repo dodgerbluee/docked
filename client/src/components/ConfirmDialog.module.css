@@ -55,7 +55,8 @@
 .content p {
   margin: 0;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 .actions {
@@ -69,34 +70,33 @@
 .cancelButton,
 .confirmButton {
   padding: 10px 20px;
-  border: none;
+  border: 2px solid;
   border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .cancelButton {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 2px solid var(--border-color);
+  border-color: var(--border-color);
 }
 
 .cancelButton:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
 }
 
 .confirmButton {
-  background: rgba(30, 144, 255, 0.2);
-  color: var(--dodger-blue);
-  border: 1px solid var(--dodger-blue);
+  border-color: var(--dodger-blue);
 }
 
 .confirmButton:hover {
-  background: rgba(30, 144, 255, 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 90, 156, 0.3);
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
 }
 

@@ -20,17 +20,33 @@ const StatCard = ({
   clickable = false,
   onClick,
   className = "",
+  usePurpleBorder = false,
 }) => {
   const variantClass = variant ? styles[VARIANT_MAP[variant] || variant] : null;
+  
+  // Add purple border class if specified
+  const borderClass = usePurpleBorder ? styles.purpleBorder : null;
+  
+  // Add red border class for UPDATE_AVAILABLE when value > 0
+  const redBorderClass = variant === STAT_CARD_VARIANTS.UPDATE_AVAILABLE && typeof value === 'number' && value > 0 ? styles.redBorder : null;
 
   const cardClasses = [
     styles.statCard,
     variantClass,
+    borderClass,
+    redBorderClass,
     clickable && styles.clickable,
     className,
   ]
     .filter(Boolean)
     .join(" ");
+
+  // Determine value color based on variant and value
+  const getValueClassName = () => {
+    // "Up to Date" (CURRENT) uses default text color (white in dark mode)
+    // "Updates Available" uses default text color (white in dark mode)
+    return styles.statValue;
+  };
 
   return (
     <div
@@ -49,7 +65,7 @@ const StatCard = ({
           : undefined
       }
     >
-      <div className={styles.statValue}>{value}</div>
+      <div className={getValueClassName()}>{value}</div>
       <div className={styles.statLabel}>{label}</div>
     </div>
   );
@@ -67,6 +83,7 @@ StatCard.propTypes = {
   clickable: PropTypes.bool,
   onClick: PropTypes.func,
   className: PropTypes.string,
+  usePurpleBorder: PropTypes.bool,
 };
 
 export default StatCard;

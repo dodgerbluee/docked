@@ -1,0 +1,41 @@
+.card {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 15px;
+  align-items: center;
+  padding: 12px;
+  background: transparent;
+  border: 2px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.badgeContainer {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nextRun {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.interval {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+

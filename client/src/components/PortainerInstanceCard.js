@@ -42,16 +42,10 @@ const PortainerInstanceCard = ({
   // Configuration for stat items
   const statItems = [
     {
-      type: STAT_TYPES.TOTAL,
-      value: instance.total,
-      label: "Total",
-      variant: "",
-    },
-    {
       type: STAT_TYPES.UPDATES,
       value: instance.withUpdates,
       label: "Updates",
-      variant: "statNumberUpdate",
+      variant: instance.withUpdates > 0 ? "statNumberUpdate" : "",
     },
     {
       type: STAT_TYPES.CURRENT,
@@ -63,7 +57,7 @@ const PortainerInstanceCard = ({
       type: STAT_TYPES.UNUSED,
       value: instance.unusedImages,
       label: "Unused",
-      variant: "",
+      variant: "statNumberUnused",
     },
   ];
 

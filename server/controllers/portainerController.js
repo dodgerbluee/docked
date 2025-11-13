@@ -10,6 +10,8 @@ const {
   updatePortainerInstance,
   deletePortainerInstance,
   updatePortainerInstanceOrder,
+  getContainerCache,
+  setContainerCache,
 } = require('../db/database');
 const { validateRequiredFields } = require('../utils/validation');
 const portainerService = require('../services/portainerService');
@@ -419,8 +421,114 @@ async function deleteInstance(req, res, next) {
       });
     }
 
+    // Get the instance URL before deletion so we can remove its containers from cache
+    const deletedInstanceUrl = existing.url;
+    
+    // Normalize URL for comparison (remove trailing slash, lowercase)
+    const normalizeUrl = (url) => {
+      if (!url) return '';
+      return url.trim().replace(/\/+$/, '').toLowerCase();
+    };
+    const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
+
     // Delete instance
     await deletePortainerInstance(parseInt(id));
+
+    // Remove containers from cache that belong to the deleted instance
+    try {
+      const cached = await getContainerCache('containers');
+      if (cached && cached.containers && Array.isArray(cached.containers)) {
+        // Log for debugging
+        const totalContainersBefore = cached.containers.length;
+        const containersWithUpdatesBefore = cached.containers.filter(c => c.hasUpdate).length;
+        
+        // Filter out containers from the deleted instance using normalized URL comparison
+        // IMPORTANT: Preserve all container properties including hasUpdate flag
+        const filteredContainers = cached.containers.filter(
+          (container) => {
+            const containerUrl = normalizeUrl(container.portainerUrl);
+            const shouldKeep = containerUrl !== normalizedDeletedUrl;
+            return shouldKeep;
+          }
+        );
+
+        // Log for debugging
+        const totalContainersAfter = filteredContainers.length;
+        const containersWithUpdatesAfter = filteredContainers.filter(c => c.hasUpdate).length;
+        logger.info(
+          `🗑️ Filtering containers: ${totalContainersBefore} -> ${totalContainersAfter} total, ` +
+          `${containersWithUpdatesBefore} -> ${containersWithUpdatesAfter} with updates`
+        );
+
+        // Filter out the instance from portainerInstances array using normalized URL comparison
+        const filteredInstances = cached.portainerInstances
+          ? cached.portainerInstances.filter(
+              (instance) => normalizeUrl(instance.url) !== normalizedDeletedUrl
+            )
+          : [];
+
+        // Update stacks to remove containers from deleted instance using normalized URL comparison
+        const filteredStacks = cached.stacks
+          ? cached.stacks.map((stack) => ({
+              ...stack,
+              containers: stack.containers
+                ? stack.containers.filter(
+                    (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
+                  )
+                : [],
+            })).filter((stack) => stack.containers && stack.containers.length > 0)
+          : [];
+
+        // Recalculate portainerInstances stats based on filtered containers
+        // IMPORTANT: Use the filtered containers array which preserves hasUpdate flags
+        const recalculatedInstances = filteredInstances.map((instance) => {
+          const instanceUrl = normalizeUrl(instance.url);
+          const instanceContainers = filteredContainers.filter(
+            (c) => normalizeUrl(c.portainerUrl) === instanceUrl
+          );
+          
+          // Preserve hasUpdate flag from filtered containers
+          const withUpdates = instanceContainers.filter((c) => c.hasUpdate === true);
+          const upToDate = instanceContainers.filter((c) => c.hasUpdate !== true);
+          
+          logger.info(
+            `📊 Instance ${instance.name}: ${instanceContainers.length} containers, ` +
+            `${withUpdates.length} with updates, ${upToDate.length} up to date`
+          );
+          
+          return {
+            ...instance,
+            containers: instanceContainers,
+            withUpdates: withUpdates,
+            upToDate: upToDate,
+            totalContainers: instanceContainers.length,
+          };
+        });
+
+        // Recalculate unused images count based on remaining containers
+        // Since we don't have the unused images list in cache, we'll recalculate
+        // by counting containers that are not in use. For now, we'll keep the existing
+        // count but it will be recalculated on the next fetch.
+        // The count will be updated correctly when containers are next fetched.
+
+        // Update cache with filtered data
+        const updatedCache = {
+          ...cached,
+          containers: filteredContainers,
+          portainerInstances: recalculatedInstances,
+          stacks: filteredStacks,
+          // unusedImagesCount will be recalculated on next fetch based on remaining instances
+        };
+
+        await setContainerCache('containers', updatedCache);
+        logger.info(
+          `🗑️ Removed containers from cache for deleted instance: ${deletedInstanceUrl}`
+        );
+      }
+    } catch (cacheError) {
+      // Log error but don't fail the delete operation
+      logger.error('Error updating container cache after instance deletion:', cacheError);
+    }
 
     res.json({
       success: true,
