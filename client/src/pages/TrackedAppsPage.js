@@ -10,6 +10,7 @@ import { useTrackedApps } from '../hooks/useTrackedApps';
 import TrackedAppCard from '../components/TrackedAppCard';
 import AddTrackedImageModal from '../components/AddTrackedImageModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Button from '../components/ui/Button';
 import styles from './TrackedAppsPage.module.css';
 
 /**
@@ -70,25 +71,25 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
   );
 
   return (
-    <div className={styles.page}>
+    <div className={styles.trackedAppsPage}>
       <div className={styles.summaryHeader}>
-        <h2>Tracked Apps</h2>
-        <button
-          onClick={handleCheckTrackedImagesUpdates}
-          disabled={checkingUpdates || trackedImages.length === 0}
-          title={checkingUpdates ? 'Checking for updates...' : 'Check for updates'}
-          className={styles.refreshButton}
-        >
-          <RefreshCw
-            size={18}
-            style={{
-              animation: checkingUpdates ? 'spin 1s linear infinite' : 'none',
-            }}
-          />
-        </button>
+        <div className={styles.headerContent}>
+          <h2 className={styles.summaryHeaderTitle}>Tracked Apps</h2>
+          <Button
+            onClick={handleCheckTrackedImagesUpdates}
+            disabled={checkingUpdates || trackedImages.length === 0}
+            title={checkingUpdates ? 'Checking for updates...' : 'Check for updates'}
+            variant="outline"
+            icon={RefreshCw}
+            size="sm"
+            className={checkingUpdates ? styles.refreshing : ''}
+          >
+            Check for Updates
+          </Button>
+        </div>
       </div>
 
-      <div className={styles.content}>
+      <div className={styles.contentTabPanel}>
         {trackedImageError && (
           <div className={styles.errorMessage}>{trackedImageError}</div>
         )}
@@ -143,21 +144,21 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
             </div>
           </div>
         )}
-      </div>
 
-      {lastScanTime && (
-        <div className={styles.lastScanTime}>
-          Last scanned:{' '}
-          {lastScanTime.toLocaleString(undefined, {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            hour12: true,
-          })}
-        </div>
-      )}
+        {lastScanTime && (
+          <div className={styles.lastScanTime}>
+            Last scanned:{' '}
+            {lastScanTime.toLocaleString(undefined, {
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: 'numeric',
+              hour12: true,
+            })}
+          </div>
+        )}
+      </div>
 
       <AddTrackedImageModal
         isOpen={showAddTrackedImageModal}

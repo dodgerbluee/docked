@@ -3,22 +3,28 @@
 }
 
 .summaryHeader {
+  /* Matches summary-header from App.css */
+}
+
+.headerContent {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin: 0;
-  margin-bottom: 16px;
-  padding: 0;
+  align-items: center;
   width: 100%;
 }
 
-.summaryPage h2,
-.summaryHeader h2 {
+.summaryHeaderTitle {
+  /* Matches settings-header from App.css */
   color: var(--text-primary);
   margin: 0;
   font-size: 1.8rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.contentTabPanel {
+  /* Matches content-tab-panel from App.css */
+  margin-top: 20px;
 }
 
 .sectionTitle {

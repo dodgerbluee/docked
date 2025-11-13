@@ -10,7 +10,7 @@ import React, {
   lazy,
 } from "react";
 import axios from "axios";
-import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink, RefreshCw, Home } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -34,6 +34,7 @@ import BatchLogs from "./components/BatchLogs";
 import TrackedAppsPage from "./pages/TrackedAppsPage";
 import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
+import Button from "./components/ui/Button";
 import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
 
 // Custom whale icon component matching lucide-react style
@@ -4049,18 +4050,15 @@ function App() {
                   {contentTab === "updates" && (
                     <>
                       {selectedContainers.size > 0 && (
-                        <button
-                          className="batch-upgrade-button"
+                        <Button
+                          variant="primary"
                           onClick={handleBatchUpgrade}
                           disabled={batchUpgrading}
-                          style={{
-                            margin: 0,
-                          }}
                         >
                           {batchUpgrading
                             ? `Updating ${selectedContainers.size}...`
                             : `Update Selected (${selectedContainers.size})`}
-                        </button>
+                        </Button>
                       )}
                       <label
                         style={{
@@ -4093,31 +4091,15 @@ function App() {
                   {contentTab === "unused" && (
                     <>
                       {selectedImages.size > 0 && (
-                        <button
-                          className="danger-button"
+                        <Button
+                          variant="danger"
                           onClick={handleDeleteImages}
                           disabled={deletingImages}
-                          style={{
-                            margin: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "6px 12px",
-                            background: "transparent",
-                            color: "var(--dodger-red)",
-                            border: "1px solid var(--dodger-red)",
-                            borderRadius: "6px",
-                            fontSize: "0.85rem",
-                            fontWeight: "500",
-                            cursor: "pointer",
-                            transition: "all 0.2s",
-                            whiteSpace: "nowrap",
-                          }}
                         >
                           {deletingImages
                             ? `Deleting ${selectedImages.size}...`
                             : `Delete Selected (${selectedImages.size})`}
-                        </button>
+                        </Button>
                       )}
                       <label
                         style={{
@@ -4254,30 +4236,14 @@ function App() {
                     <h2 className="settings-header" style={{ margin: 0 }}>
                       Batch
                     </h2>
-                    <button
+                    <Button
                       onClick={() => setActiveTab("summary")}
-                      className="primary-button"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
+                      variant="outline"
+                      icon={Home}
+                      iconPosition="left"
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                        <polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
                       Return Home
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <div className="content-tabs" style={{ marginBottom: "20px" }}>
