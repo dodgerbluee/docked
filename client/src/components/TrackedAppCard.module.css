@@ -1,0 +1,166 @@
+/**
+ * TrackedAppCard Styles
+ * CSS Module for TrackedAppCard component
+ */
+
+.card {
+  background: var(--bg-secondary);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unknownBorder {
+  border: 2px solid var(--text-secondary);
+}
+
+.content {
+  flex: 1;
+}
+
+.header {
+  font-weight: bold;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.statusBadge[data-status="up-to-date"] {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.statusBadge[data-status="update-available"] {
+  background: rgba(239, 62, 66, 0.15);
+  color: #EF3E42;
+}
+
+.name {
+  font-size: 1.05rem;
+}
+
+.updateLabel {
+  font-size: 0.85rem;
+  color: var(--dodger-red);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.repoInfo {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.repoName {
+  word-break: break-word;
+  font-size: 0.9rem;
+}
+
+.releaseLink {
+  color: var(--dodger-blue);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.releaseLink:hover {
+  text-decoration: underline;
+}
+
+.versionInfo {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.latestVersion {
+  color: var(--dodger-blue);
+}
+
+.unavailable {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.actionButton {
+  padding: 5px 12px;
+  font-size: 0.9rem;
+  background: rgba(128, 128, 128, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.actionButton:hover {
+  background: rgba(128, 128, 128, 0.3);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upgradeButton {
+  background: rgba(30, 144, 255, 0.2);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.upgradeButton:hover {
+  background: rgba(30, 144, 255, 0.3);
+}
+
+.dockerIcon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+}
+

@@ -111,6 +111,33 @@ body.dark-mode .modal-form .form-group input:focus {
   box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
 }
 
+/* React-Select styles - hide placeholder on focus and remove blue box */
+.modal-form .form-group .react-select__placeholder {
+  transition: opacity 0.2s;
+}
+
+.modal-form .form-group .react-select--is-focused .react-select__placeholder,
+.modal-form .form-group .react-select__control:focus-within .react-select__placeholder {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.modal-form .form-group .react-select__input-container input,
+.modal-form .form-group .react-select__input input {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.modal-form .form-group .react-select__input-container input:focus,
+.modal-form .form-group .react-select__input input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+}
+
 .modal-form .form-group input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
