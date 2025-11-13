@@ -15,6 +15,14 @@
   --border-color: #e0e0e0;
   --shadow: rgba(0, 0, 0, 0.1);
   --header-bg: linear-gradient(135deg, #005A9C 0%, #003d6b 100%);
+  
+  /* Spacing Tokens - Design System */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 20px;
+  --spacing-xl: 30px;
+  --spacing-2xl: 40px;
 }
 
 /* Dark Mode - Dodger Away Colors */

@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useCallback, memo } from "react";
 import PropTypes from "prop-types";
 import { ExternalLink } from "lucide-react";
+import { STAT_TYPES } from "../constants/summaryPage";
+import StatItem from "./StatItem";
 import styles from "./PortainerInstanceCard.module.css";
 
 /**
@@ -15,25 +17,55 @@ import styles from "./PortainerInstanceCard.module.css";
  * @param {number} props.instance.unusedImages - Unused images count
  * @param {Function} props.onInstanceClick - Handler for clicking the instance header
  * @param {Function} props.onStatClick - Handler for clicking individual stats
- * @param {Function} props.getContentTab - Function to get the content tab based on stat type
  */
 const PortainerInstanceCard = ({
   instance,
   onInstanceClick,
   onStatClick,
-  getContentTab,
 }) => {
-  const handleStatClick = (statType) => {
-    if (onStatClick) {
-      onStatClick(instance.name, getContentTab(statType));
-    }
-  };
-
-  const handleInstanceClick = () => {
+  const handleInstanceClick = useCallback(() => {
     if (onInstanceClick) {
       onInstanceClick(instance.name);
     }
-  };
+  }, [onInstanceClick, instance.name]);
+
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handleInstanceClick();
+      }
+    },
+    [handleInstanceClick]
+  );
+
+  // Configuration for stat items
+  const statItems = [
+    {
+      type: STAT_TYPES.TOTAL,
+      value: instance.total,
+      label: "Total",
+      variant: "",
+    },
+    {
+      type: STAT_TYPES.UPDATES,
+      value: instance.withUpdates,
+      label: "Updates",
+      variant: "statNumberUpdate",
+    },
+    {
+      type: STAT_TYPES.CURRENT,
+      value: instance.upToDate,
+      label: "Current",
+      variant: "statNumberCurrent",
+    },
+    {
+      type: STAT_TYPES.UNUSED,
+      value: instance.unusedImages,
+      label: "Unused",
+      variant: "",
+    },
+  ];
 
   return (
     <div className={styles.instanceCard}>
@@ -42,12 +74,8 @@ const PortainerInstanceCard = ({
         onClick={handleInstanceClick}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleInstanceClick();
-          }
-        }}
+        onKeyDown={handleKeyDown}
+        aria-label={`View ${instance.name} details`}
       >
         <h4>{instance.name}</h4>
         {instance.url && (
@@ -58,85 +86,26 @@ const PortainerInstanceCard = ({
             onClick={(e) => e.stopPropagation()}
             className={styles.externalLink}
             title={`Open ${instance.name} in Portainer`}
+            aria-label={`Open ${instance.name} in Portainer`}
           >
             <ExternalLink size={18} />
           </a>
         )}
       </div>
       <div className={styles.instanceStats}>
-        <div
-          className={styles.instanceStat}
-          onClick={() => handleStatClick("updates")}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleStatClick("updates");
-            }
-          }}
-        >
-          <span className={styles.statNumber}>{instance.total}</span>
-          <span className={styles.statText}>Total</span>
-        </div>
-        <div
-          className={styles.instanceStat}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleStatClick("updates");
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleStatClick("updates");
-            }
-          }}
-        >
-          <span className={`${styles.statNumber} ${styles.statNumberUpdate}`}>
-            {instance.withUpdates}
-          </span>
-          <span className={styles.statText}>Updates</span>
-        </div>
-        <div
-          className={styles.instanceStat}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleStatClick("current");
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleStatClick("current");
-            }
-          }}
-        >
-          <span className={`${styles.statNumber} ${styles.statNumberCurrent}`}>
-            {instance.upToDate}
-          </span>
-          <span className={styles.statText}>Current</span>
-        </div>
-        <div
-          className={styles.instanceStat}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleStatClick("unused");
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleStatClick("unused");
-            }
-          }}
-        >
-          <span className={styles.statNumber}>{instance.unusedImages}</span>
-          <span className={styles.statText}>Unused</span>
-        </div>
+        {statItems.map((item) => (
+          <StatItem
+            key={item.type}
+            value={item.value}
+            label={item.label}
+            variant={item.variant}
+            onClick={() => {
+              if (onStatClick) {
+                onStatClick(instance.name, item.type);
+              }
+            }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -153,8 +122,8 @@ PortainerInstanceCard.propTypes = {
   }).isRequired,
   onInstanceClick: PropTypes.func,
   onStatClick: PropTypes.func,
-  getContentTab: PropTypes.func,
 };
 
-export default PortainerInstanceCard;
+// Memoize component to prevent unnecessary re-renders
+export default memo(PortainerInstanceCard);
 

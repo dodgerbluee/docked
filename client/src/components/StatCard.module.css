@@ -1,10 +1,10 @@
 .statCard {
   background: var(--bg-secondary);
   border-radius: 10px;
-  padding: 20px;
+  padding: var(--spacing-lg, 20px);
   text-align: center;
   box-shadow: 0 2px 8px var(--shadow);
-  transition: transform 0.3s;
+  transition: transform 0.3s, box-shadow 0.3s;
   border: 2px solid var(--border-color);
 }
 
@@ -15,6 +15,15 @@
 
 .clickable {
   cursor: pointer;
+}
+
+.clickable:focus-visible {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+body.dark-mode .clickable:focus-visible {
+  outline-color: var(--dodger-blue-light);
 }
 
 /* Variant classes - applied alongside statCard */
