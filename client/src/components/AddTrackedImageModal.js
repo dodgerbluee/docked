@@ -7,37 +7,19 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import Select from "react-select";
 import { Trash2 } from "lucide-react";
+import { API_BASE_URL } from "../utils/api";
+import {
+  PREDEFINED_GITHUB_REPOS,
+  PREDEFINED_DOCKER_IMAGES,
+} from "../constants/trackedApps";
+import {
+  getTrackedGitHubRepos,
+  getTrackedDockerImages,
+  filterTrackedItems,
+} from "../utils/trackedAppsFilters";
+import ToggleButtonGroup from "./ToggleButtonGroup";
+import GitHubIcon from "./icons/GitHubIcon";
 import "./AddPortainerModal.css";
-
-// In production, API is served from same origin, so use relative URLs
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
-
-// Predefined GitHub repositories (in alphabetical order)
-const PREDEFINED_GITHUB_REPOS = [
-  "AdguardTeam/AdGuardHome",
-  "goauthentik/authentik",
-  "henrygd/beszel",
-  "home-assistant/core",
-  "homebridge/homebridge",
-  "jellyfin/jellyfin",
-  "linuxserver/docker-plex",
-  "ollama/ollama",
-  "open-webui/open-webui",
-  "pterodactyl/panel",
-  "pterodactyl/wings",
-];
-
-// Predefined Docker images (in alphabetical order)
-const PREDEFINED_DOCKER_IMAGES = [
-  "henrygd/beszel",
-  "homebridge/homebridge",
-  "ollama/ollama",
-  "open-webui/open-webui",
-  "pterodactyl/panel",
-  "pterodactyl/wings",
-];
 
 function AddTrackedImageModal({
   isOpen,
@@ -61,37 +43,23 @@ function AddTrackedImageModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const lastAutoPopulatedName = useRef("");
-
-  // Get already tracked items to filter them out
-  const getTrackedGitHubRepos = () => {
-    return trackedImages
-      .filter((img) => img.source_type === "github" && img.github_repo)
-      .map((img) => img.github_repo);
-  };
-
-  const getTrackedDockerImages = () => {
-    return trackedImages
-      .filter((img) => img.source_type === "docker" && img.image_name)
-      .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
-  };
+  const mouseDownInsideModal = useRef(false);
 
   // Get available options for react-select (filter out already tracked)
   const githubRepoOptions = useMemo(() => {
-    const tracked = trackedImages
-      .filter((img) => img.source_type === "github" && img.github_repo)
-      .map((img) => img.github_repo);
-    return PREDEFINED_GITHUB_REPOS.filter(
-      (repo) => !tracked.includes(repo)
-    ).map((repo) => ({ value: repo, label: repo }));
+    const tracked = getTrackedGitHubRepos(trackedImages);
+    return filterTrackedItems(PREDEFINED_GITHUB_REPOS, tracked).map((repo) => ({
+      value: repo,
+      label: repo,
+    }));
   }, [trackedImages]);
 
   const dockerImageOptions = useMemo(() => {
-    const tracked = trackedImages
-      .filter((img) => img.source_type === "docker" && img.image_name)
-      .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
-    return PREDEFINED_DOCKER_IMAGES.filter(
-      (image) => !tracked.includes(image)
-    ).map((image) => ({ value: image, label: image }));
+    const tracked = getTrackedDockerImages(trackedImages);
+    return filterTrackedItems(PREDEFINED_DOCKER_IMAGES, tracked).map((image) => ({
+      value: image,
+      label: image,
+    }));
   }, [trackedImages]);
 
   // Custom styles for react-select to match existing design
@@ -383,9 +351,40 @@ function AddTrackedImageModal({
 
   if (!isOpen) return null;
 
+  // Handle overlay mousedown - track if it started on overlay
+  const handleOverlayMouseDown = (e) => {
+    // Only set flag if mousedown is directly on overlay (not a child)
+    if (e.target === e.currentTarget) {
+      mouseDownInsideModal.current = false;
+    }
+  };
+
+  // Handle overlay click - only close if both mousedown and mouseup happened on overlay
+  const handleOverlayClick = (e) => {
+    // Only close if:
+    // 1. The click target is the overlay itself (not a child element)
+    // 2. The mousedown didn't start inside the modal content
+    if (e.target === e.currentTarget && !mouseDownInsideModal.current) {
+      onClose();
+    }
+  };
+
+  // Track mousedown events to detect if user started interaction inside modal
+  const handleModalContentMouseDown = () => {
+    mouseDownInsideModal.current = true;
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
+    >
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={handleModalContentMouseDown}
+      >
         <div className="modal-header">
           <h2>{initialData ? "Edit Tracked App" : "Add Tracked App"}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
@@ -396,109 +395,70 @@ function AddTrackedImageModal({
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
             <label>Source Type *</label>
-            <div className="auth-type-toggle">
-              <button
-                type="button"
-                className={`auth-type-option ${
-                  sourceType === "github" ? "active" : ""
-                }`}
-                onClick={() => {
-                  if (!loading) {
-                    setSourceType("github");
+            <ToggleButtonGroup
+              options={[
+                {
+                  value: "github",
+                  label: "GitHub Repository",
+                  icon: <GitHubIcon size={18} />,
+                },
+                {
+                  value: "docker",
+                  label: "Docker Image",
+                  icon: (
+                    <img
+                      src="/img/docker-mark-white.svg"
+                      alt="Docker"
+                      style={{
+                        width: "18px",
+                        height: "18px",
+                        display: "inline-block",
+                        verticalAlign: "middle",
+                      }}
+                    />
+                  ),
+                },
+              ]}
+              value={sourceType}
+              onChange={(value) => {
+                if (!loading) {
+                  setSourceType(value);
+                  if (value === "github") {
                     setUsePredefined(true);
-                    setSelectedPredefinedRepo(null);
                     setSelectedPredefinedImage(null);
-                  }
-                }}
-                disabled={loading}
-                aria-pressed={sourceType === "github"}
-              >
-                <span className="auth-type-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    xmlns="http://www.w3.org/2000/svg"
-                    style={{ display: "inline-block", verticalAlign: "middle" }}
-                  >
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                </span>
-                <span>GitHub Repository</span>
-              </button>
-              <button
-                type="button"
-                className={`auth-type-option ${
-                  sourceType === "docker" ? "active" : ""
-                }`}
-                onClick={() => {
-                  if (!loading) {
-                    setSourceType("docker");
+                  } else {
                     setUsePredefinedDocker(true);
                     setSelectedPredefinedRepo(null);
-                    setSelectedPredefinedImage(null);
                   }
-                }}
-                disabled={loading}
-                aria-pressed={sourceType === "docker"}
-              >
-                <span className="auth-type-icon">
-                  <img
-                    src="/img/docker-mark-white.svg"
-                    alt="Docker"
-                    className="docker-hub-icon"
-                    style={{
-                      width: "18px",
-                      height: "18px",
-                      display: "inline-block",
-                      verticalAlign: "middle",
-                    }}
-                  />
-                </span>
-                <span>Docker Image</span>
-              </button>
-            </div>
+                }
+              }}
+              disabled={loading}
+            />
           </div>
 
           {sourceType === "docker" ? (
             <>
               <div className="form-group">
                 <label>Image Selection *</label>
-                <div className="auth-type-toggle">
-                  <button
-                    type="button"
-                    className={`auth-type-option ${
-                      usePredefinedDocker ? "active" : ""
-                    }`}
-                    onClick={() => {
-                      if (!loading) {
-                        setUsePredefinedDocker(true);
+                <ToggleButtonGroup
+                  options={[
+                    { value: "predefined", label: "Predefined" },
+                    { value: "manual", label: "Manual Entry" },
+                  ]}
+                  value={usePredefinedDocker ? "predefined" : "manual"}
+                  onChange={(value) => {
+                    if (!loading) {
+                      const isPredefined = value === "predefined";
+                      setUsePredefinedDocker(isPredefined);
+                      if (isPredefined) {
                         setFormData({ ...formData, imageName: "" });
+                      } else {
+                        setSelectedPredefinedImage(null);
                       }
-                    }}
-                    disabled={loading}
-                    aria-pressed={usePredefinedDocker}
-                  >
-                    <span>Predefined</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`auth-type-option ${
-                      !usePredefinedDocker ? "active" : ""
-                    }`}
-                    onClick={() => {
-                      if (!loading) {
-                        setUsePredefinedDocker(false);
-                        setSelectedPredefinedImage("");
-                      }
-                    }}
-                    disabled={loading}
-                    aria-pressed={!usePredefinedDocker}
-                  >
-                    <span>Manual Entry</span>
-                  </button>
-                </div>
+                    }
+                  }}
+                  disabled={loading}
+                />
               </div>
 
               {usePredefinedDocker ? (
@@ -543,40 +503,25 @@ function AddTrackedImageModal({
             <>
               <div className="form-group">
                 <label>Repository Selection *</label>
-                <div className="auth-type-toggle">
-                  <button
-                    type="button"
-                    className={`auth-type-option ${
-                      usePredefined ? "active" : ""
-                    }`}
-                    onClick={() => {
-                      if (!loading) {
-                        setUsePredefined(true);
+                <ToggleButtonGroup
+                  options={[
+                    { value: "predefined", label: "Predefined" },
+                    { value: "manual", label: "Manual Entry" },
+                  ]}
+                  value={usePredefined ? "predefined" : "manual"}
+                  onChange={(value) => {
+                    if (!loading) {
+                      const isPredefined = value === "predefined";
+                      setUsePredefined(isPredefined);
+                      if (isPredefined) {
                         setFormData({ ...formData, githubRepo: "" });
+                      } else {
+                        setSelectedPredefinedRepo(null);
                       }
-                    }}
-                    disabled={loading}
-                    aria-pressed={usePredefined}
-                  >
-                    <span>Predefined</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`auth-type-option ${
-                      !usePredefined ? "active" : ""
-                    }`}
-                    onClick={() => {
-                      if (!loading) {
-                        setUsePredefined(false);
-                        setSelectedPredefinedRepo("");
-                      }
-                    }}
-                    disabled={loading}
-                    aria-pressed={!usePredefined}
-                  >
-                    <span>Manual Entry</span>
-                  </button>
-                </div>
+                    }
+                  }}
+                  disabled={loading}
+                />
               </div>
 
               {usePredefined ? (

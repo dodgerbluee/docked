@@ -3,12 +3,13 @@
  * Main page component for the Tracked Apps view
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { RefreshCw } from 'lucide-react';
 import { useTrackedApps } from '../hooks/useTrackedApps';
 import TrackedAppCard from '../components/TrackedAppCard';
 import AddTrackedImageModal from '../components/AddTrackedImageModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import styles from './TrackedAppsPage.module.css';
 
 /**
@@ -32,11 +33,19 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
     handleCheckTrackedImagesUpdates,
     setShowAddTrackedImageModal,
     setEditingTrackedImageData,
+    confirmDialog,
+    setConfirmDialog,
   } = useTrackedApps();
 
-  // Separate apps with updates from those without
-  const appsWithUpdates = trackedImages.filter((img) => img.has_update);
-  const appsWithoutUpdates = trackedImages.filter((img) => !img.has_update);
+  // Memoize filtered arrays to prevent unnecessary recalculations
+  const appsWithUpdates = useMemo(
+    () => trackedImages.filter((img) => img.has_update),
+    [trackedImages]
+  );
+  const appsWithoutUpdates = useMemo(
+    () => trackedImages.filter((img) => !img.has_update),
+    [trackedImages]
+  );
 
   // Handle delete with callback
   const handleDelete = async (id) => {
@@ -139,8 +148,7 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
       {lastScanTime && (
         <div className={styles.lastScanTime}>
           Last scanned:{' '}
-          {lastScanTime.toLocaleString('en-US', {
-            timeZone: 'America/Chicago',
+          {lastScanTime.toLocaleString(undefined, {
             year: 'numeric',
             month: 'numeric',
             day: 'numeric',
@@ -160,7 +168,21 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
         onSuccess={handleTrackedImageModalSuccess}
         trackedImages={trackedImages}
         initialData={editingTrackedImageData}
-        onDelete={handleDelete}
+          onDelete={handleDelete}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={() => {
+          if (confirmDialog.onConfirm) {
+            confirmDialog.onConfirm();
+          }
+        }}
+        onCancel={() =>
+          setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null })
+        }
       />
     </div>
   );
