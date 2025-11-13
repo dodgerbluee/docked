@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { VARIANT_MAP, STAT_CARD_VARIANTS } from "../constants/summaryPage";
 import styles from "./StatCard.module.css";
 
 /**
@@ -15,19 +16,12 @@ import styles from "./StatCard.module.css";
 const StatCard = ({
   value,
   label,
-  variant = "",
+  variant = STAT_CARD_VARIANTS.DEFAULT,
   clickable = false,
   onClick,
   className = "",
 }) => {
-  // Map variant names to CSS Module class names (kebab-case to camelCase)
-  const variantMap = {
-    "update-available": "updateAvailable",
-    "unused-images": "unusedImages",
-    current: "current",
-  };
-
-  const variantClass = variant ? styles[variantMap[variant] || variant] : null;
+  const variantClass = variant ? styles[VARIANT_MAP[variant] || variant] : null;
 
   const cardClasses = [
     styles.statCard,
@@ -65,10 +59,10 @@ StatCard.propTypes = {
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   label: PropTypes.string.isRequired,
   variant: PropTypes.oneOf([
-    "",
-    "update-available",
-    "current",
-    "unused-images",
+    STAT_CARD_VARIANTS.DEFAULT,
+    STAT_CARD_VARIANTS.UPDATE_AVAILABLE,
+    STAT_CARD_VARIANTS.CURRENT,
+    STAT_CARD_VARIANTS.UNUSED_IMAGES,
   ]),
   clickable: PropTypes.bool,
   onClick: PropTypes.func,

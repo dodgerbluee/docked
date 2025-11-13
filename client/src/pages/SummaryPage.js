@@ -3,6 +3,17 @@ import PropTypes from "prop-types";
 import StatCard from "../components/StatCard";
 import PortainerInstanceCard from "../components/PortainerInstanceCard";
 import { useSummaryStats } from "../hooks/useSummaryStats";
+import { useNavigationHandlers } from "../hooks/useNavigationHandlers";
+import {
+  CONTENT_TABS,
+  STAT_CARD_VARIANTS,
+} from "../constants/summaryPage";
+import {
+  containerShape,
+  portainerInstanceShape,
+  unusedImageShape,
+  trackedImageShape,
+} from "../utils/propTypes";
 import styles from "./SummaryPage.module.css";
 
 /**
@@ -18,6 +29,7 @@ import styles from "./SummaryPage.module.css";
  * @param {Function} props.onNavigateToTrackedApps - Handler for navigating to Tracked Apps tab
  * @param {Function} props.onSetSelectedPortainerInstances - Handler for setting selected Portainer instances
  * @param {Function} props.onSetContentTab - Handler for setting content tab
+ * @param {boolean} props.isLoading - Whether data is currently loading
  */
 const SummaryPage = ({
   portainerInstances = [],
@@ -30,6 +42,7 @@ const SummaryPage = ({
   onNavigateToTrackedApps,
   onSetSelectedPortainerInstances,
   onSetContentTab,
+  isLoading = false,
 }) => {
   const summaryStats = useSummaryStats({
     portainerInstances,
@@ -40,54 +53,31 @@ const SummaryPage = ({
     dismissedTrackedAppNotifications,
   });
 
-  const handlePortainerStatClick = (contentTab) => {
-    if (onNavigateToPortainer) {
-      onNavigateToPortainer();
-    }
-    if (onSetSelectedPortainerInstances) {
-      onSetSelectedPortainerInstances(new Set());
-    }
-    if (onSetContentTab) {
-      onSetContentTab(contentTab);
-    }
-  };
+  const {
+    handlePortainerStatClick,
+    handleInstanceClick,
+    handleInstanceStatClick,
+    handleTrackedAppsClick,
+  } = useNavigationHandlers({
+    onNavigateToPortainer,
+    onNavigateToTrackedApps,
+    onSetSelectedPortainerInstances,
+    onSetContentTab,
+  });
 
-  const handleInstanceClick = (instanceName) => {
-    if (onNavigateToPortainer) {
-      onNavigateToPortainer();
-    }
-    if (onSetSelectedPortainerInstances) {
-      onSetSelectedPortainerInstances(new Set([instanceName]));
-    }
-    if (onSetContentTab) {
-      onSetContentTab("updates");
-    }
-  };
-
-  const handleInstanceStatClick = (instanceName, contentTab) => {
-    if (onNavigateToPortainer) {
-      onNavigateToPortainer();
-    }
-    if (onSetSelectedPortainerInstances) {
-      onSetSelectedPortainerInstances(new Set([instanceName]));
-    }
-    if (onSetContentTab) {
-      onSetContentTab(contentTab);
-    }
-  };
-
-  const getContentTab = (statType) => {
-    switch (statType) {
-      case "updates":
-        return "updates";
-      case "current":
-        return "current";
-      case "unused":
-        return "unused";
-      default:
-        return "updates";
-    }
-  };
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className={styles.summaryPage}>
+        <div className={styles.summaryHeader}>
+          <h2>Summary</h2>
+        </div>
+        <div className={styles.loadingState}>
+          <p>Loading summary statistics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.summaryPage}>
@@ -105,39 +95,44 @@ const SummaryPage = ({
         <StatCard
           value={summaryStats.containersWithUpdates}
           label="Updates Available"
-          variant="update-available"
+          variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
           clickable
-          onClick={() => handlePortainerStatClick("updates")}
+          onClick={() => handlePortainerStatClick(CONTENT_TABS.UPDATES)}
         />
         <StatCard
           value={summaryStats.containersUpToDate}
           label="Up to Date"
-          variant="current"
+          variant={STAT_CARD_VARIANTS.CURRENT}
           clickable
-          onClick={() => handlePortainerStatClick("current")}
+          onClick={() => handlePortainerStatClick(CONTENT_TABS.CURRENT)}
         />
         <StatCard
           value={summaryStats.unusedImages}
           label="Unused Images"
-          variant="unused-images"
+          variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
           clickable
-          onClick={() => handlePortainerStatClick("unused")}
+          onClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
         />
       </div>
 
       <div className={styles.portainerInstancesList}>
         <h3>Portainer Instances</h3>
-        <div className={styles.instancesGrid}>
-          {summaryStats.portainerStats.map((stat) => (
-            <PortainerInstanceCard
-              key={stat.name}
-              instance={stat}
-              onInstanceClick={handleInstanceClick}
-              onStatClick={handleInstanceStatClick}
-              getContentTab={getContentTab}
-            />
-          ))}
-        </div>
+        {summaryStats.portainerStats.length === 0 ? (
+          <div className={styles.emptyState}>
+            <p>No Portainer instances configured.</p>
+          </div>
+        ) : (
+          <div className={styles.instancesGrid}>
+            {summaryStats.portainerStats.map((stat) => (
+              <PortainerInstanceCard
+                key={stat.name}
+                instance={stat}
+                onInstanceClick={handleInstanceClick}
+                onStatClick={handleInstanceStatClick}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.trackedAppsSummary}>
@@ -147,28 +142,28 @@ const SummaryPage = ({
             value={summaryStats.totalTrackedApps}
             label="Tracked Apps"
             clickable
-            onClick={onNavigateToTrackedApps}
+            onClick={handleTrackedAppsClick}
           />
           <StatCard
             value={summaryStats.trackedAppsUpToDate}
             label="Up to Date"
-            variant="current"
+            variant={STAT_CARD_VARIANTS.CURRENT}
             clickable
-            onClick={onNavigateToTrackedApps}
+            onClick={handleTrackedAppsClick}
           />
           <StatCard
             value={summaryStats.trackedAppsBehind}
             label="Updates Available"
-            variant="update-available"
+            variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
             clickable
-            onClick={onNavigateToTrackedApps}
+            onClick={handleTrackedAppsClick}
           />
           <StatCard
             value={summaryStats.trackedAppsUnknown}
             label="Unknown"
-            variant="unused-images"
+            variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
             clickable
-            onClick={onNavigateToTrackedApps}
+            onClick={handleTrackedAppsClick}
           />
         </div>
       </div>
@@ -177,24 +172,17 @@ const SummaryPage = ({
 };
 
 SummaryPage.propTypes = {
-  portainerInstances: PropTypes.arrayOf(
-    PropTypes.shape({
-      name: PropTypes.string,
-      url: PropTypes.string,
-      containers: PropTypes.array,
-      withUpdates: PropTypes.array,
-      upToDate: PropTypes.array,
-    })
-  ),
-  containers: PropTypes.arrayOf(PropTypes.object),
-  unusedImages: PropTypes.arrayOf(PropTypes.object),
+  portainerInstances: PropTypes.arrayOf(portainerInstanceShape),
+  containers: PropTypes.arrayOf(containerShape),
+  unusedImages: PropTypes.arrayOf(unusedImageShape),
   unusedImagesCount: PropTypes.number,
-  trackedImages: PropTypes.arrayOf(PropTypes.object),
+  trackedImages: PropTypes.arrayOf(trackedImageShape),
   dismissedTrackedAppNotifications: PropTypes.instanceOf(Map),
   onNavigateToPortainer: PropTypes.func,
   onNavigateToTrackedApps: PropTypes.func,
   onSetSelectedPortainerInstances: PropTypes.func,
   onSetContentTab: PropTypes.func,
+  isLoading: PropTypes.bool,
 };
 
 export default SummaryPage;

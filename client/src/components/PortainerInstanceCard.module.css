@@ -1,11 +1,20 @@
 .instanceCard {
   background: var(--bg-secondary);
   border-radius: 8px;
-  padding: 15px;
+  padding: var(--spacing-md, 15px);
   box-shadow: 0 2px 6px var(--shadow);
   cursor: pointer;
   transition: all 0.3s;
   border: 2px solid var(--border-color);
+}
+
+.instanceCard:focus-visible {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+body.dark-mode .instanceCard:focus-visible {
+  outline-color: var(--dodger-blue-light);
 }
 
 .instanceCard:hover {

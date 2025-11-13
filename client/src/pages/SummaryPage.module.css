@@ -57,3 +57,16 @@
   border-top: 2px solid var(--border-color);
 }
 
+.loadingState,
+.emptyState {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.loadingState p,
+.emptyState p {
+  margin: 0;
+  font-size: 1rem;
+}
+
