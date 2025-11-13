@@ -3,14 +3,15 @@
  * Manages state and operations for tracked Docker images and GitHub repositories
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { parseUTCTimestamp } from '../utils/formatters';
-
-// In production, API is served from same origin, so use relative URLs
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+import { API_BASE_URL } from '../utils/api';
+import {
+  SUCCESS_MESSAGE_DURATION,
+  SHORT_SUCCESS_MESSAGE_DURATION,
+  DATABASE_UPDATE_DELAY,
+} from '../constants/trackedApps';
 
 /**
  * Custom hook for managing tracked apps
@@ -25,6 +26,12 @@ export function useTrackedApps() {
   const [editingTrackedImageData, setEditingTrackedImageData] = useState(null);
   const [showAddTrackedImageModal, setShowAddTrackedImageModal] = useState(false);
   const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+  });
 
   const fetchTrackedImages = useCallback(async () => {
     try {
@@ -69,32 +76,39 @@ export function useTrackedApps() {
 
   const handleTrackedImageModalSuccess = useCallback(async () => {
     await fetchTrackedImages();
-    setTrackedImageSuccess('Tracked item added successfully!');
-    setTimeout(() => setTrackedImageSuccess(''), 3000);
+    // No success message for add/edit - modal closing is sufficient feedback
   }, [fetchTrackedImages]);
 
-  const handleDeleteTrackedImage = useCallback(async (id) => {
-    if (!window.confirm('Are you sure you want to remove this tracked image?')) {
-      return;
-    }
-
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/tracked-images/${id}`
-      );
-      if (response.data.success) {
-        await fetchTrackedImages();
-      } else {
-        setTrackedImageError(
-          response.data.error || 'Failed to delete tracked image'
-        );
-      }
-    } catch (err) {
-      setTrackedImageError(
-        err.response?.data?.error || 'Failed to delete tracked image'
-      );
-    }
-  }, [fetchTrackedImages]);
+  const handleDeleteTrackedImage = useCallback(
+    (id) => {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Delete Tracked App',
+        message: 'Are you sure you want to remove this tracked image?',
+        onConfirm: async () => {
+          try {
+            const response = await axios.delete(
+              `${API_BASE_URL}/api/tracked-images/${id}`
+            );
+            if (response.data.success) {
+              await fetchTrackedImages();
+            } else {
+              setTrackedImageError(
+                response.data.error || 'Failed to delete tracked image'
+              );
+            }
+          } catch (err) {
+            setTrackedImageError(
+              err.response?.data?.error || 'Failed to delete tracked image'
+            );
+          } finally {
+            setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null });
+          }
+        },
+      });
+    },
+    [fetchTrackedImages]
+  );
 
   const handleUpgradeTrackedImage = useCallback(async (id, latestVersion) => {
     try {
@@ -106,8 +120,7 @@ export function useTrackedApps() {
       );
       if (response.data.success) {
         await fetchTrackedImages();
-        setTrackedImageSuccess('Current version updated successfully!');
-        setTimeout(() => setTrackedImageSuccess(''), 3000);
+        // No success message - the UI update is sufficient feedback
       } else {
         setTrackedImageError(
           response.data.error || 'Failed to update current version'
@@ -135,8 +148,8 @@ export function useTrackedApps() {
       if (response.data.success) {
         await fetchTrackedImages();
         setLastScanTime(new Date());
-        setTrackedImageSuccess('Update check completed!');
-        setTimeout(() => setTrackedImageSuccess(''), 3000);
+        setTrackedImageSuccess('Tracked app versions retrieved');
+        setTimeout(() => setTrackedImageSuccess(''), SUCCESS_MESSAGE_DURATION);
       }
     } catch (err) {
       setTrackedImageError(
@@ -186,7 +199,7 @@ export function useTrackedApps() {
         log('Tracked apps check completed successfully');
 
         // Wait a moment for database updates to complete
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, DATABASE_UPDATE_DELAY));
 
         // Fetch updated tracked images to get accurate counts
         const updatedResponse = await axios.get(
@@ -249,47 +262,48 @@ export function useTrackedApps() {
     }
   }, [fetchTrackedImages]);
 
-  const handleClearGitHubCache = useCallback(async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to clear the latest version data for all tracked apps? This will reset the 'Latest' version information and force fresh data to be fetched on the next check."
-      )
-    ) {
-      return;
-    }
+  const handleClearGitHubCache = useCallback(() => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Clear Latest Version Data',
+      message:
+        "Are you sure you want to clear the latest version data for all tracked apps? This will reset the 'Latest' version information and force fresh data to be fetched on the next check.",
+      onConfirm: async () => {
+        try {
+          setClearingGitHubCache(true);
+          setTrackedImageError(null);
+          console.log('🗑️ Clearing latest version data for tracked apps...');
 
-    try {
-      setClearingGitHubCache(true);
-      setTrackedImageError(null);
-      console.log('🗑️ Clearing latest version data for tracked apps...');
+          const response = await axios.delete(
+            `${API_BASE_URL}/api/tracked-images/cache`
+          );
 
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/tracked-images/cache`
-      );
+          if (response.data && response.data.success) {
+            console.log('✅ Latest version data cleared successfully');
+            const message =
+              response.data.message || 'Latest version data cleared successfully';
+            setTrackedImageSuccess(message);
+            setTimeout(() => setTrackedImageSuccess(''), SHORT_SUCCESS_MESSAGE_DURATION);
 
-      if (response.data && response.data.success) {
-        console.log('✅ Latest version data cleared successfully');
-        const message =
-          response.data.message || 'Latest version data cleared successfully';
-        setTrackedImageSuccess(message);
-        setTimeout(() => setTrackedImageSuccess(''), 3000);
-
-        // Refresh tracked images to show updated data
-        await fetchTrackedImages();
-      } else {
-        setTrackedImageError('Failed to clear latest version data');
-      }
-    } catch (err) {
-      const errorMessage =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        err.message ||
-        'Failed to clear latest version data';
-      setTrackedImageError(errorMessage);
-      console.error('Error clearing latest version data:', err);
-    } finally {
-      setClearingGitHubCache(false);
-    }
+            // Refresh tracked images to show updated data
+            await fetchTrackedImages();
+          } else {
+            setTrackedImageError('Failed to clear latest version data');
+          }
+        } catch (err) {
+          const errorMessage =
+            err.response?.data?.error ||
+            err.response?.data?.message ||
+            err.message ||
+            'Failed to clear latest version data';
+          setTrackedImageError(errorMessage);
+          console.error('Error clearing latest version data:', err);
+        } finally {
+          setClearingGitHubCache(false);
+          setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null });
+        }
+      },
+    });
   }, [fetchTrackedImages]);
 
   return {
@@ -316,6 +330,8 @@ export function useTrackedApps() {
     setTrackedImageSuccess,
     setEditingTrackedImageData,
     setShowAddTrackedImageModal,
+    confirmDialog,
+    setConfirmDialog,
   };
 }
 

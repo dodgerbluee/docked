@@ -24,10 +24,10 @@
 .header {
   font-weight: bold;
   color: var(--text-primary);
-  margin-bottom: 3px;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: space-between;
 }
@@ -75,10 +75,10 @@
 .repoInfo {
   color: var(--text-secondary);
   font-size: 0.95rem;
-  margin-bottom: 3px;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -116,10 +116,10 @@
 
 .actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 3px;
+  margin-top: 8px;
 }
 
 .actionButton {

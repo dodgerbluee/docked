@@ -3,10 +3,11 @@
  * Reusable card component for displaying a tracked app (Docker image or GitHub repo)
  */
 
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Pencil } from 'lucide-react';
 import { getDockerHubRepoUrl } from '../utils/formatters';
+import GitHubIcon from './icons/GitHubIcon';
 import styles from './TrackedAppCard.module.css';
 
 /**
@@ -15,55 +16,69 @@ import styles from './TrackedAppCard.module.css';
  * @param {Function} onEdit - Handler for edit action
  * @param {Function} onUpgrade - Handler for upgrade action
  */
-function TrackedAppCard({ image, onEdit, onUpgrade }) {
-  // Check if there's no valid latest version
-  const hasNoLatestVersion =
-    !image.latest_version ||
-    image.latest_version === 'Unknown' ||
-    image.latest_version.trim() === '';
+const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade }) {
+  // Memoize computed values
+  const hasNoLatestVersion = useMemo(
+    () =>
+      !image.latest_version ||
+      image.latest_version === 'Unknown' ||
+      image.latest_version.trim() === '',
+    [image.latest_version]
+  );
 
-  // Determine border style
-  let borderStyle = '1px solid var(--border-color)';
-  if (hasNoLatestVersion) {
-    borderStyle = '2px solid var(--text-secondary)';
-  }
+  const borderStyle = useMemo(
+    () =>
+      hasNoLatestVersion
+        ? '2px solid var(--text-secondary)'
+        : '1px solid var(--border-color)',
+    [hasNoLatestVersion]
+  );
 
-  // Get publish date for display
-  const getPublishDate = () => {
-    let publishDate = null;
+  const publishDate = useMemo(() => {
     if (image.source_type === 'github') {
       if (
         image.latest_version &&
         image.has_update &&
         image.latestVersionPublishDate
       ) {
-        publishDate = image.latestVersionPublishDate;
+        return image.latestVersionPublishDate;
       } else if (image.currentVersionPublishDate) {
-        publishDate = image.currentVersionPublishDate;
+        return image.currentVersionPublishDate;
       }
     } else {
-      publishDate = image.currentVersionPublishDate;
+      return image.currentVersionPublishDate;
     }
-    return publishDate;
-  };
+    return null;
+  }, [
+    image.source_type,
+    image.latest_version,
+    image.has_update,
+    image.latestVersionPublishDate,
+    image.currentVersionPublishDate,
+  ]);
 
-  const publishDate = getPublishDate();
-
-  // Handle GitHub repo click
-  const handleGitHubClick = () => {
+  // Memoize event handlers
+  const handleGitHubClick = useCallback(() => {
     const repoUrl = image.github_repo.startsWith('http')
       ? image.github_repo
       : `https://github.com/${image.github_repo}`;
     window.open(repoUrl, '_blank', 'noopener,noreferrer');
-  };
+  }, [image.github_repo]);
 
-  // Handle Docker Hub click
-  const handleDockerHubClick = () => {
+  const handleDockerHubClick = useCallback(() => {
     const dockerHubUrl = getDockerHubRepoUrl(image.image_name);
     if (dockerHubUrl) {
       window.open(dockerHubUrl, '_blank', 'noopener,noreferrer');
     }
-  };
+  }, [image.image_name]);
+
+  const handleEdit = useCallback(() => {
+    onEdit(image);
+  }, [image, onEdit]);
+
+  const handleUpgrade = useCallback(() => {
+    onUpgrade(image.id, image.latest_version);
+  }, [image.id, image.latest_version, onUpgrade]);
 
   return (
     <div
@@ -129,7 +144,7 @@ function TrackedAppCard({ image, onEdit, onUpgrade }) {
 
       <div className={styles.actions}>
         <button
-          onClick={() => onEdit(image)}
+          onClick={handleEdit}
           className={styles.actionButton}
           title="Edit"
         >
@@ -142,15 +157,7 @@ function TrackedAppCard({ image, onEdit, onUpgrade }) {
             className={styles.actionButton}
             title="Open GitHub repository"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-            </svg>
+            <GitHubIcon size={16} />
             GitHub
           </button>
         )}
@@ -176,7 +183,7 @@ function TrackedAppCard({ image, onEdit, onUpgrade }) {
             !image.current_version ||
             image.current_version !== image.latest_version) && (
             <button
-              onClick={() => onUpgrade(image.id, image.latest_version)}
+              onClick={handleUpgrade}
               className={`${styles.actionButton} ${styles.upgradeButton}`}
             >
               Updated
@@ -185,7 +192,7 @@ function TrackedAppCard({ image, onEdit, onUpgrade }) {
       </div>
     </div>
   );
-}
+});
 
 TrackedAppCard.propTypes = {
   image: PropTypes.shape({
