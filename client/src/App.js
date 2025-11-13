@@ -180,6 +180,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("summary");
   const [contentTab, setContentTab] = useState("updates"); // "updates", "current", "unused"
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
+  const [collapsedUnusedImages, setCollapsedUnusedImages] = useState(false);
   const [unusedImages, setUnusedImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [deletingImages, setDeletingImages] = useState(false);
@@ -4559,73 +4560,78 @@ function App() {
                 </div>
               </div>
             ) : portainerUnusedImages.length > 0 ? (
-              <>
-                <div className="section-header">
-                  <div>
-                    <p className="unused-images-total-size">
-                      Total Size:{" "}
-                      <strong>
-                        {formatBytes(
-                          portainerUnusedImages.reduce(
-                            (sum, img) => sum + (img.size || 0),
-                            0
-                          )
-                        )}
-                      </strong>
-                    </p>
+              <div className="stack-group">
+                <div className="stack-header" onClick={() => setCollapsedUnusedImages(!collapsedUnusedImages)}>
+                  <div className="stack-header-left">
+                    <button className="stack-toggle" aria-label="Toggle unused images">
+                      {collapsedUnusedImages ? "▶" : "▼"}
+                    </button>
+                    <h3 className="stack-name">Unused Images</h3>
                   </div>
+                  <span className="stack-count">
+                    {portainerUnusedImages.length} image{portainerUnusedImages.length !== 1 ? "s" : ""}
+                    {" • "}
+                    {formatBytes(
+                      portainerUnusedImages.reduce(
+                        (sum, img) => sum + (img.size || 0),
+                        0
+                      )
+                    )}
+                  </span>
                 </div>
-                <div
-                  className="containers-grid"
-                  style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
-                >
-                  {portainerUnusedImages.map((image) => (
-                    <div key={image.id} className="container-card update-available">
-                      <div className="card-header">
-                        <h3>
-                          {image.repoTags && image.repoTags.length > 0
-                            ? image.repoTags[0]
-                            : "<none>"}
-                        </h3>
-                        <label className="container-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={selectedImages.has(image.id)}
-                            onChange={() => handleToggleImageSelect(image.id)}
-                            disabled={deletingImages}
-                          />
-                        </label>
-                      </div>
-                      <div className="card-body">
-                        {image.repoTags && image.repoTags.length > 1 && (
-                          <p className="image-info">
-                            <strong>Tags:</strong>{" "}
-                            {image.repoTags.slice(1).join(", ")}
+                {!collapsedUnusedImages && (
+                  <div
+                    className="containers-grid"
+                    style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+                  >
+                    {portainerUnusedImages.map((image) => (
+                      <div key={image.id} className="container-card update-available">
+                        <div className="card-header">
+                          <h3>
+                            {image.repoTags && image.repoTags.length > 0
+                              ? image.repoTags[0]
+                              : "<none>"}
+                          </h3>
+                          <label className="container-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selectedImages.has(image.id)}
+                              onChange={() => handleToggleImageSelect(image.id)}
+                              disabled={deletingImages}
+                            />
+                          </label>
+                        </div>
+                        <div className="card-body">
+                          {image.repoTags && image.repoTags.length > 1 && (
+                            <p className="image-info">
+                              <strong>Tags:</strong>{" "}
+                              {image.repoTags.slice(1).join(", ")}
+                            </p>
+                          )}
+                          <p className="tag-info">
+                            <strong>Size:</strong> {formatBytes(image.size)}
                           </p>
-                        )}
-                        <p className="tag-info">
-                          <strong>Size:</strong> {formatBytes(image.size)}
-                        </p>
-                        <p className="tag-info">
-                          <strong>Portainer:</strong> {image.portainerName}
-                        </p>
-                        <button
-                          className="update-button danger-button"
-                          onClick={() => handleDeleteImage(image)}
-                          disabled={deletingImages}
-                          style={{
-                            padding: "5px 12px",
-                            fontSize: "0.9rem",
-                            marginTop: "10px",
-                          }}
-                        >
-                          {deletingImages ? "Deleting..." : "Delete Image"}
-                        </button>
+                          <p className="tag-info">
+                            <strong>Portainer:</strong> {image.portainerName}
+                          </p>
+                          <button
+                            className="update-button danger-button"
+                            onClick={() => handleDeleteImage(image)}
+                            disabled={deletingImages}
+                            style={{
+                              padding: "5px 12px",
+                              fontSize: "0.9rem",
+                              marginTop: "10px",
+                            }}
+                          >
+                            {deletingImages ? "Deleting..." : "Delete Image"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="empty-state">
                 <p>
