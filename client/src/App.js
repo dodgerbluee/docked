@@ -31,7 +31,8 @@ import {
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
-import AddTrackedImageModal from "./components/AddTrackedImageModal";
+import TrackedAppsPage from "./pages/TrackedAppsPage";
+import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
 
 // Custom whale icon component matching lucide-react style
 // Represents Docker/Portainer (Docker's logo is a whale)
@@ -200,15 +201,9 @@ function App() {
   const [clearing, setClearing] = useState(false);
   const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set()); // Track loading state per instance
-  // Tracked images state
+  // Tracked images state - kept for summary statistics
+  // Full state management is now in TrackedAppsPage component
   const [trackedImages, setTrackedImages] = useState([]);
-  const [trackedImageError, setTrackedImageError] = useState("");
-  const [trackedImageSuccess, setTrackedImageSuccess] = useState("");
-  const [checkingUpdates, setCheckingUpdates] = useState(false);
-  const [lastScanTime, setLastScanTime] = useState(null);
-  const [editingTrackedImageData, setEditingTrackedImageData] = useState(null);
-  const [showAddTrackedImageModal, setShowAddTrackedImageModal] =
-    useState(false);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
     // Check localStorage for saved state
     const saved = localStorage.getItem("dockerHubDataPulled");
@@ -598,21 +593,18 @@ function App() {
                 previousStatus !== "completed" &&
                 previousStatus !== null;
               
-              // Update timestamp if:
+              // Update refs if:
               // 1. It's a new run (different ID)
               // 2. The same run just completed (status changed from running to completed)
               // 3. We haven't seen this completed run before (both refs are null)
-              // 4. The timestamp is newer than what we have stored
               const shouldUpdate = 
                 isNewRun || 
                 justCompleted || 
-                (previousId === null && previousStatus === null) ||
-                (!lastScanTime || completedAt.getTime() > lastScanTime.getTime());
+                (previousId === null && previousStatus === null);
               
               if (shouldUpdate) {
                 lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
                 lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
-                setLastScanTime(completedAt);
               } else {
                 // Update status ref even if we don't update the timestamp
                 lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
@@ -1027,110 +1019,19 @@ function App() {
         setTrackedImages(sortedImages);
 
         // Set last scan time from the most recent last_checked
-        if (images.length > 0) {
-          const mostRecentCheck = images
-            .map((img) => img.last_checked)
-            .filter(Boolean)
-            .sort((a, b) => {
-              const dateA = parseUTCTimestamp(a);
-              const dateB = parseUTCTimestamp(b);
-              return dateB.getTime() - dateA.getTime();
-            })[0];
-          if (mostRecentCheck) {
-            // Parse as UTC timestamp (database stores in UTC without timezone info)
-            setLastScanTime(parseUTCTimestamp(mostRecentCheck));
-          }
-        }
+        // Note: lastScanTime is now managed by the useTrackedApps hook in TrackedAppsPage
+        // This function only fetches tracked images for summary statistics
       }
     } catch (err) {
       console.error("Error fetching tracked images:", err);
     }
   };
 
-  // Tracked images handlers
-  const handleTrackedImageModalSuccess = async () => {
-    await fetchTrackedImages();
-    setTrackedImageSuccess("Tracked item added successfully!");
-    setTimeout(() => setTrackedImageSuccess(""), 3000);
-  };
-
-  const handleDeleteTrackedImage = async (id) => {
-    if (
-      !window.confirm("Are you sure you want to remove this tracked image?")
-    ) {
-      return;
-    }
-
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/tracked-images/${id}`
-      );
-      if (response.data.success) {
-        await fetchTrackedImages();
-      } else {
-        setTrackedImageError(
-          response.data.error || "Failed to delete tracked image"
-        );
-      }
-    } catch (err) {
-      setTrackedImageError(
-        err.response?.data?.error || "Failed to delete tracked image"
-      );
-    }
-  };
-
-  const handleUpgradeTrackedImage = async (id, latestVersion) => {
-    try {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/tracked-images/${id}`,
-        {
-          current_version: latestVersion,
-        }
-      );
-      if (response.data.success) {
-        await fetchTrackedImages();
-        setTrackedImageSuccess("Current version updated successfully!");
-        setTimeout(() => setTrackedImageSuccess(""), 3000);
-      } else {
-        setTrackedImageError(
-          response.data.error || "Failed to update current version"
-        );
-      }
-    } catch (err) {
-      setTrackedImageError(
-        err.response?.data?.error || "Failed to update current version"
-      );
-    }
-  };
-
-  const handleEditTrackedImage = (image) => {
-    setEditingTrackedImageData(image);
-    setShowAddTrackedImageModal(true);
-  };
-
-  const handleCheckTrackedImagesUpdates = async () => {
-    setCheckingUpdates(true);
-    setTrackedImageError("");
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/tracked-images/check-updates`
-      );
-      if (response.data.success) {
-        await fetchTrackedImages();
-        setLastScanTime(new Date());
-        setTrackedImageSuccess("Update check completed!");
-        setTimeout(() => setTrackedImageSuccess(""), 3000);
-      }
-    } catch (err) {
-      setTrackedImageError(
-        err.response?.data?.error || "Failed to check for updates"
-      );
-    } finally {
-      setCheckingUpdates(false);
-    }
-  };
+  // Tracked images handlers - UI handlers moved to TrackedAppsPage
+  // Only keeping batch processing handler here
 
   // Batch handler for tracked apps updates check
+  // This is kept in App.js because it's used by the global batch processing system
   const handleBatchTrackedAppsCheck = useCallback(async () => {
     let runId = null;
     const logs = [];
@@ -1152,7 +1053,6 @@ function App() {
       runId = runResponse.data.runId;
       log(`Batch run ${runId} created`);
 
-      setCheckingUpdates(true);
       log("🔄 Checking for tracked app updates...");
 
       // Start the check operation
@@ -1187,9 +1087,8 @@ function App() {
           `Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`
         );
 
-        // Update UI state
+        // Update tracked images for summary stats
         await fetchTrackedImages();
-        setLastScanTime(new Date());
 
         // Update batch run as completed
         if (runId) {
@@ -1227,10 +1126,9 @@ function App() {
         }
       }
     } finally {
-      setCheckingUpdates(false);
       log("Tracked apps batch check process finished (success or failure)");
     }
-  }, []); // Empty deps - fetchTrackedImages is stable, and we use setState functions which are stable
+  }, [fetchTrackedImages]);
 
   // Fetch Portainer instances and avatar on app load
   useEffect(() => {
@@ -1646,7 +1544,6 @@ function App() {
 
     try {
       setClearingGitHubCache(true);
-      setTrackedImageError(null);
       console.log("🗑️ Clearing latest version data for tracked apps...");
 
       const response = await axios.delete(
@@ -1657,13 +1554,12 @@ function App() {
         console.log("✅ Latest version data cleared successfully");
         const message =
           response.data.message || "Latest version data cleared successfully";
-        setTrackedImageSuccess(message);
-        setTimeout(() => setTrackedImageSuccess(""), 3000);
+        console.log(message);
 
         // Refresh tracked images to show updated data
         await fetchTrackedImages();
       } else {
-        setTrackedImageError("Failed to clear latest version data");
+        console.error("Failed to clear latest version data");
       }
     } catch (err) {
       const errorMessage =
@@ -1671,8 +1567,8 @@ function App() {
         err.response?.data?.message ||
         err.message ||
         "Failed to clear latest version data";
-      setTrackedImageError(errorMessage);
       console.error("Error clearing latest version data:", err);
+      console.error(errorMessage);
     } finally {
       setClearingGitHubCache(false);
     }
@@ -2525,40 +2421,18 @@ function App() {
     return acc;
   }, {});
 
-  // Calculate tracked apps statistics
-  const totalTrackedApps = trackedImages.length;
-
-  // Helper function to check if an app has unknown latest version
-  const isUnknown = (img) =>
-    !img.latest_version ||
-    img.latest_version === "Unknown" ||
-    (typeof img.latest_version === "string" &&
-      img.latest_version.trim() === "");
-
-  // Count unknown apps first
-  const trackedAppsUnknown = trackedImages.filter(isUnknown).length;
-
-  // Up to date: apps that are not unknown, not behind, and have matching versions
-  const trackedAppsUpToDate = trackedImages.filter((img) => {
-    // Exclude unknown apps
-    if (isUnknown(img)) return false;
-
-    // Must not have updates and versions should match
-    return (
-      !img.has_update ||
-      (img.current_version &&
-        img.latest_version &&
-        img.current_version === img.latest_version)
-    );
-  }).length;
-
-  // Behind: apps that have updates (excluding unknown apps)
-  const trackedAppsBehind = trackedImages.filter((img) => {
-    // Exclude unknown apps
-    if (isUnknown(img)) return false;
-
-    return img.has_update;
-  }).length;
+  // Calculate tracked apps statistics using utility function
+  const trackedAppsStats = calculateTrackedAppsStats(
+    trackedImages,
+    dismissedTrackedAppNotifications
+  );
+  const {
+    totalTrackedApps,
+    trackedAppsUpToDate,
+    trackedAppsBehind,
+    trackedAppsUnknown,
+    activeTrackedAppsBehind,
+  } = trackedAppsStats;
 
   // Filter out dismissed notifications, but show again if version has changed
   const activeContainersWithUpdates = containersWithUpdates.filter(
@@ -2579,16 +2453,7 @@ function App() {
       return currentLatestVersion !== dismissedVersion;
     }
   );
-  const activeTrackedAppsBehind = trackedImages.filter((img) => {
-    if (!img.has_update) return false;
-    const dismissedVersion = dismissedTrackedAppNotifications.get(img.id);
-    if (!dismissedVersion) {
-      // Not dismissed, show it
-      return true;
-    }
-    // Check if the latest version has changed since dismissal
-    return img.latest_version !== dismissedVersion;
-  });
+  // activeTrackedAppsBehind is now calculated in trackedAppsStats
 
   // Calculate notification count (active containers with updates + active tracked apps behind)
   const notificationCount =
@@ -3419,882 +3284,14 @@ function App() {
     );
   };
 
-  // Render Tracked Apps tab
+  // Render Tracked Apps tab - now using TrackedAppsPage component
   const renderTrackedApps = () => {
-    return (
-      <div className="summary-page">
-        <div className="summary-header" style={{ alignItems: "center" }}>
-          <h2>Tracked Apps</h2>
-          <button
-            onClick={handleCheckTrackedImagesUpdates}
-            disabled={checkingUpdates || trackedImages.length === 0}
-            title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "6px",
-              background: "transparent",
-              border: "1px solid var(--border-color)",
-              borderRadius: "6px",
-              cursor:
-                checkingUpdates || trackedImages.length === 0
-                  ? "not-allowed"
-                  : "pointer",
-              opacity:
-                checkingUpdates || trackedImages.length === 0 ? 0.5 : 1,
-              transition: "all 0.2s",
-              color: checkingUpdates
-                ? "var(--text-secondary)"
-                : "var(--text-primary)",
-            }}
-            onMouseEnter={(e) => {
-              if (!checkingUpdates && trackedImages.length > 0) {
-                e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                e.currentTarget.style.color = "var(--dodger-blue)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!checkingUpdates && trackedImages.length > 0) {
-                e.currentTarget.style.borderColor = "var(--border-color)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }
-            }}
-          >
-            <RefreshCw
-              size={18}
-              style={{
-                animation: checkingUpdates ? "spin 1s linear infinite" : "none",
-              }}
-            />
-          </button>
-        </div>
-        <div className="tracked-apps-list" style={{ marginTop: "20px" }}>
-          {trackedImageError && (
-            <div className="error-message">{trackedImageError}</div>
-          )}
-          {trackedImageSuccess && (
-            <div className="success-message">{trackedImageSuccess}</div>
-          )}
-
-          {trackedImages.length > 0 ? (
-            <div style={{ marginTop: "20px" }}>
-              {/* Separate apps with updates from those without */}
-              {(() => {
-                const appsWithUpdates = trackedImages.filter((img) => img.has_update);
-                const appsWithoutUpdates = trackedImages.filter((img) => !img.has_update);
-                
-                return (
-                  <>
-                    {/* Apps with updates - shown at the top */}
-                    {appsWithUpdates.length > 0 && (
-                      <div style={{ marginBottom: "30px" }}>
-                        <h3 style={{ 
-                          marginBottom: "15px", 
-                          color: "var(--text-primary)",
-                          fontSize: "1.1rem",
-                          fontWeight: "600"
-                        }}>
-                          Apps with Updates
-                        </h3>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "15px",
-                          }}
-                        >
-                          {appsWithUpdates.map((image) => {
-                  // Check if there's no valid latest version
-                  const hasNoLatestVersion =
-                    !image.latest_version ||
-                    image.latest_version === "Unknown" ||
-                    image.latest_version.trim() === "";
-
-                  // Determine border color and width
-                  // Use the same color as unused-images stat-card
-                  let borderStyle = "1px solid var(--border-color)";
-                  if (hasNoLatestVersion) {
-                    // Use the same color as unused-images (text-secondary in light, text-primary in dark)
-                    borderStyle = "2px solid var(--text-secondary)";
-                  }
-
-                  return (
-                    <div
-                      key={image.id}
-                      className={
-                        hasNoLatestVersion && !image.has_update
-                          ? "tracked-app-unknown-border"
-                          : ""
-                      }
-                      style={{
-                        background: "var(--bg-secondary)",
-                        padding: "10px",
-                        borderRadius: "8px",
-                        border: borderStyle,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: "bold",
-                            color: "var(--text-primary)",
-                            marginBottom: "3px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            flexWrap: "wrap",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-                            {image.current_version &&
-                              image.latest_version &&
-                              image.current_version === image.latest_version && (
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "14px",
-                                    height: "14px",
-                                    borderRadius: "50%",
-                                    background: "rgba(34, 197, 94, 0.15)",
-                                    color: "#22c55e",
-                                    fontSize: "10px",
-                                    fontWeight: "bold",
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  ✓
-                                </span>
-                              )}
-                            {image.has_update && (
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  width: "14px",
-                                  height: "14px",
-                                  borderRadius: "50%",
-                                  background: "rgba(239, 62, 66, 0.15)",
-                                  color: "#EF3E42",
-                                  fontSize: "10px",
-                                  fontWeight: "bold",
-                                  flexShrink: 0,
-                                }}
-                                title="Update Available"
-                              >
-                                !
-                              </span>
-                            )}
-                            <span style={{ fontSize: "1.05rem" }}>
-                              {image.name}
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            color: "var(--text-secondary)",
-                            fontSize: "0.95rem",
-                            marginBottom: "3px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span
-                            style={{
-                              wordBreak: "break-word",
-                              fontSize: "0.9rem",
-                            }}
-                          >
-                            {image.github_repo || image.image_name}
-                          </span>
-                          {image.releaseUrl && (
-                            <a
-                              href={image.releaseUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                color: "var(--dodger-blue)",
-                                textDecoration: "none",
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              View Release →
-                            </a>
-                          )}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.9rem",
-                            color: "var(--text-tertiary)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "2px",
-                          }}
-                        >
-                          <div>
-                            Current: {image.current_version || "Not set"}
-                          </div>
-                          {image.latest_version && image.has_update && (
-                            <div style={{ color: "var(--dodger-blue)" }}>
-                              Latest: {image.latest_version}
-                            </div>
-                          )}
-                          {(() => {
-                            // For GitHub repos, show the release date for the version being displayed
-                            // If we have a latest version that's different from current, show its publish date
-                            // Otherwise, show the current version's publish date
-                            let publishDate = null;
-                            if (image.source_type === "github") {
-                              if (
-                                image.latest_version &&
-                                image.has_update &&
-                                image.latestVersionPublishDate
-                              ) {
-                                // Show latest version's publish date if available and different from current
-                                publishDate = image.latestVersionPublishDate;
-                              } else if (image.currentVersionPublishDate) {
-                                // Otherwise show current version's publish date
-                                publishDate = image.currentVersionPublishDate;
-                              }
-                            } else {
-                              publishDate = image.currentVersionPublishDate;
-                            }
-
-                            return publishDate ? (
-                              <div>
-                                Released:{" "}
-                                {new Date(publishDate).toLocaleDateString()}
-                              </div>
-                            ) : image.source_type === "github" &&
-                              (image.current_version ||
-                                image.latest_version) ? (
-                              <div
-                                style={{
-                                  color: "var(--text-tertiary)",
-                                  fontStyle: "italic",
-                                }}
-                              >
-                                Released: Not available
-                              </div>
-                            ) : null;
-                          })()}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "4px",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          marginTop: "3px",
-                        }}
-                      >
-                        <button
-                          onClick={() => handleEditTrackedImage(image)}
-                          className="update-button"
-                          title="Edit"
-                          style={{
-                            padding: "5px 12px",
-                            fontSize: "0.9rem",
-                            background: "rgba(128, 128, 128, 0.2)",
-                            borderColor: "var(--border-color)",
-                            color: "var(--text-secondary)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        {image.source_type === "github" &&
-                          image.github_repo && (
-                            <button
-                              onClick={() => {
-                                const repoUrl =
-                                  image.github_repo.startsWith("http")
-                                    ? image.github_repo
-                                    : `https://github.com/${image.github_repo}`;
-                                window.open(
-                                  repoUrl,
-                                  "_blank",
-                                  "noopener,noreferrer"
-                                );
-                              }}
-                              className="update-button"
-                              title="Open GitHub repository"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(128, 128, 128, 0.2)",
-                                borderColor: "var(--text-secondary)",
-                                color: "var(--text-secondary)",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                              }}
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                              </svg>
-                              GitHub
-                            </button>
-                          )}
-                        {(!image.source_type ||
-                          image.source_type === "docker") &&
-                          image.image_name && (
-                            <button
-                              onClick={() => {
-                                const dockerHubUrl = getDockerHubRepoUrl(
-                                  image.image_name
-                                );
-                                if (dockerHubUrl) {
-                                  window.open(
-                                    dockerHubUrl,
-                                    "_blank",
-                                    "noopener,noreferrer"
-                                  );
-                                }
-                              }}
-                              className="update-button"
-                              title="Open Docker Hub repository"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(128, 128, 128, 0.2)",
-                                borderColor: "var(--text-secondary)",
-                                color: "var(--text-secondary)",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                              }}
-                            >
-                              <img
-                                src="/img/docker-mark-white.svg"
-                                alt="Docker"
-                                className="docker-hub-icon"
-                                style={{
-                                  width: "16px",
-                                  height: "16px",
-                                  display: "inline-block",
-                                }}
-                              />
-                              Docker Hub
-                            </button>
-                          )}
-                        {image.latest_version &&
-                          (image.has_update ||
-                            !image.current_version ||
-                            image.current_version !==
-                              image.latest_version) && (
-                            <button
-                              onClick={() =>
-                                handleUpgradeTrackedImage(
-                                  image.id,
-                                  image.latest_version
-                                )
-                              }
-                              className="update-button"
-                              style={{
-                                padding: "5px 12px",
-                                fontSize: "0.9rem",
-                                background: "rgba(30, 144, 255, 0.2)",
-                                borderColor: "var(--dodger-blue)",
-                                color: "var(--dodger-blue)",
-                              }}
-                            >
-                              Updated
-                            </button>
-                          )}
-                      </div>
-                    </div>
-                  );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Apps without updates - shown below */}
-                    {(appsWithoutUpdates.length > 0 || appsWithUpdates.length === 0) && (
-                      <div>
-                        {appsWithUpdates.length > 0 && appsWithoutUpdates.length > 0 && (
-                          <h3 style={{ 
-                            marginBottom: "15px", 
-                            marginTop: "20px",
-                            color: "var(--text-primary)",
-                            fontSize: "1.1rem",
-                            fontWeight: "600"
-                          }}>
-                            All Other Apps
-                          </h3>
-                        )}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "15px",
-                          }}
-                        >
-                          {appsWithoutUpdates.map((image) => {
-                            // Check if there's no valid latest version
-                            const hasNoLatestVersion =
-                              !image.latest_version ||
-                              image.latest_version === "Unknown" ||
-                              image.latest_version.trim() === "";
-
-                            // Determine border color and width
-                            let borderStyle = "1px solid var(--border-color)";
-                            if (hasNoLatestVersion) {
-                              borderStyle = "2px solid var(--text-secondary)";
-                            }
-
-                            return (
-                              <div
-                                key={image.id}
-                                className={
-                                  hasNoLatestVersion && !image.has_update
-                                    ? "tracked-app-unknown-border"
-                                    : ""
-                                }
-                                style={{
-                                  background: "var(--bg-secondary)",
-                                  padding: "10px",
-                                  borderRadius: "8px",
-                                  border: borderStyle,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "6px",
-                                }}
-                              >
-                                <div style={{ flex: 1 }}>
-                                  <div
-                                    style={{
-                                      fontWeight: "bold",
-                                      color: "var(--text-primary)",
-                                      marginBottom: "3px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      flexWrap: "wrap",
-                                      justifyContent: "space-between",
-                                    }}
-                                  >
-                                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-                                      {image.current_version &&
-                                        image.latest_version &&
-                                        image.current_version === image.latest_version && (
-                                          <span
-                                            style={{
-                                              display: "inline-flex",
-                                              alignItems: "center",
-                                              justifyContent: "center",
-                                              width: "14px",
-                                              height: "14px",
-                                              borderRadius: "50%",
-                                              background: "rgba(34, 197, 94, 0.15)",
-                                              color: "#22c55e",
-                                              fontSize: "10px",
-                                              fontWeight: "bold",
-                                              flexShrink: 0,
-                                            }}
-                                          >
-                                            ✓
-                                          </span>
-                                        )}
-                                      {image.has_update && (
-                                        <span
-                                          style={{
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            width: "14px",
-                                            height: "14px",
-                                            borderRadius: "50%",
-                                            background: "rgba(239, 62, 66, 0.15)",
-                                            color: "#EF3E42",
-                                            fontSize: "10px",
-                                            fontWeight: "bold",
-                                            flexShrink: 0,
-                                          }}
-                                          title="Update Available"
-                                        >
-                                          ⬆
-                                        </span>
-                                      )}
-                                      <span style={{ fontSize: "1.05rem" }}>
-                                        {image.name}
-                                      </span>
-                                    </div>
-                                    {image.has_update && (
-                                      <span
-                                        style={{
-                                          fontSize: "0.85rem",
-                                          color: "var(--dodger-red)",
-                                          fontWeight: "600",
-                                          flexShrink: 0,
-                                        }}
-                                      >
-                                        Update Available
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      color: "var(--text-secondary)",
-                                      fontSize: "0.95rem",
-                                      marginBottom: "3px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      flexWrap: "wrap",
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        wordBreak: "break-word",
-                                        fontSize: "0.9rem",
-                                      }}
-                                    >
-                                      {image.github_repo || image.image_name}
-                                    </span>
-                                    {image.releaseUrl && (
-                                      <a
-                                        href={image.releaseUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          color: "var(--dodger-blue)",
-                                          textDecoration: "none",
-                                          fontSize: "0.9rem",
-                                        }}
-                                      >
-                                        View Release →
-                                      </a>
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.9rem",
-                                      color: "var(--text-tertiary)",
-                                      display: "flex",
-                                      flexDirection: "column",
-                                      gap: "2px",
-                                    }}
-                                  >
-                                    <div>
-                                      Current: {image.current_version || "Not set"}
-                                    </div>
-                                    {image.latest_version && image.has_update && (
-                                      <div style={{ color: "var(--dodger-blue)" }}>
-                                        Latest: {image.latest_version}
-                                      </div>
-                                    )}
-                                    {(() => {
-                                      let publishDate = null;
-                                      if (image.source_type === "github") {
-                                        if (
-                                          image.latest_version &&
-                                          image.has_update &&
-                                          image.latestVersionPublishDate
-                                        ) {
-                                          publishDate = image.latestVersionPublishDate;
-                                        } else if (image.currentVersionPublishDate) {
-                                          publishDate = image.currentVersionPublishDate;
-                                        }
-                                      } else {
-                                        publishDate = image.currentVersionPublishDate;
-                                      }
-
-                                      return publishDate ? (
-                                        <div>
-                                          Released:{" "}
-                                          {new Date(publishDate).toLocaleDateString()}
-                                        </div>
-                                      ) : image.source_type === "github" &&
-                                        (image.current_version ||
-                                          image.latest_version) ? (
-                                        <div
-                                          style={{
-                                            color: "var(--text-tertiary)",
-                                            fontStyle: "italic",
-                                          }}
-                                        >
-                                          Released: Not available
-                                        </div>
-                                      ) : null;
-                                    })()}
-                                  </div>
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "4px",
-                                    alignItems: "center",
-                                    flexWrap: "wrap",
-                                    marginTop: "3px",
-                                  }}
-                                >
-                                  <button
-                                    onClick={() => handleEditTrackedImage(image)}
-                                    className="update-button"
-                                    title="Edit"
-                                    style={{
-                                      padding: "5px 12px",
-                                      fontSize: "0.9rem",
-                                      background: "rgba(128, 128, 128, 0.2)",
-                                      borderColor: "var(--border-color)",
-                                      color: "var(--text-secondary)",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                  >
-                                    <Pencil size={16} />
-                                  </button>
-                                  {image.source_type === "github" &&
-                                    image.github_repo && (
-                                      <button
-                                        onClick={() => {
-                                          const repoUrl =
-                                            image.github_repo.startsWith("http")
-                                              ? image.github_repo
-                                              : `https://github.com/${image.github_repo}`;
-                                          window.open(
-                                            repoUrl,
-                                            "_blank",
-                                            "noopener,noreferrer"
-                                          );
-                                        }}
-                                        className="update-button"
-                                        title="Open GitHub repository"
-                                        style={{
-                                          padding: "5px 12px",
-                                          fontSize: "0.9rem",
-                                          background: "rgba(128, 128, 128, 0.2)",
-                                          borderColor: "var(--text-secondary)",
-                                          color: "var(--text-secondary)",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: "6px",
-                                        }}
-                                      >
-                                        <svg
-                                          width="16"
-                                          height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="currentColor"
-                                          xmlns="http://www.w3.org/2000/svg"
-                                        >
-                                          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                                        </svg>
-                                        GitHub
-                                      </button>
-                                    )}
-                                  {(!image.source_type ||
-                                    image.source_type === "docker") &&
-                                    image.image_name && (
-                                      <button
-                                        onClick={() => {
-                                          const dockerHubUrl = getDockerHubRepoUrl(
-                                            image.image_name
-                                          );
-                                          if (dockerHubUrl) {
-                                            window.open(
-                                              dockerHubUrl,
-                                              "_blank",
-                                              "noopener,noreferrer"
-                                            );
-                                          }
-                                        }}
-                                        className="update-button"
-                                        title="Open Docker Hub repository"
-                                        style={{
-                                          padding: "5px 12px",
-                                          fontSize: "0.9rem",
-                                          background: "rgba(128, 128, 128, 0.2)",
-                                          borderColor: "var(--text-secondary)",
-                                          color: "var(--text-secondary)",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: "6px",
-                                        }}
-                                      >
-                                        <img
-                                          src="/img/docker-mark-white.svg"
-                                          alt="Docker"
-                                          className="docker-hub-icon"
-                                          style={{
-                                            width: "16px",
-                                            height: "16px",
-                                            display: "inline-block",
-                                          }}
-                                        />
-                                        Docker Hub
-                                      </button>
-                                    )}
-                                  {image.latest_version &&
-                                    (image.has_update ||
-                                      !image.current_version ||
-                                      image.current_version !==
-                                        image.latest_version) && (
-                                      <button
-                                        onClick={() =>
-                                          handleUpgradeTrackedImage(
-                                            image.id,
-                                            image.latest_version
-                                          )
-                                        }
-                                        className="update-button"
-                                        style={{
-                                          padding: "5px 12px",
-                                          fontSize: "0.9rem",
-                                          background: "rgba(30, 144, 255, 0.2)",
-                                          borderColor: "var(--dodger-blue)",
-                                          color: "var(--dodger-blue)",
-                                        }}
-                                      >
-                                        Updated
-                                      </button>
-                                    )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                          {/* Add new app button - always at the end of "All Other Apps" row */}
-                          <div
-                            key="add-new-app"
-                            onClick={() => setShowAddTrackedImageModal(true)}
-                            style={{
-                              background: "var(--bg-secondary)",
-                              padding: "10px",
-                              borderRadius: "8px",
-                              border: "2px dashed var(--border-color)",
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              transition: "all 0.2s",
-                              gap: "8px",
-                              height: "100%",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                              e.currentTarget.style.background = "var(--bg-tertiary)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = "var(--border-color)";
-                              e.currentTarget.style.background = "var(--bg-secondary)";
-                            }}
-                            title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
-                          >
-                            <div
-                              style={{
-                                fontSize: "2rem",
-                                color: "var(--text-secondary)",
-                                fontWeight: "600",
-                              }}
-                            >
-                              +
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          ) : (
-            <div style={{ marginTop: "20px" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: "15px",
-                }}
-              >
-                <div
-                  key="add-new-app"
-                  onClick={() => setShowAddTrackedImageModal(true)}
-                  style={{
-                    background: "var(--bg-secondary)",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "2px dashed var(--border-color)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    gap: "8px",
-                    height: "100%",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                    e.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-color)";
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
-                >
-                  <div
-                    style={{
-                      fontSize: "2rem",
-                      color: "var(--text-secondary)",
-                      fontWeight: "600",
-                    }}
-                  >
-                    +
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        {lastScanTime && (
-          <div
-            style={{
-              fontSize: "0.85rem",
-              color: "var(--text-secondary)",
-              textAlign: "right",
-              marginTop: "20px",
-              paddingRight: "10px",
-            }}
-          >
-            Last scanned: {lastScanTime.toLocaleString("en-US", {
-              timeZone: "America/Chicago",
-              year: 'numeric',
-              month: 'numeric',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: 'numeric',
-              hour12: true
-            })}
-          </div>
-        )}
-      </div>
-    );
+    return <TrackedAppsPage onDeleteTrackedImage={fetchTrackedImages} />;
   };
 
-  // Render containers aggregated from all selected Portainer instances
+  // OLD renderTrackedApps function removed - functionality moved to TrackedAppsPage component
+  // The old function was ~870 lines and has been completely replaced
+
   const renderPortainerTab = () => {
     // Get selected instances (empty set = show all, otherwise filter to selected)
     const instancesToShow = selectedPortainerInstances.size > 0
@@ -6147,17 +5144,7 @@ function App() {
         </ErrorBoundary>
       </div>
 
-      <AddTrackedImageModal
-        isOpen={showAddTrackedImageModal}
-        onClose={() => {
-          setShowAddTrackedImageModal(false);
-          setEditingTrackedImageData(null);
-        }}
-        initialData={editingTrackedImageData}
-        onDelete={handleDeleteTrackedImage}
-        onSuccess={handleTrackedImageModalSuccess}
-        trackedImages={trackedImages}
-      />
+      {/* AddTrackedImageModal is now managed by TrackedAppsPage component */}
     </BatchConfigContext.Provider>
   );
 }
