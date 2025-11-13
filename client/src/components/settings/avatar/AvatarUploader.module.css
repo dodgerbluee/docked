@@ -1,0 +1,24 @@
+.uploadArea {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg-secondary);
+  transition: all 0.3s;
+  margin-bottom: 16px;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadButton {
+  margin-bottom: 12px;
+}
+
+.helperText {
+  display: block;
+  color: var(--text-secondary);
+  margin-top: 12px;
+}
+

@@ -1,0 +1,53 @@
+.settingsPage {
+  padding: 0;
+}
+
+.summaryHeader {
+  /* Matches summary-header from App.css */
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.settingsHeader {
+  /* Matches settings-header from App.css */
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.returnHomeButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.returnHomeButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .returnHomeButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .returnHomeButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
+.contentTabPanel {
+  /* Matches content-tab-panel from App.css */
+  margin-top: 20px;
+}
+

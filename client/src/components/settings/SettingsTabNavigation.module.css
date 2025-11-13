@@ -1,0 +1,51 @@
+.tabsContainer {
+  /* Container for tabs - matches content-tabs from App.css */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin: 20px 0 10px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.tabsLeft {
+  display: flex;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.tab.active {
+  color: var(--dodger-blue);
+  border-bottom-color: var(--dodger-blue);
+}
+
+body.dark-mode .tab.active {
+  color: var(--dodger-blue-light);
+  border-bottom-color: var(--dodger-blue-light);
+}
+
+.tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

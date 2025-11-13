@@ -5,16 +5,22 @@
 
 /* Page styles are inherited from summary-page class in App.css */
 
-.header {
+.summaryHeader {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  align-items: flex-start;
+  margin: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  width: 100%;
 }
 
-.header h2 {
-  margin: 0;
+.summaryHeader h2 {
   color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .refreshButton {

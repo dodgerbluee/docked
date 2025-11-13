@@ -1,0 +1,45 @@
+.updateSection {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 24px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.userInfoCard {
+  margin-top: 0;
+}
+
+.infoItem {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.infoItem:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.label {
+  color: var(--text-primary);
+  min-width: 140px;
+}
+
+.value {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.loadingText {
+  color: var(--text-secondary);
+  margin: 0;
+  text-align: center;
+}
+

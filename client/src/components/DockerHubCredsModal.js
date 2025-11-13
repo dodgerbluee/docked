@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import axios from 'axios';
-import './AddPortainerModal.css';
-
-// In production, API is served from same origin, so use relative URLs
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+import Modal from './ui/Modal';
+import Input from './ui/Input';
+import Button from './ui/Button';
+import Alert from './ui/Alert';
+import { API_BASE_URL } from '../utils/api';
+import styles from './DockerHubCredsModal.module.css';
 
 function DockerHubCredsModal({ isOpen, onClose, onSuccess, existingCredentials = null }) {
   const [formData, setFormData] = useState({
@@ -136,93 +138,86 @@ function DockerHubCredsModal({ isOpen, onClose, onSuccess, existingCredentials =
     }
   };
 
-  if (!isOpen) return null;
+  const isFormValid = () => {
+    if (!formData.username.trim()) return false;
+    if (!existingCredentials && !formData.token.trim()) return false;
+    return true;
+  };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>
-            {existingCredentials
-              ? 'Edit Docker Hub Credentials'
-              : 'Add Docker Hub Credentials'}
-          </h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={existingCredentials ? 'Edit Docker Hub Credentials' : 'Add Docker Hub Credentials'}
+      size="md"
+    >
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <Input
+          label="Docker Hub Username"
+          name="username"
+          type="text"
+          value={formData.username}
+          onChange={handleChange}
+          required={true}
+          placeholder="your-dockerhub-username"
+          disabled={loading}
+          helperText="Your Docker Hub account username"
+        />
+
+        <Input
+          label="Personal Access Token"
+          name="token"
+          type="password"
+          value={formData.token}
+          onChange={handleChange}
+          required={!existingCredentials}
+          placeholder={
+            existingCredentials
+              ? 'Leave blank to keep current token'
+              : 'dckr_pat_...'
+          }
+          disabled={loading}
+          helperText={
+            existingCredentials
+              ? 'Leave blank to keep the current token, or enter a new token to update'
+              : 'Create a Personal Access Token at hub.docker.com/settings/security'
+          }
+        />
+
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <div className={styles.actions}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={loading || !isFormValid()}
+            className={styles.submitButton}
+          >
+            {loading
+              ? 'Saving...'
+              : existingCredentials
+              ? 'Update Credentials'
+              : 'Save Credentials'}
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label htmlFor="dockerHubUsername">Docker Hub Username *</label>
-            <input
-              type="text"
-              id="dockerHubUsername"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              placeholder="your-dockerhub-username"
-              disabled={loading}
-            />
-            <small>Your Docker Hub account username</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="dockerHubToken">Personal Access Token *</label>
-            <input
-              type="password"
-              id="dockerHubToken"
-              name="token"
-              value={formData.token}
-              onChange={handleChange}
-              required={!existingCredentials}
-              placeholder={
-                existingCredentials
-                  ? 'Leave blank to keep current token'
-                  : 'dckr_pat_...'
-              }
-              disabled={loading}
-            />
-            <small>
-              {existingCredentials
-                ? 'Leave blank to keep the current token, or enter a new token to update'
-                : 'Create a Personal Access Token at hub.docker.com/settings/security'}
-            </small>
-          </div>
-
-          {error && <div className="error-message">{error}</div>}
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-              className="modal-button cancel"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button submit"
-              disabled={
-                loading ||
-                !formData.username ||
-                (!formData.token && !existingCredentials)
-              }
-            >
-              {loading
-                ? 'Saving...'
-                : existingCredentials
-                ? 'Update Credentials'
-                : 'Save Credentials'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 
-export default DockerHubCredsModal;
+DockerHubCredsModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onSuccess: PropTypes.func.isRequired,
+  existingCredentials: PropTypes.object,
+};
 
+export default DockerHubCredsModal;
