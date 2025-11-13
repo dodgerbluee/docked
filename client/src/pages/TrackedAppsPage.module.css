@@ -3,19 +3,23 @@
  * CSS Module for TrackedAppsPage component
  */
 
-/* Page styles are inherited from summary-page class in App.css */
+.trackedAppsPage {
+  padding: 0;
+}
 
 .summaryHeader {
+  /* Matches summary-header from App.css */
+}
+
+.headerContent {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin: 0;
-  margin-bottom: 16px;
-  padding: 0;
+  align-items: center;
   width: 100%;
 }
 
-.summaryHeader h2 {
+.summaryHeaderTitle {
+  /* Matches settings-header from App.css */
   color: var(--text-primary);
   margin: 0;
   font-size: 1.8rem;
@@ -23,30 +27,21 @@
   line-height: 1.2;
 }
 
-.refreshButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-primary);
+.refreshing svg {
+  animation: spin 1s linear infinite;
 }
 
-.refreshButton:hover:not(:disabled) {
-  border-color: var(--dodger-blue);
-  color: var(--dodger-blue);
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.refreshButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.content {
+.contentTabPanel {
+  /* Matches content-tab-panel from App.css */
   margin-top: 20px;
 }
 

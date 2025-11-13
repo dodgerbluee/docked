@@ -8,6 +8,7 @@ import PropTypes from 'prop-types';
 import { Pencil } from 'lucide-react';
 import { getDockerHubRepoUrl } from '../utils/formatters';
 import GitHubIcon from './icons/GitHubIcon';
+import Button from './ui/Button';
 import styles from './TrackedAppCard.module.css';
 
 /**
@@ -143,51 +144,59 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
       </div>
 
       <div className={styles.actions}>
-        <button
+        <Button
           onClick={handleEdit}
-          className={styles.actionButton}
+          variant="outline"
+          size="sm"
+          icon={Pencil}
           title="Edit"
+          aria-label="Edit"
         >
-          <Pencil size={16} />
-        </button>
+          Edit
+        </Button>
 
         {image.source_type === 'github' && image.github_repo && (
-          <button
+          <Button
             onClick={handleGitHubClick}
-            className={styles.actionButton}
+            variant="outline"
+            size="sm"
             title="Open GitHub repository"
+            aria-label="Open GitHub repository"
           >
             <GitHubIcon size={16} />
-            GitHub
-          </button>
+            <span style={{ marginLeft: '6px' }}>GitHub</span>
+          </Button>
         )}
 
         {(!image.source_type || image.source_type === 'docker') &&
           image.image_name && (
-            <button
+            <Button
               onClick={handleDockerHubClick}
-              className={styles.actionButton}
+              variant="outline"
+              size="sm"
               title="Open Docker Hub repository"
+              aria-label="Open Docker Hub repository"
             >
               <img
                 src="/img/docker-mark-white.svg"
                 alt="Docker"
                 className={styles.dockerIcon}
               />
-              Docker Hub
-            </button>
+              <span style={{ marginLeft: '6px' }}>Docker Hub</span>
+            </Button>
           )}
 
         {image.latest_version &&
           (image.has_update ||
             !image.current_version ||
             image.current_version !== image.latest_version) && (
-            <button
+            <Button
               onClick={handleUpgrade}
-              className={`${styles.actionButton} ${styles.upgradeButton}`}
+              variant="primary"
+              size="sm"
             >
               Updated
-            </button>
+            </Button>
           )}
       </div>
     </div>

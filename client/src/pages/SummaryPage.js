@@ -70,10 +70,14 @@ const SummaryPage = ({
     return (
       <div className={styles.summaryPage}>
         <div className={styles.summaryHeader}>
-          <h2>Summary</h2>
+          <div className={styles.headerContent}>
+            <h2 className={styles.summaryHeaderTitle}>Summary</h2>
+          </div>
         </div>
-        <div className={styles.loadingState}>
-          <p>Loading summary statistics...</p>
+        <div className={styles.contentTabPanel}>
+          <div className={styles.loadingState}>
+            <p>Loading summary statistics...</p>
+          </div>
         </div>
       </div>
     );
@@ -82,89 +86,93 @@ const SummaryPage = ({
   return (
     <div className={styles.summaryPage}>
       <div className={styles.summaryHeader}>
-        <h2>Summary</h2>
+        <div className={styles.headerContent}>
+          <h2 className={styles.summaryHeaderTitle}>Summary</h2>
+        </div>
       </div>
 
-      <h3 className={styles.sectionTitle}>Portainer Summary</h3>
-      <div className={styles.summaryStats}>
-        <StatCard
-          value={summaryStats.totalPortainers}
-          label="Portainer Instances"
-        />
-        <StatCard value={summaryStats.totalContainers} label="Total Containers" />
-        <StatCard
-          value={summaryStats.containersWithUpdates}
-          label="Updates Available"
-          variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
-          clickable
-          onClick={() => handlePortainerStatClick(CONTENT_TABS.UPDATES)}
-        />
-        <StatCard
-          value={summaryStats.containersUpToDate}
-          label="Up to Date"
-          variant={STAT_CARD_VARIANTS.CURRENT}
-          clickable
-          onClick={() => handlePortainerStatClick(CONTENT_TABS.CURRENT)}
-        />
-        <StatCard
-          value={summaryStats.unusedImages}
-          label="Unused Images"
-          variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
-          clickable
-          onClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
-        />
-      </div>
-
-      <div className={styles.portainerInstancesList}>
-        <h3>Portainer Instances</h3>
-        {summaryStats.portainerStats.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>No Portainer instances configured.</p>
-          </div>
-        ) : (
-          <div className={styles.instancesGrid}>
-            {summaryStats.portainerStats.map((stat) => (
-              <PortainerInstanceCard
-                key={stat.name}
-                instance={stat}
-                onInstanceClick={handleInstanceClick}
-                onStatClick={handleInstanceStatClick}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.trackedAppsSummary}>
-        <h3 className={styles.sectionTitle}>Tracked Apps Summary</h3>
+      <div className={styles.contentTabPanel}>
+        <h3 className={styles.sectionTitle}>Portainer Summary</h3>
         <div className={styles.summaryStats}>
           <StatCard
-            value={summaryStats.totalTrackedApps}
-            label="Tracked Apps"
-            clickable
-            onClick={handleTrackedAppsClick}
+            value={summaryStats.totalPortainers}
+            label="Portainer Instances"
           />
+          <StatCard value={summaryStats.totalContainers} label="Total Containers" />
           <StatCard
-            value={summaryStats.trackedAppsUpToDate}
-            label="Up to Date"
-            variant={STAT_CARD_VARIANTS.CURRENT}
-            clickable
-            onClick={handleTrackedAppsClick}
-          />
-          <StatCard
-            value={summaryStats.trackedAppsBehind}
+            value={summaryStats.containersWithUpdates}
             label="Updates Available"
             variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
             clickable
-            onClick={handleTrackedAppsClick}
+            onClick={() => handlePortainerStatClick(CONTENT_TABS.UPDATES)}
           />
           <StatCard
-            value={summaryStats.trackedAppsUnknown}
-            label="Unknown"
+            value={summaryStats.containersUpToDate}
+            label="Up to Date"
+            variant={STAT_CARD_VARIANTS.CURRENT}
+            clickable
+            onClick={() => handlePortainerStatClick(CONTENT_TABS.CURRENT)}
+          />
+          <StatCard
+            value={summaryStats.unusedImages}
+            label="Unused Images"
             variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
             clickable
-            onClick={handleTrackedAppsClick}
+            onClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
           />
+        </div>
+
+        <div className={styles.portainerInstancesList}>
+          <h3>Portainer Instances</h3>
+          {summaryStats.portainerStats.length === 0 ? (
+            <div className={styles.emptyState}>
+              <p>No Portainer instances configured.</p>
+            </div>
+          ) : (
+            <div className={styles.instancesGrid}>
+              {summaryStats.portainerStats.map((stat) => (
+                <PortainerInstanceCard
+                  key={stat.name}
+                  instance={stat}
+                  onInstanceClick={handleInstanceClick}
+                  onStatClick={handleInstanceStatClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.trackedAppsSummary}>
+          <h3 className={styles.sectionTitle}>Tracked Apps Summary</h3>
+          <div className={styles.summaryStats}>
+            <StatCard
+              value={summaryStats.totalTrackedApps}
+              label="Tracked Apps"
+              clickable
+              onClick={handleTrackedAppsClick}
+            />
+            <StatCard
+              value={summaryStats.trackedAppsUpToDate}
+              label="Up to Date"
+              variant={STAT_CARD_VARIANTS.CURRENT}
+              clickable
+              onClick={handleTrackedAppsClick}
+            />
+            <StatCard
+              value={summaryStats.trackedAppsBehind}
+              label="Updates Available"
+              variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
+              clickable
+              onClick={handleTrackedAppsClick}
+            />
+            <StatCard
+              value={summaryStats.trackedAppsUnknown}
+              label="Unknown"
+              variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
+              clickable
+              onClick={handleTrackedAppsClick}
+            />
+          </div>
         </div>
       </div>
     </div>
