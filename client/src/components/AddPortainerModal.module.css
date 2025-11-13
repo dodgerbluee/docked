@@ -39,6 +39,11 @@
   margin: 0;
 }
 
+.required {
+  color: var(--dodger-red);
+  margin-left: 4px;
+}
+
 .protocolToggle {
   flex-shrink: 0;
 }

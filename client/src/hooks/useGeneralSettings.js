@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { BATCH_JOB_TYPES, DEFAULT_BATCH_CONFIG } from "../constants/settings";
+import { getErrorMessage, SUCCESS_MESSAGES } from "../utils/errorMessages";
 
 /**
  * useGeneralSettings Hook
@@ -124,7 +125,7 @@ export function useGeneralSettings({
   }, []);
 
   const handleBatchConfigSubmit = useCallback(
-    async (e) => {
+    async (e, configsToSubmit = null) => {
       e.preventDefault();
       setBatchError("");
       setBatchSuccess("");
@@ -133,43 +134,98 @@ export function useGeneralSettings({
         [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: true,
       });
 
-      try {
-        const promises = [
-          BATCH_JOB_TYPES.DOCKER_HUB_PULL,
-          BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
-        ].map(async (jobType) => {
-          const config = batchConfigs[jobType];
-          const intervalMinutes =
-            config.intervalUnit === "hours"
-              ? config.intervalValue * 60
-              : config.intervalValue;
+      // Use provided configs or fall back to current batchConfigs
+      const configs = configsToSubmit || batchConfigs;
 
-          const response = await axios.post(
-            `${API_BASE_URL}/api/batch/config`,
-            {
-              jobType: jobType,
-              enabled: config.enabled,
-              intervalMinutes: intervalMinutes,
+      try {
+        const responses = await Promise.all(
+          [
+            BATCH_JOB_TYPES.DOCKER_HUB_PULL,
+            BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
+          ].map(async (jobType) => {
+            const config = configs[jobType];
+            const intervalMinutes =
+              config.intervalUnit === "hours"
+                ? config.intervalValue * 60
+                : config.intervalValue;
+
+            const response = await axios.post(
+              `${API_BASE_URL}/api/batch/config`,
+              {
+                jobType: jobType,
+                enabled: config.enabled,
+                intervalMinutes: intervalMinutes,
+              }
+            );
+
+            if (!response.data.success) {
+              throw new Error(
+                response.data.error || "Failed to update batch configuration"
+              );
+            }
+
+            return { jobType, response: response.data };
+          })
+        );
+
+        // Use the configs from the last response (server returns all configs)
+        const lastResponse = responses[responses.length - 1];
+        if (lastResponse?.response?.config) {
+          const serverConfigs = lastResponse.response.config;
+          const newConfigs = {
+            [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
+            [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
+          };
+
+          [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach(
+            (jobType) => {
+              const config = serverConfigs[jobType] || {
+                enabled: false,
+                intervalMinutes: 60,
+              };
+              const minutes = config.intervalMinutes || 60;
+
+              if (minutes >= 60 && minutes % 60 === 0) {
+                newConfigs[jobType] = {
+                  enabled: config.enabled || false,
+                  intervalMinutes: minutes,
+                  intervalValue: minutes / 60,
+                  intervalUnit: "hours",
+                };
+              } else {
+                newConfigs[jobType] = {
+                  enabled: config.enabled || false,
+                  intervalMinutes: minutes,
+                  intervalValue: minutes,
+                  intervalUnit: "minutes",
+                };
+              }
             }
           );
 
-          if (response.data.success) {
-            const updatedConfigs = { ...batchConfigs };
-            updatedConfigs[jobType] = {
-              ...config,
-              intervalMinutes: intervalMinutes,
-            };
-            setBatchConfigs(updatedConfigs);
-            return true;
-          } else {
-            throw new Error(
-              response.data.error || "Failed to update batch configuration"
+          setBatchConfigs(newConfigs);
+        } else {
+          // Fallback: update state with the configs we just submitted
+          setBatchConfigs((prev) => {
+            const updated = { ...prev };
+            [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach(
+              (jobType) => {
+                const config = configs[jobType];
+                const intervalMinutes =
+                  config.intervalUnit === "hours"
+                    ? config.intervalValue * 60
+                    : config.intervalValue;
+                updated[jobType] = {
+                  ...config,
+                  intervalMinutes: intervalMinutes,
+                };
+              }
             );
-          }
-        });
+            return updated;
+          });
+        }
 
-        await Promise.all(promises);
-        setBatchSuccess("Batch configurations updated successfully!");
+        setBatchSuccess(SUCCESS_MESSAGES.BATCH.CONFIG_UPDATE);
         setTimeout(() => setBatchSuccess(""), 3000);
 
         if (onBatchConfigUpdate && typeof onBatchConfigUpdate === "function") {
@@ -180,11 +236,11 @@ export function useGeneralSettings({
           }
         }
       } catch (err) {
-        setBatchError(
+        const errorMessage =
           err.response?.data?.error ||
-            err.message ||
-            "Failed to update batch configuration. Please try again."
-        );
+          err.message ||
+          getErrorMessage("BATCH", "CONFIG_UPDATE");
+        setBatchError(errorMessage);
       } finally {
         setBatchLoading({
           [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: false,
@@ -192,7 +248,7 @@ export function useGeneralSettings({
         });
       }
     },
-    [batchConfigs, onBatchConfigUpdate]
+    [batchConfigs, onBatchConfigUpdate, fetchBatchConfig]
   );
 
   return {

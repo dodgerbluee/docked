@@ -1,0 +1,80 @@
+.rateLimitError {
+  /* Rate limit specific styling */
+}
+
+.rateLimitContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rateLimitTitle {
+  margin: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.rateLimitMessage {
+  margin: 0;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.rateLimitActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.configureButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.configureButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+body.dark-mode .configureButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.dark-mode .configureButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dismissButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dismissButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+body.dark-mode .dismissButton {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.dark-mode .dismissButton:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+

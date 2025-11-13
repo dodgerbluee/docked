@@ -20,8 +20,12 @@
 
 /* Sizes */
 .sm {
-  padding: 6px 12px;
+  padding: 6px 10px;
   font-size: 0.875rem;
+}
+
+.button.sm {
+  gap: 4px;
 }
 
 .md {
@@ -101,11 +105,19 @@
 }
 
 .iconLeft {
-  margin-right: -4px;
+  margin-right: -2px;
 }
 
 .iconRight {
-  margin-left: -4px;
+  margin-left: -2px;
+}
+
+.sm .iconLeft {
+  margin-right: -1px;
+}
+
+.sm .iconRight {
+  margin-left: -1px;
 }
 
 body.dark-mode .primary {

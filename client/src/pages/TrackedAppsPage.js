@@ -17,8 +17,10 @@ import styles from './TrackedAppsPage.module.css';
  * TrackedAppsPage component
  * @param {Object} props - Component props
  * @param {Function} props.onDeleteTrackedImage - Handler for deleting tracked images
+ * @param {Function} props.onUpgradeTrackedImage - Handler for upgrading tracked images (to refresh App.js state)
+ * @param {Function} props.onEditTrackedImage - Handler for editing tracked images (to refresh App.js state)
  */
-function TrackedAppsPage({ onDeleteTrackedImage }) {
+function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTrackedImage }) {
   const {
     trackedImages,
     trackedImageError,
@@ -53,6 +55,23 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
     await handleDeleteTrackedImage(id);
     if (onDeleteTrackedImage) {
       onDeleteTrackedImage(id);
+    }
+  };
+
+  // Handle upgrade with callback to refresh App.js state
+  const handleUpgrade = async (id, latestVersion) => {
+    await handleUpgradeTrackedImage(id, latestVersion);
+    if (onUpgradeTrackedImage) {
+      await onUpgradeTrackedImage();
+    }
+  };
+
+  // Handle modal success with callback to refresh App.js state
+  const handleModalSuccess = async (imageId) => {
+    await handleTrackedImageModalSuccess(imageId);
+    // Refresh App.js state after editing/adding to update notification count
+    if (onEditTrackedImage) {
+      await onEditTrackedImage();
     }
   };
 
@@ -103,13 +122,13 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
             {appsWithUpdates.length > 0 && (
               <div className={styles.section}>
                 <h3 className={styles.sectionTitle}>Apps with Updates</h3>
-                <div className={styles.grid}>
+                <div className={styles.gridWithUpdates}>
                   {appsWithUpdates.map((image) => (
                     <TrackedAppCard
                       key={image.id}
                       image={image}
                       onEdit={handleEditTrackedImage}
-                      onUpgrade={handleUpgradeTrackedImage}
+                      onUpgrade={handleUpgrade}
                     />
                   ))}
                 </div>
@@ -122,13 +141,13 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
                 {appsWithUpdates.length > 0 && appsWithoutUpdates.length > 0 && (
                   <h3 className={styles.sectionTitle}>All Other Apps</h3>
                 )}
-                <div className={styles.grid}>
+                <div className={styles.gridWithoutUpdates}>
                   {appsWithoutUpdates.map((image) => (
                     <TrackedAppCard
                       key={image.id}
                       image={image}
                       onEdit={handleEditTrackedImage}
-                      onUpgrade={handleUpgradeTrackedImage}
+                      onUpgrade={handleUpgrade}
                     />
                   ))}
                   {/* Add new app button - always at the end */}
@@ -166,7 +185,7 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
           setEditingTrackedImageData(null); // Clear editing state when modal closes
           setShowAddTrackedImageModal(false);
         }}
-        onSuccess={handleTrackedImageModalSuccess}
+        onSuccess={handleModalSuccess}
         trackedImages={trackedImages}
         initialData={editingTrackedImageData}
           onDelete={handleDelete}

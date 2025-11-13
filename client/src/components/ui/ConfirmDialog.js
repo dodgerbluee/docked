@@ -29,10 +29,18 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
       <div className={styles.content}>
         <p className={styles.message}>{message}</p>
         <div className={styles.actions}>
-          <Button variant="outline" onClick={onClose}>
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className={styles.cancelButton}
+          >
             {cancelText}
           </Button>
-          <Button variant={variant} onClick={handleConfirm}>
+          <Button 
+            variant="outline"
+            onClick={handleConfirm}
+            className={variant === "danger" ? styles.dangerConfirmButton : styles.confirmButton}
+          >
             {confirmText}
           </Button>
         </div>

@@ -1,0 +1,103 @@
+.historyTab {
+  padding: 0;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.loading p {
+  color: var(--text-secondary);
+}
+
+.error {
+  margin-bottom: 20px;
+}
+
+.section {
+  margin-bottom: 30px;
+}
+
+.sectionTitle {
+  margin-top: 0;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.scheduledRuns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emptyState {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.historyAndLogs {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+}
+
+.runHistory {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.runHistoryHeader {
+  padding: 15px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.runHistoryTitle {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.runHistoryList {
+  max-height: 600px;
+  overflow-y: auto;
+  padding-right: 4px;
+  /* Firefox scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* Modern scrollbar styling for Webkit browsers (Chrome, Safari, Edge) */
+.runHistoryList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.runHistoryList::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.runHistoryList::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.runHistoryList::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+body.dark-mode .runHistoryList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .runHistoryList::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .runHistoryList {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+

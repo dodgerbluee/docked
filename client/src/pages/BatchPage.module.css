@@ -1,4 +1,4 @@
-.settingsPage {
+.batchPage {
   padding: 0;
 }
 
@@ -13,7 +13,7 @@
   width: 100%;
 }
 
-.settingsHeader {
+.batchHeader {
   /* Matches settings-header from App.css */
   color: var(--text-primary);
   margin: 0;
@@ -49,5 +49,18 @@ body.dark-mode .returnHomeButton:hover:not(:disabled) {
 .contentTabPanel {
   /* Matches content-tab-panel from App.css */
   margin-top: 20px;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: 40px;
+}
+
+.loadingText {
+  color: var(--text-secondary);
+  font-size: 1rem;
 }
 

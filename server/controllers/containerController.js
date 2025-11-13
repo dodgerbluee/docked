@@ -75,10 +75,15 @@ async function getContainers(req, res, next) {
  */
 async function pullContainers(req, res, next) {
   try {
-    logger.info('🔄 Pull request received - this is the ONLY endpoint that calls Docker Hub...');
+    const { portainerUrl } = req.body;
+    if (portainerUrl) {
+      logger.info(`🔄 Pull request received for specific instance: ${portainerUrl} - this is the ONLY endpoint that calls Docker Hub...`);
+    } else {
+      logger.info('🔄 Pull request received - this is the ONLY endpoint that calls Docker Hub...');
+    }
     // Force refresh - this is the ONLY place that should call Docker Hub
-    // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process
-    const result = await containerService.getAllContainersWithUpdates(true);
+    // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process, 3) After adding new instance
+    const result = await containerService.getAllContainersWithUpdates(true, portainerUrl);
     logger.info('✅ Pull completed successfully');
     res.json({
       success: true,

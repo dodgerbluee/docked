@@ -28,36 +28,63 @@ body.dark-mode .clickable:focus-visible {
 
 /* Variant classes - applied alongside statCard */
 .updateAvailable {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+/* Red border for Updates Available when value > 0 */
+.redBorder.updateAvailable {
+  border-color: var(--dodger-red);
+}
+
+body.dark-mode .redBorder.updateAvailable {
   border-color: var(--dodger-red);
 }
 
 .current {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   border-color: var(--dodger-blue);
 }
 
+body.dark-mode .current {
+  border-color: var(--dodger-blue-light);
+}
+
 .unusedImages {
-  background: var(--bg-tertiary);
-  border-color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
 }
 
 .unusedImages .statValue {
-  color: var(--text-secondary);
-}
-
-body.dark-mode .unusedImages {
-  border-color: var(--text-primary);
+  color: #666666;
 }
 
 body.dark-mode .unusedImages .statValue {
-  color: var(--text-primary);
+  color: #999999;
 }
 
 .statValue {
   font-size: 2.5rem;
   font-weight: 700;
   color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.statValueBlue {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--dodger-blue);
+  margin-bottom: 8px;
+}
+
+body.dark-mode .statValueBlue {
+  color: var(--dodger-blue-light);
+}
+
+.statValueRed {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--dodger-red);
   margin-bottom: 8px;
 }
 

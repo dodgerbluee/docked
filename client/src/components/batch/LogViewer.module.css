@@ -1,0 +1,47 @@
+.logViewer {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 15px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.content {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  max-height: 600px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Keep dark mode using bg-primary for better contrast */
+body.dark-mode .content {
+  background: var(--bg-primary);
+}
+
+.logContent {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.empty {
+  color: var(--text-secondary);
+}
+

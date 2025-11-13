@@ -114,14 +114,16 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         response = await axios.put(`${API_BASE_URL}/api/portainer/instances/${instanceId}`, requestData);
         
         if (response.data.success) {
-          // Reset form
-          setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
-          setAuthType('apikey');
           // Pass the updated instance data so the parent can refresh
-          onSuccess({
+          // onSuccess is async - wait for it to complete before closing
+          await onSuccess({
             id: instanceId,
             ...requestData,
           });
+          
+          // Reset form and close modal only after onSuccess completes
+          setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
+          setAuthType('apikey');
           onClose();
         } else {
           setError(response.data.error || 'Failed to update Portainer instance');
@@ -154,16 +156,20 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
           response = await axios.post(`${API_BASE_URL}/api/portainer/instances`, requestData);
           
           if (response.data.success) {
-            // Reset form
-            setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
-            setAuthType('apikey');
             // Pass instance data to onSuccess callback for new instances
+            // onSuccess is async and will handle data fetching - wait for it to complete
             const instanceData = {
-              name: formData.name || new URL(formData.url).hostname,
-              url: formData.url,
+              name: formData.name || new URL(requestData.url).hostname,
+              url: requestData.url,
               id: response.data.id,
             };
-            onSuccess(instanceData);
+            
+            // Wait for onSuccess to complete (it handles data fetching)
+            await onSuccess(instanceData);
+            
+            // Reset form and close modal only after onSuccess completes
+            setFormData({ name: '', url: '', username: '', password: '', apiKey: '' });
+            setAuthType('apikey');
             onClose();
           } else {
             setError(response.data.error || 'Failed to add Portainer instance');
@@ -203,33 +209,43 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
   };
 
   const isFormValid = () => {
+    if (!formData.name || !formData.name.trim()) return false;
     if (!formData.url) return false;
     if (authType === 'password' && (!formData.username || (!instanceId && !formData.password))) return false;
     if (authType === 'apikey' && (!instanceId && !formData.apiKey)) return false;
     return true;
   };
 
+  // Prevent closing modal while loading
+  const handleClose = () => {
+    if (!loading) {
+      onClose();
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={instanceId ? 'Edit Portainer Instance' : 'Add Portainer Instance'}
       size="md"
     >
       <form onSubmit={handleSubmit} className={styles.form}>
         <Input
-          label="Instance Name (Optional)"
+          label="Instance Name"
           name="name"
           value={formData.name}
           onChange={handleChange}
           placeholder="e.g., Production Portainer"
+          required
           disabled={loading}
-          helperText="Defaults to URL hostname if empty"
         />
 
         <div className={styles.urlGroup}>
           <div className={styles.urlHeader}>
-            <label htmlFor="url" className={styles.urlLabel}>Portainer URL *</label>
+            <label htmlFor="url" className={styles.urlLabel}>
+              Portainer URL <span className={styles.required}>*</span>
+            </label>
             <ToggleButton
               options={PROTOCOL_OPTIONS}
               value={protocol}
@@ -254,7 +270,9 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label}>Authentication Method *</label>
+          <label className={styles.label}>
+            Authentication Method <span className={styles.required}>*</span>
+          </label>
           <ToggleButton
             options={AUTH_TYPE_OPTIONS}
             value={authType}
@@ -309,7 +327,7 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
           <Button
             type="button"
             variant="secondary"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={loading}
           >
             Cancel
