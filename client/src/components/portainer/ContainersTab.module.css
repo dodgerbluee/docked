@@ -1,0 +1,95 @@
+.contentTabPanel {
+  margin-top: 20px;
+}
+
+.stacksContainer {
+  min-height: 0;
+}
+
+.stackGroup {
+  margin-bottom: 20px;
+}
+
+.stackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.stackHeader:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .stackHeader:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.stackHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stackToggle {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.stackName {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.containersGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.loadingState {
+  min-height: 300px;
+}
+
+.emptyState {
+  min-height: 200px;
+}
+
+.lastPullTime {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 20px;
+  padding-right: 10px;
+}
+
+@media (max-width: 1024px) {
+  .containersGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .containersGrid {
+    grid-template-columns: 1fr;
+  }
+}
+

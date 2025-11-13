@@ -1,0 +1,251 @@
+.containerCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.containerCard:hover {
+  box-shadow: 0 2px 8px var(--shadow);
+  border-color: var(--dodger-blue);
+}
+
+.updateAvailable {
+  border-left: 4px solid var(--dodger-red);
+}
+
+.portainerDisabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.updateBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(239, 62, 66, 0.15);
+  color: #EF3E42;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.currentBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.cardHeader h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.checkbox input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+.checkbox::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+}
+
+.checkbox:hover::before {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+body.dark-mode .checkbox:hover::before {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15);
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0;
+  z-index: 2;
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.checkbox:has(input[type="checkbox"]:disabled)::before {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.checkbox:has(input[type="checkbox"]:disabled):hover::before {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stackInfo {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stackLabel {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.imageInfo {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.imageName {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.tagInfo {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.publishInfo {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.versionBadge {
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.digestLink {
+  color: var(--dodger-blue);
+  text-decoration: none;
+}
+
+.digestLink:hover {
+  text-decoration: underline;
+}
+
+body.dark-mode .digestLink {
+  color: var(--dodger-blue-light);
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.dockerIcon {
+  width: 16px;
+  height: 16px;
+}
+
