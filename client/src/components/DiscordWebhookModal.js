@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import axios from 'axios';
-import './AddPortainerModal.css';
-
-// In production, API is served from same origin, so use relative URLs
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+import Modal from './ui/Modal';
+import Input from './ui/Input';
+import Button from './ui/Button';
+import Alert from './ui/Alert';
+import { API_BASE_URL } from '../utils/api';
+import styles from './DiscordWebhookModal.module.css';
 
 function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = null }) {
   const [formData, setFormData] = useState({
@@ -204,140 +206,127 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
     }
   };
 
-  // Debug logging
-  useEffect(() => {
-    console.log('DiscordWebhookModal isOpen changed:', isOpen);
-  }, [isOpen]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  console.log('DiscordWebhookModal rendering modal overlay');
+  const isFormValid = () => {
+    if (existingWebhook) {
+      // For editing, webhook URL is optional
+      return true;
+    }
+    // For creating, webhook URL is required
+    return !!formData.webhookUrl.trim();
+  };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>
-            {existingWebhook
-              ? 'Edit Discord Webhook'
-              : 'Add Discord Webhook'}
-          </h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={existingWebhook ? 'Edit Discord Webhook' : 'Add Discord Webhook'}
+      size="md"
+    >
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.formGroup}>
+          <label htmlFor="discordWebhookUrl" className={styles.label}>
+            Discord Webhook URL {existingWebhook ? '' : '*'}
+            {existingWebhook && existingWebhook.hasWebhook && (
+              <span className={styles.webhookConfigured}>
+                (Webhook is configured)
+              </span>
+            )}
+          </label>
+          <input
+            id="discordWebhookUrl"
+            name="webhookUrl"
+            type="text"
+            value={formData.webhookUrl}
+            onChange={handleChange}
+            required={!existingWebhook}
+            placeholder="https://discord.com/api/webhooks/..."
+            disabled={loading}
+            className={styles.input}
+          />
+          <small className={styles.helperText}>
+            {existingWebhook && existingWebhook.hasWebhook
+              ? 'Enter a new webhook URL to replace the current one, or leave empty to keep the current webhook'
+              : 'Create a webhook in your Discord server settings. Go to Server Settings → Integrations → Webhooks → New Webhook. Recommended: Rename the webhook to "Docked" and use the Docked logo as the avatar.'}
+          </small>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label htmlFor="discordWebhookUrl">
-              Discord Webhook URL *
-              {existingWebhook && existingWebhook.hasWebhook && (
-                <span style={{ color: 'var(--dodger-blue)', marginLeft: '8px', fontSize: '0.9em' }}>
-                  (Webhook is configured)
-                </span>
-              )}
-            </label>
+        <Input
+          label="Server Name (Optional)"
+          name="serverName"
+          type="text"
+          value={formData.serverName}
+          onChange={handleChange}
+          placeholder="My Discord Server"
+          disabled={loading}
+          helperText="Friendly name for the Discord server (for display only). If left empty, we'll try to fetch the webhook name from Discord."
+        />
+
+        <div className={styles.formGroup}>
+          <label htmlFor="discordWebhookEnabled" className={styles.checkboxLabel}>
             <input
-              type="text"
-              id="discordWebhookUrl"
-              name="webhookUrl"
-              value={formData.webhookUrl}
+              type="checkbox"
+              id="discordWebhookEnabled"
+              name="enabled"
+              checked={formData.enabled}
               onChange={handleChange}
-              required={!existingWebhook}
-              placeholder="https://discord.com/api/webhooks/..."
               disabled={loading}
+              className={styles.checkbox}
             />
-            <small>
-              {existingWebhook && existingWebhook.hasWebhook
-                ? 'Enter a new webhook URL to replace the current one, or leave empty to keep the current webhook'
-                : 'Create a webhook in your Discord server settings. Go to Server Settings → Integrations → Webhooks → New Webhook. Recommended: Rename the webhook to "Docked" and use the Docked logo as the avatar.'}
-            </small>
-          </div>
+            <span>Enable this webhook</span>
+          </label>
+          <small className={styles.helperText}>
+            When enabled, notifications will be sent to this webhook
+          </small>
+        </div>
 
-          <div className="form-group">
-            <label htmlFor="discordServerName">Server Name (Optional)</label>
-            <input
-              type="text"
-              id="discordServerName"
-              name="serverName"
-              value={formData.serverName}
-              onChange={handleChange}
-              placeholder="My Discord Server"
-              disabled={loading}
-            />
-            <small>
-              Friendly name for the Discord server (for display only). 
-              If left empty, we'll try to fetch the webhook name from Discord.
-            </small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="discordWebhookEnabled" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                id="discordWebhookEnabled"
-                name="enabled"
-                checked={formData.enabled}
-                onChange={handleChange}
-                disabled={loading}
-                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-              />
-              <span>Enable this webhook</span>
-            </label>
-            <small>When enabled, notifications will be sent to this webhook</small>
-          </div>
-
-          {(formData.webhookUrl || existingWebhook?.hasWebhook) && (
-            <div className="form-group">
-              <button
-                type="button"
-                onClick={handleTestWebhook}
-                disabled={loading || testingWebhook || (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                }}
-              >
-                {testingWebhook ? 'Testing...' : 'Test Webhook'}
-              </button>
-            </div>
-          )}
-
-          {error && <div className="error-message">{error}</div>}
-
-          <div className="modal-actions">
-            <button
+        {(formData.webhookUrl || existingWebhook?.hasWebhook) && (
+          <div className={styles.testButtonContainer}>
+            <Button
               type="button"
-              onClick={onClose}
-              className="modal-button cancel"
-              disabled={loading}
+              variant="secondary"
+              onClick={handleTestWebhook}
+              disabled={loading || testingWebhook || (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)}
+              size="sm"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button submit"
-              disabled={loading || (!existingWebhook && !formData.webhookUrl.trim())}
-            >
-              {loading
-                ? 'Saving...'
-                : existingWebhook
-                ? 'Update Webhook'
-                : 'Add Webhook'}
-            </button>
+              {testingWebhook ? 'Testing...' : 'Test Webhook'}
+            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <div className={styles.actions}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={loading || !isFormValid()}
+            className={styles.submitButton}
+          >
+            {loading
+              ? 'Saving...'
+              : existingWebhook
+              ? 'Update Webhook'
+              : 'Add Webhook'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
-export default DiscordWebhookModal;
+DiscordWebhookModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onSuccess: PropTypes.func.isRequired,
+  existingWebhook: PropTypes.object,
+};
 
+export default DiscordWebhookModal;

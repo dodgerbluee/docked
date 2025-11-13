@@ -71,7 +71,7 @@ function TrackedAppsPage({ onDeleteTrackedImage }) {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
+      <div className={styles.summaryHeader}>
         <h2>Tracked Apps</h2>
         <button
           onClick={handleCheckTrackedImagesUpdates}

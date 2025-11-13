@@ -33,6 +33,7 @@ import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
 import TrackedAppsPage from "./pages/TrackedAppsPage";
 import SummaryPage from "./pages/SummaryPage";
+import SettingsPage from "./pages/SettingsPage";
 import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
 
 // Custom whale icon component matching lucide-react style
@@ -2841,227 +2842,7 @@ function App() {
     );
   };
 
-  // Render Settings page with tabs
-  const renderSettingsPage = useCallback(() => {
-    return (
-      <div className="settings-page">
-        <div className="summary-header">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              width: "100%",
-            }}
-          >
-            <h2 className="settings-header">Settings</h2>
-            <button
-              onClick={() => setActiveTab("summary")}
-              className="primary-button"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Return Home
-            </button>
-          </div>
-        </div>
-        <Settings
-          username={username}
-          onUsernameUpdate={handleUsernameUpdate}
-          onLogout={handleLogout}
-          isFirstLogin={!passwordChanged}
-          avatar={avatar}
-          recentAvatars={recentAvatars}
-          onAvatarChange={handleAvatarChange}
-          onRecentAvatarsChange={(avatars) => {
-            setRecentAvatars(avatars);
-            // Refresh recent avatars from server to get latest
-            fetchRecentAvatars();
-          }}
-          onAvatarUploaded={async () => {
-            await fetchAvatar();
-          }}
-          onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
-          onPortainerInstancesChange={async () => {
-            await fetchPortainerInstances();
-            // Use portainerOnly=true to get fresh data without deleted instances
-            await fetchContainers(false, null, true);
-          }}
-          activeSection={settingsTab}
-          onSectionChange={setSettingsTab}
-          showUserInfoAboveTabs={true}
-          onBatchConfigUpdate={handleBatchConfigUpdate}
-          colorScheme={colorScheme}
-          onColorSchemeChange={handleColorSchemeChange}
-          onClearPortainerData={handleClear}
-          onClearTrackedAppData={handleClearGitHubCache}
-        />
-        <div className="content-tabs">
-          <div className="content-tabs-left">
-            <button
-              className={`content-tab ${
-                settingsTab === "general" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("general")}
-              disabled={!passwordChanged}
-            >
-              General
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "username" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("username")}
-              disabled={!passwordChanged}
-            >
-              Username
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "password" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("password")}
-            >
-              Password
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "avatar" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("avatar")}
-              disabled={!passwordChanged}
-            >
-              Avatar
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "portainer" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("portainer")}
-              disabled={!passwordChanged}
-            >
-              Portainer Instances
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "dockerhub" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("dockerhub")}
-              disabled={!passwordChanged}
-            >
-              Docker Hub
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "discord" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("discord")}
-              disabled={!passwordChanged}
-            >
-              Notifications
-            </button>
-            <button
-              className={`content-tab ${
-                settingsTab === "userdetails" ? "active" : ""
-              }`}
-              onClick={() => setSettingsTab("userdetails")}
-              disabled={!passwordChanged}
-            >
-              User Details
-            </button>
-          </div>
-        </div>
-        <div className="content-tab-panel">
-          <ErrorBoundary>
-            <Settings
-              username={username}
-              onUsernameUpdate={handleUsernameUpdate}
-              onLogout={handleLogout}
-              isFirstLogin={!passwordChanged}
-              avatar={avatar}
-              recentAvatars={recentAvatars}
-              onAvatarChange={handleAvatarChange}
-              onRecentAvatarsChange={(avatars) => {
-                console.log(
-                  "onRecentAvatarsChange called with:",
-                  avatars?.length,
-                  "avatars"
-                );
-                setRecentAvatars(avatars);
-                // Refresh recent avatars from server to get latest
-                fetchRecentAvatars();
-              }}
-              onAvatarUploaded={async () => {
-                await fetchAvatar();
-              }}
-              onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
-              onPortainerInstancesChange={() => {
-                fetchPortainerInstances();
-                fetchContainers();
-              }}
-              activeSection={settingsTab}
-              onSectionChange={setSettingsTab}
-              showUserInfoAboveTabs={false}
-              onEditInstance={(instance) => {
-                setEditingPortainerInstance(instance);
-                setShowAddPortainerModal(true);
-              }}
-              refreshInstances={
-                editingPortainerInstance === null
-                  ? fetchPortainerInstances
-                  : null
-              }
-              onBatchConfigUpdate={handleBatchConfigUpdate}
-              colorScheme={colorScheme}
-              onColorSchemeChange={handleColorSchemeChange}
-              onClearPortainerData={handleClear}
-              onClearTrackedAppData={handleClearGitHubCache}
-            />
-          </ErrorBoundary>
-        </div>
-      </div>
-    );
-  }, [
-    username,
-    passwordChanged,
-    avatar,
-    recentAvatars,
-    settingsTab,
-    colorScheme,
-    editingPortainerInstance,
-    handleUsernameUpdate,
-    handleLogout,
-    handleAvatarChange,
-    handlePasswordUpdateSuccess,
-    handleBatchConfigUpdate,
-    handleColorSchemeChange,
-    handleClear,
-    handleClearGitHubCache,
-    fetchRecentAvatars,
-    fetchAvatar,
-    fetchPortainerInstances,
-    fetchContainers,
-    setActiveTab,
-    setSettingsTab,
-    setEditingPortainerInstance,
-    setShowAddPortainerModal,
-  ]);
+  // Settings page is now handled by SettingsPage component
 
   // Render summary page - now using SummaryPage component
   const renderSummary = () => {
@@ -4415,7 +4196,47 @@ function App() {
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === "settings" ? (
-              renderSettingsPage()
+              <SettingsPage
+                username={username}
+                passwordChanged={passwordChanged}
+                avatar={avatar}
+                recentAvatars={recentAvatars}
+                onUsernameUpdate={handleUsernameUpdate}
+                onLogout={handleLogout}
+                onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+                onPortainerInstancesChange={async () => {
+                  await fetchPortainerInstances();
+                  // Use portainerOnly=true to get fresh data without deleted instances
+                  await fetchContainers(false, null, true);
+                }}
+                onAvatarChange={handleAvatarChange}
+                onRecentAvatarsChange={(avatars) => {
+                  setRecentAvatars(avatars);
+                  // Refresh recent avatars from server to get latest
+                  fetchRecentAvatars();
+                }}
+                onAvatarUploaded={async () => {
+                  await fetchAvatar();
+                }}
+                onBatchConfigUpdate={handleBatchConfigUpdate}
+                colorScheme={colorScheme}
+                onColorSchemeChange={handleColorSchemeChange}
+                onClearPortainerData={handleClear}
+                onClearTrackedAppData={handleClearGitHubCache}
+                onEditInstance={(instance) => {
+                  setEditingPortainerInstance(instance);
+                  setShowAddPortainerModal(true);
+                }}
+                editingPortainerInstance={editingPortainerInstance}
+                refreshInstances={
+                  editingPortainerInstance === null
+                    ? fetchPortainerInstances
+                    : null
+                }
+                onReturnHome={() => setActiveTab("summary")}
+                activeTab={settingsTab}
+                onTabChange={setSettingsTab}
+              />
             ) : activeTab === "configuration" ? (
               <div style={{ width: "100%" }}>
                 <div

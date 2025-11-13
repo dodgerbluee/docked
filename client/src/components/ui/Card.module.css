@@ -1,0 +1,46 @@
+.card {
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.default {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.secondary {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.tertiary {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+}
+
+.bordered {
+  background: transparent;
+  border: 2px solid var(--border-color);
+}
+
+/* Padding variants */
+.paddingNone {
+  padding: 0;
+}
+
+.paddingSm {
+  padding: 12px;
+}
+
+.paddingMd {
+  padding: 20px;
+}
+
+.paddingLg {
+  padding: 24px;
+}
+
+.paddingXl {
+  padding: 32px;
+}
+

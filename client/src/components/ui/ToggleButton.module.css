@@ -1,0 +1,46 @@
+.toggleGroup {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggleOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.toggleOption:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  color: var(--text-primary);
+}
+
+.toggleOption.active {
+  background: rgba(30, 144, 255, 0.15);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.dark-mode .toggleOption.active {
+  background: rgba(30, 136, 229, 0.2);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+

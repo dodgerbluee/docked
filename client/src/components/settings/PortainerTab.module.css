@@ -1,0 +1,187 @@
+.updateSection {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.description {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.instancesSection {
+  margin-top: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.addButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.addButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .addButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .addButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
+.instancesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.instanceCard {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.instanceCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.instanceContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.instanceInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.instanceHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.instanceName {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.authBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue);
+  border: 1px solid var(--dodger-blue);
+}
+
+.badgeIcon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.instanceUrl {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.instanceUsername {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.emptyState {
+  text-align: center;
+}
+
+.emptyText {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.addInstanceCard {
+  border: 2px dashed var(--border-color) !important;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg-primary) !important;
+}
+
+.addInstanceCard:hover {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-secondary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+body.dark-mode .addInstanceCard:hover {
+  border-color: var(--dodger-blue-light) !important;
+}
+
+.addInstanceContent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+}
+
+.addInstanceText {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.addInstanceCard:hover .addInstanceText {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .addInstanceCard:hover .addInstanceText {
+  color: var(--dodger-blue-light);
+}
+
+.addInstanceIcon {
+  flex-shrink: 0;
+}
+

@@ -1,0 +1,159 @@
+.updateSection {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.description {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.webhooksList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.webhookCard {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.webhookCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.webhookContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.webhookInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.webhookDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.serverName {
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.channelName {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.webhookMeta {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.statusEnabled {
+  color: var(--dodger-blue);
+}
+
+.statusDisabled {
+  color: var(--dodger-red);
+}
+
+.lastUpdated {
+  margin-left: 10px;
+}
+
+.addButton {
+  margin-top: 10px;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.addButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .addButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .addButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
+.maxReached {
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+  margin-top: 10px;
+}
+
+.instructionsCard {
+  margin-top: 30px;
+}
+
+.instructionsTitle {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.instructionsList {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.instructionsList li {
+  margin-bottom: 4px;
+}
+
+.instructionsSubList {
+  margin-top: 3px;
+  margin-bottom: 4px;
+  padding-left: 20px;
+}
+
+.instructionsSubList li {
+  margin-bottom: 1px;
+}
+
+.downloadButton {
+  margin-left: 8px;
+  background: transparent !important;
+}
+

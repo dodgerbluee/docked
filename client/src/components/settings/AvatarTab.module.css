@@ -1,0 +1,64 @@
+.updateSection {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 24px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.formGroup {
+  margin-bottom: 24px;
+}
+
+.uploadLabel {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deleteSection {
+  margin-top: 32px;
+}
+
+.deleteLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deleteHelperText {
+  display: block;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  font-size: 0.875rem;
+}
+
+.deleteButton {
+  margin-top: 0;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}

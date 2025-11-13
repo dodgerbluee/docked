@@ -4,9 +4,15 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import PropTypes from "prop-types";
 import axios from "axios";
 import Select from "react-select";
-import { Trash2 } from "lucide-react";
+import { Trash2, Github } from "lucide-react";
+import Modal from "./ui/Modal";
+import Input from "./ui/Input";
+import Button from "./ui/Button";
+import ToggleButton from "./ui/ToggleButton";
+import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
 import {
   PREDEFINED_GITHUB_REPOS,
@@ -17,9 +23,20 @@ import {
   getTrackedDockerImages,
   filterTrackedItems,
 } from "../utils/trackedAppsFilters";
-import ToggleButtonGroup from "./ToggleButtonGroup";
-import GitHubIcon from "./icons/GitHubIcon";
-import "./AddPortainerModal.css";
+import styles from "./AddTrackedImageModal.module.css";
+
+const SOURCE_TYPE_OPTIONS = [
+  {
+    value: "github",
+    label: "GitHub Repository",
+    icon: Github,
+  },
+  {
+    value: "docker",
+    label: "Docker Image",
+    icon: null, // Will handle Docker icon separately
+  },
+];
 
 function AddTrackedImageModal({
   isOpen,
@@ -29,9 +46,9 @@ function AddTrackedImageModal({
   initialData = null,
   onDelete = null,
 }) {
-  const [sourceType, setSourceType] = useState("github"); // 'docker' or 'github'
-  const [usePredefined, setUsePredefined] = useState(true); // For GitHub repos - default to predefined
-  const [usePredefinedDocker, setUsePredefinedDocker] = useState(true); // For Docker images - default to predefined
+  const [sourceType, setSourceType] = useState("github");
+  const [usePredefined, setUsePredefined] = useState(true);
+  const [usePredefinedDocker, setUsePredefinedDocker] = useState(true);
   const [selectedPredefinedRepo, setSelectedPredefinedRepo] = useState(null);
   const [selectedPredefinedImage, setSelectedPredefinedImage] = useState(null);
   const [formData, setFormData] = useState({
@@ -43,7 +60,6 @@ function AddTrackedImageModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const lastAutoPopulatedName = useRef("");
-  const mouseDownInsideModal = useRef(false);
 
   // Get available options for react-select (filter out already tracked)
   const githubRepoOptions = useMemo(() => {
@@ -134,8 +150,6 @@ function AddTrackedImageModal({
 
   // Auto-populate display name from selected repository/image
   useEffect(() => {
-    // Only auto-populate if display name is empty OR matches the last auto-populated name
-    // This allows updating when selection changes, but preserves manual edits
     const currentName = (formData.name || "").trim();
     const shouldUpdate =
       currentName === "" || currentName === lastAutoPopulatedName.current;
@@ -144,7 +158,6 @@ function AddTrackedImageModal({
       let nameToSet = "";
 
       if (sourceType === "github" && usePredefined && selectedPredefinedRepo) {
-        // Extract text after last slash from GitHub repo
         const repo = selectedPredefinedRepo.value || selectedPredefinedRepo;
         const parts = repo.split("/");
         nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
@@ -153,9 +166,7 @@ function AddTrackedImageModal({
         !usePredefined &&
         formData.githubRepo
       ) {
-        // Extract from manual GitHub repo entry
         const repo = (formData.githubRepo || "").trim();
-        // Handle both "owner/repo" and "https://github.com/owner/repo" formats
         const match = repo.match(
           /(?:github\.com\/)?([^\/]+\/([^\/]+))(?:\/|$)/
         );
@@ -170,7 +181,6 @@ function AddTrackedImageModal({
         usePredefinedDocker &&
         selectedPredefinedImage
       ) {
-        // Extract text after last slash from Docker image
         const image = selectedPredefinedImage.value || selectedPredefinedImage;
         const parts = image.split("/");
         nameToSet = parts.length > 1 ? parts[parts.length - 1] : image;
@@ -179,9 +189,7 @@ function AddTrackedImageModal({
         !usePredefinedDocker &&
         formData.imageName
       ) {
-        // Extract from manual Docker image entry
         const image = (formData.imageName || "").trim();
-        // Remove tag if present (e.g., "image:tag" -> "image")
         const imageWithoutTag = image.split(":")[0];
         const parts = imageWithoutTag.split("/");
         nameToSet =
@@ -189,7 +197,6 @@ function AddTrackedImageModal({
       }
 
       if (nameToSet) {
-        // Capitalize first letter
         const capitalizedName =
           nameToSet.charAt(0).toUpperCase() + nameToSet.slice(1);
         lastAutoPopulatedName.current = capitalizedName;
@@ -212,7 +219,6 @@ function AddTrackedImageModal({
     if (isOpen) {
       setError("");
       if (initialData) {
-        // Edit mode - populate form with existing data
         setFormData({
           name: initialData.name || "",
           imageName: initialData.image_name || "",
@@ -220,23 +226,30 @@ function AddTrackedImageModal({
           currentVersion: initialData.current_version || "",
         });
         setSourceType(initialData.source_type || "github");
-        // For predefined options, we'll need to check if the repo/image matches predefined lists
-        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(initialData.github_repo);
-        const isPredefinedImage = PREDEFINED_DOCKER_IMAGES.some(img => 
-          initialData.image_name && initialData.image_name.split(":")[0] === img
+        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(
+          initialData.github_repo
+        );
+        const isPredefinedImage = PREDEFINED_DOCKER_IMAGES.some(
+          (img) =>
+            initialData.image_name && initialData.image_name.split(":")[0] === img
         );
         setUsePredefined(isPredefinedRepo);
         setUsePredefinedDocker(isPredefinedImage);
         if (isPredefinedRepo) {
-          setSelectedPredefinedRepo({ value: initialData.github_repo, label: initialData.github_repo });
+          setSelectedPredefinedRepo({
+            value: initialData.github_repo,
+            label: initialData.github_repo,
+          });
         }
         if (isPredefinedImage && initialData.image_name) {
           const imageWithoutTag = initialData.image_name.split(":")[0];
-          setSelectedPredefinedImage({ value: imageWithoutTag, label: imageWithoutTag });
+          setSelectedPredefinedImage({
+            value: imageWithoutTag,
+            label: imageWithoutTag,
+          });
         }
         lastAutoPopulatedName.current = initialData.name || "";
       } else {
-        // Add mode - reset form
         setFormData({
           name: "",
           imageName: "",
@@ -278,20 +291,17 @@ function AddTrackedImageModal({
         }
       }
 
-      // Add current version if provided
       if (formData.currentVersion && formData.currentVersion.trim()) {
         payload.current_version = formData.currentVersion.trim();
       }
 
       let response;
       if (initialData) {
-        // Edit mode - use PUT
         response = await axios.put(
           `${API_BASE_URL}/api/tracked-images/${initialData.id}`,
           payload
         );
       } else {
-        // Add mode - use POST
         response = await axios.post(
           `${API_BASE_URL}/api/tracked-images`,
           payload
@@ -299,7 +309,6 @@ function AddTrackedImageModal({
       }
 
       if (response.data.success) {
-        // Reset form
         setFormData({
           name: "",
           imageName: "",
@@ -310,12 +319,19 @@ function AddTrackedImageModal({
         onSuccess();
         onClose();
       } else {
-        setError(response.data.error || (initialData ? "Failed to update tracked item" : "Failed to add tracked item"));
+        setError(
+          response.data.error ||
+            (initialData
+              ? "Failed to update tracked item"
+              : "Failed to add tracked item")
+        );
       }
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          (initialData ? "Failed to update tracked item. Please try again." : "Failed to add tracked item. Please try again.")
+          (initialData
+            ? "Failed to update tracked item. Please try again."
+            : "Failed to add tracked item. Please try again.")
       );
     } finally {
       setLoading(false);
@@ -349,303 +365,277 @@ function AddTrackedImageModal({
     });
   };
 
-  if (!isOpen) return null;
-
-  // Handle overlay mousedown - track if it started on overlay
-  const handleOverlayMouseDown = (e) => {
-    // Only set flag if mousedown is directly on overlay (not a child)
-    if (e.target === e.currentTarget) {
-      mouseDownInsideModal.current = false;
+  // Custom source type options with Docker icon handling
+  const sourceTypeOptions = SOURCE_TYPE_OPTIONS.map((option) => {
+    if (option.value === "docker") {
+      return {
+        ...option,
+        icon: null, // Will render custom icon in JSX
+      };
     }
-  };
-
-  // Handle overlay click - only close if both mousedown and mouseup happened on overlay
-  const handleOverlayClick = (e) => {
-    // Only close if:
-    // 1. The click target is the overlay itself (not a child element)
-    // 2. The mousedown didn't start inside the modal content
-    if (e.target === e.currentTarget && !mouseDownInsideModal.current) {
-      onClose();
-    }
-  };
-
-  // Track mousedown events to detect if user started interaction inside modal
-  const handleModalContentMouseDown = () => {
-    mouseDownInsideModal.current = true;
-  };
+    return option;
+  });
 
   return (
-    <div
-      className="modal-overlay"
-      onMouseDown={handleOverlayMouseDown}
-      onClick={handleOverlayClick}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialData ? "Edit Tracked App" : "Add Tracked App"}
+      size="lg"
     >
-      <div
-        className="modal-content"
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={handleModalContentMouseDown}
-      >
-        <div className="modal-header">
-          <h2>{initialData ? "Edit Tracked App" : "Add Tracked App"}</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label>Source Type *</label>
-            <ToggleButtonGroup
-              options={[
-                {
-                  value: "github",
-                  label: "GitHub Repository",
-                  icon: <GitHubIcon size={18} />,
-                },
-                {
-                  value: "docker",
-                  label: "Docker Image",
-                  icon: (
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.formGroup}>
+          <label className={styles.label}>Source Type</label>
+          <div className={styles.sourceTypeToggle}>
+            {SOURCE_TYPE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`${styles.sourceTypeButton} ${
+                  sourceType === option.value ? styles.active : ""
+                }`}
+                onClick={() => {
+                  if (!loading) {
+                    setSourceType(option.value);
+                    if (option.value === "github") {
+                      setUsePredefined(true);
+                      setSelectedPredefinedImage(null);
+                    } else {
+                      setUsePredefinedDocker(true);
+                      setSelectedPredefinedRepo(null);
+                    }
+                  }
+                }}
+                disabled={loading}
+              >
+                {option.value === "github" && option.icon && (
+                  <span className={styles.icon}>
+                    <Github size={16} />
+                  </span>
+                )}
+                {option.value === "docker" && (
+                  <span className={styles.icon}>
                     <img
                       src="/img/docker-mark-white.svg"
                       alt="Docker"
-                      style={{
-                        width: "18px",
-                        height: "18px",
-                        display: "inline-block",
-                        verticalAlign: "middle",
-                      }}
+                      className={styles.dockerIcon}
                     />
-                  ),
-                },
-              ]}
-              value={sourceType}
-              onChange={(value) => {
-                if (!loading) {
-                  setSourceType(value);
-                  if (value === "github") {
-                    setUsePredefined(true);
-                    setSelectedPredefinedImage(null);
-                  } else {
-                    setUsePredefinedDocker(true);
-                    setSelectedPredefinedRepo(null);
-                  }
-                }
-              }}
-              disabled={loading}
-            />
-          </div>
-
-          {sourceType === "docker" ? (
-            <>
-              <div className="form-group">
-                <label>Image Selection *</label>
-                <ToggleButtonGroup
-                  options={[
-                    { value: "predefined", label: "Predefined" },
-                    { value: "manual", label: "Manual Entry" },
-                  ]}
-                  value={usePredefinedDocker ? "predefined" : "manual"}
-                  onChange={(value) => {
-                    if (!loading) {
-                      const isPredefined = value === "predefined";
-                      setUsePredefinedDocker(isPredefined);
-                      if (isPredefined) {
-                        setFormData({ ...formData, imageName: "" });
-                      } else {
-                        setSelectedPredefinedImage(null);
-                      }
-                    }
-                  }}
-                  disabled={loading}
-                />
-              </div>
-
-              {usePredefinedDocker ? (
-                <div className="form-group">
-                  <label htmlFor="predefinedImage">Select Docker Image *</label>
-                  <Select
-                    id="predefinedImage"
-                    value={selectedPredefinedImage}
-                    onChange={setSelectedPredefinedImage}
-                    options={dockerImageOptions}
-                    placeholder="Select a Docker image..."
-                    isSearchable
-                    isDisabled={loading}
-                    styles={selectStyles}
-                    openMenuOnFocus={true}
-                    classNamePrefix="react-select"
-                    required
-                  />
-                  <small>Choose from predefined Docker images</small>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label htmlFor="imageName">Image Name *</label>
-                  <input
-                    type="text"
-                    id="imageName"
-                    name="imageName"
-                    value={formData.imageName}
-                    onChange={handleChange}
-                    required
-                    placeholder="e.g., homeassistant/home-assistant:latest"
-                    disabled={loading}
-                  />
-                  <small>
-                    Docker image name with optional tag (e.g.,
-                    username/repo:tag)
-                  </small>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="form-group">
-                <label>Repository Selection *</label>
-                <ToggleButtonGroup
-                  options={[
-                    { value: "predefined", label: "Predefined" },
-                    { value: "manual", label: "Manual Entry" },
-                  ]}
-                  value={usePredefined ? "predefined" : "manual"}
-                  onChange={(value) => {
-                    if (!loading) {
-                      const isPredefined = value === "predefined";
-                      setUsePredefined(isPredefined);
-                      if (isPredefined) {
-                        setFormData({ ...formData, githubRepo: "" });
-                      } else {
-                        setSelectedPredefinedRepo(null);
-                      }
-                    }
-                  }}
-                  disabled={loading}
-                />
-              </div>
-
-              {usePredefined ? (
-                <div className="form-group">
-                  <label htmlFor="predefinedRepo">Select Repository *</label>
-                  <Select
-                    id="predefinedRepo"
-                    value={selectedPredefinedRepo}
-                    onChange={setSelectedPredefinedRepo}
-                    options={githubRepoOptions}
-                    placeholder="Select a repository..."
-                    isSearchable
-                    isDisabled={loading}
-                    styles={selectStyles}
-                    openMenuOnFocus={true}
-                    classNamePrefix="react-select"
-                    required
-                  />
-                  <small>Choose from predefined GitHub repositories</small>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label htmlFor="githubRepo">GitHub Repository *</label>
-                  <input
-                    type="text"
-                    id="githubRepo"
-                    name="githubRepo"
-                    value={formData.githubRepo}
-                    onChange={handleChange}
-                    required
-                    placeholder="e.g., home-assistant/core or https://github.com/home-assistant/core"
-                    disabled={loading}
-                  />
-                  <small>
-                    GitHub repository in owner/repo format or full GitHub URL
-                  </small>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="form-group">
-            <label htmlFor="name">Display Name *</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              placeholder="e.g., Home Assistant"
-              disabled={loading}
-            />
-            <small>A friendly name for this tracked item</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="currentVersion">Current Version (Optional)</label>
-            <input
-              type="text"
-              id="currentVersion"
-              name="currentVersion"
-              value={formData.currentVersion}
-              onChange={handleChange}
-              placeholder="e.g., 1.42.2.10156"
-              disabled={loading}
-            />
-            <small>
-              Current installed version (leave empty to auto-detect on first
-              check)
-            </small>
-          </div>
-
-          {error && <div className="error-message">{error}</div>}
-
-          <div className="modal-actions">
-            {initialData && onDelete && (
-              <button
-                type="button"
-                className="update-button danger-button"
-                onClick={handleDelete}
-                disabled={loading}
-                title={loading ? "Deleting..." : "Delete"}
-                style={{
-                  marginRight: "auto",
-                  marginTop: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "8px 16px",
-                }}
-              >
-                {loading ? "Deleting..." : <Trash2 size={16} />}
+                  </span>
+                )}
+                <span>{option.label}</span>
               </button>
-            )}
-            <button
-              type="button"
-              className="modal-button cancel"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button submit"
-              disabled={
-                loading ||
-                !formData.name ||
-                (sourceType === "docker" &&
-                  ((usePredefinedDocker && !selectedPredefinedImage) ||
-                    (!usePredefinedDocker && !formData.imageName))) ||
-                (sourceType === "github" &&
-                  ((usePredefined && !selectedPredefinedRepo) ||
-                    (!usePredefined && !formData.githubRepo)))
-              }
-            >
-              {loading ? (initialData ? "Updating..." : "Adding...") : (initialData ? "Update Tracked App" : "Add Tracked App")}
-            </button>
+            ))}
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        {sourceType === "docker" ? (
+          <>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Image Selection</label>
+              <ToggleButton
+                options={[
+                  { value: "predefined", label: "Predefined" },
+                  { value: "manual", label: "Manual Entry" },
+                ]}
+                value={usePredefinedDocker ? "predefined" : "manual"}
+                onChange={(value) => {
+                  if (!loading) {
+                    const isPredefined = value === "predefined";
+                    setUsePredefinedDocker(isPredefined);
+                    if (isPredefined) {
+                      setFormData({ ...formData, imageName: "", name: "" });
+                    } else {
+                      setSelectedPredefinedImage(null);
+                      setFormData({ ...formData, name: "" });
+                    }
+                    lastAutoPopulatedName.current = "";
+                  }
+                }}
+                className={styles.selectionToggle}
+              />
+            </div>
+
+            {usePredefinedDocker ? (
+              <div className={styles.formGroup}>
+                <label htmlFor="predefinedImage" className={styles.label}>
+                  Select Docker Image
+                </label>
+                <Select
+                  id="predefinedImage"
+                  value={selectedPredefinedImage}
+                  onChange={setSelectedPredefinedImage}
+                  options={dockerImageOptions}
+                  placeholder="Select a Docker image..."
+                  isSearchable
+                  isDisabled={loading}
+                  styles={selectStyles}
+                  openMenuOnFocus={true}
+                  classNamePrefix="react-select"
+                />
+                <small className={styles.helperText}>
+                  Choose from predefined Docker images
+                </small>
+              </div>
+            ) : (
+              <Input
+                label="Image Name"
+                name="imageName"
+                type="text"
+                value={formData.imageName}
+                onChange={handleChange}
+                required={true}
+                placeholder="e.g., homeassistant/home-assistant:latest"
+                disabled={loading}
+                helperText="Docker image name with optional tag (e.g., username/repo:tag)"
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Repository Selection</label>
+              <ToggleButton
+                options={[
+                  { value: "predefined", label: "Predefined" },
+                  { value: "manual", label: "Manual Entry" },
+                ]}
+                value={usePredefined ? "predefined" : "manual"}
+                onChange={(value) => {
+                  if (!loading) {
+                    const isPredefined = value === "predefined";
+                    setUsePredefined(isPredefined);
+                    if (isPredefined) {
+                      setFormData({ ...formData, githubRepo: "", name: "" });
+                    } else {
+                      setSelectedPredefinedRepo(null);
+                      setFormData({ ...formData, name: "" });
+                    }
+                    lastAutoPopulatedName.current = "";
+                  }
+                }}
+                className={styles.selectionToggle}
+              />
+            </div>
+
+            {usePredefined ? (
+              <div className={styles.formGroup}>
+                <label htmlFor="predefinedRepo" className={styles.label}>
+                  Select Repository
+                </label>
+                <Select
+                  id="predefinedRepo"
+                  value={selectedPredefinedRepo}
+                  onChange={setSelectedPredefinedRepo}
+                  options={githubRepoOptions}
+                  placeholder="Select a repository..."
+                  isSearchable
+                  isDisabled={loading}
+                  styles={selectStyles}
+                  openMenuOnFocus={true}
+                  classNamePrefix="react-select"
+                />
+                <small className={styles.helperText}>
+                  Choose from predefined GitHub repositories
+                </small>
+              </div>
+            ) : (
+              <Input
+                label="GitHub Repository"
+                name="githubRepo"
+                type="text"
+                value={formData.githubRepo}
+                onChange={handleChange}
+                required={true}
+                placeholder="e.g., home-assistant/core or https://github.com/home-assistant/core"
+                disabled={loading}
+                helperText="GitHub repository in owner/repo format or full GitHub URL"
+              />
+            )}
+          </>
+        )}
+
+        <Input
+          label="Display Name"
+          name="name"
+          type="text"
+          value={formData.name}
+          onChange={handleChange}
+          required={true}
+          placeholder="e.g., Home Assistant"
+          disabled={loading}
+          helperText="A friendly name for this tracked item"
+        />
+
+        <Input
+          label="Current Version (Optional)"
+          name="currentVersion"
+          type="text"
+          value={formData.currentVersion}
+          onChange={handleChange}
+          placeholder="e.g., 1.42.2.10156"
+          disabled={loading}
+          helperText="Current installed version (leave empty to auto-detect on first check)"
+        />
+
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <div className={styles.actions}>
+          {initialData && onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDelete}
+              disabled={loading}
+              icon={Trash2}
+              className={styles.deleteButton}
+            >
+              {loading ? "Deleting..." : "Delete"}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={
+              loading ||
+              !formData.name ||
+              (sourceType === "docker" &&
+                ((usePredefinedDocker && !selectedPredefinedImage) ||
+                  (!usePredefinedDocker && !formData.imageName))) ||
+              (sourceType === "github" &&
+                ((usePredefined && !selectedPredefinedRepo) ||
+                  (!usePredefined && !formData.githubRepo)))
+            }
+            className={styles.submitButton}
+          >
+            {loading
+              ? initialData
+                ? "Updating..."
+                : "Adding..."
+              : initialData
+              ? "Update Tracked App"
+              : "Add Tracked App"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
+
+AddTrackedImageModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onSuccess: PropTypes.func.isRequired,
+  trackedImages: PropTypes.array,
+  initialData: PropTypes.object,
+  onDelete: PropTypes.func,
+};
 
 export default AddTrackedImageModal;

@@ -1,0 +1,78 @@
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.editButton,
+.deleteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.editButton:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .editButton:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+.deleteButton {
+  border-color: var(--dodger-red);
+  color: var(--dodger-red);
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-red);
+  color: var(--dodger-red);
+}
+
+body.dark-mode .deleteButton {
+  border-color: var(--dodger-red);
+  color: var(--dodger-red);
+}
+
+body.dark-mode .deleteButton:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-red);
+  color: var(--dodger-red);
+}
+
+.editButton:active:not(:disabled),
+.deleteButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.editButton:disabled,
+.deleteButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.icon {
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+
+.label {
+  white-space: nowrap;
+}

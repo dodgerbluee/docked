@@ -1,0 +1,119 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Sizes */
+.sm {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+
+.md {
+  padding: 10px 20px;
+  font-size: 1rem;
+}
+
+.lg {
+  padding: 12px 24px;
+  font-size: 1.125rem;
+}
+
+/* Variants */
+.primary {
+  background: var(--dodger-blue);
+  color: white;
+  border: 1px solid var(--dodger-blue);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 144, 255, 0.3);
+}
+
+.secondary {
+  background: rgba(128, 128, 128, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid var(--text-secondary);
+}
+
+.secondary:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.3);
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.danger {
+  background: var(--dodger-red);
+  color: white;
+  border: 1px solid var(--dodger-red);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--dodger-red-light);
+  border-color: var(--dodger-red-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+}
+
+.outline:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.iconLeft {
+  margin-right: -4px;
+}
+
+.iconRight {
+  margin-left: -4px;
+}
+
+body.dark-mode .primary {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .primary:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
+}
+

@@ -1,0 +1,140 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.sourceTypeToggle {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.sourceTypeButton {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sourceTypeButton:hover:not(:disabled) {
+  border-color: var(--dodger-blue);
+  background: var(--bg-secondary);
+}
+
+.sourceTypeButton.active {
+  border-color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .sourceTypeButton.active {
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.sourceTypeButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dockerIcon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.selectionToggle {
+  width: 100%;
+}
+
+.helperText {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Remove margin-bottom from Input component's formGroup when used in this form */
+.form :global([class*="Input_formGroup"]) {
+  margin-bottom: 0 !important;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.deleteButton {
+  margin-right: auto;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .submitButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
