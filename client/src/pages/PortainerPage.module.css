@@ -1,0 +1,81 @@
+.portainerPage {
+  padding: 0;
+}
+
+.summaryHeader {
+  /* Matches summary-header from App.css */
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.portainerHeader {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.refreshing {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.portainerSidebarLayout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+  margin-top: -8px;
+  align-items: flex-start;
+}
+
+.portainerContentArea {
+  flex: 1;
+  min-width: 0;
+}
+
+.loadingIndicator {
+  margin-bottom: 12px;
+}
+
+.contentTabPanel {
+  margin-top: 20px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .portainerSidebarLayout {
+    flex-direction: column;
+  }
+}
+

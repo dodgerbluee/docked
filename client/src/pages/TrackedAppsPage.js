@@ -101,9 +101,8 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
             variant="outline"
             icon={RefreshCw}
             size="sm"
-            className={checkingUpdates ? styles.refreshing : ''}
           >
-            Check for Updates
+            {checkingUpdates ? 'Checking for Updates...' : 'Check for Updates'}
           </Button>
         </div>
       </div>

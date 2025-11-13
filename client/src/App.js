@@ -35,6 +35,7 @@ import TrackedAppsPage from "./pages/TrackedAppsPage";
 import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
 import BatchPage from "./pages/BatchPage";
+import PortainerPage from "./pages/PortainerPage";
 import Button from "./components/ui/Button";
 import Alert from "./components/ui/Alert";
 import Modal from "./components/ui/Modal";
@@ -4124,139 +4125,6 @@ function App() {
             </div>
           )}
 
-          {/* Portainer Header and Sub-tabs - Show when Portainer tab is active */}
-          {activeTab === "portainer" && (
-            <>
-              <div className="summary-header" style={{ alignItems: "center" }}>
-                <h2>Portainer</h2>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  {contentTab === "updates" && (
-                    <>
-                      {selectedContainers.size > 0 && (
-                        <Button
-                          variant="primary"
-                          onClick={handleBatchUpgrade}
-                          disabled={batchUpgrading}
-                        >
-                          {batchUpgrading
-                            ? `Updating ${selectedContainers.size}...`
-                            : `Update Selected (${selectedContainers.size})`}
-                        </Button>
-                      )}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            aggregatedContainersWithUpdates.filter(
-                              (c) => !isPortainerContainer(c)
-                            ).length > 0 &&
-                            aggregatedContainersWithUpdates
-                              .filter((c) => !isPortainerContainer(c))
-                              .every((c) => selectedContainers.has(c.id))
-                          }
-                          onChange={() =>
-                            handleSelectAll(aggregatedContainersWithUpdates)
-                          }
-                        />
-                        <span style={{ color: "var(--text-primary)" }}>Select All</span>
-                      </label>
-                    </>
-                  )}
-                  {contentTab === "unused" && (
-                    <>
-                      {selectedImages.size > 0 && (
-                        <Button
-                          variant="danger"
-                          onClick={handleDeleteImages}
-                          disabled={deletingImages}
-                        >
-                          {deletingImages
-                            ? `Deleting ${selectedImages.size}...`
-                            : `Delete Selected (${selectedImages.size})`}
-                        </Button>
-                      )}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            portainerUnusedImagesFiltered.length > 0 &&
-                            portainerUnusedImagesFiltered.every((img) => selectedImages.has(img.id))
-                          }
-                          onChange={() => {
-                            const allSelected = portainerUnusedImagesFiltered.every((img) => selectedImages.has(img.id));
-                            if (allSelected) {
-                              setSelectedImages(new Set());
-                            } else {
-                              setSelectedImages(new Set(portainerUnusedImagesFiltered.map((img) => img.id)));
-                            }
-                          }}
-                        />
-                        <span style={{ color: "var(--text-primary)" }}>Select All</span>
-                      </label>
-                    </>
-                  )}
-                  <button
-                    onClick={handlePull}
-                    disabled={pulling || loading || clearing}
-                    title={pulling ? "Checking for updates..." : "Check for updates"}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "6px",
-                      background: "transparent",
-                      border: "1px solid var(--border-color)",
-                      borderRadius: "6px",
-                      cursor:
-                        pulling || loading || clearing ? "not-allowed" : "pointer",
-                      opacity: pulling || loading || clearing ? 0.5 : 1,
-                      transition: "all 0.2s",
-                      color: pulling
-                        ? "var(--text-secondary)"
-                        : "var(--text-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!pulling && !loading && !clearing) {
-                        e.currentTarget.style.borderColor = "var(--dodger-blue)";
-                        e.currentTarget.style.color = "var(--dodger-blue)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!pulling && !loading && !clearing) {
-                        e.currentTarget.style.borderColor = "var(--border-color)";
-                        e.currentTarget.style.color = "var(--text-primary)";
-                      }
-                    }}
-                  >
-                    <RefreshCw
-                      size={18}
-                      style={{
-                        animation: pulling ? "spin 1s linear infinite" : "none",
-                      }}
-                    />
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
 
           {/* Tab Content */}
           <div className="tab-content">
@@ -4459,224 +4327,32 @@ function App() {
                   <>
                     {activeTab === "summary" && renderSummary()}
                     {activeTab === "portainer" && (
-                      <>
-                        {portainerInstances.length > 0 ? (
-                          <div className="portainer-sidebar-layout">
-                            <div className="portainer-sidebar" style={{ marginTop: "20px" }}>
-                                {/* Removed instance list - now using filter below */}
-                                {false && (portainerInstances || [])
-                                  .filter((inst) => inst != null && inst.name)
-                                  .map((instance, index) => (
-                                    <button
-                                      key={instance.name}
-                                      className={`portainer-sidebar-item ${
-                                        portainerSubTab === instance.name ? "active" : ""
-                                      } ${draggedTabIndex === index ? "dragging" : ""}`}
-                                      onClick={() => setPortainerSubTab(instance.name)}
-                                      draggable
-                                      onDragStart={(e) => {
-                                        setDraggedTabIndex(index);
-                                        e.dataTransfer.effectAllowed = "move";
-                                        e.dataTransfer.setData("text/html", index);
-                                      }}
-                                      onDragOver={(e) => {
-                                        e.preventDefault();
-                                        e.dataTransfer.dropEffect = "move";
-                                      }}
-                                      onDrop={(e) => {
-                                        e.preventDefault();
-                                        const draggedIndex = parseInt(
-                                          e.dataTransfer.getData("text/html")
-                                        );
-                                        if (draggedIndex !== index) {
-                                          handleReorderTabs(draggedIndex, index);
-                                        }
-                                        setDraggedTabIndex(null);
-                                      }}
-                                      onDragEnd={() => {
-                                        setDraggedTabIndex(null);
-                                      }}
-                                    >
-                                      <span className="portainer-sidebar-item-name">
-                                        {instance.name}
-                                      </span>
-                                      {instance.withUpdates.length > 0 && (
-                                        <span className="portainer-sidebar-badge">
-                                          {instance.withUpdates.length}
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-                              {/* Views Toolbar */}
-                              <div style={{ 
-                                display: "flex", 
-                                flexDirection: "column",
-                                gap: "8px", 
-                                marginTop: "20px",
-                              }}>
-                                <button
-                                  className={`portainer-sidebar-item ${
-                                    contentTab === "updates" ? "active" : ""
-                                  }`}
-                                  onClick={() => setContentTab("updates")}
-                                  style={{
-                                    padding: "10px 16px",
-                                    fontSize: "0.95rem",
-                                  }}
-                                >
-                                  <span className="portainer-sidebar-item-name">
-                                    Updates
-                                  </span>
-                                </button>
-                                <button
-                                  className={`portainer-sidebar-item ${
-                                    contentTab === "current" ? "active" : ""
-                                  }`}
-                                  onClick={() => setContentTab("current")}
-                                  style={{
-                                    padding: "10px 16px",
-                                    fontSize: "0.95rem",
-                                  }}
-                                >
-                                  <span className="portainer-sidebar-item-name">
-                                    Current
-                                  </span>
-                                </button>
-                                <button
-                                  className={`portainer-sidebar-item ${
-                                    contentTab === "unused" ? "active" : ""
-                                  }`}
-                                  onClick={() => setContentTab("unused")}
-                                  style={{
-                                    padding: "10px 16px",
-                                    fontSize: "0.95rem",
-                                  }}
-                                >
-                                  <span className="portainer-sidebar-item-name">
-                                    Unused
-                                  </span>
-                                </button>
-                              </div>
-                              <div className="portainer-sidebar-header" style={{ marginTop: "30px" }}>
-                                <h3>Filter by Instance</h3>
-                              </div>
-                              <div style={{ padding: "12px" }}>
-                                <div
-                                  style={{
-                                    background: "var(--bg-primary)",
-                                    border: "2px solid var(--border-color)",
-                                    borderRadius: "8px",
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  {(portainerInstances || [])
-                                    .filter((inst) => inst != null && inst.name)
-                                    .map((instance) => (
-                                      <label
-                                        key={instance.name}
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          padding: "10px 12px",
-                                          cursor: "pointer",
-                                          gap: "10px",
-                                          borderBottom: "1px solid var(--border-color)",
-                                          transition: "background-color 0.2s",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.backgroundColor = "transparent";
-                                        }}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedPortainerInstances.has(instance.name)}
-                                          onChange={(e) => {
-                                            setSelectedPortainerInstances((prev) => {
-                                              const next = new Set(prev);
-                                              
-                                              if (e.target.checked) {
-                                                // Add this instance to selection
-                                                next.add(instance.name);
-                                                
-                                                // Check if all instances are now selected
-                                                const allInstances = portainerInstances
-                                                  .filter((inst) => inst != null && inst.name);
-                                                const allSelected = allInstances.length > 0 &&
-                                                  allInstances.every((inst) => next.has(inst.name));
-                                                
-                                                // If all are selected, clear all to show all
-                                                if (allSelected) {
-                                                  return new Set();
-                                                }
-                                                
-                                                return next;
-                                              } else {
-                                                // Remove this instance from selection
-                                                next.delete(instance.name);
-                                                return next;
-                                              }
-                                            });
-                                          }}
-                                          style={{
-                                            cursor: "pointer",
-                                          }}
-                                        />
-                                        <span style={{ color: "var(--text-primary)", flex: 1 }}>
-                                          {instance.name}
-                                        </span>
-                                      </label>
-                                    ))}
-                                </div>
-                                <button
-                                  className="portainer-sidebar-item portainer-sidebar-add"
-                                  onClick={() => {
-                                    setEditingPortainerInstance(null);
-                                    setShowAddPortainerModal(true);
-                                  }}
-                                  title="Add Portainer Instance"
-                                  style={{
-                                    width: "100%",
-                                    marginTop: "30px",
-                                  }}
-                                >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                  </svg>
-                                  <span>Add Instance</span>
-                                </button>
-                              </div>
-                            </div>
-                            <div className="portainer-content-area">
-                              {renderPortainerTab()}
-                            </div>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              textAlign: "center",
-                              padding: "40px",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            <p>
-                              No Portainer instances configured. Add one using the + button in the sidebar.
-                            </p>
-                          </div>
-                        )}
-                      </>
+                      <PortainerPage
+                        portainerInstances={portainerInstances}
+                        containers={containers}
+                        unusedImages={unusedImages}
+                        unusedImagesCount={unusedImagesCount}
+                        containersByPortainer={containersByPortainer}
+                        loadingInstances={loadingInstances}
+                        dockerHubDataPulled={dockerHubDataPulled}
+                        lastPullTime={lastPullTime}
+                        successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
+                        onContainersUpdate={setContainers}
+                        onUnusedImagesUpdate={setUnusedImages}
+                        onUnusedImagesCountUpdate={setUnusedImagesCount}
+                        fetchContainers={fetchContainers}
+                        fetchUnusedImages={fetchUnusedImages}
+                        onAddInstance={() => {
+                          setEditingPortainerInstance(null);
+                          setShowAddPortainerModal(true);
+                        }}
+                        onPullDockerHub={handlePull}
+                        pullingDockerHub={pulling}
+                        selectedPortainerInstances={selectedPortainerInstances}
+                        onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+                        contentTab={contentTab}
+                        onSetContentTab={setContentTab}
+                      />
                     )}
                     {activeTab === "tracked-apps" && renderTrackedApps()}
                   </>

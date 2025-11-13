@@ -31,8 +31,15 @@ export const useNavigationHandlers = ({
       if (onSetSelectedPortainerInstances) {
         onSetSelectedPortainerInstances(new Set());
       }
-      if (onSetContentTab) {
-        onSetContentTab(contentTab);
+      if (onSetContentTab && contentTab) {
+        // Map CONTENT_TABS to PORTAINER_CONTENT_TABS
+        const portainerTabMap = {
+          [CONTENT_TABS.UPDATES]: "updates",
+          [CONTENT_TABS.CURRENT]: "current",
+          [CONTENT_TABS.UNUSED]: "unused",
+        };
+        const portainerTab = portainerTabMap[contentTab] || contentTab;
+        onSetContentTab(portainerTab);
       }
     },
     [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]
@@ -48,7 +55,7 @@ export const useNavigationHandlers = ({
         onSetSelectedPortainerInstances(new Set([instanceName]));
       }
       if (onSetContentTab) {
-        onSetContentTab(CONTENT_TABS.UPDATES);
+        onSetContentTab("updates");
       }
     },
     [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]
@@ -62,6 +69,14 @@ export const useNavigationHandlers = ({
         STAT_TYPE_TO_CONTENT_TAB[statType] ||
         (Object.values(CONTENT_TABS).includes(statType) ? statType : CONTENT_TABS.UPDATES);
 
+      // Map CONTENT_TABS to PORTAINER_CONTENT_TABS
+      const portainerTabMap = {
+        [CONTENT_TABS.UPDATES]: "updates",
+        [CONTENT_TABS.CURRENT]: "current",
+        [CONTENT_TABS.UNUSED]: "unused",
+      };
+      const portainerTab = portainerTabMap[contentTab] || contentTab || "updates";
+
       if (onNavigateToPortainer) {
         onNavigateToPortainer();
       }
@@ -69,7 +84,7 @@ export const useNavigationHandlers = ({
         onSetSelectedPortainerInstances(new Set([instanceName]));
       }
       if (onSetContentTab) {
-        onSetContentTab(contentTab);
+        onSetContentTab(portainerTab);
       }
     },
     [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]

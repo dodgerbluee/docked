@@ -1,0 +1,241 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.viewsToolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.sidebarItem:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  color: var(--text-primary);
+}
+
+body.dark-mode .sidebarItem:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.sidebarItem.active {
+  background: rgba(30, 144, 255, 0.1);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+body.dark-mode .sidebarItem.active {
+  background: rgba(30, 144, 255, 0.15);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+.sidebarItemName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarHeader {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.sidebarHeader h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.filterContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filterBox {
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s;
+}
+
+.filterLabel:hover {
+  background-color: var(--bg-secondary);
+}
+
+.filterLabel:last-child {
+  border-bottom: none;
+}
+
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.checkbox input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+.checkbox::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+}
+
+.checkbox:hover::before {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+body.dark-mode .checkbox:hover::before {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15);
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0;
+  z-index: 2;
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.checkbox:has(input[type="checkbox"]:disabled)::before {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.checkbox:has(input[type="checkbox"]:disabled):hover::before {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
+.filterText {
+  color: var(--text-primary);
+  flex: 1;
+  cursor: pointer;
+}
+
+.addButton {
+  border: 2px dashed var(--border-color) !important;
+  background: var(--bg-secondary) !important;
+  color: var(--text-tertiary) !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 0 !important;
+}
+
+.addButton:hover {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-tertiary) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .addButton:hover {
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
