@@ -6,12 +6,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./Login.css";
-
-// In production, API is served from same origin, so use relative URLs
-// In development, use localhost
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
+import { API_BASE_URL } from "../constants/api";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
