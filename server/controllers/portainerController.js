@@ -193,7 +193,12 @@ async function createInstance(req, res, next) {
     // Resolve URL to IP address for fallback when DNS fails
     let ipAddress = await resolveUrlToIp(url.trim());
     if (ipAddress) {
-      logger.info(`Resolved ${url.trim()} to IP: ${ipAddress}`);
+      logger.debug('Resolved Portainer URL to IP address', {
+        module: 'portainerController',
+        operation: 'createInstance',
+        url: url.trim(),
+        ipAddress: ipAddress,
+      });
       
       // Try to detect the actual backend IP if behind a proxy
       // This is useful when the resolved IP is a proxy (like nginx proxy manager)
@@ -209,15 +214,31 @@ async function createInstance(req, res, next) {
         );
         
         if (backendIp && backendIp !== ipAddress) {
-          logger.info(`Detected backend IP ${backendIp} (proxy was ${ipAddress})`);
+          logger.debug('Detected backend IP behind proxy', {
+            module: 'portainerController',
+            operation: 'createInstance',
+            url: url.trim(),
+            proxyIp: ipAddress,
+            backendIp: backendIp,
+          });
           ipAddress = backendIp; // Use the detected backend IP instead
         }
       } catch (detectError) {
         // Non-fatal - if detection fails, use the proxy IP
-        logger.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+        logger.warn('Backend IP detection failed, using proxy IP', {
+          module: 'portainerController',
+          operation: 'createInstance',
+          url: url.trim(),
+          error: detectError,
+        });
       }
     } else {
-      logger.warn(`Failed to resolve ${url.trim()} to IP address - will use URL only`);
+      logger.warn('Failed to resolve URL to IP address', {
+        module: 'portainerController',
+        operation: 'createInstance',
+        url: url.trim(),
+        note: 'Will use URL only',
+      });
     }
 
     // Create instance
@@ -324,7 +345,12 @@ async function updateInstance(req, res, next) {
     if (url.trim() !== existing.url) {
       let resolvedIp = await resolveUrlToIp(url.trim());
       if (resolvedIp) {
-        logger.info(`Resolved ${url.trim()} to IP: ${resolvedIp}`);
+        logger.debug('Resolved Portainer URL to IP address for update', {
+          module: 'portainerController',
+          operation: 'updateInstance',
+          url: url.trim(),
+          ipAddress: resolvedIp,
+        });
         
         // Try to detect the actual backend IP if behind a proxy
         try {
@@ -338,12 +364,23 @@ async function updateInstance(req, res, next) {
           );
           
           if (backendIp && backendIp !== resolvedIp) {
-            logger.info(`Detected backend IP ${backendIp} (proxy was ${resolvedIp})`);
+            logger.debug('Detected backend IP behind proxy for update', {
+              module: 'portainerController',
+              operation: 'updateInstance',
+              url: url.trim(),
+              proxyIp: resolvedIp,
+              backendIp: backendIp,
+            });
             resolvedIp = backendIp;
           }
         } catch (detectError) {
           // Non-fatal - if detection fails, use the proxy IP
-          logger.warn(`Backend IP detection failed, using proxy IP: ${detectError.message}`);
+          logger.warn('Backend IP detection failed during update, using proxy IP', {
+            module: 'portainerController',
+            operation: 'updateInstance',
+            url: url.trim(),
+            error: detectError,
+          });
         }
         
         ipAddress = resolvedIp;
@@ -455,10 +492,15 @@ async function deleteInstance(req, res, next) {
         // Log for debugging
         const totalContainersAfter = filteredContainers.length;
         const containersWithUpdatesAfter = filteredContainers.filter(c => c.hasUpdate).length;
-        logger.info(
-          `🗑️ Filtering containers: ${totalContainersBefore} -> ${totalContainersAfter} total, ` +
-          `${containersWithUpdatesBefore} -> ${containersWithUpdatesAfter} with updates`
-        );
+        logger.info('Filtering containers from cache after instance deletion', {
+          module: 'portainerController',
+          operation: 'deleteInstance',
+          instanceUrl: deletedInstanceUrl,
+          containersBefore: totalContainersBefore,
+          containersAfter: totalContainersAfter,
+          withUpdatesBefore: containersWithUpdatesBefore,
+          withUpdatesAfter: containersWithUpdatesAfter,
+        });
 
         // Filter out the instance from portainerInstances array using normalized URL comparison
         const filteredInstances = cached.portainerInstances
@@ -491,10 +533,15 @@ async function deleteInstance(req, res, next) {
           const withUpdates = instanceContainers.filter((c) => c.hasUpdate === true);
           const upToDate = instanceContainers.filter((c) => c.hasUpdate !== true);
           
-          logger.info(
-            `📊 Instance ${instance.name}: ${instanceContainers.length} containers, ` +
-            `${withUpdates.length} with updates, ${upToDate.length} up to date`
-          );
+          logger.debug('Recalculated instance stats after filtering', {
+            module: 'portainerController',
+            operation: 'deleteInstance',
+            instanceName: instance.name,
+            instanceUrl: instance.url,
+            totalContainers: instanceContainers.length,
+            withUpdates: withUpdates.length,
+            upToDate: upToDate.length,
+          });
           
           return {
             ...instance,
@@ -521,13 +568,21 @@ async function deleteInstance(req, res, next) {
         };
 
         await setContainerCache('containers', updatedCache);
-        logger.info(
-          `🗑️ Removed containers from cache for deleted instance: ${deletedInstanceUrl}`
-        );
+        logger.info('Removed containers from cache for deleted instance', {
+          module: 'portainerController',
+          operation: 'deleteInstance',
+          instanceUrl: deletedInstanceUrl,
+          containersRemoved: totalContainersBefore - totalContainersAfter,
+        });
       }
     } catch (cacheError) {
       // Log error but don't fail the delete operation
-      logger.error('Error updating container cache after instance deletion:', cacheError);
+      logger.error('Error updating container cache after instance deletion', {
+        module: 'portainerController',
+        operation: 'deleteInstance',
+        instanceUrl: deletedInstanceUrl,
+        error: cacheError,
+      });
     }
 
     res.json({

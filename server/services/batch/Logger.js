@@ -1,66 +1,34 @@
 /**
- * Structured Logger for Batch System
- * Provides consistent, structured logging with timestamps, batch type, and log levels
+ * Batch Logger Wrapper
+ * Wraps the centralized logger for batch system with in-memory log storage
+ * Provides backward compatibility with existing batch system code
  */
 
-// Get log level from environment or default to 'info'
-// This can be overridden by setting LOG_LEVEL env var or via API
-function getLogLevel() {
-  // Check environment variable first
-  if (process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'info') {
-    return process.env.LOG_LEVEL;
-  }
-  // Default to 'info' for production-like behavior
-  return 'info';
-}
-
-// Cache log level (can be updated via API)
-let cachedLogLevel = getLogLevel();
-
-/**
- * Set log level (called from API)
- * @param {string} level - 'info' or 'debug'
- */
-function setLogLevel(level) {
-  if (level === 'info' || level === 'debug') {
-    cachedLogLevel = level;
-  }
-}
-
-/**
- * Get current log level
- * @returns {string} - 'info' or 'debug'
- */
-function getCurrentLogLevel() {
-  return cachedLogLevel;
-}
+const logger = require('../../utils/logger');
+const { runWithContext } = require('../../utils/logger');
 
 class BatchLogger {
-  constructor(jobType = 'system') {
+  constructor(jobType = 'system', jobId = null) {
     this.jobType = jobType;
+    this.jobId = jobId;
     this.logs = [];
+    this.module = 'batch';
   }
 
   /**
-   * Check if a log level should be output
-   * @param {string} level - Log level to check
-   * @returns {boolean} - True if should output
+   * Create a child logger with batch context
+   * @param {Object} metadata - Additional metadata
+   * @returns {Object} - Logger with context
    */
-  shouldLog(level) {
-    const currentLevel = getCurrentLogLevel();
-    
-    // Always log errors and warnings
-    if (level === 'error' || level === 'warn') {
-      return true;
-    }
-    
-    // In debug mode, log everything
-    if (currentLevel === 'debug') {
-      return true;
-    }
-    
-    // In info mode, only log info and above (not debug)
-    return level === 'info';
+  _getLoggerWithContext(metadata = {}) {
+    const context = {
+      module: this.module,
+      service: 'batch',
+      jobType: this.jobType,
+      jobId: this.jobId,
+      ...metadata,
+    };
+    return logger.child(context);
   }
 
   /**
@@ -75,6 +43,7 @@ class BatchLogger {
       timestamp,
       level,
       jobType: this.jobType,
+      jobId: this.jobId,
       message,
       ...metadata,
     };
@@ -82,27 +51,12 @@ class BatchLogger {
     // Store in memory for batch run logs
     this.logs.push(logEntry);
 
-    // Only output to console if log level allows
-    if (!this.shouldLog(level)) {
-      return logEntry;
-    }
-
-    // Output to console with structured format
-    const consoleMessage = `[${timestamp}] [${level.toUpperCase()}] [${this.jobType}] ${message}`;
-    
-    switch (level) {
-      case 'error':
-        console.error(consoleMessage, metadata);
-        break;
-      case 'warn':
-        console.warn(consoleMessage, metadata);
-        break;
-      case 'debug':
-        console.debug(consoleMessage, metadata);
-        break;
-      default:
-        console.log(consoleMessage, metadata);
-    }
+    // Use centralized logger with context
+    const childLogger = this._getLoggerWithContext(metadata);
+    childLogger[level](message, {
+      operation: metadata.operation || 'batch-job',
+      ...metadata,
+    });
 
     return logEntry;
   }
@@ -110,29 +64,36 @@ class BatchLogger {
   /**
    * Log info message
    */
-  info(message, metadata) {
+  info(message, metadata = {}) {
     return this.log('info', message, metadata);
   }
 
   /**
    * Log warning message
    */
-  warn(message, metadata) {
+  warn(message, metadata = {}) {
     return this.log('warn', message, metadata);
   }
 
   /**
    * Log error message
    */
-  error(message, metadata) {
+  error(message, metadata = {}) {
     return this.log('error', message, metadata);
   }
 
   /**
-   * Log debug message (only if DEBUG env var is set)
+   * Log debug message (performance-safe, only evaluates if debug enabled)
    */
-  debug(message, metadata) {
-    return this.log('debug', message, metadata);
+  debug(message, metadataOrFn = {}) {
+    // Support lazy evaluation for performance
+    if (typeof metadataOrFn === 'function') {
+      return this.log('debug', message, () => ({
+        operation: 'batch-job',
+        ...metadataOrFn(),
+      }));
+    }
+    return this.log('debug', message, metadataOrFn);
   }
 
   /**
@@ -143,10 +104,11 @@ class BatchLogger {
     return this.logs
       .map(entry => {
         const metaStr = Object.keys(entry)
-          .filter(key => !['timestamp', 'level', 'jobType', 'message'].includes(key))
+          .filter(key => !['timestamp', 'level', 'jobType', 'jobId', 'message'].includes(key))
           .map(key => `${key}=${JSON.stringify(entry[key])}`)
           .join(' ');
-        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}] ${entry.message}${metaStr ? ' ' + metaStr : ''}`;
+        const jobIdStr = entry.jobId ? ` [job:${entry.jobId}]` : '';
+        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? ' ' + metaStr : ''}`;
       })
       .join('\n');
   }
@@ -167,7 +129,14 @@ class BatchLogger {
   }
 }
 
+// Backward compatibility exports
 module.exports = BatchLogger;
-module.exports.setLogLevel = setLogLevel;
-module.exports.getLogLevel = getCurrentLogLevel;
+// Note: setLogLevel and getLogLevel are now handled by the centralized logger
+// These are kept for backward compatibility but delegate to the centralized logger
+module.exports.setLogLevel = (level) => {
+  logger.updateLevel();
+};
+module.exports.getLogLevel = () => {
+  return logger.isDebugEnabled() ? 'debug' : 'info';
+};
 

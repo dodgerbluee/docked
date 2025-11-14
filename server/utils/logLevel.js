@@ -5,10 +5,19 @@
  */
 
 const { getSetting, setSetting } = require('../db/database');
-const logger = require('./logger');
 
 const LOG_LEVEL_KEY = 'log_level';
 const DEFAULT_LOG_LEVEL = 'info';
+
+// Don't use logger here to avoid circular dependency
+// Use console.error directly for rare error cases
+function logError(message, error) {
+  // Only log to console to avoid circular dependency
+  // These errors are rare and only occur during initialization
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(`[logLevel] ${message}`, error?.message || error);
+  }
+}
 
 /**
  * Get current log level
@@ -19,7 +28,8 @@ async function getLogLevel() {
     const level = await getSetting(LOG_LEVEL_KEY);
     return level || DEFAULT_LOG_LEVEL;
   } catch (err) {
-    logger.error('Error getting log level:', err);
+    // Don't use logger to avoid circular dependency
+    logError('Error getting log level', err);
     return DEFAULT_LOG_LEVEL;
   }
 }
@@ -36,7 +46,8 @@ async function setLogLevel(level) {
   try {
     await setSetting(LOG_LEVEL_KEY, level);
   } catch (err) {
-    logger.error('Error setting log level:', err);
+    // Don't use logger to avoid circular dependency
+    logError('Error setting log level', err);
     throw err;
   }
 }
@@ -85,7 +96,8 @@ async function initializeLogLevel() {
     const level = await getLogLevel();
     updateCachedLogLevel(level);
   } catch (err) {
-    logger.error('Error initializing log level:', err);
+    // Don't use logger to avoid circular dependency
+    logError('Error initializing log level', err);
   }
 }
 

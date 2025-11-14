@@ -113,16 +113,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
               {truncatedDisplayName}
             </span>
           </div>
-          {image.has_update && onToggleSelect && (
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={() => onToggleSelect(image.id)}
-                aria-label={`Select ${image.name} for upgrade`}
-              />
-            </label>
-          )}
         </div>
 
         <div className={styles.repoInfo}>
@@ -165,19 +155,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
                 >
                   <Pencil size={14} className={styles.editIcon} />
                 </Button>
-                {image.has_update && (
-                  <span
-                    className={styles.upgradedCheckmark}
-                    title="Mark Upgraded"
-                    aria-label="Mark Upgraded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpgrade();
-                    }}
-                  >
-                    <Check size={14} />
-                  </span>
-                )}
               </>
             )}
             {(!image.source_type || image.source_type === 'docker') && image.image_name && (

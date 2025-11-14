@@ -12,6 +12,7 @@ const path = require("path");
 const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
+const requestLogger = require("./middleware/requestLogger");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
 
@@ -108,10 +109,15 @@ app.use(cors(config.cors));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Request logging middleware (after body parsing to capture request data)
+app.use(requestLogger);
+
 // Rate limiting - DISABLED for all API endpoints
 // We only rate limit Docker Hub requests, not our own API
 // This prevents 429 errors when deploying to Portainer or other production environments
-logger.info("API rate limiting disabled - only Docker Hub requests are rate limited");
+logger.info("API rate limiting disabled - only Docker Hub requests are rate limited", {
+  module: 'server',
+});
 
 // API Documentation
 app.use(
@@ -146,38 +152,82 @@ const batchSystem = require("./services/batch");
 
 // Start server
 try {
+  logger.info('Server starting', {
+    module: 'server',
+    environment: process.env.NODE_ENV || 'development',
+    port: config.port,
+  });
+
   app.listen(config.port, () => {
-    logger.info(`Server running on port ${config.port}`, {
-      environment: process.env.NODE_ENV || "development",
+    logger.info('Server started successfully', {
+      module: 'server',
+      environment: process.env.NODE_ENV || 'development',
       port: config.port,
+      nodeVersion: process.version,
     });
 
     if (process.env.NODE_ENV === "development") {
-      logger.info(`Portainer URLs: ${config.portainer.urls.join(", ")}`);
-      logger.info(`Portainer Username: ${config.portainer.username}`);
-      logger.info(
-        `Docker Hub authentication: Configure via Settings UI for higher rate limits`
-      );
-      logger.info(`Cache TTL: 24 hours`);
+      logger.debug('Development configuration', {
+        module: 'server',
+        portainerUrls: config.portainer.urls,
+        portainerUsername: config.portainer.username,
+        dockerHubAuthConfigured: 'Configure via Settings UI',
+        cacheTTL: '24 hours',
+      });
     }
 
     // Start batch system (runs jobs in background even when browser is closed)
     batchSystem.start()
       .then(() => {
-        logger.info('Batch system started successfully');
+        logger.info('Batch system started', {
+          module: 'server',
+          service: 'batch',
+        });
       })
       .catch(err => {
-        logger.error('Error starting batch system', { error: err.message, stack: err.stack });
+        logger.error('Failed to start batch system', {
+          module: 'server',
+          service: 'batch',
+          error: err,
+        });
       });
   }).on('error', (err) => {
-    logger.error('Server listen error:', { error: err.message, stack: err.stack, port: config.port });
+    logger.critical('Server listen error', {
+      module: 'server',
+      error: err,
+      port: config.port,
+      code: err.code,
+    });
     if (err.code === 'EADDRINUSE') {
-      logger.error(`Port ${config.port} is already in use`);
+      logger.critical(`Port ${config.port} is already in use`, {
+        module: 'server',
+        port: config.port,
+      });
     }
   });
 } catch (error) {
-  logger.error('Failed to start server:', { error: error.message, stack: error.stack });
+  logger.critical('Failed to start server', {
+    module: 'server',
+    error: error,
+  });
   process.exit(1);
 }
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully', {
+    module: 'server',
+  });
+  batchSystem.stop();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully', {
+    module: 'server',
+  });
+  batchSystem.stop();
+  process.exit(0);
+});
 
 module.exports = app;

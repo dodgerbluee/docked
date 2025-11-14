@@ -14,12 +14,14 @@ const logger = require('../utils/logger');
 function errorHandler(err, req, res, next) {
   // Log error with context
   logger.error('Request error', {
-    error: err.message,
-    stack: err.stack,
+    module: 'errorHandler',
+    error: err,
     method: req.method,
     url: req.url,
+    path: req.path,
     ip: req.ip,
     userId: req.user?.id,
+    requestId: req.requestId,
     statusCode: err.status || err.statusCode || 500,
   });
 
