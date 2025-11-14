@@ -1,10 +1,11 @@
 /**
  * Tracked Image Service
- * Handles update checking for tracked images (Docker and GitHub)
+ * Handles update checking for tracked images (Docker, GitHub, and GitLab)
  */
 
 const dockerRegistryService = require('./dockerRegistryService');
 const githubService = require('./githubService');
+const gitlabService = require('./gitlabService');
 const { updateTrackedImage } = require('../db/database');
 const logger = require('../utils/logger');
 // Lazy load discordService to avoid loading issues during module initialization
@@ -32,6 +33,11 @@ async function checkTrackedImage(trackedImage) {
   // Handle GitHub repositories
   if (sourceType === 'github' && trackedImage.github_repo) {
     return await checkGitHubTrackedImage(trackedImage);
+  }
+  
+  // Handle GitLab repositories
+  if (sourceType === 'gitlab' && trackedImage.github_repo) {
+    return await checkGitLabTrackedImage(trackedImage);
   }
   
   // Handle Docker images (existing logic)
@@ -483,6 +489,240 @@ async function checkAllTrackedImages(trackedImages) {
   }
   
   return results;
+}
+
+/**
+ * Check for updates on a GitLab tracked image
+ * @param {Object} trackedImage - Tracked image object from database
+ * @returns {Promise<Object>} - Update information
+ */
+async function checkGitLabTrackedImage(trackedImage) {
+  const gitlabRepo = trackedImage.github_repo; // Reusing github_repo field for GitLab repos
+  const gitlabToken = trackedImage.gitlab_token || null; // Get token from database
+  
+  let hasUpdate = false;
+  let latestVersion = null;
+  let latestRelease = null;
+  let currentVersionRelease = null;
+  let currentVersionPublishDate = null;
+
+  try {
+    // Get latest release from GitLab - ONLY use this for latest version
+    logger.info(`[TrackedImage] Checking GitLab repo: ${gitlabRepo}${gitlabToken ? ' (with token)' : ''}`);
+    latestRelease = await gitlabService.getLatestRelease(gitlabRepo, gitlabToken);
+    logger.info(`[TrackedImage] GitLab release result:`, latestRelease ? JSON.stringify(latestRelease, null, 2) : 'null');
+    
+    // Set latestVersion if we have a release with a tag_name
+    if (latestRelease && latestRelease.tag_name) {
+      latestVersion = latestRelease.tag_name;
+      logger.info(`[TrackedImage] Extracted latest version from GitLab: ${latestVersion}`);
+      
+      // Compare with current version to determine if update is available
+      // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
+      // This must match the normalization in trackedImageController.js
+      const normalizeVersion = (v) => {
+        if (!v) return '';
+        return String(v).replace(/^v/i, '').trim().toLowerCase();
+      };
+      
+      if (trackedImage.current_version) {
+        const normalizedCurrent = normalizeVersion(trackedImage.current_version);
+        const normalizedLatest = normalizeVersion(latestVersion);
+        // If normalized versions are different and both are valid, there's an update
+        // If they match (after normalization), there's no update
+        if (normalizedCurrent !== '' && normalizedLatest !== '') {
+          hasUpdate = normalizedCurrent !== normalizedLatest;
+          // Debug logging to help diagnose version comparison issues
+          if (normalizedCurrent === normalizedLatest && trackedImage.has_update) {
+            logger.debug(`[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`);
+          }
+        } else {
+          // If we can't normalize one or both versions, default to no update
+          // (we can't reliably determine if there's an update)
+          hasUpdate = false;
+        }
+        
+        // Get publish date for current version
+        // If normalized versions match and we have published_at, use the latest release date
+        if (normalizedCurrent === normalizedLatest && latestRelease.published_at) {
+          currentVersionPublishDate = latestRelease.published_at;
+        } else if (normalizedCurrent !== normalizedLatest) {
+          // Current version is different from latest, fetch its release info
+          // Try both with and without "v" prefix since GitLab tags may vary
+          try {
+            let currentVersionTag = trackedImage.current_version;
+            currentVersionRelease = await gitlabService.getReleaseByTag(gitlabRepo, currentVersionTag, gitlabToken);
+            
+            // If not found and doesn't start with "v", try with "v" prefix
+            if (!currentVersionRelease && !currentVersionTag.startsWith('v')) {
+              currentVersionRelease = await gitlabService.getReleaseByTag(gitlabRepo, `v${currentVersionTag}`, gitlabToken);
+            }
+            // If not found and starts with "v", try without "v" prefix
+            else if (!currentVersionRelease && currentVersionTag.startsWith('v')) {
+              currentVersionRelease = await gitlabService.getReleaseByTag(gitlabRepo, currentVersionTag.substring(1), gitlabToken);
+            }
+            
+            if (currentVersionRelease && currentVersionRelease.published_at) {
+              currentVersionPublishDate = currentVersionRelease.published_at;
+            }
+          } catch (err) {
+            // Non-blocking - if we can't get current version release, continue
+            logger.error(`Error fetching current version release for ${gitlabRepo}:${trackedImage.current_version}:`, err.message);
+          }
+        }
+      } else {
+        // If no current version set, this is the first check - no update yet
+        hasUpdate = false;
+        // Use latest release date as the current version publish date if available
+        if (latestRelease.published_at) {
+          currentVersionPublishDate = latestRelease.published_at;
+        }
+      }
+    } else if (latestRelease && !latestRelease.tag_name) {
+      // Release exists but has no tag_name - log warning
+      logger.warn(`[TrackedImage] GitLab release for ${gitlabRepo} has no tag_name - skipping`);
+      logger.warn(`[TrackedImage] Release data:`, JSON.stringify(latestRelease, null, 2));
+    } else if (!latestRelease) {
+      logger.warn(`[TrackedImage] No GitLab release found for ${gitlabRepo}`);
+    }
+  } catch (error) {
+    // If rate limit exceeded, propagate the error
+    if (error.message && error.message.includes('rate limit')) {
+      throw new Error(error.message);
+    }
+    // For other errors, log and continue (will show no update)
+    logger.error(`Error checking GitLab repo ${gitlabRepo}:`, error.message);
+    latestVersion = null;
+    latestRelease = null;
+  }
+
+  // Update the tracked image in database
+  const updateData = {
+    has_update: hasUpdate ? 1 : 0,
+    last_checked: new Date().toISOString(),
+  };
+
+  // Store latest_version if we have it from the release
+  // Always store it if we have latestVersion and latestRelease, regardless of published_at
+  // This ensures we show the latest version even if publish date is missing
+  if (latestVersion && latestRelease) {
+    const versionStr = String(latestVersion).trim();
+    if (versionStr !== '' && versionStr !== 'null' && versionStr !== 'undefined') {
+      updateData.latest_version = versionStr;
+    }
+  } else if (hasUpdate && trackedImage.latest_version) {
+    // If we have an update but couldn't get latest version, preserve existing latest_version
+    // This prevents clearing the version when there's a known update
+    updateData.latest_version = trackedImage.latest_version;
+  } else if (!hasUpdate && !latestVersion) {
+    // Only clear latest_version if we don't have an update and don't have a latest version
+    // This prevents clearing valid version data when there's no update
+    updateData.latest_version = null;
+  }
+
+  // Update current version if we don't have one yet
+  let currentVersionToStore = trackedImage.current_version;
+  // Normalize versions for comparison (must match normalization in checkGitLabTrackedImage)
+  const normalizeVersionForComparison = (v) => {
+    if (!v) return '';
+    return String(v).replace(/^v/i, '').trim().toLowerCase();
+  };
+  
+  if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
+    currentVersionToStore = latestVersion;
+    updateData.current_version = latestVersion;
+    currentVersionPublishDate = latestRelease.published_at;
+  } else if (currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
+    // If normalized current version matches normalized latest version, use latest release publish date
+    const normalizedCurrent = normalizeVersionForComparison(currentVersionToStore);
+    const normalizedLatest = normalizeVersionForComparison(latestVersion);
+    if (normalizedCurrent === normalizedLatest) {
+      currentVersionPublishDate = latestRelease.published_at;
+    }
+  }
+
+  // Store current version publish date if we have it
+  if (currentVersionPublishDate) {
+    updateData.current_version_publish_date = currentVersionPublishDate;
+  }
+  
+  // Also store latest version publish date if we have it and it's different from current
+  // This ensures we can display the release date for the latest version
+  if (latestRelease && latestRelease.published_at && latestVersion) {
+    // Normalize versions for comparison
+    const normalizedCurrent = normalizeVersionForComparison(currentVersionToStore || '');
+    const normalizedLatest = normalizeVersionForComparison(latestVersion);
+    
+    // If normalized current version doesn't match normalized latest, store latest's publish date separately
+    if (normalizedCurrent !== normalizedLatest) {
+      updateData.latest_version_publish_date = latestRelease.published_at;
+    } else {
+      // If they match, clear latest_version_publish_date since current_version_publish_date covers it
+      updateData.latest_version_publish_date = null;
+    }
+  } else if (hasUpdate && trackedImage.latest_version_publish_date) {
+    // If we have an update but no published_at, preserve existing latest_version_publish_date
+    // This prevents clearing the publish date when there's a known update
+    updateData.latest_version_publish_date = trackedImage.latest_version_publish_date;
+  } else {
+    // Only clear if we don't have an update
+    if (!hasUpdate) {
+      updateData.latest_version_publish_date = null;
+    }
+  }
+
+  await updateTrackedImage(trackedImage.id, updateData);
+
+  // Format display values
+  const displayCurrentVersion = currentVersionToStore 
+    ? String(currentVersionToStore) 
+    : (trackedImage.current_version ? String(trackedImage.current_version) : 'Not checked');
+  
+  // Show latest version if we have it from the release or from database
+  // Always prefer the latestVersion from the release if available
+  const displayLatestVersion = latestVersion
+    ? String(latestVersion)
+    : (trackedImage.latest_version ? String(trackedImage.latest_version) : 'Unknown');
+
+  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  if (hasUpdate && !trackedImage.has_update) {
+    try {
+      const discord = getDiscordService();
+      if (discord && discord.queueNotification) {
+        await discord.queueNotification({
+          id: trackedImage.id,
+          name: trackedImage.name,
+          imageName: null,
+          githubRepo: gitlabRepo,
+          sourceType: 'gitlab',
+          currentVersion: displayCurrentVersion,
+          latestVersion: displayLatestVersion,
+          latestVersionPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
+          releaseUrl: latestRelease?.html_url || null,
+          notificationType: 'tracked-app',
+        });
+      }
+    } catch (error) {
+      // Don't fail the update check if notification fails
+      logger.error('Error sending Discord notification:', error);
+    }
+  }
+
+  return {
+    id: trackedImage.id,
+    name: trackedImage.name,
+    imageName: null,
+    githubRepo: gitlabRepo,
+    sourceType: 'gitlab',
+    currentVersion: displayCurrentVersion,
+    currentDigest: null,
+    latestVersion: displayLatestVersion,
+    latestDigest: null,
+    hasUpdate: Boolean(hasUpdate),
+    latestPublishDate: (latestRelease && latestRelease.published_at) ? latestRelease.published_at : null,
+    currentVersionPublishDate: currentVersionPublishDate,
+    releaseUrl: latestRelease?.html_url || null,
+  };
 }
 
 module.exports = {

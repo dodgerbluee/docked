@@ -61,6 +61,10 @@ body.dark-mode .stackHeader:hover {
   font-weight: 500;
 }
 
+body.dark-mode .stackCount {
+  color: var(--text-primary);
+}
+
 .imagesGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -69,20 +73,37 @@ body.dark-mode .stackHeader:hover {
   box-sizing: border-box;
 }
 
+.imagesGrid > * {
+  min-width: 0;
+  width: 100%;
+}
+
 .imageCard {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
+  border-left: 2px solid var(--dodger-red) !important;
   border-radius: 8px;
   padding: 16px;
-  transition: all 0.2s;
+  transition: transform 0.3s, box-shadow 0.3s;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .imageCard:hover {
-  box-shadow: 0 2px 8px var(--shadow);
-  border-color: var(--dodger-blue);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px var(--shadow);
+  border-left: 2px solid var(--dodger-red) !important;
+  border-color: var(--border-color);
+}
+
+body.dark-mode .imageCard {
+  border-left: 2px solid var(--dodger-red) !important;
+}
+
+body.dark-mode .imageCard:hover {
+  border-left: 2px solid var(--dodger-red) !important;
 }
 
 .cardHeader {

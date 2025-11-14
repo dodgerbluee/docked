@@ -232,6 +232,12 @@ function initializeDatabase() {
               logger.error("Error adding source_type column:", alterErr.message);
             }
           });
+          db.run("ALTER TABLE tracked_images ADD COLUMN gitlab_token TEXT", (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.error("Error adding gitlab_token column:", alterErr.message);
+            }
+          });
           db.run("ALTER TABLE tracked_images ADD COLUMN current_version_publish_date TEXT", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
@@ -1615,14 +1621,15 @@ function getTrackedImageByImageName(imageName = null, githubRepo = null) {
  * @param {string} name - Display name
  * @param {string} imageName - Image name (e.g., 'homeassistant/home-assistant:latest') or null for GitHub
  * @param {string} githubRepo - GitHub repo (e.g., 'home-assistant/core') or null for Docker
- * @param {string} sourceType - 'docker' or 'github'
+ * @param {string} sourceType - 'docker', 'github', or 'gitlab'
+ * @param {string} gitlabToken - GitLab token for authentication (optional)
  * @returns {Promise<number>} - ID of created tracked image
  */
-function createTrackedImage(name, imageName = null, githubRepo = null, sourceType = 'docker') {
+function createTrackedImage(name, imageName = null, githubRepo = null, sourceType = 'docker', gitlabToken = null) {
   return new Promise((resolve, reject) => {
     db.run(
-      "INSERT INTO tracked_images (name, image_name, github_repo, source_type) VALUES (?, ?, ?, ?)",
-      [name, imageName, githubRepo, sourceType],
+      "INSERT INTO tracked_images (name, image_name, github_repo, source_type, gitlab_token) VALUES (?, ?, ?, ?, ?)",
+      [name, imageName, githubRepo, sourceType, gitlabToken],
       function (err) {
         if (err) {
           reject(err);
@@ -1684,6 +1691,10 @@ function updateTrackedImage(id, updateData) {
     if (updateData.latest_version_publish_date !== undefined) {
       fields.push('latest_version_publish_date = ?');
       values.push(updateData.latest_version_publish_date);
+    }
+    if (updateData.gitlab_token !== undefined) {
+      fields.push('gitlab_token = ?');
+      values.push(updateData.gitlab_token);
     }
 
     if (fields.length === 0) {

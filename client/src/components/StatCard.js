@@ -26,15 +26,11 @@ const StatCard = ({
   
   // Add purple border class if specified
   const borderClass = usePurpleBorder ? styles.purpleBorder : null;
-  
-  // Add red border class for UPDATE_AVAILABLE when value > 0
-  const redBorderClass = variant === STAT_CARD_VARIANTS.UPDATE_AVAILABLE && typeof value === 'number' && value > 0 ? styles.redBorder : null;
 
   const cardClasses = [
     styles.statCard,
     variantClass,
     borderClass,
-    redBorderClass,
     clickable && styles.clickable,
     className,
   ]
@@ -43,9 +39,19 @@ const StatCard = ({
 
   // Determine value color based on variant and value
   const getValueClassName = () => {
+    if (variant === STAT_CARD_VARIANTS.UPDATE_AVAILABLE) {
+      return styles.statValue;
+    }
     // "Up to Date" (CURRENT) uses default text color (white in dark mode)
-    // "Updates Available" uses default text color (white in dark mode)
     return styles.statValue;
+  };
+
+  // Determine label color based on variant
+  const getLabelClassName = () => {
+    if (variant === STAT_CARD_VARIANTS.UPDATE_AVAILABLE) {
+      return styles.statLabel;
+    }
+    return styles.statLabel;
   };
 
   return (
@@ -66,7 +72,7 @@ const StatCard = ({
       }
     >
       <div className={getValueClassName()}>{value}</div>
-      <div className={styles.statLabel}>{label}</div>
+      <div className={getLabelClassName()}>{label}</div>
     </div>
   );
 };
