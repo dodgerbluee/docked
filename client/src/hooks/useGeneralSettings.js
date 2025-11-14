@@ -99,21 +99,29 @@ export function useGeneralSettings({
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
     try {
-      if (onColorSchemeChange) {
-        onColorSchemeChange(localColorScheme);
-      }
+      // Save color scheme to DB
+      const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
+        colorScheme: localColorScheme,
+      });
 
-      const response = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
+      // Save log level to DB
+      const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
         logLevel: localLogLevel,
       });
 
-      if (response.data.success) {
+      if (colorSchemeResponse.data.success && logLevelResponse.data.success) {
+        if (onColorSchemeChange) {
+          onColorSchemeChange(localColorScheme);
+        }
         setLogLevel(localLogLevel);
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
+      } else {
+        throw new Error("Failed to save one or more settings");
       }
     } catch (err) {
       console.error("Error saving general settings:", err);
+      setGeneralSettingsSuccess("");
     } finally {
       setGeneralSettingsSaving(false);
     }

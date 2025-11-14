@@ -23,6 +23,7 @@ const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedImageController = require("../controllers/trackedImageController");
 const discordController = require("../controllers/discordController");
+const settingsController = require("../controllers/settingsController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -243,5 +244,9 @@ router.post("/discord/webhooks/:id/test", asyncHandler(discordController.testDis
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
+
+// Settings routes
+router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
+router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
 
 module.exports = router;

@@ -20,11 +20,6 @@ body.dark-mode .instanceCard:focus-visible {
 .instanceCard:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px var(--shadow);
-  border-color: var(--dodger-blue);
-}
-
-body.dark-mode .instanceCard:hover {
-  border-color: var(--dodger-blue-light);
 }
 
 .instanceHeader {
@@ -101,15 +96,19 @@ body.dark-mode .statNumberTotal {
 }
 
 .statNumberUpdate {
-  color: var(--dodger-red);
+  color: rgba(0, 90, 156, 1);
+}
+
+body.dark-mode .statNumberUpdate {
+  color: rgba(30, 136, 229, 1);
 }
 
 .statNumberCurrent {
-  color: var(--dodger-blue);
+  color: var(--text-primary);
 }
 
 body.dark-mode .statNumberCurrent {
-  color: var(--dodger-blue-light);
+  color: #ffffff;
 }
 
 .statNumberUnused {

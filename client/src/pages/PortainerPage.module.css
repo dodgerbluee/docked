@@ -51,6 +51,18 @@ body.dark-mode .checkmark {
   gap: 12px;
 }
 
+.deleteButtonHover:hover:not(:disabled) {
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+  background-color: rgba(239, 62, 66, 0.1) !important;
+}
+
+body.dark-mode .deleteButtonHover:hover:not(:disabled) {
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+  background-color: rgba(239, 62, 66, 0.15) !important;
+}
+
 .portainerHeader {
   color: var(--text-primary);
   margin: 0;

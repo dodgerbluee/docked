@@ -75,6 +75,16 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.UNUSED]}
           </span>
         </button>
+        <button
+          className={`${styles.sidebarItem} ${
+            contentTab === PORTAINER_CONTENT_TABS.ALL ? styles.active : ""
+          }`}
+          onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.ALL)}
+        >
+          <span className={styles.sidebarItemName}>
+            {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.ALL]}
+          </span>
+        </button>
       </div>
 
       {/* Instance Filter */}

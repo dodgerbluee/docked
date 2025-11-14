@@ -1,0 +1,116 @@
+/* Header Component Styles */
+
+.header {
+  color: var(--text-primary);
+  margin-bottom: 30px;
+  padding: 15px 20px;
+  background: var(--header-bg);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.logoContainer {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.logoContainer:hover {
+  opacity: 0.8;
+}
+
+.logoContainer:active {
+  opacity: 1;
+}
+
+.logo {
+  font-size: 2.5rem;
+  margin: 0 0 5px 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  color: white;
+  text-align: left;
+}
+
+.logoImage {
+  height: 2em;
+  vertical-align: middle;
+  margin-right: 8px;
+  display: inline-block;
+}
+
+.logoText {
+  display: inline-block;
+  transform: translateY(3px);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+}
+
+.actionsContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notificationWrapper {
+  position: relative;
+  margin-right: 18px;
+}
+
+.notificationButton {
+  padding: 0;
+  background: transparent;
+  color: white;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  position: relative;
+}
+
+.notificationButton:hover {
+  transform: translateY(-2px);
+}
+
+.notificationIcon {
+  display: block;
+  transform: translateY(0.5px);
+}
+
+.notificationBadge {
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  background: var(--dodger-blue);
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: bold;
+  border: none;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 90, 156, 0.4);
+}
+
