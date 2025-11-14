@@ -19,6 +19,32 @@
   gap: 12px;
 }
 
+.buttonContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkmark {
+  color: var(--dodger-blue);
+  animation: checkmarkFadeIn 0.3s ease-out;
+}
+
+body.dark-mode .checkmark {
+  color: var(--dodger-blue-light);
+}
+
+@keyframes checkmarkFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .toolbarActions {
   display: flex;
   align-items: center;
@@ -31,6 +57,57 @@
   font-size: 1.8rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.alertContainer {
+  margin: 0;
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.alert {
+  margin-bottom: 0;
+}
+
+.pullStatusContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pullSpinner {
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pullSpinner svg {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .pullSpinner svg {
+  color: var(--dodger-blue-light);
+}
+
+.pullStatusText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.pullStatusText strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pullStatusText span {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .refreshing {

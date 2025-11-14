@@ -180,6 +180,8 @@ function App() {
   const [stacks, setStacks] = useState([]);
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually fetching
   const [error, setError] = useState(null);
+  const [pullSuccess, setPullSuccess] = useState(null);
+  const [pullError, setPullError] = useState(null);
   const [portainerInstancesFromAPI, setPortainerInstancesFromAPI] = useState(
     []
   );
@@ -1621,9 +1623,12 @@ function App() {
   }, [fetchTrackedImages]);
 
   const handlePull = async () => {
+    let hadError = false;
     try {
       setPulling(true);
       setError(null); // Clear any previous errors
+      setPullError(null); // Clear any previous pull errors
+      setPullSuccess(null); // Clear any previous pull success messages
       // Don't set loading to true - show existing data while pulling
       console.log("🔄 Pulling fresh data from Docker Hub...");
 
@@ -1730,6 +1735,7 @@ function App() {
 
       setError(null);
       setDataFetched(true);
+      setPullError(null);
 
       // Fetch unused images
       await fetchUnusedImages();
@@ -1752,7 +1758,10 @@ function App() {
           rateLimitMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
         }
         
+        hadError = true;
         setError(rateLimitMessage);
+        setPullError(rateLimitMessage);
+        setPullSuccess(null);
         console.error("❌ Docker Hub rate limit exceeded:", rateLimitMessage);
       } else {
         const errorMessage =
@@ -1760,7 +1769,10 @@ function App() {
           err.response?.data?.message ||
           err.message ||
           "Failed to pull container data";
+        hadError = true;
         setError(errorMessage);
+        setPullError(errorMessage);
+        setPullSuccess(null);
         console.error("Error pulling containers:", err);
         if (process.env.NODE_ENV === "development") {
           console.error("Error details:", {
@@ -1772,6 +1784,13 @@ function App() {
       }
     } finally {
       setPulling(false);
+      // Set success after pulling is complete to trigger checkmark
+      // Only set if there was no error
+      if (!hadError) {
+        setPullSuccess("success");
+        // Clear success after checkmark timeout (3 seconds) plus buffer
+        setTimeout(() => setPullSuccess(null), 4000);
+      }
     }
   };
 
@@ -4068,13 +4087,7 @@ function App() {
           </div>
         </header>
 
-        <div
-          className="container"
-          style={{
-            marginTop: pulling ? "70px" : "0",
-            transition: "margin-top 0.3s ease-out",
-          }}
-        >
+        <div className="container">
           {/* Tabs - Show for all tabs except old settings page and configuration */}
           {activeTab !== "settings" && activeTab !== "configuration" && (
             <div className="tabs-container">
@@ -4194,30 +4207,6 @@ function App() {
               />
             ) : (
               <>
-                {pulling && (
-                  <div className="pull-status-banner">
-                    <div className="pull-status-content">
-                      <div className="pull-spinner">
-                        <svg
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                        </svg>
-                      </div>
-                      <div className="pull-status-text">
-                        <strong>Pulling fresh data from Docker Hub...</strong>
-                        <span>This may take a few moments</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {loading && containers.length === 0 && !pulling && (
                   <div className="loading">Loading containers...</div>
                 )}
@@ -4348,6 +4337,8 @@ function App() {
                         }}
                         onPullDockerHub={handlePull}
                         pullingDockerHub={pulling}
+                        pullError={pullError}
+                        pullSuccess={pullSuccess}
                         selectedPortainerInstances={selectedPortainerInstances}
                         onSetSelectedPortainerInstances={setSelectedPortainerInstances}
                         contentTab={contentTab}

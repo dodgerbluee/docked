@@ -3,9 +3,9 @@
  * Main page component for the Tracked Apps view
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Check } from 'lucide-react';
 import { useTrackedApps } from '../hooks/useTrackedApps';
 import TrackedAppCard from '../components/TrackedAppCard';
 import AddTrackedImageModal from '../components/AddTrackedImageModal';
@@ -39,6 +39,38 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     confirmDialog,
     setConfirmDialog,
   } = useTrackedApps();
+
+  const [showCheckmark, setShowCheckmark] = useState(false);
+  const [selectedApps, setSelectedApps] = useState(new Set());
+
+  const handleToggleSelect = (appId) => {
+    setSelectedApps((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(appId)) {
+        newSet.delete(appId);
+      } else {
+        newSet.add(appId);
+      }
+      return newSet;
+    });
+  };
+
+  // Show checkmark when check completes successfully
+  useEffect(() => {
+    if (trackedImageSuccess && !checkingUpdates) {
+      setShowCheckmark(true);
+      // Hide checkmark after 3 seconds
+      const timer = setTimeout(() => setShowCheckmark(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [trackedImageSuccess, checkingUpdates]);
+
+  // Hide checkmark when checking starts
+  useEffect(() => {
+    if (checkingUpdates) {
+      setShowCheckmark(false);
+    }
+  }, [checkingUpdates]);
 
   // Memoize filtered arrays to prevent unnecessary recalculations
   const appsWithUpdates = useMemo(
@@ -94,25 +126,27 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
           <h2 className={styles.summaryHeaderTitle}>Tracked Apps</h2>
-          <Button
-            onClick={handleCheckTrackedImagesUpdates}
-            disabled={checkingUpdates || trackedImages.length === 0}
-            title={checkingUpdates ? 'Checking for updates...' : 'Check for updates'}
-            variant="outline"
-            icon={RefreshCw}
-            size="sm"
-          >
-            {checkingUpdates ? 'Checking for Updates...' : 'Check for Updates'}
-          </Button>
+          <div className={styles.buttonContainer}>
+            <Button
+              onClick={handleCheckTrackedImagesUpdates}
+              disabled={checkingUpdates || trackedImages.length === 0}
+              title={checkingUpdates ? 'Checking for updates...' : 'Check for updates'}
+              variant="outline"
+              icon={RefreshCw}
+              size="sm"
+            >
+              {checkingUpdates ? 'Checking for Updates...' : 'Check for Updates'}
+            </Button>
+            {showCheckmark && (
+              <Check className={styles.checkmark} size={20} />
+            )}
+          </div>
         </div>
       </div>
 
       <div className={styles.contentTabPanel}>
         {trackedImageError && (
           <div className={styles.errorMessage}>{trackedImageError}</div>
-        )}
-        {trackedImageSuccess && (
-          <div className={styles.successMessage}>{trackedImageSuccess}</div>
         )}
 
         {trackedImages.length > 0 ? (
@@ -128,6 +162,8 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                       image={image}
                       onEdit={handleEditTrackedImage}
                       onUpgrade={handleUpgrade}
+                      selected={selectedApps.has(image.id)}
+                      onToggleSelect={handleToggleSelect}
                     />
                   ))}
                 </div>

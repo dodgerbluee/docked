@@ -5,7 +5,7 @@
 
 import React, { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Pencil, ArrowUp } from 'lucide-react';
+import { Pencil, Check } from 'lucide-react';
 import { getDockerHubRepoUrl } from '../utils/formatters';
 import GitHubIcon from './icons/GitHubIcon';
 import Button from './ui/Button';
@@ -16,8 +16,10 @@ import styles from './TrackedAppCard.module.css';
  * @param {Object} image - Tracked image data
  * @param {Function} onEdit - Handler for edit action
  * @param {Function} onUpgrade - Handler for upgrade action
+ * @param {boolean} selected - Whether the card is selected
+ * @param {Function} onToggleSelect - Handler for toggling selection
  */
-const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade }) {
+const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade, selected = false, onToggleSelect }) {
   // Memoize computed values
   const hasNoLatestVersion = useMemo(
     () =>
@@ -27,13 +29,41 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
     [image.latest_version]
   );
 
-  const borderStyle = useMemo(
-    () =>
-      hasNoLatestVersion
-        ? '2px solid var(--text-secondary)'
-        : '1px solid var(--border-color)',
-    [hasNoLatestVersion]
-  );
+  // Truncate display name to 18 characters
+  const truncateDisplayName = (name) => {
+    if (!name) return name;
+    if (name.length <= 18) return name;
+    return name.substring(0, 18) + "...";
+  };
+
+  const truncatedDisplayName = truncateDisplayName(image.name);
+
+  // Truncate version to 25 characters (no ellipsis)
+  const truncateVersion = (version) => {
+    if (!version) return version;
+    if (version.length <= 30) return version;
+    return version.substring(0, 30);
+  };
+
+  const truncatedLatestVersion = image.latest_version && image.has_update 
+    ? truncateVersion(image.latest_version) 
+    : null;
+  const truncatedCurrentVersion = truncateVersion(image.current_version || 'Not set');
+
+  // Construct GitHub release URL for a version
+  const getVersionReleaseUrl = (version) => {
+    if (!version || version === 'Not set' || !image.github_repo) return null;
+    // Use releaseUrl if available (for latest version), otherwise construct it
+    if (version === image.latest_version && image.releaseUrl) {
+      return image.releaseUrl;
+    }
+    // Construct URL: https://github.com/{owner}/{repo}/releases/tag/{version}
+    const repoUrl = image.github_repo.startsWith('http')
+      ? image.github_repo
+      : `https://github.com/${image.github_repo}`;
+    return `${repoUrl}/releases/tag/${version}`;
+  };
+
 
   const publishDate = useMemo(() => {
     if (image.source_type === 'github') {
@@ -59,20 +89,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
   ]);
 
   // Memoize event handlers
-  const handleGitHubClick = useCallback(() => {
-    const repoUrl = image.github_repo.startsWith('http')
-      ? image.github_repo
-      : `https://github.com/${image.github_repo}`;
-    window.open(repoUrl, '_blank', 'noopener,noreferrer');
-  }, [image.github_repo]);
-
-  const handleDockerHubClick = useCallback(() => {
-    const dockerHubUrl = getDockerHubRepoUrl(image.image_name);
-    if (dockerHubUrl) {
-      window.open(dockerHubUrl, '_blank', 'noopener,noreferrer');
-    }
-  }, [image.image_name]);
-
   const handleEdit = useCallback(() => {
     onEdit(image);
   }, [image, onEdit]);
@@ -85,36 +101,120 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
     <div
       className={`${styles.card} ${
         hasNoLatestVersion && !image.has_update ? styles.unknownBorder : ''
-      }`}
-      style={{ border: borderStyle }}
+      } ${image.has_update ? styles.updateAvailable : styles.noUpdate}`}
     >
       <div className={styles.content}>
         <div className={styles.header}>
           <div className={styles.titleRow}>
-            {image.current_version &&
-              image.latest_version &&
-              image.current_version === image.latest_version && (
-                <span className={styles.statusBadge} data-status="up-to-date">
-                  ✓
-                </span>
-              )}
-            {image.has_update && (
-              <span
-                className={styles.statusBadge}
-                data-status="update-available"
-                title="Update Available"
-              >
-                  !
-                </span>
-            )}
-            <span className={styles.name}>{image.name}</span>
+            <span 
+              className={styles.name}
+              title={image.name}
+            >
+              {truncatedDisplayName}
+            </span>
           </div>
+          {image.has_update && onToggleSelect && (
+            <label className={styles.checkbox}>
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect(image.id)}
+                aria-label={`Select ${image.name} for upgrade`}
+              />
+            </label>
+          )}
         </div>
 
         <div className={styles.repoInfo}>
-          <span className={styles.repoName}>
-            {image.github_repo || image.image_name}
-          </span>
+          {image.source_type === 'github' && image.github_repo ? (
+            <a
+              href={image.github_repo.startsWith('http') ? image.github_repo : `https://github.com/${image.github_repo}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.repoName}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {image.github_repo}
+            </a>
+          ) : (
+            <span className={styles.repoName}>
+              {image.github_repo || image.image_name}
+            </span>
+          )}
+          <div className={styles.iconGroup}>
+            {image.source_type === 'github' && image.github_repo && (
+              <>
+                <a
+                  href={image.github_repo.startsWith('http') ? image.github_repo : `https://github.com/${image.github_repo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.githubIconLink}
+                  title="Open GitHub repository"
+                  aria-label="Open GitHub repository"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GitHubIcon size={14} />
+                </a>
+                <Button
+                  onClick={handleEdit}
+                  variant="outline"
+                  size="sm"
+                  title="Edit"
+                  aria-label="Edit"
+                  className={styles.editButton}
+                >
+                  <Pencil size={14} className={styles.editIcon} />
+                </Button>
+                {image.has_update && (
+                  <span
+                    className={styles.upgradedCheckmark}
+                    title="Mark Upgraded"
+                    aria-label="Mark Upgraded"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpgrade();
+                    }}
+                  >
+                    <Check size={14} />
+                  </span>
+                )}
+              </>
+            )}
+            {(!image.source_type || image.source_type === 'docker') && image.image_name && (
+              <>
+                <a
+                  href={getDockerHubRepoUrl(image.image_name) || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.dockerIconLink}
+                  title="Open Docker Hub repository"
+                  aria-label="Open Docker Hub repository"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!getDockerHubRepoUrl(image.image_name)) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <img
+                    src="/img/docker-mark-white.svg"
+                    alt="Docker"
+                    className={styles.dockerIconSmall}
+                  />
+                </a>
+                <Button
+                  onClick={handleEdit}
+                  variant="outline"
+                  size="sm"
+                  title="Edit"
+                  aria-label="Edit"
+                  className={styles.editButton}
+                >
+                  <Pencil size={14} className={styles.editIcon} />
+                </Button>
+              </>
+            )}
+          </div>
           {image.releaseUrl && (
             <a
               href={image.releaseUrl}
@@ -128,79 +228,56 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
         </div>
 
         <div className={styles.versionInfo}>
-          <div>Current: {image.current_version || 'Not set'}</div>
-          {image.latest_version && image.has_update && (
-            <div className={styles.latestVersion}>
-              Latest: {image.latest_version}
-            </div>
+          {truncatedLatestVersion && (
+            <p className={styles.metaItem}>
+              <strong>Latest:</strong>{' '}
+              {image.source_type === 'github' && getVersionReleaseUrl(image.latest_version) ? (
+                <a
+                  href={getVersionReleaseUrl(image.latest_version)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.versionLink}
+                  title={image.latest_version}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {truncatedLatestVersion}
+                </a>
+              ) : (
+                <span title={image.latest_version}>{truncatedLatestVersion}</span>
+              )}
+            </p>
           )}
+          <p className={styles.metaItem}>
+            <strong>Current:</strong>{' '}
+            {image.source_type === 'github' && getVersionReleaseUrl(image.current_version) ? (
+              <a
+                href={getVersionReleaseUrl(image.current_version)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.versionLink}
+                title={image.current_version || 'Not set'}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {truncatedCurrentVersion}
+              </a>
+            ) : (
+              <span title={image.current_version || 'Not set'}>{truncatedCurrentVersion}</span>
+            )}
+          </p>
           {publishDate ? (
-            <div>Released: {new Date(publishDate).toLocaleDateString()}</div>
+            <p className={styles.metaItem}>
+              <strong>Released:</strong> {new Date(publishDate).toLocaleDateString()}
+            </p>
           ) : image.source_type === 'github' &&
             (image.current_version || image.latest_version) ? (
-            <div className={styles.unavailable}>Released: Not available</div>
+            <p className={styles.metaItem}>
+              <strong>Released:</strong> <span className={styles.unavailable}>Not available</span>
+            </p>
           ) : null}
         </div>
       </div>
 
       <div className={styles.actions}>
-        <Button
-          onClick={handleEdit}
-          variant="outline"
-          size="sm"
-          title="Edit"
-          aria-label="Edit"
-        >
-          <Pencil size={21} />
-        </Button>
-
-        {image.source_type === 'github' && image.github_repo && (
-          <Button
-            onClick={handleGitHubClick}
-            variant="outline"
-            size="sm"
-            title="Open GitHub repository"
-            aria-label="Open GitHub repository"
-          >
-            <GitHubIcon size={16} />
-            <span style={{ marginLeft: '4px' }}>GitHub</span>
-          </Button>
-        )}
-
-        {(!image.source_type || image.source_type === 'docker') &&
-          image.image_name && (
-            <Button
-              onClick={handleDockerHubClick}
-              variant="outline"
-              size="sm"
-              title="Open Docker Hub repository"
-              aria-label="Open Docker Hub repository"
-            >
-              <img
-                src="/img/docker-mark-white.svg"
-                alt="Docker"
-                className={styles.dockerIcon}
-              />
-              <span style={{ marginLeft: '4px' }}>Docker Hub</span>
-            </Button>
-          )}
-
-        {image.latest_version &&
-          (image.has_update ||
-            !image.current_version ||
-            image.current_version !== image.latest_version) && (
-            <Button
-              onClick={handleUpgrade}
-              variant="outline"
-              size="sm"
-              icon={ArrowUp}
-              iconPosition="left"
-              title="Update to latest version"
-              aria-label="Update to latest version"
-            >
-              Updated
-            </Button>
-          )}
       </div>
     </div>
   );
@@ -222,6 +299,8 @@ TrackedAppCard.propTypes = {
   }).isRequired,
   onEdit: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  selected: PropTypes.bool,
+  onToggleSelect: PropTypes.func,
 };
 
 export default TrackedAppCard;
