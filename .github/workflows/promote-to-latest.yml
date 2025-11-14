@@ -162,6 +162,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
             ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          build-args: |
+            NODE_ENV=production
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
