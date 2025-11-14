@@ -11,11 +11,26 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: all 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px var(--shadow);
 }
 
 .unknownBorder {
   border: 2px solid var(--text-secondary);
 }
+
+.updateAvailable {
+  border-left: 4px solid var(--dodger-red);
+}
+
+.updateAvailable:hover {
+  border-color: var(--border-color);
+  border-left: 4px solid var(--dodger-red);
+}
+
 
 .content {
   flex: 1;
@@ -27,15 +42,16 @@
   margin-bottom: 8px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: space-between;
+  position: relative;
 }
 
 .titleRow {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -63,6 +79,10 @@
 
 .name {
   font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .updateLabel {
@@ -73,18 +93,119 @@
 }
 
 .repoInfo {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-  margin-bottom: 8px;
+  margin: 0;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
+.iconGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .repoName {
-  word-break: break-word;
   font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  word-break: break-word;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.repoName:hover {
+  color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .repoName:hover {
+  color: var(--dodger-blue-light);
+}
+
+.githubIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.githubIconLink:hover {
+  color: var(--dodger-blue);
+  transform: scale(1.1);
+}
+
+body.dark-mode .githubIconLink:hover {
+  color: var(--dodger-blue-light);
+}
+
+.upgradedCheckmark {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upgradedCheckmark:hover {
+  color: var(--dodger-blue);
+  transform: scale(1.1);
+}
+
+body.dark-mode .upgradedCheckmark {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .upgradedCheckmark:hover {
+  color: var(--dodger-blue-light);
+}
+
+.dockerIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.dockerIconLink:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.dockerIconSmall {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
 }
 
 .releaseLink {
@@ -98,15 +219,53 @@
 }
 
 .versionInfo {
-  font-size: 0.9rem;
-  color: var(--text-tertiary);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 
-.latestVersion {
+.metaItem {
+  margin: 0 0 6px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.metaItem:last-of-type {
+  margin-bottom: 0;
+}
+
+.versionLink {
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.versionLink:hover {
   color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .versionLink:hover {
+  color: var(--dodger-blue-light);
+}
+
+.metaItem span[title] {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .unavailable {
@@ -162,5 +321,128 @@
   width: 16px;
   height: 16px;
   display: inline-block;
+}
+
+.editButton {
+  border-color: transparent !important;
+  background: transparent !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.editButton:hover {
+  background: var(--bg-tertiary) !important;
+  border-color: transparent !important;
+  transform: scale(1.1);
+}
+
+.editIcon {
+  color: var(--text-secondary);
+  opacity: 1;
+  transition: color 0.2s;
+  width: 14px;
+  height: 14px;
+}
+
+.editButton:hover .editIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .editButton:hover .editIcon {
+  color: var(--dodger-blue-light);
+}
+
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.checkbox input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+.checkbox::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+}
+
+.checkbox:hover::before {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+body.dark-mode .checkbox:hover::before {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15);
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0;
+  z-index: 2;
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
+  border-color: var(--dodger-blue-light);
 }
 

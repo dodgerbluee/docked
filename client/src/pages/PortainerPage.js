@@ -1,11 +1,12 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Check } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import Alert from "../components/ui/Alert";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
@@ -35,6 +36,8 @@ function PortainerPage({
   onAddInstance,
   onPullDockerHub,
   pullingDockerHub = false,
+  pullError = null,
+  pullSuccess = null,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
   selectedPortainerInstances: controlledSelectedPortainerInstances,
@@ -42,6 +45,38 @@ function PortainerPage({
   contentTab: controlledContentTab,
   onSetContentTab,
 }) {
+  const [localPullError, setLocalPullError] = useState("");
+  const [showCheckmark, setShowCheckmark] = useState(false);
+
+  // Show checkmark when pull completes successfully
+  useEffect(() => {
+    // Only show checkmark when we have success and we're not currently pulling
+    if (pullSuccess && !pullingDockerHub) {
+      setShowCheckmark(true);
+      // Hide checkmark after 3 seconds
+      const timer = setTimeout(() => {
+        setShowCheckmark(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else if (pullingDockerHub) {
+      // Hide checkmark when pulling starts
+      setShowCheckmark(false);
+    }
+  }, [pullSuccess, pullingDockerHub]);
+
+  // Hide checkmark when checking starts
+  useEffect(() => {
+    if (pullingDockerHub) {
+      setShowCheckmark(false);
+    }
+  }, [pullingDockerHub]);
+
+  useEffect(() => {
+    if (pullError) {
+      setLocalPullError(pullError);
+      setShowCheckmark(false);
+    }
+  }, [pullError]);
   const portainerPage = usePortainerPage({
     portainerInstances,
     containers,
@@ -159,8 +194,8 @@ function PortainerPage({
             disabled={portainerPage.selectedContainers.size === 0 || portainerPage.batchUpgrading}
           >
             {portainerPage.batchUpgrading
-              ? `Updating ${portainerPage.selectedContainers.size}...`
-              : `Update Selected (${portainerPage.selectedContainers.size})`}
+              ? `Upgrading ${portainerPage.selectedContainers.size}...`
+              : `Upgrade Selected (${portainerPage.selectedContainers.size})`}
           </Button>
         </>
       );
@@ -245,19 +280,58 @@ function PortainerPage({
                 {toolbarActions}
               </div>
             )}
-            <Button
-              onClick={onPullDockerHub}
-              disabled={pullingDockerHub || portainerInstances.length === 0}
-              title={pullingDockerHub ? "Checking for updates..." : "Check for updates"}
-              variant="outline"
-              icon={RefreshCw}
-              size="sm"
-            >
-              {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
-            </Button>
+            <div className={styles.buttonContainer}>
+              <Button
+                onClick={onPullDockerHub}
+                disabled={pullingDockerHub || portainerInstances.length === 0}
+                title={pullingDockerHub ? "Checking for updates..." : "Check for updates"}
+                variant="outline"
+                icon={RefreshCw}
+                size="sm"
+              >
+                {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
+              </Button>
+              {showCheckmark && (
+                <Check className={styles.checkmark} size={20} />
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {(pullingDockerHub || localPullError) && (
+        <div className={styles.alertContainer}>
+          {pullingDockerHub && (
+            <Alert variant="info" className={styles.alert}>
+              <div className={styles.pullStatusContent}>
+                <div className={styles.pullSpinner}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                </div>
+                <div className={styles.pullStatusText}>
+                  <strong>Pulling fresh data from Docker Hub...</strong>
+                  <span>This may take a few moments</span>
+                </div>
+              </div>
+            </Alert>
+          )}
+          {!pullingDockerHub && localPullError && (
+            <Alert variant="error" className={styles.alert}>
+              {localPullError}
+            </Alert>
+          )}
+        </div>
+      )}
 
       <div className={styles.portainerSidebarLayout}>
         <ErrorBoundary>
@@ -374,14 +448,16 @@ PortainerPage.propTypes = {
   fetchUnusedImages: PropTypes.func.isRequired,
   onAddInstance: PropTypes.func.isRequired,
   onPullDockerHub: PropTypes.func.isRequired,
-  pullingDockerHub: PropTypes.bool,
-  activeTab: PropTypes.string,
-  onTabChange: PropTypes.func,
-  selectedPortainerInstances: PropTypes.instanceOf(Set),
-  onSetSelectedPortainerInstances: PropTypes.func,
-  contentTab: PropTypes.string,
-  onSetContentTab: PropTypes.func,
-};
+      pullingDockerHub: PropTypes.bool,
+      pullError: PropTypes.string,
+      pullSuccess: PropTypes.string,
+      activeTab: PropTypes.string,
+      onTabChange: PropTypes.func,
+      selectedPortainerInstances: PropTypes.instanceOf(Set),
+      onSetSelectedPortainerInstances: PropTypes.func,
+      contentTab: PropTypes.string,
+      onSetContentTab: PropTypes.func,
+    };
 
 PortainerPage.displayName = "PortainerPage";
 

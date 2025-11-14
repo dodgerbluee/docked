@@ -161,8 +161,9 @@ export function useTrackedApps() {
       if (response.data.success) {
         await fetchTrackedImages();
         setLastScanTime(new Date());
-        setTrackedImageSuccess('Tracked app versions retrieved');
-        setTimeout(() => setTrackedImageSuccess(''), SUCCESS_MESSAGE_DURATION);
+        // Set success briefly to trigger checkmark, then clear immediately
+        setTrackedImageSuccess('success');
+        setTimeout(() => setTrackedImageSuccess(''), 100);
       }
     } catch (err) {
       setTrackedImageError(

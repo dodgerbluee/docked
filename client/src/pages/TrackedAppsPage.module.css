@@ -18,6 +18,32 @@
   width: 100%;
 }
 
+.buttonContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkmark {
+  color: var(--dodger-blue);
+  animation: checkmarkFadeIn 0.3s ease-out;
+}
+
+body.dark-mode .checkmark {
+  color: var(--dodger-blue-light);
+}
+
+@keyframes checkmarkFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .summaryHeaderTitle {
   /* Matches settings-header from App.css */
   color: var(--text-primary);

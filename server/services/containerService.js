@@ -573,6 +573,25 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               labels['com.docker.stack.namespace'] ||
               null;
 
+            // Get image creation date by inspecting the image
+            let currentImageCreated = null;
+            const imageId = details.Image || '';
+            if (imageId) {
+              try {
+                const imageDetails = await portainerService.getImageDetails(
+                  portainerUrl,
+                  endpointId,
+                  imageId
+                );
+                if (imageDetails.Created) {
+                  currentImageCreated = imageDetails.Created;
+                }
+              } catch (imageError) {
+                // If we can't get image details, just continue without created date
+                logger.debug(`Could not get image details for ${imageId}: ${imageError.message}`);
+              }
+            }
+
             return {
               id: container.Id,
               name:
@@ -594,6 +613,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               latestDigestFull: updateInfo.latestDigestFull,
               latestPublishDate: updateInfo.latestPublishDate,
               currentVersionPublishDate: updateInfo.currentVersionPublishDate,
+              currentImageCreated: currentImageCreated,
               imageRepo: updateInfo.imageRepo,
               stackName: stackName,
               existsInDockerHub: updateInfo.existsInDockerHub || false,
@@ -948,6 +968,24 @@ async function getContainersFromPortainer() {
               labels['com.docker.stack.namespace'] ||
               null;
 
+            // Get image creation date by inspecting the image
+            let currentImageCreated = null;
+            if (imageId) {
+              try {
+                const imageDetails = await portainerService.getImageDetails(
+                  portainerUrl,
+                  endpointId,
+                  imageId
+                );
+                if (imageDetails.Created) {
+                  currentImageCreated = imageDetails.Created;
+                }
+              } catch (imageError) {
+                // If we can't get image details, just continue without created date
+                logger.debug(`Could not get image details for ${imageId}: ${imageError.message}`);
+              }
+            }
+
             // In portainerOnly mode, we don't check Docker Hub, so existsInDockerHub is unknown
             // It will be determined when Docker Hub data is pulled
             const existsInDockerHub = false;
@@ -969,6 +1007,7 @@ async function getContainersFromPortainer() {
               latestTag: null,
               latestVersion: null,
               currentVersionPublishDate: null,
+              currentImageCreated: currentImageCreated,
               stackName: stackName,
               imageId: details.Image,
               existsInDockerHub: existsInDockerHub,

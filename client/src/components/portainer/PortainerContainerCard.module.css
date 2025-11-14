@@ -8,10 +8,14 @@
 
 .containerCard:hover {
   box-shadow: 0 2px 8px var(--shadow);
-  border-color: var(--dodger-blue);
 }
 
 .updateAvailable {
+  border-left: 4px solid var(--dodger-red);
+}
+
+.updateAvailable:hover {
+  border-color: var(--border-color);
   border-left: 4px solid var(--dodger-red);
 }
 
@@ -32,7 +36,10 @@
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
+
 
 .updateBadge {
   display: inline-flex;
@@ -67,6 +74,38 @@
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.portainerBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  white-space: nowrap;
+  width: fit-content;
+  margin-bottom: 6px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.portainerBadge:hover {
+  color: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+  text-decoration: none;
+}
+
+body.dark-mode .portainerBadge:hover {
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+  background: rgba(30, 136, 229, 0.15);
 }
 
 .checkbox {
@@ -175,48 +214,95 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
 .cardBody {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
-.stackInfo {
+.imageHeaderContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.imageHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.imageHeader {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--text-secondary);
   font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imageHeader:hover {
+  color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .imageHeader:hover {
+  color: var(--dodger-blue-light);
+}
+
+.metaItem {
+  margin: 0 0 6px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.metaItem:last-of-type {
+  margin-bottom: 0;
+}
+
+.versionText {
+  color: var(--text-secondary);
+  font-weight: normal;
+  font-family: inherit;
+  font-size: inherit;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.versionText:hover {
+  color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .versionText:hover {
+  color: var(--dodger-blue-light);
 }
 
 .stackLabel {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.imageInfo {
-  margin: 0;
-  font-size: 0.9rem;
   color: var(--text-secondary);
-  word-break: break-word;
-  overflow-wrap: break-word;
+  font-weight: normal;
 }
 
-.imageName {
-  word-break: break-all;
-  overflow-wrap: anywhere;
-  display: inline-block;
-  max-width: 100%;
-}
-
-.tagInfo {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.publishInfo {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--text-tertiary);
-  margin-top: 4px;
-}
 
 .versionBadge {
   font-family: monospace;
@@ -236,12 +322,107 @@ body.dark-mode .digestLink {
   color: var(--dodger-blue-light);
 }
 
+.iconGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dockerIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.dockerIconLink:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.dockerIconSmall {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+}
+
+.githubIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.githubIconLink:hover {
+  color: var(--dodger-blue);
+  transform: scale(1.1);
+}
+
+body.dark-mode .githubIconLink:hover {
+  color: var(--dodger-blue-light);
+}
+
+.upgradeCheckmark {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upgradeCheckmark:hover {
+  color: var(--dodger-blue);
+  transform: scale(1.1);
+}
+
+.upgradeCheckmark.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upgradeCheckmark.disabled:hover {
+  transform: none;
+  color: var(--text-secondary);
+}
+
+body.dark-mode .upgradeCheckmark {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .upgradeCheckmark:hover {
+  color: var(--dodger-blue-light);
+}
+
 .buttonGroup {
   display: flex;
   gap: 4px;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .dockerIcon {
