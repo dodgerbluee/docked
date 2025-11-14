@@ -1,0 +1,86 @@
+name: Run Tests (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      run-coverage:
+        description: 'Run tests with coverage'
+        required: false
+        type: boolean
+        default: false
+      upload-coverage:
+        description: 'Upload coverage to Codecov'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      server-tests-passed:
+        description: 'Whether server tests passed'
+        value: ${{ jobs.test.outputs.server-tests-passed }}
+      client-tests-passed:
+        description: 'Whether client tests passed'
+        value: ${{ jobs.test.outputs.client-tests-passed }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      server-tests-passed: ${{ steps.server-tests.outputs.passed }}
+      client-tests-passed: ${{ steps.client-tests.outputs.passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run server tests
+        id: server-tests
+        run: |
+          cd server
+          if [ "${{ inputs.run-coverage }}" = "true" ]; then
+            npm test -- --coverage --watchAll=false
+          else
+            npm test -- --watchAll=false
+          fi
+          echo "passed=true" >> $GITHUB_OUTPUT
+        continue-on-error: false
+
+      - name: Run client tests
+        id: client-tests
+        run: |
+          cd client
+          if [ "${{ inputs.run-coverage }}" = "true" ]; then
+            CI=true npm test -- --coverage --watchAll=false
+          else
+            CI=true npm test -- --watchAll=false
+          fi
+          echo "passed=true" >> $GITHUB_OUTPUT
+        continue-on-error: false
+
+      - name: Upload test coverage
+        if: inputs.upload-coverage == true
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./server/coverage/coverage-final.json,./client/coverage/coverage-final.json
+          flags: server,client
+          name: test-coverage
+          fail_ci_if_error: false
+

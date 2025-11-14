@@ -49,17 +49,17 @@ jobs:
           cd ../client && npm ci
 
       - name: Run npm audit (root)
-        run: npm audit --audit-level=moderate || true
+        run: npm audit --audit-level=moderate
 
       - name: Run npm audit (server)
         run: |
           cd server
-          npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate
 
       - name: Run npm audit (client)
         run: |
           cd client
-          npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate
 
   snyk-scan:
     runs-on: ubuntu-latest
@@ -86,7 +86,7 @@ jobs:
 
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
-        continue-on-error: true
+        continue-on-error: false
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
