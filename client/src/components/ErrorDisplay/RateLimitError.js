@@ -1,4 +1,5 @@
-import React from "react";
+import React, { memo } from "react";
+import PropTypes from "prop-types";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
@@ -77,5 +78,15 @@ const RateLimitError = ({
   );
 };
 
-export default RateLimitError;
+RateLimitError.propTypes = {
+  error: PropTypes.string,
+  dockerHubCredentials: PropTypes.object, // Can be null or an object
+  onDismiss: PropTypes.func.isRequired,
+  onNavigateToDockerHubSettings: PropTypes.func.isRequired,
+  onRetry: PropTypes.func.isRequired,
+  pulling: PropTypes.bool,
+  loading: PropTypes.bool,
+};
+
+export default memo(RateLimitError);
 

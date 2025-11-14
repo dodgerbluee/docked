@@ -1,5 +1,7 @@
-import React from "react";
+import React, { memo } from "react";
 import { LayoutDashboard, MonitorSmartphone } from "lucide-react";
+import PropTypes from "prop-types";
+import { containerShape } from "../../utils/propTypes";
 import "./TabNavigation.css";
 
 /**
@@ -12,21 +14,25 @@ const TabNavigation = ({
   containersWithUpdates = [],
   trackedAppsBehind = 0,
 }) => {
+  const handleSummaryClick = () => onTabChange("summary");
+  const handlePortainerClick = () => onTabChange("portainer");
+  const handleTrackedAppsClick = () => onTabChange("tracked-apps");
+
   return (
     <div className="tabs-container">
       <div className="tabs">
         <button
           className={`tab ${activeTab === "summary" ? "active" : ""}`}
-          onClick={() => onTabChange("summary")}
+          onClick={handleSummaryClick}
+          aria-label="Summary tab"
         >
           <LayoutDashboard size={18} />
           Summary
         </button>
         <button
           className={`tab ${activeTab === "portainer" ? "active" : ""}`}
-          onClick={() => {
-            onTabChange("portainer");
-          }}
+          onClick={handlePortainerClick}
+          aria-label="Portainer tab"
         >
           <svg
             width="18"
@@ -36,6 +42,7 @@ const TabNavigation = ({
             stroke="currentColor"
             strokeWidth="0"
             style={{ display: "inline-block", verticalAlign: "middle" }}
+            aria-hidden="true"
           >
             <path
               fill="currentColor"
@@ -49,7 +56,8 @@ const TabNavigation = ({
         </button>
         <button
           className={`tab ${activeTab === "tracked-apps" ? "active" : ""}`}
-          onClick={() => onTabChange("tracked-apps")}
+          onClick={handleTrackedAppsClick}
+          aria-label="Tracked Apps tab"
         >
           <MonitorSmartphone size={18} />
           Tracked Apps
@@ -62,5 +70,12 @@ const TabNavigation = ({
   );
 };
 
-export default TabNavigation;
+TabNavigation.propTypes = {
+  activeTab: PropTypes.oneOf(["summary", "portainer", "tracked-apps"]).isRequired,
+  onTabChange: PropTypes.func.isRequired,
+  containersWithUpdates: PropTypes.arrayOf(containerShape),
+  trackedAppsBehind: PropTypes.number,
+};
+
+export default memo(TabNavigation);
 

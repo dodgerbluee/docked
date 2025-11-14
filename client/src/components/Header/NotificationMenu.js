@@ -1,4 +1,7 @@
-import React from "react";
+import React, { memo } from "react";
+import PropTypes from "prop-types";
+import { X } from "lucide-react";
+import { containerShape, trackedImageShape } from "../../utils/propTypes";
 import "./NotificationMenu.css";
 
 /**
@@ -58,19 +61,7 @@ const NotificationMenu = ({
                   aria-label="Dismiss notification"
                   title="Dismiss"
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
+                  <X size={16} />
                 </button>
               </div>
             ))}
@@ -118,19 +109,7 @@ const NotificationMenu = ({
                   aria-label="Dismiss notification"
                   title="Dismiss"
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
+                  <X size={16} />
                 </button>
               </div>
             ))}
@@ -155,5 +134,17 @@ const NotificationMenu = ({
   );
 };
 
-export default NotificationMenu;
+NotificationMenu.propTypes = {
+  notificationCount: PropTypes.number.isRequired,
+  activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  onClose: PropTypes.func.isRequired,
+  onNavigateToPortainer: PropTypes.func.isRequired,
+  onNavigateToTrackedApps: PropTypes.func.isRequired,
+  onNavigateToSummary: PropTypes.func.isRequired,
+  onDismissContainerNotification: PropTypes.func.isRequired,
+  onDismissTrackedAppNotification: PropTypes.func.isRequired,
+};
+
+export default memo(NotificationMenu);
 
