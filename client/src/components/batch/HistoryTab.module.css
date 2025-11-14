@@ -17,6 +17,18 @@
 
 .section {
   margin-bottom: 30px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sectionTitle {
@@ -39,65 +51,149 @@
 
 .historyAndLogs {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 
-.runHistory {
-  overflow: hidden;
+.runHistorySection {
   display: flex;
   flex-direction: column;
 }
 
 .runHistoryHeader {
-  padding: 15px;
+  padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px 8px 0 0;
+}
+
+.runHistoryIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .runHistoryIcon {
+  color: var(--dodger-blue-light);
 }
 
 .runHistoryTitle {
   margin: 0;
   color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
-.runHistoryList {
-  max-height: 600px;
-  overflow-y: auto;
-  padding-right: 4px;
-  /* Firefox scrollbar styling */
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+.runHistoryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding: 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
 }
 
-/* Modern scrollbar styling for Webkit browsers (Chrome, Safari, Edge) */
-.runHistoryList::-webkit-scrollbar {
-  width: 8px;
+/* Stack header styles for collapsible sections */
+.stackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+  user-select: none;
 }
 
-.runHistoryList::-webkit-scrollbar-track {
+.stackHeader:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .stackHeader:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.stackHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stackIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .stackIcon {
+  color: var(--dodger-blue-light);
+}
+
+.stackToggle {
   background: transparent;
-  border-radius: 4px;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
 
-.runHistoryList::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
-  transition: background 0.2s;
+.stackName {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.runHistoryList::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+.stackCount {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-body.dark-mode .runHistoryList::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+body.dark-mode .stackCount {
+  color: var(--text-primary);
 }
 
-body.dark-mode .runHistoryList::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+/* Smooth collapse/expand animation */
+.section > :not(.stackHeader) {
+  animation: slideDown 0.3s ease-out;
 }
 
-body.dark-mode .runHistoryList {
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 2000px;
+    transform: translateY(0);
+  }
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+}
+
+.logsSection {
+  margin-top: 20px;
+  animation: fadeIn 0.3s ease-in;
 }
 

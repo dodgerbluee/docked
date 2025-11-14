@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import PropTypes from "prop-types";
+import { Settings, Save, CheckCircle2 } from "lucide-react";
 import { useGeneralSettings } from "../../hooks/useGeneralSettings";
 import { useBatchConfigForm } from "../../hooks/useBatchConfigForm";
 import Button from "../ui/Button";
@@ -55,10 +56,18 @@ const BatchTab = React.memo(function BatchTab({
 
   return (
     <div className={styles.updateSection}>
-      <h3 className={styles.title}>Batch Configuration</h3>
+      <div className={styles.titleContainer}>
+        <Settings size={20} className={styles.titleIcon} />
+        <h3 className={styles.title}>Batch Configuration</h3>
+      </div>
       
       {batchError && <Alert variant="error" className={styles.alert}>{batchError}</Alert>}
-      {batchSuccess && <Alert variant="info" className={styles.alert}>{batchSuccess}</Alert>}
+      {batchSuccess && (
+        <Alert variant="info" className={styles.alert}>
+          <CheckCircle2 size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+          {batchSuccess}
+        </Alert>
+      )}
 
       <form className={styles.form} onSubmit={handleSubmit}>
         {/* Docker Hub Pull Configuration */}
@@ -147,6 +156,8 @@ const BatchTab = React.memo(function BatchTab({
             variant="primary"
             disabled={!hasChanges || isSaving}
             className={styles.saveButton}
+            icon={isSaving ? undefined : Save}
+            iconPosition="left"
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>

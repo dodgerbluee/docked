@@ -6,7 +6,20 @@
   padding: 12px;
   background: transparent;
   border: 2px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.card:hover {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+body.dark-mode .card:hover {
+  border-color: var(--dodger-blue-light);
 }
 
 .badgeContainer {

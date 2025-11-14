@@ -1,4 +1,4 @@
-import React, { useState, useCallback, lazy, Suspense } from "react";
+import React, { useState, useCallback, lazy, Suspense, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Home } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -29,19 +29,28 @@ function BatchPage({
     controlledActiveTab || BATCH_TABS.HISTORY
   );
 
-  // Use controlled tab if provided, otherwise use internal state
-  const batchTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
+  // Sync internal tab when controlled tab changes
+  useEffect(() => {
+    if (controlledActiveTab !== undefined) {
+      setInternalTab(controlledActiveTab);
+    }
+  }, [controlledActiveTab]);
 
   const handleTabChange = useCallback(
     (tab) => {
+      // Always update internal state immediately for instant UI feedback
+      setInternalTab(tab);
+      // Also call controlled handler if provided (this updates parent state)
       if (onControlledTabChange) {
         onControlledTabChange(tab);
-      } else {
-        setInternalTab(tab);
       }
     },
     [onControlledTabChange]
   );
+
+  // Use internal state for immediate UI updates, but sync with controlled value when it changes
+  // This ensures the UI updates immediately when clicking tabs, even in controlled mode
+  const batchTab = internalTab;
 
   return (
     <div className={styles.batchPage}>
@@ -75,13 +84,15 @@ function BatchPage({
               </div>
             }
           >
-            {batchTab === BATCH_TABS.HISTORY ? (
+            {batchTab === BATCH_TABS.HISTORY || batchTab === "history" ? (
               <HistoryTab
+                key="history-tab"
                 onTriggerBatch={onTriggerBatch}
                 onTriggerTrackedAppsBatch={onTriggerTrackedAppsBatch}
               />
             ) : (
               <BatchTab
+                key="settings-tab"
                 onBatchConfigUpdate={onBatchConfigUpdate}
                 colorScheme={colorScheme}
                 onColorSchemeChange={onColorSchemeChange}

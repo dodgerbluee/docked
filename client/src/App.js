@@ -909,8 +909,8 @@ function App() {
         />
 
         <div className="container">
-          {/* Tabs - Show for all tabs except old settings page and configuration */}
-          {activeTab !== TAB_NAMES.SETTINGS && activeTab !== TAB_NAMES.CONFIGURATION && (
+          {/* Tabs - Show for all tabs except old settings page, configuration, and batch logs */}
+          {activeTab !== TAB_NAMES.SETTINGS && activeTab !== TAB_NAMES.CONFIGURATION && activeTab !== TAB_NAMES.BATCH_LOGS && (
             <TabNavigation
               activeTab={activeTab}
               onTabChange={(tab) => {

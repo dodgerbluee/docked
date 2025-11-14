@@ -1,20 +1,40 @@
 .badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
   font-size: 0.85rem;
   font-weight: 600;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.badgeIcon {
+  flex-shrink: 0;
 }
 
 /* Job Type Badge Variants */
 .jobTypeDockerHub {
-  background: rgba(0, 90, 156, 0.2);
+  background: linear-gradient(135deg, rgba(0, 90, 156, 0.15) 0%, rgba(0, 90, 156, 0.25) 100%);
   color: var(--dodger-blue);
+  border-color: rgba(0, 90, 156, 0.3);
+}
+
+.jobTypeDockerHub:hover {
+  background: linear-gradient(135deg, rgba(0, 90, 156, 0.25) 0%, rgba(0, 90, 156, 0.35) 100%);
+  border-color: var(--dodger-blue);
 }
 
 .jobTypeTrackedApps {
-  background: rgba(139, 92, 246, 0.2);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.25) 100%);
   color: var(--tracked-apps-purple);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.jobTypeTrackedApps:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(139, 92, 246, 0.35) 100%);
+  border-color: var(--tracked-apps-purple);
 }
 
 .jobTypeUnknown {
@@ -24,23 +44,63 @@
 
 /* Status Badge Variants */
 .statusRunning {
-  background: rgba(0, 90, 156, 0.2);
+  background: linear-gradient(135deg, rgba(0, 90, 156, 0.15) 0%, rgba(0, 90, 156, 0.25) 100%);
   color: var(--dodger-blue);
+  border-color: rgba(0, 90, 156, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+  position: relative;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.statusRunning::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: rgba(0, 90, 156, 0.3);
+  animation: pulseRing 2s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
 
 .statusCompleted {
-  background: rgba(34, 197, 94, 0.2);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.25) 100%);
   color: var(--success-green);
+  border-color: rgba(34, 197, 94, 0.3);
 }
 
 .statusFailed {
-  background: rgba(239, 62, 66, 0.2);
+  background: linear-gradient(135deg, rgba(239, 62, 66, 0.15) 0%, rgba(239, 62, 66, 0.25) 100%);
   color: var(--dodger-red);
+  border-color: rgba(239, 62, 66, 0.3);
 }
 
 /* Manual Badge */
 .manualBadge {
-  background: rgba(239, 62, 66, 0.2);
+  background: linear-gradient(135deg, rgba(239, 62, 66, 0.15) 0%, rgba(239, 62, 66, 0.25) 100%);
   color: var(--dodger-red);
+  border-color: rgba(239, 62, 66, 0.3);
 }
 
