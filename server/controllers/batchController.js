@@ -184,21 +184,52 @@ async function getLatestBatchRunHandler(req, res, next) {
     // Check if we want latest runs by job type
     const byJobType = req.query.byJobType === 'true';
     
+    logger.debug('Fetching latest batch run', {
+      module: 'batchController',
+      operation: 'getLatestBatchRunHandler',
+      byJobType: byJobType,
+      purpose: byJobType 
+        ? 'Frontend polling to check for batch job completions (updates "Last scanned" timestamps)'
+        : 'Fetching single latest batch run',
+    });
+    
     if (byJobType) {
       const latestRuns = await getLatestBatchRunsByJobType();
+      
+      logger.debug('Latest batch runs by job type retrieved', {
+        module: 'batchController',
+        operation: 'getLatestBatchRunHandler',
+        jobTypes: Object.keys(latestRuns || {}),
+        runCount: Object.keys(latestRuns || {}).length,
+      });
+      
       res.json({
         success: true,
         runs: latestRuns,
       });
     } else {
       const latestRun = await getLatestBatchRun();
+      
+      logger.debug('Latest batch run retrieved', {
+        module: 'batchController',
+        operation: 'getLatestBatchRunHandler',
+        runId: latestRun?.id,
+        jobType: latestRun?.job_type,
+        status: latestRun?.status,
+      });
+      
       res.json({
         success: true,
         run: latestRun,
       });
     }
   } catch (error) {
-    logger.error('Error fetching latest batch run:', error);
+    logger.error('Error fetching latest batch run', {
+      module: 'batchController',
+      operation: 'getLatestBatchRunHandler',
+      byJobType: req.query.byJobType === 'true',
+      error: error,
+    });
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch latest batch run',

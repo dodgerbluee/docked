@@ -175,14 +175,32 @@ async function upgradeSingleContainer(
   const newTag = currentTag;
   const newImageName = `${imageRepo}:${newTag}`;
 
-  logger.info(`🔄 Upgrading container ${originalContainerName} from ${imageName} to ${newImageName}`);
+  logger.info('Starting container upgrade', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    containerId: containerId.substring(0, 12),
+    portainerUrl: portainerUrl,
+    endpointId: endpointId,
+    currentImage: imageName,
+    newImage: newImageName,
+  });
 
   // Stop the container
-  logger.info(`⏹️  Stopping container ${originalContainerName}...`);
+  logger.info('Stopping container', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    containerId: containerId.substring(0, 12),
+  });
   await portainerService.stopContainer(portainerUrl, endpointId, containerId);
 
   // Wait for container to fully stop (important for databases and services)
-  logger.info(`⏳ Waiting for container to stop...`);
+  logger.debug('Waiting for container to stop', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+  });
   let stopped = false;
   for (let i = 0; i < 10; i++) {
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -203,15 +221,30 @@ async function upgradeSingleContainer(
     }
   }
   if (!stopped) {
-    logger.warn(`⚠️  Container did not stop within timeout, proceeding anyway...`);
+    logger.warn('Container did not stop within timeout, proceeding anyway', {
+      module: 'containerService',
+      operation: 'upgradeSingleContainer',
+      containerName: originalContainerName,
+      containerId: containerId.substring(0, 12),
+    });
   }
 
   // Pull the latest image
-  logger.info(`📥 Pulling latest image ${newImageName}...`);
+  logger.info('Pulling latest image', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    image: newImageName,
+  });
   await portainerService.pullImage(portainerUrl, endpointId, newImageName);
 
   // Remove old container
-  logger.info(`🗑️  Removing old container...`);
+  logger.info('Removing old container', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    containerId: containerId.substring(0, 12),
+  });
   await portainerService.removeContainer(portainerUrl, endpointId, containerId);
 
   // Clean HostConfig - remove container-specific references
@@ -219,7 +252,12 @@ async function upgradeSingleContainer(
   delete cleanHostConfig.ContainerIDFile;
 
   // Create new container with same configuration
-  logger.info(`🔨 Creating new container...`);
+  logger.info('Creating new container', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    image: newImageName,
+  });
   const containerConfig = {
     Image: newImageName,
     Cmd: containerDetails.Config.Cmd,
@@ -243,11 +281,21 @@ async function upgradeSingleContainer(
   );
 
   // Start the new container
-  logger.info(`▶️  Starting new container...`);
+  logger.info('Starting new container', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    newContainerId: newContainer.Id.substring(0, 12),
+  });
   await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
 
   // Wait for container to be healthy/ready (CRITICAL for databases)
-  logger.info(`⏳ Waiting for container ${originalContainerName} to be ready...`);
+  logger.info('Waiting for container to be ready', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    maxWaitTime: `${maxWaitTime / 1000}s`,
+  });
   let isReady = false;
   const maxWaitTime = 120000; // 2 minutes max for databases with health checks
   const checkInterval = 2000; // Check every 2 seconds
@@ -288,7 +336,12 @@ async function upgradeSingleContainer(
         const healthStatus = details.State.Health.Status;
         if (healthStatus === 'healthy') {
           isReady = true;
-          logger.info(`✅ Container health check passed`);
+          logger.info('Container health check passed', {
+            module: 'containerService',
+            operation: 'upgradeSingleContainer',
+            containerName: originalContainerName,
+            waitTime: `${(Date.now() - startTime) / 1000}s`,
+          });
           break;
         } else if (healthStatus === 'unhealthy') {
           try {
@@ -305,7 +358,13 @@ async function upgradeSingleContainer(
         if (waitTime >= 30000 && consecutiveRunningChecks >= 5) {
           // Container has been running for 30+ seconds with 5+ stable checks
           // and health check is still starting - likely a container that doesn't properly report health
-          logger.info(`⚠️  Health check still starting after 30s, but container is running stably - considering ready`);
+          logger.info('Health check still starting but container is running stably, considering ready', {
+            module: 'containerService',
+            operation: 'upgradeSingleContainer',
+            containerName: originalContainerName,
+            waitTime: `${waitTime / 1000}s`,
+            consecutiveChecks: consecutiveRunningChecks,
+          });
           isReady = true;
           break;
         }
@@ -319,7 +378,13 @@ async function upgradeSingleContainer(
         if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
           // Container has been running stably for required checks
           isReady = true;
-          logger.info(`✅ Container is running and stable (${consecutiveRunningChecks * checkInterval / 1000}s stable)`);
+          logger.info('Container is running and stable', {
+            module: 'containerService',
+            operation: 'upgradeSingleContainer',
+            containerName: originalContainerName,
+            stableTime: `${consecutiveRunningChecks * checkInterval / 1000}s`,
+            waitTime: `${waitTime / 1000}s`,
+          });
           break;
         }
         
@@ -331,7 +396,12 @@ async function upgradeSingleContainer(
           if (!isLikelyDatabase) {
             // Not a database, and it's been running stably - consider it ready
             isReady = true;
-            logger.info(`✅ Container is running and stable (non-database service)`);
+            logger.info('Container is running and stable (non-database service)', {
+              module: 'containerService',
+              operation: 'upgradeSingleContainer',
+              containerName: originalContainerName,
+              waitTime: `${waitTime / 1000}s`,
+            });
             break;
           }
           // For databases, continue waiting for minInitTime
@@ -354,7 +424,12 @@ async function upgradeSingleContainer(
       const containerStatus = details.State?.Status || (details.State?.Running ? 'running' : 'unknown');
       const isRunning = containerStatus === 'running' || details.State?.Running === true;
       if (isRunning) {
-        logger.info(`⚠️  Timeout reached but container is running - considering it ready`);
+        logger.warn('Timeout reached but container is running, considering it ready', {
+          module: 'containerService',
+          operation: 'upgradeSingleContainer',
+          containerName: originalContainerName,
+          waitTime: `${maxWaitTime / 1000}s`,
+        });
         isReady = true;
       } else {
         // Format state info for error message
@@ -370,7 +445,12 @@ async function upgradeSingleContainer(
     }
   }
 
-  logger.info(`✅ Container ${originalContainerName} is ready`);
+  logger.info('Container upgrade completed and container is ready', {
+    module: 'containerService',
+    operation: 'upgradeSingleContainer',
+    containerName: originalContainerName,
+    totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
+  });
 
   // If this is part of a stack, restart dependent containers
   if (stackName) {
@@ -900,7 +980,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
  * @returns {Promise<Object>} - Containers with basic information (no update status)
  */
 async function getContainersFromPortainer() {
-  logger.info('⏳ Fetching containers from Portainer (no Docker Hub checks)...');
+  logger.info('⏳ Fetching containers from Portainer');
   const allContainers = [];
 
   // Get Portainer instances from database

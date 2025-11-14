@@ -1277,7 +1277,7 @@ function App() {
         instanceUrl
           ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
           : portainerOnly
-          ? "🔄 Fetching containers from Portainer (no Docker Hub checks)..."
+          ? "🔄 Fetching containers from Portainer"
           : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
       );
 
