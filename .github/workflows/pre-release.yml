@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -126,6 +127,34 @@ jobs:
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
           echo "Final dev tag: $TAG_NAME (version: $DEV_VERSION)"
+
+      - name: Update version in package.json files
+        run: |
+          DEV_VERSION="${{ steps.version.outputs.dev_version }}"
+          echo "Updating version to $DEV_VERSION in all package.json files"
+          # Update root package.json
+          npm pkg set version="$DEV_VERSION"
+          # Update server package.json
+          cd server && npm pkg set version="$DEV_VERSION"
+          # Update client package.json
+          cd ../client && npm pkg set version="$DEV_VERSION"
+          cd ..
+          echo "✓ Version updated to $DEV_VERSION"
+
+      - name: Commit version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if git diff --quiet package.json server/package.json client/package.json; then
+            echo "No version changes to commit"
+          else
+            git add package.json server/package.json client/package.json
+            git commit -m "chore: bump version to ${{ steps.version.outputs.dev_version }}-dev [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✓ Committed version update to ${{ steps.version.outputs.dev_version }}-dev"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

@@ -47,6 +47,8 @@ import { useTrackedImages } from "./hooks/useTrackedImages";
 import { usePortainerInstances } from "./hooks/usePortainerInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
 import { useNewPortainerInstance } from "./hooks/useNewPortainerInstance";
+import { useVersion } from "./hooks/useVersion";
+import VersionFooter from "./components/Footer/VersionFooter";
 import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS, CONFIGURATION_TABS } from "./constants/apiConstants";
 
 function App() {
@@ -129,6 +131,9 @@ function App() {
     fetchRecentAvatars,
     handleAvatarChange,
   } = avatarManagement;
+
+  // Version - using custom hook
+  const { version, environment, isDevBuild } = useVersion();
 
   // Batch config - using custom hook
   const {
@@ -1053,6 +1058,10 @@ function App() {
               </>
             )}
           </div>
+        </div>
+        
+        <div className="version-footer-wrapper">
+          <VersionFooter version={version} isDevBuild={isDevBuild} />
         </div>
 
         <ErrorBoundary>

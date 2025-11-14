@@ -1,0 +1,73 @@
+.version-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  pointer-events: auto;
+  padding: 4px 8px;
+  margin-top: 8px;
+  margin-right: 20px;
+  transition: opacity 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+}
+
+body.dark-mode .version-footer {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.version-footer:hover {
+  opacity: 0.9;
+}
+
+.version-footer-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  cursor: pointer;
+}
+
+.version-footer-link:hover {
+  color: var(--dodger-blue);
+  text-decoration: none;
+}
+
+body.dark-mode .version-footer-link:hover {
+  color: var(--dodger-blue-light);
+}
+
+.version-footer-link svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.version-footer-separator {
+  opacity: 0.4;
+  margin: 0 2px;
+}
+
+.version-footer-version {
+  margin-left: 4px;
+  opacity: 0.8;
+}
+
+.version-footer-text {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Wrapper for version footer to align it to the right */
+.version-footer-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
