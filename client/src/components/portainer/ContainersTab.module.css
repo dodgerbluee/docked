@@ -59,10 +59,25 @@ body.dark-mode .stackHeader:hover {
   color: var(--text-primary);
 }
 
+.stackCount {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+body.dark-mode .stackCount {
+  color: var(--text-primary);
+}
+
 .containersGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+}
+
+.containersGrid > * {
+  min-width: 0;
+  width: 100%;
 }
 
 .loadingState {

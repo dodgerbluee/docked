@@ -57,6 +57,10 @@ body.dark-mode .stackHeader:hover {
   font-weight: 500;
 }
 
+body.dark-mode .stackCount {
+  color: var(--text-primary);
+}
+
 .updateCount {
   color: var(--dodger-red);
   font-weight: 600;
@@ -70,6 +74,11 @@ body.dark-mode .updateCount {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+}
+
+.containersGrid > * {
+  min-width: 0;
+  width: 100%;
 }
 
 @media (max-width: 1024px) {

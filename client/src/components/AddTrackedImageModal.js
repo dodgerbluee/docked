@@ -23,6 +23,7 @@ import {
   getTrackedDockerImages,
   filterTrackedItems,
 } from "../utils/trackedAppsFilters";
+import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedImageModal.module.css";
 
 const SOURCE_TYPE_OPTIONS = [
@@ -30,6 +31,11 @@ const SOURCE_TYPE_OPTIONS = [
     value: "github",
     label: "GitHub Repository",
     icon: Github,
+  },
+  {
+    value: "gitlab",
+    label: "GitLab Repository",
+    icon: null, // Will handle GitLab icon separately
   },
   {
     value: "docker",
@@ -56,6 +62,7 @@ function AddTrackedImageModal({
     imageName: "",
     githubRepo: "",
     currentVersion: "",
+    gitlabToken: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -149,7 +156,13 @@ function AddTrackedImageModal({
   };
 
   // Auto-populate display name from selected repository/image
+  // Skip auto-population when editing (initialData exists)
   useEffect(() => {
+    // Don't auto-populate if we're editing an existing item
+    if (initialData) {
+      return;
+    }
+
     const currentName = (formData.name || "").trim();
     const shouldUpdate =
       currentName === "" || currentName === lastAutoPopulatedName.current;
@@ -157,18 +170,19 @@ function AddTrackedImageModal({
     if (shouldUpdate) {
       let nameToSet = "";
 
-      if (sourceType === "github" && usePredefined && selectedPredefinedRepo) {
+      if ((sourceType === "github" || sourceType === "gitlab") && usePredefined && selectedPredefinedRepo) {
         const repo = selectedPredefinedRepo.value || selectedPredefinedRepo;
         const parts = repo.split("/");
         nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
       } else if (
-        sourceType === "github" &&
+        (sourceType === "github" || sourceType === "gitlab") &&
         !usePredefined &&
         formData.githubRepo
       ) {
         const repo = (formData.githubRepo || "").trim();
+        // Match both GitHub and GitLab URLs
         const match = repo.match(
-          /(?:github\.com\/)?([^\/]+\/([^\/]+))(?:\/|$)/
+          /(?:github\.com|gitlab\.com)\/([^\/]+\/([^\/]+))(?:\/|$)/i
         );
         if (match) {
           nameToSet = match[2] || match[1].split("/")[1];
@@ -197,13 +211,17 @@ function AddTrackedImageModal({
       }
 
       if (nameToSet) {
-        const capitalizedName =
-          nameToSet.charAt(0).toUpperCase() + nameToSet.slice(1);
+        // Replace dashes with spaces and capitalize each word
+        const capitalizedName = nameToSet
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
         lastAutoPopulatedName.current = capitalizedName;
         setFormData((prev) => ({ ...prev, name: capitalizedName }));
       }
     }
   }, [
+    initialData,
     selectedPredefinedRepo,
     selectedPredefinedImage,
     formData.githubRepo,
@@ -224,6 +242,7 @@ function AddTrackedImageModal({
           imageName: initialData.image_name || "",
           githubRepo: initialData.github_repo || "",
           currentVersion: initialData.current_version || "",
+          gitlabToken: initialData.gitlab_token || "",
         });
         setSourceType(initialData.source_type || "github");
         const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(
@@ -233,9 +252,9 @@ function AddTrackedImageModal({
           (img) =>
             initialData.image_name && initialData.image_name.split(":")[0] === img
         );
-        setUsePredefined(isPredefinedRepo);
+        setUsePredefined(isPredefinedRepo && initialData.source_type === "github");
         setUsePredefinedDocker(isPredefinedImage);
-        if (isPredefinedRepo) {
+        if (isPredefinedRepo && initialData.source_type === "github") {
           setSelectedPredefinedRepo({
             value: initialData.github_repo,
             label: initialData.github_repo,
@@ -277,8 +296,8 @@ function AddTrackedImageModal({
         sourceType: sourceType,
       };
 
-      if (sourceType === "github") {
-        if (usePredefined && selectedPredefinedRepo) {
+      if (sourceType === "github" || sourceType === "gitlab") {
+        if (sourceType === "github" && usePredefined && selectedPredefinedRepo) {
           payload.githubRepo = (selectedPredefinedRepo.value || "").trim();
         } else {
           payload.githubRepo = (formData.githubRepo || "").trim();
@@ -293,6 +312,11 @@ function AddTrackedImageModal({
 
       if (formData.currentVersion && formData.currentVersion.trim()) {
         payload.current_version = formData.currentVersion.trim();
+      }
+
+      // Add GitLab token if source type is GitLab (send even if empty to allow clearing)
+      if (sourceType === "gitlab") {
+        payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
       }
 
       let response;
@@ -314,6 +338,7 @@ function AddTrackedImageModal({
           imageName: "",
           githubRepo: "",
           currentVersion: "",
+          gitlabToken: "",
         });
         setSourceType("github");
         // Pass the image ID to onSuccess so it can check the version
@@ -400,7 +425,7 @@ function AddTrackedImageModal({
                 onClick={() => {
                   if (!loading) {
                     setSourceType(option.value);
-                    if (option.value === "github") {
+                    if (option.value === "github" || option.value === "gitlab") {
                       setUsePredefined(true);
                       setSelectedPredefinedImage(null);
                     } else {
@@ -414,6 +439,11 @@ function AddTrackedImageModal({
                 {option.value === "github" && option.icon && (
                   <span className={styles.icon}>
                     <Github size={16} />
+                  </span>
+                )}
+                {option.value === "gitlab" && (
+                  <span className={styles.icon}>
+                    <GitLabIcon size={16} />
                   </span>
                 )}
                 {option.value === "docker" && (
@@ -493,7 +523,7 @@ function AddTrackedImageModal({
               />
             )}
           </>
-        ) : (
+        ) : sourceType === "github" ? (
           <>
             <div className={styles.formGroup}>
               <label className={styles.label}>Repository Selection</label>
@@ -555,6 +585,30 @@ function AddTrackedImageModal({
               />
             )}
           </>
+        ) : (
+          <>
+            <Input
+              label="GitLab Repository"
+              name="githubRepo"
+              type="text"
+              value={formData.githubRepo}
+              onChange={handleChange}
+              required={true}
+              placeholder="e.g., owner/repo or https://gitlab.com/owner/repo"
+              disabled={loading}
+              helperText="GitLab repository in owner/repo format or full GitLab URL"
+            />
+            <Input
+              label="GitLab Token (Optional)"
+              name="gitlabToken"
+              type="password"
+              value={formData.gitlabToken}
+              onChange={handleChange}
+              placeholder="Enter GitLab personal access token"
+              disabled={loading}
+              helperText="Required for private repositories. Leave empty to use GITLAB_TOKEN environment variable or for public repos."
+            />
+          </>
         )}
 
         <Input
@@ -614,7 +668,8 @@ function AddTrackedImageModal({
                   (!usePredefinedDocker && !formData.imageName))) ||
               (sourceType === "github" &&
                 ((usePredefined && !selectedPredefinedRepo) ||
-                  (!usePredefined && !formData.githubRepo)))
+                  (!usePredefined && !formData.githubRepo))) ||
+              (sourceType === "gitlab" && !formData.githubRepo)
             }
             className={styles.submitButton}
           >

@@ -14,6 +14,7 @@ const {
 const { validateRequiredFields } = require('../utils/validation');
 const trackedImageService = require('../services/trackedImageService');
 const githubService = require('../services/githubService');
+const gitlabService = require('../services/gitlabService');
 const { clearLatestVersionsForAllTrackedImages } = require('../db/database');
 
 /**
@@ -32,9 +33,9 @@ async function getTrackedImages(req, res, next) {
       let currentVersionPublishDate = image.current_version_publish_date || null;
       let latestVersionPublishDate = image.latest_version_publish_date || null;
       
-      // For GitHub repos, ensure we have publish date for latest version when it's different from current
+      // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
       // This ensures we can show the release date for the latest version
-      if (image.source_type === 'github' && latestVersion) {
+      if ((image.source_type === 'github' || image.source_type === 'gitlab') && latestVersion) {
         // Normalize versions for comparison (remove "v" prefix)
         const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
         const normalizedCurrent = normalizeVersion(image.current_version || '');
@@ -57,6 +58,7 @@ async function getTrackedImages(req, res, next) {
         latest_version: latestVersion,
         source_type: image.source_type || 'docker', // Default to 'docker' for existing records
         github_repo: image.github_repo || null,
+        gitlab_token: image.gitlab_token || null,
         currentVersionPublishDate: currentVersionPublishDate,
         latestVersionPublishDate: latestVersionPublishDate,
       };
@@ -105,7 +107,7 @@ async function getTrackedImage(req, res, next) {
  */
 async function createTrackedImageEndpoint(req, res, next) {
   try {
-    const { name, imageName, githubRepo, sourceType, current_version } = req.body;
+    const { name, imageName, githubRepo, sourceType, current_version, gitlabToken } = req.body;
 
     // Validate name is required
     if (!name || !name.trim()) {
@@ -147,6 +149,37 @@ async function createTrackedImageEndpoint(req, res, next) {
       res.json({
         success: true,
         message: 'GitHub repository tracked successfully',
+        id: id,
+      });
+    } else if (finalSourceType === 'gitlab') {
+      // Validate GitLab repo
+      if (!githubRepo || !githubRepo.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'GitLab repository is required for GitLab source type',
+        });
+      }
+
+      // Check if repo already exists
+      const existing = await getTrackedImageByImageName(null, githubRepo.trim());
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          error: 'This GitLab repository is already being tracked',
+        });
+      }
+
+      // Create tracked GitLab repo
+      const id = await createTrackedImage(name.trim(), null, githubRepo.trim(), 'gitlab', gitlabToken || null);
+      
+      // Update current_version if provided
+      if (current_version && current_version.trim()) {
+        await updateTrackedImage(id, { current_version: current_version.trim() });
+      }
+      
+      res.json({
+        success: true,
+        message: 'GitLab repository tracked successfully',
         id: id,
       });
     } else {
@@ -202,7 +235,7 @@ async function createTrackedImageEndpoint(req, res, next) {
 async function updateTrackedImageEndpoint(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, imageName, current_version } = req.body;
+    const { name, imageName, current_version, gitlabToken } = req.body;
 
     // Check if tracked image exists
     const existing = await getTrackedImageById(parseInt(id));
@@ -239,6 +272,10 @@ async function updateTrackedImageEndpoint(req, res, next) {
     const updateData = {};
     if (name !== undefined && name !== null) updateData.name = String(name).trim();
     if (imageName !== undefined && imageName !== null) updateData.image_name = String(imageName).trim();
+    if (gitlabToken !== undefined) {
+      // Allow setting to null/empty string to clear token
+      updateData.gitlab_token = gitlabToken && gitlabToken.trim() ? gitlabToken.trim() : null;
+    }
     if (current_version !== undefined && current_version !== null) {
       const trimmedVersion = String(current_version).trim();
       updateData.current_version = trimmedVersion;
@@ -390,7 +427,7 @@ async function checkTrackedImageUpdate(req, res, next) {
 /**
  * Clear latest version data for all tracked images
  * This clears the latest_version, latest_digest, has_update, and current_version_publish_date
- * Also clears the GitHub release cache
+ * Also clears the GitHub and GitLab release caches
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -400,8 +437,9 @@ async function clearGitHubCache(req, res, next) {
     // Clear latest version data for all tracked images
     const rowsUpdated = await clearLatestVersionsForAllTrackedImages();
     
-    // Also clear the GitHub release cache
+    // Also clear the GitHub and GitLab release caches
     githubService.clearReleaseCache();
+    gitlabService.clearReleaseCache();
     
     res.json({
       success: true,

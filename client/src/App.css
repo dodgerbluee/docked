@@ -562,15 +562,54 @@ body.dark-mode .tab.active {
 }
 
 .tab-badge {
-  background: var(--dodger-red);
+  background: var(--dodger-blue);
   color: white;
   border-radius: 12px;
-  padding: 2px 7px;
-  font-size: 0.8rem;
+  padding: 3px 8px;
+  font-size: 0.95rem;
   font-weight: 700;
-  min-width: 21px;
+  min-width: 20px;
+  height: 20px;
   text-align: center;
-  margin-left: 0px;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0, 90, 156, 0.3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.tab:hover .tab-badge::before {
+  left: 100%;
+}
+
+.tab-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 90, 156, 0.4);
+}
+
+body.dark-mode .tab-badge {
+  background: var(--dodger-blue);
+  box-shadow: 0 2px 4px rgba(30, 136, 229, 0.4);
+}
+
+body.dark-mode .tab-badge:hover {
+  box-shadow: 0 4px 8px rgba(30, 136, 229, 0.5);
 }
 
 .content-tab .tab-badge {
@@ -789,11 +828,6 @@ body.dark-mode .tracked-app-unknown-border {
 .instance-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px var(--shadow);
-  border-color: var(--dodger-blue);
-}
-
-body.dark-mode .instance-card:hover {
-  border-color: var(--dodger-blue-light);
 }
 
 .instance-header {
@@ -1749,8 +1783,8 @@ body.dark-mode .docker-hub-icon {
 }
 
 .portainer-sidebar {
-  width: 180px;
-  min-width: 180px;
+  width: 220px;
+  min-width: 220px;
   background: var(--bg-secondary);
   border-radius: 8px;
   border: 1px solid var(--border-color);

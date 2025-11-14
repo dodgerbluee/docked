@@ -378,6 +378,25 @@ function PortainerPage({
                 />
               )}
 
+              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
+                <ContainersTab
+                  groupedStacks={portainerPage.groupedStacks}
+                  isLoading={portainerPage.aggregatedContainers.isLoading}
+                  hasData={hasData}
+                  showUpdates={null}
+                  showAll={true}
+                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                  lastPullTime={portainerPage.lastPullTime}
+                  collapsedStacks={portainerPage.collapsedStacks}
+                  selectedContainers={portainerPage.selectedContainers}
+                  upgrading={portainerPage.upgrading}
+                  isPortainerContainer={portainerPage.isPortainerContainer}
+                  onToggleStack={portainerPage.toggleStack}
+                  onToggleSelect={portainerPage.handleToggleSelect}
+                  onUpgrade={portainerPage.handleUpgrade}
+                />
+              )}
+
               {portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && (
                 <UnusedTab
                   unusedImages={portainerPage.portainerUnusedImages}
