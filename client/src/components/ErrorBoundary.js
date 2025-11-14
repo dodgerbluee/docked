@@ -33,8 +33,17 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error to console (in production, send to error reporting service)
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Log error with structured information
+    const errorDetails = {
+      message: error?.message || 'Unknown error',
+      stack: error?.stack,
+      componentStack: errorInfo?.componentStack,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+    };
+    
+    console.error('[ErrorBoundary] Caught error:', errorDetails);
     
     // Store errorInfo separately using a ref to avoid setState issues
     // componentDidCatch should only be used for side effects, not state updates
@@ -53,14 +62,17 @@ class ErrorBoundary extends React.Component {
             });
           } catch (setStateError) {
             // Silently fail - error is already logged
-            console.error('Error updating ErrorBoundary state:', setStateError);
+            console.error('[ErrorBoundary] Error updating state:', setStateError);
           }
         }
       });
     }
 
-    // In production, you would log this to an error reporting service
-    // Example: Sentry.captureException(error, { contexts: { react: errorInfo } });
+    // In production, send to error reporting service
+    if (process.env.NODE_ENV === 'production') {
+      // Example: Sentry.captureException(error, { contexts: { react: errorInfo } });
+      // Example: logErrorToService(errorDetails);
+    }
   }
 
   handleReset = () => {

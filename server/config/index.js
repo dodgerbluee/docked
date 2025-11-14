@@ -1,9 +1,46 @@
 /**
  * Application configuration
  * Centralizes all environment variables and configuration settings
+ * Validates required configuration and provides type-safe access
  */
 
 require("dotenv").config();
+const { ConfigurationError } = require('../domain/errors');
+
+/**
+ * Validate required environment variables
+ */
+function validateConfig() {
+  const required = [];
+  const warnings = [];
+
+  // JWT secret should be strong in production
+  if (process.env.NODE_ENV === 'production') {
+    const jwtSecret = process.env.JWT_SECRET || 'change-this-secret-in-production-use-strong-random-string';
+    if (jwtSecret === 'change-this-secret-in-production-use-strong-random-string' || jwtSecret.length < 32) {
+      warnings.push('JWT_SECRET should be at least 32 characters in production');
+    }
+  }
+
+  // Portainer configuration
+  if (!process.env.PORTAINER_URL && !process.env.PORTAINER_URLS) {
+    warnings.push('PORTAINER_URL or PORTAINER_URLS not set, using default: http://localhost:9000');
+  }
+
+  if (warnings.length > 0) {
+    const logger = require('../utils/logger');
+    warnings.forEach(warning => {
+      logger.warn('Configuration warning', {
+        module: 'config',
+        warning,
+      });
+    });
+  }
+
+  if (required.length > 0) {
+    throw new ConfigurationError(`Missing required configuration: ${required.join(', ')}`);
+  }
+}
 
 const config = {
   port: process.env.PORT || 3001,
@@ -100,5 +137,20 @@ const config = {
     allowedHeaders: ['Content-Type', 'Authorization'],
   },
 };
+
+// Validate configuration on load
+try {
+  validateConfig();
+} catch (error) {
+  // Log but don't crash - allow defaults for development
+  if (process.env.NODE_ENV === 'production') {
+    throw error;
+  }
+  const logger = require('../utils/logger');
+  logger.warn('Configuration validation failed', {
+    module: 'config',
+    error: error.message,
+  });
+}
 
 module.exports = config;

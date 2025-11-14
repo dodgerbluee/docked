@@ -1,22 +1,20 @@
 /**
  * Batch Controller
  * Handles HTTP requests for batch configuration and logs
+ * Uses: Repositories, ApiResponse, Typed errors, Validation
  */
 
-const { 
-  getBatchConfig, 
-  updateBatchConfig,
-  createBatchRun,
-  updateBatchRun,
-  getLatestBatchRun,
-  getLatestBatchRunsByJobType,
-  getRecentBatchRuns,
-  getBatchRunById,
-} = require('../db/database');
+const container = require('../di/container');
 const batchSystem = require('../services/batch');
 const { setLogLevel: setBatchLogLevel, getLogLevel: getBatchLogLevel } = require('../services/batch/Logger');
 const { setLogLevel, getLogLevel } = require('../utils/logLevel');
+const { sendSuccess, sendCreated } = require('../utils/responseHelper');
+const { ValidationError, NotFoundError } = require('../domain/errors');
 const logger = require('../utils/logger');
+
+// Resolve dependencies from container
+const batchConfigRepository = container.resolve('batchConfigRepository');
+const batchRunRepository = container.resolve('batchRunRepository');
 
 /**
  * Get batch configuration
@@ -26,17 +24,10 @@ const logger = require('../utils/logger');
  */
 async function getBatchConfigHandler(req, res, next) {
   try {
-    const configs = await getBatchConfig(); // Returns all configs
-    res.json({
-      success: true,
-      config: configs, // Return all configs as an object
-    });
+    const configs = await batchConfigRepository.findAll();
+    sendSuccess(res, { config: configs });
   } catch (error) {
-    logger.error('Error fetching batch config:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to fetch batch configuration',
-    });
+    next(error);
   }
 }
 
@@ -50,21 +41,14 @@ async function updateBatchConfigHandler(req, res, next) {
   try {
     const { jobType, enabled, intervalMinutes } = req.body;
 
-    // Validate required fields
-    if (!jobType || typeof jobType !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'jobType is required and must be a string',
-      });
-    }
-
     // Validate job type is registered
     const registeredJobTypes = batchSystem.getRegisteredJobTypes();
     if (!registeredJobTypes.includes(jobType)) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
-      });
+      throw new ValidationError(
+        `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
+        'jobType',
+        jobType
+      );
     }
 
     // Validate with handler if available
@@ -72,42 +56,22 @@ async function updateBatchConfigHandler(req, res, next) {
     if (handler) {
       const validation = handler.validateConfig({ enabled, intervalMinutes });
       if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          error: validation.error || 'Invalid configuration',
-        });
+        throw new ValidationError(
+          validation.error || 'Invalid configuration',
+          'config'
+        );
       }
     }
 
-    if (typeof enabled !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        error: 'enabled must be a boolean',
-      });
-    }
-
-    if (typeof intervalMinutes !== 'number' || intervalMinutes < 1 || intervalMinutes > 1440) {
-      return res.status(400).json({
-        success: false,
-        error: 'intervalMinutes must be a number between 1 and 1440',
-      });
-    }
-
-    await updateBatchConfig(jobType, enabled, intervalMinutes);
+    await batchConfigRepository.update(jobType, enabled, intervalMinutes);
+    const updatedConfigs = await batchConfigRepository.findAll();
     
-    const updatedConfigs = await getBatchConfig(); // Get all configs
-    
-    res.json({
-      success: true,
+    sendSuccess(res, {
       config: updatedConfigs,
       message: 'Batch configuration updated successfully',
     });
   } catch (error) {
-    logger.error('Error updating batch config:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update batch configuration',
-    });
+    next(error);
   }
 }
 
@@ -119,18 +83,11 @@ async function updateBatchConfigHandler(req, res, next) {
  */
 async function createBatchRunHandler(req, res, next) {
   try {
-    const { status, jobType } = req.body;
-    const runId = await createBatchRun(status || 'running', jobType || 'docker-hub-pull');
-    res.json({
-      success: true,
-      runId,
-    });
+    const { status = 'running', jobType = 'docker-hub-pull', isManual = false } = req.body;
+    const runId = await batchRunRepository.create({ status, jobType, isManual });
+    sendCreated(res, { runId });
   } catch (error) {
-    logger.error('Error creating batch run:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to create batch run',
-    });
+    next(error);
   }
 }
 
@@ -144,33 +101,22 @@ async function updateBatchRunHandler(req, res, next) {
   try {
     const runId = parseInt(req.params.id);
     if (isNaN(runId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid run ID',
-      });
+      throw new ValidationError('Invalid run ID', 'id', req.params.id);
     }
 
     const { status, containersChecked, containersUpdated, errorMessage, logs } = req.body;
     
-    await updateBatchRun(
-      runId,
+    await batchRunRepository.update(runId, {
       status,
-      containersChecked || 0,
-      containersUpdated || 0,
-      errorMessage || null,
-      logs || null
-    );
+      containersChecked: containersChecked || 0,
+      containersUpdated: containersUpdated || 0,
+      errorMessage: errorMessage || null,
+      logs: logs || null,
+    });
 
-    res.json({
-      success: true,
-      message: 'Batch run updated successfully',
-    });
+    sendSuccess(res, { message: 'Batch run updated successfully' });
   } catch (error) {
-    logger.error('Error updating batch run:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update batch run',
-    });
+    next(error);
   }
 }
 
@@ -195,7 +141,15 @@ async function getLatestBatchRunHandler(req, res, next) {
     });
     
     if (byJobType) {
-      const latestRuns = await getLatestBatchRunsByJobType();
+      // Get latest runs for each job type
+      const jobTypes = ['docker-hub-pull', 'tracked-apps-check'];
+      const latestRuns = {};
+      for (const jobType of jobTypes) {
+        const run = await batchRunRepository.findLatestByJobType(jobType);
+        if (run) {
+          latestRuns[jobType] = run;
+        }
+      }
       
       logger.debug('Latest batch runs by job type retrieved', {
         module: 'batchController',
@@ -204,12 +158,9 @@ async function getLatestBatchRunHandler(req, res, next) {
         runCount: Object.keys(latestRuns || {}).length,
       });
       
-      res.json({
-        success: true,
-        runs: latestRuns,
-      });
+      sendSuccess(res, { runs: latestRuns });
     } else {
-      const latestRun = await getLatestBatchRun();
+      const latestRun = await batchRunRepository.findLatest();
       
       logger.debug('Latest batch run retrieved', {
         module: 'batchController',
@@ -219,22 +170,10 @@ async function getLatestBatchRunHandler(req, res, next) {
         status: latestRun?.status,
       });
       
-      res.json({
-        success: true,
-        run: latestRun,
-      });
+      sendSuccess(res, { run: latestRun });
     }
   } catch (error) {
-    logger.error('Error fetching latest batch run', {
-      module: 'batchController',
-      operation: 'getLatestBatchRunHandler',
-      byJobType: req.query.byJobType === 'true',
-      error: error,
-    });
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to fetch latest batch run',
-    });
+    next(error);
   }
 }
 
@@ -247,17 +186,10 @@ async function getLatestBatchRunHandler(req, res, next) {
 async function getRecentBatchRunsHandler(req, res, next) {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    const runs = await getRecentBatchRuns(limit);
-    res.json({
-      success: true,
-      runs,
-    });
+    const runs = await batchRunRepository.findRecent(limit);
+    sendSuccess(res, { runs });
   } catch (error) {
-    logger.error('Error fetching recent batch runs:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to fetch recent batch runs',
-    });
+    next(error);
   }
 }
 
@@ -271,30 +203,17 @@ async function getBatchRunByIdHandler(req, res, next) {
   try {
     const runId = parseInt(req.params.id);
     if (isNaN(runId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid run ID',
-      });
+      throw new ValidationError('Invalid run ID', 'id', req.params.id);
     }
 
-    const run = await getBatchRunById(runId);
+    const run = await batchRunRepository.findById(runId);
     if (!run) {
-      return res.status(404).json({
-        success: false,
-        error: 'Batch run not found',
-      });
+      throw new NotFoundError('Batch run');
     }
 
-    res.json({
-      success: true,
-      run,
-    });
+    sendSuccess(res, { run });
   } catch (error) {
-    logger.error('Error fetching batch run:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to fetch batch run',
-    });
+    next(error);
   }
 }
 
@@ -309,19 +228,17 @@ async function triggerBatchJobHandler(req, res, next) {
     const { jobType } = req.body;
 
     if (!jobType || typeof jobType !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'jobType is required and must be a string',
-      });
+      throw new ValidationError('jobType is required and must be a string', 'jobType', jobType);
     }
 
     // Validate job type is registered
     const registeredJobTypes = batchSystem.getRegisteredJobTypes();
     if (!registeredJobTypes.includes(jobType)) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
-      });
+      throw new ValidationError(
+        `Invalid job type: ${jobType}. Valid types: ${registeredJobTypes.join(', ')}`,
+        'jobType',
+        jobType
+      );
     }
 
     // Execute the job (don't await - let it run in background)
@@ -334,16 +251,11 @@ async function triggerBatchJobHandler(req, res, next) {
         logger.error(`❌ Manually triggered job ${jobType} failed:`, err);
       });
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       message: `Job ${jobType} triggered successfully. Check batch logs for execution details.`,
     });
   } catch (error) {
-    logger.error('Error triggering batch job:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to trigger batch job',
-    });
+    next(error);
   }
 }
 
@@ -356,16 +268,9 @@ async function triggerBatchJobHandler(req, res, next) {
 async function getBatchStatusHandler(req, res, next) {
   try {
     const status = batchSystem.getStatus();
-    res.json({
-      success: true,
-      status,
-    });
+    sendSuccess(res, { status });
   } catch (error) {
-    logger.error('Error fetching batch status:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to fetch batch status',
-    });
+    next(error);
   }
 }
 
@@ -379,16 +284,9 @@ async function getLogLevelHandler(req, res, next) {
   try {
     // Use DB-backed log level (persists across restarts)
     const level = await getLogLevel();
-    res.json({
-      success: true,
-      logLevel: level,
-    });
+    sendSuccess(res, { logLevel: level });
   } catch (error) {
-    logger.error('Error getting log level:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to get log level',
-    });
+    next(error);
   }
 }
 
@@ -403,10 +301,7 @@ async function setLogLevelHandler(req, res, next) {
     const { logLevel } = req.body;
 
     if (!logLevel || (logLevel !== 'info' && logLevel !== 'debug')) {
-      return res.status(400).json({
-        success: false,
-        error: 'logLevel must be "info" or "debug"',
-      });
+      throw new ValidationError('logLevel must be "info" or "debug"', 'logLevel', logLevel);
     }
 
     // Use DB-backed log level (persists across restarts)
@@ -415,17 +310,12 @@ async function setLogLevelHandler(req, res, next) {
     // Also update the logger's cached level
     logger.updateLevel();
     
-    res.json({
-      success: true,
+    sendSuccess(res, {
       logLevel,
       message: `Log level set to ${logLevel}`,
     });
   } catch (error) {
-    logger.error('Error setting log level:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to set log level',
-    });
+    next(error);
   }
 }
 
@@ -442,4 +332,5 @@ module.exports = {
   getLogLevelHandler,
   setLogLevelHandler,
 };
+
 

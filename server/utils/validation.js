@@ -1,22 +1,29 @@
 /**
  * Input validation utilities
+ * Uses typed errors for better error handling
  */
+
+const { ValidationError } = require('../domain/errors');
 
 /**
  * Validates that required fields are present in request body
  * @param {Object} body - Request body
  * @param {string[]} requiredFields - Array of required field names
- * @returns {Object|null} - Error object if validation fails, null otherwise
+ * @throws {ValidationError} - If validation fails
  */
 function validateRequiredFields(body, requiredFields) {
-  const missing = requiredFields.filter((field) => !body[field]);
+  const missing = requiredFields.filter((field) => {
+    const value = body[field];
+    return value === undefined || value === null || value === '';
+  });
+  
   if (missing.length > 0) {
-    return {
-      error: `Missing required fields: ${missing.join(', ')}`,
-      missingFields: missing,
-    };
+    throw new ValidationError(
+      `Missing required fields: ${missing.join(', ')}`,
+      missing[0], // First missing field
+      null
+    );
   }
-  return null;
 }
 
 /**
@@ -63,33 +70,32 @@ function isValidPortainerUrl(url) {
 /**
  * Validates array of images for deletion
  * @param {Array} images - Array of image objects
- * @returns {Object|null} - Error object if validation fails, null otherwise
+ * @throws {ValidationError} - If validation fails
  */
 function validateImageArray(images) {
   if (!Array.isArray(images) || images.length === 0) {
-    return { error: 'images array is required and must not be empty' };
+    throw new ValidationError('images array is required and must not be empty');
   }
 
   for (const image of images) {
     if (!image.id || !image.portainerUrl || !image.endpointId) {
-      return {
-        error: 'Each image must have id, portainerUrl, and endpointId',
-        invalidImage: image,
-      };
+      throw new ValidationError(
+        'Each image must have id, portainerUrl, and endpointId',
+        'images',
+        image
+      );
     }
   }
-
-  return null;
 }
 
 /**
  * Validates array of containers for batch upgrade
  * @param {Array} containers - Array of container objects
- * @returns {Object|null} - Error object if validation fails, null otherwise
+ * @throws {ValidationError} - If validation fails
  */
 function validateContainerArray(containers) {
   if (!Array.isArray(containers) || containers.length === 0) {
-    return { error: 'containers array is required and must not be empty' };
+    throw new ValidationError('containers array is required and must not be empty');
   }
 
   for (const container of containers) {
@@ -99,14 +105,13 @@ function validateContainerArray(containers) {
       !container.imageName ||
       !container.portainerUrl
     ) {
-      return {
-        error: 'Each container must have containerId, endpointId, imageName, and portainerUrl',
-        invalidContainer: container,
-      };
+      throw new ValidationError(
+        'Each container must have containerId, endpointId, imageName, and portainerUrl',
+        'containers',
+        container
+      );
     }
   }
-
-  return null;
 }
 
 module.exports = {

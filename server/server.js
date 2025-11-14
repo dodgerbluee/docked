@@ -13,6 +13,7 @@ const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
+const { securityHeaders, requestSizeLimiter } = require("./middleware/security");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
 
@@ -108,6 +109,10 @@ app.use(cors(config.cors));
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Security middleware
+app.use(requestSizeLimiter("10mb")); // Additional request size protection
+app.use(securityHeaders); // Enhanced security headers
 
 // Request logging middleware (after body parsing to capture request data)
 app.use(requestLogger);
@@ -213,21 +218,67 @@ try {
   process.exit(1);
 }
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.critical('Unhandled Promise Rejection', {
+    module: 'server',
+    reason: reason instanceof Error ? {
+      message: reason.message,
+      stack: reason.stack,
+      name: reason.name,
+    } : reason,
+    promise: promise.toString(),
+  });
+  // Don't exit in production - let the process continue but log the error
+  // In development, we might want to exit to catch issues early
+  if (process.env.NODE_ENV === 'development') {
+    process.exit(1);
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.critical('Uncaught Exception', {
+    module: 'server',
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    },
+  });
+  // Exit on uncaught exceptions as the process is in an unknown state
+  process.exit(1);
+});
+
 // Graceful shutdown handling
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully', {
     module: 'server',
   });
-  batchSystem.stop();
-  process.exit(0);
+  batchSystem.stop().then(() => {
+    process.exit(0);
+  }).catch((err) => {
+    logger.error('Error during graceful shutdown', {
+      module: 'server',
+      error: err,
+    });
+    process.exit(1);
+  });
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully', {
     module: 'server',
   });
-  batchSystem.stop();
-  process.exit(0);
+  batchSystem.stop().then(() => {
+    process.exit(0);
+  }).catch((err) => {
+    logger.error('Error during graceful shutdown', {
+      module: 'server',
+      error: err,
+    });
+    process.exit(1);
+  });
 });
 
 module.exports = app;

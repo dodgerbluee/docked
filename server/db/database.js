@@ -162,6 +162,53 @@ function initializeDatabase() {
                   alterErr.message
                 );
               }
+              
+              // Verify all columns exist by querying the table structure
+              // This runs after all ALTER TABLE statements to ensure migrations completed
+              db.all("PRAGMA table_info(portainer_instances)", (pragmaErr, columns) => {
+                if (pragmaErr) {
+                  logger.error("Error checking portainer_instances table structure:", pragmaErr.message);
+                  return;
+                }
+                
+                if (!columns || columns.length === 0) {
+                  logger.warn("Portainer instances table structure check returned no columns");
+                  return;
+                }
+                
+                const columnNames = columns.map(col => col.name);
+                const requiredColumns = ['api_key', 'auth_type', 'display_order', 'ip_address'];
+                const missingColumns = requiredColumns.filter(col => !columnNames.includes(col));
+                
+                if (missingColumns.length > 0) {
+                  logger.warn(`Portainer instances table missing columns: ${missingColumns.join(', ')}. Attempting to add...`);
+                  let addedCount = 0;
+                  missingColumns.forEach(colName => {
+                    let columnDef = 'TEXT';
+                    if (colName === 'display_order') {
+                      columnDef = 'INTEGER DEFAULT 0';
+                    } else if (colName === 'auth_type') {
+                      columnDef = "TEXT DEFAULT 'password'";
+                    }
+                    db.run(
+                      `ALTER TABLE portainer_instances ADD COLUMN ${colName} ${columnDef}`,
+                      (addErr) => {
+                        if (addErr && !addErr.message.includes("duplicate column")) {
+                          logger.error(`Error adding ${colName} column:`, addErr.message);
+                        } else {
+                          addedCount++;
+                          logger.info(`Successfully added ${colName} column to portainer_instances`);
+                          if (addedCount === missingColumns.length) {
+                            logger.info(`Migration complete: Added ${addedCount} missing column(s) to portainer_instances table`);
+                          }
+                        }
+                      }
+                    );
+                  });
+                } else {
+                  logger.info('All required columns exist in portainer_instances table');
+                }
+              });
             }
           );
           // Make username and password nullable for API key auth

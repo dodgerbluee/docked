@@ -1,22 +1,19 @@
 /**
  * Portainer Instance Controller
  * Handles CRUD operations for Portainer instances
+ * Uses: Repositories, ApiResponse, Typed errors, Validation
  */
 
-const {
-  getAllPortainerInstances,
-  getPortainerInstanceById,
-  createPortainerInstance,
-  updatePortainerInstance,
-  deletePortainerInstance,
-  updatePortainerInstanceOrder,
-  getContainerCache,
-  setContainerCache,
-} = require('../db/database');
-const { validateRequiredFields } = require('../utils/validation');
+const container = require('../di/container');
 const portainerService = require('../services/portainerService');
+const { sendSuccess, sendCreated, sendNoContent } = require('../utils/responseHelper');
+const { NotFoundError, ValidationError, ExternalServiceError } = require('../domain/errors');
 const logger = require('../utils/logger');
 const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
+
+// Resolve dependencies from container
+const portainerInstanceRepository = container.resolve('portainerInstanceRepository');
+const containerCacheService = container.resolve('containerCacheService');
 
 /**
  * Validate Portainer instance credentials without creating the instance
@@ -30,20 +27,12 @@ async function validateInstance(req, res, next) {
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { url, apiKey },
-        ['url', 'apiKey']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!url || !apiKey) {
+        throw new ValidationError('url and apiKey are required for API key authentication', 'apiKey');
       }
     } else {
-      const validationError = validateRequiredFields(
-        { url, username, password },
-        ['url', 'username', 'password']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!url || !username || !password) {
+        throw new ValidationError('url, username, and password are required for password authentication');
       }
     }
 
@@ -51,16 +40,11 @@ async function validateInstance(req, res, next) {
     try {
       const urlObj = new URL(url);
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
-        return res.status(400).json({
-          success: false,
-          error: 'URL must use http:// or https://',
-        });
+        throw new ValidationError('URL must use http:// or https://', 'url', url);
       }
     } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid URL format',
-      });
+      if (err instanceof ValidationError) throw err;
+      throw new ValidationError('Invalid URL format', 'url', url);
     }
 
     // Test authentication - skip cache to ensure we validate the actual credentials provided
@@ -75,17 +59,11 @@ async function validateInstance(req, res, next) {
       );
       
       // If we get here, authentication succeeded
-      res.json({
-        success: true,
-        message: 'Authentication successful',
-      });
+      sendSuccess(res, { message: 'Authentication successful' });
     } catch (authError) {
       // Authentication failed - clear any cached token for this URL
       portainerService.clearAuthToken(url.trim());
-      return res.status(401).json({
-        success: false,
-        error: authError.message || 'Authentication failed. Please check your credentials.',
-      });
+      throw new ExternalServiceError('Portainer', authError.message || 'Authentication failed. Please check your credentials.', 401);
     }
   } catch (error) {
     next(error);
@@ -100,13 +78,10 @@ async function validateInstance(req, res, next) {
  */
 async function getInstances(req, res, next) {
   try {
-    const instances = await getAllPortainerInstances();
+    const instances = await portainerInstanceRepository.findAll();
     // Don't return passwords or API keys in the response
     const safeInstances = instances.map(({ password, api_key, ...rest }) => rest);
-    res.json({
-      success: true,
-      instances: safeInstances,
-    });
+    sendSuccess(res, { instances: safeInstances });
   } catch (error) {
     next(error);
   }
@@ -121,21 +96,15 @@ async function getInstances(req, res, next) {
 async function getInstance(req, res, next) {
   try {
     const { id } = req.params;
-    const instance = await getPortainerInstanceById(parseInt(id));
+    const instance = await portainerInstanceRepository.findById(parseInt(id));
     
     if (!instance) {
-      return res.status(404).json({
-        success: false,
-        error: 'Portainer instance not found',
-      });
+      throw new NotFoundError('Portainer instance');
     }
 
     // Don't return password or API key in the response
     const { password, api_key, ...safeInstance } = instance;
-    res.json({
-      success: true,
-      instance: safeInstance,
-    });
+    sendSuccess(res, { instance: safeInstance });
   } catch (error) {
     next(error);
   }
@@ -153,20 +122,12 @@ async function createInstance(req, res, next) {
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { name, url, apiKey },
-        ['name', 'url', 'apiKey']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!name || !url || !apiKey) {
+        throw new ValidationError('name, url, and apiKey are required for API key authentication', 'apiKey');
       }
     } else {
-      const validationError = validateRequiredFields(
-        { name, url, username, password },
-        ['name', 'url', 'username', 'password']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!name || !url || !username || !password) {
+        throw new ValidationError('name, url, username, and password are required for password authentication');
       }
     }
 
@@ -175,20 +136,37 @@ async function createInstance(req, res, next) {
       const urlObj = new URL(url);
       // Ensure URL has http or https
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
-        return res.status(400).json({
-          success: false,
-          error: 'URL must use http:// or https://',
-        });
+        throw new ValidationError('URL must use http:// or https://', 'url', url);
       }
     } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid URL format',
-      });
+      if (err instanceof ValidationError) throw err;
+      throw new ValidationError('Invalid URL format', 'url', url);
     }
 
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
+
+    // Check if instance with this URL already exists
+    // Normalize URL for comparison (trim, remove trailing slash, lowercase)
+    const normalizedUrl = url.trim().toLowerCase().replace(/\/$/, '');
+    const existing = await portainerInstanceRepository.findByUrl(url.trim());
+    
+    // Also check if any existing instance has a normalized URL that matches
+    if (!existing) {
+      const allInstances = await portainerInstanceRepository.findAll();
+      const matchingInstance = allInstances.find(inst => {
+        const existingNormalized = inst.url.trim().toLowerCase().replace(/\/$/, '');
+        return existingNormalized === normalizedUrl;
+      });
+      
+      if (matchingInstance) {
+        const { ConflictError } = require('../domain/errors');
+        throw new ConflictError('A Portainer instance with this URL already exists');
+      }
+    } else {
+      const { ConflictError } = require('../domain/errors');
+      throw new ConflictError('A Portainer instance with this URL already exists');
+    }
 
     // Resolve URL to IP address for fallback when DNS fails
     let ipAddress = await resolveUrlToIp(url.trim());
@@ -242,29 +220,25 @@ async function createInstance(req, res, next) {
     }
 
     // Create instance
-    // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
-    const id = await createPortainerInstance(
-      instanceName,
-      url.trim(),
-      authType === 'apikey' ? '' : (username ? username.trim() : ''),
-      authType === 'apikey' ? '' : (password || ''),
-      apiKey || null,
+    const id = await portainerInstanceRepository.create({
+      name: instanceName,
+      url: url.trim(),
+      username: authType === 'apikey' ? '' : (username ? username.trim() : ''),
+      password: authType === 'apikey' ? '' : (password || ''),
+      apiKey: apiKey || null,
       authType,
-      ipAddress
-    );
+      ipAddress,
+    });
 
-    res.json({
-      success: true,
+    sendCreated(res, {
       message: 'Portainer instance created successfully',
       id,
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({
-        success: false,
-        error: 'A Portainer instance with this URL already exists',
-      });
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
+      const { ConflictError } = require('../domain/errors');
+      throw new ConflictError('A Portainer instance with this URL already exists');
     }
     next(error);
   }
@@ -295,27 +269,16 @@ async function updateInstance(req, res, next) {
 
     // Validate required fields based on auth type
     if (finalAuthType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { name, url },
-        ['name', 'url']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!name || !url) {
+        throw new ValidationError('name and url are required', 'name');
       }
       // For API key auth, apiKey is required if not updating (keeping existing)
       if (!apiKey && !existing.api_key) {
-        return res.status(400).json({
-          success: false,
-          error: 'API key is required for API key authentication',
-        });
+        throw new ValidationError('API key is required for API key authentication', 'apiKey');
       }
     } else {
-      const validationError = validateRequiredFields(
-        { name, url, username },
-        ['name', 'url', 'username']
-      );
-      if (validationError) {
-        return res.status(400).json(validationError);
+      if (!name || !url || !username) {
+        throw new ValidationError('name, url, and username are required for password authentication');
       }
     }
 
@@ -324,16 +287,11 @@ async function updateInstance(req, res, next) {
       const urlObj = new URL(url);
       // Ensure URL has http or https
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
-        return res.status(400).json({
-          success: false,
-          error: 'URL must use http:// or https://',
-        });
+        throw new ValidationError('URL must use http:// or https://', 'url', url);
       }
     } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid URL format',
-      });
+      if (err instanceof ValidationError) throw err;
+      throw new ValidationError('Invalid URL format', 'url', url);
     }
 
     // If name is empty, use URL hostname as default
@@ -410,30 +368,22 @@ async function updateInstance(req, res, next) {
     }
 
     // Update instance
-    // For API key auth, use empty strings for username/password to satisfy NOT NULL constraints
-    // For password auth, use null for API key to clear it
-    await updatePortainerInstance(
-      parseInt(id),
-      instanceName,
-      url.trim(),
-      finalAuthType === 'apikey' ? '' : (username ? username.trim() : ''),
-      passwordToUse || '',
-      apiKeyToUse,
-      finalAuthType,
-      ipAddress
-    );
-
-    res.json({
-      success: true,
-      message: 'Portainer instance updated successfully',
+    await portainerInstanceRepository.update(parseInt(id), {
+      name: instanceName,
+      url: url.trim(),
+      username: finalAuthType === 'apikey' ? '' : (username ? username.trim() : ''),
+      password: passwordToUse || '',
+      apiKey: apiKeyToUse,
+      authType: finalAuthType,
+      ipAddress,
     });
+
+    sendSuccess(res, { message: 'Portainer instance updated successfully' });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({
-        success: false,
-        error: 'A Portainer instance with this URL already exists',
-      });
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
+      const { ConflictError } = require('../domain/errors');
+      throw new ConflictError('A Portainer instance with this URL already exists');
     }
     next(error);
   }
@@ -469,11 +419,11 @@ async function deleteInstance(req, res, next) {
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
     // Delete instance
-    await deletePortainerInstance(parseInt(id));
+    await portainerInstanceRepository.delete(parseInt(id));
 
     // Remove containers from cache that belong to the deleted instance
     try {
-      const cached = await getContainerCache('containers');
+      const cached = await containerCacheService.get('containers');
       if (cached && cached.containers && Array.isArray(cached.containers)) {
         // Log for debugging
         const totalContainersBefore = cached.containers.length;
@@ -567,7 +517,7 @@ async function deleteInstance(req, res, next) {
           // unusedImagesCount will be recalculated on next fetch based on remaining instances
         };
 
-        await setContainerCache('containers', updatedCache);
+        await containerCacheService.set('containers', updatedCache);
         logger.info('Removed containers from cache for deleted instance', {
           module: 'portainerController',
           operation: 'deleteInstance',
@@ -614,19 +564,13 @@ async function updateInstanceOrder(req, res, next) {
     // Validate each order entry
     for (const order of orders) {
       if (typeof order.id !== 'number' || typeof order.display_order !== 'number') {
-        return res.status(400).json({
-          success: false,
-          error: 'Each order entry must have id (number) and display_order (number)',
-        });
+        throw new ValidationError('Each order entry must have id (number) and display_order (number)', 'orders', order);
       }
     }
 
-    await updatePortainerInstanceOrder(orders);
+    await portainerInstanceRepository.updateOrder(orders);
 
-    res.json({
-      success: true,
-      message: 'Portainer instance order updated successfully',
-    });
+    sendSuccess(res, { message: 'Portainer instance order updated successfully' });
   } catch (error) {
     next(error);
   }

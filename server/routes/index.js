@@ -26,30 +26,15 @@ const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
+const { validateBody, validateQuery, validateParams } = require("../utils/validationSchemas");
+const { schemas } = require("../utils/validationSchemas");
+const Joi = require('joi');
 
 const router = express.Router();
 
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Server is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: ok
- */
-router.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
+// Health check routes (no authentication required)
+const healthRouter = require('./health');
+router.use('/health', healthRouter);
 
 /**
  * @swagger
@@ -96,7 +81,8 @@ router.get("/health", (req, res) => {
  *       400:
  *         description: Missing required fields
  */
-router.post("/auth/login", asyncHandler(authController.login));
+// Apply validation middleware before controller
+router.post("/auth/login", validateBody(schemas.login), asyncHandler(authController.login));
 
 /**
  * @swagger
@@ -122,10 +108,12 @@ router.use(authenticate);
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.post(
   "/auth/update-password",
+  validateBody(schemas.updatePassword),
   asyncHandler(authController.updateUserPassword)
 );
 router.post(
   "/auth/update-username",
+  validateBody(schemas.updateUsername),
   asyncHandler(authController.updateUserUsername)
 );
 
@@ -136,10 +124,12 @@ router.get(
 );
 router.post(
   "/docker-hub/credentials/validate",
+  validateBody(schemas.dockerHubCredentials),
   asyncHandler(authController.validateDockerHubCreds)
 );
 router.post(
   "/docker-hub/credentials",
+  validateBody(schemas.dockerHubCredentials),
   asyncHandler(authController.updateDockerHubCreds)
 );
 router.delete(
@@ -153,6 +143,7 @@ router.get("/containers", asyncHandler(containerController.getContainers));
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
 router.post(
   "/containers/pull",
+  validateBody(schemas.pullContainers),
   asyncHandler(containerController.pullContainers)
 );
 router.delete(
@@ -161,20 +152,28 @@ router.delete(
 );
 router.post(
   "/containers/batch-upgrade",
+  validateBody(schemas.batchUpgrade),
   asyncHandler(containerController.batchUpgradeContainers)
 );
 router.post(
   "/containers/:containerId/upgrade",
+  validateParams(schemas.containerIdParam),
+  validateBody(schemas.upgradeContainer),
   asyncHandler(containerController.upgradeContainer)
 );
 
 // Image routes
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
-router.post("/images/delete", asyncHandler(imageController.deleteImages));
+router.post(
+  "/images/delete",
+  validateBody(schemas.deleteImages),
+  asyncHandler(imageController.deleteImages)
+);
 
 // Portainer instance routes
 router.post(
   "/portainer/instances/validate",
+  validateBody(schemas.portainerInstanceValidate),
   asyncHandler(portainerController.validateInstance)
 );
 router.get(
@@ -183,22 +182,35 @@ router.get(
 );
 router.get(
   "/portainer/instances/:id",
+  validateParams(schemas.idParam),
   asyncHandler(portainerController.getInstance)
 );
 router.post(
   "/portainer/instances",
+  validateBody(schemas.portainerInstance),
   asyncHandler(portainerController.createInstance)
 );
 router.put(
   "/portainer/instances/:id",
+  validateParams(schemas.idParam),
+  validateBody(schemas.portainerInstanceUpdate),
   asyncHandler(portainerController.updateInstance)
 );
 router.post(
   "/portainer/instances/reorder",
+  validateBody(Joi.object({
+    orders: Joi.array().items(
+      Joi.object({
+        id: Joi.number().integer().required(),
+        display_order: Joi.number().integer().min(0).required(),
+      })
+    ).min(1).required(),
+  })),
   asyncHandler(portainerController.updateInstanceOrder)
 );
 router.delete(
   "/portainer/instances/:id",
+  validateParams(schemas.idParam),
   asyncHandler(portainerController.deleteInstance)
 );
 
@@ -212,41 +224,124 @@ router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
 
 // Batch configuration routes
 router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
-router.post("/batch/config", asyncHandler(batchController.updateBatchConfigHandler));
+router.post(
+  "/batch/config",
+  validateBody(schemas.batchConfigUpdate),
+  asyncHandler(batchController.updateBatchConfigHandler)
+);
 router.get("/batch/status", asyncHandler(batchController.getBatchStatusHandler));
-router.post("/batch/trigger", asyncHandler(batchController.triggerBatchJobHandler));
+router.post(
+  "/batch/trigger",
+  validateBody(schemas.batchTrigger),
+  asyncHandler(batchController.triggerBatchJobHandler)
+);
 router.get("/batch/log-level", asyncHandler(batchController.getLogLevelHandler));
-router.post("/batch/log-level", asyncHandler(batchController.setLogLevelHandler));
-router.post("/batch/runs", asyncHandler(batchController.createBatchRunHandler));
-router.put("/batch/runs/:id", asyncHandler(batchController.updateBatchRunHandler));
-router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
-router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
-router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
+router.post(
+  "/batch/log-level",
+  validateBody(Joi.object({ logLevel: schemas.logLevel })),
+  asyncHandler(batchController.setLogLevelHandler)
+);
+router.post(
+  "/batch/runs",
+  validateBody(schemas.batchRunCreate),
+  asyncHandler(batchController.createBatchRunHandler)
+);
+router.put(
+  "/batch/runs/:id",
+  validateParams(schemas.idParam),
+  validateBody(schemas.batchRunUpdate),
+  asyncHandler(batchController.updateBatchRunHandler)
+);
+router.get(
+  "/batch/runs/latest",
+  validateQuery(schemas.batchRunsQuery),
+  asyncHandler(batchController.getLatestBatchRunHandler)
+);
+router.get(
+  "/batch/runs",
+  validateQuery(schemas.batchRunsQuery),
+  asyncHandler(batchController.getRecentBatchRunsHandler)
+);
+router.get(
+  "/batch/runs/:id",
+  validateParams(schemas.idParam),
+  asyncHandler(batchController.getBatchRunByIdHandler)
+);
 
 // Tracked images routes
 // IMPORTANT: More specific routes must come before parameterized routes
 router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
-router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.post(
+  "/tracked-images",
+  validateBody(schemas.trackedImage),
+  asyncHandler(trackedImageController.createTrackedImage)
+);
 router.post("/tracked-images/check-updates", asyncHandler(trackedImageController.checkTrackedImagesUpdates));
 router.delete("/tracked-images/cache", asyncHandler(trackedImageController.clearGitHubCache));
-router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
-router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
-router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
-router.post("/tracked-images/:id/check-update", asyncHandler(trackedImageController.checkTrackedImageUpdate));
+router.get(
+  "/tracked-images/:id",
+  validateParams(schemas.idParam),
+  asyncHandler(trackedImageController.getTrackedImage)
+);
+router.put(
+  "/tracked-images/:id",
+  validateParams(schemas.idParam),
+  validateBody(schemas.trackedImageUpdate),
+  asyncHandler(trackedImageController.updateTrackedImage)
+);
+router.delete(
+  "/tracked-images/:id",
+  validateParams(schemas.idParam),
+  asyncHandler(trackedImageController.deleteTrackedImage)
+);
+router.post(
+  "/tracked-images/:id/check-update",
+  validateParams(schemas.idParam),
+  asyncHandler(trackedImageController.checkTrackedImageUpdate)
+);
 
 // Discord notification routes
 router.get("/discord/webhooks", asyncHandler(discordController.getDiscordWebhooks));
-router.get("/discord/webhooks/:id", asyncHandler(discordController.getDiscordWebhook));
-router.post("/discord/webhooks", asyncHandler(discordController.createDiscordWebhook));
-router.put("/discord/webhooks/:id", asyncHandler(discordController.updateDiscordWebhook));
-router.delete("/discord/webhooks/:id", asyncHandler(discordController.deleteDiscordWebhook));
-router.post("/discord/webhooks/:id/test", asyncHandler(discordController.testDiscordWebhookById));
-router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
-router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
+router.get(
+  "/discord/webhooks/:id",
+  validateParams(schemas.idParam),
+  asyncHandler(discordController.getDiscordWebhook)
+);
+router.post(
+  "/discord/webhooks",
+  validateBody(schemas.discordWebhook),
+  asyncHandler(discordController.createDiscordWebhook)
+);
+router.put(
+  "/discord/webhooks/:id",
+  validateParams(schemas.idParam),
+  validateBody(schemas.discordWebhookUpdate),
+  asyncHandler(discordController.updateDiscordWebhook)
+);
+router.delete(
+  "/discord/webhooks/:id",
+  validateParams(schemas.idParam),
+  asyncHandler(discordController.deleteDiscordWebhook)
+);
+router.post(
+  "/discord/webhooks/:id/test",
+  validateParams(schemas.idParam),
+  asyncHandler(discordController.testDiscordWebhookById)
+);
+router.post(
+  "/discord/test",
+  validateBody(schemas.discordWebhookTest),
+  asyncHandler(discordController.testDiscordWebhook)
+);
+router.get(
+  "/discord/webhooks/info",
+  validateQuery(Joi.object({ webhookUrl: Joi.string().uri().required() })),
+  asyncHandler(discordController.getWebhookInfo)
+);
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
 // Settings routes
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
-router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
+router.post("/settings/color-scheme", validateBody(schemas.colorScheme), asyncHandler(settingsController.setColorSchemeHandler));
 
 module.exports = router;

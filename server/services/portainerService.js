@@ -3,12 +3,28 @@
  * Handles all interactions with Portainer instances
  */
 
+const container = require('../di/container');
 const axios = require('axios');
 const https = require('https');
 const { URL } = require('url');
 const config = require('../config');
 const { urlWithIp } = require('../utils/dnsResolver');
-const { getAllPortainerInstances } = require('../db/database');
+
+// Resolve dependencies from container (lazy to avoid startup crashes)
+let portainerInstanceRepository;
+
+function getPortainerInstanceRepository() {
+  if (!portainerInstanceRepository) {
+    try {
+      portainerInstanceRepository = container.resolve('portainerInstanceRepository');
+    } catch (error) {
+      const logger = require('../utils/logger');
+      logger.error('Failed to resolve portainerInstanceRepository', { error });
+      throw error;
+    }
+  }
+  return portainerInstanceRepository;
+}
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
@@ -94,7 +110,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
     if (isDnsError) {
       // Try to get instance with IP fallback
       try {
-        const instances = await getAllPortainerInstances();
+        const instances = await getPortainerInstanceRepository().findAll();
         const instance = instances.find(inst => inst.url === portainerUrl);
         
         if (instance && instance.ip_address) {
@@ -347,7 +363,6 @@ function getAuthHeaders(portainerUrl) {
     for (const [storedUrl, storedToken] of authTokens.entries()) {
       // Check if this stored URL's IP matches the portainerUrl, or if portainerUrl contains an IP
       const { urlWithIp } = require('../utils/dnsResolver');
-      const { getAllPortainerInstances } = require('../db/database');
       
       // Try to find instance by checking if storedUrl or portainerUrl match
       // This is a synchronous check - we'll iterate through stored tokens

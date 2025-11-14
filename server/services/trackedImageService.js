@@ -3,20 +3,35 @@
  * Handles update checking for tracked images (Docker, GitHub, and GitLab)
  */
 
+const container = require('../di/container');
 const dockerRegistryService = require('./dockerRegistryService');
 const githubService = require('./githubService');
 const gitlabService = require('./gitlabService');
-const { updateTrackedImage } = require('../db/database');
 const logger = require('../utils/logger');
-// Lazy load discordService to avoid loading issues during module initialization
-let discordService = null;
-function getDiscordService() {
-  if (!discordService) {
+
+// Resolve dependencies from container (lazy to avoid startup crashes)
+let trackedImageRepository;
+let discordService;
+
+function getTrackedImageRepository() {
+  if (!trackedImageRepository) {
     try {
-      discordService = require('./discordService');
+      trackedImageRepository = container.resolve('trackedImageRepository');
     } catch (error) {
-      logger.error('Error loading discordService:', error);
-      return null;
+      logger.error('Failed to resolve trackedImageRepository', { error });
+      throw error;
+    }
+  }
+  return trackedImageRepository;
+}
+
+function getDiscordService() {
+  if (discordService === undefined) {
+    try {
+      discordService = container.resolve('discordService');
+    } catch (error) {
+      logger.warn('Failed to resolve discordService (optional)', { error });
+      discordService = null;
     }
   }
   return discordService;
@@ -176,7 +191,7 @@ async function checkTrackedImage(trackedImage) {
     updateData.current_digest = currentDigestToStore;
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await getTrackedImageRepository().update(trackedImage.id, updateData);
 
   // Use the resolved current version (or fallback to stored/currentTag)
   // Ensure we always return a string, never null/undefined
@@ -406,7 +421,7 @@ async function checkGitHubTrackedImage(trackedImage) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await getTrackedImageRepository().update(trackedImage.id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore 
@@ -671,7 +686,7 @@ async function checkGitLabTrackedImage(trackedImage) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await getTrackedImageRepository().update(trackedImage.id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore 

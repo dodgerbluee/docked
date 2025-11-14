@@ -48,8 +48,17 @@ import { usePortainerInstances } from "./hooks/usePortainerInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
 import { useNewPortainerInstance } from "./hooks/useNewPortainerInstance";
 import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS, CONFIGURATION_TABS } from "./constants/apiConstants";
+import { logConnectionStatus } from "./utils/connectionCheck";
 
 function App() {
+  // Check API connection on mount (development only)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      logConnectionStatus().catch(err => {
+        console.warn('[App] Connection check failed:', err);
+      });
+    }
+  }, []);
   // Authentication state - using custom hook
   const {
     isAuthenticated,
@@ -321,7 +330,14 @@ function App() {
   // This loads data from the database cache without triggering Docker Hub API calls
   // If no cache exists, backend will automatically fetch from Portainer (no Docker Hub)
   useEffect(() => {
-    if (isAuthenticated && authToken && passwordChanged) {
+    // Validate token is not "undefined" or invalid
+    const isValidToken = authToken && 
+                         typeof authToken === 'string' && 
+                         authToken.trim().length > 0 && 
+                         authToken !== 'undefined' && 
+                         authToken !== 'null';
+    
+    if (isAuthenticated && isValidToken && passwordChanged) {
       // Ensure axios header is set before fetching
       if (!axios.defaults.headers.common["Authorization"]) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;

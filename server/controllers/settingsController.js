@@ -1,10 +1,15 @@
 /**
  * Settings Controller
  * Handles HTTP requests for application settings
+ * Uses: ApiResponse, Typed errors, Validation
  */
 
-const { getSetting, setSetting } = require('../db/database');
-const logger = require('../utils/logger');
+const container = require('../di/container');
+const { sendSuccess } = require('../utils/responseHelper');
+const { ValidationError } = require('../domain/errors');
+
+// Resolve dependencies from container
+const settingsRepository = container.resolve('settingsRepository');
 
 const COLOR_SCHEME_KEY = 'color_scheme';
 const DEFAULT_COLOR_SCHEME = 'system';
@@ -17,17 +22,12 @@ const DEFAULT_COLOR_SCHEME = 'system';
  */
 async function getColorSchemeHandler(req, res, next) {
   try {
-    const colorScheme = await getSetting(COLOR_SCHEME_KEY);
-    res.json({
-      success: true,
+    const colorScheme = await settingsRepository.get(COLOR_SCHEME_KEY);
+    sendSuccess(res, {
       colorScheme: colorScheme || DEFAULT_COLOR_SCHEME,
     });
   } catch (error) {
-    logger.error('Error getting color scheme:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to get color scheme',
-    });
+    next(error);
   }
 }
 
@@ -41,26 +41,23 @@ async function setColorSchemeHandler(req, res, next) {
   try {
     const { colorScheme } = req.body;
 
-    if (!colorScheme || !['system', 'light', 'dark'].includes(colorScheme)) {
-      return res.status(400).json({
-        success: false,
-        error: 'colorScheme must be "system", "light", or "dark"',
-      });
+    // Validation is handled by middleware, but double-check
+    if (!colorScheme || !['system', 'light', 'dark', 'auto'].includes(colorScheme)) {
+      throw new ValidationError(
+        'colorScheme must be "system", "light", "dark", or "auto"',
+        'colorScheme',
+        colorScheme
+      );
     }
 
-    await setSetting(COLOR_SCHEME_KEY, colorScheme);
+    await settingsRepository.set(COLOR_SCHEME_KEY, colorScheme);
     
-    res.json({
-      success: true,
+    sendSuccess(res, {
       colorScheme,
       message: `Color scheme set to ${colorScheme}`,
     });
   } catch (error) {
-    logger.error('Error setting color scheme:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to set color scheme',
-    });
+    next(error);
   }
 }
 

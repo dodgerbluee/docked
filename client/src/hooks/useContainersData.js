@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import axios from "axios";
+import { apiClient } from "../services/apiClient";
 import { API_BASE_URL } from "../constants/api";
 
 /**
@@ -207,22 +208,55 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
 
     try {
       setPortainerInstancesLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/portainer/instances`);
-      if (response.data.success && response.data.instances) {
-        const formattedInstances = response.data.instances.map((inst) => ({
+      // Use apiClient instead of raw axios to get automatic response unwrapping
+      const response = await apiClient.get('/api/portainer/instances');
+      
+      // apiClient automatically unwraps ApiResponse format
+      // Backend returns: { success: true, data: { instances: [...] } }
+      // apiClient transforms to: { instances: [...] }
+      let instances = [];
+      
+      // After apiClient transformation, data should be directly accessible
+      if (response.data && response.data.instances) {
+        instances = response.data.instances;
+      } else if (Array.isArray(response.data)) {
+        // Fallback: if data is directly an array
+        instances = response.data;
+      } else if (response.data && response.data.data && response.data.data.instances) {
+        // Fallback: if unwrapping didn't happen for some reason
+        instances = response.data.data.instances;
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[fetchPortainerInstances] Response:', {
+          dataKeys: Object.keys(response.data || {}),
+          instancesCount: instances.length,
+          instances: instances,
+        });
+      }
+      
+      if (instances && instances.length > 0) {
+        const formattedInstances = instances.map((inst) => ({
           name: inst.name,
           url: inst.url,
           id: inst.id,
-          display_order: inst.display_order,
+          display_order: inst.display_order || inst.displayOrder || 0,
           containers: [],
           upToDate: [],
         }));
         setPortainerInstancesFromAPI(formattedInstances);
         return formattedInstances;
+      } else {
+        // Log when no instances found
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[fetchPortainerInstances] No instances found in response', response.data);
+        }
+        setPortainerInstancesFromAPI([]);
       }
       return [];
     } catch (err) {
       console.error("Error fetching Portainer instances:", err);
+      setPortainerInstancesFromAPI([]);
       return [];
     } finally {
       setPortainerInstancesLoading(false);

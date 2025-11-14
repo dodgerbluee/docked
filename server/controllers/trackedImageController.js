@@ -1,21 +1,18 @@
 /**
  * Tracked Images Controller
  * Handles CRUD operations for tracked images
+ * Uses: Repositories, ApiResponse, Typed errors, Validation
  */
 
-const {
-  getAllTrackedImages,
-  getTrackedImageById,
-  getTrackedImageByImageName,
-  createTrackedImage,
-  updateTrackedImage,
-  deleteTrackedImage,
-} = require('../db/database');
-const { validateRequiredFields } = require('../utils/validation');
+const container = require('../di/container');
 const trackedImageService = require('../services/trackedImageService');
 const githubService = require('../services/githubService');
 const gitlabService = require('../services/gitlabService');
-const { clearLatestVersionsForAllTrackedImages } = require('../db/database');
+const { sendSuccess, sendCreated, sendNoContent } = require('../utils/responseHelper');
+const { NotFoundError } = require('../domain/errors');
+
+// Resolve dependencies from container
+const trackedImageRepository = container.resolve('trackedImageRepository');
 
 /**
  * Get all tracked images
@@ -25,7 +22,7 @@ const { clearLatestVersionsForAllTrackedImages } = require('../db/database');
  */
 async function getTrackedImages(req, res, next) {
   try {
-    const images = await getAllTrackedImages();
+    const images = await trackedImageRepository.findAll();
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
     const formattedImages = images.map(image => {
@@ -34,39 +31,29 @@ async function getTrackedImages(req, res, next) {
       let latestVersionPublishDate = image.latest_version_publish_date || null;
       
       // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
-      // This ensures we can show the release date for the latest version
       if ((image.source_type === 'github' || image.source_type === 'gitlab') && latestVersion) {
-        // Normalize versions for comparison (remove "v" prefix)
         const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
         const normalizedCurrent = normalizeVersion(image.current_version || '');
         const normalizedLatest = normalizeVersion(latestVersion);
         
-        // If latest version is different from current and has no publish date, we should still show it
-        // but we need to make sure we have the publish date stored
-        // The issue is that latest_version_publish_date should be set when there's an update
         if (normalizedCurrent !== normalizedLatest && !latestVersionPublishDate) {
-          // If we have latest_version but no latest_version_publish_date, 
-          // it means the update check didn't properly store it
-          // We should still show the version, but the publish date will be "Not available"
+          // Publish date will be "Not available" if not set
         }
       }
       
       return {
         ...image,
-        has_update: Boolean(image.has_update), // Convert 0/1 to boolean
+        has_update: Boolean(image.has_update),
         current_version: image.current_version ? String(image.current_version) : null,
         latest_version: latestVersion,
-        source_type: image.source_type || 'docker', // Default to 'docker' for existing records
+        source_type: image.source_type || 'docker',
         github_repo: image.github_repo || null,
         gitlab_token: image.gitlab_token || null,
         currentVersionPublishDate: currentVersionPublishDate,
         latestVersionPublishDate: latestVersionPublishDate,
       };
     });
-    res.json({
-      success: true,
-      images: formattedImages,
-    });
+    sendSuccess(res, { images: formattedImages });
   } catch (error) {
     next(error);
   }
@@ -81,19 +68,13 @@ async function getTrackedImages(req, res, next) {
 async function getTrackedImage(req, res, next) {
   try {
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id));
+    const image = await trackedImageRepository.findById(parseInt(id));
     
     if (!image) {
-      return res.status(404).json({
-        success: false,
-        error: 'Tracked image not found',
-      });
+      throw new NotFoundError('Tracked image');
     }
 
-    res.json({
-      success: true,
-      image: image,
-    });
+    sendSuccess(res, { image });
   } catch (error) {
     next(error);
   }
@@ -120,107 +101,102 @@ async function createTrackedImageEndpoint(req, res, next) {
     // Determine source type
     const finalSourceType = sourceType || (githubRepo ? 'github' : 'docker');
 
+    const { ConflictError, ValidationError } = require('../domain/errors');
+
     if (finalSourceType === 'github') {
       // Validate GitHub repo
       if (!githubRepo || !githubRepo.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'GitHub repository is required for GitHub source type',
-        });
+        throw new ValidationError('GitHub repository is required for GitHub source type', 'githubRepo');
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(null, githubRepo.trim());
+      const existing = await trackedImageRepository.findByImageNameOrRepo(null, githubRepo.trim());
       if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: 'This GitHub repository is already being tracked',
-        });
+        throw new ConflictError('This GitHub repository is already being tracked');
       }
 
       // Create tracked GitHub repo
-      const id = await createTrackedImage(name.trim(), null, githubRepo.trim(), 'github');
+      const id = await trackedImageRepository.create({
+        name: name.trim(),
+        imageName: null,
+        githubRepo: githubRepo.trim(),
+        sourceType: 'github',
+      });
       
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await trackedImageRepository.update(id, { current_version: current_version.trim() });
       }
       
-      res.json({
-        success: true,
+      sendCreated(res, {
         message: 'GitHub repository tracked successfully',
         id: id,
       });
     } else if (finalSourceType === 'gitlab') {
       // Validate GitLab repo
       if (!githubRepo || !githubRepo.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'GitLab repository is required for GitLab source type',
-        });
+        throw new ValidationError('GitLab repository is required for GitLab source type', 'githubRepo');
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(null, githubRepo.trim());
+      const existing = await trackedImageRepository.findByImageNameOrRepo(null, githubRepo.trim());
       if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: 'This GitLab repository is already being tracked',
-        });
+        throw new ConflictError('This GitLab repository is already being tracked');
       }
 
       // Create tracked GitLab repo
-      const id = await createTrackedImage(name.trim(), null, githubRepo.trim(), 'gitlab', gitlabToken || null);
+      const id = await trackedImageRepository.create({
+        name: name.trim(),
+        imageName: null,
+        githubRepo: githubRepo.trim(),
+        sourceType: 'gitlab',
+        gitlabToken: gitlabToken || null,
+      });
       
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await trackedImageRepository.update(id, { current_version: current_version.trim() });
       }
       
-      res.json({
-        success: true,
+      sendCreated(res, {
         message: 'GitLab repository tracked successfully',
         id: id,
       });
     } else {
       // Docker image
       if (!imageName || !imageName.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Image name is required for Docker source type',
-        });
+        throw new ValidationError('Image name is required for Docker source type', 'imageName');
       }
 
       // Check if image name already exists
-      const existing = await getTrackedImageByImageName(imageName.trim());
+      const existing = await trackedImageRepository.findByImageNameOrRepo(imageName.trim());
       if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: 'An image with this name is already being tracked',
-        });
+        throw new ConflictError('An image with this name is already being tracked');
       }
 
       // Create tracked image
-      const id = await createTrackedImage(name.trim(), imageName.trim(), null, 'docker');
+      const id = await trackedImageRepository.create({
+        name: name.trim(),
+        imageName: imageName.trim(),
+        githubRepo: null,
+        sourceType: 'docker',
+      });
       
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await trackedImageRepository.update(id, { current_version: current_version.trim() });
       }
       
-      res.json({
-        success: true,
+      sendCreated(res, {
         message: 'Tracked image created successfully',
         id: id,
       });
     }
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({
-        success: false,
-        error: 'This item is already being tracked',
-      });
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
+      const { ConflictError } = require('../domain/errors');
+      throw new ConflictError('This item is already being tracked');
     }
     next(error);
   }
@@ -238,32 +214,25 @@ async function updateTrackedImageEndpoint(req, res, next) {
     const { name, imageName, current_version, gitlabToken } = req.body;
 
     // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id));
+    const existing = await trackedImageRepository.findById(parseInt(id));
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: 'Tracked image not found',
-      });
+      throw new NotFoundError('Tracked image');
     }
 
     // Validate input - allow current_version updates even if name/imageName not provided
     if (!name && !imageName && current_version === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'At least one field (name, imageName, or current_version) must be provided',
-      });
+      const { ValidationError } = require('../domain/errors');
+      throw new ValidationError('At least one field (name, imageName, or current_version) must be provided');
     }
 
     // Check if new imageName conflicts with existing
     if (imageName && imageName !== null) {
       const trimmedImageName = String(imageName).trim();
       if (trimmedImageName !== existing.image_name) {
-        const conflict = await getTrackedImageByImageName(trimmedImageName);
+        const conflict = await trackedImageRepository.findByImageNameOrRepo(trimmedImageName);
         if (conflict && conflict.id !== parseInt(id)) {
-          return res.status(400).json({
-            success: false,
-            error: 'An image with this name is already being tracked',
-          });
+          const { ConflictError } = require('../domain/errors');
+          throw new ConflictError('An image with this name is already being tracked');
         }
       }
     }
@@ -319,13 +288,12 @@ async function updateTrackedImageEndpoint(req, res, next) {
       }
     }
 
-    await updateTrackedImage(parseInt(id), updateData);
+    await trackedImageRepository.update(parseInt(id), updateData);
 
     // Fetch the updated image to return current state
-    const updatedImage = await getTrackedImageById(parseInt(id));
+    const updatedImage = await trackedImageRepository.findById(parseInt(id));
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       message: 'Tracked image updated successfully',
       image: updatedImage ? {
         ...updatedImage,
@@ -334,11 +302,9 @@ async function updateTrackedImageEndpoint(req, res, next) {
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({
-        success: false,
-        error: 'An image with this name is already being tracked',
-      });
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
+      const { ConflictError } = require('../domain/errors');
+      throw new ConflictError('An image with this name is already being tracked');
     }
     next(error);
   }
@@ -355,21 +321,15 @@ async function deleteTrackedImageEndpoint(req, res, next) {
     const { id } = req.params;
 
     // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id));
+    const existing = await trackedImageRepository.findById(parseInt(id));
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: 'Tracked image not found',
-      });
+      throw new NotFoundError('Tracked image');
     }
 
     // Delete tracked image
-    await deleteTrackedImage(parseInt(id));
+    await trackedImageRepository.delete(parseInt(id));
 
-    res.json({
-      success: true,
-      message: 'Tracked image deleted successfully',
-    });
+    sendSuccess(res, { message: 'Tracked image deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -383,13 +343,10 @@ async function deleteTrackedImageEndpoint(req, res, next) {
  */
 async function checkTrackedImagesUpdates(req, res, next) {
   try {
-    const images = await getAllTrackedImages();
+    const images = await trackedImageRepository.findAll();
     const results = await trackedImageService.checkAllTrackedImages(images);
     
-    res.json({
-      success: true,
-      results: results,
-    });
+    sendSuccess(res, { results });
   } catch (error) {
     next(error);
   }
@@ -404,21 +361,15 @@ async function checkTrackedImagesUpdates(req, res, next) {
 async function checkTrackedImageUpdate(req, res, next) {
   try {
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id));
+    const image = await trackedImageRepository.findById(parseInt(id));
     
     if (!image) {
-      return res.status(404).json({
-        success: false,
-        error: 'Tracked image not found',
-      });
+      throw new NotFoundError('Tracked image');
     }
 
     const result = await trackedImageService.checkTrackedImage(image);
     
-    res.json({
-      success: true,
-      result: result,
-    });
+    sendSuccess(res, { result });
   } catch (error) {
     next(error);
   }
@@ -435,14 +386,13 @@ async function checkTrackedImageUpdate(req, res, next) {
 async function clearGitHubCache(req, res, next) {
   try {
     // Clear latest version data for all tracked images
-    const rowsUpdated = await clearLatestVersionsForAllTrackedImages();
+    const rowsUpdated = await trackedImageRepository.clearLatestVersions();
     
     // Also clear the GitHub and GitLab release caches
     githubService.clearReleaseCache();
     gitlabService.clearReleaseCache();
     
-    res.json({
-      success: true,
+    sendSuccess(res, {
       message: `Cleared latest version data for ${rowsUpdated} tracked app(s)`,
       rowsUpdated: rowsUpdated,
     });

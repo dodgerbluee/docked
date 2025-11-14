@@ -4,23 +4,27 @@
  */
 
 const axios = require('axios');
-const { validateRequiredFields } = require('../utils/validation');
+const container = require('../di/container');
+const { validateBody } = require('../utils/validationSchemas');
+const { schemas } = require('../utils/validationSchemas');
 const {
-  getUserByUsername,
-  verifyPassword,
-  updatePassword,
-  updateUsername,
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
 } = require('../db/database');
 const { clearCache } = require('../utils/dockerHubCreds');
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require('../utils/jwt');
+const { sendSuccess } = require('../utils/responseHelper');
+const { AuthenticationError } = require('../domain/errors');
 const fs = require('fs');
 const path = require('path');
 
+// Resolve dependencies from container
+const userRepository = container.resolve('userRepository');
+
 /**
  * Login endpoint
+ * Uses: Joi validation, Repository pattern, ApiResponse, Typed errors
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -29,31 +33,16 @@ async function login(req, res, next) {
   try {
     const { username, password } = req.body;
 
-    // Validate input
-    const validationError = validateRequiredFields(
-      { username, password },
-      ['username', 'password']
-    );
-    if (validationError) {
-      return res.status(400).json(validationError);
-    }
-
-    // Get user from database
-    const user = await getUserByUsername(username);
+    // Get user from database using repository
+    const user = await userRepository.findByUsername(username);
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid username or password',
-      });
+      throw new AuthenticationError('Invalid username or password');
     }
 
-    // Verify password
-    const passwordValid = await verifyPassword(password, user.password_hash);
+    // Verify password using repository
+    const passwordValid = await userRepository.verifyPassword(password, user.password_hash);
     if (!passwordValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid username or password',
-      });
+      throw new AuthenticationError('Invalid username or password');
     }
 
     // Generate JWT token
@@ -63,6 +52,17 @@ async function login(req, res, next) {
       role: user.role,
     });
 
+    // Validate token was generated
+    if (!token || typeof token !== 'string' || token.trim().length === 0) {
+      const logger = require('../utils/logger');
+      logger.error('Failed to generate JWT token', {
+        module: 'auth',
+        userId: user.id,
+        username: user.username,
+      });
+      throw new AuthenticationError('Failed to generate authentication token');
+    }
+
     // Generate refresh token
     const refreshToken = generateRefreshToken({
       userId: user.id,
@@ -70,6 +70,8 @@ async function login(req, res, next) {
       role: user.role,
     });
 
+    // Send response in format expected by client (flattened, not wrapped in data property)
+    // This maintains backward compatibility with the existing client
     res.json({
       success: true,
       token,
@@ -105,8 +107,7 @@ async function verifyToken(req, res, next) {
       const decoded = verifyJWT(token);
       
       // Verify user still exists
-      const { getUserById } = require('../db/database');
-      const user = await getUserById(decoded.userId);
+      const user = await userRepository.findById(decoded.userId);
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -127,10 +128,9 @@ async function verifyToken(req, res, next) {
         const userId = parseInt(parts[0]);
         const username = parts[1];
 
-        const { getUserById } = require('../db/database');
-        const user = await getUserById(userId);
+        const user = await userRepository.findById(userId);
         if (!user) {
-          const userByUsername = await getUserByUsername(username);
+          const userByUsername = await userRepository.findByUsername(username);
           if (!userByUsername) {
             return res.status(401).json({
               success: false,
@@ -196,7 +196,7 @@ async function updateUserPassword(req, res, next) {
     }
 
     // Get user
-    const user = await getUserByUsername(username);
+    const user = await userRepository.findByUsername(username);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -266,7 +266,7 @@ async function getCurrentUser(req, res, next) {
       });
     }
 
-    const user = await getUserByUsername(username);
+    const user = await userRepository.findByUsername(username);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -330,7 +330,7 @@ async function updateUserUsername(req, res, next) {
     }
 
     // Get user and verify password
-    const user = await getUserByUsername(oldUsername);
+    const user = await userRepository.findByUsername(oldUsername);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -347,7 +347,7 @@ async function updateUserUsername(req, res, next) {
     }
 
     // Check if new username already exists
-    const existingUser = await getUserByUsername(newUsername.trim());
+    const existingUser = await userRepository.findByUsername(newUsername.trim());
     if (existingUser) {
       return res.status(400).json({
         success: false,

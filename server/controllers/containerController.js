@@ -1,18 +1,19 @@
 /**
  * Container Controller
  * Handles HTTP requests for container operations
+ * Uses: Repositories, ApiResponse, Typed errors, Validation
  */
 
+const container = require('../di/container');
 const containerService = require('../services/containerService');
 const portainerService = require('../services/portainerService');
-const {
-  validateRequiredFields,
-  isValidContainerId,
-  validateContainerArray,
-} = require('../utils/validation');
+const { sendSuccess } = require('../utils/responseHelper');
+const { ValidationError } = require('../domain/errors');
 const { RateLimitExceededError } = require('../utils/retry');
-const { getAllPortainerInstances } = require('../db/database');
 const logger = require('../utils/logger');
+
+// Resolve dependencies from container
+const portainerInstanceRepository = container.resolve('portainerInstanceRepository');
 
 /**
  * Get all containers with update status
@@ -28,7 +29,7 @@ async function getContainers(req, res, next) {
     if (portainerOnly) {
       // Fetch from Portainer without Docker Hub checks
       const result = await containerService.getContainersFromPortainer();
-      res.json(result);
+      sendSuccess(res, result);
       return;
     }
 
@@ -45,12 +46,12 @@ async function getContainers(req, res, next) {
       });
       const portainerResult = await containerService.getContainersFromPortainer();
       // Don't cache this result - user must click "Pull" to cache with Docker Hub data
-      res.json(portainerResult);
+      sendSuccess(res, portainerResult);
       return;
     }
     
     // Return cached data (may contain Docker Hub info from previous pull, but no new Docker Hub calls)
-    res.json(cached);
+    sendSuccess(res, cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
     logger.error('Error getting containers from cache', {
@@ -64,14 +65,14 @@ async function getContainers(req, res, next) {
         module: 'containerController',
         operation: 'getContainers',
       });
-      res.json(portainerResult);
+      sendSuccess(res, portainerResult);
     } catch (portainerError) {
       logger.error('Fallback to Portainer-only fetch failed', {
         module: 'containerController',
         operation: 'getContainers',
         error: portainerError,
       });
-      res.json({
+      sendSuccess(res, {
         grouped: true,
         stacks: [],
         containers: [],
@@ -110,41 +111,22 @@ async function pullContainers(req, res, next) {
       portainerUrl: portainerUrl || 'all-instances',
     });
     
-    res.json({
-      success: true,
+    sendSuccess(res, {
       message: 'Container data pulled successfully',
       ...result,
     });
   } catch (error) {
     // Handle rate limit exceeded errors specially
     if (error.isRateLimitExceeded || error instanceof RateLimitExceededError) {
-      logger.warn('Docker Hub rate limit exceeded', {
-        module: 'containerController',
-        operation: 'pullContainers',
-        error: error,
-        portainerUrl: req.body?.portainerUrl || 'all-instances',
-      });
-      return res.status(429).json({
-        success: false,
-        error: error.message || 'Docker Hub rate limit exceeded',
-        rateLimitExceeded: true,
-        message: 'Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.',
-      });
+      const { RateLimitError } = require('../domain/errors');
+      throw new RateLimitError(
+        'Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.',
+        null,
+        'DockerHub',
+        error
+      );
     }
-    
-    logger.error('Error pulling container data from Docker Hub', {
-      module: 'containerController',
-      operation: 'pullContainers',
-      error: error,
-      portainerUrl: req.body?.portainerUrl || 'all-instances',
-    });
-    
-    // Return a more detailed error response
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to pull container data',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
+    next(error);
   }
 }
 
@@ -161,23 +143,23 @@ async function upgradeContainer(req, res, next) {
     const { endpointId, imageName, portainerUrl } = req.body;
 
     // Validate input
+    const { isValidContainerId } = require('../utils/validation');
     if (!isValidContainerId(containerId)) {
-      return res.status(400).json({ error: 'Invalid container ID' });
+      throw new ValidationError('Invalid container ID', 'containerId', containerId);
     }
 
-    const validationError = validateRequiredFields(
+    const { validateRequiredFields } = require('../utils/validation');
+    validateRequiredFields(
       { endpointId, imageName, portainerUrl },
       ['endpointId', 'imageName', 'portainerUrl']
     );
-    if (validationError) {
-      return res.status(400).json(validationError);
-    }
 
     // Get instance credentials from database
-    const instances = await getAllPortainerInstances();
+    const instances = await portainerInstanceRepository.findAll();
     const instance = instances.find(inst => inst.url === portainerUrl);
     if (!instance) {
-      return res.status(404).json({ error: 'Portainer instance not found' });
+      const { NotFoundError } = require('../domain/errors');
+      throw new NotFoundError('Portainer instance');
     }
 
     await portainerService.authenticatePortainer(
@@ -194,8 +176,7 @@ async function upgradeContainer(req, res, next) {
       imageName
     );
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       message: 'Container upgraded successfully',
       ...result,
     });
@@ -214,14 +195,12 @@ async function batchUpgradeContainers(req, res, next) {
   try {
     const { containers } = req.body;
 
-    // Validate input
-    const validationError = validateContainerArray(containers);
-    if (validationError) {
-      return res.status(400).json(validationError);
-    }
+    // Validate input - validateContainerArray throws ValidationError
+    const { validateContainerArray } = require('../utils/validation');
+    validateContainerArray(containers);
 
     // Get all instances once to avoid repeated DB queries
-    const instances = await getAllPortainerInstances();
+    const instances = await portainerInstanceRepository.findAll();
     const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
 
     // Group containers by Portainer instance for efficient authentication
@@ -337,8 +316,7 @@ async function batchUpgradeContainers(req, res, next) {
       }
     }
 
-    res.json({
-      success: errors.length === 0,
+    sendSuccess(res, {
       message: `Upgraded ${results.length} container(s), ${errors.length} error(s)`,
       results: results,
       errors: errors,
@@ -356,26 +334,16 @@ async function batchUpgradeContainers(req, res, next) {
  */
 async function clearCache(req, res, next) {
   try {
-    const { clearContainerCache } = require('../db/database');
-    await clearContainerCache();
+    const container = require('../di/container');
+    const containerCacheService = container.resolve('containerCacheService');
+    await containerCacheService.clear();
     logger.info('Container cache cleared', {
       module: 'containerController',
       operation: 'clearCache',
     });
-    res.json({
-      success: true,
-      message: 'Cache cleared successfully',
-    });
+    sendSuccess(res, { message: 'Cache cleared successfully' });
   } catch (error) {
-    logger.error('Error clearing container cache', {
-      module: 'containerController',
-      operation: 'clearCache',
-      error: error,
-    });
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to clear cache',
-    });
+    next(error);
   }
 }
 

@@ -1,30 +1,50 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { authApi } from "../services/apiClient";
+import { AuthenticationError, getErrorMessage } from "../domain/errors";
+import config from "../config";
+
+/**
+ * Helper function to validate if a token is valid
+ * Returns true if token is a non-empty string that's not "undefined" or "null"
+ */
+const isValidToken = (token) => {
+  return token && 
+         typeof token === 'string' && 
+         token.trim().length > 0 && 
+         token !== 'undefined' && 
+         token !== 'null';
+};
 
 /**
  * Custom hook for authentication state and operations
  */
 export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem("authToken");
+    const token = localStorage.getItem(config.storage.authToken);
+    return isValidToken(token);
   });
   const [authToken, setAuthToken] = useState(() => {
-    const token = localStorage.getItem("authToken");
-    if (token) {
+    const token = localStorage.getItem(config.storage.authToken);
+    if (isValidToken(token)) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      return token;
     }
-    return token || null;
+    // Clear invalid token from localStorage
+    if (token && !isValidToken(token)) {
+      localStorage.removeItem(config.storage.authToken);
+    }
+    return null;
   });
   const [username, setUsername] = useState(() => {
-    return localStorage.getItem("username") || null;
+    return localStorage.getItem(config.storage.username) || null;
   });
   const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem("userRole") || "Administrator";
+    return localStorage.getItem(config.storage.userRole) || "Administrator";
   });
   const [passwordChanged, setPasswordChanged] = useState(() => {
-    const stored = localStorage.getItem("passwordChanged");
-    if (stored === null && localStorage.getItem("authToken")) {
+    const stored = localStorage.getItem(config.storage.passwordChanged);
+    if (stored === null && localStorage.getItem(config.storage.authToken)) {
       return false;
     }
     return stored === "true";
@@ -35,6 +55,10 @@ export const useAuth = () => {
 
   // Handle login
   const handleLogin = useCallback((token, user, pwdChanged) => {
+    if (!isValidToken(token)) {
+      console.error("Invalid token received during login");
+      return;
+    }
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);
@@ -43,32 +67,60 @@ export const useAuth = () => {
   }, []);
 
   // Handle username update
-  const handleUsernameUpdate = useCallback((newUsername, newToken = null) => {
-    setUsername(newUsername);
-    localStorage.setItem("username", newUsername);
-    if (newToken) {
-      setAuthToken(newToken);
-      localStorage.setItem("authToken", newToken);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-    } else {
-      const token = Buffer.from(`${newUsername}:${Date.now()}`).toString("base64");
-      setAuthToken(token);
-      localStorage.setItem("authToken", token);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  const handleUsernameUpdate = useCallback(async (newUsername, password) => {
+    try {
+      const response = await authApi.updateUsername(newUsername, password);
+      
+      if (response.success && response.token) {
+        const newToken = response.token;
+        if (isValidToken(newToken)) {
+          setUsername(newUsername);
+          setAuthToken(newToken);
+          localStorage.setItem(config.storage.username, newUsername);
+          localStorage.setItem(config.storage.authToken, newToken);
+          axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+        } else {
+          throw new Error("Invalid token received from server");
+        }
+      } else {
+        throw new Error(response.error || "Failed to update username");
+      }
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, "Failed to update username");
+      throw new Error(errorMessage);
     }
   }, []);
 
-  // Handle password update success
+  // Handle password update
+  const handlePasswordUpdate = useCallback(async (currentPassword, newPassword) => {
+    try {
+      const response = await authApi.updatePassword(currentPassword, newPassword);
+      
+      if (response.success) {
+        setPasswordChanged(true);
+        localStorage.setItem(config.storage.passwordChanged, "true");
+        return { success: true };
+      } else {
+        throw new Error(response.error || "Failed to update password");
+      }
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, "Failed to update password");
+      return { success: false, error: errorMessage };
+    }
+  }, []);
+  
+  // Handle password update success (for backward compatibility)
   const handlePasswordUpdateSuccess = useCallback(() => {
     setPasswordChanged(true);
-    localStorage.setItem("passwordChanged", "true");
+    localStorage.setItem(config.storage.passwordChanged, "true");
   }, []);
 
   // Handle logout
   const handleLogout = useCallback(() => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("username");
-    localStorage.removeItem("passwordChanged");
+    localStorage.removeItem(config.storage.authToken);
+    localStorage.removeItem(config.storage.username);
+    localStorage.removeItem(config.storage.passwordChanged);
+    localStorage.removeItem(config.storage.userRole);
     setAuthToken(null);
     setUsername(null);
     setUserRole("Administrator");
@@ -84,7 +136,7 @@ export const useAuth = () => {
 
   // Configure axios to include auth token in all requests
   useEffect(() => {
-    if (authToken && isAuthenticated) {
+    if (isValidToken(authToken) && isAuthenticated) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
     } else {
       delete axios.defaults.headers.common["Authorization"];
@@ -126,6 +178,7 @@ export const useAuth = () => {
     passwordChanged,
     handleLogin,
     handleUsernameUpdate,
+    handlePasswordUpdate,
     handlePasswordUpdateSuccess,
     handleLogout,
     logoutInProgressRef,

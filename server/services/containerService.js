@@ -3,22 +3,49 @@
  * Handles container operations and update checking
  */
 
+const container = require('../di/container');
 const portainerService = require('./portainerService');
 const dockerRegistryService = require('./dockerRegistryService');
 const config = require('../config');
-const { getAllPortainerInstances, getContainerCache, setContainerCache, clearContainerCache } = require('../db/database');
 const logger = require('../utils/logger');
 
-// Lazy load discordService to avoid loading issues during module initialization
-let discordService = null;
-function getDiscordService() {
-  if (!discordService) {
+// Resolve dependencies from container (lazy to avoid startup crashes)
+let portainerInstanceRepository;
+let containerCacheService;
+let discordService;
+
+function getPortainerInstanceRepository() {
+  if (!portainerInstanceRepository) {
     try {
-      discordService = require('./discordService');
-  } catch (error) {
-    logger.error('Error loading discordService:', error);
-    return null;
+      portainerInstanceRepository = container.resolve('portainerInstanceRepository');
+    } catch (error) {
+      logger.error('Failed to resolve portainerInstanceRepository', { error });
+      throw error;
+    }
   }
+  return portainerInstanceRepository;
+}
+
+function getContainerCacheService() {
+  if (!containerCacheService) {
+    try {
+      containerCacheService = container.resolve('containerCacheService');
+    } catch (error) {
+      logger.error('Failed to resolve containerCacheService', { error });
+      throw error;
+    }
+  }
+  return containerCacheService;
+}
+
+function getDiscordService() {
+  if (discordService === undefined) {
+    try {
+      discordService = container.resolve('discordService');
+    } catch (error) {
+      logger.warn('Failed to resolve discordService (optional)', { error });
+      discordService = null;
+    }
   }
   return discordService;
 }
@@ -534,12 +561,12 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Get previous cache to compare for newly detected updates
   let previousCache = null;
   if (forceRefresh) {
-    previousCache = await getContainerCache('containers');
+    previousCache = await getContainerCacheService().get('containers');
   }
 
   // Check cache first unless force refresh is requested
   if (!forceRefresh) {
-    const cached = await getContainerCache('containers');
+    const cached = await getContainerCacheService().get('containers');
     if (cached) {
       // Reduced logging - only log in debug mode
       if (process.env.DEBUG) {
@@ -573,7 +600,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   const allContainers = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  const portainerInstances = await getPortainerInstanceRepository().findAll();
   
   // Filter to specific instance if requested
   const instancesToProcess = filterPortainerUrl 
@@ -595,7 +622,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     };
     // Cache empty result to prevent repeated attempts
     try {
-      await setContainerCache('containers', emptyResult);
+      await getContainerCacheService().set('containers', emptyResult);
     } catch (error) {
       logger.error('Error caching empty result:', error.message);
     }
@@ -912,7 +939,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Save to cache for future requests
   // This replaces the old cache with fresh data (or merges if filtering by instance)
   try {
-    await setContainerCache('containers', result);
+    await getContainerCacheService().set('containers', result);
     if (filterPortainerUrl) {
       logger.info(`💾 Container data cached in database (merged data for instance ${filterPortainerUrl})`);
     } else {
@@ -984,7 +1011,7 @@ async function getContainersFromPortainer() {
   const allContainers = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  const portainerInstances = await getPortainerInstanceRepository().findAll();
   
   if (portainerInstances.length === 0) {
     logger.warn('⚠️  No Portainer instances configured.');
@@ -1172,7 +1199,7 @@ async function getUnusedImages() {
   const unusedImages = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  const portainerInstances = await getPortainerInstanceRepository().findAll();
   
   if (portainerInstances.length === 0) {
     return [];

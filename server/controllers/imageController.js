@@ -1,13 +1,18 @@
 /**
  * Image Controller
  * Handles HTTP requests for image operations
+ * Uses: Repositories, ApiResponse, Typed errors, Validation
  */
 
+const container = require('../di/container');
 const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
-const { validateImageArray } = require("../utils/validation");
-const { getAllPortainerInstances } = require("../db/database");
+const { sendSuccess } = require('../utils/responseHelper');
+const { ValidationError } = require('../domain/errors');
 const logger = require("../utils/logger");
+
+// Resolve dependencies from container
+const portainerInstanceRepository = container.resolve('portainerInstanceRepository');
 
 /**
  * Get unused images
@@ -18,7 +23,7 @@ const logger = require("../utils/logger");
 async function getUnusedImages(req, res, next) {
   try {
     const unusedImages = await containerService.getUnusedImages();
-    res.json({ unusedImages });
+    sendSuccess(res, { unusedImages });
   } catch (error) {
     next(error);
   }
@@ -34,11 +39,9 @@ async function deleteImages(req, res, next) {
   try {
     const { images } = req.body;
 
-    // Validate input
-    const validationError = validateImageArray(images);
-    if (validationError) {
-      return res.status(400).json(validationError);
-    }
+    // Validate input - validateImageArray throws ValidationError
+    const { validateImageArray } = require("../utils/validation");
+    validateImageArray(images);
 
     const results = [];
     const errors = [];
@@ -59,7 +62,7 @@ async function deleteImages(req, res, next) {
     );
 
     // Get all instances once to avoid repeated DB queries
-    const instances = await getAllPortainerInstances();
+    const instances = await portainerInstanceRepository.findAll();
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Delete images
@@ -96,8 +99,7 @@ async function deleteImages(req, res, next) {
       }
     }
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       deleted: results.length,
       results,
       errors: errors.length > 0 ? errors : undefined,

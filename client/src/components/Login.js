@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { authApi } from "../services/apiClient";
+import { getErrorMessage, AuthenticationError, ValidationError } from "../domain/errors";
 import "./Login.css";
-import { API_BASE_URL } from "../constants/api";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -18,8 +18,6 @@ function Login({ onLogin }) {
   useEffect(() => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("username");
-    // Clear axios defaults
-    delete axios.defaults.headers.common["Authorization"];
   }, []);
 
   const handleSubmit = async (e) => {
@@ -28,50 +26,47 @@ function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      // Create a completely clean axios instance for login
-      // This ensures no default headers (like Authorization) are sent
-      const loginAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      // Validate input
+      if (!username || username.trim().length === 0) {
+        setError("Username is required");
+        setLoading(false);
+        return;
+      }
+      
+      if (!password || password.length === 0) {
+        setError("Password is required");
+        setLoading(false);
+        return;
+      }
 
-      // Explicitly remove any Authorization header
-      delete loginAxios.defaults.headers.common["Authorization"];
-      delete loginAxios.defaults.headers.Authorization;
+      const response = await authApi.login(username.trim(), password);
 
-      const response = await loginAxios.post("/api/auth/login", {
-        username,
-        password,
-      });
-
-      if (response.data.success) {
+      if (response.success && response.token) {
         // Store token in localStorage
-        localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("username", username);
+        const { token, passwordChanged, role } = response;
+        localStorage.setItem("authToken", token);
+        localStorage.setItem("username", username.trim());
         localStorage.setItem(
           "passwordChanged",
-          response.data.passwordChanged ? "true" : "false"
+          passwordChanged ? "true" : "false"
         );
         // Store role if provided
-        if (response.data.role) {
-          localStorage.setItem("userRole", response.data.role);
+        if (role) {
+          localStorage.setItem("userRole", role);
         }
         onLogin(
-          response.data.token,
-          username,
-          response.data.passwordChanged,
-          response.data.role || "Administrator"
+          token,
+          username.trim(),
+          passwordChanged,
+          role || "Administrator"
         );
       } else {
-        setError(response.data.error || "Login failed");
+        setError(response.error || "Login failed");
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          "Failed to connect to server. Please try again."
-      );
+      // Use typed error handling
+      const errorMessage = getErrorMessage(err, "Failed to connect to server. Please try again.");
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
