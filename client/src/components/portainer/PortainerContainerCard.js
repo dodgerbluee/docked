@@ -84,8 +84,16 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     return name.substring(0, 30) + "...";
   };
 
+  // Truncate container name to 25 characters
+  const truncateContainerName = (name) => {
+    if (!name) return name;
+    if (name.length <= 25) return name;
+    return name.substring(0, 25) + "...";
+  };
+
   const truncatedVersion = truncateVersion(imageVersion);
   const truncatedImageName = truncateImageName(imageNameWithoutVersion);
+  const truncatedContainerName = truncateContainerName(container.name);
 
   // Copy version to clipboard
   const handleVersionClick = useCallback(async (e) => {
@@ -100,6 +108,20 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       }
     }
   }, [imageVersion]);
+
+  // Copy container name to clipboard
+  const handleContainerNameClick = useCallback(async (e) => {
+    e.stopPropagation();
+    if (container.name) {
+      try {
+        await navigator.clipboard.writeText(container.name);
+        showToast("Container name copied", "info");
+      } catch (err) {
+        console.error("Failed to copy container name to clipboard:", err);
+        showToast("Failed to copy container name", "error");
+      }
+    }
+  }, [container.name]);
 
   // Open Docker Hub or GitHub Container Registry link for image name
   const handleImageNameClick = useCallback((e) => {
@@ -130,7 +152,13 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     >
       <div className={styles.cardHeader} title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}>
         <div className={styles.headerLeft}>
-          <h3>{container.name}</h3>
+          <h3 
+            className={styles.containerName}
+            title={container.name}
+            onClick={handleContainerNameClick}
+          >
+            {truncatedContainerName}
+          </h3>
         </div>
         {showUpdates && (
           <label className={styles.checkbox}>
