@@ -161,7 +161,39 @@ jobs:
           cd server && npm ci
           cd ../client && npm ci
 
-      - name: Update version in package.json files
+      - name: Commit version update to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Get default branch
+          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+          
+          # Checkout default branch (handles both tag push and workflow dispatch)
+          git fetch origin $DEFAULT_BRANCH
+          git checkout $DEFAULT_BRANCH
+          
+          # Update version in package.json files on the branch
+          VERSION="${{ needs.version.outputs.version }}"
+          npm pkg set version="$VERSION"
+          cd server && npm pkg set version="$VERSION"
+          cd ../client && npm pkg set version="$VERSION"
+          cd ../..
+          
+          # Check if there are changes to commit
+          if git diff --quiet package.json server/package.json client/package.json; then
+            echo "No version changes to commit (version already up to date)"
+          else
+            git add package.json server/package.json client/package.json
+            git commit -m "chore: bump version to $VERSION [skip ci]"
+            git push origin $DEFAULT_BRANCH
+            echo "✓ Committed version update to $VERSION on $DEFAULT_BRANCH"
+          fi
+          
+          # Checkout back to the tag/commit for building
+          git checkout ${{ github.sha }}
+
+      - name: Update version in package.json files for build
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           # Update root package.json
@@ -209,6 +241,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update version in package.json files
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          echo "Updating version to $VERSION in all package.json files for Docker build"
+          # Update root package.json
+          npm pkg set version="$VERSION"
+          # Update server package.json
+          cd server && npm pkg set version="$VERSION"
+          # Update client package.json
+          cd ../client && npm pkg set version="$VERSION"
+          cd ..
+          echo "✓ Version updated to $VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

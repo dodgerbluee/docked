@@ -28,6 +28,9 @@ WORKDIR /app
 # Install build tools for sqlite3 native module
 RUN apk add --no-cache python3 make g++
 
+# Copy root package.json (for version info)
+COPY package.json ./
+
 # Copy server package files
 COPY server/package*.json ./
 

@@ -92,19 +92,6 @@ jobs:
           fi
           echo "✓ Found dev image"
 
-      - name: Tag dev as latest
-        run: |
-          # Pull the dev image (this will work for multi-arch images)
-          docker pull ${{ env.REGISTRY }}/${{ github.repository }}:dev
-          
-          # Tag it as latest
-          docker tag ${{ env.REGISTRY }}/${{ github.repository }}:dev ${{ env.REGISTRY }}/${{ github.repository }}:latest
-          
-          # Push the latest tag
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}:latest
-          
-          echo "✓ Successfully promoted dev to latest"
-
       - name: Install dependencies
         if: github.event.inputs.create_release == 'true'
         run: npm install
@@ -134,21 +121,64 @@ jobs:
           echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "Final tag: $TAG_NAME (version: $RELEASE_VERSION)"
 
-      - name: Tag and push Docker images
+      - name: Update version in package.json files
         if: github.event.inputs.create_release == 'true'
         run: |
-          # Pull the dev image
+          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          echo "Updating version to $RELEASE_VERSION in all package.json files"
+          # Update root package.json
+          npm pkg set version="$RELEASE_VERSION"
+          # Update server package.json
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          # Update client package.json
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
+          echo "✓ Version updated to $RELEASE_VERSION"
+
+      - name: Commit version update
+        if: github.event.inputs.create_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if git diff --quiet package.json server/package.json client/package.json; then
+            echo "No version changes to commit"
+          else
+            git add package.json server/package.json client/package.json
+            git commit -m "chore: bump version to ${{ steps.version.outputs.release_version }} [skip ci]"
+            # Get the current branch
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            git push origin HEAD:$BRANCH
+            echo "✓ Committed version update to ${{ steps.version.outputs.release_version }}"
+          fi
+
+      - name: Build and push Docker image with release version
+        if: github.event.inputs.create_release == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
+            ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Tag dev as latest (simple promotion without release)
+        if: github.event.inputs.create_release != 'true'
+        run: |
+          # Pull the dev image (this will work for multi-arch images)
           docker pull ${{ env.REGISTRY }}/${{ github.repository }}:dev
           
-          # Tag it as both version and latest
-          docker tag ${{ env.REGISTRY }}/${{ github.repository }}:dev ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
+          # Tag it as latest
           docker tag ${{ env.REGISTRY }}/${{ github.repository }}:dev ${{ env.REGISTRY }}/${{ github.repository }}:latest
           
-          # Push both tags
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
+          # Push the latest tag
           docker push ${{ env.REGISTRY }}/${{ github.repository }}:latest
           
-          echo "✓ Successfully tagged and pushed images: ${{ steps.version.outputs.release_version }} and latest"
+          echo "✓ Successfully promoted dev to latest"
 
       - name: Get commits since previous release
         id: commits

@@ -24,6 +24,7 @@ const batchController = require("../controllers/batchController");
 const trackedImageController = require("../controllers/trackedImageController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
+const versionController = require("../controllers/versionController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -50,6 +51,30 @@ const router = express.Router();
 router.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+/**
+ * @swagger
+ * /version:
+ *   get:
+ *     summary: Get application version
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Application version information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 version:
+ *                   type: string
+ *                   nullable: true
+ *                   example: "1.0.0"
+ *                 environment:
+ *                   type: string
+ *                   example: "production"
+ */
+router.get("/version", versionController.getVersion);
 
 /**
  * @swagger
