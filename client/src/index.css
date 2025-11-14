@@ -25,5 +25,78 @@ code {
     monospace;
 }
 
+/* Modern Overlay Scrollbar Styles */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+/* Show scrollbar on hover or when scrolling */
+html:hover ::-webkit-scrollbar-thumb,
+html.scrolling ::-webkit-scrollbar-thumb {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.5);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.7) !important;
+  background-clip: padding-box;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  background-clip: padding-box;
+}
+
+body.dark-mode html:hover ::-webkit-scrollbar-thumb,
+body.dark-mode html.scrolling ::-webkit-scrollbar-thumb {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.5);
+  background-clip: padding-box;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.7) !important;
+  background-clip: padding-box;
+}
+
+/* Firefox scrollbar styling - thin and subtle */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+body.dark-mode * {
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* Prevent scrollbar from taking up space */
+html {
+  scrollbar-gutter: stable;
+  overflow-y: overlay; /* Deprecated but helps with overlay behavior */
+}
+
+/* Smooth scrollbar appearance */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+  }
+}
+
 
 

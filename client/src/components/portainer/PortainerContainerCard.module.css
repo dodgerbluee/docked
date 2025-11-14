@@ -3,20 +3,49 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
-  transition: all 0.2s;
+  transition: transform 0.3s, box-shadow 0.3s;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .containerCard:hover {
-  box-shadow: 0 2px 8px var(--shadow);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px var(--shadow);
 }
 
 .updateAvailable {
-  border-left: 4px solid var(--dodger-red);
+  border-left: 2px solid var(--success-green) !important;
 }
 
 .updateAvailable:hover {
+  border-left: 2px solid var(--success-green) !important;
   border-color: var(--border-color);
-  border-left: 4px solid var(--dodger-red);
+}
+
+body.dark-mode .updateAvailable {
+  border-left: 2px solid var(--success-green) !important;
+}
+
+body.dark-mode .updateAvailable:hover {
+  border-left: 2px solid var(--success-green) !important;
+}
+
+.currentCard {
+  border-left: 2px solid var(--dodger-blue) !important;
+}
+
+.currentCard:hover {
+  border-left: 2px solid var(--dodger-blue) !important;
+  border-color: var(--border-color);
+}
+
+body.dark-mode .currentCard {
+  border-left: 2px solid var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .currentCard:hover {
+  border-left: 2px solid var(--dodger-blue-light) !important;
 }
 
 .portainerDisabled {
@@ -28,16 +57,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  gap: 5px;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
   flex: 1;
   min-width: 0;
+}
+
+.upgradeIcon {
+  color: var(--success-green);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
 }
 
 
@@ -74,7 +114,27 @@
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
-  flex-shrink: 0;
+}
+
+.containerName {
+  cursor: pointer;
+  transition: color 0.2s;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  max-width: calc(100% - 5px);
+}
+
+.containerName:hover {
+  color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .containerName:hover {
+  color: var(--dodger-blue-light);
 }
 
 .portainerBadge {
@@ -227,6 +287,14 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   border-bottom: 1px solid var(--border-color);
 }
 
+.updateAvailable .imageHeaderContainer {
+  border-bottom-color: #ffffff;
+}
+
+body.dark-mode .updateAvailable .imageHeaderContainer {
+  border-bottom-color: #ffffff;
+}
+
 .imageHeaderLeft {
   display: flex;
   align-items: center;
@@ -239,7 +307,7 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   line-height: 1.5;
   padding: 0;
   min-width: 0;
@@ -251,6 +319,10 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   text-overflow: ellipsis;
 }
 
+body.dark-mode .imageHeader {
+  color: #ffffff;
+}
+
 .imageHeader:hover {
   color: var(--dodger-blue);
   text-decoration: underline;
@@ -260,13 +332,33 @@ body.dark-mode .imageHeader:hover {
   color: var(--dodger-blue-light);
 }
 
+.imageHeaderWithUpdates {
+  color: var(--text-primary);
+}
+
+.imageHeaderWithUpdates:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+body.dark-mode .imageHeaderWithUpdates {
+  color: #ffffff;
+}
+
+body.dark-mode .imageHeaderWithUpdates:hover {
+  color: #ffffff;
+  opacity: 0.8;
+}
+
 .metaItem {
-  margin: 0 0 6px 0;
+  margin: 0 0 2px 0;
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.4;
   overflow: hidden;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .metaItem:last-of-type {
@@ -285,7 +377,7 @@ body.dark-mode .imageHeader:hover {
   white-space: nowrap;
   vertical-align: bottom;
   cursor: pointer;
-  user-select: none;
+  user-select: text;
   transition: color 0.2s;
 }
 
@@ -310,16 +402,27 @@ body.dark-mode .versionText:hover {
 }
 
 .digestLink {
-  color: var(--dodger-blue);
+  color: var(--text-primary);
   text-decoration: none;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .digestLink:hover {
   text-decoration: underline;
+  opacity: 0.8;
 }
 
 body.dark-mode .digestLink {
-  color: var(--dodger-blue-light);
+  color: #ffffff;
+}
+
+body.dark-mode .digestLink:hover {
+  opacity: 0.8;
 }
 
 .iconGroup {
@@ -341,8 +444,8 @@ body.dark-mode .digestLink {
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .dockerIconLink:hover {
@@ -351,8 +454,8 @@ body.dark-mode .digestLink {
 }
 
 .dockerIconSmall {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   display: inline-block;
 }
 
@@ -369,8 +472,8 @@ body.dark-mode .digestLink {
   cursor: pointer;
   transition: color 0.2s, transform 0.2s;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .githubIconLink:hover {
@@ -395,7 +498,7 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradeCheckmark:hover {
-  color: var(--dodger-blue);
+  color: var(--text-primary);
   transform: scale(1.1);
 }
 
@@ -414,7 +517,7 @@ body.dark-mode .upgradeCheckmark {
 }
 
 body.dark-mode .upgradeCheckmark:hover {
-  color: var(--dodger-blue-light);
+  color: #ffffff;
 }
 
 .buttonGroup {

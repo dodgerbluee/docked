@@ -227,18 +227,17 @@ function PortainerPage({
           >
             {allImagesSelected ? "Deselect All" : "Select All"}
           </Button>
-          {portainerPage.selectedImages.size > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleBatchDeleteClick}
-              disabled={portainerPage.deletingImages}
-            >
-              {portainerPage.deletingImages
-                ? "Deleting..."
-                : `Delete ${portainerPage.selectedImages.size} Selected`}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBatchDeleteClick}
+            disabled={portainerPage.selectedImages.size === 0 || portainerPage.deletingImages}
+            className={portainerPage.selectedImages.size > 0 ? styles.deleteButtonHover : ""}
+          >
+            {portainerPage.deletingImages
+              ? `Deleting ${portainerPage.selectedImages.size}...`
+              : `Delete Selected (${portainerPage.selectedImages.size})`}
+          </Button>
         </>
       );
     }
@@ -367,6 +366,25 @@ function PortainerPage({
                   isLoading={portainerPage.aggregatedContainers.isLoading}
                   hasData={hasData}
                   showUpdates={portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES}
+                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                  lastPullTime={portainerPage.lastPullTime}
+                  collapsedStacks={portainerPage.collapsedStacks}
+                  selectedContainers={portainerPage.selectedContainers}
+                  upgrading={portainerPage.upgrading}
+                  isPortainerContainer={portainerPage.isPortainerContainer}
+                  onToggleStack={portainerPage.toggleStack}
+                  onToggleSelect={portainerPage.handleToggleSelect}
+                  onUpgrade={portainerPage.handleUpgrade}
+                />
+              )}
+
+              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
+                <ContainersTab
+                  groupedStacks={portainerPage.groupedStacks}
+                  isLoading={portainerPage.aggregatedContainers.isLoading}
+                  hasData={hasData}
+                  showUpdates={null}
+                  showAll={true}
                   dockerHubDataPulled={portainerPage.dockerHubDataPulled}
                   lastPullTime={portainerPage.lastPullTime}
                   collapsedStacks={portainerPage.collapsedStacks}

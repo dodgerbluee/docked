@@ -6,12 +6,14 @@ export const PORTAINER_CONTENT_TABS = {
   UPDATES: "updates",
   CURRENT: "current",
   UNUSED: "unused",
+  ALL: "all",
 };
 
 export const PORTAINER_CONTENT_TAB_LABELS = {
   [PORTAINER_CONTENT_TABS.UPDATES]: "Updates",
-  [PORTAINER_CONTENT_TABS.CURRENT]: "Current",
+  [PORTAINER_CONTENT_TABS.CURRENT]: "Up to date",
   [PORTAINER_CONTENT_TABS.UNUSED]: "Unused",
+  [PORTAINER_CONTENT_TABS.ALL]: "All",
 };
 
 // Stack constants

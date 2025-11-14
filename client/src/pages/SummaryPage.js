@@ -8,6 +8,7 @@ import {
   CONTENT_TABS,
   STAT_CARD_VARIANTS,
 } from "../constants/summaryPage";
+import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import {
   containerShape,
   portainerInstanceShape,
@@ -95,8 +96,20 @@ const SummaryPage = ({
         <h3 className={styles.sectionTitle}>Portainer Summary</h3>
         <div className={styles.summaryStats}>
           <StatCard
-            value={summaryStats.totalPortainers}
-            label="Portainer Instances"
+            value={summaryStats.totalContainers}
+            label="Total Containers"
+            clickable
+            onClick={() => {
+              if (onNavigateToPortainer) {
+                onNavigateToPortainer();
+              }
+              if (onSetSelectedPortainerInstances) {
+                onSetSelectedPortainerInstances(new Set());
+              }
+              if (onSetContentTab) {
+                onSetContentTab(PORTAINER_CONTENT_TABS.ALL);
+              }
+            }}
           />
           <StatCard
             value={summaryStats.containersWithUpdates}
@@ -120,9 +133,10 @@ const SummaryPage = ({
             onClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
           />
         </div>
+        <div className={styles.summaryDivider}></div>
 
         <div className={styles.portainerInstancesList}>
-          <h3>Portainer Instances</h3>
+          <h3 className={styles.sectionTitle}>Portainer Instances</h3>
           {summaryStats.portainerStats.length === 0 ? (
             <div className={styles.emptyState}>
               <p>No Portainer instances configured.</p>

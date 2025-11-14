@@ -63,29 +63,6 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     return `https://${imageWithoutVersion}`;
   };
 
-  // Truncate version to 25 characters
-  const truncateVersion = (version) => {
-    if (!version) return version;
-    if (version.length <= 25) return version;
-    return version.substring(0, 25) + "...";
-  };
-
-  // Truncate current version/digest to 10 characters
-  const truncateCurrentVersion = (version) => {
-    if (!version) return version;
-    if (version.length <= 10) return version;
-    return version.substring(0, 10);
-  };
-
-  // Truncate image name to 30 characters
-  const truncateImageName = (name) => {
-    if (!name) return name;
-    if (name.length <= 30) return name;
-    return name.substring(0, 30) + "...";
-  };
-
-  const truncatedVersion = truncateVersion(imageVersion);
-  const truncatedImageName = truncateImageName(imageNameWithoutVersion);
 
   // Copy version to clipboard
   const handleVersionClick = useCallback(async (e) => {
@@ -100,6 +77,20 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       }
     }
   }, [imageVersion]);
+
+  // Copy container name to clipboard
+  const handleContainerNameClick = useCallback(async (e) => {
+    e.stopPropagation();
+    if (container.name) {
+      try {
+        await navigator.clipboard.writeText(container.name);
+        showToast("Container name copied", "info");
+      } catch (err) {
+        console.error("Failed to copy container name to clipboard:", err);
+        showToast("Failed to copy container name", "error");
+      }
+    }
+  }, [container.name]);
 
   // Open Docker Hub or GitHub Container Registry link for image name
   const handleImageNameClick = useCallback((e) => {
@@ -122,7 +113,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   return (
     <div
       className={`${styles.containerCard} ${
-        showUpdates ? styles.updateAvailable : ""
+        showUpdates ? styles.updateAvailable : styles.currentCard
       } ${isPortainer ? styles.portainerDisabled : ""}`}
       title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
       role="article"
@@ -130,7 +121,13 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     >
       <div className={styles.cardHeader} title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}>
         <div className={styles.headerLeft}>
-          <h3>{container.name}</h3>
+          <h3 
+            className={styles.containerName}
+            title={container.name}
+            onClick={handleContainerNameClick}
+          >
+            {container.name}
+          </h3>
         </div>
         {showUpdates && (
           <label className={styles.checkbox}>
@@ -149,11 +146,11 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         <div className={styles.imageHeaderContainer}>
           <div className={styles.imageHeaderLeft}>
             <h4 
-              className={styles.imageHeader} 
+              className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ''}`}
               title={imageNameWithoutVersion}
               onClick={handleImageNameClick}
             >
-              {truncatedImageName}
+              {imageNameWithoutVersion}
             </h4>
             {!showUpdates && container.image && (isDockerHub || isGitHubContainer) && (
               <div className={styles.iconGroup}>
@@ -193,7 +190,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                       }
                     }}
                   >
-                    <GitHubIcon size={14} />
+                    <GitHubIcon size={18} />
                   </a>
                 ) : null}
               </div>
@@ -237,7 +234,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                     }
                   }}
                 >
-                  <GitHubIcon size={14} />
+                  <GitHubIcon size={18} />
                 </a>
               ) : null}
               {showUpdates && (
@@ -284,7 +281,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               title={imageVersion}
               onClick={handleVersionClick}
             >
-              {truncatedVersion}
+              {imageVersion}
             </span>
           </p>
         )}
@@ -320,7 +317,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 title={imageVersion}
                 onClick={handleVersionClick}
               >
-                {truncatedVersion}
+                {imageVersion}
               </span>
             </p>
             {container.currentImageCreated && (
@@ -356,8 +353,8 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                   }
                 >
                   {container.currentDigest 
-                    ? `sha256:${truncateCurrentVersion(container.currentDigest)}`
-                    : truncateCurrentVersion(container.currentTag || container.currentVersion || 'latest')}
+                    ? `sha256:${container.currentDigest}`
+                    : (container.currentTag || container.currentVersion || 'latest')}
                 </a>
               </span>
             </p>

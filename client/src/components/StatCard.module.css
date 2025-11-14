@@ -29,25 +29,17 @@ body.dark-mode .clickable:focus-visible {
 /* Variant classes - applied alongside statCard */
 .updateAvailable {
   background: var(--bg-secondary);
-  border-color: var(--border-color);
+  border-color: var(--dodger-blue);
+  border-width: 1.5px;
 }
 
-/* Red border for Updates Available when value > 0 */
-.redBorder.updateAvailable {
-  border-color: var(--dodger-red);
-}
-
-body.dark-mode .redBorder.updateAvailable {
-  border-color: var(--dodger-red);
+body.dark-mode .updateAvailable {
+  border-color: var(--dodger-blue-light);
 }
 
 .current {
   background: var(--bg-secondary);
-  border-color: var(--dodger-blue);
-}
-
-body.dark-mode .current {
-  border-color: var(--dodger-blue-light);
+  border-color: var(--border-color);
 }
 
 .unusedImages {
@@ -92,5 +84,15 @@ body.dark-mode .statValueBlue {
   font-size: 0.9rem;
   color: var(--text-tertiary);
   font-weight: 600;
+}
+
+.statLabelRed {
+  font-size: 0.9rem;
+  color: var(--dodger-red);
+  font-weight: 600;
+}
+
+body.dark-mode .statLabelRed {
+  color: var(--dodger-red);
 }
 
