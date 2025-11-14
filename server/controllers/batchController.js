@@ -15,6 +15,7 @@ const {
 } = require('../db/database');
 const batchSystem = require('../services/batch');
 const { setLogLevel: setBatchLogLevel, getLogLevel: getBatchLogLevel } = require('../services/batch/Logger');
+const { setLogLevel, getLogLevel } = require('../utils/logLevel');
 const logger = require('../utils/logger');
 
 /**
@@ -376,7 +377,8 @@ async function getBatchStatusHandler(req, res, next) {
  */
 async function getLogLevelHandler(req, res, next) {
   try {
-    const level = getBatchLogLevel();
+    // Use DB-backed log level (persists across restarts)
+    const level = await getLogLevel();
     res.json({
       success: true,
       logLevel: level,
@@ -407,7 +409,12 @@ async function setLogLevelHandler(req, res, next) {
       });
     }
 
-    setBatchLogLevel(logLevel);
+    // Use DB-backed log level (persists across restarts)
+    await setLogLevel(logLevel);
+    
+    // Also update the logger's cached level
+    logger.updateLevel();
+    
     res.json({
       success: true,
       logLevel,

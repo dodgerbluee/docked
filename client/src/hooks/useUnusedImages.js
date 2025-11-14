@@ -6,8 +6,7 @@ import { useState, useCallback } from 'react';
 import axios from 'axios';
 
 // In production, API is served from same origin, so use relative URLs
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+import { API_BASE_URL } from "../constants/api";
 
 export function useUnusedImages() {
   const [unusedImages, setUnusedImages] = useState([]);

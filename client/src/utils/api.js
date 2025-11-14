@@ -1,8 +1,7 @@
 /**
  * API Configuration
  * Centralized API base URL configuration
+ * Re-exported from constants/api.js for backward compatibility
  */
 
-export const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
+export { API_BASE_URL } from "../constants/api";

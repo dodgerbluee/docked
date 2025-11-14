@@ -3,14 +3,9 @@ import React, {
   useEffect,
   useRef,
   useCallback,
-  createContext,
-  useContext,
   useMemo,
-  Suspense,
-  lazy,
 } from "react";
 import axios from "axios";
-import { LayoutDashboard, Server, Package, Bell, MonitorSmartphone, Pencil, Trash2, ExternalLink, RefreshCw, Home } from "lucide-react";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -21,13 +16,8 @@ import {
   getGitHubRepoUrl,
   formatTimeAgo,
   parseUTCTimestamp,
+  formatBytes,
 } from "./utils/formatters";
-
-// Lazy load heavy components
-// Temporarily disabled to debug React error #426
-// const Settings = lazy(() => import("./components/Settings"));
-// const AddPortainerModal = lazy(() => import("./components/AddPortainerModal"));
-// const BatchLogs = lazy(() => import("./components/BatchLogs"));
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
@@ -36,75 +26,28 @@ import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
 import BatchPage from "./pages/BatchPage";
 import PortainerPage from "./pages/PortainerPage";
-import Button from "./components/ui/Button";
-import Alert from "./components/ui/Alert";
-import Modal from "./components/ui/Modal";
+import Header from "./components/Header/Header";
+import TabNavigation from "./components/TabNavigation/TabNavigation";
+import RateLimitError from "./components/ErrorDisplay/RateLimitError";
 import { calculateTrackedAppsStats } from "./utils/trackedAppsStats";
-import rateLimitStyles from "./components/RateLimitError.module.css";
-
-// Custom whale icon component matching lucide-react style
-// Represents Docker/Portainer (Docker's logo is a whale)
-const WhaleIcon = ({ size = 18, ...props }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    {/* Whale icon - simple whale outline matching lucide-react style */}
-    <path d="M3 13c0-4 3-7 6-7s6 3 6 7" />
-    <path d="M15 13c0 4 3 7 6 7s6-3 6-7" />
-    <path d="M9 6c0-1.5 1-2.5 2.5-2.5s2.5 1 2.5 2.5" />
-    <circle cx="6.5" cy="12.5" r="1" fill="currentColor" />
-    <path d="M3 13v4c0 1.5 1.5 2.5 3 2.5h1" />
-    <path d="M21 13v4c0 1.5-1.5 2.5-3 2.5h-1" />
-    <path d="M12 4v3" />
-  </svg>
-);
-
-// In production, API is served from same origin, so use relative URLs
-// In development, use localhost
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
-
-// Create Context for batch config
-const BatchConfigContext = createContext(null);
+import { isPortainerContainer, buildContainersByPortainer } from "./utils/containerHelpers";
+import { API_BASE_URL } from "./constants/api";
+import { BatchConfigContext } from "./contexts/BatchConfigContext";
+import { useAuth } from "./hooks/useAuth";
 
 function App() {
-  // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check if user is already logged in
-    return !!localStorage.getItem("authToken");
-  });
-  const [authToken, setAuthToken] = useState(() => {
-    const token = localStorage.getItem("authToken");
-    // Set axios header immediately if token exists
-    if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    }
-    return token || null;
-  });
-  const [username, setUsername] = useState(() => {
-    return localStorage.getItem("username") || null;
-  });
-  const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem("userRole") || "Administrator";
-  });
-  const [passwordChanged, setPasswordChanged] = useState(() => {
-    const stored = localStorage.getItem("passwordChanged");
-    // If not in localStorage, check if we need to fetch from API
-    if (stored === null && localStorage.getItem("authToken")) {
-      // Will be set after login response
-      return false;
-    }
-    return stored === "true";
-  });
+  // Authentication state - using custom hook
+  const {
+    isAuthenticated,
+    authToken,
+    username,
+    userRole,
+    passwordChanged,
+    handleLogin,
+    handleUsernameUpdate,
+    handlePasswordUpdateSuccess,
+    handleLogout,
+  } = useAuth();
   const [showAddPortainerModal, setShowAddPortainerModal] = useState(false);
   const [editingPortainerInstance, setEditingPortainerInstance] =
     useState(null);
@@ -112,8 +55,7 @@ function App() {
   const [dataFetched, setDataFetched] = useState(false); // Track if data has been fetched
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
-  const logoutInProgressRef = React.useRef(false); // Prevent multiple simultaneous logout calls
-  const handleLogoutRef = React.useRef(null); // Store logout function for interceptor
+  // Note: logoutInProgressRef and handleLogoutRef are now managed by useAuth hook
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
   const [dismissedContainerNotifications, setDismissedContainerNotifications] =
@@ -223,11 +165,7 @@ function App() {
   });
   const [dockerHubCredentials, setDockerHubCredentials] = useState(null);
   // Color scheme preference: 'system', 'light', or 'dark'
-  const [colorScheme, setColorScheme] = useState(() => {
-    // Check localStorage for saved preference, default to 'system'
-    const saved = localStorage.getItem("colorScheme");
-    return saved || "system";
-  });
+  const [colorScheme, setColorScheme] = useState("system"); // Will be fetched from API
 
   // Derived dark mode state based on color scheme preference
   const [darkMode, setDarkMode] = useState(() => {
@@ -344,65 +282,26 @@ function App() {
     }
   }, []);
 
-  // Handle login
-  const handleLogin = (token, user, pwdChanged) => {
-    // Set axios header immediately before state updates
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-    setAuthToken(token);
-    setUsername(user);
-    setPasswordChanged(pwdChanged);
-    setIsAuthenticated(true);
-
+  // Enhanced handleLogin to include tab navigation
+  const handleLoginWithNavigation = useCallback((token, user, pwdChanged) => {
+    handleLogin(token, user, pwdChanged);
     // If password not changed, show settings immediately with password section
     if (!pwdChanged) {
       setActiveTab("settings");
       setSettingsTab("password");
     }
-  };
+  }, [handleLogin]);
 
-  // Handle username update
-  const handleUsernameUpdate = (newUsername, newToken = null) => {
-    setUsername(newUsername);
-    localStorage.setItem("username", newUsername);
-    // If server provided a new token (with user ID), use it
-    // Otherwise, fallback to old token generation (for backwards compatibility)
-    if (newToken) {
-      setAuthToken(newToken);
-      localStorage.setItem("authToken", newToken);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-    } else {
-      // Fallback: generate token with username (old format)
-      // This should not happen with updated backend, but kept for safety
-      const token = Buffer.from(`${newUsername}:${Date.now()}`).toString(
-        "base64"
-      );
-      setAuthToken(token);
-      localStorage.setItem("authToken", token);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    }
-  };
-
-  // Handle password update success
-  const handlePasswordUpdateSuccess = () => {
-    setPasswordChanged(true);
-    localStorage.setItem("passwordChanged", "true");
+  // Enhanced handlePasswordUpdateSuccess to include tab navigation
+  const handlePasswordUpdateSuccessWithNavigation = useCallback(() => {
+    handlePasswordUpdateSuccess();
     setActiveTab("summary");
-  };
+  }, [handlePasswordUpdateSuccess]);
 
-  // Handle logout
-  const handleLogout = React.useCallback(() => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("username");
-    localStorage.removeItem("passwordChanged");
-    setAuthToken(null);
-    setUsername(null);
-    setUserRole("Administrator");
-    setPasswordChanged(false);
-    setIsAuthenticated(false);
+  // Enhanced handleLogout to include cleanup
+  const handleLogoutWithCleanup = useCallback(() => {
+    handleLogout();
     setActiveTab("summary");
-    // Clear axios defaults
-    delete axios.defaults.headers.common["Authorization"];
     // Reset initial pull flag on logout
     hasRunInitialPullRef.current = false;
     // Clear any running intervals
@@ -414,11 +313,6 @@ function App() {
       clearTimeout(batchInitialTimeoutRef.current);
       batchInitialTimeoutRef.current = null;
     }
-  }, []);
-
-  // Keep ref updated with latest logout function
-  React.useEffect(() => {
-    handleLogoutRef.current = handleLogout;
   }, [handleLogout]);
 
   // Update dark mode based on color scheme preference
@@ -457,10 +351,41 @@ function App() {
     }
   }, [darkMode]);
 
+  // Fetch color scheme from API
+  const fetchColorScheme = useCallback(async () => {
+    if (!isAuthenticated || !authToken) return;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/color-scheme`);
+      if (response.data.success) {
+        setColorScheme(response.data.colorScheme || "system");
+      }
+    } catch (err) {
+      console.error("Error fetching color scheme:", err);
+      // Fallback to localStorage if API fails (for backward compatibility during migration)
+      const saved = localStorage.getItem("colorScheme");
+      if (saved) {
+        setColorScheme(saved);
+      }
+    }
+  }, [isAuthenticated, authToken]);
+
   // Handle color scheme preference change from Settings
-  const handleColorSchemeChange = useCallback((newColorScheme) => {
-    setColorScheme(newColorScheme);
-    localStorage.setItem("colorScheme", newColorScheme);
+  const handleColorSchemeChange = useCallback(async (newColorScheme) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
+        colorScheme: newColorScheme,
+      });
+      if (response.data.success) {
+        setColorScheme(newColorScheme);
+        // Remove from localStorage since we're now using DB
+        localStorage.removeItem("colorScheme");
+      }
+    } catch (err) {
+      console.error("Error saving color scheme:", err);
+      // Fallback to localStorage if API fails (for backward compatibility)
+      setColorScheme(newColorScheme);
+      localStorage.setItem("colorScheme", newColorScheme);
+    }
   }, []);
 
   // Handle temporary theme toggle from avatar dropdown (doesn't persist)
@@ -496,7 +421,7 @@ function App() {
       if (!axios.defaults.headers.common["Authorization"]) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
       }
-      // Fetch Docker Hub credentials
+      fetchColorScheme();
       fetchDockerHubCredentials();
       // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
       // Only fetch if we haven't fetched yet (don't refetch after clearing)
@@ -504,7 +429,7 @@ function App() {
         fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
       }
     }
-  }, [isAuthenticated, authToken, passwordChanged, fetchDockerHubCredentials]);
+  }, [isAuthenticated, authToken, passwordChanged, fetchColorScheme, fetchDockerHubCredentials]);
 
   // Reset dataFetched and dockerHubDataPulled when logging out
   useEffect(() => {
@@ -1990,13 +1915,7 @@ function App() {
     }
   };
 
-  const formatBytes = (bytes) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
+  // formatBytes is now imported from utils/formatters
 
   const handleUpgrade = async (container) => {
     try {
@@ -2220,38 +2139,12 @@ function App() {
     });
   };
 
-  // Check if a container is a Portainer instance
-  const isPortainerContainer = (container) => {
-    const imageName = container.image?.toLowerCase() || "";
-    const containerName = container.name?.toLowerCase() || "";
-    return (
-      imageName.includes("portainer") || containerName.includes("portainer")
-    );
-  };
-
   // Build containersByPortainer map for rendering (always needed)
   // Use URL as the key instead of name, since URL is stable and doesn't change when renamed
-  const containersByPortainer = containers.reduce((acc, container) => {
-    const portainerUrl = container.portainerUrl || "Unknown";
-    const portainerName = container.portainerName || portainerUrl || "Unknown";
-
-    if (!acc[portainerUrl]) {
-      acc[portainerUrl] = {
-        name: portainerName, // Use current name from container
-        url: portainerUrl, // Use URL as stable key
-        containers: [],
-        withUpdates: [],
-        upToDate: [],
-      };
-    }
-    acc[portainerUrl].containers.push(container);
-    if (container.hasUpdate) {
-      acc[portainerUrl].withUpdates.push(container);
-    } else {
-      acc[portainerUrl].upToDate.push(container);
-    }
-    return acc;
-  }, {});
+  const containersByPortainer = useMemo(
+    () => buildContainersByPortainer(containers),
+    [containers]
+  );
 
   // Use portainerInstances from API response if available (includes IDs and proper ordering)
   // Merge with containersByPortainer to ensure all properties are present
@@ -2526,6 +2419,54 @@ function App() {
   // Calculate notification count (active containers with updates + active tracked apps behind)
   const notificationCount =
     activeContainersWithUpdates.length + activeTrackedAppsBehind.length;
+
+  // Notification handlers
+  const handleDismissContainerNotification = useCallback((containerId, latestVersion) => {
+    setDismissedContainerNotifications((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(containerId, latestVersion);
+      return newMap;
+    });
+  }, []);
+
+  const handleDismissTrackedAppNotification = useCallback((imageId, latestVersion) => {
+    setDismissedTrackedAppNotifications((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(imageId, latestVersion);
+      return newMap;
+    });
+  }, []);
+
+  const handleNavigateToPortainer = useCallback((container) => {
+    setShowNotificationMenu(false);
+    setActiveTab("portainer");
+    if (container?.portainerName) {
+      // Note: portainerSubTab is deprecated but kept for compatibility
+      setPortainerSubTab(container.portainerName);
+    }
+  }, []);
+
+  const handleNavigateToTrackedApps = useCallback(() => {
+    setShowNotificationMenu(false);
+    setActiveTab("tracked-apps");
+  }, []);
+
+  const handleNavigateToSummary = useCallback(() => {
+    setActiveTab("summary");
+    setShowNotificationMenu(false);
+    setShowAvatarMenu(false);
+  }, []);
+
+  const handleNavigateToSettings = useCallback(() => {
+    setActiveTab("settings");
+    setShowAvatarMenu(false);
+  }, []);
+
+  const handleNavigateToBatch = useCallback(() => {
+    setActiveTab("configuration");
+    setConfigurationTab("history");
+    setShowAvatarMenu(false);
+  }, []);
 
   // Summary statistics are now calculated in the useSummaryStats hook within SummaryPage component
 
@@ -3294,52 +3235,12 @@ function App() {
     );
   };
 
-  // Configure axios to include auth token in all requests
-  useEffect(() => {
-    if (authToken && isAuthenticated) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
-    } else {
-      // Clear auth headers when not authenticated
-      delete axios.defaults.headers.common["Authorization"];
-    }
-  }, [authToken, isAuthenticated]);
-
-  // Set up axios interceptor to handle 401 errors globally
-  useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        // Check if it's a 401 error and not from the login endpoint
-        if (
-          error.response?.status === 401 &&
-          !error.config?.url?.includes("/api/auth/login") &&
-          !logoutInProgressRef.current &&
-          handleLogoutRef.current
-        ) {
-          // Token is invalid - clear auth data and redirect to login
-          console.warn("Authentication token invalid, logging out...");
-          logoutInProgressRef.current = true;
-          // Use handleLogout to properly clean up all state
-          handleLogoutRef.current();
-          // Reset flag after a short delay to allow for re-authentication
-          setTimeout(() => {
-            logoutInProgressRef.current = false;
-          }, 1000);
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    // Cleanup interceptor on unmount
-    return () => {
-      axios.interceptors.response.eject(interceptor);
-    };
-  }, []); // Interceptor setup only needs to run once
+  // Axios interceptor and auth token setup are now handled by useAuth hook
 
   // Show login page if not authenticated
   if (!isAuthenticated) {
     // Clear any stale auth data when showing login
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLoginWithNavigation} />;
   }
 
   // If password not changed, force settings page
@@ -3358,7 +3259,7 @@ function App() {
           <Settings
             username={username}
             onUsernameUpdate={handleUsernameUpdate}
-            onLogout={handleLogout}
+            onLogout={handleLogoutWithCleanup}
             isFirstLogin={true}
             avatar={avatar}
             recentAvatars={recentAvatars}
@@ -3372,7 +3273,7 @@ function App() {
               // Refresh avatar from server after upload to ensure it's up to date
               await fetchAvatar();
             }}
-            onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+            onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
             onPortainerInstancesChange={() => {
               fetchPortainerInstances();
               fetchContainers();
@@ -3387,755 +3288,67 @@ function App() {
   return (
     <BatchConfigContext.Provider value={batchConfigContextValue}>
       <div className="App">
-        <header className="App-header">
-          <div className="header-content">
-            <div
-              onClick={() => {
-                setActiveTab("summary");
-                setShowNotificationMenu(false);
-                setShowAvatarMenu(false);
-              }}
-              style={{
-                cursor: "pointer",
-                transition: "opacity 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.8";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1";
-              }}
-            >
-              <h1>
-                <img
-                  src="/img/image.png"
-                  alt="Docked"
-                  style={{
-                    height: "2em",
-                    verticalAlign: "middle",
-                    marginRight: "8px",
-                    display: "inline-block",
-                  }}
-                />
-                <span
-                  style={{
-                    display: "inline-block",
-                    transform: "translateY(3px)",
-                  }}
-                >
-                  Docked
-                </span>
-              </h1>
-            </div>
-            <div className="header-actions">
-              <div
-                style={{
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <div style={{ position: "relative", marginRight: "18px" }}>
-                  <button
-                    className="notification-button"
-                    onClick={() => {
-                      setShowNotificationMenu(!showNotificationMenu);
-                      setShowAvatarMenu(false);
-                    }}
-                    aria-label="Notifications"
-                    title="Notifications"
-                    style={{
-                      padding: "0",
-                      background: "transparent",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0",
-                      cursor: "pointer",
-                      transition: "all 0.3s",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "auto",
-                      height: "auto",
-                      position: "relative",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translateY(-2px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translateY(0)";
-                    }}
-                  >
-                    <Bell
-                      size={25}
-                      style={{ display: "block", transform: "translateY(0.5px)" }}
-                    />
-                    {notificationCount > 0 && (
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: "-4px",
-                          right: "-4px",
-                          background: "var(--dodger-red)",
-                          color: "white",
-                          borderRadius: "50%",
-                          width: "16px",
-                          height: "16px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.65rem",
-                          fontWeight: "bold",
-                          border: "2px solid white",
-                          zIndex: 10,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        {notificationCount > 99 ? "99+" : notificationCount}
-                      </span>
-                    )}
-                  </button>
-                  {showNotificationMenu && (
-                    <div
-                      className="notification-menu"
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 10px)",
-                        right: 0,
-                        background: "var(--bg-primary)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "8px",
-                        boxShadow: "0 4px 12px var(--shadow)",
-                        minWidth: "300px",
-                        maxWidth: "400px",
-                        maxHeight: "500px",
-                        overflowY: "auto",
-                        zIndex: 1001,
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: "16px",
-                          background: "var(--bg-secondary)",
-                          borderBottom: "1px solid var(--border-color)",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <h3
-                          style={{
-                            margin: 0,
-                            color: "var(--text-primary)",
-                            fontSize: "1rem",
-                          }}
-                        >
-                          Notifications
-                        </h3>
-                        {notificationCount > 0 && (
-                          <span
-                            style={{
-                              background: "var(--dodger-blue)",
-                              color: "white",
-                              borderRadius: "12px",
-                              padding: "2px 8px",
-                              fontSize: "0.85rem",
-                              fontWeight: "600",
-                            }}
-                          >
-                            {notificationCount}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ padding: "8px 0" }}>
-                        {activeContainersWithUpdates.length > 0 && (
-                          <>
-                            <div
-                              style={{
-                                padding: "8px 16px",
-                                fontSize: "0.85rem",
-                                color: "var(--text-secondary)",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Container Updates (
-                              {activeContainersWithUpdates.length})
-                            </div>
-                            {activeContainersWithUpdates
-                              .slice(0, 5)
-                              .map((container) => (
-                                <div
-                                  key={container.id}
-                                  style={{
-                                    padding: "12px 16px",
-                                    borderBottom:
-                                      "1px solid var(--border-color)",
-                                    cursor: "pointer",
-                                    transition: "background 0.2s",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background =
-                                      "var(--bg-secondary)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background =
-                                      "transparent";
-                                  }}
-                                >
-                                  <div
-                                    style={{ flex: 1 }}
-                                    onClick={() => {
-                                      setShowNotificationMenu(false);
-                                      setActiveTab("portainer");
-                                      if (container.portainerName) {
-                                        setPortainerSubTab(
-                                          container.portainerName
-                                        );
-                                      }
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        color: "var(--text-primary)",
-                                        fontWeight: "600",
-                                        fontSize: "0.9rem",
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      {container.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        color: "var(--text-secondary)",
-                                        fontSize: "0.85rem",
-                                      }}
-                                    >
-                                      Update available
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDismissedContainerNotifications(
-                                        (prev) => {
-                                          const newMap = new Map(prev);
-                                          // Store the latest version that was dismissed
-                                          const latestVersion =
-                                            container.latestVersion ||
-                                            container.newVersion ||
-                                            container.latestTag ||
-                                            container.latestDigest;
-                                          newMap.set(
-                                            container.id,
-                                            latestVersion
-                                          );
-                                          return newMap;
-                                        }
-                                      );
-                                    }}
-                                    style={{
-                                      padding: "4px 8px",
-                                      background: "transparent",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      color: "var(--text-secondary)",
-                                      borderRadius: "4px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      transition: "all 0.2s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background =
-                                        "var(--bg-tertiary)";
-                                      e.currentTarget.style.color =
-                                        "var(--text-primary)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background =
-                                        "transparent";
-                                      e.currentTarget.style.color =
-                                        "var(--text-secondary)";
-                                    }}
-                                    aria-label="Dismiss notification"
-                                    title="Dismiss"
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              ))}
-                            {activeContainersWithUpdates.length > 5 && (
-                              <div
-                                style={{
-                                  padding: "8px 16px",
-                                  fontSize: "0.85rem",
-                                  color: "var(--dodger-blue)",
-                                  textAlign: "center",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  setShowNotificationMenu(false);
-                                  setActiveTab("summary");
-                                }}
-                              >
-                                View all {activeContainersWithUpdates.length}{" "}
-                                container updates
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {activeTrackedAppsBehind.length > 0 && (
-                          <>
-                            {activeContainersWithUpdates.length > 0 && (
-                              <div
-                                style={{
-                                  height: "1px",
-                                  background: "var(--border-color)",
-                                  margin: "8px 0",
-                                }}
-                              />
-                            )}
-                            <div
-                              style={{
-                                padding: "8px 16px",
-                                fontSize: "0.85rem",
-                                color: "var(--text-secondary)",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Tracked App Updates (
-                              {activeTrackedAppsBehind.length})
-                            </div>
-                            {activeTrackedAppsBehind
-                              .slice(0, 5)
-                              .map((image) => (
-                                <div
-                                  key={image.id}
-                                  style={{
-                                    padding: "12px 16px",
-                                    borderBottom:
-                                      "1px solid var(--border-color)",
-                                    cursor: "pointer",
-                                    transition: "background 0.2s",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background =
-                                      "var(--bg-secondary)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background =
-                                      "transparent";
-                                  }}
-                                >
-                                  <div
-                                    style={{ flex: 1 }}
-                                    onClick={() => {
-                                      setShowNotificationMenu(false);
-                                      setActiveTab("tracked-apps");
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        color: "var(--text-primary)",
-                                        fontWeight: "600",
-                                        fontSize: "0.9rem",
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      {image.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        color: "var(--text-secondary)",
-                                        fontSize: "0.85rem",
-                                      }}
-                                    >
-                                      Update available: {image.latest_version}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDismissedTrackedAppNotifications(
-                                        (prev) => {
-                                          const newMap = new Map(prev);
-                                          // Store the latest version that was dismissed
-                                          newMap.set(
-                                            image.id,
-                                            image.latest_version
-                                          );
-                                          return newMap;
-                                        }
-                                      );
-                                    }}
-                                    style={{
-                                      padding: "4px 8px",
-                                      background: "transparent",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      color: "var(--text-secondary)",
-                                      borderRadius: "4px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      transition: "all 0.2s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background =
-                                        "var(--bg-tertiary)";
-                                      e.currentTarget.style.color =
-                                        "var(--text-primary)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background =
-                                        "transparent";
-                                      e.currentTarget.style.color =
-                                        "var(--text-secondary)";
-                                    }}
-                                    aria-label="Dismiss notification"
-                                    title="Dismiss"
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              ))}
-                            {activeTrackedAppsBehind.length > 5 && (
-                              <div
-                                style={{
-                                  padding: "8px 16px",
-                                  fontSize: "0.85rem",
-                                  color: "var(--dodger-blue)",
-                                  textAlign: "center",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  setShowNotificationMenu(false);
-                                  setActiveTab("tracked-apps");
-                                }}
-                              >
-                                View all {activeTrackedAppsBehind.length}{" "}
-                                tracked app updates
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {notificationCount === 0 && (
-                          <div
-                            style={{
-                              padding: "40px 16px",
-                              textAlign: "center",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            No new notifications
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <button
-                  className="avatar-button"
-                  onClick={() => {
-                    setShowAvatarMenu(!showAvatarMenu);
-                    setShowNotificationMenu(false);
-                  }}
-                  aria-label="User Menu"
-                  title="User Menu"
-                >
-                  <img
-                    key={avatar} // Force re-render when avatar changes
-                    src={
-                      avatar.startsWith("blob:") ||
-                      avatar.startsWith("http") ||
-                      avatar.startsWith("/img/")
-                        ? avatar
-                        : `${API_BASE_URL}${avatar}`
-                    }
-                    alt="User Avatar"
-                    className="avatar-image"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      borderRadius: "6px",
-                    }}
-                    onError={(e) => {
-                      // Fallback to default avatar if server avatar fails to load
-                      e.target.src = "/img/default-avatar.jpg";
-                    }}
-                  />
-                </button>
-                {username && (
-                  <div
-                    data-username-role
-                    onClick={() => {
-                      setShowAvatarMenu(!showAvatarMenu);
-                    }}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      padding: "6px 12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "1.035rem",
-                        opacity: 0.95,
-                        color: "white",
-                        lineHeight: "1.2",
-                      }}
-                    >
-                      {username}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.805rem",
-                        opacity: 0.8,
-                        color: "white",
-                        lineHeight: "1.2",
-                        marginTop: "2px",
-                      }}
-                    >
-                      {userRole}
-                    </span>
-                  </div>
-                )}
-                {showAvatarMenu && (
-                  <div className="avatar-menu" style={{ right: 0 }}>
-                    <div className="avatar-menu-actions">
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          setActiveTab("summary");
-                          setShowAvatarMenu(false);
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
-                        Home
-                      </button>
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          setActiveTab("configuration");
-                          setConfigurationTab("history");
-                          setShowAvatarMenu(false);
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                          <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                        Batch
-                      </button>
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          setActiveTab("settings");
-                          setShowAvatarMenu(false);
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                        Settings
-                      </button>
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          // Toggle dark mode temporarily without changing saved preference
-                          handleTemporaryThemeToggle();
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          {darkMode ? (
-                            <>
-                              <circle cx="12" cy="12" r="5" />
-                              <line x1="12" y1="1" x2="12" y2="3" />
-                              <line x1="12" y1="21" x2="12" y2="23" />
-                              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                              <line
-                                x1="18.36"
-                                y1="18.36"
-                                x2="19.78"
-                                y2="19.78"
-                              />
-                              <line x1="1" y1="12" x2="3" y2="12" />
-                              <line x1="21" y1="12" x2="23" y2="12" />
-                              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                            </>
-                          ) : (
-                            <>
-                              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                            </>
-                          )}
-                        </svg>
-                        {darkMode ? "Light Mode" : "Dark Mode"}
-                      </button>
-                      <div className="avatar-menu-divider"></div>
-                      <button
-                        className="avatar-menu-item"
-                        onClick={() => {
-                          handleLogout();
-                          setShowAvatarMenu(false);
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                          <polyline points="16 17 21 12 16 7" />
-                          <line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
+        <Header
+          username={username}
+          userRole={userRole}
+          avatar={avatar}
+          darkMode={darkMode}
+          notificationCount={notificationCount}
+          activeContainersWithUpdates={activeContainersWithUpdates}
+          activeTrackedAppsBehind={activeTrackedAppsBehind}
+          showNotificationMenu={showNotificationMenu}
+          showAvatarMenu={showAvatarMenu}
+          onToggleNotificationMenu={(show) => {
+            if (show !== undefined) {
+              setShowNotificationMenu(show);
+              if (show) setShowAvatarMenu(false);
+            } else {
+              // Toggle behavior if no boolean provided
+              setShowNotificationMenu((prev) => {
+                if (!prev) setShowAvatarMenu(false);
+                return !prev;
+              });
+            }
+          }}
+          onToggleAvatarMenu={(show) => {
+            if (show !== undefined) {
+              setShowAvatarMenu(show);
+              if (show) setShowNotificationMenu(false);
+            } else {
+              // Toggle behavior if no boolean provided
+              setShowAvatarMenu((prev) => {
+                if (!prev) setShowNotificationMenu(false);
+                return !prev;
+              });
+            }
+          }}
+          onNavigateToSummary={handleNavigateToSummary}
+          onNavigateToSettings={handleNavigateToSettings}
+          onNavigateToBatch={handleNavigateToBatch}
+          onNavigateToPortainer={handleNavigateToPortainer}
+          onNavigateToTrackedApps={handleNavigateToTrackedApps}
+          onDismissContainerNotification={handleDismissContainerNotification}
+          onDismissTrackedAppNotification={handleDismissTrackedAppNotification}
+          onTemporaryThemeToggle={handleTemporaryThemeToggle}
+          onLogout={handleLogoutWithCleanup}
+          API_BASE_URL={API_BASE_URL}
+        />
 
         <div className="container">
           {/* Tabs - Show for all tabs except old settings page and configuration */}
           {activeTab !== "settings" && activeTab !== "configuration" && (
-            <div className="tabs-container">
-              <div className="tabs">
-                <button
-                  className={`tab ${activeTab === "summary" ? "active" : ""}`}
-                  onClick={() => setActiveTab("summary")}
-                >
-                  <LayoutDashboard size={18} />
-                  Summary
-                </button>
-                <button
-                  className={`tab ${activeTab === "portainer" ? "active" : ""}`}
-                  onClick={() => {
-                    setActiveTab("portainer");
-                    setSelectedPortainerInstances(new Set());
-                    setContentTab("updates");
-                  }}
-                >
-                  <svg 
-                    width="18" 
-                    height="18" 
-                    viewBox="0 0 24 24"
-                    style={{ display: "block" }}
-                  >
-                    <path fill="currentColor" d="M12.504 0v1.023l-.01-.015l-6.106 3.526H3.417v.751h5.359v3.638h1.942V5.284h1.786V15.7c.027 0 .54-.01.751.091V5.285h.531v10.608c.293.147.55.312.751.54V5.286h6.046v-.75h-1.267l-6.061-3.5V0zm0 1.87v2.664H7.889zm.751.031l4.56 2.633h-4.56zM9.142 5.285h1.21v1.686h-1.21zm-4.736 2.73v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm-2.19 2.171v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm2.18 0v1.951h1.942v-1.95zM4.36 12.43a3.73 3.73 0 0 0-.494 1.851c0 1.227.604 2.308 1.52 2.986c.239-.064.477-.1.724-.11c.1 0 .165.01.266.019c.284-1.191 1.383-1.988 2.665-1.988c.724 0 1.438.201 1.924.668c.229-.476.302-1.007.302-1.575c0-.65-.165-1.292-.494-1.85zm4.828 3.16c-1.21 0-2.226.844-2.492 1.97a1 1 0 0 0-.275-.009a2.56 2.56 0 0 0-2.564 2.556a2.565 2.565 0 0 0 3.096 2.5A2.58 2.58 0 0 0 9.233 24c.862 0 1.622-.43 2.09-1.081a2.557 2.557 0 0 0 4.186-1.97c0-.567-.193-1.099-.504-1.52a2.557 2.557 0 0 0-3.866-2.94a2.57 2.57 0 0 0-1.951-.898z"/>
-                  </svg>
-                  Portainer
-                  {containersWithUpdates.length > 0 && (
-                    <span className="tab-badge">
-                      {containersWithUpdates.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  className={`tab ${
-                    activeTab === "tracked-apps" ? "active" : ""
-                  }`}
-                  onClick={() => setActiveTab("tracked-apps")}
-                >
-                  <MonitorSmartphone size={18} />
-                  Tracked Apps
-                  {trackedAppsBehind > 0 && (
-                    <span className="tab-badge">{trackedAppsBehind}</span>
-                  )}
-                </button>
-              </div>
-            </div>
+            <TabNavigation
+              activeTab={activeTab}
+              onTabChange={(tab) => {
+                setActiveTab(tab);
+                if (tab === "portainer") {
+                  setSelectedPortainerInstances(new Set());
+                  setContentTab("updates");
+                }
+              }}
+              containersWithUpdates={containersWithUpdates}
+              trackedAppsBehind={trackedAppsBehind}
+            />
           )}
 
 
@@ -4148,8 +3361,8 @@ function App() {
                 avatar={avatar}
                 recentAvatars={recentAvatars}
                 onUsernameUpdate={handleUsernameUpdate}
-                onLogout={handleLogout}
-                onPasswordUpdateSuccess={handlePasswordUpdateSuccess}
+                onLogout={handleLogoutWithCleanup}
+                onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
                 onPortainerInstancesChange={async () => {
                   await fetchPortainerInstances();
                   // Fetch from cache (which has been updated by the delete handler)
@@ -4211,105 +3424,20 @@ function App() {
                   <div className="loading">Loading containers...</div>
                 )}
 
-                {/* Rate limit error as overlay modal on any page */}
-                {error &&
-                  (error.includes("rate limit") || error.includes("Rate limit")) && (
-                    <Modal
-                      isOpen={true}
-                      onClose={() => setError(null)}
-                      title="⚠️ Docker Hub Rate Limit Exceeded"
-                      size="md"
-                    >
-                      <div className={rateLimitStyles.rateLimitContent}>
-                        <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
-                        <div className={rateLimitStyles.rateLimitActions}>
-                          {!dockerHubCredentials && (
-                            <Button
-                              onClick={() => {
-                                setError(null);
-                                setActiveTab("settings");
-                                setSettingsTab("dockerhub");
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className={rateLimitStyles.configureButton}
-                            >
-                              Configure Docker Hub Credentials
-                            </Button>
-                          )}
-                          <Button
-                            onClick={() => setError(null)}
-                            variant="outline"
-                            size="sm"
-                            className={rateLimitStyles.dismissButton}
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </div>
-                    </Modal>
-                  )}
-
-                {/* Other errors (non-rate limit) */}
-                {error &&
-                  !(error.includes("rate limit") || error.includes("Rate limit")) && (
-                    <Alert
-                      variant={
-                        error.includes("rate limit") || error.includes("Rate limit")
-                          ? "warning"
-                          : "error"
-                      }
-                      className={
-                        error.includes("rate limit") || error.includes("Rate limit")
-                          ? rateLimitStyles.rateLimitError
-                          : ""
-                      }
-                    >
-                      <div className={rateLimitStyles.rateLimitContent}>
-                        <h4 className={rateLimitStyles.rateLimitTitle}>
-                          {error.includes("rate limit") || error.includes("Rate limit")
-                            ? "⚠️ Docker Hub Rate Limit Exceeded"
-                            : "Error"}
-                        </h4>
-                        <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
-                        {error.includes("rate limit") || error.includes("Rate limit") ? (
-                          <div className={rateLimitStyles.rateLimitActions}>
-                            {!dockerHubCredentials && (
-                              <Button
-                                onClick={() => {
-                                  setActiveTab("settings");
-                                  setSettingsTab("dockerhub");
-                                }}
-                                variant="outline"
-                                size="sm"
-                                className={rateLimitStyles.configureButton}
-                              >
-                                Configure Docker Hub Credentials
-                              </Button>
-                            )}
-                            <Button
-                              onClick={() => setError(null)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              Dismiss
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className={rateLimitStyles.rateLimitActions}>
-                            <Button
-                              onClick={handlePull}
-                              disabled={pulling || loading}
-                              variant="primary"
-                              size="sm"
-                            >
-                              {pulling || loading ? "Retrying..." : "Try Again"}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </Alert>
-                  )}
+                {/* Error display - handles both rate limit and other errors */}
+                <RateLimitError
+                  error={error}
+                  dockerHubCredentials={dockerHubCredentials}
+                  onDismiss={() => setError(null)}
+                  onNavigateToDockerHubSettings={() => {
+                    setError(null);
+                    setActiveTab("settings");
+                    setSettingsTab("dockerhub");
+                  }}
+                  onRetry={handlePull}
+                  pulling={pulling}
+                  loading={loading}
+                />
 
                 {/* Render summary page even when there's an error (error modal will overlay) */}
                 {!loading && (
@@ -4578,6 +3706,6 @@ function App() {
 }
 
 // Export the context for use in other components
-export { BatchConfigContext };
+// BatchConfigContext is exported from contexts/BatchConfigContext.js
 
 export default App;

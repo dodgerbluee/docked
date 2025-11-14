@@ -12,12 +12,8 @@ import React, {
 } from "react";
 import axios from "axios";
 import "./Settings.css";
-import { BatchConfigContext } from "../App";
-
-// In production, API is served from same origin, so use relative URLs
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3001");
+import { BatchConfigContext } from "../contexts/BatchConfigContext";
+import { API_BASE_URL } from "../constants/api";
 
 function BatchLogs({
   onNavigateHome = null,

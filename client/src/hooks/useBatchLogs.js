@@ -1,5 +1,5 @@
 import { useContext, useMemo } from "react";
-import { BatchConfigContext } from "../App";
+import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import { BATCH_JOB_TYPES } from "../constants/batch";
 import { useBatchRuns } from "./useBatchRuns";
 import { useScheduledRuns } from "./useScheduledRuns";
