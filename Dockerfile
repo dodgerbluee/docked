@@ -52,8 +52,11 @@ COPY --from=frontend-builder /app/client/build ./public
 # Expose port
 EXPOSE 3001
 
+# Accept NODE_ENV as build argument
+ARG NODE_ENV=production
+
 # Set environment variables
-ENV NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
 ENV PORT=3001
 
 # Start server
