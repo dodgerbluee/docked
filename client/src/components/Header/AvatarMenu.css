@@ -30,6 +30,21 @@
   display: block;
 }
 
+.avatar-loading {
+  background: var(--bg-secondary);
+  opacity: 0.5;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 .username-role-container {
   display: flex;
   flex-direction: column;

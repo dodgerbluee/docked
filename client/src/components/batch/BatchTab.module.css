@@ -2,8 +2,24 @@
   padding: 24px;
 }
 
+.titleContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.titleIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .titleIcon {
+  color: var(--dodger-blue-light);
+}
+
 .title {
-  margin: 0 0 24px 0;
+  margin: 0;
   color: var(--text-primary);
   font-size: 1.5rem;
   font-weight: 600;
@@ -22,6 +38,19 @@
   margin-bottom: 32px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .jobConfig:last-of-type {

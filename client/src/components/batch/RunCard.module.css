@@ -1,31 +1,45 @@
 .runCard {
-  padding: 12px 15px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 16px;
   cursor: pointer;
-  background: transparent;
-  transition: background 0.2s;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .runCard:hover {
   background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
 }
 
 .runCard.selected {
   background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+body.dark-mode .runCard:hover,
+body.dark-mode .runCard.selected {
+  border-color: var(--dodger-blue-light);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .runId {
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 0.95rem;
 }
 
 .badges {
@@ -36,13 +50,15 @@
 }
 
 .date {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .stats {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-tertiary);
-  margin-top: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 

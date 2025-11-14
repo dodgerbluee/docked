@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { Container, Package, Circle, CheckCircle2, XCircle, User } from "lucide-react";
 import {
   BATCH_JOB_TYPES,
   BATCH_JOB_TYPE_LABELS,
@@ -24,12 +25,24 @@ export const JobTypeBadge = React.memo(function JobTypeBadge({ jobType }) {
     }
   };
 
+  const getJobTypeIcon = (type) => {
+    switch (type) {
+      case BATCH_JOB_TYPES.DOCKER_HUB_PULL:
+        return <Container size={14} className={styles.badgeIcon} />;
+      case BATCH_JOB_TYPES.TRACKED_APPS_CHECK:
+        return <Package size={14} className={styles.badgeIcon} />;
+      default:
+        return null;
+    }
+  };
+
   const jobTypeLabel =
     BATCH_JOB_TYPE_LABELS[jobType] || jobType || "Unknown Job";
 
   return (
     <span className={`${styles.badge} ${getJobTypeClass(jobType)}`}>
-      {jobTypeLabel}
+      {getJobTypeIcon(jobType)}
+      <span>{jobTypeLabel}</span>
     </span>
   );
 });
@@ -56,12 +69,26 @@ export const StatusBadge = React.memo(function StatusBadge({ status }) {
     }
   };
 
+  const getStatusIcon = (statusType) => {
+    switch (statusType) {
+      case BATCH_STATUS.RUNNING:
+        return <Circle size={12} className={styles.badgeIcon} />;
+      case BATCH_STATUS.COMPLETED:
+        return <CheckCircle2 size={14} className={styles.badgeIcon} />;
+      case BATCH_STATUS.FAILED:
+        return <XCircle size={14} className={styles.badgeIcon} />;
+      default:
+        return <Circle size={12} className={styles.badgeIcon} />;
+    }
+  };
+
   const statusLabel =
     BATCH_STATUS_LABELS[status] || BATCH_STATUS_LABELS[BATCH_STATUS.RUNNING];
 
   return (
     <span className={`${styles.badge} ${getStatusClass(status)}`}>
-      {statusLabel}
+      {getStatusIcon(status)}
+      <span>{statusLabel}</span>
     </span>
   );
 });
@@ -77,7 +104,8 @@ StatusBadge.propTypes = {
 export const ManualBadge = React.memo(function ManualBadge() {
   return (
     <span className={`${styles.badge} ${styles.manualBadge}`}>
-      Manual
+      <User size={14} className={styles.badgeIcon} />
+      <span>Manual</span>
     </span>
   );
 });

@@ -33,22 +33,26 @@ const AvatarMenu = ({
         aria-label="User Menu"
         title="User Menu"
       >
-        <img
-          src={
-            avatar.startsWith("blob:") ||
-            avatar.startsWith("http") ||
-            avatar.startsWith("/img/")
-              ? avatar
-              : `${API_BASE_URL}${avatar}`
-          }
-          alt="User Avatar"
-          className="avatar-image"
-          onError={(e) => {
-            if (e.target.src !== "/img/default-avatar.jpg") {
-              e.target.src = "/img/default-avatar.jpg";
+        {avatar ? (
+          <img
+            src={
+              avatar.startsWith("blob:") ||
+              avatar.startsWith("http") ||
+              avatar.startsWith("/img/")
+                ? avatar
+                : `${API_BASE_URL}${avatar}`
             }
-          }}
-        />
+            alt="User Avatar"
+            className="avatar-image"
+            onError={(e) => {
+              if (e.target.src !== "/img/default-avatar.jpg") {
+                e.target.src = "/img/default-avatar.jpg";
+              }
+            }}
+          />
+        ) : (
+          <div className="avatar-image avatar-loading" />
+        )}
       </button>
       {username && (
         <div
@@ -127,7 +131,7 @@ const AvatarMenu = ({
 AvatarMenu.propTypes = {
   username: PropTypes.string,
   userRole: PropTypes.string,
-  avatar: PropTypes.string.isRequired,
+  avatar: PropTypes.string, // Can be null while loading
   darkMode: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
   onToggleAvatarMenu: PropTypes.func.isRequired,

@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../constants/api";
  * Handles avatar fetching, uploading, and recent avatars
  */
 export const useAvatarManagement = (isAuthenticated, authToken) => {
-  const [avatar, setAvatar] = useState("/img/default-avatar.jpg");
+  const [avatar, setAvatar] = useState(null); // Start with null to avoid showing default avatar
   const [recentAvatars, setRecentAvatars] = useState([]);
   const avatarRef = useRef(avatar);
   const isFetchingRef = useRef(false);
@@ -47,10 +47,8 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
       if (err.response?.status !== 404) {
         console.error("Error fetching avatar:", err);
       }
-      // Set default avatar on error if not already set
-      if (avatarRef.current !== "/img/default-avatar.jpg") {
-        setAvatar("/img/default-avatar.jpg");
-      }
+      // Only set default avatar on error (404 or other error)
+      setAvatar("/img/default-avatar.jpg");
     } finally {
       isFetchingRef.current = false;
     }
@@ -62,12 +60,14 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/avatars/recent`);
       if (response.data.success && response.data.avatars) {
-        const avatars = response.data.avatars.map((avatar) => ({
-          ...avatar,
-          url: avatar.url.startsWith("http")
-            ? avatar.url
-            : `${API_BASE_URL}${avatar.url}`,
-        }));
+        const avatars = response.data.avatars
+          .filter((avatar) => avatar && avatar.url) // Filter out invalid avatars
+          .map((avatar) => ({
+            ...avatar,
+            url: avatar.url.startsWith("http")
+              ? avatar.url
+              : `${API_BASE_URL}${avatar.url}`,
+          }));
         setRecentAvatars(avatars);
       }
     } catch (err) {
