@@ -11,12 +11,11 @@
 }
 
 .updateAvailable {
-  border-left: 4px solid var(--dodger-red);
+  /* Green border removed - using icon instead */
 }
 
 .updateAvailable:hover {
   border-color: var(--border-color);
-  border-left: 4px solid var(--dodger-red);
 }
 
 .portainerDisabled {
@@ -34,10 +33,20 @@
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
   flex: 1;
   min-width: 0;
+}
+
+.upgradeIcon {
+  color: var(--success-green);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
 }
 
 
@@ -75,6 +84,25 @@
   font-weight: 600;
   color: var(--text-primary);
   flex-shrink: 0;
+}
+
+.containerName {
+  cursor: pointer;
+  transition: color 0.2s;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.containerName:hover {
+  color: var(--dodger-blue);
+  text-decoration: underline;
+}
+
+body.dark-mode .containerName:hover {
+  color: var(--dodger-blue-light);
 }
 
 .portainerBadge {
@@ -383,7 +411,7 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradeCheckmark {
-  color: var(--text-secondary);
+  color: var(--success-green);
   flex-shrink: 0;
   cursor: pointer;
   transition: color 0.2s, transform 0.2s;
@@ -395,7 +423,7 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradeCheckmark:hover {
-  color: var(--dodger-blue);
+  color: var(--success-green-light);
   transform: scale(1.1);
 }
 
@@ -406,15 +434,15 @@ body.dark-mode .githubIconLink:hover {
 
 .upgradeCheckmark.disabled:hover {
   transform: none;
-  color: var(--text-secondary);
+  color: var(--success-green);
 }
 
 body.dark-mode .upgradeCheckmark {
-  color: var(--text-secondary);
+  color: var(--success-green);
 }
 
 body.dark-mode .upgradeCheckmark:hover {
-  color: var(--dodger-blue-light);
+  color: var(--success-green-light);
 }
 
 .buttonGroup {

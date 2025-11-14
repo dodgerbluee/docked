@@ -23,12 +23,11 @@
 }
 
 .updateAvailable {
-  border-left: 4px solid var(--dodger-red);
+  /* Green border removed - matching Portainer Updates cards */
 }
 
 .updateAvailable:hover {
   border-color: var(--border-color);
-  border-left: 4px solid var(--dodger-red);
 }
 
 
@@ -157,7 +156,7 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradedCheckmark {
-  color: var(--text-secondary);
+  color: var(--success-green);
   flex-shrink: 0;
   cursor: pointer;
   transition: color 0.2s, transform 0.2s;
@@ -169,16 +168,16 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradedCheckmark:hover {
-  color: var(--dodger-blue);
+  color: var(--success-green-light);
   transform: scale(1.1);
 }
 
 body.dark-mode .upgradedCheckmark {
-  color: var(--text-secondary);
+  color: var(--success-green);
 }
 
 body.dark-mode .upgradedCheckmark:hover {
-  color: var(--dodger-blue-light);
+  color: var(--success-green-light);
 }
 
 .dockerIconLink {
@@ -396,23 +395,23 @@ body.dark-mode .editButton:hover .editIcon {
 }
 
 .checkbox:hover::before {
-  border-color: var(--dodger-blue);
-  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+  border-color: var(--success-green);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
 }
 
 body.dark-mode .checkbox:hover::before {
-  border-color: var(--dodger-blue-light);
-  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15);
+  border-color: var(--success-green);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
 }
 
 .checkbox:has(input[type="checkbox"]:checked)::before {
-  background: var(--dodger-blue);
-  border-color: var(--dodger-blue);
+  background: var(--success-green);
+  border-color: var(--success-green);
 }
 
 body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
-  background: var(--dodger-blue-light);
-  border-color: var(--dodger-blue-light);
+  background: var(--success-green);
+  border-color: var(--success-green);
 }
 
 .checkbox::after {
@@ -437,12 +436,50 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
 
 .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
-  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  border-color: var(--success-green);
 }
 
 body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
-  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
-  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+  border-color: var(--success-green);
+}
+
+.markUpdatedButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.markUpdatedButton:hover {
+  transform: scale(1.1);
+}
+
+.markUpdatedIcon {
+  color: var(--success-green);
+  width: 14px;
+  height: 14px;
+  transition: color 0.2s;
+}
+
+.markUpdatedButton:hover .markUpdatedIcon {
+  color: var(--success-green-light);
+}
+
+body.dark-mode .markUpdatedIcon {
+  color: var(--success-green);
+}
+
+body.dark-mode .markUpdatedButton:hover .markUpdatedIcon {
+  color: var(--success-green-light);
 }
 

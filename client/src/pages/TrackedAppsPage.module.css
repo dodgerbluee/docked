@@ -109,6 +109,11 @@ body.dark-mode .checkmark {
   font-weight: 600;
 }
 
+.sectionTitleWithUpdates {
+  border-bottom: 2px solid var(--success-green);
+  padding-bottom: 8px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

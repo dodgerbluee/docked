@@ -154,7 +154,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
             {/* Apps with updates - shown at the top */}
             {appsWithUpdates.length > 0 && (
               <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Apps with Updates</h3>
+                <h3 className={`${styles.sectionTitle} ${styles.sectionTitleWithUpdates}`}>Apps with Updates</h3>
                 <div className={styles.gridWithUpdates}>
                   {appsWithUpdates.map((image) => (
                     <TrackedAppCard

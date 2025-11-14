@@ -1,6 +1,6 @@
 .sidebar {
-  width: 240px;
-  min-width: 240px;
+  width: 180px;
+  min-width: 180px;
   background: var(--bg-secondary);
   border-radius: 8px;
   border: 1px solid var(--border-color);

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
+import { Trash2 } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
-import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -107,11 +107,13 @@ const UnusedTab = React.memo(function UnusedTab({
               {unusedImages.map((image) => (
                 <div key={image.id} className={styles.imageCard}>
                   <div className={styles.cardHeader}>
-                    <h3>
-                      {image.repoTags && image.repoTags.length > 0
-                        ? image.repoTags[0].replace(/:<none>$/, "")
-                        : "<none>"}
-                    </h3>
+                    <div className={styles.headerLeft}>
+                      <h3>
+                        {image.repoTags && image.repoTags.length > 0
+                          ? image.repoTags[0].replace(/:<none>$/, "")
+                          : "<none>"}
+                      </h3>
+                    </div>
                     <label className={styles.checkbox}>
                       <input
                         type="checkbox"
@@ -122,16 +124,51 @@ const UnusedTab = React.memo(function UnusedTab({
                     </label>
                   </div>
                   <div className={styles.cardBody}>
+                    <div className={styles.portainerSection}>
+                      {image.portainerName && (
+                        <>
+                          {image.portainerUrl ? (
+                            <a
+                              href={image.portainerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.portainerBadge}
+                              title={`Open Portainer instance: ${image.portainerName}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {image.portainerName}
+                            </a>
+                          ) : (
+                            <span className={styles.portainerBadge} title={`Portainer instance: ${image.portainerName}`}>
+                              {image.portainerName}
+                            </span>
+                          )}
+                          <span
+                            className={`${styles.deleteIcon} ${deletingImages ? styles.disabled : ''}`}
+                            title={deletingImages ? "Deleting..." : "Delete Image"}
+                            aria-label={deletingImages ? "Deleting..." : "Delete Image"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!deletingImages) {
+                                handleDeleteClick(image);
+                              }
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </span>
+                        </>
+                      )}
+                    </div>
                     {image.repoTags && image.repoTags.length > 1 && (
-                      <p className={styles.imageInfo}>
+                      <p className={styles.metaItem}>
                         <strong>Tags:</strong> {image.repoTags.slice(1).join(", ")}
                       </p>
                     )}
-                    <p className={styles.tagInfo}>
+                    <p className={styles.metaItem}>
                       <strong>Size:</strong> {formatBytes(image.size)}
                     </p>
                     {image.created && (
-                      <p className={styles.tagInfo}>
+                      <p className={styles.metaItem}>
                         <strong>Created:</strong>{" "}
                         {formatTimeAgo(
                           typeof image.created === "number"
@@ -140,18 +177,6 @@ const UnusedTab = React.memo(function UnusedTab({
                         )}
                       </p>
                     )}
-                    <p className={styles.tagInfo}>
-                      <strong>Portainer:</strong> {image.portainerName}
-                    </p>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteClick(image)}
-                      disabled={deletingImages}
-                      className={styles.deleteButton}
-                    >
-                      {deletingImages ? "Deleting..." : "Delete Image"}
-                    </Button>
                   </div>
                 </div>
               ))}
@@ -165,7 +190,7 @@ const UnusedTab = React.memo(function UnusedTab({
         onClose={() => setDeleteConfirm(null)}
         onConfirm={handleDeleteConfirm}
         title="Delete Image?"
-        message={`Delete image ${deleteConfirm?.imageName || ""}? This action cannot be undone.`}
+        message={`Delete image ${deleteConfirm?.imageName?.replace(/:<none>$/, "") || ""}? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
