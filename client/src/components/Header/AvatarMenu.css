@@ -10,18 +10,24 @@
   width: 61.875px;
   height: 61.875px;
   border-radius: 6px;
-  border: none;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   background: transparent;
   cursor: pointer;
   padding: 0;
   overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.avatar-button:hover {
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .avatar-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 4px;
+  display: block;
 }
 
 .username-role-container {

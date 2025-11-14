@@ -1,8 +1,10 @@
-import React from "react";
+import React, { memo } from "react";
 import { Bell } from "lucide-react";
+import PropTypes from "prop-types";
 import AvatarMenu from "./AvatarMenu";
 import NotificationMenu from "./NotificationMenu";
-import "./Header.css";
+import { containerShape, trackedImageShape } from "../../utils/propTypes";
+import styles from "./Header.module.css";
 
 /**
  * Header component for the application
@@ -31,111 +33,64 @@ const Header = ({
   onLogout,
   API_BASE_URL,
 }) => {
+  const handleLogoClick = () => {
+    onNavigateToSummary();
+  };
+
+  const handleNotificationToggle = () => {
+    if (typeof onToggleNotificationMenu === 'function') {
+      onToggleNotificationMenu(!showNotificationMenu);
+    }
+  };
+
+  const handleNotificationClose = () => {
+    if (typeof onToggleNotificationMenu === 'function') {
+      onToggleNotificationMenu(false);
+    }
+  };
+
   return (
-    <header className="App-header">
-      <div className="header-content">
+    <header className={styles.header}>
+      <div className={styles.headerContent}>
         <div
-          onClick={() => {
-            onNavigateToSummary();
+          onClick={handleLogoClick}
+          className={styles.logoContainer}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleLogoClick();
+            }
           }}
-          style={{
-            cursor: "pointer",
-            transition: "opacity 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.8";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
-          }}
+          aria-label="Navigate to Summary"
         >
-          <h1>
+          <h1 className={styles.logo}>
             <img
               src="/img/image.png"
               alt="Docked"
-              style={{
-                height: "2em",
-                verticalAlign: "middle",
-                marginRight: "8px",
-                display: "inline-block",
-              }}
+              className={styles.logoImage}
             />
-            <span
-              style={{
-                display: "inline-block",
-                transform: "translateY(3px)",
-              }}
-            >
+            <span className={styles.logoText}>
               Docked
             </span>
           </h1>
         </div>
-        <div className="header-actions">
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
-            <div style={{ position: "relative", marginRight: "18px" }}>
+        <div className={styles.headerActions}>
+          <div className={styles.actionsContainer}>
+            <div className={styles.notificationWrapper}>
               <button
-                className="notification-button"
-                onClick={() => {
-                  if (typeof onToggleNotificationMenu === 'function') {
-                    onToggleNotificationMenu(!showNotificationMenu);
-                  }
-                }}
+                className={styles.notificationButton}
+                onClick={handleNotificationToggle}
                 aria-label="Notifications"
                 title="Notifications"
-                style={{
-                  padding: "0",
-                  background: "transparent",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0",
-                  cursor: "pointer",
-                  transition: "all 0.3s",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "auto",
-                  height: "auto",
-                  position: "relative",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                }}
               >
                 <Bell
                   size={25}
-                  style={{ display: "block", transform: "translateY(0.5px)" }}
+                  className={styles.notificationIcon}
                 />
                 {notificationCount > 0 && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: "-4px",
-                      right: "-4px",
-                      background: "var(--dodger-red)",
-                      color: "white",
-                      borderRadius: "50%",
-                      width: "16px",
-                      height: "16px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.65rem",
-                      fontWeight: "bold",
-                      border: "2px solid white",
-                      zIndex: 10,
-                      pointerEvents: "none",
-                    }}
-                  >
+                  <span className={styles.notificationBadge}>
                     {notificationCount > 99 ? "99+" : notificationCount}
                   </span>
                 )}
@@ -145,11 +100,7 @@ const Header = ({
                   notificationCount={notificationCount}
                   activeContainersWithUpdates={activeContainersWithUpdates}
                   activeTrackedAppsBehind={activeTrackedAppsBehind}
-                  onClose={() => {
-                    if (typeof onToggleNotificationMenu === 'function') {
-                      onToggleNotificationMenu(false);
-                    }
-                  }}
+                  onClose={handleNotificationClose}
                   onNavigateToPortainer={onNavigateToPortainer}
                   onNavigateToTrackedApps={onNavigateToTrackedApps}
                   onNavigateToSummary={onNavigateToSummary}
@@ -179,5 +130,29 @@ const Header = ({
   );
 };
 
-export default Header;
+Header.propTypes = {
+  username: PropTypes.string,
+  userRole: PropTypes.string,
+  avatar: PropTypes.string.isRequired,
+  darkMode: PropTypes.bool.isRequired,
+  notificationCount: PropTypes.number.isRequired,
+  activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  showNotificationMenu: PropTypes.bool.isRequired,
+  showAvatarMenu: PropTypes.bool.isRequired,
+  onToggleNotificationMenu: PropTypes.func.isRequired,
+  onToggleAvatarMenu: PropTypes.func.isRequired,
+  onNavigateToSummary: PropTypes.func.isRequired,
+  onNavigateToSettings: PropTypes.func.isRequired,
+  onNavigateToBatch: PropTypes.func.isRequired,
+  onNavigateToPortainer: PropTypes.func.isRequired,
+  onNavigateToTrackedApps: PropTypes.func.isRequired,
+  onDismissContainerNotification: PropTypes.func.isRequired,
+  onDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onTemporaryThemeToggle: PropTypes.func.isRequired,
+  onLogout: PropTypes.func.isRequired,
+  API_BASE_URL: PropTypes.string.isRequired,
+};
+
+export default memo(Header);
 
