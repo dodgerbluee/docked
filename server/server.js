@@ -152,16 +152,60 @@ app.use(errorHandler);
 // Import batch system
 const batchSystem = require("./services/batch");
 
-// Start server
-try {
-  logger.info("Server starting", {
+// Handle unhandled promise rejections (Express 5 compatibility)
+// In Express 5, unhandled rejections can cause crashes
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Promise Rejection", {
     module: "server",
-    environment: process.env.NODE_ENV || "development",
-    port: config.port,
+    reason:
+      reason instanceof Error
+        ? {
+            message: reason.message,
+            stack: reason.stack,
+            name: reason.name,
+          }
+        : reason,
+    promise: promise,
   });
+  // In test mode, don't exit - let Jest handle it
+  // In development, log but don't exit - let nodemon handle restarts
+  // In production, exit to prevent undefined behavior
+  if (process.env.NODE_ENV === "production") {
+    logger.critical("Exiting due to unhandled rejection in production");
+    process.exit(1);
+  }
+  // In test mode, just log - don't exit
+});
 
-  app
-    .listen(config.port, () => {
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  logger.critical("Uncaught Exception", {
+    module: "server",
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    },
+  });
+  // Always exit on uncaught exceptions - these are serious
+  process.exit(1);
+});
+
+// Only start the server if this file is being run directly (not required by tests)
+// require.main === module means this file was executed directly (e.g., node server.js)
+// We also skip if NODE_ENV is 'test' to prevent server startup during tests
+const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
+
+if (shouldStartServer) {
+  // Start server
+  try {
+    logger.info("Server starting", {
+      module: "server",
+      environment: process.env.NODE_ENV || "development",
+      port: config.port,
+    });
+
+    const server = app.listen(config.port, () => {
       logger.info("Server started successfully", {
         module: "server",
         environment: process.env.NODE_ENV || "development",
@@ -180,23 +224,28 @@ try {
       }
 
       // Start batch system (runs jobs in background even when browser is closed)
-      batchSystem
-        .start()
-        .then(() => {
-          logger.info("Batch system started", {
-            module: "server",
-            service: "batch",
+      // Use setImmediate to ensure server is fully started before starting batch system
+      setImmediate(() => {
+        batchSystem
+          .start()
+          .then(() => {
+            logger.info("Batch system started", {
+              module: "server",
+              service: "batch",
+            });
+          })
+          .catch((err) => {
+            logger.error("Failed to start batch system", {
+              module: "server",
+              service: "batch",
+              error: err,
+            });
+            // Don't crash the server if batch system fails to start
           });
-        })
-        .catch((err) => {
-          logger.error("Failed to start batch system", {
-            module: "server",
-            service: "batch",
-            error: err,
-          });
-        });
-    })
-    .on("error", (err) => {
+      });
+    });
+
+    server.on("error", (err) => {
       logger.critical("Server listen error", {
         module: "server",
         error: err,
@@ -209,30 +258,33 @@ try {
           port: config.port,
         });
       }
+      // Exit on listen errors
+      process.exit(1);
     });
-} catch (error) {
-  logger.critical("Failed to start server", {
-    module: "server",
-    error: error,
+  } catch (error) {
+    logger.critical("Failed to start server", {
+      module: "server",
+      error: error,
+    });
+    process.exit(1);
+  }
+
+  // Graceful shutdown handling (only register if server is starting)
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
   });
-  process.exit(1);
+
+  process.on("SIGINT", () => {
+    logger.info("SIGINT received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
+  });
 }
-
-// Graceful shutdown handling
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received, shutting down gracefully", {
-    module: "server",
-  });
-  batchSystem.stop();
-  process.exit(0);
-});
-
-process.on("SIGINT", () => {
-  logger.info("SIGINT received, shutting down gracefully", {
-    module: "server",
-  });
-  batchSystem.stop();
-  process.exit(0);
-});
 
 module.exports = app;
