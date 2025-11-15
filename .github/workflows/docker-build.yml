@@ -2,9 +2,6 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
       - '*'
   workflow_dispatch: # Allows manual triggering from GitHub UI
@@ -33,21 +30,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image (branch push - skip, handled by pre-release workflow)
-        if: github.ref_type != 'tag'
-        run: |
-          echo "Skipping Docker build on branch push. Pre-release workflow will handle this."
-
       - name: Extract version for tag
-        if: github.ref_type == 'tag'
         id: version
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
-      - name: Build and push Docker image (tag push - version tag)
-        if: github.ref_type == 'tag'
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
