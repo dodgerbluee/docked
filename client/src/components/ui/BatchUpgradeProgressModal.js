@@ -18,6 +18,7 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
   onConfirm,
   onSuccess,
   onError,
+  onNavigateToLogs,
 }) {
   const [stage, setStage] = useState("confirm"); // 'confirm' | 'progress' | 'success' | 'error'
   const [containerStates, setContainerStates] = useState({});
@@ -78,30 +79,30 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
         const startTime = Date.now();
         let apiCompleted = false;
         let apiError = null;
-        
+
         // Start the actual API call
-        const apiCall = axios.post(
-          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-          {
+        const apiCall = axios
+          .post(`${API_BASE_URL}/api/containers/${container.id}/upgrade`, {
             endpointId: container.endpointId,
             imageName: container.image,
             portainerUrl: container.portainerUrl,
-          }
-        ).then((result) => {
-          apiCompleted = true;
-          return result;
-        }).catch((error) => {
-          apiCompleted = true;
-          apiError = error;
-          throw error;
-        });
+          })
+          .then((result) => {
+            apiCompleted = true;
+            return result;
+          })
+          .catch((error) => {
+            apiCompleted = true;
+            apiError = error;
+            throw error;
+          });
 
         // Progress simulation tied to the actual API call duration
         // Each container progresses independently - steps advance as time passes
         // When API completes, progress immediately finishes
         const progressSimulation = async () => {
           const totalEstimatedTime = steps.reduce((sum, step) => sum + step.duration, 0);
-          
+
           for (let i = 0; i < steps.length; i++) {
             // Update to current step
             setContainerStates((prev) => ({
@@ -115,7 +116,7 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
             // Calculate step duration as proportion of total estimated time
             const stepProportion = steps[i].duration / totalEstimatedTime;
             const stepDuration = stepProportion * totalEstimatedTime;
-            
+
             // Wait for this step duration, checking periodically if API completed
             const stepStart = Date.now();
             while (Date.now() - stepStart < stepDuration) {
@@ -133,13 +134,13 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
           }
-          
+
           // If we've gone through all steps but API hasn't completed yet,
           // wait for it and then mark as complete
           while (!apiCompleted) {
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
-          
+
           setContainerStates((prev) => ({
             ...prev,
             [container.id]: {
@@ -197,9 +198,10 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
             errorMap.set(result.containerId, result.error || "Upgrade failed");
           }
         } else {
-          const error = settledResult.reason?.response?.data?.error || 
-                       settledResult.reason?.message || 
-                       "Unknown error occurred";
+          const error =
+            settledResult.reason?.response?.data?.error ||
+            settledResult.reason?.message ||
+            "Unknown error occurred";
           errorMap.set(container.id, error);
         }
       });
@@ -314,9 +316,15 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
             <div className={styles.iconContainer}>
               <AlertCircle size={48} className={styles.warningIcon} />
             </div>
-            <h3 className={styles.title}>Upgrade {totalCount} Container{totalCount !== 1 ? "s" : ""}?</h3>
+            <h3 className={styles.title}>
+              Upgrade {totalCount} Container{totalCount !== 1 ? "s" : ""}?
+            </h3>
             <p className={styles.message}>
-              Are you sure you want to upgrade <strong>{totalCount} selected container{totalCount !== 1 ? "s" : ""}</strong>?
+              Are you sure you want to upgrade{" "}
+              <strong>
+                {totalCount} selected container{totalCount !== 1 ? "s" : ""}
+              </strong>
+              ?
             </p>
             <p className={styles.warning}>
               Each container will be stopped, removed, and recreated with the latest image. This may
@@ -419,9 +427,7 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
               <CheckCircle2 size={64} className={styles.successIcon} />
             </div>
             <h3 className={styles.title}>
-              {errorCount === 0
-                ? "All Upgrades Complete!"
-                : "Upgrades Completed with Errors"}
+              {errorCount === 0 ? "All Upgrades Complete!" : "Upgrades Completed with Errors"}
             </h3>
             <p className={styles.message}>
               {successCount > 0 && (
@@ -439,19 +445,36 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
               )}
             </p>
             {errorCount > 0 && (
-              <div className={styles.errorList}>
-                {containers
-                  .filter((c) => containerStates[c.id]?.status === "error")
-                  .map((container) => (
-                    <div key={container.id} className={styles.errorItem}>
-                      <XCircle size={16} className={styles.errorIconSmall} />
-                      <span className={styles.errorItemName}>{container.name}</span>
-                      <span className={styles.errorItemMessage}>
-                        {containerStates[container.id]?.error || "Unknown error"}
-                      </span>
-                    </div>
-                  ))}
-              </div>
+              <>
+                <div className={styles.errorList}>
+                  {containers
+                    .filter((c) => containerStates[c.id]?.status === "error")
+                    .map((container) => (
+                      <div key={container.id} className={styles.errorItem}>
+                        <XCircle size={16} className={styles.errorIconSmall} />
+                        <span className={styles.errorItemName}>{container.name}</span>
+                        <span className={styles.errorItemMessage}>
+                          {containerStates[container.id]?.error || "Unknown error"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+                {onNavigateToLogs && (
+                  <div className={styles.actions}>
+                    <Button
+                      variant="outline"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onNavigateToLogs();
+                      }}
+                      className={styles.viewLogsButton}
+                    >
+                      View Logs
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -466,6 +489,19 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
             <p className={styles.message}>Failed to start batch upgrade</p>
             <div className={styles.errorMessage}>{overallError}</div>
             <div className={styles.actions}>
+              {onNavigateToLogs && (
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNavigateToLogs();
+                  }}
+                  className={styles.viewLogsButton}
+                >
+                  View Logs
+                </Button>
+              )}
               <Button variant="outline" onClick={handleClose} className={styles.cancelButton}>
                 Close
               </Button>
@@ -487,9 +523,9 @@ BatchUpgradeProgressModal.propTypes = {
   onConfirm: PropTypes.func.isRequired,
   onSuccess: PropTypes.func,
   onError: PropTypes.func,
+  onNavigateToLogs: PropTypes.func,
 };
 
 BatchUpgradeProgressModal.displayName = "BatchUpgradeProgressModal";
 
 export default BatchUpgradeProgressModal;
-

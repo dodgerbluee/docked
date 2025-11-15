@@ -37,7 +37,7 @@ const getVersion = (req, res) => {
 
     if (packageJsonPath) {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-      let version = packageJson.version || null;
+      const version = packageJson.version || null;
       let isDevBuild = false;
 
       /**

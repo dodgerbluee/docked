@@ -3,6 +3,7 @@
  * Handles container operations and update checking
  */
 
+const axios = require("axios");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
 const config = require("../config");
@@ -97,7 +98,7 @@ async function checkImageUpdates(
 
   // Format digest for display (shortened version)
   const formatDigest = (digest) => {
-    if (!digest) return null;
+    if (!digest) {return null;}
     // Return first 12 characters after "sha256:" for display
     return digest.replace("sha256:", "").substring(0, 12);
   };
@@ -154,17 +155,289 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     return id;
   };
 
+  // Detect if this is nginx-proxy-manager EARLY (before fetching container details)
+  // We can detect by image name, which is available before fetching container details
+  // If nginx goes down, this app's UI becomes unavailable, so we need to use IP addresses
+  // to ensure Portainer API calls still work during the upgrade
+  const isNginxProxyManager = imageName.toLowerCase().includes("nginx-proxy-manager");
+
+  // If it's nginx-proxy-manager, get IP address and use it for all Portainer calls
+  let workingPortainerUrl = portainerUrl;
+  if (isNginxProxyManager) {
+    try {
+      const instances = await getAllPortainerInstances();
+      const instance = instances.find((inst) => inst.url === portainerUrl);
+
+      if (instance && instance.ip_address) {
+        const originalUrl = new URL(portainerUrl);
+        const ipAddress = instance.ip_address;
+        const originalPort =
+          originalUrl.port || (originalUrl.protocol === "https:" ? "9443" : "9000");
+
+        // Create IP-based URL
+        workingPortainerUrl = `${originalUrl.protocol}//${ipAddress}:${originalPort}`;
+
+        logger.info(
+          `Detected nginx-proxy-manager upgrade, using IP-based Portainer URL: ${workingPortainerUrl}`,
+          {
+            module: "containerService",
+            operation: "upgradeSingleContainer",
+            originalUrl: portainerUrl,
+            ipUrl: workingPortainerUrl,
+            ipAddress: ipAddress,
+            instanceName: instance.name || "unknown",
+            instanceId: instance.id,
+            warning:
+              "⚠️  If upgrade fails, verify the IP address in Settings > Portainer Instances matches the actual Portainer server IP",
+          }
+        );
+
+        // Log a clear warning about the IP being used
+        logger.warn(
+          `Using IP address ${ipAddress} from database for Portainer instance "${instance.name || portainerUrl}". ` +
+            `If this is incorrect, update it in Settings > Portainer Instances.`,
+          {
+            module: "containerService",
+            operation: "upgradeSingleContainer",
+            portainerUrl: portainerUrl,
+            storedIpAddress: ipAddress,
+            instanceName: instance.name,
+            instanceId: instance.id,
+          }
+        );
+
+        // Note: We don't pre-authenticate here because:
+        // 1. Nginx is still up at this point, so original URL works
+        // 2. Portainer might reject IP-based auth requests even with correct Host header
+        // 3. Authentication will happen naturally on first API call when nginx goes down
+        // 4. The fetchContainerDetails helper will handle authentication retries
+        logger.info(
+          "Skipping pre-authentication for nginx upgrade - will authenticate on first API call",
+          {
+            ipUrl: workingPortainerUrl,
+            originalUrl: portainerUrl,
+          }
+        );
+      } else {
+        logger.warn(
+          `No IP address cached for Portainer instance ${portainerUrl}, upgrade may fail if DNS is unavailable`
+        );
+      }
+    } catch (error) {
+      logger.error("Error getting IP address for Portainer instance:", error.message);
+      // Continue with original URL - fallback will handle it
+    }
+  }
+
+  // Now fetch container details using the working URL (IP URL for nginx, original URL otherwise)
+  // For nginx upgrades, we use IP URL directly but need to handle authentication properly
   let containerDetails;
   let workingContainerId = containerId; // Use the ID that works for subsequent operations
   const normalizedId = normalizeContainerId(containerId);
-  
+
+  // Helper function to get container details with proper error handling
+  // For nginx upgrades, use original URL first (nginx is still up), then fall back to IP if needed
+  const fetchContainerDetails = async (containerIdToTry) => {
+    try {
+      // For nginx upgrades, try original URL first (nginx is still up at this point)
+      // The IP URL will be used automatically via requestWithIpFallback if original fails
+      // For non-nginx containers, use normal method
+      if (isNginxProxyManager) {
+        // Try original URL first - nginx is still up, so this should work
+        try {
+          return await portainerService.getContainerDetails(
+            portainerUrl,
+            endpointId,
+            containerIdToTry
+          );
+        } catch (originalError) {
+          // If original URL fails (nginx went down), try IP URL directly
+          if (
+            originalError.code === "ECONNREFUSED" ||
+            originalError.code === "ETIMEDOUT" ||
+            originalError.code === "ERR_NETWORK" ||
+            originalError.message?.includes("getaddrinfo") ||
+            !originalError.response
+          ) {
+            logger.info("Original URL failed, trying IP URL", {
+              originalUrl: portainerUrl,
+              ipUrl: workingPortainerUrl,
+            });
+            const baseConfig = { headers: portainerService.getAuthHeaders(workingPortainerUrl) };
+            const ipConfig = portainerService.getIpFallbackConfig(
+              workingPortainerUrl,
+              portainerUrl,
+              baseConfig
+            );
+            const response = await axios.get(
+              `${workingPortainerUrl}/api/endpoints/${endpointId}/docker/containers/${containerIdToTry}/json`,
+              ipConfig
+            );
+            return response.data;
+          }
+          throw originalError;
+        }
+      } else {
+        // Use normal method for non-nginx containers
+        return await portainerService.getContainerDetails(
+          portainerUrl,
+          endpointId,
+          containerIdToTry
+        );
+      }
+    } catch (error) {
+      // If 401, try to authenticate and retry
+      if (error.response?.status === 401) {
+        try {
+          // Get credentials from instance for authentication
+          const instances = await getAllPortainerInstances();
+          const instance = instances.find((inst) => inst.url === portainerUrl);
+
+          if (instance) {
+            const authType = instance.auth_type || "apikey";
+            const apiKey = instance.api_key || null;
+            const username = instance.username || null;
+            const password = instance.password || null;
+
+            // Try authenticating with original URL first (nginx is still up)
+            try {
+              await portainerService.authenticatePortainer(
+                portainerUrl,
+                username,
+                password,
+                apiKey,
+                authType,
+                false // skipCache
+              );
+            } catch (originalAuthError) {
+              // If original URL fails, try IP URL
+              if (
+                originalAuthError.code === "ECONNREFUSED" ||
+                originalAuthError.code === "ETIMEDOUT" ||
+                originalAuthError.code === "ERR_NETWORK" ||
+                originalAuthError.message?.includes("getaddrinfo") ||
+                !originalAuthError.response
+              ) {
+                logger.info("Original URL auth failed, trying IP URL", {
+                  originalUrl: portainerUrl,
+                  ipUrl: workingPortainerUrl,
+                });
+                await portainerService.authenticatePortainer(
+                  workingPortainerUrl,
+                  username,
+                  password,
+                  apiKey,
+                  authType,
+                  false, // skipCache
+                  portainerUrl // originalUrl for Host header
+                );
+
+                // Store token for both URLs
+                const authHeaders = portainerService.getAuthHeaders(workingPortainerUrl);
+                const token =
+                  authHeaders["X-API-Key"] ||
+                  authHeaders["Authorization"]?.replace("Bearer ", "");
+                if (token) {
+                  portainerService.storeTokenForBothUrls(
+                    workingPortainerUrl,
+                    portainerUrl,
+                    token,
+                    authType
+                  );
+                }
+              } else {
+                throw originalAuthError;
+              }
+            }
+          } else {
+            // Fallback: try authentication without instance data
+            try {
+              await portainerService.authenticatePortainer(
+                portainerUrl,
+                null,
+                null,
+                null,
+                "apikey",
+                false
+              );
+            } catch (fallbackError) {
+              // If original URL fails, try IP URL
+              if (
+                fallbackError.code === "ECONNREFUSED" ||
+                fallbackError.code === "ETIMEDOUT" ||
+                fallbackError.code === "ERR_NETWORK"
+              ) {
+                await portainerService.authenticatePortainer(
+                  workingPortainerUrl,
+                  null,
+                  null,
+                  null,
+                  "apikey",
+                  false,
+                  portainerUrl
+                );
+              } else {
+                throw fallbackError;
+              }
+            }
+          }
+
+          // Retry the request - try original URL first, then IP URL if needed
+          if (isNginxProxyManager) {
+            try {
+              // Try original URL first
+              return await portainerService.getContainerDetails(
+                portainerUrl,
+                endpointId,
+                containerIdToTry
+              );
+            } catch (retryError) {
+              // If original URL fails, try IP URL
+              if (
+                retryError.code === "ECONNREFUSED" ||
+                retryError.code === "ETIMEDOUT" ||
+                retryError.code === "ERR_NETWORK" ||
+                retryError.message?.includes("getaddrinfo") ||
+                !retryError.response
+              ) {
+                const baseConfig = {
+                  headers: portainerService.getAuthHeaders(workingPortainerUrl),
+                };
+                const ipConfig = portainerService.getIpFallbackConfig(
+                  workingPortainerUrl,
+                  portainerUrl,
+                  baseConfig
+                );
+                const response = await axios.get(
+                  `${workingPortainerUrl}/api/endpoints/${endpointId}/docker/containers/${containerIdToTry}/json`,
+                  ipConfig
+                );
+                return response.data;
+              }
+              throw retryError;
+            }
+          } else {
+            return await portainerService.getContainerDetails(
+              portainerUrl,
+              endpointId,
+              containerIdToTry
+            );
+          }
+        } catch (authError) {
+          logger.error("Authentication retry failed", {
+            error: authError.message,
+            status: authError.response?.status,
+          });
+          throw error; // Throw original error if auth retry fails
+        }
+      }
+      throw error;
+    }
+  };
+
   try {
     // Try with the original ID first
-    containerDetails = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      containerId
-    );
+    containerDetails = await fetchContainerDetails(containerId);
   } catch (error) {
     // If 404 and we haven't tried the shortened version, try that
     if (error.response?.status === 404 && normalizedId !== containerId) {
@@ -175,11 +448,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         shortenedId: normalizedId,
       });
       try {
-        containerDetails = await portainerService.getContainerDetails(
-          portainerUrl,
-          endpointId,
-          normalizedId
-        );
+        containerDetails = await fetchContainerDetails(normalizedId);
         // Use the normalized ID for subsequent operations
         workingContainerId = normalizedId;
       } catch (shortError) {
@@ -187,7 +456,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         if (shortError.response?.status === 404) {
           throw new Error(
             `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
-            `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
+              `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
           );
         }
         throw shortError;
@@ -196,7 +465,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       // Already tried shortened version or it's the same, provide helpful error
       throw new Error(
         `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
-        `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
+          `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
       );
     } else {
       // Re-throw other errors
@@ -206,6 +475,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
 
   // Preserve the original container name (important for stacks)
   const originalContainerName = containerDetails.Name;
+  const cleanContainerName = originalContainerName.replace(/^\//, "");
 
   // Check if this container is part of a stack
   const labels = containerDetails.Config.Labels || {};
@@ -228,38 +498,38 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     containerId: containerId.substring(0, 12),
-    portainerUrl: portainerUrl,
+    portainerUrl: workingPortainerUrl,
     endpointId: endpointId,
     currentImage: imageName,
     newImage: newImageName,
+    usingIpFallback: isNginxProxyManager,
   });
 
   // CRITICAL: Find and stop dependent containers BEFORE removing the main container
   // Containers using network_mode: service:containerName will break if we remove
   // the main container while they're still running (they reference the old container ID)
-  const cleanUpgradedContainerName = originalContainerName.replace(/^\//, "");
   const dependentContainersToStop = [];
-  
+
   try {
     logger.info("🔍 Checking for containers that depend on this container via network_mode...");
-    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
     for (const container of allContainers) {
-      if (container.Id === workingContainerId) continue; // Skip the one we're upgrading
-      
+      if (container.Id === workingContainerId) {continue;} // Skip the one we're upgrading
+
       try {
         const details = await portainerService.getContainerDetails(
           portainerUrl,
           endpointId,
           container.Id
         );
-        
+
         // Check if this container uses network_mode: service:containerName
         const networkMode = details.HostConfig?.NetworkMode || "";
         if (networkMode && networkMode.startsWith("service:")) {
           const serviceName = networkMode.replace("service:", "");
-          if (serviceName === cleanUpgradedContainerName) {
-            const containerStatus = details.State?.Status || 
-              (details.State?.Running ? "running" : "exited");
+          if (serviceName === cleanContainerName) {
+            const containerStatus =
+              details.State?.Status || (details.State?.Running ? "running" : "exited");
             if (containerStatus === "running") {
               dependentContainersToStop.push({
                 id: container.Id,
@@ -274,7 +544,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         continue;
       }
     }
-    
+
     // Stop dependent containers BEFORE removing the main container
     if (dependentContainersToStop.length > 0) {
       logger.info(
@@ -282,7 +552,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       );
       for (const container of dependentContainersToStop) {
         try {
-          logger.info(`   Stopping ${container.name} (uses network_mode: service:${cleanUpgradedContainerName})...`);
+          logger.info(
+            `   Stopping ${container.name} (uses network_mode: service:${cleanContainerName})...`
+          );
           await portainerService.stopContainer(portainerUrl, endpointId, container.id);
           logger.info(`   ✅ ${container.name} stopped`);
         } catch (err) {
@@ -295,7 +567,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
   } catch (err) {
-    logger.warn("Could not check for dependent containers before stopping, proceeding anyway:", err.message);
+    logger.warn(
+      "Could not check for dependent containers before stopping, proceeding anyway:",
+      err.message
+    );
   }
 
   // Stop the container
@@ -308,17 +583,20 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   await portainerService.stopContainer(portainerUrl, endpointId, workingContainerId);
 
   // Wait for container to fully stop (important for databases and services)
+  // For nginx upgrades, use IP URL directly after stop (nginx is down now)
+  const checkStatusUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
   logger.debug("Waiting for container to stop", {
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
+    usingUrl: checkStatusUrl,
   });
   let stopped = false;
   for (let i = 0; i < 10; i++) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     try {
       const details = await portainerService.getContainerDetails(
-        portainerUrl,
+        checkStatusUrl,
         endpointId,
         workingContainerId
       );
@@ -347,22 +625,31 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   }
 
   // Pull the latest image
+  // For nginx upgrades, use IP URL directly (nginx is down now)
+  // Pass original URL for authentication lookup
+  const pullImageUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
+  const pullImageOriginalUrl = isNginxProxyManager ? portainerUrl : null;
   logger.info("Pulling latest image", {
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     image: newImageName,
+    usingUrl: pullImageUrl,
+    originalUrl: pullImageOriginalUrl,
   });
-  await portainerService.pullImage(portainerUrl, endpointId, newImageName);
+  await portainerService.pullImage(pullImageUrl, endpointId, newImageName, pullImageOriginalUrl);
 
   // Remove old container
+  // For nginx upgrades, use IP URL directly (nginx is down now)
+  const removeContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
   logger.info("Removing old container", {
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     containerId: workingContainerId.substring(0, 12),
+    usingUrl: removeContainerUrl,
   });
-  await portainerService.removeContainer(portainerUrl, endpointId, workingContainerId);
+  await portainerService.removeContainer(removeContainerUrl, endpointId, workingContainerId);
 
   // Clean HostConfig - remove container-specific references and invalid fields
   const cleanHostConfig = { ...containerDetails.HostConfig };
@@ -371,7 +658,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   delete cleanHostConfig.Runtime;
   delete cleanHostConfig.RestartCount;
   delete cleanHostConfig.AutoRemove;
-  
+
   // CRITICAL: When using network_mode: service:*, Docker doesn't allow PortBindings
   // This matches what Portainer does - filter out conflicting fields
   const networkMode = cleanHostConfig.NetworkMode || "";
@@ -391,7 +678,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       delete cleanHostConfig.PublishAllPorts;
     }
   }
-  
+
   // Ensure RestartPolicy is valid
   if (cleanHostConfig.RestartPolicy && typeof cleanHostConfig.RestartPolicy === "object") {
     // Keep restart policy but ensure it's valid
@@ -404,7 +691,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   // BUT: Containers using network_mode: service:* don't have their own network config
   let networkingConfig = undefined;
   const isServiceNetworkMode = networkMode && networkMode.startsWith("service:");
-  
+
   if (!isServiceNetworkMode && containerDetails.NetworkSettings?.Networks) {
     const networks = containerDetails.NetworkSettings.Networks;
     // Convert network settings to the format Docker API expects
@@ -417,9 +704,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           Aliases: networkData.Aliases || undefined,
         };
         // Remove empty objects
-        if (!endpointsConfig[networkName].IPAMConfig) delete endpointsConfig[networkName].IPAMConfig;
-        if (!endpointsConfig[networkName].Links) delete endpointsConfig[networkName].Links;
-        if (!endpointsConfig[networkName].Aliases) delete endpointsConfig[networkName].Aliases;
+        if (!endpointsConfig[networkName].IPAMConfig)
+          {delete endpointsConfig[networkName].IPAMConfig;}
+        if (!endpointsConfig[networkName].Links) {delete endpointsConfig[networkName].Links;}
+        if (!endpointsConfig[networkName].Aliases) {delete endpointsConfig[networkName].Aliases;}
         // If all fields are empty, remove the network entry
         if (Object.keys(endpointsConfig[networkName]).length === 0) {
           delete endpointsConfig[networkName];
@@ -452,7 +740,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   if (containerDetails.Config.Env && Array.isArray(containerDetails.Config.Env)) {
     containerConfig.Env = containerDetails.Config.Env;
   }
-  if (containerDetails.Config.ExposedPorts && Object.keys(containerDetails.Config.ExposedPorts).length > 0) {
+  if (
+    containerDetails.Config.ExposedPorts &&
+    Object.keys(containerDetails.Config.ExposedPorts).length > 0
+  ) {
     containerConfig.ExposedPorts = containerDetails.Config.ExposedPorts;
   }
   if (cleanHostConfig && Object.keys(cleanHostConfig).length > 0) {
@@ -472,10 +763,12 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   }
 
   // Pass container name as separate parameter (Docker API uses it as query param)
+  // For nginx upgrades, use IP URL directly (nginx is down now)
+  const createContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
   let newContainer;
   try {
     newContainer = await portainerService.createContainer(
-      portainerUrl,
+      createContainerUrl,
       endpointId,
       containerConfig,
       originalContainerName
@@ -483,7 +776,8 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   } catch (error) {
     // Provide more detailed error information
     if (error.response?.status === 400) {
-      const errorMessage = error.response?.data?.message || error.message || "Invalid container configuration";
+      const errorMessage =
+        error.response?.data?.message || error.message || "Invalid container configuration";
       logger.error("Failed to create container - invalid configuration", {
         module: "containerService",
         operation: "upgradeSingleContainer",
@@ -493,21 +787,24 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       });
       throw new Error(
         `Failed to create container: ${errorMessage}. ` +
-        `This may be due to invalid network configuration, port conflicts, or other container settings. ` +
-        `Please check the container configuration in Portainer.`
+          `This may be due to invalid network configuration, port conflicts, or other container settings. ` +
+          `Please check the container configuration in Portainer.`
       );
     }
     throw error;
   }
 
   // Start the new container
+  // For nginx upgrades, use IP URL directly (nginx is still down)
+  const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
   logger.info("Starting new container", {
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     newContainerId: newContainer.Id.substring(0, 12),
+    usingUrl: startContainerUrl,
   });
-  await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
+  await portainerService.startContainer(startContainerUrl, endpointId, newContainer.Id);
 
   // Wait for container to be healthy/ready (CRITICAL for databases)
   // Initialize wait time variables before using them
@@ -530,7 +827,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
 
     try {
       const details = await portainerService.getContainerDetails(
-        portainerUrl,
+        workingPortainerUrl,
         endpointId,
         newContainer.Id
       );
@@ -545,7 +842,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           // Container exited - get logs for debugging
           try {
             const logs = await portainerService.getContainerLogs(
-              portainerUrl,
+              workingPortainerUrl,
               endpointId,
               newContainer.Id,
               50
@@ -580,7 +877,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         } else if (healthStatus === "unhealthy") {
           try {
             const logs = await portainerService.getContainerLogs(
-              portainerUrl,
+              workingPortainerUrl,
               endpointId,
               newContainer.Id,
               50
@@ -663,7 +960,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     // Final check - if container is running, consider it ready even if we hit timeout
     try {
       const details = await portainerService.getContainerDetails(
-        portainerUrl,
+        workingPortainerUrl,
         endpointId,
         newContainer.Id
       );
@@ -711,13 +1008,11 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   // 2. depends_on relationships (containers in the same stack)
   logger.info(`🔄 Checking for dependent containers...`);
   try {
-    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
     const dependentContainers = [];
 
-    // cleanUpgradedContainerName is already defined earlier in the function
-
     for (const container of allContainers) {
-      if (container.Id === newContainer.Id) continue; // Skip the one we just upgraded
+      if (container.Id === newContainer.Id) {continue;} // Skip the one we just upgraded
 
       try {
         const details = await portainerService.getContainerDetails(
@@ -740,7 +1035,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         const networkMode = details.HostConfig?.NetworkMode || "";
         if (networkMode && networkMode.startsWith("service:")) {
           const serviceName = networkMode.replace("service:", "");
-          if (serviceName === cleanUpgradedContainerName) {
+          if (serviceName === cleanContainerName) {
             dependsOnUpgraded = true;
             dependencyReason = "network_mode";
           }
@@ -789,7 +1084,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       // Check the new container's health status
       try {
         const newContainerDetails = await portainerService.getContainerDetails(
-          portainerUrl,
+          workingPortainerUrl,
           endpointId,
           newContainer.Id
         );
@@ -804,7 +1099,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             for (let i = 0; i < 15; i++) {
               await new Promise((resolve) => setTimeout(resolve, 2000));
               const currentDetails = await portainerService.getContainerDetails(
-                portainerUrl,
+                workingPortainerUrl,
                 endpointId,
                 newContainer.Id
               );
@@ -834,24 +1129,135 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       }
 
       // Prioritize containers that use network_mode (they were stopped earlier)
-      // These need to be restarted to reconnect to the new container
-      const networkModeContainers = dependentContainers.filter((c) => c.dependencyReason === "network_mode");
-      const otherContainers = dependentContainers.filter((c) => c.dependencyReason !== "network_mode");
-      
-      // Restart network_mode containers first (they're critical)
+      // These need to be RECREATED (not just restarted) to reconnect to the new container
+      // Docker caches the container ID internally, so we must recreate them
+      const networkModeContainers = dependentContainers.filter(
+        (c) => c.dependencyReason === "network_mode"
+      );
+      const otherContainers = dependentContainers.filter(
+        (c) => c.dependencyReason !== "network_mode"
+      );
+
+      // Recreate network_mode containers first (they're critical)
       for (const container of networkModeContainers) {
         try {
-          // These containers were stopped earlier, so they should be stopped now
-          // Just start them - they'll automatically connect to the new container by name
-          logger.info(`   Starting ${container.name} (network_mode: service:${cleanUpgradedContainerName})...`);
-          await portainerService.startContainer(portainerUrl, endpointId, container.id);
-          logger.info(`   ✅ ${container.name} started successfully`);
+          logger.info(
+            `   Recreating ${container.name} (network_mode: service:${cleanContainerName})...`
+          );
+
+          // Get the container details to recreate it
+          const containerDetails = await portainerService.getContainerDetails(
+            portainerUrl,
+            endpointId,
+            container.id
+          );
+
+          // Remove the old container (it's already stopped)
+          try {
+            await portainerService.removeContainer(portainerUrl, endpointId, container.id);
+            logger.info(`   Removed old ${container.name}`);
+          } catch (removeErr) {
+            // Container might already be removed, continue anyway
+            logger.debug(
+              `   Could not remove ${container.name} (may already be removed): ${removeErr.message}`
+            );
+          }
+
+          // Prepare container configuration for recreation
+          const cleanHostConfig = { ...containerDetails.HostConfig };
+          // Remove fields that shouldn't be in create request
+          delete cleanHostConfig.Runtime;
+          delete cleanHostConfig.RestartCount;
+          delete cleanHostConfig.AutoRemove;
+
+          // Ensure RestartPolicy is valid
+          if (cleanHostConfig.RestartPolicy && typeof cleanHostConfig.RestartPolicy === "string") {
+            cleanHostConfig.RestartPolicy = { Name: cleanHostConfig.RestartPolicy };
+          }
+
+          // Check if this container uses network_mode: service:*
+          const networkMode = cleanHostConfig.NetworkMode || "";
+          const usesServiceNetworkMode = networkMode && networkMode.startsWith("service:");
+
+          // If using network_mode: service:*, remove port bindings (conflicts with service network mode)
+          if (usesServiceNetworkMode) {
+            if (cleanHostConfig.PortBindings) {
+              delete cleanHostConfig.PortBindings;
+            }
+            if (cleanHostConfig.PublishAllPorts !== undefined) {
+              delete cleanHostConfig.PublishAllPorts;
+            }
+          }
+
+          // Prepare networking config
+          // Skip NetworkingConfig entirely if using network_mode: service:*
+          let networkingConfig = null;
+          if (!usesServiceNetworkMode && containerDetails.NetworkSettings?.Networks) {
+            const networks = containerDetails.NetworkSettings.Networks;
+            networkingConfig = { EndpointsConfig: {} };
+            for (const [networkName, networkData] of Object.entries(networks)) {
+              networkingConfig.EndpointsConfig[networkName] = {
+                IPAMConfig: networkData.IPAMConfig || {},
+                Links: networkData.Links || [],
+                Aliases: networkData.Aliases || [],
+              };
+              // Remove empty objects
+              if (
+                Object.keys(networkingConfig.EndpointsConfig[networkName].IPAMConfig).length === 0
+              ) {
+                delete networkingConfig.EndpointsConfig[networkName].IPAMConfig;
+              }
+              if (networkingConfig.EndpointsConfig[networkName].Links.length === 0) {
+                delete networkingConfig.EndpointsConfig[networkName].Links;
+              }
+              if (networkingConfig.EndpointsConfig[networkName].Aliases.length === 0) {
+                delete networkingConfig.EndpointsConfig[networkName].Aliases;
+              }
+              if (Object.keys(networkingConfig.EndpointsConfig[networkName]).length === 0) {
+                delete networkingConfig.EndpointsConfig[networkName];
+              }
+            }
+            if (Object.keys(networkingConfig.EndpointsConfig).length === 0) {
+              networkingConfig = null;
+            }
+          }
+
+          // Build container config
+          const containerConfig = {
+            Image: containerDetails.Config.Image,
+            Cmd: containerDetails.Config.Cmd,
+            Env: containerDetails.Config.Env,
+            ExposedPorts: containerDetails.Config.ExposedPorts,
+            HostConfig: cleanHostConfig,
+            Labels: containerDetails.Config.Labels,
+            WorkingDir: containerDetails.Config.WorkingDir,
+          };
+
+          if (containerDetails.Config.Entrypoint) {
+            containerConfig.Entrypoint = containerDetails.Config.Entrypoint;
+          }
+          if (networkingConfig) {
+            containerConfig.NetworkingConfig = networkingConfig;
+          }
+
+          // Create the new container (it will automatically connect to the new tunnel by name)
+          const containerName = containerDetails.Name?.replace("/", "") || container.name;
+          const newDependentContainer = await portainerService.createContainer(
+            portainerUrl,
+            endpointId,
+            containerConfig,
+            containerName
+          );
+
+          // Start the new container
+          await portainerService.startContainer(portainerUrl, endpointId, newDependentContainer.Id);
+          logger.info(`   ✅ ${container.name} recreated and started successfully`);
         } catch (err) {
-          logger.error(`   ⚠️  Failed to start ${container.name}:`, err.message);
+          logger.error(`   ⚠️  Failed to recreate ${container.name}:`, err.message);
           // Continue with other containers
         }
       }
-      
+
       // Then handle other dependent containers (stack-based)
       for (const container of otherContainers) {
         try {
@@ -864,16 +1270,20 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           } else if (container.isStopped) {
             // Container was stopped (possibly because dependency was down)
             // Try to start it now that the dependency is back up
-            logger.info(`   Starting ${container.name} (was stopped, ${container.dependencyReason})...`);
+            logger.info(
+              `   Starting ${container.name} (was stopped, ${container.dependencyReason})...`
+            );
             try {
               await portainerService.startContainer(portainerUrl, endpointId, container.id);
               logger.info(`   ✅ ${container.name} started successfully`);
             } catch (startErr) {
               // If start fails, it might need a full restart
               logger.info(`   Attempting full restart of ${container.name}...`);
-              await portainerService.stopContainer(portainerUrl, endpointId, container.id).catch(() => {
-                // Ignore if already stopped
-              });
+              await portainerService
+                .stopContainer(workingPortainerUrl, endpointId, container.id)
+                .catch(() => {
+                  // Ignore if already stopped
+                });
               await new Promise((resolve) => setTimeout(resolve, 1000));
               await portainerService.startContainer(portainerUrl, endpointId, container.id);
               logger.info(`   ✅ ${container.name} restarted successfully`);
@@ -910,10 +1320,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           cachedContainer.id === newContainer.Id ||
           cachedContainer.id?.substring(0, 12) === containerId.substring(0, 12) ||
           cachedContainer.id?.substring(0, 12) === workingContainerId.substring(0, 12);
-        
+
         // Also match by name as fallback
         const matchesName = cachedContainer.name === originalContainerName.replace("/", "");
-        
+
         if (matchesId || matchesName) {
           cacheUpdated = true;
           return { ...cachedContainer, hasUpdate: false };
@@ -1216,8 +1626,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Sort stacks: named stacks first, then "Standalone"
   groupedContainers.sort((a, b) => {
-    if (a.stackName === "Standalone") return 1;
-    if (b.stackName === "Standalone") return -1;
+    if (a.stackName === "Standalone") {return 1;}
+    if (b.stackName === "Standalone") {return -1;}
     return a.stackName.localeCompare(b.stackName);
   });
 
@@ -1248,8 +1658,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
     // Sort stacks: named stacks first, then "Standalone"
     mergedGroupedContainers.sort((a, b) => {
-      if (a.stackName === "Standalone") return 1;
-      if (b.stackName === "Standalone") return -1;
+      if (a.stackName === "Standalone") {return 1;}
+      if (b.stackName === "Standalone") {return -1;}
       return a.stackName.localeCompare(b.stackName);
     });
 
@@ -1278,7 +1688,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
           authType
         );
         const endpoints = await portainerService.getEndpoints(portainerUrl);
-        if (endpoints.length === 0) continue;
+        if (endpoints.length === 0) {continue;}
 
         const endpointId = endpoints[0].Id;
         const images = await portainerService.getImages(portainerUrl, endpointId);
@@ -1390,22 +1800,22 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             // Match by name instead of ID since container IDs change after upgrades.
             // This is the key fix: by matching by name, we can track the same container across upgrades,
             // preventing false notifications when the container ID changes but name stays the same.
-            // 
+            //
             // Key fix: If previous container (matched by name) had hasUpdate: false, we skip notification
             // even if new one shows hasUpdate: true. This prevents false notifications after upgrades
             // when the cache shows hasUpdate: false but a fresh fetch shows hasUpdate: true again.
-            // 
+            //
             // We notify if:
             // 1. No previous container exists (truly new container)
-            // 
+            //
             // We do NOT notify if:
             // - Previous container had hasUpdate: false (was up-to-date or just upgraded - prevents false notifications)
             // - Previous container had hasUpdate: true (already had update - don't notify again)
-            // 
+            //
             // Note: This means we won't notify for containers that were truly up-to-date and now have a new update,
             // but that's acceptable to prevent false notifications after upgrades.
             const shouldNotify = !previousContainer;
-            
+
             if (shouldNotify) {
               // Format container data for notification
               const imageName = container.image || "Unknown";
@@ -1660,7 +2070,7 @@ async function getUnusedImages() {
         authType
       );
       const endpoints = await portainerService.getEndpoints(portainerUrl);
-      if (endpoints.length === 0) continue;
+      if (endpoints.length === 0) {continue;}
 
       const endpointId = endpoints[0].Id;
       const images = await portainerService.getImages(portainerUrl, endpointId);

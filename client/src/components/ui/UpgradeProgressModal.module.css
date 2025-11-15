@@ -137,6 +137,29 @@
   border-left: 3px solid var(--dodger-blue);
 }
 
+.nginxWarning {
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid var(--dodger-blue);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 0 0 32px 0;
+}
+
+.nginxWarning .warning {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin: 0;
+  line-height: 1.6;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-left: none;
+}
+
+.nginxWarning .warning strong {
+  color: var(--dodger-blue);
+}
+
 /* Confirmation Stage */
 .confirmStage {
   animation: fadeIn 0.3s ease-out;
@@ -145,6 +168,31 @@
 /* Progress Stage */
 .progressStage {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Reconnecting Stage */
+.reconnectingStage {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.reconnectingIcon {
+  color: var(--dodger-blue);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.reconnectingInfo {
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border-left: 3px solid var(--dodger-blue);
+}
+
+.reconnectingAttempts {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
 }
 
 .stepsContainer {
@@ -316,6 +364,20 @@
   box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
 }
 
+.viewLogsButton {
+  background: transparent !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.viewLogsButton:hover:not(:disabled) {
+  background: var(--dodger-blue) !important;
+  color: white !important;
+  border-color: var(--dodger-blue) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -364,4 +426,3 @@
     width: 100%;
   }
 }
-

@@ -26,7 +26,7 @@ const MAX_QUEUE_SIZE = 100;
 // In-memory queue for notifications
 const notificationQueue = [];
 let isProcessingQueue = false;
-let rateLimitTracker = new Map(); // webhookUrl -> { count, resetAt }
+const rateLimitTracker = new Map(); // webhookUrl -> { count, resetAt }
 
 // Deduplication: Track recent notifications to prevent duplicates
 const recentNotifications = new Map(); // key -> timestamp
@@ -307,7 +307,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
  * @returns {string|null} - Docker Hub URL or null
  */
 function getDockerHubRepoUrl(imageName) {
-  if (!imageName) return null;
+  if (!imageName) {return null;}
 
   // Parse image name (remove tag if present)
   let repo = imageName;
@@ -375,7 +375,7 @@ function formatVersionUpdateNotification(imageData) {
 
   // Format versions (no SHAs)
   let latestDisplay = latestVersion || "Unknown";
-  let currentDisplay = currentVersion || "Unknown";
+  const currentDisplay = currentVersion || "Unknown";
 
   // For GitHub, format latest version with hyperlink to release page if available
   if (sourceType === "github" && releaseUrl && latestVersion) {

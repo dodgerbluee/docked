@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Home } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -35,14 +35,26 @@ function SettingsPage({
   onReturnHome,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
+  hideTabNavigation = false,
 }) {
   const [internalTab, setInternalTab] = useState(controlledActiveTab || SETTINGS_TABS.GENERAL);
+
+  // Sync internal tab when controlled tab changes
+  useEffect(() => {
+    if (controlledActiveTab !== undefined && controlledActiveTab !== internalTab) {
+      setInternalTab(controlledActiveTab);
+    }
+  }, [controlledActiveTab, internalTab]);
 
   // Use controlled tab if provided, otherwise use internal state
   const settingsTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
 
   // If first login, force password tab
-  const activeTab = !passwordChanged ? SETTINGS_TABS.PASSWORD : settingsTab;
+  // BUT: if controlledActiveTab is explicitly set to LOGS, respect it (for URL routing)
+  const activeTab =
+    !passwordChanged && controlledActiveTab !== SETTINGS_TABS.LOGS
+      ? SETTINGS_TABS.PASSWORD
+      : settingsTab;
 
   const handleTabChange = useCallback(
     (tab) => {
@@ -90,11 +102,13 @@ function SettingsPage({
       </div>
 
       {/* Tab Navigation */}
-      <SettingsTabNavigation
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        passwordChanged={passwordChanged}
-      />
+      {!hideTabNavigation && (
+        <SettingsTabNavigation
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          passwordChanged={passwordChanged}
+        />
+      )}
 
       {/* Tab Content */}
       <div className={styles.contentTabPanel}>
@@ -151,6 +165,7 @@ SettingsPage.propTypes = {
   onReturnHome: PropTypes.func,
   activeTab: PropTypes.string,
   onTabChange: PropTypes.func,
+  hideTabNavigation: PropTypes.bool,
 };
 
 export default SettingsPage;

@@ -15,6 +15,7 @@ import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
+import { SETTINGS_TABS } from "../constants/settings";
 import styles from "./PortainerPage.module.css";
 
 /**
@@ -47,6 +48,8 @@ function PortainerPage({
   onSetSelectedPortainerInstances,
   contentTab: controlledContentTab,
   onSetContentTab,
+  onNavigateToSettings,
+  onSetSettingsTab,
 }) {
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
@@ -403,7 +406,6 @@ function PortainerPage({
         </div>
       </div>
 
-
       {/* Batch Delete Confirm Dialog */}
       <ConfirmDialog
         isOpen={batchDeleteConfirm}
@@ -431,9 +433,31 @@ function PortainerPage({
         <UpgradeProgressModal
           isOpen={portainerPage.upgradeModal.isOpen}
           onClose={portainerPage.closeUpgradeModal}
-          containerName={portainerPage.upgradeModal.container.name}
+          containerName={portainerPage.upgradeModal.container?.name}
+          container={portainerPage.upgradeModal.container}
           onConfirm={portainerPage.executeUpgrade}
           onSuccess={portainerPage.handleUpgradeSuccess}
+          onNavigateToLogs={() => {
+            // Close modal first to prevent it from blocking navigation
+            portainerPage.closeUpgradeModal();
+
+            // Navigate to settings
+            if (onNavigateToSettings) {
+              onNavigateToSettings();
+            }
+
+            // Set logs tab after a delay to ensure Settings page is rendered
+            if (onSetSettingsTab) {
+              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    onSetSettingsTab(SETTINGS_TABS.LOGS);
+                  }, 200);
+                });
+              });
+            }
+          }}
         />
       )}
 
@@ -445,6 +469,27 @@ function PortainerPage({
           containers={portainerPage.batchUpgradeModal.containers}
           onConfirm={portainerPage.executeBatchUpgrade}
           onSuccess={portainerPage.handleBatchUpgradeSuccess}
+          onNavigateToLogs={() => {
+            // Close modal first to prevent it from blocking navigation
+            portainerPage.closeBatchUpgradeModal();
+
+            // Navigate to settings
+            if (onNavigateToSettings) {
+              onNavigateToSettings();
+            }
+
+            // Set logs tab after a delay to ensure Settings page is rendered
+            if (onSetSettingsTab) {
+              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    onSetSettingsTab(SETTINGS_TABS.LOGS);
+                  }, 200);
+                });
+              });
+            }
+          }}
         />
       )}
     </div>
@@ -477,6 +522,8 @@ PortainerPage.propTypes = {
   onSetSelectedPortainerInstances: PropTypes.func,
   contentTab: PropTypes.string,
   onSetContentTab: PropTypes.func,
+  onNavigateToSettings: PropTypes.func,
+  onSetSettingsTab: PropTypes.func,
 };
 
 PortainerPage.displayName = "PortainerPage";

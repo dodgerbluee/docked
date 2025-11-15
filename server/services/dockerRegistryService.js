@@ -364,7 +364,7 @@ async function getCurrentImageDigest(containerDetails, imageName, portainerUrl, 
  * @returns {Promise<string|null>} - ISO date string of when the tag was last pushed, or null
  */
 async function getTagPublishDate(imageRepo, tag = "latest") {
-  if (!imageRepo) return null;
+  if (!imageRepo) {return null;}
 
   // Handle lscr.io images - strip prefix for Docker Hub lookup
   // lscr.io images are also available on Docker Hub under the same name
@@ -442,7 +442,7 @@ async function getTagPublishDate(imageRepo, tag = "latest") {
  * @returns {Promise<string|null>} - Tag/version that matches the digest, or null
  */
 async function getTagFromDigest(imageRepo, digest) {
-  if (!digest || !imageRepo) return null;
+  if (!digest || !imageRepo) {return null;}
 
   // Normalize digest - extract short form (first 12 chars after sha256:)
   let digestToMatch = digest.trim();
