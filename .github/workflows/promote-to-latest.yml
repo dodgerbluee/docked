@@ -69,7 +69,7 @@ jobs:
 
       - name: Set up Node.js
         if: github.event.inputs.create_release == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
 
