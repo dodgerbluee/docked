@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import { CheckCircle2, Loader2, AlertCircle, XCircle } from "lucide-react";
 import axios from "axios";
@@ -47,14 +47,17 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
     }
   }, [isOpen, containers]);
 
-  const steps = [
-    { label: "Stopping container...", duration: 2000 },
-    { label: "Pulling latest image...", duration: 5000 },
-    { label: "Removing old container...", duration: 1500 },
-    { label: "Creating new container...", duration: 2000 },
-    { label: "Starting container...", duration: 2000 },
-    { label: "Waiting for container to be ready...", duration: 10000 },
-  ];
+  const steps = useMemo(
+    () => [
+      { label: "Stopping container...", duration: 2000 },
+      { label: "Pulling latest image...", duration: 5000 },
+      { label: "Removing old container...", duration: 1500 },
+      { label: "Creating new container...", duration: 2000 },
+      { label: "Starting container...", duration: 2000 },
+      { label: "Waiting for container to be ready...", duration: 10000 },
+    ],
+    []
+  );
 
   const handleConfirm = useCallback(async () => {
     setStage("progress");
@@ -78,7 +81,6 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
       const upgradePromises = containers.map(async (container) => {
         const startTime = Date.now();
         let apiCompleted = false;
-        let apiError = null;
 
         // Start the actual API call
         const apiCall = axios

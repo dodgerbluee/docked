@@ -341,7 +341,6 @@ export function usePortainerPage({
   const handleUpgradeSuccess = useCallback(() => {
     const container = upgradeModal.container;
     if (container) {
-      const oldImage = container.image;
       // The new image info would come from the response, but we'll use the container's image
       toast.success(`Container ${container.name} upgraded successfully!`);
 
@@ -691,7 +690,6 @@ export function usePortainerPage({
     handleSelectAll,
     handleUpgrade,
     handleBatchUpgrade,
-    executeBatchUpgrade,
     handleToggleImageSelect,
     handleDeleteImage,
     executeDeleteImage,
