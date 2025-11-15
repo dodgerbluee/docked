@@ -57,7 +57,7 @@ const LogViewer = React.memo(function LogViewer({ selectedRun }) {
         </span>
       );
     });
-  }, [selectedRun?.logs]);
+  }, [selectedRun]);
 
   return (
     <div className={styles.logViewer}>

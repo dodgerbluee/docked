@@ -8,7 +8,7 @@ import axios from 'axios';
 import { parseUTCTimestamp } from '../utils/formatters';
 import { API_BASE_URL } from '../utils/api';
 import {
-  SUCCESS_MESSAGE_DURATION,
+  // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
   SHORT_SUCCESS_MESSAGE_DURATION,
   DATABASE_UPDATE_DELAY,
 } from '../constants/trackedApps';

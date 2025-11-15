@@ -82,10 +82,13 @@ function Settings({
   const currentActiveSection = isFirstLogin
     ? SETTINGS_TABS.PASSWORD
     : activeSection || internalActiveSection;
+  // eslint-disable-next-line no-unused-vars
   const setActiveSection = onSectionChange || setInternalActiveSection;
 
   // Local state for data clearing operations
+  // eslint-disable-next-line no-unused-vars
   const [clearingPortainerData, setClearingPortainerData] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [clearingTrackedAppData, setClearingTrackedAppData] = useState(false);
 
   // Sync local color scheme changes
@@ -93,7 +96,7 @@ function Settings({
     if (settings.localColorScheme !== colorScheme) {
       settings.setGeneralSettingsChanged(true);
     }
-  }, [settings.localColorScheme, colorScheme]);
+  }, [settings.localColorScheme, colorScheme, settings]);
 
   // If first login, always show password section
   useEffect(() => {

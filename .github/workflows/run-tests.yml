@@ -53,6 +53,9 @@ jobs:
 
       - name: Run server tests
         id: server-tests
+        env:
+          NODE_ENV: test
+          DATA_DIR: /tmp/docked-test-data
         run: |
           cd server
           if [ "${{ inputs.run-coverage }}" = "true" ]; then

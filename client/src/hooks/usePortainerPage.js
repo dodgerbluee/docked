@@ -101,12 +101,15 @@ export function usePortainerPage({
     });
   }, [portainerInstances]);
 
+  // Memoize selectedPortainerInstances to avoid dependency issues
+  const memoizedSelectedInstances = useMemo(() => selectedPortainerInstances, [selectedPortainerInstances]);
+  
   // Get selected instances to show
   const instancesToShow = useMemo(() => {
-    return selectedPortainerInstances.size > 0
-      ? sortedPortainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+    return memoizedSelectedInstances.size > 0
+      ? sortedPortainerInstances.filter((inst) => memoizedSelectedInstances.has(inst.name))
       : sortedPortainerInstances;
-  }, [selectedPortainerInstances, sortedPortainerInstances]);
+  }, [memoizedSelectedInstances, sortedPortainerInstances]);
 
   // Aggregate containers from selected instances
   const aggregatedContainers = useMemo(() => {

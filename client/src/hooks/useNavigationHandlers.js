@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import {
   CONTENT_TABS,
   STAT_TYPE_TO_CONTENT_TAB,
-  STAT_TYPES,
+  // STAT_TYPES is not currently used but kept for potential future use
 } from "../constants/summaryPage";
 
 /**

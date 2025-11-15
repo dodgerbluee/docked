@@ -122,7 +122,7 @@ function PortainerPage({
     return portainerPage.groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate && !portainerPage.isPortainerContainer(c))
     );
-  }, [portainerPage.contentTab, portainerPage.groupedStacks, portainerPage.isPortainerContainer]);
+  }, [portainerPage.contentTab, portainerPage.groupedStacks, portainerPage.isPortainerContainer, portainerPage]);
 
   const selectableContainersCount = containersWithUpdates.length;
   const allSelectableSelected =
@@ -139,7 +139,7 @@ function PortainerPage({
       setBatchUpgradeData(upgradeData);
       setBatchUpgradeConfirm(true);
     }
-  }, [portainerPage.handleBatchUpgrade]);
+  }, [portainerPage.handleBatchUpgrade, portainerPage]);
 
   const handleBatchUpgradeConfirm = useCallback(async () => {
     if (batchUpgradeData?.containers) {
@@ -147,7 +147,7 @@ function PortainerPage({
       setBatchUpgradeConfirm(false);
       setBatchUpgradeData(null);
     }
-  }, [batchUpgradeData, portainerPage.executeBatchUpgrade]);
+  }, [batchUpgradeData, portainerPage.executeBatchUpgrade, portainerPage]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -157,7 +157,7 @@ function PortainerPage({
     if (deleteData) {
       setBatchDeleteConfirm(true);
     }
-  }, [portainerPage.handleDeleteImages]);
+  }, [portainerPage.handleDeleteImages, portainerPage]);
 
   const handleBatchDeleteConfirm = useCallback(async () => {
     const deleteData = portainerPage.handleDeleteImages();
@@ -165,7 +165,7 @@ function PortainerPage({
       await portainerPage.executeDeleteImages(deleteData.images);
       setBatchDeleteConfirm(false);
     }
-  }, [portainerPage.handleDeleteImages, portainerPage.executeDeleteImages]);
+  }, [portainerPage.handleDeleteImages, portainerPage.executeDeleteImages, portainerPage]);
 
   // Toolbar actions based on active tab
   const toolbarActions = useMemo(() => {
@@ -262,6 +262,7 @@ function PortainerPage({
     portainerPage.handleToggleImageSelect,
     handleBatchUpgradeClick,
     handleBatchDeleteClick,
+    portainerPage,
   ]);
 
   if (portainerInstances.length === 0) {

@@ -21,6 +21,7 @@ const AvatarTab = React.memo(function AvatarTab({
   onAvatarUploaded,
 }) {
   const [avatarPreview, setAvatarPreview] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarImage, setAvatarImage] = useState(null);
   const [avatarCrop, setAvatarCrop] = useState({

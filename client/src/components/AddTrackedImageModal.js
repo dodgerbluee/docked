@@ -182,7 +182,7 @@ function AddTrackedImageModal({
         const repo = (formData.githubRepo || "").trim();
         // Match both GitHub and GitLab URLs
         const match = repo.match(
-          /(?:github\.com|gitlab\.com)\/([^\/]+\/([^\/]+))(?:\/|$)/i
+          /(?:github\.com|gitlab\.com)\/([^/]+\/([^/]+))(?:\/|$)/i
         );
         if (match) {
           nameToSet = match[2] || match[1].split("/")[1];
@@ -394,6 +394,8 @@ function AddTrackedImageModal({
   };
 
   // Custom source type options with Docker icon handling
+  // Note: sourceTypeOptions is defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const sourceTypeOptions = SOURCE_TYPE_OPTIONS.map((option) => {
     if (option.value === "docker") {
       return {

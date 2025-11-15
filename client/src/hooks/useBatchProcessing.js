@@ -37,6 +37,7 @@ export const useBatchProcessing = ({
     setPortainerInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
+    // eslint-disable-next-line no-unused-vars
     fetchContainers,
     fetchUnusedImages,
   } = containersData;
@@ -375,6 +376,7 @@ export const useBatchProcessing = ({
             const previousId = lastCheckedTrackedAppsBatchRunIdRef.current;
 
             if (trackedAppsRun.status === "completed" && trackedAppsRun.completed_at) {
+              // eslint-disable-next-line no-unused-vars
               const completedAt = parseUTCTimestamp(trackedAppsRun.completed_at);
 
               const isNewRun = trackedAppsRun.id !== previousId;
@@ -433,6 +435,7 @@ export const useBatchProcessing = ({
       batchConfig.intervalMinutes > 0
     ) {
       const intervalMs = batchConfig.intervalMinutes * 60 * 1000;
+      // eslint-disable-next-line no-unused-vars
       const currentIntervalMinutes = batchConfig.intervalMinutes;
       const intervalId = setInterval(() => {
         if (batchIntervalRef.current === intervalId) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import PropTypes from "prop-types";
+// PropTypes is not currently used but kept for potential future use
 import { RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";

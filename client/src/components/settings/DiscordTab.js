@@ -161,7 +161,10 @@ const DiscordTab = React.memo(function DiscordTab({
                   download="docked-logo.png"
                   style={{ display: "none" }}
                   aria-hidden="true"
-                />
+                  aria-label="Download logo"
+                >
+                  Download Logo
+                </a>
               </li>
             </ul>
           </li>

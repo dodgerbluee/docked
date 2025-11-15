@@ -25,7 +25,10 @@ function validateRequiredFields(body, requiredFields) {
  * @returns {boolean} - True if valid
  */
 function isValidContainerId(containerId) {
-  return containerId && typeof containerId === 'string' && containerId.length >= 12;
+  if (!containerId || typeof containerId !== 'string' || containerId.length < 12) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -43,7 +46,10 @@ function isValidEndpointId(endpointId) {
  * @returns {boolean} - True if valid
  */
 function isValidImageName(imageName) {
-  return imageName && typeof imageName === 'string' && imageName.length > 0;
+  if (!imageName || typeof imageName !== 'string' || imageName.length === 0) {
+    return false;
+  }
+  return true;
 }
 
 /**
