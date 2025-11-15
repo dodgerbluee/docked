@@ -155,7 +155,7 @@ jobs:
 
       - name: Build and push Docker image with release version
         if: github.event.inputs.create_release == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
