@@ -57,15 +57,12 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   const isDockerHub = container.existsInDockerHub !== false && !isGitHubContainer;
 
   // Get GitHub Container Registry URL
-  const getGitHubContainerUrl = useCallback(
-    (imageName) => {
-      if (!imageName || !imageName.startsWith("ghcr.io/")) return null;
-      // Remove version/tag if present
-      const imageWithoutVersion = extractImageName(imageName);
-      return `https://${imageWithoutVersion}`;
-    },
-    []
-  );
+  const getGitHubContainerUrl = useCallback((imageName) => {
+    if (!imageName || !imageName.startsWith("ghcr.io/")) return null;
+    // Remove version/tag if present
+    const imageWithoutVersion = extractImageName(imageName);
+    return `https://${imageWithoutVersion}`;
+  }, []);
 
   // Copy version to clipboard
   const handleVersionClick = useCallback(
