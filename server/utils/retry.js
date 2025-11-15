@@ -2,8 +2,8 @@
  * Retry utility with exponential backoff
  */
 
-const { recordRateLimitError, recordSuccess } = require('./rateLimiter');
-const logger = require('./logger');
+const { recordRateLimitError, recordSuccess } = require("./rateLimiter");
+const logger = require("./logger");
 
 /**
  * Custom error for rate limit threshold exceeded
@@ -11,7 +11,7 @@ const logger = require('./logger');
 class RateLimitExceededError extends Error {
   constructor(message) {
     super(message);
-    this.name = 'RateLimitExceededError';
+    this.name = "RateLimitExceededError";
     this.isRateLimitExceeded = true;
   }
 }
@@ -35,15 +35,15 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
       if (error.response?.status === 429) {
         // Record the rate limit error
         const thresholdExceeded = recordRateLimitError();
-        
+
         if (thresholdExceeded) {
           // Threshold exceeded - stop retrying and throw special error
           throw new RateLimitExceededError(
-            'Docker Hub rate limit exceeded. Too many consecutive rate limit errors. ' +
-            'Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.'
+            "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. " +
+              "Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits."
           );
         }
-        
+
         // If we have retries left, wait and retry
         if (attempt < maxRetries - 1) {
           // For 429 errors, use longer delays: 5s, 10s, 20s
@@ -60,7 +60,7 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
           continue;
         }
       }
-      
+
       // For other errors, use standard exponential backoff
       if (attempt < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, attempt);
@@ -76,4 +76,3 @@ module.exports = {
   retryWithBackoff,
   RateLimitExceededError,
 };
-

@@ -36,8 +36,7 @@ export const JobTypeBadge = React.memo(function JobTypeBadge({ jobType }) {
     }
   };
 
-  const jobTypeLabel =
-    BATCH_JOB_TYPE_LABELS[jobType] || jobType || "Unknown Job";
+  const jobTypeLabel = BATCH_JOB_TYPE_LABELS[jobType] || jobType || "Unknown Job";
 
   return (
     <span className={`${styles.badge} ${getJobTypeClass(jobType)}`}>
@@ -74,16 +73,15 @@ export const StatusBadge = React.memo(function StatusBadge({ status }) {
       case BATCH_STATUS.RUNNING:
         return <Circle size={12} className={styles.badgeIcon} />;
       case BATCH_STATUS.COMPLETED:
-        return <CheckCircle2 size={14} className={styles.badgeIcon} />;
+        return <CheckCircle2 size={14} className={`${styles.badgeIcon} ${styles.successIcon}`} />;
       case BATCH_STATUS.FAILED:
-        return <XCircle size={14} className={styles.badgeIcon} />;
+        return <XCircle size={14} className={`${styles.badgeIcon} ${styles.errorIcon}`} />;
       default:
         return <Circle size={12} className={styles.badgeIcon} />;
     }
   };
 
-  const statusLabel =
-    BATCH_STATUS_LABELS[status] || BATCH_STATUS_LABELS[BATCH_STATUS.RUNNING];
+  const statusLabel = BATCH_STATUS_LABELS[status] || BATCH_STATUS_LABELS[BATCH_STATUS.RUNNING];
 
   return (
     <span className={`${styles.badge} ${getStatusClass(status)}`}>
@@ -109,4 +107,3 @@ export const ManualBadge = React.memo(function ManualBadge() {
     </span>
   );
 });
-

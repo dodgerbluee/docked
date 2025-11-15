@@ -14,10 +14,7 @@ import Button from "./ui/Button";
 import ToggleButton from "./ui/ToggleButton";
 import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
-import {
-  PREDEFINED_GITHUB_REPOS,
-  PREDEFINED_DOCKER_IMAGES,
-} from "../constants/trackedApps";
+import { PREDEFINED_GITHUB_REPOS, PREDEFINED_DOCKER_IMAGES } from "../constants/trackedApps";
 import {
   getTrackedGitHubRepos,
   getTrackedDockerImages,
@@ -89,9 +86,7 @@ function AddTrackedImageModal({
   const selectStyles = {
     control: (base, state) => ({
       ...base,
-      border: `2px solid ${
-        state.isFocused ? "var(--dodger-blue)" : "var(--border-color)"
-      }`,
+      border: `2px solid ${state.isFocused ? "var(--dodger-blue)" : "var(--border-color)"}`,
       borderRadius: "8px",
       backgroundColor: "var(--bg-primary)",
       color: "var(--text-primary)",
@@ -116,8 +111,8 @@ function AddTrackedImageModal({
       backgroundColor: state.isFocused
         ? "var(--bg-secondary)"
         : state.isSelected
-        ? "var(--dodger-blue)"
-        : "var(--bg-primary)",
+          ? "var(--dodger-blue)"
+          : "var(--bg-primary)",
       color: state.isSelected ? "white" : "var(--text-primary)",
       "&:active": {
         backgroundColor: "var(--dodger-blue)",
@@ -164,13 +159,16 @@ function AddTrackedImageModal({
     }
 
     const currentName = (formData.name || "").trim();
-    const shouldUpdate =
-      currentName === "" || currentName === lastAutoPopulatedName.current;
+    const shouldUpdate = currentName === "" || currentName === lastAutoPopulatedName.current;
 
     if (shouldUpdate) {
       let nameToSet = "";
 
-      if ((sourceType === "github" || sourceType === "gitlab") && usePredefined && selectedPredefinedRepo) {
+      if (
+        (sourceType === "github" || sourceType === "gitlab") &&
+        usePredefined &&
+        selectedPredefinedRepo
+      ) {
         const repo = selectedPredefinedRepo.value || selectedPredefinedRepo;
         const parts = repo.split("/");
         nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
@@ -181,41 +179,30 @@ function AddTrackedImageModal({
       ) {
         const repo = (formData.githubRepo || "").trim();
         // Match both GitHub and GitLab URLs
-        const match = repo.match(
-          /(?:github\.com|gitlab\.com)\/([^\/]+\/([^\/]+))(?:\/|$)/i
-        );
+        const match = repo.match(/(?:github\.com|gitlab\.com)\/([^/]+\/([^/]+))(?:\/|$)/i);
         if (match) {
           nameToSet = match[2] || match[1].split("/")[1];
         } else {
           const parts = repo.split("/");
           nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
         }
-      } else if (
-        sourceType === "docker" &&
-        usePredefinedDocker &&
-        selectedPredefinedImage
-      ) {
+      } else if (sourceType === "docker" && usePredefinedDocker && selectedPredefinedImage) {
         const image = selectedPredefinedImage.value || selectedPredefinedImage;
         const parts = image.split("/");
         nameToSet = parts.length > 1 ? parts[parts.length - 1] : image;
-      } else if (
-        sourceType === "docker" &&
-        !usePredefinedDocker &&
-        formData.imageName
-      ) {
+      } else if (sourceType === "docker" && !usePredefinedDocker && formData.imageName) {
         const image = (formData.imageName || "").trim();
         const imageWithoutTag = image.split(":")[0];
         const parts = imageWithoutTag.split("/");
-        nameToSet =
-          parts.length > 1 ? parts[parts.length - 1] : imageWithoutTag;
+        nameToSet = parts.length > 1 ? parts[parts.length - 1] : imageWithoutTag;
       }
 
       if (nameToSet) {
         // Replace dashes with spaces and capitalize each word
         const capitalizedName = nameToSet
-          .split('-')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(" ");
         lastAutoPopulatedName.current = capitalizedName;
         setFormData((prev) => ({ ...prev, name: capitalizedName }));
       }
@@ -245,12 +232,9 @@ function AddTrackedImageModal({
           gitlabToken: initialData.gitlab_token || "",
         });
         setSourceType(initialData.source_type || "github");
-        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(
-          initialData.github_repo
-        );
+        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(initialData.github_repo);
         const isPredefinedImage = PREDEFINED_DOCKER_IMAGES.some(
-          (img) =>
-            initialData.image_name && initialData.image_name.split(":")[0] === img
+          (img) => initialData.image_name && initialData.image_name.split(":")[0] === img
         );
         setUsePredefined(isPredefinedRepo && initialData.source_type === "github");
         setUsePredefinedDocker(isPredefinedImage);
@@ -321,15 +305,9 @@ function AddTrackedImageModal({
 
       let response;
       if (initialData) {
-        response = await axios.put(
-          `${API_BASE_URL}/api/tracked-images/${initialData.id}`,
-          payload
-        );
+        response = await axios.put(`${API_BASE_URL}/api/tracked-images/${initialData.id}`, payload);
       } else {
-        response = await axios.post(
-          `${API_BASE_URL}/api/tracked-images`,
-          payload
-        );
+        response = await axios.post(`${API_BASE_URL}/api/tracked-images`, payload);
       }
 
       if (response.data.success) {
@@ -349,9 +327,7 @@ function AddTrackedImageModal({
       } else {
         setError(
           response.data.error ||
-            (initialData
-              ? "Failed to update tracked item"
-              : "Failed to add tracked item")
+            (initialData ? "Failed to update tracked item" : "Failed to add tracked item")
         );
       }
     } catch (err) {
@@ -377,10 +353,7 @@ function AddTrackedImageModal({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          "Failed to delete tracked item. Please try again."
-      );
+      setError(err.response?.data?.error || "Failed to delete tracked item. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -394,6 +367,8 @@ function AddTrackedImageModal({
   };
 
   // Custom source type options with Docker icon handling
+  // Note: sourceTypeOptions is defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const sourceTypeOptions = SOURCE_TYPE_OPTIONS.map((option) => {
     if (option.value === "docker") {
       return {
@@ -505,9 +480,7 @@ function AddTrackedImageModal({
                   openMenuOnFocus={true}
                   classNamePrefix="react-select"
                 />
-                <small className={styles.helperText}>
-                  Choose from predefined Docker images
-                </small>
+                <small className={styles.helperText}>Choose from predefined Docker images</small>
               </div>
             ) : (
               <Input
@@ -649,12 +622,7 @@ function AddTrackedImageModal({
               {loading ? "Deleting..." : "Delete"}
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
           <Button
@@ -678,8 +646,8 @@ function AddTrackedImageModal({
                 ? "Updating..."
                 : "Adding..."
               : initialData
-              ? "Update Tracked App"
-              : "Add Tracked App"}
+                ? "Update Tracked App"
+                : "Add Tracked App"}
           </Button>
         </div>
       </form>

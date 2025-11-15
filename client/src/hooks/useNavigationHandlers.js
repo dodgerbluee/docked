@@ -2,13 +2,13 @@ import { useCallback } from "react";
 import {
   CONTENT_TABS,
   STAT_TYPE_TO_CONTENT_TAB,
-  STAT_TYPES,
+  // STAT_TYPES is not currently used but kept for potential future use
 } from "../constants/summaryPage";
 
 /**
  * Custom hook to consolidate navigation handlers for SummaryPage
  * Reduces code duplication and provides consistent navigation behavior
- * 
+ *
  * @param {Object} handlers - Navigation handler functions
  * @param {Function} handlers.onNavigateToPortainer - Navigate to Portainer tab
  * @param {Function} handlers.onNavigateToTrackedApps - Navigate to Tracked Apps tab
@@ -104,4 +104,3 @@ export const useNavigationHandlers = ({
     handleTrackedAppsClick,
   };
 };
-

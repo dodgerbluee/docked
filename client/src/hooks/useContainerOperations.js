@@ -31,6 +31,7 @@ export const useContainerOperations = ({
 }) => {
   const [upgrading, setUpgrading] = useState({});
   const [batchUpgrading, setBatchUpgrading] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [clearing, setClearing] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
 
@@ -55,9 +56,7 @@ export const useContainerOperations = ({
           successfullyUpdatedContainersRef.current.add(container.id);
 
           setContainers((prevContainers) =>
-            prevContainers.map((c) =>
-              c.id === container.id ? { ...c, hasUpdate: false } : c
-            )
+            prevContainers.map((c) => (c.id === container.id ? { ...c, hasUpdate: false } : c))
           );
 
           setSelectedContainers((prev) => {
@@ -77,22 +76,13 @@ export const useContainerOperations = ({
           fetchContainers();
         }
       } catch (err) {
-        alert(
-          `Failed to upgrade ${container.name}: ${
-            err.response?.data?.error || err.message
-          }`
-        );
+        alert(`Failed to upgrade ${container.name}: ${err.response?.data?.error || err.message}`);
         console.error("Error upgrading container:", err);
       } finally {
         setUpgrading((prev) => ({ ...prev, [container.id]: false }));
       }
     },
-    [
-      setContainers,
-      setSelectedContainers,
-      successfullyUpdatedContainersRef,
-      fetchContainers,
-    ]
+    [setContainers, setSelectedContainers, successfullyUpdatedContainersRef, fetchContainers]
   );
 
   const handleBatchUpgrade = useCallback(
@@ -102,15 +92,9 @@ export const useContainerOperations = ({
         return;
       }
 
-      const containersToUpgrade = containers.filter((c) =>
-        selectedContainers.has(c.id)
-      );
+      const containersToUpgrade = containers.filter((c) => selectedContainers.has(c.id));
 
-      if (
-        !window.confirm(
-          `Upgrade ${containersToUpgrade.length} selected container(s)?`
-        )
-      ) {
+      if (!window.confirm(`Upgrade ${containersToUpgrade.length} selected container(s)?`)) {
         return;
       }
 
@@ -123,31 +107,24 @@ export const useContainerOperations = ({
       try {
         setBatchUpgrading(true);
 
-        const response = await axios.post(
-          `${API_BASE_URL}/api/containers/batch-upgrade`,
-          {
-            containers: containersToUpgrade.map((c) => ({
-              containerId: c.id,
-              endpointId: c.endpointId,
-              imageName: c.image,
-              containerName: c.name,
-              portainerUrl: c.portainerUrl,
-            })),
-          }
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
+          containers: containersToUpgrade.map((c) => ({
+            containerId: c.id,
+            endpointId: c.endpointId,
+            imageName: c.image,
+            containerName: c.name,
+            portainerUrl: c.portainerUrl,
+          })),
+        });
 
-        const successfulIds = new Set(
-          response.data.results?.map((r) => r.containerId) || []
-        );
+        const successfulIds = new Set(response.data.results?.map((r) => r.containerId) || []);
 
         successfulIds.forEach((containerId) => {
           successfullyUpdatedContainersRef.current.add(containerId);
         });
 
         setContainers((prevContainers) =>
-          prevContainers.map((c) =>
-            successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c
-          )
+          prevContainers.map((c) => (successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c))
         );
 
         setSelectedContainers((prev) => {
@@ -173,9 +150,7 @@ export const useContainerOperations = ({
         setSelectedContainers(new Set());
         fetchContainers();
       } catch (err) {
-        alert(
-          `Batch upgrade failed: ${err.response?.data?.error || err.message}`
-        );
+        alert(`Batch upgrade failed: ${err.response?.data?.error || err.message}`);
         console.error("Error in batch upgrade:", err);
       } finally {
         setBatchUpgrading(false);
@@ -199,14 +174,11 @@ export const useContainerOperations = ({
     async (image) => {
       try {
         setDeletingImages(true);
-        const response = await axios.delete(
-          `${API_BASE_URL}/api/images/${image.id}`,
-          {
-            data: {
-              portainerUrl: image.portainerUrl,
-            },
-          }
-        );
+        const response = await axios.delete(`${API_BASE_URL}/api/images/${image.id}`, {
+          data: {
+            portainerUrl: image.portainerUrl,
+          },
+        });
 
         if (response.data.success) {
           updateLastImageDeleteTime();
@@ -220,11 +192,7 @@ export const useContainerOperations = ({
         }
       } catch (err) {
         console.error("Error deleting image:", err);
-        alert(
-          `Failed to delete image: ${
-            err.response?.data?.error || err.message
-          }`
-        );
+        alert(`Failed to delete image: ${err.response?.data?.error || err.message}`);
       } finally {
         setDeletingImagesState(false);
       }
@@ -234,6 +202,7 @@ export const useContainerOperations = ({
       setUnusedImagesCount,
       setSelectedImages,
       updateLastImageDeleteTime,
+      setDeletingImagesState,
     ]
   );
 
@@ -244,10 +213,12 @@ export const useContainerOperations = ({
         return;
       }
 
-      const imagesToDelete = Array.from(selectedImages).map((id) => {
-        const image = unusedImages.find((img) => img.id === id);
-        return image;
-      }).filter(Boolean);
+      const imagesToDelete = Array.from(selectedImages)
+        .map((id) => {
+          const image = unusedImages.find((img) => img.id === id);
+          return image;
+        })
+        .filter(Boolean);
 
       if (
         !window.confirm(
@@ -274,22 +245,14 @@ export const useContainerOperations = ({
         const failed = results.filter((r) => r.status === "rejected");
 
         if (successful.length > 0) {
-          const deletedIds = new Set(
-            successful.map((r, idx) => imagesToDelete[idx].id)
-          );
-          setUnusedImages((prev) =>
-            prev.filter((img) => !deletedIds.has(img.id))
-          );
-          setUnusedImagesCount((prev) =>
-            Math.max(0, prev - successful.length)
-          );
+          const deletedIds = new Set(successful.map((r, idx) => imagesToDelete[idx].id));
+          setUnusedImages((prev) => prev.filter((img) => !deletedIds.has(img.id)));
+          setUnusedImagesCount((prev) => Math.max(0, prev - successful.length));
           setSelectedImages(new Set());
         }
 
         if (failed.length > 0) {
-          alert(
-            `Failed to delete ${failed.length} image(s). Please try again.`
-          );
+          alert(`Failed to delete ${failed.length} image(s). Please try again.`);
         }
       } catch (err) {
         console.error("Error deleting images:", err);
@@ -303,6 +266,7 @@ export const useContainerOperations = ({
       setUnusedImagesCount,
       setSelectedImages,
       updateLastImageDeleteTime,
+      setDeletingImagesState,
     ]
   );
 
@@ -320,9 +284,7 @@ export const useContainerOperations = ({
       setError(null);
       console.log("🗑️ Clearing all cached data...");
 
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/containers/cache`
-      );
+      const response = await axios.delete(`${API_BASE_URL}/api/containers/cache`);
 
       const clearFrontendState = () => {
         setContainers([]);
@@ -372,9 +334,7 @@ export const useContainerOperations = ({
       }
     } catch (err) {
       if (err.response && err.response.status === 404) {
-        console.warn(
-          "⚠️ Clear cache endpoint not found (404), clearing frontend state anyway"
-        );
+        console.warn("⚠️ Clear cache endpoint not found (404), clearing frontend state anyway");
         setContainers([]);
         setStacks([]);
         setUnusedImagesCount(0);
@@ -385,16 +345,10 @@ export const useContainerOperations = ({
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
         setDataFetched(false);
         setError(null);
-        console.log(
-          "✅ Frontend state cleared. Backend cache may need manual clearing."
-        );
+        console.log("✅ Frontend state cleared. Backend cache may need manual clearing.");
       } else {
         console.error("Error clearing cache:", err);
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            "Failed to clear cache"
-        );
+        setError(err.response?.data?.error || err.message || "Failed to clear cache");
       }
     } finally {
       setClearingState(false);
@@ -409,38 +363,69 @@ export const useContainerOperations = ({
     setDockerHubDataPulled,
     setDataFetched,
     setError,
-    setClearing,
     fetchContainers,
+    setClearingState,
   ]);
 
-  const handlePull = useCallback(async (
-    additionalParams = {}
-  ) => {
-    const {
-      setPortainerInstancesFromAPI,
-      setLastPullTime,
-      fetchDockerHubCredentials,
-      dockerHubCredentials,
-    } = additionalParams;
-    try {
-      setPulling(true);
-      setError(null);
-      setPullError(null);
-      setPullSuccess(null);
-      console.log("🔄 Pulling fresh data from Docker Hub...");
-
-      const pullPromise = axios.post(
-        `${API_BASE_URL}/api/containers/pull`,
-        {},
-        {
-          timeout: 300000,
-        }
-      );
-
+  const handlePull = useCallback(
+    async (additionalParams = {}) => {
+      const {
+        setPortainerInstancesFromAPI,
+        setLastPullTime,
+        fetchDockerHubCredentials,
+        dockerHubCredentials,
+      } = additionalParams;
       try {
-        const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
-        if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
-          const apiContainers = cachedResponse.data.containers || [];
+        setPulling(true);
+        setError(null);
+        setPullError(null);
+        setPullSuccess(null);
+        console.log("🔄 Pulling fresh data from Docker Hub...");
+
+        const pullPromise = axios.post(
+          `${API_BASE_URL}/api/containers/pull`,
+          {},
+          {
+            timeout: 300000,
+          }
+        );
+
+        try {
+          const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
+          if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
+            const apiContainers = cachedResponse.data.containers || [];
+            const updatedContainers = apiContainers.map((apiContainer) => {
+              if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+                if (!apiContainer.hasUpdate) {
+                  successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+                }
+                return { ...apiContainer, hasUpdate: false };
+              }
+              return apiContainer;
+            });
+            setContainers(updatedContainers);
+            setStacks(cachedResponse.data.stacks || []);
+            setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
+
+            if (cachedResponse.data.portainerInstances && setPortainerInstancesFromAPI) {
+              setPortainerInstancesFromAPI(cachedResponse.data.portainerInstances);
+            }
+            setDataFetched(true);
+          }
+        } catch (cacheErr) {
+          console.log("No cached data available yet");
+        }
+
+        const response = await pullPromise;
+
+        if (response.data.success === false) {
+          throw new Error(
+            response.data.error || response.data.message || "Failed to pull container data"
+          );
+        }
+
+        if (response.data.grouped && response.data.stacks) {
+          const apiContainers = response.data.containers || [];
           const updatedContainers = apiContainers.map((apiContainer) => {
             if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
               if (!apiContainer.hasUpdate) {
@@ -451,103 +436,69 @@ export const useContainerOperations = ({
             return apiContainer;
           });
           setContainers(updatedContainers);
-          setStacks(cachedResponse.data.stacks || []);
-          setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
+          setStacks(response.data.stacks || []);
+          setUnusedImagesCount(response.data.unusedImagesCount || 0);
 
-          if (cachedResponse.data.portainerInstances && setPortainerInstancesFromAPI) {
-            setPortainerInstancesFromAPI(
-              cachedResponse.data.portainerInstances
-            );
+          if (response.data.portainerInstances && setPortainerInstancesFromAPI) {
+            setPortainerInstancesFromAPI(response.data.portainerInstances);
           }
-          setDataFetched(true);
+
+          setDockerHubDataPulled(true);
+          localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
+          if (setLastPullTime) {
+            const pullTime = new Date();
+            setLastPullTime(pullTime);
+            localStorage.setItem("lastPullTime", pullTime.toISOString());
+          }
+        } else {
+          const apiContainers = Array.isArray(response.data) ? response.data : [];
+          const updatedContainers = apiContainers.map((apiContainer) => {
+            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
+              if (!apiContainer.hasUpdate) {
+                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
+              }
+              return { ...apiContainer, hasUpdate: false };
+            }
+            return apiContainer;
+          });
+          setContainers(updatedContainers);
+          setStacks([]);
+          setUnusedImagesCount(0);
         }
-      } catch (cacheErr) {
-        console.log("No cached data available yet");
-      }
 
-      const response = await pullPromise;
-
-      if (response.data.success === false) {
-        throw new Error(
-          response.data.error ||
-            response.data.message ||
-            "Failed to pull container data"
+        setError(null);
+        setDataFetched(true);
+        await fetchUnusedImages();
+        setPullSuccess("Data pulled successfully!");
+      } catch (err) {
+        // fetchDockerHubCredentials and dockerHubCredentials come from additionalParams
+        // They're optional and may not be provided, so handle gracefully
+        const errorMessage = await handleDockerHubError(
+          err,
+          fetchDockerHubCredentials || null,
+          dockerHubCredentials || null,
+          setError
         );
+        setPullError(errorMessage);
+        console.error("Error pulling containers:", err);
+      } finally {
+        setPulling(false);
       }
-
-      if (response.data.grouped && response.data.stacks) {
-        const apiContainers = response.data.containers || [];
-        const updatedContainers = apiContainers.map((apiContainer) => {
-          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-            if (!apiContainer.hasUpdate) {
-              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-            }
-            return { ...apiContainer, hasUpdate: false };
-          }
-          return apiContainer;
-        });
-        setContainers(updatedContainers);
-        setStacks(response.data.stacks || []);
-        setUnusedImagesCount(response.data.unusedImagesCount || 0);
-
-        if (response.data.portainerInstances && setPortainerInstancesFromAPI) {
-          setPortainerInstancesFromAPI(response.data.portainerInstances);
-        }
-
-        setDockerHubDataPulled(true);
-        localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
-        if (setLastPullTime) {
-          const pullTime = new Date();
-          setLastPullTime(pullTime);
-          localStorage.setItem("lastPullTime", pullTime.toISOString());
-        }
-      } else {
-        const apiContainers = Array.isArray(response.data) ? response.data : [];
-        const updatedContainers = apiContainers.map((apiContainer) => {
-          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-            if (!apiContainer.hasUpdate) {
-              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-            }
-            return { ...apiContainer, hasUpdate: false };
-          }
-          return apiContainer;
-        });
-        setContainers(updatedContainers);
-        setStacks([]);
-        setUnusedImagesCount(0);
-      }
-
-      setError(null);
-      setDataFetched(true);
-      await fetchUnusedImages();
-      setPullSuccess("Data pulled successfully!");
-    } catch (err) {
-      // fetchDockerHubCredentials and dockerHubCredentials come from additionalParams
-      // They're optional and may not be provided, so handle gracefully
-      const errorMessage = await handleDockerHubError(
-        err,
-        fetchDockerHubCredentials || null,
-        dockerHubCredentials || null,
-        setError
-      );
-      setPullError(errorMessage);
-      console.error("Error pulling containers:", err);
-    } finally {
-      setPulling(false);
-    }
-  }, [
-    setPulling,
-    setError,
-    setPullError,
-    setPullSuccess,
-    setContainers,
-    setStacks,
-    setUnusedImagesCount,
-    setDockerHubDataPulled,
-    setDataFetched,
-    fetchUnusedImages,
-    successfullyUpdatedContainersRef,
-  ]);
+    },
+    [
+      setPulling,
+      setError,
+      setPullError,
+      setPullSuccess,
+      setContainers,
+      setStacks,
+      setUnusedImagesCount,
+      setDockerHubDataPulled,
+      setDataFetched,
+      fetchUnusedImages,
+      successfullyUpdatedContainersRef,
+    ]
+  );
 
   return {
     upgrading,
@@ -561,4 +512,3 @@ export const useContainerOperations = ({
     deletingImages,
   };
 };
-

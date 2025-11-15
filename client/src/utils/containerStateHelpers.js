@@ -6,11 +6,11 @@
 /**
  * Updates containers while preserving hasUpdate:false for successfully updated containers
  * This ensures that containers that were just upgraded don't immediately show as having updates again
- * 
+ *
  * @param {Array} apiContainers - Containers from API response
  * @param {Object} successfullyUpdatedContainersRef - Ref object with current property (Set) tracking successfully updated containers
  * @returns {Array} Updated containers with preserved hasUpdate state
- * 
+ *
  * @example
  * const updated = updateContainersWithPreservedState(apiContainers, successfullyUpdatedContainersRef);
  */
@@ -32,10 +32,10 @@ export const updateContainersWithPreservedState = (
 /**
  * Checks if Docker Hub data is present in containers
  * Looks for latestDigest, latestTag, or latestVersion properties
- * 
+ *
  * @param {Array} containers - Array of containers to check
  * @returns {boolean} True if any container has Docker Hub data
- * 
+ *
  * @example
  * if (hasDockerHubData(containers)) {
  *   setDockerHubDataPulled(true);
@@ -43,8 +43,7 @@ export const updateContainersWithPreservedState = (
  */
 export const hasDockerHubData = (containers) => {
   return containers.some(
-    (container) =>
-      container.latestDigest || container.latestTag || container.latestVersion
+    (container) => container.latestDigest || container.latestTag || container.latestVersion
   );
 };
 
@@ -52,7 +51,7 @@ export const hasDockerHubData = (containers) => {
  * Updates container state from pull response
  * Handles the complete state update including containers, stacks, unused images count,
  * Portainer instances, and Docker Hub data pulled flag
- * 
+ *
  * @param {Object} responseData - Response data from pull API
  * @param {Object} setters - Object containing state setters
  * @param {Function} setters.setContainers - Setter for containers state
@@ -61,7 +60,7 @@ export const hasDockerHubData = (containers) => {
  * @param {Function} setters.setPortainerInstancesFromAPI - Setter for Portainer instances (optional)
  * @param {Function} setters.setDockerHubDataPulled - Setter for Docker Hub data pulled flag
  * @param {Object} successfullyUpdatedContainersRef - Ref object tracking successfully updated containers
- * 
+ *
  * @example
  * updateStateFromPullResponse(
  *   response.data,
@@ -105,4 +104,3 @@ export const updateStateFromPullResponse = (
     }
   }
 };
-

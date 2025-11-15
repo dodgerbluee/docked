@@ -1,0 +1,40 @@
+# CODEOWNERS file
+# This file defines code ownership for the repository
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - these users will be requested for review on all PRs
+* @docked-maintainers
+
+# CI/CD and GitHub workflows
+/.github/ @docked-maintainers @devops-team
+
+# Workflow files
+/.github/workflows/ @docked-maintainers @devops-team
+
+# Release and versioning
+/scripts/version-bump.js @docked-maintainers
+/scripts/validate-release.js @docked-maintainers
+/CHANGELOG.md @docked-maintainers
+/RELEASE.md @docked-maintainers
+
+# Server code
+/server/ @docked-maintainers @backend-team
+
+# Client code
+/client/ @docked-maintainers @frontend-team
+
+# Documentation
+/README.md @docked-maintainers
+/UPGRADE.md @docked-maintainers
+/DATABASE_SETUP.md @docked-maintainers
+
+# Configuration files
+/package.json @docked-maintainers
+/package-lock.json @docked-maintainers
+/Dockerfile @docked-maintainers
+/docker-compose.yaml @docked-maintainers
+
+# Security-related files
+/.github/workflows/security.yml @docked-maintainers @security-team
+/SECURITY.md @docked-maintainers @security-team
+

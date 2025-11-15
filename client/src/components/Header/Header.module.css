@@ -2,8 +2,8 @@
 
 .header {
   color: var(--text-primary);
-  margin-bottom: 30px;
-  padding: 15px 20px;
+  margin-bottom: 15px;
+  padding: 10px 20px;
   background: var(--header-bg);
   border-radius: 12px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -13,19 +13,42 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 1600px;
+  margin: 0;
   flex-wrap: wrap;
   gap: 15px;
 }
 
+/* When logo is hovered, move both logo container and avatar container uniformly */
+.headerContent:has(.logoContainer:hover) .logoContainer,
+.headerContent:has(.logoContainer:hover) .headerActions {
+  transform: translateY(-1px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When avatar area is hovered, move both logo container and avatar container uniformly */
+.headerContent:has(.headerActions:hover) .logoContainer,
+.headerContent:has(.headerActions:hover) .headerActions {
+  transform: translateY(-1px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .logoContainer {
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  will-change: transform;
 }
 
 .logoContainer:hover {
-  opacity: 0.8;
+  opacity: 1;
+}
+
+.logoContainer:hover .logoText {
+  transform: translateY(2px);
 }
 
 .logoContainer:active {
@@ -33,28 +56,72 @@
 }
 
 .logo {
-  font-size: 2.5rem;
-  margin: 0 0 5px 0;
+  font-size: 1.9rem;
+  margin: 0;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
   color: white;
   text-align: left;
+  font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+  font-weight: 700;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .logoImage {
-  height: 2em;
+  height: 1.8em;
   vertical-align: middle;
-  margin-right: 8px;
+  margin-right: 12px;
   display: inline-block;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.logoText {
+/* LogoImage moves up when logoContainer is hovered */
+.logoContainer:hover .logoImage {
+  transform: translateY(-1px);
+}
+
+/* When headerContent detects hover on either logo or avatar, logoImage moves with container */
+.headerContent:has(.logoContainer:hover) .logoImage,
+.headerContent:has(.headerActions:hover) .logoImage {
+  transform: translateY(-1px);
+}
+
+.logoTextImage {
   display: inline-block;
-  transform: translateY(3px);
+  height: 1.25em; /* Half of 2.5em */
+  vertical-align: middle;
+  margin-left: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  object-fit: contain;
+  max-width: 50%; /* Ensure it doesn't exceed half the available space */
+}
+
+.logoContainer:hover .logoTextImage {
+  transform: translateY(-1px);
+}
+
+/* Ensure logoTextImage moves uniformly when avatar is hovered */
+.headerContent:has(.headerActions:hover) .logoTextImage {
+  transform: translateY(-1px);
 }
 
 .headerActions {
   display: flex;
   align-items: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .actionsContainer {
@@ -113,4 +180,3 @@
   pointer-events: none;
   box-shadow: 0 2px 4px rgba(0, 90, 156, 0.4);
 }
-

@@ -38,33 +38,31 @@ const DockerHubTab = React.memo(function DockerHubTab({
       <Card variant="default" padding="lg" className={styles.infoCard}>
         <h4 className={styles.cardTitle}>What is this used for?</h4>
         <p className={styles.cardText}>
-          Docker Hub authentication allows the application to use your personal
-          account's rate limits instead of anonymous IP-based limits when
-          checking for container updates.
+          Docker Hub authentication allows the application to use your personal account's rate
+          limits instead of anonymous IP-based limits when checking for container updates.
         </p>
         <h4 className={styles.benefitsTitle}>Benefits:</h4>
         <ul className={styles.benefitsList}>
           <li>
-            <strong>Higher Rate Limits:</strong> Authenticated users get 200
-            API requests per 6 hours vs 100 for anonymous users
+            <strong>Higher Rate Limits:</strong> Authenticated users get 200 API requests per 6
+            hours vs 100 for anonymous users
           </li>
           <li>
-            <strong>Faster Updates:</strong> With higher limits, the application
-            can check more containers without hitting rate limits
+            <strong>Faster Updates:</strong> With higher limits, the application can check more
+            containers without hitting rate limits
           </li>
           <li>
-            <strong>Reduced Errors:</strong> Fewer 429 (rate limit) errors
-            means more reliable update detection
+            <strong>Reduced Errors:</strong> Fewer 429 (rate limit) errors means more reliable
+            update detection
           </li>
           <li>
-            <strong>Better Performance:</strong> Shorter delays between API
-            calls (500ms vs 1000ms) when authenticated
+            <strong>Better Performance:</strong> Shorter delays between API calls (500ms vs 1000ms)
+            when authenticated
           </li>
         </ul>
         <p className={styles.cardNote}>
-          <strong>Note:</strong> Your credentials are stored securely in the
-          database and only used for Docker Hub API authentication. You can
-          create a Personal Access Token at{" "}
+          <strong>Note:</strong> Your credentials are stored securely in the database and only used
+          for Docker Hub API authentication. You can create a Personal Access Token at{" "}
           <a
             href="https://hub.docker.com/settings/security"
             target="_blank"
@@ -84,9 +82,7 @@ const DockerHubTab = React.memo(function DockerHubTab({
           <div className={styles.credentialsContent}>
             <div className={styles.credentialsInfo}>
               <strong className={styles.configTitle}>Current Configuration</strong>
-              <div className={styles.configDetail}>
-                Username: {dockerHubCredentials.username}
-              </div>
+              <div className={styles.configDetail}>Username: {dockerHubCredentials.username}</div>
               <div className={styles.configMeta}>
                 {dockerHubCredentials.hasToken ? (
                   <span className={styles.statusSuccess}>✓ Token configured</span>
@@ -95,8 +91,7 @@ const DockerHubTab = React.memo(function DockerHubTab({
                 )}
                 {dockerHubCredentials.updated_at && (
                   <span className={styles.lastUpdated}>
-                    • Last updated:{" "}
-                    {new Date(dockerHubCredentials.updated_at).toLocaleDateString()}
+                    • Last updated: {new Date(dockerHubCredentials.updated_at).toLocaleDateString()}
                   </span>
                 )}
               </div>
@@ -110,8 +105,7 @@ const DockerHubTab = React.memo(function DockerHubTab({
       ) : (
         <Card variant="default" padding="lg" className={styles.emptyCard}>
           <p className={styles.emptyText}>
-            No Docker Hub credentials configured. Add credentials to increase
-            your rate limits.
+            No Docker Hub credentials configured. Add credentials to increase your rate limits.
           </p>
           <Button
             variant="primary"

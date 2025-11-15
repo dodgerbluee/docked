@@ -71,12 +71,7 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
   const offsetY = (400 - zoomedHeight) / 2 + pan.y;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Preview & Adjust"
-      size="md"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Preview & Adjust" size="md">
       <div className={styles.content}>
         <div className={styles.previewContainer}>
           <div
@@ -114,10 +109,7 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
         <div className={styles.controls}>
           <div className={styles.zoomControl}>
             <label className={styles.zoomLabel}>
-              Zoom:{" "}
-              <span className={styles.zoomValue}>
-                {Math.round(zoom * 100)}%
-              </span>
+              Zoom: <span className={styles.zoomValue}>{Math.round(zoom * 100)}%</span>
             </label>
             <input
               type="range"
@@ -129,9 +121,7 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
               className={styles.zoomSlider}
             />
           </div>
-          <p className={styles.helpText}>
-            Drag the image to adjust position. Use zoom to resize.
-          </p>
+          <p className={styles.helpText}>Drag the image to adjust position. Use zoom to resize.</p>
           <div className={styles.actions}>
             <Button
               type="button"
@@ -142,12 +132,7 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
             >
               {isUploading ? "Processing..." : "Upload Avatar"}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              fullWidth
-            >
+            <Button type="button" variant="outline" onClick={onClose} fullWidth>
               Cancel
             </Button>
           </div>
@@ -180,4 +165,3 @@ AvatarPreviewModal.propTypes = {
 };
 
 export default AvatarPreviewModal;
-

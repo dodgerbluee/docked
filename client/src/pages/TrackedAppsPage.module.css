@@ -183,7 +183,7 @@ body.dark-mode .stackCount {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 15px;
 }
 
@@ -194,7 +194,7 @@ body.dark-mode .stackCount {
 
 .gridWithUpdates {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 15px;
 }
 
@@ -205,7 +205,7 @@ body.dark-mode .stackCount {
 
 .gridWithoutUpdates {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 15px;
 }
 
@@ -280,4 +280,3 @@ body.dark-mode .stackCount {
     grid-template-columns: 1fr;
   }
 }
-

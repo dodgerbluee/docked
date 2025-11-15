@@ -49,31 +49,29 @@ export function useGeneralSettings({
           [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
         };
 
-        [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach(
-          (jobType) => {
-            const config = configs[jobType] || {
-              enabled: false,
-              intervalMinutes: 60,
-            };
-            const minutes = config.intervalMinutes || 60;
+        [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach((jobType) => {
+          const config = configs[jobType] || {
+            enabled: false,
+            intervalMinutes: 60,
+          };
+          const minutes = config.intervalMinutes || 60;
 
-            if (minutes >= 60 && minutes % 60 === 0) {
-              newConfigs[jobType] = {
-                enabled: config.enabled || false,
-                intervalMinutes: minutes,
-                intervalValue: minutes / 60,
-                intervalUnit: "hours",
-              };
-            } else {
-              newConfigs[jobType] = {
-                enabled: config.enabled || false,
-                intervalMinutes: minutes,
-                intervalValue: minutes,
-                intervalUnit: "minutes",
-              };
-            }
+          if (minutes >= 60 && minutes % 60 === 0) {
+            newConfigs[jobType] = {
+              enabled: config.enabled || false,
+              intervalMinutes: minutes,
+              intervalValue: minutes / 60,
+              intervalUnit: "hours",
+            };
+          } else {
+            newConfigs[jobType] = {
+              enabled: config.enabled || false,
+              intervalMinutes: minutes,
+              intervalValue: minutes,
+              intervalUnit: "minutes",
+            };
           }
-        );
+        });
 
         setBatchConfigs(newConfigs);
       }
@@ -147,33 +145,25 @@ export function useGeneralSettings({
 
       try {
         const responses = await Promise.all(
-          [
-            BATCH_JOB_TYPES.DOCKER_HUB_PULL,
-            BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
-          ].map(async (jobType) => {
-            const config = configs[jobType];
-            const intervalMinutes =
-              config.intervalUnit === "hours"
-                ? config.intervalValue * 60
-                : config.intervalValue;
+          [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].map(
+            async (jobType) => {
+              const config = configs[jobType];
+              const intervalMinutes =
+                config.intervalUnit === "hours" ? config.intervalValue * 60 : config.intervalValue;
 
-            const response = await axios.post(
-              `${API_BASE_URL}/api/batch/config`,
-              {
+              const response = await axios.post(`${API_BASE_URL}/api/batch/config`, {
                 jobType: jobType,
                 enabled: config.enabled,
                 intervalMinutes: intervalMinutes,
+              });
+
+              if (!response.data.success) {
+                throw new Error(response.data.error || "Failed to update batch configuration");
               }
-            );
 
-            if (!response.data.success) {
-              throw new Error(
-                response.data.error || "Failed to update batch configuration"
-              );
+              return { jobType, response: response.data };
             }
-
-            return { jobType, response: response.data };
-          })
+          )
         );
 
         // Use the configs from the last response (server returns all configs)
@@ -245,9 +235,7 @@ export function useGeneralSettings({
         }
       } catch (err) {
         const errorMessage =
-          err.response?.data?.error ||
-          err.message ||
-          getErrorMessage("BATCH", "CONFIG_UPDATE");
+          err.response?.data?.error || err.message || getErrorMessage("BATCH", "CONFIG_UPDATE");
         setBatchError(errorMessage);
       } finally {
         setBatchLoading({
@@ -256,7 +244,7 @@ export function useGeneralSettings({
         });
       }
     },
-    [batchConfigs, onBatchConfigUpdate, fetchBatchConfig]
+    [batchConfigs, onBatchConfigUpdate]
   );
 
   return {
@@ -279,4 +267,3 @@ export function useGeneralSettings({
     fetchBatchConfig,
   };
 }
-

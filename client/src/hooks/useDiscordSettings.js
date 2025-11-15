@@ -36,9 +36,7 @@ export function useDiscordSettings() {
   const handleDeleteDiscordWebhook = useCallback(
     async (id) => {
       try {
-        const response = await axios.delete(
-          `${API_BASE_URL}/api/discord/webhooks/${id}`
-        );
+        const response = await axios.delete(`${API_BASE_URL}/api/discord/webhooks/${id}`);
 
         if (response.data.success) {
           setDiscordSuccess("Discord webhook removed successfully!");
@@ -47,9 +45,7 @@ export function useDiscordSettings() {
         }
       } catch (err) {
         console.error("Failed to remove Discord webhook:", err);
-        alert(
-          err.response?.data?.error || "Failed to remove Discord webhook"
-        );
+        alert(err.response?.data?.error || "Failed to remove Discord webhook");
       }
     },
     [fetchDiscordWebhooks]
@@ -67,4 +63,3 @@ export function useDiscordSettings() {
     fetchDiscordWebhooks,
   };
 }
-

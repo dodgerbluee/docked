@@ -21,6 +21,7 @@ const AvatarTab = React.memo(function AvatarTab({
   onAvatarUploaded,
 }) {
   const [avatarPreview, setAvatarPreview] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarImage, setAvatarImage] = useState(null);
   const [avatarCrop, setAvatarCrop] = useState({
@@ -161,9 +162,7 @@ const AvatarTab = React.memo(function AvatarTab({
           onRecentAvatarsChange([]);
         }
 
-        setAvatarSuccess(
-          "Avatar deleted successfully. Reverted to default avatar."
-        );
+        setAvatarSuccess("Avatar deleted successfully. Reverted to default avatar.");
         setShowDeleteConfirm(false);
 
         if (onAvatarUploaded) {
@@ -176,9 +175,7 @@ const AvatarTab = React.memo(function AvatarTab({
       }
     } catch (err) {
       console.error("Error deleting avatar:", err);
-      setAvatarError(
-        err.response?.data?.error || "Failed to delete avatar. Please try again."
-      );
+      setAvatarError(err.response?.data?.error || "Failed to delete avatar. Please try again.");
       setShowDeleteConfirm(false);
     }
   };
@@ -203,10 +200,7 @@ const AvatarTab = React.memo(function AvatarTab({
 
       <div className={styles.formGroup}>
         <label className={styles.uploadLabel}>Upload New Avatar</label>
-        <AvatarUploader
-          onFileSelect={handleFileSelect}
-          isUploading={avatarUploading}
-        />
+        <AvatarUploader onFileSelect={handleFileSelect} isUploading={avatarUploading} />
       </div>
 
       <AvatarPreviewModal

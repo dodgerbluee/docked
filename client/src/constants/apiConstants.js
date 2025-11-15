@@ -46,4 +46,3 @@ export const CONFIGURATION_TABS = {
   HISTORY: "history",
   SETTINGS: "settings",
 };
-

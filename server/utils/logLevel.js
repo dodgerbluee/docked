@@ -4,17 +4,17 @@
  * Stores preference in database and provides getter/setter
  */
 
-const { getSetting, setSetting } = require('../db/database');
+const { getSetting, setSetting } = require("../db/database");
 
-const LOG_LEVEL_KEY = 'log_level';
-const DEFAULT_LOG_LEVEL = 'info';
+const LOG_LEVEL_KEY = "log_level";
+const DEFAULT_LOG_LEVEL = "info";
 
 // Don't use logger here to avoid circular dependency
 // Use console.error directly for rare error cases
 function logError(message, error) {
   // Only log to console to avoid circular dependency
   // These errors are rare and only occur during initialization
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== "production") {
     console.error(`[logLevel] ${message}`, error?.message || error);
   }
 }
@@ -29,7 +29,7 @@ async function getLogLevel() {
     return level || DEFAULT_LOG_LEVEL;
   } catch (err) {
     // Don't use logger to avoid circular dependency
-    logError('Error getting log level', err);
+    logError("Error getting log level", err);
     return DEFAULT_LOG_LEVEL;
   }
 }
@@ -40,14 +40,14 @@ async function getLogLevel() {
  * @returns {Promise<void>}
  */
 async function setLogLevel(level) {
-  if (level !== 'info' && level !== 'debug') {
+  if (level !== "info" && level !== "debug") {
     throw new Error('Log level must be "info" or "debug"');
   }
   try {
     await setSetting(LOG_LEVEL_KEY, level);
   } catch (err) {
     // Don't use logger to avoid circular dependency
-    logError('Error setting log level', err);
+    logError("Error setting log level", err);
     throw err;
   }
 }
@@ -58,7 +58,7 @@ async function setLogLevel(level) {
  */
 async function isDebugEnabled() {
   const level = await getLogLevel();
-  return level === 'debug';
+  return level === "debug";
 }
 
 // Cache for log level (updated when changed)
@@ -97,7 +97,7 @@ async function initializeLogLevel() {
     updateCachedLogLevel(level);
   } catch (err) {
     // Don't use logger to avoid circular dependency
-    logError('Error initializing log level', err);
+    logError("Error initializing log level", err);
   }
 }
 
@@ -110,4 +110,3 @@ module.exports = {
   initializeLogLevel,
   DEFAULT_LOG_LEVEL,
 };
-

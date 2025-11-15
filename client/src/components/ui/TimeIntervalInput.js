@@ -27,8 +27,8 @@ const TimeIntervalInput = React.memo(function TimeIntervalInput({
   const handleValueChange = (e) => {
     const inputValue = e.target.value;
     // Allow empty string for deletion
-    if (inputValue === '') {
-      onChange('');
+    if (inputValue === "") {
+      onChange("");
       return;
     }
     // Pass the raw string value to parent, let parent handle validation
@@ -56,7 +56,7 @@ const TimeIntervalInput = React.memo(function TimeIntervalInput({
           <input
             id={inputId}
             type="number"
-            value={value === '' || value === null || value === undefined ? '' : value}
+            value={value === "" || value === null || value === undefined ? "" : value}
             onChange={handleValueChange}
             min={min}
             required={required}
@@ -113,4 +113,3 @@ TimeIntervalInput.propTypes = {
 };
 
 export default TimeIntervalInput;
-

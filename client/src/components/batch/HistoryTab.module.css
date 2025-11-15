@@ -43,6 +43,40 @@
   gap: 12px;
 }
 
+.scheduledRunsTable {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.tableHeader {
+  padding: 16px 20px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.tableHeader:first-child {
+  padding-left: 20px;
+  border-radius: 8px 0 0 0;
+}
+
+.tableHeader:last-child {
+  padding-right: 20px;
+  border-radius: 0 8px 0 0;
+}
+
 .emptyState {
   padding: 20px;
   text-align: center;
@@ -50,9 +84,17 @@
 }
 
 .historyAndLogs {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+}
+
+/* Logs section takes up full width */
+.logsSection {
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.3s ease-in;
+  width: 100%;
 }
 
 .runHistorySection {
@@ -88,13 +130,45 @@ body.dark-mode .runHistoryIcon {
 
 .runHistoryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   padding: 20px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-top: none;
+  border-radius: 0;
+}
+
+@media (max-width: 1400px) {
+  .runHistoryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 1000px) {
+  .runHistoryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .runHistoryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.showMoreContainer {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-top: none;
   border-radius: 0 0 8px 8px;
+}
+
+.showMoreButton {
+  min-width: 200px;
 }
 
 /* Stack header styles for collapsible sections */
@@ -191,9 +265,3 @@ body.dark-mode .stackCount {
   gap: 20px;
   padding: 20px;
 }
-
-.logsSection {
-  margin-top: 20px;
-  animation: fadeIn 0.3s ease-in;
-}
-

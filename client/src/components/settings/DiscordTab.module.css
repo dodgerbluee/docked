@@ -22,7 +22,9 @@
 }
 
 .webhookCard {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .webhookCard:hover {
@@ -156,4 +158,3 @@ body.dark-mode .addButton:hover:not(:disabled) {
   margin-left: 8px;
   background: transparent !important;
 }
-

@@ -27,6 +27,7 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
 ### 1. Pre-Release Preparation
 
 1. **Update version numbers**
+
    ```bash
    node scripts/version-bump.js 1.2.3
    ```
@@ -38,6 +39,7 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
    - Include migration notes if needed
 
 3. **Run validation**
+
    ```bash
    node scripts/validate-release.js
    ```
@@ -57,9 +59,29 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
 
 ### 3. Creating the Release
 
-#### Option A: Automated Release (Recommended)
+#### Option A: Promote Dev to Production (Recommended) ⭐
+
+**Easiest method** - Promotes your tested dev build to production:
+
+1. Go to GitHub Actions
+2. Select **"Promote Dev to Production"** workflow
+3. Click **"Run workflow"**
+4. Type `promote` in the confirmation field
+5. (Optional) Override version if needed
+6. Click **"Run workflow"**
+
+The workflow will:
+
+- Extract version from latest dev tag (e.g., `v1.2.3-dev` → `1.2.3`)
+- Run full test suite and security scans
+- Build production artifacts and Docker images
+- Create git tag and GitHub release
+- Tag Docker images as version and `latest`
+
+#### Option B: Tag-Based Release
 
 1. **Create and push tag**
+
    ```bash
    git tag -a v1.2.3 -m "Release v1.2.3"
    git push origin v1.2.3
@@ -73,7 +95,7 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
    - Generate changelog
    - Create GitHub release
 
-#### Option B: Manual Release
+#### Option C: Manual Release Workflow
 
 1. Go to GitHub Actions
 2. Select "Release" workflow
@@ -113,17 +135,20 @@ Use the [Release Checklist Issue Template](.github/ISSUE_TEMPLATE/release_checkl
 For urgent bug fixes or security patches:
 
 1. **Create hotfix branch from main**
+
    ```bash
    git checkout -b hotfix/v1.2.4 main
    ```
 
 2. **Make fix and test**
+
    ```bash
    # Make changes
    npm test
    ```
 
 3. **Update version**
+
    ```bash
    node scripts/version-bump.js 1.2.4
    ```
@@ -133,6 +158,7 @@ For urgent bug fixes or security patches:
    - Document the fix
 
 5. **Merge and release**
+
    ```bash
    git commit -m "fix: description of fix"
    git tag -a v1.2.4 -m "Hotfix v1.2.4"
@@ -237,4 +263,3 @@ For release-related questions:
 - [Semantic Versioning](https://semver.org/)
 - [Keep a Changelog](https://keepachangelog.com/)
 - [Release Processes Rubric](rubric/release-processes.md)
-

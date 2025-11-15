@@ -19,17 +19,12 @@ const BatchTab = React.memo(function BatchTab({
   colorScheme,
   onColorSchemeChange,
 }) {
-  const {
-    batchConfigs,
-    batchError,
-    batchSuccess,
-    batchLoading,
-    handleBatchConfigSubmit,
-  } = useGeneralSettings({
-    colorScheme,
-    onColorSchemeChange,
-    onBatchConfigUpdate,
-  });
+  const { batchConfigs, batchError, batchSuccess, batchLoading, handleBatchConfigSubmit } =
+    useGeneralSettings({
+      colorScheme,
+      onColorSchemeChange,
+      onBatchConfigUpdate,
+    });
 
   // Use extracted form hook
   const {
@@ -52,7 +47,7 @@ const BatchTab = React.memo(function BatchTab({
     [localConfigs, handleBatchConfigSubmit]
   );
 
-  const isSaving = Object.values(batchLoading).some(loading => loading);
+  const isSaving = Object.values(batchLoading).some((loading) => loading);
 
   return (
     <div className={styles.updateSection}>
@@ -60,11 +55,15 @@ const BatchTab = React.memo(function BatchTab({
         <Settings size={20} className={styles.titleIcon} />
         <h3 className={styles.title}>Batch Configuration</h3>
       </div>
-      
-      {batchError && <Alert variant="error" className={styles.alert}>{batchError}</Alert>}
+
+      {batchError && (
+        <Alert variant="error" className={styles.alert}>
+          {batchError}
+        </Alert>
+      )}
       {batchSuccess && (
         <Alert variant="info" className={styles.alert}>
-          <CheckCircle2 size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+          <CheckCircle2 size={16} style={{ marginRight: "8px", verticalAlign: "middle" }} />
           {batchSuccess}
         </Alert>
       )}
@@ -93,7 +92,10 @@ const BatchTab = React.memo(function BatchTab({
               <TimeIntervalInput
                 label="Interval"
                 value={intervalInputs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]}
-                unit={localConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.intervalUnit || BATCH_INTERVAL_UNITS.MINUTES}
+                unit={
+                  localConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.intervalUnit ||
+                  BATCH_INTERVAL_UNITS.MINUTES
+                }
                 onChange={(value) =>
                   handleIntervalInputChange(BATCH_JOB_TYPES.DOCKER_HUB_PULL, value)
                 }
@@ -135,7 +137,10 @@ const BatchTab = React.memo(function BatchTab({
               <TimeIntervalInput
                 label="Interval"
                 value={intervalInputs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
-                unit={localConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.intervalUnit || BATCH_INTERVAL_UNITS.MINUTES}
+                unit={
+                  localConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.intervalUnit ||
+                  BATCH_INTERVAL_UNITS.MINUTES
+                }
                 onChange={(value) =>
                   handleIntervalInputChange(BATCH_JOB_TYPES.TRACKED_APPS_CHECK, value)
                 }
@@ -174,4 +179,3 @@ BatchTab.propTypes = {
 };
 
 export default BatchTab;
-

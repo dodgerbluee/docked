@@ -49,16 +49,90 @@ body.dark-mode .runCard.selected {
   flex-wrap: wrap;
 }
 
-.date {
+.successIcon {
+  color: var(--success-green);
+  flex-shrink: 0;
+}
+
+.errorIconContainer {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.errorIconContainer:hover {
+  transform: scale(1.1);
+}
+
+.errorIcon {
+  color: var(--dodger-red);
+  flex-shrink: 0;
+}
+
+.timestamps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.timestampRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 0.85rem;
+}
+
+.timestampLabel {
   color: var(--text-secondary);
   font-weight: 500;
 }
 
+.timestampValue {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
 .stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 0.85rem;
-  color: var(--text-tertiary);
-  padding-top: 8px;
+  color: var(--text-primary);
+  padding-top: 12px;
+  margin-top: 8px;
   border-top: 1px solid var(--border-color);
 }
 
+.statItem {
+  color: var(--text-secondary);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+}
+
+/* Error modal styles - main styling is in global CSS (index.css) */
+
+.errorModalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.errorModalMessage {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.errorModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}

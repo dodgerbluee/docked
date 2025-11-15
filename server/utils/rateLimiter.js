@@ -30,19 +30,19 @@ async function rateLimitDelay(delayMs = 200) {
  */
 function recordRateLimitError() {
   const now = Date.now();
-  
+
   // Reset counter if enough time has passed since last error
   if (now - lastRateLimitErrorTime > RATE_LIMIT_ERROR_WINDOW) {
     consecutiveRateLimitErrors = 0;
   }
-  
+
   consecutiveRateLimitErrors++;
   lastRateLimitErrorTime = now;
-  
+
   if (consecutiveRateLimitErrors >= RATE_LIMIT_ERROR_THRESHOLD) {
     return true; // Threshold exceeded
   }
-  
+
   return false;
 }
 
@@ -81,4 +81,3 @@ module.exports = {
   getRateLimitErrorCount,
   resetRateLimitErrors,
 };
-

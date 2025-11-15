@@ -29,56 +29,84 @@ export function usePortainerPage({
   contentTab: controlledContentTab,
   onSetContentTab,
 }) {
+  // Error modal state
+  const [errorModal, setErrorModal] = useState({
+    isOpen: false,
+    title: null,
+    message: null,
+    containerName: null,
+    details: null,
+  });
   // Content tab state - use controlled if setter is provided, otherwise use internal state
   const [internalContentTab, setInternalContentTab] = useState(PORTAINER_CONTENT_TABS.UPDATES);
   const isContentTabControlled = onSetContentTab !== undefined;
-  const contentTab = isContentTabControlled 
-    ? (controlledContentTab !== undefined ? controlledContentTab : PORTAINER_CONTENT_TABS.UPDATES)
+  const contentTab = isContentTabControlled
+    ? controlledContentTab !== undefined
+      ? controlledContentTab
+      : PORTAINER_CONTENT_TABS.UPDATES
     : internalContentTab;
-  
-  const setContentTab = useCallback((value) => {
-    if (isContentTabControlled) {
-      // If controlled, call the parent's setter
-      onSetContentTab(value);
-    } else {
-      // If uncontrolled, use internal state
-      if (typeof value === 'function') {
-        setInternalContentTab(value);
+
+  const setContentTab = useCallback(
+    (value) => {
+      if (isContentTabControlled) {
+        // If controlled, call the parent's setter
+        onSetContentTab(value);
       } else {
-        setInternalContentTab(value);
+        // If uncontrolled, use internal state
+        if (typeof value === "function") {
+          setInternalContentTab(value);
+        } else {
+          setInternalContentTab(value);
+        }
       }
-    }
-  }, [isContentTabControlled, onSetContentTab]);
-  
+    },
+    [isContentTabControlled, onSetContentTab]
+  );
+
   // Instance filter state - use controlled if setter is provided, otherwise use internal state
-  const [internalSelectedPortainerInstances, setInternalSelectedPortainerInstances] = useState(new Set());
+  const [internalSelectedPortainerInstances, setInternalSelectedPortainerInstances] = useState(
+    new Set()
+  );
   const isSelectedInstancesControlled = onSetSelectedPortainerInstances !== undefined;
-  const selectedPortainerInstances = isSelectedInstancesControlled
-    ? (controlledSelectedPortainerInstances !== undefined ? controlledSelectedPortainerInstances : new Set())
-    : internalSelectedPortainerInstances;
-  
-  const setSelectedPortainerInstances = useCallback((value) => {
-    if (isSelectedInstancesControlled) {
-      // If controlled, call the parent's setter
-      onSetSelectedPortainerInstances(value);
-    } else {
-      // If uncontrolled, use internal state
-      if (typeof value === 'function') {
-        setInternalSelectedPortainerInstances(value);
+  const selectedPortainerInstances = useMemo(
+    () =>
+      isSelectedInstancesControlled
+        ? controlledSelectedPortainerInstances !== undefined
+          ? controlledSelectedPortainerInstances
+          : new Set()
+        : internalSelectedPortainerInstances,
+    [
+      isSelectedInstancesControlled,
+      controlledSelectedPortainerInstances,
+      internalSelectedPortainerInstances,
+    ]
+  );
+
+  const setSelectedPortainerInstances = useCallback(
+    (value) => {
+      if (isSelectedInstancesControlled) {
+        // If controlled, call the parent's setter
+        onSetSelectedPortainerInstances(value);
       } else {
-        setInternalSelectedPortainerInstances(value);
+        // If uncontrolled, use internal state
+        if (typeof value === "function") {
+          setInternalSelectedPortainerInstances(value);
+        } else {
+          setInternalSelectedPortainerInstances(value);
+        }
       }
-    }
-  }, [isSelectedInstancesControlled, onSetSelectedPortainerInstances]);
-  
+    },
+    [isSelectedInstancesControlled, onSetSelectedPortainerInstances]
+  );
+
   // Collapsed stacks state
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
   const [collapsedUnusedImages, setCollapsedUnusedImages] = useState(false);
-  
+
   // Selection state
   const [selectedContainers, setSelectedContainers] = useState(new Set());
   const [selectedImages, setSelectedImages] = useState(new Set());
-  
+
   // Action states
   const [upgrading, setUpgrading] = useState({});
   const [batchUpgrading, setBatchUpgrading] = useState(false);
@@ -93,12 +121,18 @@ export function usePortainerPage({
     });
   }, [portainerInstances]);
 
+  // Memoize selectedPortainerInstances to avoid dependency issues
+  const memoizedSelectedInstances = useMemo(
+    () => selectedPortainerInstances,
+    [selectedPortainerInstances]
+  );
+
   // Get selected instances to show
   const instancesToShow = useMemo(() => {
-    return selectedPortainerInstances.size > 0
-      ? sortedPortainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+    return memoizedSelectedInstances.size > 0
+      ? sortedPortainerInstances.filter((inst) => memoizedSelectedInstances.has(inst.name))
       : sortedPortainerInstances;
-  }, [selectedPortainerInstances, sortedPortainerInstances]);
+  }, [memoizedSelectedInstances, sortedPortainerInstances]);
 
   // Aggregate containers from selected instances
   const aggregatedContainers = useMemo(() => {
@@ -163,9 +197,7 @@ export function usePortainerPage({
   const isPortainerContainer = useCallback((container) => {
     const imageName = container.image?.toLowerCase() || "";
     const containerName = container.name?.toLowerCase() || "";
-    return (
-      imageName.includes("portainer") || containerName.includes("portainer")
-    );
+    return imageName.includes("portainer") || containerName.includes("portainer");
   }, []);
 
   // Toggle stack collapse
@@ -195,68 +227,78 @@ export function usePortainerPage({
   }, []);
 
   // Select all containers
-  const handleSelectAll = useCallback((containersToSelect) => {
-    const selectableContainers = containersToSelect.filter(
-      (c) => !isPortainerContainer(c)
-    );
-    const allSelected = selectableContainers.every((c) =>
-      selectedContainers.has(c.id)
-    );
-    if (allSelected) {
-      setSelectedContainers(new Set());
-    } else {
-      setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
-    }
-  }, [isPortainerContainer, selectedContainers]);
+  const handleSelectAll = useCallback(
+    (containersToSelect) => {
+      const selectableContainers = containersToSelect.filter((c) => !isPortainerContainer(c));
+      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
+      if (allSelected) {
+        setSelectedContainers(new Set());
+      } else {
+        setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
+      }
+    },
+    [isPortainerContainer, selectedContainers]
+  );
 
   // Upgrade single container
-  const handleUpgrade = useCallback(async (container) => {
-    try {
-      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
-      const response = await axios.post(
-        `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-        {
-          endpointId: container.endpointId,
-          imageName: container.image,
-          portainerUrl: container.portainerUrl,
-        }
-      );
-
-      if (response.data.success) {
-        successfullyUpdatedContainersRef.current.add(container.id);
-        
-        if (onContainersUpdate) {
-          onContainersUpdate((prevContainers) =>
-            prevContainers.map((c) =>
-              c.id === container.id ? { ...c, hasUpdate: false } : c
-            )
-          );
-        }
-        
-        setSelectedContainers((prev) => {
-          const next = new Set(prev);
-          next.delete(container.id);
-          return next;
-        });
-        
-        const oldImage = response.data.oldImage || container.image;
-        const newImage = response.data.newImage || container.image;
-        toast.success(
-          `Container ${container.name} upgraded successfully! From: ${oldImage} To: ${newImage}`
+  const handleUpgrade = useCallback(
+    async (container) => {
+      try {
+        setUpgrading((prev) => ({ ...prev, [container.id]: true }));
+        const response = await axios.post(
+          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
+          {
+            endpointId: container.endpointId,
+            imageName: container.image,
+            portainerUrl: container.portainerUrl,
+          }
         );
-        
-        if (fetchContainers) {
-          fetchContainers();
+
+        if (response.data.success) {
+          successfullyUpdatedContainersRef.current.add(container.id);
+
+          if (onContainersUpdate) {
+            onContainersUpdate((prevContainers) =>
+              prevContainers.map((c) => (c.id === container.id ? { ...c, hasUpdate: false } : c))
+            );
+          }
+
+          setSelectedContainers((prev) => {
+            const next = new Set(prev);
+            next.delete(container.id);
+            return next;
+          });
+
+          const oldImage = response.data.oldImage || container.image;
+          const newImage = response.data.newImage || container.image;
+          toast.success(
+            `Container ${container.name} upgraded successfully! From: ${oldImage} To: ${newImage}`
+          );
+
+          if (fetchContainers) {
+            fetchContainers();
+          }
         }
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
+        const errorDetails = err.response?.data?.details || err.stack || null;
+
+        // Show error modal instead of toast
+        setErrorModal({
+          isOpen: true,
+          title: "Container Upgrade Failed",
+          message: errorMessage,
+          containerName: container.name,
+          details: errorDetails,
+        });
+
+        console.error("Error upgrading container:", err);
+      } finally {
+        setUpgrading((prev) => ({ ...prev, [container.id]: false }));
       }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Failed to upgrade ${container.name}: ${errorMessage}`);
-      console.error("Error upgrading container:", err);
-    } finally {
-      setUpgrading((prev) => ({ ...prev, [container.id]: false }));
-    }
-  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]);
+    },
+    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]
+  );
 
   // Batch upgrade - returns data for confirmation dialog
   const handleBatchUpgrade = useCallback(() => {
@@ -276,19 +318,18 @@ export function usePortainerPage({
   }, [selectedContainers, aggregatedContainers.all]);
 
   // Execute batch upgrade after confirmation
-  const executeBatchUpgrade = useCallback(async (containersToUpgrade) => {
-    const upgradingState = {};
-    containersToUpgrade.forEach((c) => {
-      upgradingState[c.id] = true;
-    });
-    setUpgrading((prev) => ({ ...prev, ...upgradingState }));
+  const executeBatchUpgrade = useCallback(
+    async (containersToUpgrade) => {
+      const upgradingState = {};
+      containersToUpgrade.forEach((c) => {
+        upgradingState[c.id] = true;
+      });
+      setUpgrading((prev) => ({ ...prev, ...upgradingState }));
 
-    try {
-      setBatchUpgrading(true);
+      try {
+        setBatchUpgrading(true);
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/containers/batch-upgrade`,
-        {
+        const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
           containers: containersToUpgrade.map((c) => ({
             containerId: c.id,
             endpointId: c.endpointId,
@@ -296,62 +337,90 @@ export function usePortainerPage({
             containerName: c.name,
             portainerUrl: c.portainerUrl,
           })),
+        });
+
+        const successfulIds = new Set(response.data.results?.map((r) => r.containerId) || []);
+
+        successfulIds.forEach((containerId) => {
+          successfullyUpdatedContainersRef.current.add(containerId);
+        });
+
+        if (onContainersUpdate) {
+          onContainersUpdate((prevContainers) =>
+            prevContainers.map((c) => (successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c))
+          );
         }
-      );
 
-      const successfulIds = new Set(
-        response.data.results?.map((r) => r.containerId) || []
-      );
-      
-      successfulIds.forEach((containerId) => {
-        successfullyUpdatedContainersRef.current.add(containerId);
-      });
-      
-      if (onContainersUpdate) {
-        onContainersUpdate((prevContainers) =>
-          prevContainers.map((c) =>
-            successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c
-          )
-        );
+        setSelectedContainers((prev) => {
+          const next = new Set(prev);
+          successfulIds.forEach((id) => next.delete(id));
+          return next;
+        });
+
+        const successCount = response.data.results?.length || 0;
+        const errorCount = response.data.errors?.length || 0;
+
+        if (errorCount > 0) {
+          // Show errors in modal
+          const errorDetails = response.data.errors
+            .map((err) => `${err.containerName}: ${err.error}`)
+            .join("\n");
+          const errorSummary = response.data.errors
+            .map((err) => `${err.containerName}: ${err.error}`)
+            .join(", ");
+
+          setErrorModal({
+            isOpen: true,
+            title: "Batch Upgrade Completed with Errors",
+            message: `${successCount} container(s) upgraded successfully, but ${errorCount} container(s) failed:\n\n${errorSummary}`,
+            containerName: null, // Multiple containers, so no single name
+            details: errorDetails,
+          });
+
+          // Still show success toast for successful ones
+          if (successCount > 0) {
+            toast.success(`Successfully upgraded ${successCount} container(s).`);
+          }
+        } else {
+          toast.success(
+            `Batch upgrade completed! Successfully upgraded ${successCount} container(s).`
+          );
+        }
+        setSelectedContainers(new Set());
+
+        if (fetchContainers) {
+          fetchContainers();
+        }
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
+        const errorDetails = err.response?.data?.details || err.stack || null;
+
+        console.log("🔴 Setting error modal for batch upgrade failure:", {
+          errorMessage,
+          errorDetails,
+        });
+
+        // Show error modal instead of toast
+        setErrorModal({
+          isOpen: true,
+          title: "Batch Upgrade Failed",
+          message: errorMessage,
+          containerName: null, // Batch operation, no single container
+          details: errorDetails,
+        });
+
+        console.error("Error in batch upgrade:", err);
+      } finally {
+        setBatchUpgrading(false);
+        const clearedState = {};
+        containersToUpgrade.forEach((c) => {
+          clearedState[c.id] = false;
+        });
+        setUpgrading((prev) => ({ ...prev, ...clearedState }));
       }
-      
-      setSelectedContainers((prev) => {
-        const next = new Set(prev);
-        successfulIds.forEach((id) => next.delete(id));
-        return next;
-      });
-
-      const successCount = response.data.results?.length || 0;
-      const errorCount = response.data.errors?.length || 0;
-
-      if (errorCount > 0) {
-        const errorMessages = response.data.errors
-          .map((err) => `${err.containerName}: ${err.error}`)
-          .join(", ");
-        toast.warning(
-          `Batch upgrade completed: ${successCount} succeeded, ${errorCount} failed. ${errorMessages}`
-        );
-      } else {
-        toast.success(`Batch upgrade completed! Successfully upgraded ${successCount} container(s).`);
-      }
-      setSelectedContainers(new Set());
-
-      if (fetchContainers) {
-        fetchContainers();
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Batch upgrade failed: ${errorMessage}`);
-      console.error("Error in batch upgrade:", err);
-    } finally {
-      setBatchUpgrading(false);
-      const clearedState = {};
-      containersToUpgrade.forEach((c) => {
-        clearedState[c.id] = false;
-      });
-      setUpgrading((prev) => ({ ...prev, ...clearedState }));
-    }
-  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]);
+    },
+    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]
+  );
 
   // Toggle image selection
   const handleToggleImageSelect = useCallback((imageId) => {
@@ -376,46 +445,50 @@ export function usePortainerPage({
   }, []);
 
   // Execute delete after confirmation
-  const executeDeleteImage = useCallback(async (image) => {
-
-    try {
-      setDeletingImages(true);
-      const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-        images: [{
-          id: image.id,
-          portainerUrl: image.portainerUrl,
-          endpointId: image.endpointId,
-        }],
-      });
-
-      if (response.data.success) {
-        if (onUnusedImagesUpdate) {
-          onUnusedImagesUpdate((prev) => prev.filter((img) => img.id !== image.id));
-        }
-        if (onUnusedImagesCountUpdate) {
-          onUnusedImagesCountUpdate((prev) => Math.max(0, prev - 1));
-        }
-        setSelectedImages((prev) => {
-          const next = new Set(prev);
-          next.delete(image.id);
-          return next;
+  const executeDeleteImage = useCallback(
+    async (image) => {
+      try {
+        setDeletingImages(true);
+        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
+          images: [
+            {
+              id: image.id,
+              portainerUrl: image.portainerUrl,
+              endpointId: image.endpointId,
+            },
+          ],
         });
-        toast.success(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
-        if (fetchContainers) {
-          fetchContainers().catch(() => {});
+
+        if (response.data.success) {
+          if (onUnusedImagesUpdate) {
+            onUnusedImagesUpdate((prev) => prev.filter((img) => img.id !== image.id));
+          }
+          if (onUnusedImagesCountUpdate) {
+            onUnusedImagesCountUpdate((prev) => Math.max(0, prev - 1));
+          }
+          setSelectedImages((prev) => {
+            const next = new Set(prev);
+            next.delete(image.id);
+            return next;
+          });
+          toast.success(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
+          if (fetchContainers) {
+            fetchContainers().catch(() => {});
+          }
+        } else {
+          toast.error("Failed to delete image. Check console for details.");
+          console.error("Delete errors:", response.data.errors);
         }
-      } else {
-        toast.error("Failed to delete image. Check console for details.");
-        console.error("Delete errors:", response.data.errors);
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
+        toast.error(`Failed to delete image: ${errorMessage}`);
+        console.error("Error deleting image:", err);
+      } finally {
+        setDeletingImages(false);
       }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Failed to delete image: ${errorMessage}`);
-      console.error("Error deleting image:", err);
-    } finally {
-      setDeletingImages(false);
-    }
-  }, [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]);
+    },
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]
+  );
 
   // Delete multiple images
   // Returns data for confirmation dialog
@@ -431,61 +504,72 @@ export function usePortainerPage({
   }, [selectedImages, portainerUnusedImages]);
 
   // Execute batch delete after confirmation
-  const executeDeleteImages = useCallback(async (imagesToDelete) => {
-    try {
-      setDeletingImages(true);
+  const executeDeleteImages = useCallback(
+    async (imagesToDelete) => {
+      try {
+        setDeletingImages(true);
 
-      const uniqueImages = [];
-      const seenKeys = new Set();
-      for (const img of imagesToDelete) {
-        const key = `${img.id}-${img.portainerUrl}-${img.endpointId}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          uniqueImages.push(img);
+        const uniqueImages = [];
+        const seenKeys = new Set();
+        for (const img of imagesToDelete) {
+          const key = `${img.id}-${img.portainerUrl}-${img.endpointId}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            uniqueImages.push(img);
+          }
         }
-      }
 
-      const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-        images: uniqueImages.map((img) => ({
-          id: img.id,
-          portainerUrl: img.portainerUrl,
-          endpointId: img.endpointId,
-        })),
-      });
-
-      if (response.data.success) {
-        const deletedCount = response.data.deleted || uniqueImages.length;
-        const deletedIds = new Set(uniqueImages.map((img) => img.id));
-        
-        if (onUnusedImagesUpdate) {
-          onUnusedImagesUpdate((prev) =>
-            prev.filter((img) => !deletedIds.has(img.id))
-          );
-        }
-        if (onUnusedImagesCountUpdate) {
-          onUnusedImagesCountUpdate((prev) => Math.max(0, prev - deletedCount));
-        }
-        setSelectedImages((prev) => {
-          const next = new Set(prev);
-          deletedIds.forEach((id) => next.delete(id));
-          return next;
+        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
+          images: uniqueImages.map((img) => ({
+            id: img.id,
+            portainerUrl: img.portainerUrl,
+            endpointId: img.endpointId,
+          })),
         });
-        toast.success(`Successfully deleted ${deletedCount} image(s).`);
-        if (fetchContainers) {
-          fetchContainers().catch(() => {});
+
+        if (response.data.success) {
+          const deletedCount = response.data.deleted || uniqueImages.length;
+          const deletedIds = new Set(uniqueImages.map((img) => img.id));
+
+          if (onUnusedImagesUpdate) {
+            onUnusedImagesUpdate((prev) => prev.filter((img) => !deletedIds.has(img.id)));
+          }
+          if (onUnusedImagesCountUpdate) {
+            onUnusedImagesCountUpdate((prev) => Math.max(0, prev - deletedCount));
+          }
+          setSelectedImages((prev) => {
+            const next = new Set(prev);
+            deletedIds.forEach((id) => next.delete(id));
+            return next;
+          });
+          toast.success(`Successfully deleted ${deletedCount} image(s).`);
+          if (fetchContainers) {
+            fetchContainers().catch(() => {});
+          }
+        } else {
+          toast.error("Failed to delete images. Check console for details.");
+          console.error("Delete errors:", response.data.errors);
         }
-      } else {
-        toast.error("Failed to delete images. Check console for details.");
-        console.error("Delete errors:", response.data.errors);
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
+        toast.error(`Failed to delete images: ${errorMessage}`);
+        console.error("Error deleting images:", err);
+      } finally {
+        setDeletingImages(false);
       }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Failed to delete images: ${errorMessage}`);
-      console.error("Error deleting images:", err);
-    } finally {
-      setDeletingImages(false);
-    }
-  }, [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]);
+    },
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]
+  );
+
+  const closeErrorModal = () => {
+    setErrorModal({
+      isOpen: false,
+      title: null,
+      message: null,
+      containerName: null,
+      details: null,
+    });
+  };
 
   return {
     // State
@@ -501,18 +585,22 @@ export function usePortainerPage({
     upgrading,
     batchUpgrading,
     deletingImages,
-    
+
+    // Error modal
+    errorModal,
+    closeErrorModal,
+
     // Computed data
     sortedPortainerInstances,
     instancesToShow,
     aggregatedContainers,
     groupedStacks,
     portainerUnusedImages,
-    
+
     // Helpers
     isPortainerContainer,
     formatBytes: formatBytesUtil,
-    
+
     // Actions
     toggleStack,
     handleToggleSelect,
@@ -525,10 +613,9 @@ export function usePortainerPage({
     executeDeleteImage,
     handleDeleteImages,
     executeDeleteImages,
-    
+
     // Props pass-through
     dockerHubDataPulled,
     lastPullTime,
   };
 }
-

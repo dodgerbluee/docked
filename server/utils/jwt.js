@@ -3,12 +3,14 @@
  * Handles token generation and verification
  */
 
-const jwt = require('jsonwebtoken');
-const config = require('../config');
+const jwt = require("jsonwebtoken");
+const config = require("../config");
 
-const JWT_SECRET = process.env.JWT_SECRET || config.jwt?.secret || 'change-this-secret-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || config.jwt?.expiresIn || '24h';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || config.jwt?.refreshExpiresIn || '7d';
+const JWT_SECRET =
+  process.env.JWT_SECRET || config.jwt?.secret || "change-this-secret-in-production";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || config.jwt?.expiresIn || "24h";
+const JWT_REFRESH_EXPIRES_IN =
+  process.env.JWT_REFRESH_EXPIRES_IN || config.jwt?.refreshExpiresIn || "7d";
 
 /**
  * Generate JWT token
@@ -19,8 +21,8 @@ const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || config.jwt?
 function generateToken(payload, expiresIn = JWT_EXPIRES_IN) {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn,
-    issuer: 'docked',
-    audience: 'docked-users',
+    issuer: "docked",
+    audience: "docked-users",
   });
 }
 
@@ -32,8 +34,8 @@ function generateToken(payload, expiresIn = JWT_EXPIRES_IN) {
 function generateRefreshToken(payload) {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN,
-    issuer: 'docked',
-    audience: 'docked-users',
+    issuer: "docked",
+    audience: "docked-users",
   });
 }
 
@@ -45,15 +47,15 @@ function generateRefreshToken(payload) {
 function verifyToken(token) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, {
-      issuer: 'docked',
-      audience: 'docked-users',
+      issuer: "docked",
+      audience: "docked-users",
     });
     return decoded;
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      throw new Error('Token expired');
-    } else if (error.name === 'JsonWebTokenError') {
-      throw new Error('Invalid token');
+    if (error.name === "TokenExpiredError") {
+      throw new Error("Token expired");
+    } else if (error.name === "JsonWebTokenError") {
+      throw new Error("Invalid token");
     } else {
       throw error;
     }
@@ -78,4 +80,3 @@ module.exports = {
   JWT_EXPIRES_IN,
   JWT_REFRESH_EXPIRES_IN,
 };
-

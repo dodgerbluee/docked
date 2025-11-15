@@ -3,22 +3,27 @@
  * Handles container operations and update checking
  */
 
-const portainerService = require('./portainerService');
-const dockerRegistryService = require('./dockerRegistryService');
-const config = require('../config');
-const { getAllPortainerInstances, getContainerCache, setContainerCache, clearContainerCache } = require('../db/database');
-const logger = require('../utils/logger');
+const portainerService = require("./portainerService");
+const dockerRegistryService = require("./dockerRegistryService");
+const config = require("../config");
+const {
+  getAllPortainerInstances,
+  getContainerCache,
+  setContainerCache,
+  clearContainerCache,
+} = require("../db/database");
+const logger = require("../utils/logger");
 
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
 function getDiscordService() {
   if (!discordService) {
     try {
-      discordService = require('./discordService');
-  } catch (error) {
-    logger.error('Error loading discordService:', error);
-    return null;
-  }
+      discordService = require("./discordService");
+    } catch (error) {
+      logger.error("Error loading discordService:", error);
+      return null;
+    }
   }
   return discordService;
 }
@@ -38,9 +43,7 @@ async function checkImageUpdates(
   endpointId = null
 ) {
   // Extract image name and tag
-  const imageParts = imageName.includes(':')
-    ? imageName.split(':')
-    : [imageName, 'latest'];
+  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
   const repo = imageParts[0];
   const currentTag = imageParts[1];
 
@@ -96,7 +99,7 @@ async function checkImageUpdates(
   const formatDigest = (digest) => {
     if (!digest) return null;
     // Return first 12 characters after "sha256:" for display
-    return digest.replace('sha256:', '').substring(0, 12);
+    return digest.replace("sha256:", "").substring(0, 12);
   };
 
   // Get publish date for latest tag (non-blocking - don't fail if this errors)
@@ -140,12 +143,7 @@ async function checkImageUpdates(
  * @param {string} imageName - Image name (repo:tag)
  * @returns {Promise<Object>} - Upgrade result
  */
-async function upgradeSingleContainer(
-  portainerUrl,
-  endpointId,
-  containerId,
-  imageName
-) {
+async function upgradeSingleContainer(portainerUrl, endpointId, containerId, imageName) {
   // Get container details to preserve configuration
   const containerDetails = await portainerService.getContainerDetails(
     portainerUrl,
@@ -155,17 +153,14 @@ async function upgradeSingleContainer(
 
   // Preserve the original container name (important for stacks)
   const originalContainerName = containerDetails.Name;
-  
+
   // Check if this container is part of a stack
   const labels = containerDetails.Config.Labels || {};
-  const stackName = labels['com.docker.compose.project'] || 
-                    labels['com.docker.stack.namespace'] || 
-                    null;
+  const stackName =
+    labels["com.docker.compose.project"] || labels["com.docker.stack.namespace"] || null;
 
   // Extract current and new image info
-  const imageParts = imageName.includes(':')
-    ? imageName.split(':')
-    : [imageName, 'latest'];
+  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
   const imageRepo = imageParts[0];
   const currentTag = imageParts[1];
 
@@ -175,9 +170,9 @@ async function upgradeSingleContainer(
   const newTag = currentTag;
   const newImageName = `${imageRepo}:${newTag}`;
 
-  logger.info('Starting container upgrade', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Starting container upgrade", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     containerId: containerId.substring(0, 12),
     portainerUrl: portainerUrl,
@@ -187,28 +182,33 @@ async function upgradeSingleContainer(
   });
 
   // Stop the container
-  logger.info('Stopping container', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Stopping container", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     containerId: containerId.substring(0, 12),
   });
   await portainerService.stopContainer(portainerUrl, endpointId, containerId);
 
   // Wait for container to fully stop (important for databases and services)
-  logger.debug('Waiting for container to stop', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.debug("Waiting for container to stop", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
   });
   let stopped = false;
   for (let i = 0; i < 10; i++) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     try {
-      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
+      const details = await portainerService.getContainerDetails(
+        portainerUrl,
+        endpointId,
+        containerId
+      );
       // Docker API returns State as an object with Status property
-      const containerStatus = details.State?.Status || (details.State?.Running === false ? 'exited' : 'unknown');
-      if (containerStatus === 'exited' || containerStatus === 'stopped') {
+      const containerStatus =
+        details.State?.Status || (details.State?.Running === false ? "exited" : "unknown");
+      if (containerStatus === "exited" || containerStatus === "stopped") {
         stopped = true;
         break;
       }
@@ -221,27 +221,27 @@ async function upgradeSingleContainer(
     }
   }
   if (!stopped) {
-    logger.warn('Container did not stop within timeout, proceeding anyway', {
-      module: 'containerService',
-      operation: 'upgradeSingleContainer',
+    logger.warn("Container did not stop within timeout, proceeding anyway", {
+      module: "containerService",
+      operation: "upgradeSingleContainer",
       containerName: originalContainerName,
       containerId: containerId.substring(0, 12),
     });
   }
 
   // Pull the latest image
-  logger.info('Pulling latest image', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Pulling latest image", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     image: newImageName,
   });
   await portainerService.pullImage(portainerUrl, endpointId, newImageName);
 
   // Remove old container
-  logger.info('Removing old container', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Removing old container", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     containerId: containerId.substring(0, 12),
   });
@@ -252,9 +252,9 @@ async function upgradeSingleContainer(
   delete cleanHostConfig.ContainerIDFile;
 
   // Create new container with same configuration
-  logger.info('Creating new container', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Creating new container", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     image: newImageName,
   });
@@ -267,9 +267,11 @@ async function upgradeSingleContainer(
     Labels: containerDetails.Config.Labels,
     WorkingDir: containerDetails.Config.WorkingDir,
     Entrypoint: containerDetails.Config.Entrypoint,
-    NetworkingConfig: containerDetails.NetworkSettings?.Networks ? {
-      EndpointsConfig: containerDetails.NetworkSettings.Networks
-    } : undefined,
+    NetworkingConfig: containerDetails.NetworkSettings?.Networks
+      ? {
+          EndpointsConfig: containerDetails.NetworkSettings.Networks,
+        }
+      : undefined,
   };
 
   // Pass container name as separate parameter (Docker API uses it as query param)
@@ -281,18 +283,18 @@ async function upgradeSingleContainer(
   );
 
   // Start the new container
-  logger.info('Starting new container', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Starting new container", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     newContainerId: newContainer.Id.substring(0, 12),
   });
   await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
 
   // Wait for container to be healthy/ready (CRITICAL for databases)
-  logger.info('Waiting for container to be ready', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Waiting for container to be ready", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     maxWaitTime: `${maxWaitTime / 1000}s`,
   });
@@ -304,22 +306,34 @@ async function upgradeSingleContainer(
   const requiredStableChecks = 3; // Container must be running for 3 consecutive checks (6 seconds)
 
   while (Date.now() - startTime < maxWaitTime) {
-    await new Promise(resolve => setTimeout(resolve, checkInterval));
-    
+    await new Promise((resolve) => setTimeout(resolve, checkInterval));
+
     try {
-      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
-      
+      const details = await portainerService.getContainerDetails(
+        portainerUrl,
+        endpointId,
+        newContainer.Id
+      );
+
       // Check if container is running
       // Docker API returns State as an object with Status property
-      const containerStatus = details.State?.Status || (details.State?.Running ? 'running' : 'unknown');
-      if (containerStatus !== 'running') {
+      const containerStatus =
+        details.State?.Status || (details.State?.Running ? "running" : "unknown");
+      if (containerStatus !== "running") {
         consecutiveRunningChecks = 0; // Reset counter
-        if (containerStatus === 'exited') {
+        if (containerStatus === "exited") {
           // Container exited - get logs for debugging
           try {
-            const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
+            const logs = await portainerService.getContainerLogs(
+              portainerUrl,
+              endpointId,
+              newContainer.Id,
+              50
+            );
             const exitCode = details.State?.ExitCode || 0;
-            throw new Error(`Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`);
+            throw new Error(
+              `Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`
+            );
           } catch (logErr) {
             const exitCode = details.State?.ExitCode || 0;
             throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
@@ -334,21 +348,26 @@ async function upgradeSingleContainer(
       // Check health status if health check is configured
       if (details.State?.Health) {
         const healthStatus = details.State.Health.Status;
-        if (healthStatus === 'healthy') {
+        if (healthStatus === "healthy") {
           isReady = true;
-          logger.info('Container health check passed', {
-            module: 'containerService',
-            operation: 'upgradeSingleContainer',
+          logger.info("Container health check passed", {
+            module: "containerService",
+            operation: "upgradeSingleContainer",
             containerName: originalContainerName,
             waitTime: `${(Date.now() - startTime) / 1000}s`,
           });
           break;
-        } else if (healthStatus === 'unhealthy') {
+        } else if (healthStatus === "unhealthy") {
           try {
-            const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, newContainer.Id, 50);
+            const logs = await portainerService.getContainerLogs(
+              portainerUrl,
+              endpointId,
+              newContainer.Id,
+              50
+            );
             throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
           } catch (logErr) {
-            throw new Error('Container health check failed. Could not retrieve logs.');
+            throw new Error("Container health check failed. Could not retrieve logs.");
           }
         }
         // Status is 'starting' or 'none', continue waiting
@@ -358,13 +377,16 @@ async function upgradeSingleContainer(
         if (waitTime >= 30000 && consecutiveRunningChecks >= 5) {
           // Container has been running for 30+ seconds with 5+ stable checks
           // and health check is still starting - likely a container that doesn't properly report health
-          logger.info('Health check still starting but container is running stably, considering ready', {
-            module: 'containerService',
-            operation: 'upgradeSingleContainer',
-            containerName: originalContainerName,
-            waitTime: `${waitTime / 1000}s`,
-            consecutiveChecks: consecutiveRunningChecks,
-          });
+          logger.info(
+            "Health check still starting but container is running stably, considering ready",
+            {
+              module: "containerService",
+              operation: "upgradeSingleContainer",
+              containerName: originalContainerName,
+              waitTime: `${waitTime / 1000}s`,
+              consecutiveChecks: consecutiveRunningChecks,
+            }
+          );
           isReady = true;
           break;
         }
@@ -374,31 +396,32 @@ async function upgradeSingleContainer(
         // For databases and services, wait a minimum time for initialization
         const waitTime = Date.now() - startTime;
         const minInitTime = 15000; // Wait at least 15 seconds for initialization (databases need this)
-        
+
         if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
           // Container has been running stably for required checks
           isReady = true;
-          logger.info('Container is running and stable', {
-            module: 'containerService',
-            operation: 'upgradeSingleContainer',
+          logger.info("Container is running and stable", {
+            module: "containerService",
+            operation: "upgradeSingleContainer",
             containerName: originalContainerName,
-            stableTime: `${consecutiveRunningChecks * checkInterval / 1000}s`,
+            stableTime: `${(consecutiveRunningChecks * checkInterval) / 1000}s`,
             waitTime: `${waitTime / 1000}s`,
           });
           break;
         }
-        
+
         // If we've waited a reasonable time and container is running, consider it ready
         // This handles containers that start quickly (non-databases)
         if (waitTime >= 5000 && consecutiveRunningChecks >= 2) {
           // Check if this looks like a database container (common database image names)
-          const isLikelyDatabase = /postgres|mysql|mariadb|redis|mongodb|couchdb|influxdb|elasticsearch/i.test(imageName);
+          const isLikelyDatabase =
+            /postgres|mysql|mariadb|redis|mongodb|couchdb|influxdb|elasticsearch/i.test(imageName);
           if (!isLikelyDatabase) {
             // Not a database, and it's been running stably - consider it ready
             isReady = true;
-            logger.info('Container is running and stable (non-database service)', {
-              module: 'containerService',
-              operation: 'upgradeSingleContainer',
+            logger.info("Container is running and stable (non-database service)", {
+              module: "containerService",
+              operation: "upgradeSingleContainer",
               containerName: originalContainerName,
               waitTime: `${waitTime / 1000}s`,
             });
@@ -408,7 +431,7 @@ async function upgradeSingleContainer(
         }
       }
     } catch (err) {
-      if (err.message.includes('exited') || err.message.includes('health check')) {
+      if (err.message.includes("exited") || err.message.includes("health check")) {
         throw err;
       }
       // Continue waiting on other errors
@@ -419,35 +442,45 @@ async function upgradeSingleContainer(
   if (!isReady) {
     // Final check - if container is running, consider it ready even if we hit timeout
     try {
-      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
+      const details = await portainerService.getContainerDetails(
+        portainerUrl,
+        endpointId,
+        newContainer.Id
+      );
       // Docker API returns State as an object with Status property
-      const containerStatus = details.State?.Status || (details.State?.Running ? 'running' : 'unknown');
-      const isRunning = containerStatus === 'running' || details.State?.Running === true;
+      const containerStatus =
+        details.State?.Status || (details.State?.Running ? "running" : "unknown");
+      const isRunning = containerStatus === "running" || details.State?.Running === true;
       if (isRunning) {
-        logger.warn('Timeout reached but container is running, considering it ready', {
-          module: 'containerService',
-          operation: 'upgradeSingleContainer',
+        logger.warn("Timeout reached but container is running, considering it ready", {
+          module: "containerService",
+          operation: "upgradeSingleContainer",
           containerName: originalContainerName,
           waitTime: `${maxWaitTime / 1000}s`,
         });
         isReady = true;
       } else {
         // Format state info for error message
-        const stateInfo = containerStatus || (details.State ? JSON.stringify(details.State) : 'unknown');
-        throw new Error(`Container did not become ready within timeout period (2 minutes). Current state: ${stateInfo}`);
+        const stateInfo =
+          containerStatus || (details.State ? JSON.stringify(details.State) : "unknown");
+        throw new Error(
+          `Container did not become ready within timeout period (2 minutes). Current state: ${stateInfo}`
+        );
       }
     } catch (err) {
-      if (err.message.includes('Current state')) {
+      if (err.message.includes("Current state")) {
         throw err;
       }
       // If we can't check, throw the timeout error
-      throw new Error('Container did not become ready within timeout period (2 minutes). Container may have failed to start.');
+      throw new Error(
+        "Container did not become ready within timeout period (2 minutes). Container may have failed to start."
+      );
     }
   }
 
-  logger.info('Container upgrade completed and container is ready', {
-    module: 'containerService',
-    operation: 'upgradeSingleContainer',
+  logger.info("Container upgrade completed and container is ready", {
+    module: "containerService",
+    operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
   });
@@ -457,22 +490,27 @@ async function upgradeSingleContainer(
     logger.info(`🔄 Checking for dependent containers in stack: ${stackName}`);
     try {
       const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
-      
+
       // Find containers in the same stack
       const stackContainers = [];
       for (const container of allContainers) {
         if (container.Id === newContainer.Id) continue; // Skip the one we just upgraded
-        
+
         try {
-          const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.Id);
-          const containerStackName = details.Config.Labels?.['com.docker.compose.project'] || 
-                                     details.Config.Labels?.['com.docker.stack.namespace'] || 
-                                     null;
-          
-          if (containerStackName === stackName && details.State === 'running') {
+          const details = await portainerService.getContainerDetails(
+            portainerUrl,
+            endpointId,
+            container.Id
+          );
+          const containerStackName =
+            details.Config.Labels?.["com.docker.compose.project"] ||
+            details.Config.Labels?.["com.docker.stack.namespace"] ||
+            null;
+
+          if (containerStackName === stackName && details.State === "running") {
             stackContainers.push({
               id: container.Id,
-              name: container.Names[0]?.replace('/', '') || container.Id.substring(0, 12),
+              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
             });
           }
         } catch (err) {
@@ -483,12 +521,14 @@ async function upgradeSingleContainer(
 
       // Restart dependent containers to reconnect to the upgraded service
       if (stackContainers.length > 0) {
-        logger.info(`🔄 Restarting ${stackContainers.length} dependent container(s) to reconnect...`);
+        logger.info(
+          `🔄 Restarting ${stackContainers.length} dependent container(s) to reconnect...`
+        );
         for (const container of stackContainers) {
           try {
             logger.info(`   Restarting ${container.name}...`);
             await portainerService.stopContainer(portainerUrl, endpointId, container.id);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief wait
+            await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief wait
             await portainerService.startContainer(portainerUrl, endpointId, container.id);
             logger.info(`   ✅ ${container.name} restarted successfully`);
           } catch (err) {
@@ -501,7 +541,7 @@ async function upgradeSingleContainer(
         logger.info(`ℹ️  No other running containers found in stack ${stackName}`);
       }
     } catch (err) {
-      logger.error('⚠️  Error restarting dependent containers:', err.message);
+      logger.error("⚠️  Error restarting dependent containers:", err.message);
       // Don't fail the upgrade if dependent restart fails
     }
   }
@@ -514,7 +554,7 @@ async function upgradeSingleContainer(
   return {
     success: true,
     containerId: containerId,
-    containerName: originalContainerName.replace('/', ''),
+    containerName: originalContainerName.replace("/", ""),
     newContainerId: newContainer.Id,
     oldImage: imageName,
     newImage: newImageName,
@@ -534,23 +574,25 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Get previous cache to compare for newly detected updates
   let previousCache = null;
   if (forceRefresh) {
-    previousCache = await getContainerCache('containers');
+    previousCache = await getContainerCache("containers");
   }
 
   // Check cache first unless force refresh is requested
   if (!forceRefresh) {
-    const cached = await getContainerCache('containers');
+    const cached = await getContainerCache("containers");
     if (cached) {
       // Reduced logging - only log in debug mode
       if (process.env.DEBUG) {
-        logger.debug('✅ Using cached container data from database');
+        logger.debug("✅ Using cached container data from database");
       }
       return cached;
     }
     // No cached data found - return empty result instead of fetching from Docker Hub
     // User must explicitly click "Pull" or batch process must run to fetch fresh data
     if (process.env.DEBUG) {
-      logger.debug('📦 No cached data found, returning empty result. User must click "Pull" to fetch data.');
+      logger.debug(
+        '📦 No cached data found, returning empty result. User must click "Pull" to fetch data.'
+      );
     }
     // IMPORTANT: Do NOT call Docker Hub here - only return empty result
     return {
@@ -563,9 +605,11 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   } else {
     // Only when forceRefresh=true (explicit pull request or batch process)
     if (filterPortainerUrl) {
-      logger.info(`🔄 Force refresh requested for instance ${filterPortainerUrl}, fetching fresh data from Docker Hub...`);
+      logger.info(
+        `🔄 Force refresh requested for instance ${filterPortainerUrl}, fetching fresh data from Docker Hub...`
+      );
     } else {
-      logger.info('🔄 Force refresh requested, fetching fresh data from Docker Hub...');
+      logger.info("🔄 Force refresh requested, fetching fresh data from Docker Hub...");
     }
     // Don't clear cache immediately - keep old data visible until new data is ready
     // Cache will be replaced when new data is saved
@@ -574,16 +618,16 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Get Portainer instances from database
   const portainerInstances = await getAllPortainerInstances();
-  
+
   // Filter to specific instance if requested
-  const instancesToProcess = filterPortainerUrl 
-    ? portainerInstances.filter(inst => inst.url === filterPortainerUrl)
+  const instancesToProcess = filterPortainerUrl
+    ? portainerInstances.filter((inst) => inst.url === filterPortainerUrl)
     : portainerInstances;
-  
+
   if (instancesToProcess.length === 0) {
     // Only log warning, not every time
     if (process.env.DEBUG) {
-      logger.debug('⚠️  No Portainer instances to process.');
+      logger.debug("⚠️  No Portainer instances to process.");
     }
     // Return empty result and cache it so we don't keep trying to fetch
     const emptyResult = {
@@ -595,13 +639,13 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     };
     // Cache empty result to prevent repeated attempts
     try {
-      await setContainerCache('containers', emptyResult);
+      await setContainerCache("containers", emptyResult);
     } catch (error) {
-      logger.error('Error caching empty result:', error.message);
+      logger.error("Error caching empty result:", error.message);
     }
     return emptyResult;
   }
-  
+
   // If filtering by specific instance, get existing cache to merge with
   let existingCache = null;
   if (filterPortainerUrl && previousCache) {
@@ -611,10 +655,12 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Fetch containers from Portainer instances (filtered if specified)
   for (const instance of instancesToProcess) {
     const portainerUrl = instance.url || instance;
-    const instanceName = instance.name || (typeof instance === 'string' ? new URL(instance).hostname : new URL(portainerUrl).hostname);
+    const instanceName =
+      instance.name ||
+      (typeof instance === "string" ? new URL(instance).hostname : new URL(portainerUrl).hostname);
     const username = instance.username;
     const password = instance.password;
-    
+
     try {
       await portainerService.authenticatePortainer(portainerUrl, username, password);
       const endpoints = await portainerService.getEndpoints(portainerUrl);
@@ -637,7 +683,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               container.Id
             );
             const imageName = details.Config.Image;
-            
+
             // Reduced logging - only log in debug mode or for errors
             const updateInfo = await checkImageUpdates(
               imageName,
@@ -649,13 +695,11 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
             const stackName =
-              labels['com.docker.compose.project'] ||
-              labels['com.docker.stack.namespace'] ||
-              null;
+              labels["com.docker.compose.project"] || labels["com.docker.stack.namespace"] || null;
 
             // Get image creation date by inspecting the image
             let currentImageCreated = null;
-            const imageId = details.Image || '';
+            const imageId = details.Image || "";
             if (imageId) {
               try {
                 const imageDetails = await portainerService.getImageDetails(
@@ -674,8 +718,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
             return {
               id: container.Id,
-              name:
-                container.Names[0]?.replace('/', '') || container.Id.substring(0, 12),
+              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
               image: imageName,
               status: container.Status,
               state: container.State,
@@ -705,27 +748,30 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             }
             // If a single container fails, log it but don't break the entire process
             if (process.env.DEBUG) {
-              logger.error(`   ❌ Error checking updates for container ${container.Names[0]?.replace('/', '') || container.Id.substring(0, 12)}:`, error.message);
+              logger.error(
+                `   ❌ Error checking updates for container ${container.Names[0]?.replace("/", "") || container.Id.substring(0, 12)}:`,
+                error.message
+              );
             }
             // Return a basic container object without update info
             // Try to check if image exists in Docker Hub even if update check failed
             let existsInDockerHub = false;
             try {
-              const imageName = container.Image || 'unknown';
-              const imageParts = imageName.includes(':')
-                ? imageName.split(':')
-                : [imageName, 'latest'];
+              const imageName = container.Image || "unknown";
+              const imageParts = imageName.includes(":")
+                ? imageName.split(":")
+                : [imageName, "latest"];
               const repo = imageParts[0];
               existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo);
             } catch (error) {
               // Silently continue - assume false if check fails
               existsInDockerHub = false;
             }
-            
+
             return {
               id: container.Id,
-              name: container.Names[0]?.replace('/', '') || container.Id.substring(0, 12),
-              image: container.Image || 'unknown',
+              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
+              image: container.Image || "unknown",
               status: container.Status,
               state: container.State,
               endpointId: endpointId,
@@ -755,17 +801,14 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       if (error.isRateLimitExceeded) {
         throw error;
       }
-      logger.error(
-        `Error fetching containers from ${portainerUrl}:`,
-        error.message
-      );
+      logger.error(`Error fetching containers from ${portainerUrl}:`, error.message);
       // Continue with other Portainer instances even if one fails
     }
   }
 
   // Group containers by stack
   const groupedByStack = allContainers.reduce((acc, container) => {
-    const stackName = container.stackName || 'Standalone';
+    const stackName = container.stackName || "Standalone";
     if (!acc[stackName]) {
       acc[stackName] = [];
     }
@@ -781,8 +824,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Sort stacks: named stacks first, then "Standalone"
   groupedContainers.sort((a, b) => {
-    if (a.stackName === 'Standalone') return 1;
-    if (b.stackName === 'Standalone') return -1;
+    if (a.stackName === "Standalone") return 1;
+    if (b.stackName === "Standalone") return -1;
     return a.stackName.localeCompare(b.stackName);
   });
 
@@ -790,38 +833,38 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   if (filterPortainerUrl && existingCache) {
     // Remove containers from the filtered instance from existing cache
     const otherContainers = existingCache.containers.filter(
-      c => c.portainerUrl !== filterPortainerUrl
+      (c) => c.portainerUrl !== filterPortainerUrl
     );
     // Combine with new containers from the filtered instance
     allContainers.push(...otherContainers);
-    
+
     // Re-group containers by stack
     const mergedGroupedByStack = allContainers.reduce((acc, container) => {
-      const stackName = container.stackName || 'Standalone';
+      const stackName = container.stackName || "Standalone";
       if (!acc[stackName]) {
         acc[stackName] = [];
       }
       acc[stackName].push(container);
       return acc;
     }, {});
-    
+
     // Convert to array format with stack names
     const mergedGroupedContainers = Object.keys(mergedGroupedByStack).map((stackName) => ({
       stackName: stackName,
       containers: mergedGroupedByStack[stackName],
     }));
-    
+
     // Sort stacks: named stacks first, then "Standalone"
     mergedGroupedContainers.sort((a, b) => {
-      if (a.stackName === 'Standalone') return 1;
-      if (b.stackName === 'Standalone') return -1;
+      if (a.stackName === "Standalone") return 1;
+      if (b.stackName === "Standalone") return -1;
       return a.stackName.localeCompare(b.stackName);
     });
-    
+
     // Update groupedContainers with merged data
     groupedContainers.length = 0;
     groupedContainers.push(...mergedGroupedContainers);
-    
+
     // Use existing unused images count (or recalculate if needed)
     unusedImagesCount = existingCache.unusedImagesCount || 0;
   } else {
@@ -832,10 +875,16 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       const username = instance.username;
       const password = instance.password;
       const apiKey = instance.api_key;
-      const authType = instance.auth_type || 'apikey';
-      
+      const authType = instance.auth_type || "apikey";
+
       try {
-        await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
+        await portainerService.authenticatePortainer(
+          portainerUrl,
+          username,
+          password,
+          apiKey,
+          authType
+        );
         const endpoints = await portainerService.getEndpoints(portainerUrl);
         if (endpoints.length === 0) continue;
 
@@ -846,7 +895,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         // Get all used image IDs (normalize to handle both full and shortened IDs)
         const usedIds = new Set();
         const normalizeImageId = (id) => {
-          const cleanId = id.replace(/^sha256:/, '');
+          const cleanId = id.replace(/^sha256:/, "");
           return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
         };
 
@@ -865,31 +914,29 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         // Count unused images
         for (const image of images) {
           const imageIdNormalized = normalizeImageId(image.Id);
-          const isUsed =
-            usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
+          const isUsed = usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
           if (!isUsed) {
             unusedImagesCount++;
           }
         }
       } catch (error) {
-        logger.error(
-          `Error counting unused images from ${portainerUrl}:`,
-          error.message
-        );
+        logger.error(`Error counting unused images from ${portainerUrl}:`, error.message);
       }
     }
   }
 
   // Build portainerInstances array for frontend
-  const portainerInstancesArray = portainerInstances.map(instance => {
+  const portainerInstancesArray = portainerInstances.map((instance) => {
     const portainerUrl = instance.url || instance;
-    const instanceName = instance.name || (typeof instance === 'string' ? new URL(instance).hostname : new URL(portainerUrl).hostname);
-    
+    const instanceName =
+      instance.name ||
+      (typeof instance === "string" ? new URL(instance).hostname : new URL(portainerUrl).hostname);
+
     // Get containers for this instance
-    const instanceContainers = allContainers.filter(c => c.portainerUrl === portainerUrl);
-    const withUpdates = instanceContainers.filter(c => c.hasUpdate);
-    const upToDate = instanceContainers.filter(c => !c.hasUpdate);
-    
+    const instanceContainers = allContainers.filter((c) => c.portainerUrl === portainerUrl);
+    const withUpdates = instanceContainers.filter((c) => c.hasUpdate);
+    const upToDate = instanceContainers.filter((c) => !c.hasUpdate);
+
     return {
       id: instance.id,
       name: instanceName,
@@ -912,14 +959,16 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Save to cache for future requests
   // This replaces the old cache with fresh data (or merges if filtering by instance)
   try {
-    await setContainerCache('containers', result);
+    await setContainerCache("containers", result);
     if (filterPortainerUrl) {
-      logger.info(`💾 Container data cached in database (merged data for instance ${filterPortainerUrl})`);
+      logger.info(
+        `💾 Container data cached in database (merged data for instance ${filterPortainerUrl})`
+      );
     } else {
-      logger.info('💾 Container data cached in database (replaced old cache)');
+      logger.info("💾 Container data cached in database (replaced old cache)");
     }
   } catch (error) {
-    logger.error('Error saving container cache:', error.message);
+    logger.error("Error saving container cache:", error.message);
     // Continue even if cache save fails
   }
 
@@ -931,7 +980,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         // Create a map of previous containers by unique identifier
         // Use combination of id, portainerUrl, and endpointId for uniqueness
         const previousContainersMap = new Map();
-        previousCache.containers.forEach(container => {
+        previousCache.containers.forEach((container) => {
           const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
           previousContainersMap.set(key, container);
         });
@@ -941,25 +990,26 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
           if (container.hasUpdate) {
             const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
             const previousContainer = previousContainersMap.get(key);
-            
+
             // Only notify if this is a newly detected update (didn't have update before)
             if (!previousContainer || !previousContainer.hasUpdate) {
               // Format container data for notification
-              const imageName = container.image || 'Unknown';
-              const currentVersion = container.currentVersion || container.currentTag || 'Unknown';
-              const latestVersion = container.newVersion || container.latestTag || container.latestVersion || 'Unknown';
-              
+              const imageName = container.image || "Unknown";
+              const currentVersion = container.currentVersion || container.currentTag || "Unknown";
+              const latestVersion =
+                container.newVersion || container.latestTag || container.latestVersion || "Unknown";
+
               await discord.queueNotification({
                 id: container.id,
                 name: container.name,
                 imageName: imageName,
                 githubRepo: null,
-                sourceType: 'docker',
+                sourceType: "docker",
                 currentVersion: currentVersion,
                 latestVersion: latestVersion,
                 latestVersionPublishDate: container.latestPublishDate || null,
                 releaseUrl: null, // Containers don't have release URLs
-                notificationType: 'portainer-container',
+                notificationType: "portainer-container",
               });
             }
           }
@@ -967,7 +1017,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       }
     } catch (error) {
       // Don't fail the update check if notification fails
-      logger.error('Error sending Discord notifications for container updates:', error);
+      logger.error("Error sending Discord notifications for container updates:", error);
     }
   }
 
@@ -980,14 +1030,14 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
  * @returns {Promise<Object>} - Containers with basic information (no update status)
  */
 async function getContainersFromPortainer() {
-  logger.info('⏳ Fetching containers from Portainer');
+  logger.info("⏳ Fetching containers from Portainer");
   const allContainers = [];
 
   // Get Portainer instances from database
   const portainerInstances = await getAllPortainerInstances();
-  
+
   if (portainerInstances.length === 0) {
-    logger.warn('⚠️  No Portainer instances configured.');
+    logger.warn("⚠️  No Portainer instances configured.");
     return {
       grouped: true,
       stacks: [],
@@ -1001,24 +1051,30 @@ async function getContainersFromPortainer() {
   for (const instance of portainerInstances) {
     const portainerUrl = instance.url;
     const instanceName = instance.name || new URL(portainerUrl).hostname;
-      const username = instance.username;
-      const password = instance.password;
-      const apiKey = instance.api_key;
-      const authType = instance.auth_type || 'password';
-      
-      try {
-        await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
-        const endpoints = await portainerService.getEndpoints(portainerUrl);
+    const username = instance.username;
+    const password = instance.password;
+    const apiKey = instance.api_key;
+    const authType = instance.auth_type || "password";
 
-        if (endpoints.length === 0) {
-          logger.warn(`No endpoints found for ${portainerUrl}`);
-          continue;
-        }
+    try {
+      await portainerService.authenticatePortainer(
+        portainerUrl,
+        username,
+        password,
+        apiKey,
+        authType
+      );
+      const endpoints = await portainerService.getEndpoints(portainerUrl);
 
-        const endpointId = endpoints[0].Id;
-        const containers = await portainerService.getContainers(portainerUrl, endpointId);
+      if (endpoints.length === 0) {
+        logger.warn(`No endpoints found for ${portainerUrl}`);
+        continue;
+      }
 
-        const containersBasic = await Promise.all(
+      const endpointId = endpoints[0].Id;
+      const containers = await portainerService.getContainers(portainerUrl, endpointId);
+
+      const containersBasic = await Promise.all(
         containers.map(async (container) => {
           try {
             const details = await portainerService.getContainerDetails(
@@ -1027,26 +1083,24 @@ async function getContainersFromPortainer() {
               container.Id
             );
             const imageName = details.Config.Image;
-            
+
             // Extract image digest from Image field (format: sha256:...)
-            const imageId = details.Image || '';
-            const currentDigest = imageId.startsWith('sha256:') 
-              ? imageId.split(':')[1].substring(0, 12) 
+            const imageId = details.Image || "";
+            const currentDigest = imageId.startsWith("sha256:")
+              ? imageId.split(":")[1].substring(0, 12)
               : imageId.substring(0, 12);
 
             // Extract tag from image name
-            const imageParts = imageName.includes(':')
-              ? imageName.split(':')
-              : [imageName, 'latest'];
+            const imageParts = imageName.includes(":")
+              ? imageName.split(":")
+              : [imageName, "latest"];
             const repo = imageParts[0];
             const currentTag = imageParts[1];
 
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
             const stackName =
-              labels['com.docker.compose.project'] ||
-              labels['com.docker.stack.namespace'] ||
-              null;
+              labels["com.docker.compose.project"] || labels["com.docker.stack.namespace"] || null;
 
             // Get image creation date by inspecting the image
             let currentImageCreated = null;
@@ -1072,7 +1126,7 @@ async function getContainersFromPortainer() {
 
             return {
               id: container.Id,
-              name: container.Names[0]?.replace('/', '') || container.Id.substring(0, 12),
+              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
               image: imageName,
               status: container.Status,
               state: container.State,
@@ -1100,7 +1154,7 @@ async function getContainersFromPortainer() {
       );
 
       // Filter out null results
-      const validContainers = containersBasic.filter(c => c !== null);
+      const validContainers = containersBasic.filter((c) => c !== null);
       allContainers.push(...validContainers);
     } catch (error) {
       logger.error(`Error fetching containers from ${portainerUrl}:`, error.message);
@@ -1129,7 +1183,7 @@ async function getContainersFromPortainer() {
 
   if (unstackedContainers.length > 0) {
     stacks.push({
-      name: 'Unstacked',
+      name: "Unstacked",
       containers: unstackedContainers,
     });
   }
@@ -1140,9 +1194,7 @@ async function getContainersFromPortainer() {
 
   // Group containers by Portainer instance
   const portainerInstancesArray = portainerInstances.map((instance) => {
-    const instanceContainers = allContainers.filter(
-      (c) => c.portainerUrl === instance.url
-    );
+    const instanceContainers = allContainers.filter((c) => c.portainerUrl === instance.url);
     return {
       name: instance.name || new URL(instance.url).hostname,
       url: instance.url,
@@ -1173,7 +1225,7 @@ async function getUnusedImages() {
 
   // Get Portainer instances from database
   const portainerInstances = await getAllPortainerInstances();
-  
+
   if (portainerInstances.length === 0) {
     return [];
   }
@@ -1183,10 +1235,16 @@ async function getUnusedImages() {
     const username = instance.username;
     const password = instance.password;
     const apiKey = instance.api_key;
-    const authType = instance.auth_type || 'apikey';
-    
+    const authType = instance.auth_type || "apikey";
+
     try {
-      await portainerService.authenticatePortainer(portainerUrl, username, password, apiKey, authType);
+      await portainerService.authenticatePortainer(
+        portainerUrl,
+        username,
+        password,
+        apiKey,
+        authType
+      );
       const endpoints = await portainerService.getEndpoints(portainerUrl);
       if (endpoints.length === 0) continue;
 
@@ -1197,7 +1255,7 @@ async function getUnusedImages() {
       // Get all used image IDs
       const usedIds = new Set();
       const normalizeImageId = (id) => {
-        const cleanId = id.replace(/^sha256:/, '');
+        const cleanId = id.replace(/^sha256:/, "");
         return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
       };
 
@@ -1216,8 +1274,7 @@ async function getUnusedImages() {
       // Find unused images
       for (const image of images) {
         const imageIdNormalized = normalizeImageId(image.Id);
-        const isUsed =
-          usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
+        const isUsed = usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
 
         if (!isUsed) {
           let repoTags = image.RepoTags;
@@ -1226,12 +1283,12 @@ async function getUnusedImages() {
           if (
             !repoTags ||
             repoTags.length === 0 ||
-            (repoTags.length === 1 && repoTags[0] === '<none>:<none>')
+            (repoTags.length === 1 && repoTags[0] === "<none>:<none>")
           ) {
             if (image.RepoDigests && image.RepoDigests.length > 0) {
               repoTags = image.RepoDigests.map((digest) => {
-                const repoPart = digest.split('@sha256:')[0];
-                return repoPart ? `${repoPart}:<none>` : '<none>:<none>';
+                const repoPart = digest.split("@sha256:")[0];
+                return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
               });
             } else {
               // Try to inspect the image to get more details
@@ -1243,26 +1300,21 @@ async function getUnusedImages() {
                 );
                 if (imageDetails.RepoTags && imageDetails.RepoTags.length > 0) {
                   repoTags = imageDetails.RepoTags;
-                } else if (
-                  imageDetails.RepoDigests &&
-                  imageDetails.RepoDigests.length > 0
-                ) {
+                } else if (imageDetails.RepoDigests && imageDetails.RepoDigests.length > 0) {
                   repoTags = imageDetails.RepoDigests.map((digest) => {
-                    const repoPart = digest.split('@sha256:')[0];
-                    return repoPart ? `${repoPart}:<none>` : '<none>:<none>';
+                    const repoPart = digest.split("@sha256:")[0];
+                    return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
                   });
                 }
               } catch (err) {
-                logger.debug(
-                  `Could not inspect image ${image.Id}: ${err.message}`
-                );
+                logger.debug(`Could not inspect image ${image.Id}: ${err.message}`);
               }
             }
           }
 
           // Fallback to default if still no tags
           if (!repoTags || repoTags.length === 0) {
-            repoTags = ['<none>:<none>'];
+            repoTags = ["<none>:<none>"];
           }
 
           const instanceName = instance.name || new URL(portainerUrl).hostname;
@@ -1278,10 +1330,7 @@ async function getUnusedImages() {
         }
       }
     } catch (error) {
-      logger.error(
-        `Error fetching unused images from ${portainerUrl}:`,
-        error.message
-      );
+      logger.error(`Error fetching unused images from ${portainerUrl}:`, error.message);
     }
   }
 
@@ -1295,4 +1344,3 @@ module.exports = {
   getContainersFromPortainer,
   getUnusedImages,
 };
-

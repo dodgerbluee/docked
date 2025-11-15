@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { DEFAULT_RUN_LIMIT, REFRESH_INTERVAL_MS } from "../constants/batch";
-import { DEFAULT_POLLING_INTERVAL_MS } from "../constants/numbers";
+// DEFAULT_POLLING_INTERVAL_MS is not currently used but kept for potential future use
 import { getErrorMessage } from "../utils/errorMessages";
 
 /**
@@ -48,9 +48,7 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
   // Fetch recent runs
   const fetchRecentRuns = useCallback(async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`);
       if (response.data.success) {
         setRecentRuns(response.data.runs || []);
       }
@@ -90,4 +88,3 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
     }, [fetchLatestRun, fetchRecentRuns]),
   };
 }
-

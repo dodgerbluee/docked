@@ -3,23 +3,23 @@
  * Popup form to add or edit Discord webhook configurations
  */
 
-import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
-import axios from 'axios';
-import Modal from './ui/Modal';
-import Input from './ui/Input';
-import Button from './ui/Button';
-import Alert from './ui/Alert';
-import { API_BASE_URL } from '../utils/api';
-import styles from './DiscordWebhookModal.module.css';
+import React, { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import axios from "axios";
+import Modal from "./ui/Modal";
+import Input from "./ui/Input";
+import Button from "./ui/Button";
+import Alert from "./ui/Alert";
+import { API_BASE_URL } from "../utils/api";
+import styles from "./DiscordWebhookModal.module.css";
 
 function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = null }) {
   const [formData, setFormData] = useState({
-    webhookUrl: '',
-    serverName: '',
+    webhookUrl: "",
+    serverName: "",
     enabled: true,
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
 
@@ -29,19 +29,19 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
       if (existingWebhook) {
         // Edit mode - populate with existing data (but not webhook URL for security)
         setFormData({
-          webhookUrl: '', // User needs to re-enter if they want to change it
-          serverName: existingWebhook.serverName || '',
+          webhookUrl: "", // User needs to re-enter if they want to change it
+          serverName: existingWebhook.serverName || "",
           enabled: existingWebhook.enabled !== undefined ? existingWebhook.enabled : true,
         });
       } else {
         // Create mode - clear form
         setFormData({
-          webhookUrl: '',
-          serverName: '',
+          webhookUrl: "",
+          serverName: "",
           enabled: true,
         });
       }
-      setError('');
+      setError("");
     }
   }, [isOpen, existingWebhook]);
 
@@ -49,49 +49,44 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
     // Clear error when user starts typing
-    if (error) setError('');
+    if (error) setError("");
   };
 
   const handleTestWebhook = async () => {
     setTestingWebhook(true);
-    setError('');
+    setError("");
 
     try {
       let webhookUrl = formData.webhookUrl.trim();
-      
+
       // If editing and no URL provided, test the existing webhook by ID
       if (!webhookUrl && existingWebhook?.hasWebhook) {
         const response = await axios.post(
           `${API_BASE_URL}/api/discord/webhooks/${existingWebhook.id}/test`
         );
-        
+
         if (!response.data.success) {
-          throw new Error(response.data.error || 'Webhook test failed');
+          throw new Error(response.data.error || "Webhook test failed");
         }
       } else if (webhookUrl) {
         // Test with provided URL
-        const response = await axios.post(
-          `${API_BASE_URL}/api/discord/test`,
-          {
-            webhookUrl: webhookUrl,
-          }
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/discord/test`, {
+          webhookUrl: webhookUrl,
+        });
 
         if (!response.data.success) {
-          throw new Error(response.data.error || 'Webhook test failed');
+          throw new Error(response.data.error || "Webhook test failed");
         }
       } else {
-        setError('Please enter a webhook URL to test');
+        setError("Please enter a webhook URL to test");
         setTestingWebhook(false);
         return;
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error || err.message || 'Failed to test webhook'
-      );
+      setError(err.response?.data?.error || err.message || "Failed to test webhook");
     } finally {
       setTestingWebhook(false);
     }
@@ -99,7 +94,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
@@ -123,7 +118,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           }
         } catch (infoError) {
           // If fetching info fails, continue anyway - it's optional
-          console.debug('Could not fetch webhook info:', infoError);
+          console.debug("Could not fetch webhook info:", infoError);
         }
       }
 
@@ -135,7 +130,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           serverName: serverName,
           enabled: formData.enabled,
         };
-        
+
         // Only include webhookUrl if user provided a new one
         if (webhookUrl) {
           updateData.webhookUrl = webhookUrl;
@@ -149,8 +144,8 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         if (response.data.success) {
           // Clear form
           setFormData({
-            webhookUrl: '',
-            serverName: '',
+            webhookUrl: "",
+            serverName: "",
             enabled: true,
           });
           // Call success callback
@@ -160,30 +155,27 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           // Close modal
           onClose();
         } else {
-          setError(response.data.error || 'Failed to update webhook');
+          setError(response.data.error || "Failed to update webhook");
         }
       } else {
         // Create new webhook - webhook URL is required
         if (!webhookUrl) {
-          setError('Webhook URL is required');
+          setError("Webhook URL is required");
           setLoading(false);
           return;
         }
 
-        const response = await axios.post(
-          `${API_BASE_URL}/api/discord/webhooks`,
-          {
-            webhookUrl: webhookUrl,
-            serverName: serverName,
-            enabled: formData.enabled,
-          }
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/discord/webhooks`, {
+          webhookUrl: webhookUrl,
+          serverName: serverName,
+          enabled: formData.enabled,
+        });
 
         if (response.data.success) {
           // Clear form
           setFormData({
-            webhookUrl: '',
-            serverName: '',
+            webhookUrl: "",
+            serverName: "",
             enabled: true,
           });
           // Call success callback
@@ -193,14 +185,11 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           // Close modal
           onClose();
         } else {
-          setError(response.data.error || 'Failed to create webhook');
+          setError(response.data.error || "Failed to create webhook");
         }
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          'Failed to save webhook. Please try again.'
-      );
+      setError(err.response?.data?.error || "Failed to save webhook. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -219,17 +208,15 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={existingWebhook ? 'Edit Discord Webhook' : 'Add Discord Webhook'}
+      title={existingWebhook ? "Edit Discord Webhook" : "Add Discord Webhook"}
       size="md"
     >
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formGroup}>
           <label htmlFor="discordWebhookUrl" className={styles.label}>
-            Discord Webhook URL {existingWebhook ? '' : '*'}
+            Discord Webhook URL {existingWebhook ? "" : "*"}
             {existingWebhook && existingWebhook.hasWebhook && (
-              <span className={styles.webhookConfigured}>
-                (Webhook is configured)
-              </span>
+              <span className={styles.webhookConfigured}>(Webhook is configured)</span>
             )}
           </label>
           <input
@@ -245,7 +232,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           />
           <small className={styles.helperText}>
             {existingWebhook && existingWebhook.hasWebhook
-              ? 'Enter a new webhook URL to replace the current one, or leave empty to keep the current webhook'
+              ? "Enter a new webhook URL to replace the current one, or leave empty to keep the current webhook"
               : 'Create a webhook in your Discord server settings. Go to Server Settings → Integrations → Webhooks → New Webhook. Recommended: Rename the webhook to "Docked" and use the Docked logo as the avatar.'}
           </small>
         </div>
@@ -285,10 +272,14 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
               type="button"
               variant="secondary"
               onClick={handleTestWebhook}
-              disabled={loading || testingWebhook || (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)}
+              disabled={
+                loading ||
+                testingWebhook ||
+                (!formData.webhookUrl.trim() && !existingWebhook?.hasWebhook)
+              }
               size="sm"
             >
-              {testingWebhook ? 'Testing...' : 'Test Webhook'}
+              {testingWebhook ? "Testing..." : "Test Webhook"}
             </Button>
           </div>
         )}
@@ -296,12 +287,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         {error && <Alert variant="error">{error}</Alert>}
 
         <div className={styles.actions}>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
           <Button
@@ -310,11 +296,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
             disabled={loading || !isFormValid()}
             className={styles.submitButton}
           >
-            {loading
-              ? 'Saving...'
-              : existingWebhook
-              ? 'Update Webhook'
-              : 'Add Webhook'}
+            {loading ? "Saving..." : existingWebhook ? "Update Webhook" : "Add Webhook"}
           </Button>
         </div>
       </form>

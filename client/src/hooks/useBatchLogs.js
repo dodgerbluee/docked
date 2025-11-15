@@ -11,16 +11,12 @@ import { useBatchTriggers } from "./useBatchTriggers";
  */
 export function useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch) {
   const contextValue = useContext(BatchConfigContext);
-  const batchConfigs = contextValue?.batchConfig || {};
+  const batchConfigs = useMemo(() => contextValue?.batchConfig || {}, [contextValue?.batchConfig]);
 
   // Use composed hooks
   const batchRuns = useBatchRuns();
   const scheduledRuns = useScheduledRuns(batchConfigs, batchRuns.recentRuns);
-  const triggers = useBatchTriggers(
-    onTriggerBatch,
-    onTriggerTrackedAppsBatch,
-    batchRuns.refetch
-  );
+  const triggers = useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, batchRuns.refetch);
 
   // Check if any job type is enabled
   const hasEnabledJobs = useMemo(
@@ -38,4 +34,3 @@ export function useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch) {
     batchConfigs,
   };
 }
-

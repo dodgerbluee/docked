@@ -48,16 +48,16 @@ To add a new batch job type, follow these steps:
 Create a new file in `server/services/batch/handlers/` that extends `JobHandler`:
 
 ```javascript
-const JobHandler = require('../JobHandler');
-const yourService = require('../../yourService');
+const JobHandler = require("../JobHandler");
+const yourService = require("../../yourService");
 
 class YourJobHandler extends JobHandler {
   getJobType() {
-    return 'your-job-type';
+    return "your-job-type";
   }
 
   getDisplayName() {
-    return 'Your Job Display Name';
+    return "Your Job Display Name";
   }
 
   getDefaultConfig() {
@@ -77,22 +77,22 @@ class YourJobHandler extends JobHandler {
     };
 
     try {
-      logger.info('Starting your job');
-      
+      logger.info("Starting your job");
+
       // Your job logic here
       const serviceResult = await yourService.doSomething();
-      
+
       result.itemsChecked = serviceResult.items?.length || 0;
-      result.itemsUpdated = serviceResult.items?.filter(i => i.updated).length || 0;
-      
-      logger.info('Job completed successfully', {
+      result.itemsUpdated = serviceResult.items?.filter((i) => i.updated).length || 0;
+
+      logger.info("Job completed successfully", {
         itemsChecked: result.itemsChecked,
         itemsUpdated: result.itemsUpdated,
       });
 
       return result;
     } catch (err) {
-      logger.error('Job failed', {
+      logger.error("Job failed", {
         error: err.message,
         stack: err.stack,
       });
@@ -111,7 +111,7 @@ module.exports = YourJobHandler;
 Add your handler to `server/services/batch/index.js`:
 
 ```javascript
-const YourJobHandler = require('./handlers/YourJobHandler');
+const YourJobHandler = require("./handlers/YourJobHandler");
 
 // Register all job handlers
 batchManager.registerHandler(new DockerHubPullHandler());
@@ -120,6 +120,7 @@ batchManager.registerHandler(new YourJobHandler()); // Add this line
 ```
 
 That's it! The new job type will automatically:
+
 - Appear in the batch configuration API
 - Be scheduled according to its configuration
 - Be available for manual triggering via API
@@ -128,12 +129,15 @@ That's it! The new job type will automatically:
 ## API Endpoints
 
 ### Get Batch Configuration
+
 ```
 GET /api/batch/config
 ```
+
 Returns all batch job configurations.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -151,6 +155,7 @@ Returns all batch job configurations.
 ```
 
 ### Update Batch Configuration
+
 ```
 POST /api/batch/config
 Content-Type: application/json
@@ -163,6 +168,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -172,11 +178,13 @@ Content-Type: application/json
 ```
 
 ### Get Batch System Status
+
 ```
 GET /api/batch/status
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -197,6 +205,7 @@ GET /api/batch/status
 ```
 
 ### Trigger Batch Job Manually
+
 ```
 POST /api/batch/trigger
 Content-Type: application/json
@@ -207,6 +216,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -215,6 +225,7 @@ Content-Type: application/json
 ```
 
 ### Get Batch Run History
+
 ```
 GET /api/batch/runs?limit=20
 GET /api/batch/runs/latest
@@ -225,6 +236,7 @@ GET /api/batch/runs/:id
 ## Configuration
 
 Batch job configurations are stored in the `batch_config` database table. Each job type has:
+
 - `enabled`: Boolean indicating if the job is enabled
 - `intervalMinutes`: Number of minutes between runs (minimum: 1, maximum: 1440)
 
@@ -233,6 +245,7 @@ Configurations can be updated via the API without requiring a server restart.
 ## Scheduling
 
 The scheduler:
+
 - Checks every 30 seconds for jobs that are due to run
 - Loads last run times from the database on startup
 - Prevents concurrent runs of the same job type
@@ -242,6 +255,7 @@ The scheduler:
 ## Logging
 
 All batch jobs use structured logging:
+
 - **Timestamp**: ISO 8601 format
 - **Level**: info, warn, error, or debug
 - **Job Type**: Identifier of the batch job
@@ -249,6 +263,7 @@ All batch jobs use structured logging:
 - **Metadata**: Additional context (error details, metrics, etc.)
 
 Logs are:
+
 - Stored in memory during job execution
 - Saved to database as part of batch run records
 - Output to console with structured format
@@ -264,11 +279,13 @@ Logs are:
 ## Testing
 
 Unit tests are located in `server/services/batch/__tests__/`:
+
 - `JobHandler.test.js`: Tests for base job handler interface
 - `Logger.test.js`: Tests for structured logger
 - `BatchManager.test.js`: Tests for batch manager
 
 Run tests with:
+
 ```bash
 npm test -- server/services/batch
 ```
@@ -321,10 +338,10 @@ npm test -- server/services/batch
 ## Future Enhancements
 
 Potential improvements:
+
 - Job dependencies (run job B after job A completes)
 - Priority queues for job execution
 - Notification system for failures/completions
 - Metrics endpoint for Prometheus/Grafana
 - Job retry strategies (exponential backoff, max retries)
 - Job cancellation support
-

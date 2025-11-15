@@ -14,7 +14,8 @@ const Card = React.memo(function Card({
   ...props
 }) {
   const variantClass = styles[variant] || styles.default;
-  const paddingClass = styles[`padding${padding.charAt(0).toUpperCase() + padding.slice(1)}`] || styles.paddingMd;
+  const paddingClass =
+    styles[`padding${padding.charAt(0).toUpperCase() + padding.slice(1)}`] || styles.paddingMd;
 
   return (
     <div className={`${styles.card} ${variantClass} ${paddingClass} ${className}`} {...props}>
@@ -31,4 +32,3 @@ Card.propTypes = {
 };
 
 export default Card;
-

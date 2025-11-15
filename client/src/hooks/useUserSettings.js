@@ -61,13 +61,10 @@ export function useUserSettings({
       }
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/api/auth/update-username`,
-          {
-            newUsername: newUsername.trim(),
-            password: usernamePassword,
-          }
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/auth/update-username`, {
+          newUsername: newUsername.trim(),
+          password: usernamePassword,
+        });
 
         if (response.data.success) {
           setUsernameSuccess("Username updated successfully!");
@@ -88,8 +85,7 @@ export function useUserSettings({
         }
       } catch (err) {
         setUsernameError(
-          err.response?.data?.error ||
-            "Failed to update username. Please try again."
+          err.response?.data?.error || "Failed to update username. Please try again."
         );
       } finally {
         setUsernameLoading(false);
@@ -118,13 +114,10 @@ export function useUserSettings({
       }
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/api/auth/update-password`,
-          {
-            currentPassword,
-            newPassword,
-          }
-        );
+        const response = await axios.post(`${API_BASE_URL}/api/auth/update-password`, {
+          currentPassword,
+          newPassword,
+        });
 
         if (response.data.success) {
           setPasswordSuccess("Password updated successfully!");
@@ -142,8 +135,7 @@ export function useUserSettings({
         }
       } catch (err) {
         setPasswordError(
-          err.response?.data?.error ||
-            "Failed to update password. Please try again."
+          err.response?.data?.error || "Failed to update password. Please try again."
         );
       } finally {
         setPasswordLoading(false);
@@ -182,4 +174,3 @@ export function useUserSettings({
     handlePasswordSubmit,
   };
 }
-

@@ -1,0 +1,236 @@
+.logsTab {
+  width: 100%;
+}
+
+.headerWrapper {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+}
+
+.headerTitle {
+  width: 40%; /* 2/5 of the width */
+  max-width: 40%;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.error {
+  margin-bottom: 20px;
+}
+
+.content {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  min-height: 400px;
+  max-height: 70vh;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+/* Keep dark mode using bg-primary for better contrast */
+body.dark-mode .content {
+  background: var(--bg-primary);
+}
+
+.logContent {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.logEntry {
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.logEntry:last-child {
+  border-bottom: none;
+}
+
+.logLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.logLineClickable {
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.logLineClickable:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.expandIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  margin-right: 4px;
+  flex-shrink: 0;
+  width: 18px; /* Fixed width to ensure alignment */
+  min-width: 18px;
+}
+
+.expandHint {
+  color: var(--text-secondary);
+  font-size: 0.75em;
+  font-style: italic;
+  margin-left: 8px;
+}
+
+.logTimestamp {
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.logContext {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.logMessage {
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.logMetadata {
+  margin-top: 8px;
+  margin-left: 20px;
+  padding: 12px;
+  background: transparent;
+  border-left: 3px solid var(--border-color);
+  border-radius: 4px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.metadataHeader {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.logMetadataContent {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Courier New", Courier, monospace;
+}
+
+.logStack {
+  margin-top: 8px;
+  margin-left: 20px;
+  padding: 12px;
+  background: transparent;
+  border-left: 3px solid var(--dodger-red);
+  border-radius: 4px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.stackHeader {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--dodger-red);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.logStackContent {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--dodger-red);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Courier New", Courier, monospace;
+}
+
+/* Log level color coding - only the level text inside brackets is colored */
+.logDefault {
+  color: var(--text-primary);
+}
+
+.logInfo {
+  color: var(--success-green);
+  font-weight: 600;
+}
+
+.logWarn {
+  color: #fbbf24; /* Yellow/amber for warnings */
+  font-weight: 600;
+}
+
+body.dark-mode .logWarn {
+  color: #fcd34d; /* Lighter yellow for dark mode */
+}
+
+.logError {
+  color: var(--dodger-red);
+  font-weight: 600;
+}
+
+.logDebug {
+  color: #fb923c; /* Orange for debug logs (lighter than warn) */
+  font-weight: 600;
+}
+
+body.dark-mode .logDebug {
+  color: #fdba74; /* Lighter orange for dark mode */
+}
+
+.empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 40px;
+}
