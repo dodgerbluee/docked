@@ -67,13 +67,15 @@ const Header = ({
         >
           <h1 className={styles.logo}>
             <img
-              src="/img/image.png"
+              src="/img/logo.png"
               alt="Docked"
               className={styles.logoImage}
             />
-            <span className={styles.logoText}>
-              Docked
-            </span>
+            <img
+              src="/img/text-header.png"
+              alt="docked"
+              className={styles.logoTextImage}
+            />
           </h1>
         </div>
         <div className={styles.headerActions}>

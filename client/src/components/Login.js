@@ -83,7 +83,7 @@ function Login({ onLogin }) {
         <div className="login-header">
           <h1>
             <img
-              src="/img/image.png"
+              src="/img/logo.png"
               alt="Docked"
               style={{
                 height: "2em",

@@ -9,6 +9,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
+const fs = require("fs");
 const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
@@ -129,18 +130,25 @@ app.use(
   })
 );
 
-// Serve static files from React app (in production)
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "public")));
+// Serve static files from React app
+// In production: always serve
+// In development: serve if public directory exists (Docker/local build scenario)
+const publicPath = path.join(__dirname, "public");
+const shouldServeStatic = 
+  process.env.NODE_ENV === "production" || 
+  (process.env.NODE_ENV === "development" && fs.existsSync(publicPath));
+
+if (shouldServeStatic) {
+  app.use(express.static(publicPath));
 }
 
 // Routes
 app.use("/api", routes);
 
-// Serve React app for all non-API routes (in production)
-if (process.env.NODE_ENV === "production") {
+// Serve React app for all non-API routes
+if (shouldServeStatic) {
   app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "public/index.html"));
+    res.sendFile(path.join(publicPath, "index.html"));
   });
 }
 

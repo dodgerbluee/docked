@@ -17,6 +17,7 @@ function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged }) {
     SETTINGS_TABS.DOCKERHUB,
     SETTINGS_TABS.DISCORD,
     SETTINGS_TABS.USER_DETAILS,
+    SETTINGS_TABS.LOGS,
   ];
 
   return (

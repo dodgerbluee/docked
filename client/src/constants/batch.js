@@ -10,7 +10,7 @@ export const BATCH_TABS = {
 };
 
 export const BATCH_TAB_LABELS = {
-  [BATCH_TABS.HISTORY]: "History",
+  [BATCH_TABS.HISTORY]: "Jobs",
   [BATCH_TABS.SETTINGS]: "Settings",
 };
 

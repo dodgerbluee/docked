@@ -67,7 +67,7 @@ body.dark-mode .stackCount {
 
 .imagesGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   width: 100%;
   box-sizing: border-box;

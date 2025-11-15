@@ -17,7 +17,7 @@ body {
 }
 
 body.dark-mode {
-  background: #1a1a1a;
+  background: #121212;
 }
 
 code {
@@ -96,6 +96,21 @@ html {
   * {
     scrollbar-width: thin;
   }
+}
+
+/* Error modal with red background */
+.error-modal-red {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 2px solid rgba(239, 68, 68, 0.4) !important;
+}
+
+.error-modal-red > div[class*="header"] {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.error-modal-red > div[class*="header"] > h3[class*="title"] {
+  color: var(--dodger-red) !important;
 }
 
 

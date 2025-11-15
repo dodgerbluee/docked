@@ -16,6 +16,7 @@ import AvatarTab from "./settings/AvatarTab";
 import DockerHubTab from "./settings/DockerHubTab";
 import DiscordTab from "./settings/DiscordTab";
 import UserDetailsTab from "./settings/UserDetailsTab";
+import LogsTab from "./settings/LogsTab";
 
 function Settings({
   username,
@@ -247,6 +248,10 @@ function Settings({
 
           {currentActiveSection === SETTINGS_TABS.USER_DETAILS && (
             <UserDetailsTab userInfo={settings.userInfo} />
+          )}
+
+          {currentActiveSection === SETTINGS_TABS.LOGS && (
+            <LogsTab />
           )}
         </>
       )}

@@ -29,6 +29,14 @@ export function usePortainerPage({
   contentTab: controlledContentTab,
   onSetContentTab,
 }) {
+  // Error modal state
+  const [errorModal, setErrorModal] = useState({
+    isOpen: false,
+    title: null,
+    message: null,
+    containerName: null,
+    details: null,
+  });
   // Content tab state - use controlled if setter is provided, otherwise use internal state
   const [internalContentTab, setInternalContentTab] = useState(PORTAINER_CONTENT_TABS.UPDATES);
   const isContentTabControlled = onSetContentTab !== undefined;
@@ -251,12 +259,22 @@ export function usePortainerPage({
       }
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Failed to upgrade ${container.name}: ${errorMessage}`);
+      const errorDetails = err.response?.data?.details || err.stack || null;
+      
+      // Show error modal instead of toast
+      setErrorModal({
+        isOpen: true,
+        title: "Container Upgrade Failed",
+        message: errorMessage,
+        containerName: container.name,
+        details: errorDetails,
+      });
+      
       console.error("Error upgrading container:", err);
     } finally {
       setUpgrading((prev) => ({ ...prev, [container.id]: false }));
     }
-  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]);
+  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]);
 
   // Batch upgrade - returns data for confirmation dialog
   const handleBatchUpgrade = useCallback(() => {
@@ -325,12 +343,26 @@ export function usePortainerPage({
       const errorCount = response.data.errors?.length || 0;
 
       if (errorCount > 0) {
-        const errorMessages = response.data.errors
+        // Show errors in modal
+        const errorDetails = response.data.errors
+          .map((err) => `${err.containerName}: ${err.error}`)
+          .join("\n");
+        const errorSummary = response.data.errors
           .map((err) => `${err.containerName}: ${err.error}`)
           .join(", ");
-        toast.warning(
-          `Batch upgrade completed: ${successCount} succeeded, ${errorCount} failed. ${errorMessages}`
-        );
+        
+        setErrorModal({
+          isOpen: true,
+          title: "Batch Upgrade Completed with Errors",
+          message: `${successCount} container(s) upgraded successfully, but ${errorCount} container(s) failed:\n\n${errorSummary}`,
+          containerName: null, // Multiple containers, so no single name
+          details: errorDetails,
+        });
+        
+        // Still show success toast for successful ones
+        if (successCount > 0) {
+          toast.success(`Successfully upgraded ${successCount} container(s).`);
+        }
       } else {
         toast.success(`Batch upgrade completed! Successfully upgraded ${successCount} container(s).`);
       }
@@ -341,7 +373,19 @@ export function usePortainerPage({
       }
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-      toast.error(`Batch upgrade failed: ${errorMessage}`);
+      const errorDetails = err.response?.data?.details || err.stack || null;
+      
+      console.log("🔴 Setting error modal for batch upgrade failure:", { errorMessage, errorDetails });
+      
+      // Show error modal instead of toast
+      setErrorModal({
+        isOpen: true,
+        title: "Batch Upgrade Failed",
+        message: errorMessage,
+        containerName: null, // Batch operation, no single container
+        details: errorDetails,
+      });
+      
       console.error("Error in batch upgrade:", err);
     } finally {
       setBatchUpgrading(false);
@@ -351,7 +395,7 @@ export function usePortainerPage({
       });
       setUpgrading((prev) => ({ ...prev, ...clearedState }));
     }
-  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]);
+  }, [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]);
 
   // Toggle image selection
   const handleToggleImageSelect = useCallback((imageId) => {
@@ -487,6 +531,16 @@ export function usePortainerPage({
     }
   }, [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]);
 
+  const closeErrorModal = () => {
+    setErrorModal({
+      isOpen: false,
+      title: null,
+      message: null,
+      containerName: null,
+      details: null,
+    });
+  };
+
   return {
     // State
     contentTab,
@@ -501,6 +555,10 @@ export function usePortainerPage({
     upgrading,
     batchUpgrading,
     deletingImages,
+    
+    // Error modal
+    errorModal,
+    closeErrorModal,
     
     // Computed data
     sortedPortainerInstances,

@@ -4,11 +4,13 @@
   align-items: center;
   gap: 10px;
   position: relative;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .avatar-button {
-  width: 61.875px;
-  height: 61.875px;
+  width: 52px;
+  height: 52px;
   border-radius: 6px;
   border: 2px solid rgba(255, 255, 255, 0.5);
   background: transparent;
@@ -16,6 +18,10 @@
   padding: 0;
   overflow: hidden;
   transition: border-color 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .avatar-button:hover {
@@ -28,6 +34,11 @@
   object-fit: cover;
   border-radius: 4px;
   display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
 }
 
 .avatar-loading {
@@ -58,6 +69,8 @@
   opacity: 0.95;
   color: white;
   line-height: 1.2;
+  font-family: 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+  font-weight: 500;
 }
 
 .user-role-text {
@@ -66,6 +79,8 @@
   color: white;
   line-height: 1.2;
   margin-top: 2px;
+  font-family: 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+  font-weight: 500;
 }
 
 .avatar-menu {

@@ -829,7 +829,18 @@ function App() {
         <header className="App-header">
           <div className="header-content">
             <div>
-              <h1>🐳 Docked</h1>
+              <h1>
+                <img
+                  src="/img/logo.png"
+                  alt="Docked"
+                  style={{ height: '1.9em', verticalAlign: 'middle', marginRight: '12px' }}
+                />
+                <img
+                  src="/img/text-header.png"
+                  alt="docked"
+                  style={{ height: '1.25em', verticalAlign: 'middle', maxWidth: '50%' }}
+                />
+              </h1>
               <p>Portainer Container Manager</p>
             </div>
           </div>

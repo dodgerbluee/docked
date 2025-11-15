@@ -116,13 +116,13 @@ curl -X PUT \
     "required_status_checks": {
       "strict": true,
       "contexts": [
-        "validate-pr-title",
-        "lint",
-        "test",
-        "security",
-        "build",
-        "validate-changelog",
-        "all-checks"
+        "CI Pipeline / validate-pr-title",
+        "CI Pipeline / lint",
+        "CI Pipeline / test",
+        "CI Pipeline / security",
+        "CI Pipeline / build",
+        "CI Pipeline / validate-changelog",
+        "CI Pipeline / all-checks"
       ]
     },
     "enforce_admins": true,
@@ -176,15 +176,15 @@ resource "github_branch_protection" "main" {
 
 ### Required Checks
 
-These checks must pass before merging:
+These checks must pass before merging (from `CI Pipeline` workflow):
 
-1. **validate-pr-title**: Validates PR title follows conventional commits
-2. **lint**: Runs ESLint and formatting checks
-3. **test**: Runs unit and integration tests
-4. **security**: Runs security scans (npm audit, Snyk, CodeQL)
-5. **build**: Validates build succeeds
-6. **validate-changelog**: Validates CHANGELOG.md is updated (if version changed)
-7. **all-checks**: Ensures all checks passed
+1. **CI Pipeline / validate-pr-title**: Validates PR title follows conventional commits (PRs only)
+2. **CI Pipeline / lint**: Runs ESLint and formatting checks
+3. **CI Pipeline / test**: Runs unit and integration tests
+4. **CI Pipeline / security**: Runs security scans (npm audit, Snyk, CodeQL)
+5. **CI Pipeline / build**: Validates build succeeds
+6. **CI Pipeline / validate-changelog**: Validates CHANGELOG.md is updated (if version changed, PRs only)
+7. **CI Pipeline / all-checks**: Final gate ensuring all checks passed
 
 ### Optional Checks
 

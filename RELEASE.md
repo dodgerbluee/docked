@@ -57,7 +57,25 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
 
 ### 3. Creating the Release
 
-#### Option A: Automated Release (Recommended)
+#### Option A: Promote Dev to Production (Recommended) ⭐
+
+**Easiest method** - Promotes your tested dev build to production:
+
+1. Go to GitHub Actions
+2. Select **"Promote Dev to Production"** workflow
+3. Click **"Run workflow"**
+4. Type `promote` in the confirmation field
+5. (Optional) Override version if needed
+6. Click **"Run workflow"**
+
+The workflow will:
+- Extract version from latest dev tag (e.g., `v1.2.3-dev` → `1.2.3`)
+- Run full test suite and security scans
+- Build production artifacts and Docker images
+- Create git tag and GitHub release
+- Tag Docker images as version and `latest`
+
+#### Option B: Tag-Based Release
 
 1. **Create and push tag**
    ```bash
@@ -73,7 +91,7 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
    - Generate changelog
    - Create GitHub release
 
-#### Option B: Manual Release
+#### Option C: Manual Release Workflow
 
 1. Go to GitHub Actions
 2. Select "Release" workflow

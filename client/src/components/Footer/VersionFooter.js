@@ -29,11 +29,13 @@ const VersionFooter = ({ version, isDevBuild }) => {
 
   /**
    * Formats the version string for display
-   * Always shows as "vX.X.X" format
+   * Shows as "vX.X.X" format, or "vX.X.X-local" for local development builds
    */
   const displayVersion = useMemo(() => {
-    return version ? `v${version}` : null;
-  }, [version]);
+    if (!version) return null;
+    // Append -local suffix for local development builds
+    return isDevBuild ? `v${version}-local` : `v${version}`;
+  }, [version, isDevBuild]);
 
   return (
     <footer className="version-footer" role="contentinfo">

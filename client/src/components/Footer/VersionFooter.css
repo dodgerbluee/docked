@@ -8,7 +8,7 @@
   pointer-events: auto;
   padding: 4px 8px;
   margin-top: 8px;
-  margin-right: 20px;
+  margin-right: 0;
   transition: opacity 0.2s ease;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(8px);
@@ -67,7 +67,8 @@ body.dark-mode .version-footer-link:hover {
   display: flex;
   justify-content: flex-end;
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 1600px;
+  margin: 0;
+  padding-right: 20px;
 }
 

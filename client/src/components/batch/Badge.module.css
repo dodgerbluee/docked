@@ -14,6 +14,17 @@
   flex-shrink: 0;
 }
 
+/* Override icon colors for status badges - higher specificity */
+.statusCompleted .badgeIcon.successIcon,
+.badge .successIcon {
+  color: var(--success-green) !important;
+}
+
+.statusFailed .badgeIcon.errorIcon,
+.badge .errorIcon {
+  color: var(--dodger-red) !important;
+}
+
 /* Job Type Badge Variants */
 .jobTypeDockerHub {
   background: linear-gradient(135deg, rgba(0, 90, 156, 0.15) 0%, rgba(0, 90, 156, 0.25) 100%);
