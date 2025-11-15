@@ -8,10 +8,10 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - NODE_ENV=production
       - PORT=3002
       - DATA_DIR=/data
       - TZ=America/Chicago
+      - NODE_ENV=development
     volumes:
       - ./data:/data
     networks:

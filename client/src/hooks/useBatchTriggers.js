@@ -61,4 +61,3 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
     handleTriggerTrackedAppsBatch,
   };
 }
-

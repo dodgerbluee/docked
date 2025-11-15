@@ -22,16 +22,12 @@ function ToggleButtonGroup({ options, value, onChange, disabled = false, classNa
         <button
           key={option.value}
           type="button"
-          className={`${styles.toggleOption} ${
-            value === option.value ? styles.active : ""
-          }`}
+          className={`${styles.toggleOption} ${value === option.value ? styles.active : ""}`}
           onClick={() => !disabled && onChange(option.value)}
           disabled={disabled}
           aria-pressed={value === option.value}
         >
-          {option.icon && (
-            <span className={styles.icon}>{option.icon}</span>
-          )}
+          {option.icon && <span className={styles.icon}>{option.icon}</span>}
           <span>{option.label}</span>
         </button>
       ))}
@@ -54,4 +50,3 @@ ToggleButtonGroup.propTypes = {
 };
 
 export default ToggleButtonGroup;
-

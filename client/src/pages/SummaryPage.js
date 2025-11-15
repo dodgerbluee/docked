@@ -4,10 +4,7 @@ import StatCard from "../components/StatCard";
 import PortainerInstanceCard from "../components/PortainerInstanceCard";
 import { useSummaryStats } from "../hooks/useSummaryStats";
 import { useNavigationHandlers } from "../hooks/useNavigationHandlers";
-import {
-  CONTENT_TABS,
-  STAT_CARD_VARIANTS,
-} from "../constants/summaryPage";
+import { CONTENT_TABS, STAT_CARD_VARIANTS } from "../constants/summaryPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import {
   containerShape,
@@ -207,4 +204,3 @@ SummaryPage.propTypes = {
 };
 
 export default SummaryPage;
-

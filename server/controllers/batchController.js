@@ -41,6 +41,11 @@ async function updateBatchConfigHandler(req, res, next) {
   try {
     const { jobType, enabled, intervalMinutes } = req.body;
 
+    // Validate required fields
+    if (!jobType || typeof jobType !== "string") {
+      throw new ValidationError("jobType is required and must be a string", 'jobType', jobType);
+    }
+
     // Validate job type is registered
     const registeredJobTypes = batchSystem.getRegisteredJobTypes();
     if (!registeredJobTypes.includes(jobType)) {
@@ -63,12 +68,20 @@ async function updateBatchConfigHandler(req, res, next) {
       }
     }
 
+    if (typeof enabled !== "boolean") {
+      throw new ValidationError("enabled must be a boolean", 'enabled', enabled);
+    }
+
+    if (typeof intervalMinutes !== "number" || intervalMinutes < 1 || intervalMinutes > 1440) {
+      throw new ValidationError("intervalMinutes must be a number between 1 and 1440", 'intervalMinutes', intervalMinutes);
+    }
+
     await batchConfigRepository.update(jobType, enabled, intervalMinutes);
     const updatedConfigs = await batchConfigRepository.findAll();
     
     sendSuccess(res, {
       config: updatedConfigs,
-      message: 'Batch configuration updated successfully',
+      message: "Batch configuration updated successfully",
     });
   } catch (error) {
     next(error);
@@ -129,17 +142,17 @@ async function updateBatchRunHandler(req, res, next) {
 async function getLatestBatchRunHandler(req, res, next) {
   try {
     // Check if we want latest runs by job type
-    const byJobType = req.query.byJobType === 'true';
-    
-    logger.debug('Fetching latest batch run', {
-      module: 'batchController',
-      operation: 'getLatestBatchRunHandler',
+    const byJobType = req.query.byJobType === "true";
+
+    logger.debug("Fetching latest batch run", {
+      module: "batchController",
+      operation: "getLatestBatchRunHandler",
       byJobType: byJobType,
-      purpose: byJobType 
+      purpose: byJobType
         ? 'Frontend polling to check for batch job completions (updates "Last scanned" timestamps)'
-        : 'Fetching single latest batch run',
+        : "Fetching single latest batch run",
     });
-    
+
     if (byJobType) {
       // Get latest runs for each job type
       const jobTypes = ['docker-hub-pull', 'tracked-apps-check'];
@@ -243,11 +256,12 @@ async function triggerBatchJobHandler(req, res, next) {
 
     // Execute the job (don't await - let it run in background)
     // Pass isManual=true to mark this as a manually triggered run
-    batchSystem.executeJob(jobType, true)
-      .then(result => {
+    batchSystem
+      .executeJob(jobType, true)
+      .then((result) => {
         logger.info(`✅ Manually triggered job ${jobType} completed:`, result);
       })
-      .catch(err => {
+      .catch((err) => {
         logger.error(`❌ Manually triggered job ${jobType} failed:`, err);
       });
 
@@ -306,7 +320,7 @@ async function setLogLevelHandler(req, res, next) {
 
     // Use DB-backed log level (persists across restarts)
     await setLogLevel(logLevel);
-    
+
     // Also update the logger's cached level
     logger.updateLevel();
     
@@ -332,5 +346,3 @@ module.exports = {
   getLogLevelHandler,
   setLogLevelHandler,
 };
-
-

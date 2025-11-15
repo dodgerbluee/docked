@@ -37,7 +37,6 @@ export const useBatchProcessing = ({
     setPortainerInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
-    fetchContainers,
     fetchUnusedImages,
   } = containersData;
 
@@ -113,9 +112,7 @@ export const useBatchProcessing = ({
 
       if (response.data.success === false) {
         throw new Error(
-          response.data.error ||
-            response.data.message ||
-            "Failed to pull container data"
+          response.data.error || response.data.message || "Failed to pull container data"
         );
       }
 
@@ -142,8 +139,7 @@ export const useBatchProcessing = ({
         }
 
         containersChecked = updatedContainers.length || 0;
-        containersUpdated =
-          response.data.containers?.filter((c) => c.hasUpdate).length || 0;
+        containersUpdated = response.data.containers?.filter((c) => c.hasUpdate).length || 0;
         log(
           `Processed ${containersChecked} containers, ${containersUpdated} with updates available`
         );
@@ -194,7 +190,9 @@ export const useBatchProcessing = ({
         fetchDockerHubCredentials,
         dockerHubCredentials,
         (msg) => {
-          log(`❌ ${err.response?.status === 429 || err.response?.data?.rateLimitExceeded ? "Rate limit exceeded" : "Error"}: ${msg}`);
+          log(
+            `❌ ${err.response?.status === 429 || err.response?.data?.rateLimitExceeded ? "Rate limit exceeded" : "Error"}: ${msg}`
+          );
           setError(msg);
         }
       );
@@ -275,9 +273,7 @@ export const useBatchProcessing = ({
         const updatedImages = updatedResponse.data.images || [];
         const appsChecked = updatedImages.length;
         const appsWithUpdates = updatedImages.filter((img) => Boolean(img.has_update)).length;
-        log(
-          `Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`
-        );
+        log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         await fetchTrackedImages();
 
@@ -327,9 +323,7 @@ export const useBatchProcessing = ({
 
     const checkBatchRuns = async () => {
       try {
-        const response = await axios.get(
-          `${API_BASE_URL}/api/batch/runs/latest?byJobType=true`
-        );
+        const response = await axios.get(`${API_BASE_URL}/api/batch/runs/latest?byJobType=true`);
         if (response.data.success && response.data.runs) {
           // Check Docker Hub pull batch run
           const dockerHubRun = response.data.runs["docker-hub-pull"];
@@ -349,9 +343,7 @@ export const useBatchProcessing = ({
               // Note: lastPullTime comparison needs to be done via a ref or callback
               // For now, we'll update if it's a new run or just completed
               const shouldUpdate =
-                isNewRun ||
-                justCompleted ||
-                (previousId === null && previousStatus === null);
+                isNewRun || justCompleted || (previousId === null && previousStatus === null);
 
               if (shouldUpdate) {
                 lastCheckedBatchRunIdRef.current = dockerHubRun.id;
@@ -375,7 +367,8 @@ export const useBatchProcessing = ({
             const previousId = lastCheckedTrackedAppsBatchRunIdRef.current;
 
             if (trackedAppsRun.status === "completed" && trackedAppsRun.completed_at) {
-              const completedAt = parseUTCTimestamp(trackedAppsRun.completed_at);
+              // Parse timestamp for potential future use
+              parseUTCTimestamp(trackedAppsRun.completed_at);
 
               const isNewRun = trackedAppsRun.id !== previousId;
               const justCompleted =
@@ -384,9 +377,7 @@ export const useBatchProcessing = ({
                 previousStatus !== null;
 
               const shouldUpdate =
-                isNewRun ||
-                justCompleted ||
-                (previousId === null && previousStatus === null);
+                isNewRun || justCompleted || (previousId === null && previousStatus === null);
 
               if (shouldUpdate) {
                 lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
@@ -433,7 +424,6 @@ export const useBatchProcessing = ({
       batchConfig.intervalMinutes > 0
     ) {
       const intervalMs = batchConfig.intervalMinutes * 60 * 1000;
-      const currentIntervalMinutes = batchConfig.intervalMinutes;
       const intervalId = setInterval(() => {
         if (batchIntervalRef.current === intervalId) {
           handleBatchPull().catch((err) => {
@@ -511,4 +501,3 @@ export const useBatchProcessing = ({
     hasRunInitialPullRef,
   };
 };
-

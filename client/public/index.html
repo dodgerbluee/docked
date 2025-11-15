@@ -5,10 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="Docked - Portainer Container Manager" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/img/image.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/img/image.png" />
-    <link rel="apple-touch-icon" href="/img/image.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/logo.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/img/logo.png" />
+    <link rel="apple-touch-icon" href="/img/logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <title>Docked</title>
+    <script>
+      // Apply dark mode immediately to prevent flash of light mode
+      (function() {
+        try {
+          // Check localStorage for saved dark mode state
+          const savedDarkMode = localStorage.getItem('darkMode');
+          if (savedDarkMode === 'true') {
+            document.body.classList.add('dark-mode');
+            return;
+          }
+          // If no saved state, check system preference
+          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark-mode');
+          }
+        } catch (e) {
+          // Silently fail if localStorage is not available
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

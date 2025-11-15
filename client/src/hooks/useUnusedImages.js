@@ -2,8 +2,8 @@
  * Custom hook for fetching unused images
  */
 
-import { useState, useCallback } from 'react';
-import axios from 'axios';
+import { useState, useCallback } from "react";
+import axios from "axios";
 
 // In production, API is served from same origin, so use relative URLs
 import { API_BASE_URL } from "../constants/api";
@@ -20,8 +20,8 @@ export function useUnusedImages() {
       setUnusedImages(response.data.unusedImages || []);
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to fetch unused images');
-      console.error('Error fetching unused images:', err);
+      setError(err.response?.data?.error || "Failed to fetch unused images");
+      console.error("Error fetching unused images:", err);
     } finally {
       setLoading(false);
     }
@@ -34,4 +34,3 @@ export function useUnusedImages() {
     refetch: fetchUnusedImages,
   };
 }
-

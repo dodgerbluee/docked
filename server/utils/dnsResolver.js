@@ -3,9 +3,9 @@
  * Resolves URLs to IP addresses for fallback when DNS fails
  */
 
-const dns = require('dns').promises;
-const { URL } = require('url');
-const logger = require('./logger');
+const dns = require("dns").promises;
+const { URL } = require("url");
+const logger = require("./logger");
 
 /**
  * Resolve a URL to its IP address
@@ -16,19 +16,19 @@ async function resolveUrlToIp(urlString) {
   try {
     const url = new URL(urlString);
     const hostname = url.hostname;
-    
+
     // Skip resolution for IP addresses
     if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || /^\[?[0-9a-fA-F:]+]?$/.test(hostname)) {
       return hostname;
     }
-    
+
     // Resolve hostname to IP
     const addresses = await dns.resolve4(hostname);
     if (addresses && addresses.length > 0) {
       // Return the first IPv4 address
       return addresses[0];
     }
-    
+
     return null;
   } catch (error) {
     logger.error(`Failed to resolve ${urlString} to IP:`, error.message);
@@ -46,20 +46,20 @@ function urlWithIp(originalUrl, ipAddress) {
   try {
     const url = new URL(originalUrl);
     const originalHostname = url.hostname;
-    
+
     // Replace hostname with IP, preserving port if present
     url.hostname = ipAddress;
-    
+
     // If original URL had a port, keep it
     // Otherwise, use default ports (80 for http, 443 for https)
     if (!url.port) {
-      if (url.protocol === 'https:') {
-        url.port = '443';
-      } else if (url.protocol === 'http:') {
-        url.port = '80';
+      if (url.protocol === "https:") {
+        url.port = "443";
+      } else if (url.protocol === "http:") {
+        url.port = "80";
       }
     }
-    
+
     return url.toString();
   } catch (error) {
     logger.error(`Failed to convert URL ${originalUrl} with IP ${ipAddress}:`, error.message);
@@ -78,27 +78,34 @@ function urlWithIp(originalUrl, ipAddress) {
  * @param {string} authType - Authentication type
  * @returns {Promise<string|null>} - Detected backend IP or null
  */
-async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = null, password = null, authType = 'apikey') {
+async function detectBackendIp(
+  proxyIp,
+  originalUrl,
+  apiKey = null,
+  username = null,
+  password = null,
+  authType = "apikey"
+) {
   try {
-    const axios = require('axios');
+    const axios = require("axios");
     const originalUrlObj = new URL(originalUrl);
     const protocol = originalUrlObj.protocol;
-    
+
     // Extract subnet from proxy IP (e.g., "192.168.69" from "192.168.69.10")
-    const ipParts = proxyIp.split('.');
+    const ipParts = proxyIp.split(".");
     if (ipParts.length !== 4) {
       return null; // Invalid IP format
     }
-    
-    const subnet = ipParts.slice(0, 3).join('.');
+
+    const subnet = ipParts.slice(0, 3).join(".");
     const proxyLastOctet = parseInt(ipParts[3]);
-    
+
     // Generate list of IPs to test:
     // 1. Common backend IPs (proxy + 40, +50, +20, +30, etc.)
     // 2. IPs near the proxy IP
     const testIps = [];
     const offsets = [40, 50, 20, 30, 10, 5, 15, 25, 35, 45, 100, 200];
-    
+
     for (const offset of offsets) {
       const testIp = `${subnet}.${proxyLastOctet + offset}`;
       // Skip the proxy IP itself
@@ -106,7 +113,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
         testIps.push(testIp);
       }
     }
-    
+
     // Also try some common backend IPs regardless of proxy IP
     const commonBackendIps = [
       `${subnet}.50`,
@@ -115,55 +122,54 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
       `${subnet}.100`,
       `${subnet}.200`,
     ];
-    
+
     for (const ip of commonBackendIps) {
       if (ip !== proxyIp && !testIps.includes(ip)) {
         testIps.push(ip);
       }
     }
-    
+
     // Try common Portainer ports
     const portsToTry = [9000, 9443, 80, 443];
-    
+
     // Prepare auth headers
     const getAuthHeaders = () => {
-      if (authType === 'apikey' && apiKey) {
+      if (authType === "apikey" && apiKey) {
         return {
-          'X-API-Key': apiKey,
-          'Content-Type': 'application/json',
+          "X-API-Key": apiKey,
+          "Content-Type": "application/json",
         };
       } else if (username && password) {
         // For password auth, we'd need to authenticate first
         // For now, just return basic auth structure
         return {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         };
       }
       return {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       };
     };
-    
+
     // Test each IP and port combination
     for (const testIp of testIps) {
       for (const port of portsToTry) {
-        const testProtocol = (port === 443 || port === 9443) ? 'https:' : 'http:';
+        const testProtocol = port === 443 || port === 9443 ? "https:" : "http:";
         const testUrl = `${testProtocol}//${testIp}:${port}`;
-        
+
         try {
           // Try to authenticate or make a simple API call
-          if (authType === 'apikey' && apiKey) {
+          if (authType === "apikey" && apiKey) {
             // Test API key auth
-            const response = await axios.get(
-              `${testUrl}/api/endpoints`,
-              {
-                headers: getAuthHeaders(),
-                timeout: 2000, // Short timeout for testing
-              }
-            );
+            const response = await axios.get(`${testUrl}/api/endpoints`, {
+              headers: getAuthHeaders(),
+              timeout: 2000, // Short timeout for testing
+            });
             // If we get a response (even 401 means the server is there), this might be the backend
             if (response.status === 200 || response.status === 401) {
-              logger.info(`Detected potential backend IP: ${testIp}:${port} (status: ${response.status})`);
+              logger.info(
+                `Detected potential backend IP: ${testIp}:${port} (status: ${response.status})`
+              );
               return testIp;
             }
           } else if (username && password) {
@@ -173,7 +179,7 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
                 `${testUrl}/api/auth`,
                 { username, password },
                 {
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { "Content-Type": "application/json" },
                   timeout: 2000,
                 }
               );
@@ -184,30 +190,34 @@ async function detectBackendIp(proxyIp, originalUrl, apiKey = null, username = n
             } catch (authErr) {
               // If we get 401, the server exists but credentials might be wrong
               // If we get connection refused, try next IP
-              if (authErr.code === 'ECONNREFUSED' || authErr.code === 'ETIMEDOUT') {
+              if (authErr.code === "ECONNREFUSED" || authErr.code === "ETIMEDOUT") {
                 continue;
               }
               // 401 means server is there, might be the backend
               if (authErr.response?.status === 401) {
-                logger.info(`Detected potential backend IP: ${testIp}:${port} (auth failed but server exists)`);
+                logger.info(
+                  `Detected potential backend IP: ${testIp}:${port} (auth failed but server exists)`
+                );
                 return testIp;
               }
             }
           }
         } catch (error) {
           // Connection refused or timeout - not this IP, continue
-          if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+          if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
             continue;
           }
           // Other errors might mean the server exists
           if (error.response) {
-            logger.info(`Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status})`);
+            logger.info(
+              `Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status})`
+            );
             return testIp;
           }
         }
       }
     }
-    
+
     return null; // Could not detect backend IP
   } catch (error) {
     logger.error(`Error detecting backend IP:`, error.message);
@@ -220,4 +230,3 @@ module.exports = {
   urlWithIp,
   detectBackendIp,
 };
-

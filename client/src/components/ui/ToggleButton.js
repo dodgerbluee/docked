@@ -18,15 +18,11 @@ const ToggleButton = React.memo(function ToggleButton({
         <button
           key={option.value}
           type="button"
-          className={`${styles.toggleOption} ${
-            value === option.value ? styles.active : ""
-          }`}
+          className={`${styles.toggleOption} ${value === option.value ? styles.active : ""}`}
           onClick={() => onChange(option.value)}
         >
           {option.icon && typeof option.icon === "function" && (
-            <span className={styles.icon}>
-              {React.createElement(option.icon, { size: 16 })}
-            </span>
+            <span className={styles.icon}>{React.createElement(option.icon, { size: 16 })}</span>
           )}
           <span>{option.label}</span>
         </button>
@@ -49,4 +45,3 @@ ToggleButton.propTypes = {
 };
 
 export default ToggleButton;
-

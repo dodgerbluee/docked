@@ -78,7 +78,7 @@ function Login({ onLogin }) {
         <div className="login-header">
           <h1>
             <img
-              src="/img/image.png"
+              src="/img/logo.png"
               alt="Docked"
               style={{
                 height: "2em",
@@ -87,11 +87,7 @@ function Login({ onLogin }) {
                 display: "inline-block",
               }}
             />
-            <span
-              style={{ display: "inline-block", transform: "translateY(3px)" }}
-            >
-              Docked
-            </span>
+            <span style={{ display: "inline-block", transform: "translateY(3px)" }}>Docked</span>
           </h1>
           <p>Portainer Container Manager</p>
         </div>

@@ -28,4 +28,3 @@ const WhaleIcon = ({ size = 18, ...props }) => (
 );
 
 export default WhaleIcon;
-

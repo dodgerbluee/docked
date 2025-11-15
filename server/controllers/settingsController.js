@@ -11,8 +11,8 @@ const { ValidationError } = require('../domain/errors');
 // Resolve dependencies from container
 const settingsRepository = container.resolve('settingsRepository');
 
-const COLOR_SCHEME_KEY = 'color_scheme';
-const DEFAULT_COLOR_SCHEME = 'system';
+const COLOR_SCHEME_KEY = "color_scheme";
+const DEFAULT_COLOR_SCHEME = "system";
 
 /**
  * Get color scheme preference
@@ -65,4 +65,3 @@ module.exports = {
   getColorSchemeHandler,
   setColorSchemeHandler,
 };
-

@@ -9,6 +9,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
+const fs = require("fs");
 const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
@@ -21,7 +22,7 @@ const app = express();
 
 // Trust proxy - required when running behind a reverse proxy (Docker, nginx, etc.)
 // This allows Express to correctly identify the client IP from X-Forwarded-For headers
-app.set('trust proxy', true);
+app.set("trust proxy", true);
 
 // Security middleware configuration - must be defined before middleware
 // Note: CSP disabled on localhost and in development for Safari compatibility
@@ -30,14 +31,11 @@ app.set('trust proxy', true);
 // 1. Running in development mode, OR
 // 2. Explicitly disabled via DISABLE_CSP env var, OR
 // 3. Running on any localhost port without HTTPS (for Safari compatibility)
-const isHTTPS =
-  process.env.HTTPS === "true" || process.env.PROTOCOL === "https";
+const isHTTPS = process.env.HTTPS === "true" || process.env.PROTOCOL === "https";
 // Consider any port < 10000 as localhost development (3001, 3002, 3000, etc.)
 const isLocalhost = config.port < 10000 && !isHTTPS;
 const shouldDisableCSP =
-  process.env.NODE_ENV !== "production" ||
-  process.env.DISABLE_CSP === "true" ||
-  isLocalhost;
+  process.env.NODE_ENV !== "production" || process.env.DISABLE_CSP === "true" || isLocalhost;
 
 // Explicitly remove HSTS header for localhost to fix Safari caching issues
 // This must come BEFORE helmet to ensure HSTS is not set
@@ -46,10 +44,7 @@ app.use((req, res, next) => {
     // Remove any HSTS headers that might be set
     res.removeHeader("Strict-Transport-Security");
     // Prevent caching of security headers
-    res.setHeader(
-      "Cache-Control",
-      "no-store, no-cache, must-revalidate, private"
-    );
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     res.setHeader("Pragma", "no-cache");
   }
   next();
@@ -85,13 +80,13 @@ app.use(
     crossOriginResourcePolicy: shouldDisableCSP
       ? false
       : process.env.NODE_ENV === "production"
-      ? { policy: "same-origin" }
-      : false,
+        ? { policy: "same-origin" }
+        : false,
     crossOriginOpenerPolicy: shouldDisableCSP
       ? false
       : process.env.NODE_ENV === "production"
-      ? { policy: "same-origin" }
-      : false,
+        ? { policy: "same-origin" }
+        : false,
   })
 );
 
@@ -121,7 +116,7 @@ app.use(requestLogger);
 // We only rate limit Docker Hub requests, not our own API
 // This prevents 429 errors when deploying to Portainer or other production environments
 logger.info("API rate limiting disabled - only Docker Hub requests are rate limited", {
-  module: 'server',
+  module: "server",
 });
 
 // API Documentation
@@ -134,18 +129,25 @@ app.use(
   })
 );
 
-// Serve static files from React app (in production)
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "public")));
+// Serve static files from React app
+// In production: always serve
+// In development: serve if public directory exists (Docker/local build scenario)
+const publicPath = path.join(__dirname, "public");
+const shouldServeStatic =
+  process.env.NODE_ENV === "production" ||
+  (process.env.NODE_ENV === "development" && fs.existsSync(publicPath));
+
+if (shouldServeStatic) {
+  app.use(express.static(publicPath));
 }
 
 // Routes
 app.use("/api", routes);
 
-// Serve React app for all non-API routes (in production)
-if (process.env.NODE_ENV === "production") {
+// Serve React app for all non-API routes
+if (shouldServeStatic) {
   app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "public/index.html"));
+    res.sendFile(path.join(publicPath, "index.html"));
   });
 }
 
@@ -155,67 +157,139 @@ app.use(errorHandler);
 // Import batch system
 const batchSystem = require("./services/batch");
 
-// Start server
-try {
-  logger.info('Server starting', {
-    module: 'server',
-    environment: process.env.NODE_ENV || 'development',
-    port: config.port,
+// Handle unhandled promise rejections (Express 5 compatibility)
+// In Express 5, unhandled rejections can cause crashes
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Promise Rejection", {
+    module: "server",
+    reason:
+      reason instanceof Error
+        ? {
+            message: reason.message,
+            stack: reason.stack,
+            name: reason.name,
+          }
+        : reason,
+    promise: promise,
   });
+  // In test mode, don't exit - let Jest handle it
+  // In development, log but don't exit - let nodemon handle restarts
+  // In production, exit to prevent undefined behavior
+  if (process.env.NODE_ENV === "production") {
+    logger.critical("Exiting due to unhandled rejection in production");
+    process.exit(1);
+  }
+  // In test mode, just log - don't exit
+});
 
-  app.listen(config.port, () => {
-    logger.info('Server started successfully', {
-      module: 'server',
-      environment: process.env.NODE_ENV || 'development',
-      port: config.port,
-      nodeVersion: process.version,
-    });
-
-    if (process.env.NODE_ENV === "development") {
-      logger.debug('Development configuration', {
-        module: 'server',
-        portainerUrls: config.portainer.urls,
-        portainerUsername: config.portainer.username,
-        dockerHubAuthConfigured: 'Configure via Settings UI',
-        cacheTTL: '24 hours',
-      });
-    }
-
-    // Start batch system (runs jobs in background even when browser is closed)
-    batchSystem.start()
-      .then(() => {
-        logger.info('Batch system started', {
-          module: 'server',
-          service: 'batch',
-        });
-      })
-      .catch(err => {
-        logger.error('Failed to start batch system', {
-          module: 'server',
-          service: 'batch',
-          error: err,
-        });
-      });
-  }).on('error', (err) => {
-    logger.critical('Server listen error', {
-      module: 'server',
-      error: err,
-      port: config.port,
-      code: err.code,
-    });
-    if (err.code === 'EADDRINUSE') {
-      logger.critical(`Port ${config.port} is already in use`, {
-        module: 'server',
-        port: config.port,
-      });
-    }
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  logger.critical("Uncaught Exception", {
+    module: "server",
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    },
   });
-} catch (error) {
-  logger.critical('Failed to start server', {
-    module: 'server',
-    error: error,
-  });
+  // Always exit on uncaught exceptions - these are serious
   process.exit(1);
+});
+
+// Only start the server if this file is being run directly (not required by tests)
+// require.main === module means this file was executed directly (e.g., node server.js)
+// We also skip if NODE_ENV is 'test' to prevent server startup during tests
+const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
+
+if (shouldStartServer) {
+  // Start server
+  try {
+    logger.info("Server starting", {
+      module: "server",
+      environment: process.env.NODE_ENV || "development",
+      port: config.port,
+    });
+
+    const server = app.listen(config.port, () => {
+      logger.info("Server started successfully", {
+        module: "server",
+        environment: process.env.NODE_ENV || "development",
+        port: config.port,
+        nodeVersion: process.version,
+      });
+
+      if (process.env.NODE_ENV === "development") {
+        logger.debug("Development configuration", {
+          module: "server",
+          portainerUrls: config.portainer.urls,
+          portainerUsername: config.portainer.username,
+          dockerHubAuthConfigured: "Configure via Settings UI",
+          cacheTTL: "24 hours",
+        });
+      }
+
+      // Start batch system (runs jobs in background even when browser is closed)
+      // Use setImmediate to ensure server is fully started before starting batch system
+      setImmediate(() => {
+        batchSystem
+          .start()
+          .then(() => {
+            logger.info("Batch system started", {
+              module: "server",
+              service: "batch",
+            });
+          })
+          .catch((err) => {
+            logger.error("Failed to start batch system", {
+              module: "server",
+              service: "batch",
+              error: err,
+            });
+            // Don't crash the server if batch system fails to start
+          });
+      });
+    });
+
+    server.on("error", (err) => {
+      logger.critical("Server listen error", {
+        module: "server",
+        error: err,
+        port: config.port,
+        code: err.code,
+      });
+      if (err.code === "EADDRINUSE") {
+        logger.critical(`Port ${config.port} is already in use`, {
+          module: "server",
+          port: config.port,
+        });
+      }
+      // Exit on listen errors
+      process.exit(1);
+    });
+  } catch (error) {
+    logger.critical("Failed to start server", {
+      module: "server",
+      error: error,
+    });
+    process.exit(1);
+  }
+
+  // Graceful shutdown handling (only register if server is starting)
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
+  });
+
+  process.on("SIGINT", () => {
+    logger.info("SIGINT received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
+  });
 }
 
 // Handle unhandled promise rejections

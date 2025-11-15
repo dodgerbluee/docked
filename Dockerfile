@@ -1,6 +1,6 @@
 # Multi-stage build for Docked
 # Stage 1: Build React frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:25-alpine AS frontend-builder
 
 WORKDIR /app/client
 
@@ -14,10 +14,11 @@ RUN npm install
 COPY client/ ./
 
 # Build React app
-RUN npm run build
+# Use NODE_OPTIONS to provide localStorage file path for Node.js 25+
+RUN NODE_OPTIONS="--localstorage-file=/tmp/.localstorage" npm run build
 
 # Stage 2: Build backend and serve frontend
-FROM node:18-alpine
+FROM node:25-alpine
 
 # Set timezone
 RUN apk add --no-cache tzdata
@@ -27,6 +28,9 @@ WORKDIR /app
 
 # Install build tools for sqlite3 native module
 RUN apk add --no-cache python3 make g++
+
+# Copy root package.json (for version info)
+COPY package.json ./
 
 # Copy server package files
 COPY server/package*.json ./
@@ -49,8 +53,11 @@ COPY --from=frontend-builder /app/client/build ./public
 # Expose port
 EXPOSE 3001
 
+# Accept NODE_ENV as build argument
+ARG NODE_ENV=production
+
 # Set environment variables
-ENV NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
 ENV PORT=3001
 
 # Start server

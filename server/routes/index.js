@@ -24,6 +24,8 @@ const batchController = require("../controllers/batchController");
 const trackedImageController = require("../controllers/trackedImageController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
+const versionController = require("../controllers/versionController");
+const logsController = require("../controllers/logsController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validateBody, validateQuery, validateParams } = require("../utils/validationSchemas");
@@ -35,6 +37,30 @@ const router = express.Router();
 // Health check routes (no authentication required)
 const healthRouter = require('./health');
 router.use('/health', healthRouter);
+
+/**
+ * @swagger
+ * /version:
+ *   get:
+ *     summary: Get application version
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Application version information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 version:
+ *                   type: string
+ *                   nullable: true
+ *                   example: "1.0.0"
+ *                 environment:
+ *                   type: string
+ *                   example: "production"
+ */
+router.get("/version", versionController.getVersion);
 
 /**
  * @swagger
@@ -118,10 +144,7 @@ router.post(
 );
 
 // Docker Hub credentials routes (protected)
-router.get(
-  "/docker-hub/credentials",
-  asyncHandler(authController.getDockerHubCreds)
-);
+router.get("/docker-hub/credentials", asyncHandler(authController.getDockerHubCreds));
 router.post(
   "/docker-hub/credentials/validate",
   validateBody(schemas.dockerHubCredentials),
@@ -343,5 +366,8 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
 // Settings routes
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", validateBody(schemas.colorScheme), asyncHandler(settingsController.setColorSchemeHandler));
+
+// Logs routes
+router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
 
 module.exports = router;

@@ -17,6 +17,7 @@ function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged }) {
     SETTINGS_TABS.DOCKERHUB,
     SETTINGS_TABS.DISCORD,
     SETTINGS_TABS.USER_DETAILS,
+    SETTINGS_TABS.LOGS,
   ];
 
   return (
@@ -27,9 +28,7 @@ function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged }) {
           return (
             <button
               key={tab}
-              className={`${styles.tab} ${
-                activeTab === tab ? styles.active : ""
-              }`}
+              className={`${styles.tab} ${activeTab === tab ? styles.active : ""}`}
               onClick={() => onTabChange(tab)}
               disabled={isDisabled}
             >
@@ -49,4 +48,3 @@ SettingsTabNavigation.propTypes = {
 };
 
 export default SettingsTabNavigation;
-

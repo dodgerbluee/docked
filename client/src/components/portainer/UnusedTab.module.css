@@ -67,7 +67,7 @@ body.dark-mode .stackCount {
 
 .imagesGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   width: 100%;
   box-sizing: border-box;
@@ -84,7 +84,9 @@ body.dark-mode .stackCount {
   border-left: 2px solid var(--dodger-red) !important;
   border-radius: 8px;
   padding: 16px;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -196,7 +198,9 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
   border: solid white;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0);
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
   opacity: 0;
   z-index: 2;
 }
@@ -310,7 +314,9 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   color: var(--dodger-red);
   flex-shrink: 0;
   cursor: pointer;
-  transition: color 0.2s, transform 0.2s;
+  transition:
+    color 0.2s,
+    transform 0.2s;
   width: 20px;
   height: 20px;
   display: inline-flex;
@@ -383,4 +389,3 @@ body.dark-mode .portainerBadge:hover {
     grid-template-columns: 1fr;
   }
 }
-

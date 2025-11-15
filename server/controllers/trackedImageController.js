@@ -9,7 +9,7 @@ const trackedImageService = require('../services/trackedImageService');
 const githubService = require('../services/githubService');
 const gitlabService = require('../services/gitlabService');
 const { sendSuccess, sendCreated, sendNoContent } = require('../utils/responseHelper');
-const { NotFoundError } = require('../domain/errors');
+const { NotFoundError, ValidationError, ConflictError } = require('../domain/errors');
 
 // Resolve dependencies from container
 const trackedImageRepository = container.resolve('trackedImageRepository');
@@ -25,11 +25,11 @@ async function getTrackedImages(req, res, next) {
     const images = await trackedImageRepository.findAll();
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
-    const formattedImages = images.map(image => {
+    const formattedImages = images.map((image) => {
       let latestVersion = image.latest_version ? String(image.latest_version) : null;
       let currentVersionPublishDate = image.current_version_publish_date || null;
       let latestVersionPublishDate = image.latest_version_publish_date || null;
-      
+
       // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
       if ((image.source_type === 'github' || image.source_type === 'gitlab') && latestVersion) {
         const normalizeVersion = (v) => v ? v.replace(/^v/, '') : '';
@@ -40,7 +40,7 @@ async function getTrackedImages(req, res, next) {
           // Publish date will be "Not available" if not set
         }
       }
-      
+
       return {
         ...image,
         has_update: Boolean(image.has_update),
@@ -92,16 +92,11 @@ async function createTrackedImageEndpoint(req, res, next) {
 
     // Validate name is required
     if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Name is required',
-      });
+      throw new ValidationError('Name is required', 'name');
     }
 
     // Determine source type
-    const finalSourceType = sourceType || (githubRepo ? 'github' : 'docker');
-
-    const { ConflictError, ValidationError } = require('../domain/errors');
+    const finalSourceType = sourceType || (githubRepo ? "github" : "docker");
 
     if (finalSourceType === 'github') {
       // Validate GitHub repo
@@ -132,7 +127,7 @@ async function createTrackedImageEndpoint(req, res, next) {
         message: 'GitHub repository tracked successfully',
         id: id,
       });
-    } else if (finalSourceType === 'gitlab') {
+    } else if (finalSourceType === "gitlab") {
       // Validate GitLab repo
       if (!githubRepo || !githubRepo.trim()) {
         throw new ValidationError('GitLab repository is required for GitLab source type', 'githubRepo');
@@ -195,7 +190,6 @@ async function createTrackedImageEndpoint(req, res, next) {
   } catch (error) {
     // Handle unique constraint violation
     if (error.message && error.message.includes('UNIQUE constraint failed')) {
-      const { ConflictError } = require('../domain/errors');
       throw new ConflictError('This item is already being tracked');
     }
     next(error);
@@ -221,7 +215,6 @@ async function updateTrackedImageEndpoint(req, res, next) {
 
     // Validate input - allow current_version updates even if name/imageName not provided
     if (!name && !imageName && current_version === undefined) {
-      const { ValidationError } = require('../domain/errors');
       throw new ValidationError('At least one field (name, imageName, or current_version) must be provided');
     }
 
@@ -231,7 +224,6 @@ async function updateTrackedImageEndpoint(req, res, next) {
       if (trimmedImageName !== existing.image_name) {
         const conflict = await trackedImageRepository.findByImageNameOrRepo(trimmedImageName);
         if (conflict && conflict.id !== parseInt(id)) {
-          const { ConflictError } = require('../domain/errors');
           throw new ConflictError('An image with this name is already being tracked');
         }
       }
@@ -240,7 +232,8 @@ async function updateTrackedImageEndpoint(req, res, next) {
     // Update tracked image
     const updateData = {};
     if (name !== undefined && name !== null) updateData.name = String(name).trim();
-    if (imageName !== undefined && imageName !== null) updateData.image_name = String(imageName).trim();
+    if (imageName !== undefined && imageName !== null)
+      updateData.image_name = String(imageName).trim();
     if (gitlabToken !== undefined) {
       // Allow setting to null/empty string to clear token
       updateData.gitlab_token = gitlabToken && gitlabToken.trim() ? gitlabToken.trim() : null;
@@ -251,25 +244,25 @@ async function updateTrackedImageEndpoint(req, res, next) {
       // If updating current_version to match latest_version, also update has_update flag
       // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
       const normalizeVersion = (v) => {
-        if (!v) return '';
-        return String(v).replace(/^v/i, '').trim().toLowerCase();
+        if (!v) return "";
+        return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
-      
+
       // When user upgrades, set current_version AND sync latest_version to match
       // This ensures they stay in sync and batch checks won't re-detect an update
       // ALWAYS clear has_update when user explicitly upgrades
       updateData.has_update = 0;
-      
+
       // If there's a stored latest_version, check if we should sync it
       if (existing.latest_version) {
         const normalizedCurrent = normalizeVersion(trimmedVersion);
         const normalizedLatest = normalizeVersion(existing.latest_version);
-        
-        if (normalizedCurrent === normalizedLatest && normalizedCurrent !== '') {
+
+        if (normalizedCurrent === normalizedLatest && normalizedCurrent !== "") {
           // Versions match after normalization - sync latest_version to current_version format
           // This ensures they're in perfect sync and batch checks won't re-detect updates
           updateData.latest_version = trimmedVersion;
-          
+
           // If we have a latest_version_publish_date, use it as current_version_publish_date
           // since current and latest are now the same
           if (existing.latest_version_publish_date) {
@@ -303,7 +296,6 @@ async function updateTrackedImageEndpoint(req, res, next) {
   } catch (error) {
     // Handle unique constraint violation
     if (error.message && error.message.includes('UNIQUE constraint failed')) {
-      const { ConflictError } = require('../domain/errors');
       throw new ConflictError('An image with this name is already being tracked');
     }
     next(error);
@@ -411,4 +403,3 @@ module.exports = {
   checkTrackedImageUpdate,
   clearGitHubCache,
 };
-

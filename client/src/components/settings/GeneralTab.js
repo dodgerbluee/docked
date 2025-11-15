@@ -4,7 +4,7 @@ import { Monitor, Sun, Moon, Info, Search } from "lucide-react";
 import { COLOR_SCHEMES, LOG_LEVELS } from "../../constants/settings";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
-import Card from "../ui/Card";
+// Card is not currently used but kept for potential future use
 import ToggleButton from "../ui/ToggleButton";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import styles from "./GeneralTab.module.css";
@@ -43,44 +43,34 @@ const GeneralTab = React.memo(function GeneralTab({
 
   const handleClearPortainerData = async () => {
     if (!onClearPortainerData) {
-      alert(
-        "Error: Clear Portainer Data handler is not available. Please refresh the page."
-      );
+      alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
       return;
     }
     try {
       await onClearPortainerData();
     } catch (error) {
       console.error("Error clearing Portainer data:", error);
-      alert(
-        "Error clearing Portainer data: " + (error.message || "Unknown error")
-      );
+      alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
     }
   };
 
   const handleClearTrackedAppData = async () => {
     if (!onClearTrackedAppData) {
-      alert(
-        "Error: Clear Tracked App Data handler is not available. Please refresh the page."
-      );
+      alert("Error: Clear Tracked App Data handler is not available. Please refresh the page.");
       return;
     }
     try {
       await onClearTrackedAppData();
     } catch (error) {
       console.error("Error clearing tracked app data:", error);
-      alert(
-        "Error clearing tracked app data: " + (error.message || "Unknown error")
-      );
+      alert("Error clearing tracked app data: " + (error.message || "Unknown error"));
     }
   };
 
   return (
     <div className={styles.updateSection}>
       <h3 className={styles.title}>General Settings</h3>
-      {generalSettingsSuccess && (
-        <Alert variant="info">{generalSettingsSuccess}</Alert>
-      )}
+      {generalSettingsSuccess && <Alert variant="info">{generalSettingsSuccess}</Alert>}
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -99,8 +89,8 @@ const GeneralTab = React.memo(function GeneralTab({
             className={styles.toggle}
           />
           <small className={styles.helperText}>
-            Choose how the application theme is determined. "System" will follow
-            your browser or operating system preference.
+            Choose how the application theme is determined. "System" will follow your browser or
+            operating system preference.
           </small>
         </div>
         <div className={styles.formGroup}>
@@ -114,9 +104,8 @@ const GeneralTab = React.memo(function GeneralTab({
             className={styles.toggle}
           />
           <small className={styles.helperText}>
-            Control the verbosity of batch job logs. "Info" shows core events
-            (job starts, completions, errors). "Debug" includes detailed
-            scheduling and comparison information.
+            Control the verbosity of batch job logs. "Info" shows core events (job starts,
+            completions, errors). "Debug" includes detailed scheduling and comparison information.
           </small>
         </div>
         <div className={styles.formActions}>
@@ -145,9 +134,9 @@ const GeneralTab = React.memo(function GeneralTab({
               {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
             </Button>
             <small className={styles.dataActionHelper}>
-              Removes all cached container information from Portainer instances.
-              This will clear container data, stacks, and unused images. 
-              Portainer instance configurations will be preserved.
+              Removes all cached container information from Portainer instances. This will clear
+              container data, stacks, and unused images. Portainer instance configurations will be
+              preserved.
             </small>
           </div>
           <div className={styles.dataActionItem}>
@@ -158,15 +147,12 @@ const GeneralTab = React.memo(function GeneralTab({
               disabled={clearingTrackedAppData}
               className={styles.dangerButton}
             >
-              {clearingTrackedAppData
-                ? "Clearing..."
-                : "Clear Tracked App Data"}
+              {clearingTrackedAppData ? "Clearing..." : "Clear Tracked App Data"}
             </Button>
             <small className={styles.dataActionHelper}>
-              Clears the latest version data for all tracked apps. This will
-              reset the "Latest" version information and force fresh data to be
-              fetched on the next check. Your tracked app configurations will be
-              preserved.
+              Clears the latest version data for all tracked apps. This will reset the "Latest"
+              version information and force fresh data to be fetched on the next check. Your tracked
+              app configurations will be preserved.
             </small>
           </div>
         </div>

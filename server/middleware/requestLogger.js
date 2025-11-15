@@ -3,8 +3,8 @@
  * Adds request lifecycle logging with requestId tracking
  */
 
-const crypto = require('crypto');
-const logger = require('../utils/logger');
+const crypto = require("crypto");
+const logger = require("../utils/logger");
 
 /**
  * Generate a unique request ID
@@ -16,7 +16,7 @@ function generateRequestId() {
     return crypto.randomUUID();
   }
   // Fallback for older Node.js versions
-  return crypto.randomBytes(16).toString('hex');
+  return crypto.randomBytes(16).toString("hex");
 }
 
 /**
@@ -37,18 +37,18 @@ function requestLogger(req, res, next) {
     url: req.url,
     path: req.path,
     ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('user-agent'),
+    userAgent: req.get("user-agent"),
     userId: req.user?.id,
   };
 
   // Run request handler with context
   logger.withContext(context, () => {
     // Skip verbose logging for frequent polling endpoints
-    const isPollingEndpoint = req.path === '/api/batch/runs/latest' && req.method === 'GET';
-    
+    const isPollingEndpoint = req.path === "/api/batch/runs/latest" && req.method === "GET";
+
     // Log request start (only for non-polling endpoints or in debug mode)
     if (!isPollingEndpoint) {
-      logger.debug('Request started', {
+      logger.debug("Request started", {
         method: req.method,
         url: req.url,
         path: req.path,
@@ -59,13 +59,13 @@ function requestLogger(req, res, next) {
     }
 
     // Log request completion
-    res.on('finish', () => {
+    res.on("finish", () => {
       const duration = Date.now() - startTime;
-      
+
       // Always log errors and warnings
       if (res.statusCode >= 400) {
-        const logLevel = res.statusCode >= 500 ? 'error' : 'warn';
-        logger[logLevel]('Request completed with error', {
+        const logLevel = res.statusCode >= 500 ? "error" : "warn";
+        logger[logLevel]("Request completed with error", {
           method: req.method,
           url: req.url,
           path: req.path,
@@ -74,10 +74,10 @@ function requestLogger(req, res, next) {
           ip: context.ip,
           userId: context.userId,
         });
-      } 
+      }
       // Log slow requests (>1 second) at INFO level
       else if (duration > 1000) {
-        logger.info('Slow request completed', {
+        logger.info("Slow request completed", {
           method: req.method,
           url: req.url,
           path: req.path,
@@ -89,7 +89,7 @@ function requestLogger(req, res, next) {
       }
       // Log polling endpoints at DEBUG level only
       else if (isPollingEndpoint) {
-        logger.debug('Polling request completed', {
+        logger.debug("Polling request completed", {
           method: req.method,
           path: req.path,
           statusCode: res.statusCode,
@@ -98,7 +98,7 @@ function requestLogger(req, res, next) {
       }
       // Log other requests at DEBUG level
       else {
-        logger.debug('Request completed', {
+        logger.debug("Request completed", {
           method: req.method,
           url: req.url,
           path: req.path,
@@ -114,4 +114,3 @@ function requestLogger(req, res, next) {
 }
 
 module.exports = requestLogger;
-

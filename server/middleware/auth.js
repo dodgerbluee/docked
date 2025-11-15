@@ -136,12 +136,12 @@ async function authenticate(req, res, next) {
         }
         // If JWT verification fails, try legacy base64 token format
         // This provides backward compatibility during migration
-        if (jwtError.message === 'Token expired' || jwtError.message === 'Invalid token') {
+        if (jwtError.message === "Token expired" || jwtError.message === "Invalid token") {
           // Try legacy token format
           try {
-            const decoded = Buffer.from(token, 'base64').toString('utf-8');
-            const parts = decoded.split(':');
-            
+            const decoded = Buffer.from(token, "base64").toString("utf-8");
+            const parts = decoded.split(":");
+
             if (parts.length >= 2) {
               const userId = parseInt(parts[0]);
               const username = parts[1];
@@ -174,7 +174,7 @@ async function authenticate(req, res, next) {
             throw new AuthenticationError('Invalid token');
           }
         }
-        
+
         // Re-throw JWT errors that aren't about invalid/expired tokens
         throw jwtError;
       }

@@ -1,23 +1,9 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-} from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
-import {
-  getDockerHubUrl,
-  getDockerHubTagsUrl,
-  getDockerHubRepoUrl,
-  getGitHubRepoUrl,
-  formatTimeAgo,
-  parseUTCTimestamp,
-  formatBytes,
-} from "./utils/formatters";
+// Formatter utilities are now used in their respective components
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
@@ -47,7 +33,14 @@ import { useTrackedImages } from "./hooks/useTrackedImages";
 import { usePortainerInstances } from "./hooks/usePortainerInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
 import { useNewPortainerInstance } from "./hooks/useNewPortainerInstance";
-import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS, CONFIGURATION_TABS } from "./constants/apiConstants";
+import { useVersion } from "./hooks/useVersion";
+import VersionFooter from "./components/Footer/VersionFooter";
+import {
+  TAB_NAMES,
+  CONTENT_TABS,
+  SETTINGS_TABS,
+  CONFIGURATION_TABS,
+} from "./constants/apiConstants";
 import { logConnectionStatus } from "./utils/connectionCheck";
 
 function App() {
@@ -72,8 +65,7 @@ function App() {
     handleLogout,
   } = useAuth();
   const [showAddPortainerModal, setShowAddPortainerModal] = useState(false);
-  const [editingPortainerInstance, setEditingPortainerInstance] =
-    useState(null);
+  const [editingPortainerInstance, setEditingPortainerInstance] = useState(null);
   const [draggedTabIndex, setDraggedTabIndex] = useState(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
@@ -88,7 +80,6 @@ function App() {
   const [activeTab, setActiveTab] = useState(TAB_NAMES.SUMMARY);
   const [contentTab, setContentTab] = useState(CONTENT_TABS.UPDATES);
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
-  const [collapsedUnusedImages, setCollapsedUnusedImages] = useState(false);
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [pulling, setPulling] = useState(false);
   const [lastPullTime, setLastPullTime] = useState(() => {
@@ -114,47 +105,41 @@ function App() {
   } = useTheme(isAuthenticated, authToken);
 
   // Docker Hub credentials - using custom hook
-  const {
-    dockerHubCredentials,
-    setDockerHubCredentials,
-    fetchDockerHubCredentials,
-  } = useDockerHubCredentials(isAuthenticated, authToken);
+  const { dockerHubCredentials, setDockerHubCredentials, fetchDockerHubCredentials } =
+    useDockerHubCredentials(isAuthenticated, authToken);
 
   // Tracked images - using custom hook
-  const {
-    trackedImages,
-    setTrackedImages,
-    fetchTrackedImages,
-  } = useTrackedImages();
+  const { trackedImages, fetchTrackedImages } = useTrackedImages();
   // Avatar management - using custom hook
   const avatarManagement = useAvatarManagement(isAuthenticated, authToken);
   const {
     avatar,
     recentAvatars,
-    avatarRef,
-    setAvatar,
     setRecentAvatars,
     fetchAvatar,
     fetchRecentAvatars,
     handleAvatarChange,
   } = avatarManagement;
 
+  // Version - using custom hook
+  const { version, isDevBuild } = useVersion();
+
   // Batch config - using custom hook
-  const {
-    batchConfig,
-    setBatchConfig,
-    handleBatchConfigUpdate,
-  } = useBatchConfig(isAuthenticated, authToken, passwordChanged);
+  const { batchConfig, setBatchConfig, handleBatchConfigUpdate } = useBatchConfig(
+    isAuthenticated,
+    authToken,
+    passwordChanged
+  );
 
   // Memoize context value to ensure React detects changes
   // MUST be called before any early returns (React Hooks rule)
-  // Only depend on batchConfig - setBatchConfig is stable from useState
+  // Include setBatchConfig in dependencies as it's part of the context value
   const batchConfigContextValue = useMemo(
     () => ({
       batchConfig,
       setBatchConfig,
     }),
-    [batchConfig]
+    [batchConfig, setBatchConfig]
   );
 
   // Container data management - using custom hook
@@ -189,7 +174,6 @@ function App() {
     fetchUnusedImages,
     fetchPortainerInstances,
     updateLastImageDeleteTime,
-    lastImageDeleteTimeRef,
   } = containersData;
 
   // Batch processing - using custom hook
@@ -207,7 +191,13 @@ function App() {
     dockerHubCredentials,
     fetchTrackedImages,
   });
-  const { handleBatchPull, handleBatchTrackedAppsCheck, batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef } = batchProcessing;
+  const {
+    handleBatchPull,
+    handleBatchTrackedAppsCheck,
+    batchIntervalRef,
+    batchInitialTimeoutRef,
+    hasRunInitialPullRef,
+  } = batchProcessing;
 
   // New Portainer instance handler - using custom hook
   const { handleNewInstanceDataFetch } = useNewPortainerInstance({
@@ -267,13 +257,8 @@ function App() {
     setSelectedImages,
     unusedImages,
   });
-  const {
-    handleToggleSelect,
-    handleSelectAll,
-    handleToggleStackSelect,
-    handleToggleImageSelect,
-    handleSelectAllImages,
-  } = selectionHandlers;
+  const { handleToggleSelect, handleSelectAll, handleToggleImageSelect, handleSelectAllImages } =
+    selectionHandlers;
 
   // Navigation handlers - using custom hook
   const navigation = useNavigation({
@@ -292,14 +277,17 @@ function App() {
   // handleBatchConfigUpdate is now provided by useBatchConfig hook
 
   // Enhanced handleLogin to include tab navigation
-  const handleLoginWithNavigation = useCallback((token, user, pwdChanged) => {
-    handleLogin(token, user, pwdChanged);
-    // If password not changed, show settings immediately with password section
-    if (!pwdChanged) {
-      setActiveTab(TAB_NAMES.SETTINGS);
-      setSettingsTab(SETTINGS_TABS.PASSWORD);
-    }
-  }, [handleLogin]);
+  const handleLoginWithNavigation = useCallback(
+    (token, user, pwdChanged) => {
+      handleLogin(token, user, pwdChanged);
+      // If password not changed, show settings immediately with password section
+      if (!pwdChanged) {
+        setActiveTab(TAB_NAMES.SETTINGS);
+        setSettingsTab(SETTINGS_TABS.PASSWORD);
+      }
+    },
+    [handleLogin]
+  );
 
   // Enhanced handlePasswordUpdateSuccess to include tab navigation
   const handlePasswordUpdateSuccessWithNavigation = useCallback(() => {
@@ -322,7 +310,7 @@ function App() {
       clearTimeout(batchInitialTimeoutRef.current);
       batchInitialTimeoutRef.current = null;
     }
-  }, [handleLogout]);
+  }, [handleLogout, batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef]);
 
   // Theme, color scheme, and Docker Hub credentials are now managed by hooks
 
@@ -350,7 +338,15 @@ function App() {
         fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
       }
     }
-  }, [isAuthenticated, authToken, passwordChanged, fetchColorScheme, fetchDockerHubCredentials]);
+  }, [
+    isAuthenticated,
+    authToken,
+    passwordChanged,
+    fetchColorScheme,
+    fetchDockerHubCredentials,
+    dataFetched,
+    fetchContainers,
+  ]);
 
   // Reset dataFetched and dockerHubDataPulled when logging out
   useEffect(() => {
@@ -365,11 +361,17 @@ function App() {
         batchIntervalRef.current = null;
       }
     }
-  }, [isAuthenticated]);
+  }, [
+    isAuthenticated,
+    setDataFetched,
+    setDockerHubDataPulled,
+    setPortainerInstancesFromAPI,
+    batchIntervalRef,
+  ]);
 
   // Batch config fetching is now handled by useBatchConfig hook
 
-  // Batch processing (polling, handleBatchPull, handleBatchTrackedAppsCheck, interval setup) 
+  // Batch processing (polling, handleBatchPull, handleBatchTrackedAppsCheck, interval setup)
   // is now handled by useBatchProcessing hook
 
   // fetchTrackedImages is now provided by useTrackedImages hook
@@ -384,7 +386,14 @@ function App() {
       fetchRecentAvatars();
       fetchTrackedImages();
     }
-  }, [isAuthenticated, authToken, fetchPortainerInstances, fetchAvatar, fetchRecentAvatars, fetchTrackedImages]);
+  }, [
+    isAuthenticated,
+    authToken,
+    fetchPortainerInstances,
+    fetchAvatar,
+    fetchRecentAvatars,
+    fetchTrackedImages,
+  ]);
 
   // fetchAvatar and fetchRecentAvatars are now provided by useAvatarManagement hook
 
@@ -429,14 +438,11 @@ function App() {
       setClearingGitHubCache(true);
       console.log("🗑️ Clearing latest version data for tracked apps...");
 
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/tracked-images/cache`
-      );
+      const response = await axios.delete(`${API_BASE_URL}/api/tracked-images/cache`);
 
       if (response.data && response.data.success) {
         console.log("✅ Latest version data cleared successfully");
-        const message =
-          response.data.message || "Latest version data cleared successfully";
+        const message = response.data.message || "Latest version data cleared successfully";
         console.log(message);
 
         // Refresh tracked images to show updated data
@@ -462,9 +468,7 @@ function App() {
   const handleReorderTabs = async (fromIndex, toIndex) => {
     // Get current instances from API to ensure we have IDs
     try {
-      const instancesResponse = await axios.get(
-        `${API_BASE_URL}/api/portainer/instances`
-      );
+      const instancesResponse = await axios.get(`${API_BASE_URL}/api/portainer/instances`);
       const apiInstances = instancesResponse.data.instances || [];
 
       if (apiInstances.length === 0) return;
@@ -519,14 +523,7 @@ function App() {
   const { trackedAppsBehind } = trackedAppsStats;
 
   // Memoize filtered containers to avoid recalculating on every render
-  const containersWithUpdates = useMemo(
-    () => containers.filter((c) => c.hasUpdate),
-    [containers]
-  );
-  const containersUpToDate = useMemo(
-    () => containers.filter((c) => !c.hasUpdate),
-    [containers]
-  );
+  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
 
   // Portainer instances management - using custom hook
   const { portainerInstances, containersByPortainer } = usePortainerInstances({
@@ -554,17 +551,10 @@ function App() {
       !portainerInstances.find((inst) => inst.name === activeTab) &&
       !portainerInstancesFromAPI.find((inst) => inst.name === activeTab)
     ) {
-      console.warn(
-        `Active tab "${activeTab}" no longer exists, switching to summary`
-      );
+      console.warn(`Active tab "${activeTab}" no longer exists, switching to summary`);
       setActiveTab(TAB_NAMES.SUMMARY);
     }
-  }, [
-    activeTab,
-    portainerInstances,
-    portainerInstancesFromAPI,
-    portainerInstancesLoading,
-  ]);
+  }, [activeTab, portainerInstances, portainerInstancesFromAPI, portainerInstancesLoading]);
 
   // Initialize selectedPortainerInstances to empty (show all) when Portainer tab is first opened
   // Empty set means show all instances
@@ -583,13 +573,15 @@ function App() {
   // Match sidebar height to stacks container height - using custom hook
   useSidebarHeight(activeTab);
 
-
   // Calculate aggregated containers for selected instances (for header Select All)
+  // Note: This is calculated but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const aggregatedContainersWithUpdates = useMemo(() => {
-    const instancesToShow = selectedPortainerInstances.size > 0
-      ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
-      : portainerInstances;
-    
+    const instancesToShow =
+      selectedPortainerInstances.size > 0
+        ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+        : portainerInstances;
+
     let allContainersWithUpdates = [];
     instancesToShow.forEach((instance) => {
       const portainerUrl = instance?.url;
@@ -602,11 +594,14 @@ function App() {
   }, [selectedPortainerInstances, portainerInstances, containersByPortainer]);
 
   // Calculate filtered unused images for selected instances (for header Select All)
+  // Note: This is calculated but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const portainerUnusedImagesFiltered = useMemo(() => {
-    const instancesToShow = selectedPortainerInstances.size > 0
-      ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
-      : portainerInstances;
-    
+    const instancesToShow =
+      selectedPortainerInstances.size > 0
+        ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
+        : portainerInstances;
+
     const selectedUrls = new Set(instancesToShow.map((inst) => inst?.url).filter(Boolean));
     return unusedImages.filter((img) => selectedUrls.has(img.portainerUrl));
   }, [selectedPortainerInstances, portainerInstances, unusedImages]);
@@ -616,32 +611,41 @@ function App() {
   // unusedImagesByPortainer is now calculated in useSummaryStats hook
 
   // Enhanced navigation handlers with menu-closing logic
-  const handleNavigateToPortainerWithMenu = useCallback((container) => {
-    setShowNotificationMenu(false);
-    handleNavigateToPortainer(container);
-  }, [handleNavigateToPortainer]);
+  // Note: These are defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
+  const handleNavigateToPortainerWithMenu = useCallback(
+    (container) => {
+      setShowNotificationMenu(false);
+      handleNavigateToPortainer(container);
+    },
+    [handleNavigateToPortainer]
+  );
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToTrackedAppsWithMenu = useCallback(() => {
     setShowNotificationMenu(false);
     handleNavigateToTrackedApps();
   }, [handleNavigateToTrackedApps]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToSummaryWithMenu = useCallback(() => {
     setShowNotificationMenu(false);
     setShowAvatarMenu(false);
     handleNavigateToSummary();
   }, [handleNavigateToSummary]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToSettingsWithMenu = useCallback(() => {
     setShowAvatarMenu(false);
     handleNavigateToSettings();
   }, [handleNavigateToSettings]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToBatchWithMenu = useCallback(() => {
     setActiveTab(TAB_NAMES.CONFIGURATION);
     setConfigurationTab(CONFIGURATION_TABS.HISTORY);
     setShowAvatarMenu(false);
-  }, []);
+  }, [setActiveTab, setConfigurationTab, setShowAvatarMenu]);
 
   // Summary statistics are now calculated in the useSummaryStats hook within SummaryPage component
 
@@ -678,11 +682,27 @@ function App() {
         onSetContentTab={setContentTab}
       />
     );
-  }, [portainerInstances, containers, unusedImages, unusedImagesCount, trackedImages, dismissedTrackedAppNotifications, setActiveTab, setSelectedPortainerInstances, setContentTab]);
+  }, [
+    portainerInstances,
+    containers,
+    unusedImages,
+    unusedImagesCount,
+    trackedImages,
+    dismissedTrackedAppNotifications,
+    setActiveTab,
+    setSelectedPortainerInstances,
+    setContentTab,
+  ]);
 
   // Render Tracked Apps tab - now using TrackedAppsPage component
   const renderTrackedApps = useCallback(() => {
-    return <TrackedAppsPage onDeleteTrackedImage={fetchTrackedImages} onUpgradeTrackedImage={fetchTrackedImages} onEditTrackedImage={fetchTrackedImages} />;
+    return (
+      <TrackedAppsPage
+        onDeleteTrackedImage={fetchTrackedImages}
+        onUpgradeTrackedImage={fetchTrackedImages}
+        onEditTrackedImage={fetchTrackedImages}
+      />
+    );
   }, [fetchTrackedImages]);
 
   // OLD renderTrackedApps function removed - functionality moved to TrackedAppsPage component
@@ -690,6 +710,8 @@ function App() {
   // renderPortainerTab removed - functionality moved to PortainerPage component
 
   // Render main content based on activeTab
+  // Note: This function is defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const renderContent = () => {
     if (activeTab === "summary") {
       return (
@@ -840,7 +862,18 @@ function App() {
         <header className="App-header">
           <div className="header-content">
             <div>
-              <h1>🐳 Docked</h1>
+              <h1>
+                <img
+                  src="/img/logo.png"
+                  alt="Docked"
+                  style={{ height: "1.9em", verticalAlign: "middle", marginRight: "12px" }}
+                />
+                <img
+                  src="/img/text-header.png"
+                  alt="docked"
+                  style={{ height: "1.25em", verticalAlign: "middle", maxWidth: "50%" }}
+                />
+              </h1>
               <p>Portainer Container Manager</p>
             </div>
           </div>
@@ -926,21 +959,22 @@ function App() {
 
         <div className="container">
           {/* Tabs - Show for all tabs except old settings page, configuration, and batch logs */}
-          {activeTab !== TAB_NAMES.SETTINGS && activeTab !== TAB_NAMES.CONFIGURATION && activeTab !== TAB_NAMES.BATCH_LOGS && (
-            <TabNavigation
-              activeTab={activeTab}
-              onTabChange={(tab) => {
-                setActiveTab(tab);
-                if (tab === TAB_NAMES.PORTAINER) {
+          {activeTab !== TAB_NAMES.SETTINGS &&
+            activeTab !== TAB_NAMES.CONFIGURATION &&
+            activeTab !== TAB_NAMES.BATCH_LOGS && (
+              <TabNavigation
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  setActiveTab(tab);
+                  if (tab === TAB_NAMES.PORTAINER) {
                     setSelectedPortainerInstances(new Set());
                     setContentTab(CONTENT_TABS.UPDATES);
-                }
-              }}
-              containersWithUpdates={containersWithUpdates}
-              trackedAppsBehind={trackedAppsBehind}
-            />
-          )}
-
+                  }
+                }}
+                containersWithUpdates={containersWithUpdates}
+                trackedAppsBehind={trackedAppsBehind}
+              />
+            )}
 
           {/* Tab Content */}
           <div className="tab-content">
@@ -979,9 +1013,7 @@ function App() {
                 }}
                 editingPortainerInstance={editingPortainerInstance}
                 refreshInstances={
-                  editingPortainerInstance === null
-                    ? fetchPortainerInstances
-                    : null
+                  editingPortainerInstance === null ? fetchPortainerInstances : null
                 }
                 onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
                 activeTab={settingsTab}
@@ -1020,10 +1052,10 @@ function App() {
                   dockerHubCredentials={dockerHubCredentials}
                   onDismiss={() => setError(null)}
                   onNavigateToDockerHubSettings={() => {
-                                setError(null);
-                                setActiveTab(TAB_NAMES.SETTINGS);
-                                setSettingsTab(SETTINGS_TABS.DOCKERHUB);
-                              }}
+                    setError(null);
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    setSettingsTab(SETTINGS_TABS.DOCKERHUB);
+                  }}
                   onRetry={handlePull}
                   pulling={pulling}
                   loading={loading}
@@ -1032,8 +1064,8 @@ function App() {
                 {/* Render summary page even when there's an error (error modal will overlay) */}
                 {!loading && (
                   <>
-                  {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                  {activeTab === TAB_NAMES.PORTAINER && (
+                    {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
+                    {activeTab === TAB_NAMES.PORTAINER && (
                       <PortainerPage
                         portainerInstances={portainerInstances}
                         containers={containers}
@@ -1071,6 +1103,10 @@ function App() {
           </div>
         </div>
 
+        <div className="version-footer-wrapper">
+          <VersionFooter version={version} isDevBuild={isDevBuild} />
+        </div>
+
         <ErrorBoundary>
           <AddPortainerModal
             isOpen={showAddPortainerModal}
@@ -1087,9 +1123,7 @@ function App() {
                 // Find the new instance in the updated list to get the correct name
                 // The name might be different if backend used hostname as default
                 const newInstance = updatedInstances.find(
-                  (inst) =>
-                    inst.id === newInstanceData.id ||
-                    inst.url === newInstanceData.url
+                  (inst) => inst.id === newInstanceData.id || inst.url === newInstanceData.url
                 );
 
                 // Ensure the instance is in state before setting active tab to prevent safety check redirect

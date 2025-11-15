@@ -7,7 +7,7 @@
 const container = require('../di/container');
 const portainerService = require('../services/portainerService');
 const { sendSuccess, sendCreated, sendNoContent } = require('../utils/responseHelper');
-const { NotFoundError, ValidationError, ExternalServiceError } = require('../domain/errors');
+const { NotFoundError, ValidationError, ExternalServiceError, ConflictError } = require('../domain/errors');
 const logger = require('../utils/logger');
 const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
 
@@ -23,7 +23,7 @@ const containerCacheService = container.resolve('containerCacheService');
  */
 async function validateInstance(req, res, next) {
   try {
-    const { url, username, password, apiKey, authType = 'apikey' } = req.body;
+    const { url, username, password, apiKey, authType = "apikey" } = req.body;
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
@@ -57,7 +57,7 @@ async function validateInstance(req, res, next) {
         authType,
         true // skipCache = true for validation
       );
-      
+
       // If we get here, authentication succeeded
       sendSuccess(res, { message: 'Authentication successful' });
     } catch (authError) {
@@ -118,7 +118,7 @@ async function getInstance(req, res, next) {
  */
 async function createInstance(req, res, next) {
   try {
-    const { name, url, username, password, apiKey, authType = 'apikey' } = req.body;
+    const { name, url, username, password, apiKey, authType = "apikey" } = req.body;
 
     // Validate required fields based on auth type
     if (authType === 'apikey') {
@@ -171,13 +171,13 @@ async function createInstance(req, res, next) {
     // Resolve URL to IP address for fallback when DNS fails
     let ipAddress = await resolveUrlToIp(url.trim());
     if (ipAddress) {
-      logger.debug('Resolved Portainer URL to IP address', {
-        module: 'portainerController',
-        operation: 'createInstance',
+      logger.debug("Resolved Portainer URL to IP address", {
+        module: "portainerController",
+        operation: "createInstance",
         url: url.trim(),
         ipAddress: ipAddress,
       });
-      
+
       // Try to detect the actual backend IP if behind a proxy
       // This is useful when the resolved IP is a proxy (like nginx proxy manager)
       // and we need the actual Portainer instance IP
@@ -190,11 +190,11 @@ async function createInstance(req, res, next) {
           password || null,
           authType
         );
-        
+
         if (backendIp && backendIp !== ipAddress) {
-          logger.debug('Detected backend IP behind proxy', {
-            module: 'portainerController',
-            operation: 'createInstance',
+          logger.debug("Detected backend IP behind proxy", {
+            module: "portainerController",
+            operation: "createInstance",
             url: url.trim(),
             proxyIp: ipAddress,
             backendIp: backendIp,
@@ -203,19 +203,19 @@ async function createInstance(req, res, next) {
         }
       } catch (detectError) {
         // Non-fatal - if detection fails, use the proxy IP
-        logger.warn('Backend IP detection failed, using proxy IP', {
-          module: 'portainerController',
-          operation: 'createInstance',
+        logger.warn("Backend IP detection failed, using proxy IP", {
+          module: "portainerController",
+          operation: "createInstance",
           url: url.trim(),
           error: detectError,
         });
       }
     } else {
-      logger.warn('Failed to resolve URL to IP address', {
-        module: 'portainerController',
-        operation: 'createInstance',
+      logger.warn("Failed to resolve URL to IP address", {
+        module: "portainerController",
+        operation: "createInstance",
         url: url.trim(),
-        note: 'Will use URL only',
+        note: "Will use URL only",
       });
     }
 
@@ -237,7 +237,6 @@ async function createInstance(req, res, next) {
   } catch (error) {
     // Handle unique constraint violation
     if (error.message && error.message.includes('UNIQUE constraint failed')) {
-      const { ConflictError } = require('../domain/errors');
       throw new ConflictError('A Portainer instance with this URL already exists');
     }
     next(error);
@@ -256,16 +255,13 @@ async function updateInstance(req, res, next) {
     const { name, url, username, password, apiKey, authType } = req.body;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await portainerInstanceRepository.findById(parseInt(id));
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: 'Portainer instance not found',
-      });
+      throw new NotFoundError('Portainer instance');
     }
 
     // Use existing authType if not provided
-    const finalAuthType = authType || existing.auth_type || 'apikey';
+    const finalAuthType = authType || existing.auth_type || "apikey";
 
     // Validate required fields based on auth type
     if (finalAuthType === 'apikey') {
@@ -296,20 +292,20 @@ async function updateInstance(req, res, next) {
 
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
-    
+
     // Resolve URL to IP address for fallback when DNS fails
     // Only resolve if URL changed, otherwise keep existing IP
     let ipAddress = existing.ip_address;
     if (url.trim() !== existing.url) {
       let resolvedIp = await resolveUrlToIp(url.trim());
       if (resolvedIp) {
-        logger.debug('Resolved Portainer URL to IP address for update', {
-          module: 'portainerController',
-          operation: 'updateInstance',
+        logger.debug("Resolved Portainer URL to IP address for update", {
+          module: "portainerController",
+          operation: "updateInstance",
           url: url.trim(),
           ipAddress: resolvedIp,
         });
-        
+
         // Try to detect the actual backend IP if behind a proxy
         try {
           const backendIp = await detectBackendIp(
@@ -320,11 +316,11 @@ async function updateInstance(req, res, next) {
             password || existing.password || null,
             finalAuthType
           );
-          
+
           if (backendIp && backendIp !== resolvedIp) {
-            logger.debug('Detected backend IP behind proxy for update', {
-              module: 'portainerController',
-              operation: 'updateInstance',
+            logger.debug("Detected backend IP behind proxy for update", {
+              module: "portainerController",
+              operation: "updateInstance",
               url: url.trim(),
               proxyIp: resolvedIp,
               backendIp: backendIp,
@@ -333,36 +329,38 @@ async function updateInstance(req, res, next) {
           }
         } catch (detectError) {
           // Non-fatal - if detection fails, use the proxy IP
-          logger.warn('Backend IP detection failed during update, using proxy IP', {
-            module: 'portainerController',
-            operation: 'updateInstance',
+          logger.warn("Backend IP detection failed during update, using proxy IP", {
+            module: "portainerController",
+            operation: "updateInstance",
             url: url.trim(),
             error: detectError,
           });
         }
-        
+
         ipAddress = resolvedIp;
       } else {
-        logger.warn(`Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`);
+        logger.warn(
+          `Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`
+        );
       }
     }
-    
+
     // Handle credentials based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
     let passwordToUse = null;
     let apiKeyToUse = null;
-    
+
     // Check if auth type is changing
     const authTypeChanged = existing.auth_type !== finalAuthType;
-    
-    if (finalAuthType === 'apikey') {
+
+    if (finalAuthType === "apikey") {
       // For API key auth, use provided apiKey or keep existing (if not switching)
       apiKeyToUse = apiKey || (authTypeChanged ? null : existing.api_key);
       // Always clear password data when using API key auth
-      passwordToUse = '';
+      passwordToUse = "";
     } else {
       // For password auth, use provided password or keep existing (if not switching)
-      passwordToUse = password || (authTypeChanged ? '' : existing.password);
+      passwordToUse = password || (authTypeChanged ? "" : existing.password);
       // Always clear API key data when using password auth
       apiKeyToUse = null;
     }
@@ -382,7 +380,6 @@ async function updateInstance(req, res, next) {
   } catch (error) {
     // Handle unique constraint violation
     if (error.message && error.message.includes('UNIQUE constraint failed')) {
-      const { ConflictError } = require('../domain/errors');
       throw new ConflictError('A Portainer instance with this URL already exists');
     }
     next(error);
@@ -400,21 +397,18 @@ async function deleteInstance(req, res, next) {
     const { id } = req.params;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await portainerInstanceRepository.findById(parseInt(id));
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        error: 'Portainer instance not found',
-      });
+      throw new NotFoundError('Portainer instance');
     }
 
     // Get the instance URL before deletion so we can remove its containers from cache
     const deletedInstanceUrl = existing.url;
-    
+
     // Normalize URL for comparison (remove trailing slash, lowercase)
     const normalizeUrl = (url) => {
-      if (!url) return '';
-      return url.trim().replace(/\/+$/, '').toLowerCase();
+      if (!url) return "";
+      return url.trim().replace(/\/+$/, "").toLowerCase();
     };
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
@@ -427,24 +421,22 @@ async function deleteInstance(req, res, next) {
       if (cached && cached.containers && Array.isArray(cached.containers)) {
         // Log for debugging
         const totalContainersBefore = cached.containers.length;
-        const containersWithUpdatesBefore = cached.containers.filter(c => c.hasUpdate).length;
-        
+        const containersWithUpdatesBefore = cached.containers.filter((c) => c.hasUpdate).length;
+
         // Filter out containers from the deleted instance using normalized URL comparison
         // IMPORTANT: Preserve all container properties including hasUpdate flag
-        const filteredContainers = cached.containers.filter(
-          (container) => {
-            const containerUrl = normalizeUrl(container.portainerUrl);
-            const shouldKeep = containerUrl !== normalizedDeletedUrl;
-            return shouldKeep;
-          }
-        );
+        const filteredContainers = cached.containers.filter((container) => {
+          const containerUrl = normalizeUrl(container.portainerUrl);
+          const shouldKeep = containerUrl !== normalizedDeletedUrl;
+          return shouldKeep;
+        });
 
         // Log for debugging
         const totalContainersAfter = filteredContainers.length;
-        const containersWithUpdatesAfter = filteredContainers.filter(c => c.hasUpdate).length;
-        logger.info('Filtering containers from cache after instance deletion', {
-          module: 'portainerController',
-          operation: 'deleteInstance',
+        const containersWithUpdatesAfter = filteredContainers.filter((c) => c.hasUpdate).length;
+        logger.info("Filtering containers from cache after instance deletion", {
+          module: "portainerController",
+          operation: "deleteInstance",
           instanceUrl: deletedInstanceUrl,
           containersBefore: totalContainersBefore,
           containersAfter: totalContainersAfter,
@@ -461,14 +453,16 @@ async function deleteInstance(req, res, next) {
 
         // Update stacks to remove containers from deleted instance using normalized URL comparison
         const filteredStacks = cached.stacks
-          ? cached.stacks.map((stack) => ({
-              ...stack,
-              containers: stack.containers
-                ? stack.containers.filter(
-                    (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
-                  )
-                : [],
-            })).filter((stack) => stack.containers && stack.containers.length > 0)
+          ? cached.stacks
+              .map((stack) => ({
+                ...stack,
+                containers: stack.containers
+                  ? stack.containers.filter(
+                      (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
+                    )
+                  : [],
+              }))
+              .filter((stack) => stack.containers && stack.containers.length > 0)
           : [];
 
         // Recalculate portainerInstances stats based on filtered containers
@@ -478,21 +472,21 @@ async function deleteInstance(req, res, next) {
           const instanceContainers = filteredContainers.filter(
             (c) => normalizeUrl(c.portainerUrl) === instanceUrl
           );
-          
+
           // Preserve hasUpdate flag from filtered containers
           const withUpdates = instanceContainers.filter((c) => c.hasUpdate === true);
           const upToDate = instanceContainers.filter((c) => c.hasUpdate !== true);
-          
-          logger.debug('Recalculated instance stats after filtering', {
-            module: 'portainerController',
-            operation: 'deleteInstance',
+
+          logger.debug("Recalculated instance stats after filtering", {
+            module: "portainerController",
+            operation: "deleteInstance",
             instanceName: instance.name,
             instanceUrl: instance.url,
             totalContainers: instanceContainers.length,
             withUpdates: withUpdates.length,
             upToDate: upToDate.length,
           });
-          
+
           return {
             ...instance,
             containers: instanceContainers,
@@ -527,18 +521,15 @@ async function deleteInstance(req, res, next) {
       }
     } catch (cacheError) {
       // Log error but don't fail the delete operation
-      logger.error('Error updating container cache after instance deletion', {
-        module: 'portainerController',
-        operation: 'deleteInstance',
+      logger.error("Error updating container cache after instance deletion", {
+        module: "portainerController",
+        operation: "deleteInstance",
         instanceUrl: deletedInstanceUrl,
         error: cacheError,
       });
     }
 
-    res.json({
-      success: true,
-      message: 'Portainer instance deleted successfully',
-    });
+    sendSuccess(res, { message: 'Portainer instance deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -557,7 +548,7 @@ async function updateInstanceOrder(req, res, next) {
     if (!Array.isArray(orders)) {
       return res.status(400).json({
         success: false,
-        error: 'orders must be an array',
+        error: "orders must be an array",
       });
     }
 
@@ -585,4 +576,3 @@ module.exports = {
   deleteInstance,
   updateInstanceOrder,
 };
-

@@ -5,9 +5,11 @@ This directory contains the design system tokens for the application. Design tok
 ## Structure
 
 ### Colors (`colors.js`)
+
 Centralized color definitions that map to CSS variables. All colors should be referenced through this file or directly via CSS variables.
 
 **Available Colors:**
+
 - **Primary Brand Colors:**
   - `DODGER_BLUE`: Primary brand blue (`var(--dodger-blue)`)
   - `DODGER_BLUE_LIGHT`: Light variant of brand blue
@@ -24,7 +26,9 @@ Centralized color definitions that map to CSS variables. All colors should be re
   - `BORDER_COLOR`: Default border color
 
 ### Numbers (`../constants/numbers.js`)
+
 Numeric constants used throughout the application:
+
 - Time conversions (milliseconds, seconds, minutes, hours)
 - Default values (intervals, delays, polling)
 - Minimum/maximum values
@@ -36,12 +40,14 @@ All design tokens are exposed as CSS variables in `App.css` under `:root` and `b
 ### Usage
 
 **In JavaScript/TypeScript:**
+
 ```javascript
-import { COLORS } from '../design-tokens/colors';
+import { COLORS } from "../design-tokens/colors";
 // Use COLORS.DODGER_BLUE, etc.
 ```
 
 **In CSS:**
+
 ```css
 .my-component {
   color: var(--dodger-blue);
@@ -62,4 +68,3 @@ import { COLORS } from '../design-tokens/colors';
 2. Add the token to the appropriate file in `design-tokens/`
 3. Update this README with the new token
 4. Use the token consistently across the application
-

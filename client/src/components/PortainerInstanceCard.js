@@ -18,11 +18,7 @@ import styles from "./PortainerInstanceCard.module.css";
  * @param {Function} props.onInstanceClick - Handler for clicking the instance header
  * @param {Function} props.onStatClick - Handler for clicking individual stats
  */
-const PortainerInstanceCard = ({
-  instance,
-  onInstanceClick,
-  onStatClick,
-}) => {
+const PortainerInstanceCard = ({ instance, onInstanceClick, onStatClick }) => {
   const handleInstanceClick = useCallback(() => {
     if (onInstanceClick) {
       onInstanceClick(instance.name);
@@ -120,4 +116,3 @@ PortainerInstanceCard.propTypes = {
 
 // Memoize component to prevent unnecessary re-renders
 export default memo(PortainerInstanceCard);
-

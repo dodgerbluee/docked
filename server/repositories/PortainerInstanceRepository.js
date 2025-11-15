@@ -131,4 +131,3 @@ class PortainerInstanceRepository extends BaseRepository {
 }
 
 module.exports = PortainerInstanceRepository;
-

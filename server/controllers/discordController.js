@@ -6,7 +6,7 @@
 
 const container = require('../di/container');
 const { sendSuccess, sendCreated, sendNoContent } = require('../utils/responseHelper');
-const { NotFoundError, ValidationError, ConflictError } = require('../domain/errors');
+const { NotFoundError, ValidationError, ConflictError, ExternalServiceError } = require('../domain/errors');
 const logger = require('../utils/logger');
 
 // Resolve dependencies from container
@@ -101,12 +101,12 @@ async function createDiscordWebhookEndpoint(req, res, next) {
         if (!serverName && webhookInfo.name) {
           serverName = webhookInfo.name;
         }
-        
+
         // Store avatar URL if available
         if (webhookInfo.avatar_url) {
           avatarUrl = webhookInfo.avatar_url;
         }
-        
+
         // Store guild and channel IDs
         if (webhookInfo.guild_id) {
           guildId = webhookInfo.guild_id;
@@ -117,7 +117,7 @@ async function createDiscordWebhookEndpoint(req, res, next) {
       }
     } catch (error) {
       // If fetching webhook info fails, continue anyway - it's optional
-      logger.debug('Could not fetch webhook info:', error);
+      logger.debug("Could not fetch webhook info:", error);
     }
 
     const id = await discordWebhookRepository.create({
@@ -158,10 +158,10 @@ async function updateDiscordWebhookEndpoint(req, res, next) {
 
     // Build update data
     const updateData = {};
-    
+
     // Handle webhook URL - if provided and not empty, validate and update; if empty, preserve existing
     if (webhookUrl !== undefined) {
-      if (webhookUrl === null || webhookUrl === '') {
+      if (webhookUrl === null || webhookUrl === "") {
         // Empty string or null means preserve existing (don't update)
         // Don't add to updateData
       } else {
@@ -175,7 +175,7 @@ async function updateDiscordWebhookEndpoint(req, res, next) {
           );
         }
         updateData.webhookUrl = webhookUrl;
-        
+
         // Fetch webhook info to get avatar and IDs if URL is being updated
         try {
           const webhookInfo = await discord.getWebhookInfo(webhookUrl);
@@ -191,7 +191,7 @@ async function updateDiscordWebhookEndpoint(req, res, next) {
             }
           }
         } catch (error) {
-          logger.debug('Could not fetch webhook info for update:', error);
+          logger.debug("Could not fetch webhook info for update:", error);
         }
       }
     }
@@ -271,11 +271,9 @@ async function testDiscordWebhook(req, res, next) {
     if (result.success) {
       sendSuccess(res, { message: 'Webhook test successful! Check your Discord channel.' });
     } else {
-      const { ExternalServiceError } = require('../domain/errors');
       throw new ExternalServiceError('Discord', result.error || 'Webhook test failed', 400);
     }
   } catch (error) {
-    logger.error('Error testing Discord webhook:', error);
     next(error);
   }
 }
@@ -306,11 +304,9 @@ async function testDiscordWebhookById(req, res, next) {
     if (result.success) {
       sendSuccess(res, { message: 'Webhook test successful! Check your Discord channel.' });
     } else {
-      const { ExternalServiceError } = require('../domain/errors');
       throw new ExternalServiceError('Discord', result.error || 'Webhook test failed', 400);
     }
   } catch (error) {
-    logger.error('Error testing Discord webhook by ID:', error);
     next(error);
   }
 }
@@ -343,14 +339,13 @@ async function getWebhookInfo(req, res, next) {
           guild_id: info.guild_id,
           avatar: info.avatar,
         },
-        note: 'Discord API only provides webhook name and IDs. Server and channel names require a bot token.',
+        note: "Discord API only provides webhook name and IDs. Server and channel names require a bot token.",
       });
     } else {
-      const { ExternalServiceError } = require('../domain/errors');
       throw new ExternalServiceError('Discord', info.error || 'Failed to fetch webhook information', 400);
     }
   } catch (error) {
-    logger.error('Error getting webhook info:', error);
+    logger.error("Error getting webhook info:", error);
     next(error);
   }
 }
@@ -368,16 +363,16 @@ async function getDiscordBotInvite(req, res, next) {
     sendSuccess(res, {
       message: 'Discord webhooks do not require a bot invite. Simply create a webhook in your Discord channel settings.',
       instructions: [
-        '1. Open your Discord server',
-        '2. Go to Server Settings > Integrations > Webhooks',
+        "1. Open your Discord server",
+        "2. Go to Server Settings > Integrations > Webhooks",
         '3. Click "New Webhook"',
-        '4. Configure the webhook (name, channel, etc.)',
-        '5. Copy the webhook URL',
-        '6. Paste it in the Discord settings below',
+        "4. Configure the webhook (name, channel, etc.)",
+        "5. Copy the webhook URL",
+        "6. Paste it in the Discord settings below",
       ],
     });
   } catch (error) {
-    logger.error('Error getting Discord bot invite:', error);
+    logger.error("Error getting Discord bot invite:", error);
     next(error);
   }
 }
@@ -393,4 +388,3 @@ module.exports = {
   getWebhookInfo,
   getDiscordBotInvite,
 };
-

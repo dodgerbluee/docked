@@ -23,7 +23,7 @@ const StatCard = ({
   usePurpleBorder = false,
 }) => {
   const variantClass = variant ? styles[VARIANT_MAP[variant] || variant] : null;
-  
+
   // Add purple border class if specified
   const borderClass = usePurpleBorder ? styles.purpleBorder : null;
 
@@ -93,4 +93,3 @@ StatCard.propTypes = {
 };
 
 export default StatCard;
-
