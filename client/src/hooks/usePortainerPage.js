@@ -118,6 +118,12 @@ export function usePortainerPage({
     container: null,
   });
 
+  // Batch upgrade modal state
+  const [batchUpgradeModal, setBatchUpgradeModal] = useState({
+    isOpen: false,
+    containers: [],
+  });
+
   // Sort Portainer instances alphabetically
   const sortedPortainerInstances = useMemo(() => {
     return [...portainerInstances].sort((a, b) => {
@@ -247,15 +253,12 @@ export function usePortainerPage({
   );
 
   // Open upgrade modal
-  const handleUpgrade = useCallback(
-    (container) => {
-      setUpgradeModal({
-        isOpen: true,
-        container,
-      });
-    },
-    []
-  );
+  const handleUpgrade = useCallback((container) => {
+    setUpgradeModal({
+      isOpen: true,
+      container,
+    });
+  }, []);
 
   // Close upgrade modal
   const closeUpgradeModal = useCallback(() => {
@@ -266,62 +269,89 @@ export function usePortainerPage({
   }, []);
 
   // Execute the actual upgrade (called by the modal)
-  const executeUpgrade = useCallback(
-    async () => {
-      const container = upgradeModal.container;
-      if (!container) return;
+  const executeUpgrade = useCallback(async () => {
+    const container = upgradeModal.container;
+    if (!container) return;
 
-      try {
-        setUpgrading((prev) => ({ ...prev, [container.id]: true }));
-        const response = await axios.post(
-          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-          {
-            endpointId: container.endpointId,
-            imageName: container.image,
-            portainerUrl: container.portainerUrl,
-          }
-        );
+    try {
+      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
+      const response = await axios.post(`${API_BASE_URL}/api/containers/${container.id}/upgrade`, {
+        endpointId: container.endpointId,
+        imageName: container.image,
+        portainerUrl: container.portainerUrl,
+      });
 
-        if (response.data.success) {
-          successfullyUpdatedContainersRef.current.add(container.id);
-
-          if (onContainersUpdate) {
-            onContainersUpdate((prevContainers) =>
-              prevContainers.map((c) => (c.id === container.id ? { ...c, hasUpdate: false } : c))
-            );
-          }
-
-          setSelectedContainers((prev) => {
-            const next = new Set(prev);
-            next.delete(container.id);
-            return next;
-          });
-
-          if (fetchContainers) {
-            fetchContainers();
-          }
+      if (response.data.success) {
+        // Add both old and new container IDs to the ref
+        // After upgrade, container gets a new ID, so we need to track both
+        successfullyUpdatedContainersRef.current.add(container.id);
+        if (response.data.newContainerId) {
+          successfullyUpdatedContainersRef.current.add(response.data.newContainerId);
         }
-      } catch (err) {
-        // Error will be handled by the modal
-        throw err;
-      } finally {
-        setUpgrading((prev) => ({ ...prev, [container.id]: false }));
+
+        // Update local state immediately so UI reflects the change right away
+        if (onContainersUpdate) {
+          onContainersUpdate((prevContainers) =>
+            prevContainers.map((c) => {
+              // Match by old ID or new ID
+              const matchesId =
+                c.id === container.id ||
+                c.id === response.data.newContainerId ||
+                c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
+                (response.data.newContainerId &&
+                  c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
+              // Also match by name as fallback
+              const matchesName = c.name === container.name;
+              if (matchesId || matchesName) {
+                return { ...c, hasUpdate: false };
+              }
+              return c;
+            })
+          );
+        }
+
+        setSelectedContainers((prev) => {
+          const next = new Set(prev);
+          next.delete(container.id);
+          if (response.data.newContainerId) {
+            next.delete(response.data.newContainerId);
+          }
+          return next;
+        });
+
+        // Refresh from server to get updated data (cache is already updated on backend)
+        if (fetchContainers) {
+          fetchContainers();
+        }
       }
-    },
-    [upgradeModal.container, successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]
-  );
+    } catch (err) {
+      // Error will be handled by the modal
+      throw err;
+    } finally {
+      setUpgrading((prev) => ({ ...prev, [container.id]: false }));
+    }
+  }, [
+    upgradeModal.container,
+    successfullyUpdatedContainersRef,
+    onContainersUpdate,
+    fetchContainers,
+  ]);
 
   // Handle upgrade success callback
   const handleUpgradeSuccess = useCallback(() => {
     const container = upgradeModal.container;
     if (container) {
-      const oldImage = container.image;
       // The new image info would come from the response, but we'll use the container's image
       toast.success(`Container ${container.name} upgraded successfully!`);
-    }
-  }, [upgradeModal.container]);
 
-  // Batch upgrade - returns data for confirmation dialog
+      // Refresh containers to get updated data (especially important after reconnection)
+      if (fetchContainers) {
+        fetchContainers();
+      }
+    }
+  }, [upgradeModal.container, fetchContainers]);
+
+  // Open batch upgrade modal
   const handleBatchUpgrade = useCallback(() => {
     if (selectedContainers.size === 0) {
       toast.warning("Please select at least one container to upgrade");
@@ -332,116 +362,136 @@ export function usePortainerPage({
       selectedContainers.has(c.id)
     );
 
+    setBatchUpgradeModal({
+      isOpen: true,
+      containers: containersToUpgrade,
+    });
+
     return {
       containerCount: containersToUpgrade.length,
       containers: containersToUpgrade,
     };
   }, [selectedContainers, aggregatedContainers.all]);
 
-  // Execute batch upgrade after confirmation
-  const executeBatchUpgrade = useCallback(
-    async (containersToUpgrade) => {
-      const upgradingState = {};
-      containersToUpgrade.forEach((c) => {
-        upgradingState[c.id] = true;
+  // Close batch upgrade modal
+  const closeBatchUpgradeModal = useCallback(() => {
+    setBatchUpgradeModal({
+      isOpen: false,
+      containers: [],
+    });
+  }, []);
+
+  // Execute batch upgrade (called by the modal)
+  const executeBatchUpgrade = useCallback(async () => {
+    const containersToUpgrade = batchUpgradeModal.containers;
+    if (!containersToUpgrade || containersToUpgrade.length === 0) {
+      throw new Error("No containers to upgrade");
+    }
+
+    const upgradingState = {};
+    containersToUpgrade.forEach((c) => {
+      upgradingState[c.id] = true;
+    });
+    setUpgrading((prev) => ({ ...prev, ...upgradingState }));
+
+    try {
+      setBatchUpgrading(true);
+
+      const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
+        containers: containersToUpgrade.map((c) => ({
+          containerId: c.id,
+          endpointId: c.endpointId,
+          imageName: c.image,
+          containerName: c.name,
+          portainerUrl: c.portainerUrl,
+        })),
       });
-      setUpgrading((prev) => ({ ...prev, ...upgradingState }));
 
-      try {
-        setBatchUpgrading(true);
-
-        const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
-          containers: containersToUpgrade.map((c) => ({
-            containerId: c.id,
-            endpointId: c.endpointId,
-            imageName: c.image,
-            containerName: c.name,
-            portainerUrl: c.portainerUrl,
-          })),
-        });
-
-        const successfulIds = new Set(response.data.results?.map((r) => r.containerId) || []);
-
-        successfulIds.forEach((containerId) => {
-          successfullyUpdatedContainersRef.current.add(containerId);
-        });
-
-        if (onContainersUpdate) {
-          onContainersUpdate((prevContainers) =>
-            prevContainers.map((c) => (successfulIds.has(c.id) ? { ...c, hasUpdate: false } : c))
-          );
+      // Extract both old and new container IDs from results
+      // After upgrade, containers get new IDs, so we need to track both
+      const successfulIds = new Set();
+      const successfulNewIds = new Set();
+      const successfulNames = new Set();
+      response.data.results?.forEach((r) => {
+        if (r.containerId) {
+          successfulIds.add(r.containerId);
+          successfullyUpdatedContainersRef.current.add(r.containerId);
         }
-
-        setSelectedContainers((prev) => {
-          const next = new Set(prev);
-          successfulIds.forEach((id) => next.delete(id));
-          return next;
-        });
-
-        const successCount = response.data.results?.length || 0;
-        const errorCount = response.data.errors?.length || 0;
-
-        if (errorCount > 0) {
-          // Show errors in modal
-          const errorDetails = response.data.errors
-            .map((err) => `${err.containerName}: ${err.error}`)
-            .join("\n");
-          const errorSummary = response.data.errors
-            .map((err) => `${err.containerName}: ${err.error}`)
-            .join(", ");
-
-          setErrorModal({
-            isOpen: true,
-            title: "Batch Upgrade Completed with Errors",
-            message: `${successCount} container(s) upgraded successfully, but ${errorCount} container(s) failed:\n\n${errorSummary}`,
-            containerName: null, // Multiple containers, so no single name
-            details: errorDetails,
-          });
-
-          // Still show success toast for successful ones
-          if (successCount > 0) {
-            toast.success(`Successfully upgraded ${successCount} container(s).`);
-          }
-        } else {
-          toast.success(
-            `Batch upgrade completed! Successfully upgraded ${successCount} container(s).`
-          );
+        if (r.newContainerId) {
+          successfulNewIds.add(r.newContainerId);
+          successfullyUpdatedContainersRef.current.add(r.newContainerId);
         }
-        setSelectedContainers(new Set());
-
-        if (fetchContainers) {
-          fetchContainers();
+        if (r.containerName) {
+          successfulNames.add(r.containerName);
         }
-      } catch (err) {
-        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-        const errorDetails = err.response?.data?.details || err.stack || null;
+      });
 
-        console.log("🔴 Setting error modal for batch upgrade failure:", {
-          errorMessage,
-          errorDetails,
-        });
-
-        // Show error modal instead of toast
-        setErrorModal({
-          isOpen: true,
-          title: "Batch Upgrade Failed",
-          message: errorMessage,
-          containerName: null, // Batch operation, no single container
-          details: errorDetails,
-        });
-
-        console.error("Error in batch upgrade:", err);
-      } finally {
-        setBatchUpgrading(false);
-        const clearedState = {};
-        containersToUpgrade.forEach((c) => {
-          clearedState[c.id] = false;
-        });
-        setUpgrading((prev) => ({ ...prev, ...clearedState }));
+      // Update local state immediately so UI reflects the change right away
+      if (onContainersUpdate) {
+        onContainersUpdate((prevContainers) =>
+          prevContainers.map((c) => {
+            // Match by old ID, new ID, or name
+            const matchesId =
+              successfulIds.has(c.id) ||
+              successfulNewIds.has(c.id) ||
+              Array.from(successfulIds).some(
+                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
+              ) ||
+              Array.from(successfulNewIds).some(
+                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
+              );
+            const matchesName = successfulNames.has(c.name);
+            if (matchesId || matchesName) {
+              return { ...c, hasUpdate: false };
+            }
+            return c;
+          })
+        );
       }
-    },
-    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]
-  );
+
+      setSelectedContainers((prev) => {
+        const next = new Set(prev);
+        successfulIds.forEach((id) => next.delete(id));
+        successfulNewIds.forEach((id) => next.delete(id));
+        return next;
+      });
+
+      // Refresh from server to get updated data (cache is already updated on backend)
+      if (fetchContainers) {
+        fetchContainers();
+      }
+
+      // Return response for the modal to process
+      return response;
+    } catch (err) {
+      // Error will be handled by the modal
+      throw err;
+    } finally {
+      setBatchUpgrading(false);
+      const clearedState = {};
+      containersToUpgrade.forEach((c) => {
+        clearedState[c.id] = false;
+      });
+      setUpgrading((prev) => ({ ...prev, ...clearedState }));
+    }
+  }, [
+    batchUpgradeModal.containers,
+    successfullyUpdatedContainersRef,
+    onContainersUpdate,
+    fetchContainers,
+  ]);
+
+  // Handle batch upgrade success callback
+  const handleBatchUpgradeSuccess = useCallback((response) => {
+    const successCount = response.data?.results?.length || 0;
+    const errorCount = response.data?.errors?.length || 0;
+
+    if (errorCount === 0) {
+      toast.success(`Batch upgrade completed! Successfully upgraded ${successCount} container(s).`);
+    } else if (successCount > 0) {
+      toast.success(`Successfully upgraded ${successCount} container(s).`);
+    }
+  }, []);
 
   // Toggle image selection
   const handleToggleImageSelect = useCallback((imageId) => {
@@ -617,6 +667,12 @@ export function usePortainerPage({
     executeUpgrade,
     handleUpgradeSuccess,
 
+    // Batch upgrade modal
+    batchUpgradeModal,
+    closeBatchUpgradeModal,
+    executeBatchUpgrade,
+    handleBatchUpgradeSuccess,
+
     // Computed data
     sortedPortainerInstances,
     instancesToShow,
@@ -634,7 +690,6 @@ export function usePortainerPage({
     handleSelectAll,
     handleUpgrade,
     handleBatchUpgrade,
-    executeBatchUpgrade,
     handleToggleImageSelect,
     handleDeleteImage,
     executeDeleteImage,

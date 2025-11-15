@@ -79,9 +79,11 @@ function Settings({
   const [internalActiveSection, setInternalActiveSection] = useState(activeSection);
 
   // If first login, always show password section regardless of activeSection prop
-  const currentActiveSection = isFirstLogin
-    ? SETTINGS_TABS.PASSWORD
-    : activeSection || internalActiveSection;
+  // BUT: if activeSection is explicitly LOGS, respect it (for URL routing)
+  const currentActiveSection =
+    isFirstLogin && activeSection !== SETTINGS_TABS.LOGS
+      ? SETTINGS_TABS.PASSWORD
+      : activeSection || internalActiveSection;
   // eslint-disable-next-line no-unused-vars
   const setActiveSection = onSectionChange || setInternalActiveSection;
 
@@ -98,7 +100,7 @@ function Settings({
     }
   }, [settings.localColorScheme, colorScheme, settings]);
 
-  // If first login, always show password section
+  // Sync activeSection prop to internal state
   useEffect(() => {
     if (isFirstLogin) {
       if (onSectionChange) {
@@ -107,6 +109,7 @@ function Settings({
         setInternalActiveSection(SETTINGS_TABS.PASSWORD);
       }
     } else if (activeSection) {
+      // Always sync when activeSection prop changes
       setInternalActiveSection(activeSection);
     }
   }, [isFirstLogin, activeSection, onSectionChange]);

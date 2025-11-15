@@ -85,7 +85,9 @@ class Scheduler {
    * Parse timestamp from database (handles SQLite datetime format)
    */
   parseTimestamp(timestampStr) {
-    if (!timestampStr) return null;
+    if (!timestampStr) {
+      return null;
+    }
 
     // Handle SQLite datetime format (YYYY-MM-DD HH:MM:SS)
     if (
