@@ -262,6 +262,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Fetch the latest from branch to get version update from build job
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -272,6 +275,9 @@ jobs:
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           echo "Updating version to $VERSION in all package.json files for Docker build"
+          # Ensure we have the latest version from the branch (updated by build job)
+          git fetch origin
+          # Update version in package.json files
           npm pkg set version="$VERSION"
           cd server && npm pkg set version="$VERSION"
           cd ../client && npm pkg set version="$VERSION"
@@ -311,6 +317,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Fetch the latest from branch to get version update from build job
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -321,6 +330,9 @@ jobs:
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           echo "Updating version to $VERSION in all package.json files for Docker build"
+          # Ensure we have the latest version from the branch (updated by build job)
+          git fetch origin
+          # Update version in package.json files
           npm pkg set version="$VERSION"
           cd server && npm pkg set version="$VERSION"
           cd ../client && npm pkg set version="$VERSION"
