@@ -234,6 +234,70 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     newImage: newImageName,
   });
 
+  // CRITICAL: Find and stop dependent containers BEFORE removing the main container
+  // Containers using network_mode: service:containerName will break if we remove
+  // the main container while they're still running (they reference the old container ID)
+  const cleanUpgradedContainerName = originalContainerName.replace(/^\//, "");
+  const dependentContainersToStop = [];
+  
+  try {
+    logger.info("🔍 Checking for containers that depend on this container via network_mode...");
+    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    for (const container of allContainers) {
+      if (container.Id === workingContainerId) continue; // Skip the one we're upgrading
+      
+      try {
+        const details = await portainerService.getContainerDetails(
+          portainerUrl,
+          endpointId,
+          container.Id
+        );
+        
+        // Check if this container uses network_mode: service:containerName
+        const networkMode = details.HostConfig?.NetworkMode || "";
+        if (networkMode && networkMode.startsWith("service:")) {
+          const serviceName = networkMode.replace("service:", "");
+          if (serviceName === cleanUpgradedContainerName) {
+            const containerStatus = details.State?.Status || 
+              (details.State?.Running ? "running" : "exited");
+            if (containerStatus === "running") {
+              dependentContainersToStop.push({
+                id: container.Id,
+                name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        // Skip containers we can't inspect
+        logger.debug(`Could not inspect container ${container.Id}: ${err.message}`);
+        continue;
+      }
+    }
+    
+    // Stop dependent containers BEFORE removing the main container
+    if (dependentContainersToStop.length > 0) {
+      logger.info(
+        `🛑 Stopping ${dependentContainersToStop.length} dependent container(s) before removing main container...`
+      );
+      for (const container of dependentContainersToStop) {
+        try {
+          logger.info(`   Stopping ${container.name} (uses network_mode: service:${cleanUpgradedContainerName})...`);
+          await portainerService.stopContainer(portainerUrl, endpointId, container.id);
+          logger.info(`   ✅ ${container.name} stopped`);
+        } catch (err) {
+          logger.warn(`   ⚠️  Failed to stop ${container.name}:`, err.message);
+          // Continue anyway - we'll try to restart them later
+        }
+      }
+      // Wait a moment for containers to fully stop and release network references
+      logger.info("Waiting for dependent containers to fully stop...");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  } catch (err) {
+    logger.warn("Could not check for dependent containers before stopping, proceeding anyway:", err.message);
+  }
+
   // Stop the container
   logger.info("Stopping container", {
     module: "containerService",
@@ -307,6 +371,27 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   delete cleanHostConfig.Runtime;
   delete cleanHostConfig.RestartCount;
   delete cleanHostConfig.AutoRemove;
+  
+  // CRITICAL: When using network_mode: service:*, Docker doesn't allow PortBindings
+  // This matches what Portainer does - filter out conflicting fields
+  const networkMode = cleanHostConfig.NetworkMode || "";
+  if (networkMode && networkMode.startsWith("service:")) {
+    // Remove port bindings - they conflict with service network mode
+    // Ports are exposed on the service container (tunnel), not this one
+    if (cleanHostConfig.PortBindings) {
+      logger.info("Removing PortBindings (conflicts with network_mode: service)", {
+        module: "containerService",
+        operation: "upgradeSingleContainer",
+        containerName: originalContainerName,
+        networkMode: networkMode,
+      });
+      delete cleanHostConfig.PortBindings;
+    }
+    if (cleanHostConfig.PublishAllPorts !== undefined) {
+      delete cleanHostConfig.PublishAllPorts;
+    }
+  }
+  
   // Ensure RestartPolicy is valid
   if (cleanHostConfig.RestartPolicy && typeof cleanHostConfig.RestartPolicy === "object") {
     // Keep restart policy but ensure it's valid
@@ -316,8 +401,11 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   }
 
   // Clean NetworkingConfig - Docker API expects specific format
+  // BUT: Containers using network_mode: service:* don't have their own network config
   let networkingConfig = undefined;
-  if (containerDetails.NetworkSettings?.Networks) {
+  const isServiceNetworkMode = networkMode && networkMode.startsWith("service:");
+  
+  if (!isServiceNetworkMode && containerDetails.NetworkSettings?.Networks) {
     const networks = containerDetails.NetworkSettings.Networks;
     // Convert network settings to the format Docker API expects
     const endpointsConfig = {};
@@ -342,6 +430,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       networkingConfig = { EndpointsConfig: endpointsConfig };
     }
   }
+  // If using service network mode, networkingConfig stays undefined (correct behavior)
 
   // Create new container with same configuration
   logger.info("Creating new container", {
@@ -616,69 +705,241 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
   });
 
-  // If this is part of a stack, restart dependent containers
-  if (stackName) {
-    logger.info(`🔄 Checking for dependent containers in stack: ${stackName}`);
-    try {
-      const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+  // Find and restart dependent containers
+  // This handles containers that depend on the upgraded container via:
+  // 1. network_mode: service:containerName
+  // 2. depends_on relationships (containers in the same stack)
+  logger.info(`🔄 Checking for dependent containers...`);
+  try {
+    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const dependentContainers = [];
 
-      // Find containers in the same stack
-      const stackContainers = [];
-      for (const container of allContainers) {
-        if (container.Id === newContainer.Id) continue; // Skip the one we just upgraded
+    // cleanUpgradedContainerName is already defined earlier in the function
 
-        try {
-          const details = await portainerService.getContainerDetails(
-            portainerUrl,
-            endpointId,
-            container.Id
-          );
+    for (const container of allContainers) {
+      if (container.Id === newContainer.Id) continue; // Skip the one we just upgraded
+
+      try {
+        const details = await portainerService.getContainerDetails(
+          portainerUrl,
+          endpointId,
+          container.Id
+        );
+
+        // Check if container is running or stopped (we'll restart stopped ones too if they depend on us)
+        const containerStatus =
+          details.State?.Status || (details.State?.Running ? "running" : "exited");
+        const isRunning = containerStatus === "running";
+        const isStopped = containerStatus === "exited" || containerStatus === "stopped";
+
+        // Check if this container depends on the upgraded container
+        let dependsOnUpgraded = false;
+        let dependencyReason = "";
+
+        // Check 1: network_mode: service:containerName
+        const networkMode = details.HostConfig?.NetworkMode || "";
+        if (networkMode && networkMode.startsWith("service:")) {
+          const serviceName = networkMode.replace("service:", "");
+          if (serviceName === cleanUpgradedContainerName) {
+            dependsOnUpgraded = true;
+            dependencyReason = "network_mode";
+          }
+        }
+
+        // Check 2: Same stack (compose project or stack namespace)
+        if (!dependsOnUpgraded && stackName) {
           const containerStackName =
             details.Config.Labels?.["com.docker.compose.project"] ||
             details.Config.Labels?.["com.docker.stack.namespace"] ||
             null;
-
-          if (containerStackName === stackName && details.State === "running") {
-            stackContainers.push({
-              id: container.Id,
-              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
-            });
+          if (containerStackName === stackName) {
+            // If in same stack and was running or stopped, it might depend on us
+            // We'll restart it to ensure it reconnects
+            if (isRunning || isStopped) {
+              dependsOnUpgraded = true;
+              dependencyReason = "stack";
+            }
           }
-        } catch (err) {
-          // Skip containers we can't inspect
-          continue;
         }
+
+        if (dependsOnUpgraded) {
+          dependentContainers.push({
+            id: container.Id,
+            name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
+            isRunning,
+            isStopped,
+            dependencyReason,
+          });
+        }
+      } catch (err) {
+        // Skip containers we can't inspect
+        logger.debug(`Could not inspect container ${container.Id}: ${err.message}`);
+        continue;
+      }
+    }
+
+    // Restart dependent containers to reconnect to the upgraded service
+    if (dependentContainers.length > 0) {
+      logger.info(
+        `🔄 Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter((c) => c.isRunning).length} running, ${dependentContainers.filter((c) => c.isStopped).length} stopped)`
+      );
+
+      // Wait a bit more for the upgraded container to be fully ready
+      // Especially important if it has a health check that dependents rely on
+      // Check the new container's health status
+      try {
+        const newContainerDetails = await portainerService.getContainerDetails(
+          portainerUrl,
+          endpointId,
+          newContainer.Id
+        );
+        if (newContainerDetails.State?.Health) {
+          const healthStatus = newContainerDetails.State.Health.Status;
+          if (healthStatus === "starting" || healthStatus === "none") {
+            logger.info(
+              "Waiting for upgraded container health check to pass before restarting dependents..."
+            );
+            // Wait up to 30 seconds for health check to pass
+            let healthReady = false;
+            for (let i = 0; i < 15; i++) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              const currentDetails = await portainerService.getContainerDetails(
+                portainerUrl,
+                endpointId,
+                newContainer.Id
+              );
+              const currentHealth = currentDetails.State?.Health?.Status;
+              if (currentHealth === "healthy") {
+                healthReady = true;
+                logger.info("Upgraded container is now healthy");
+                break;
+              }
+            }
+            if (!healthReady) {
+              logger.warn(
+                "Upgraded container health check not ready, but proceeding with dependent restarts"
+              );
+            }
+          } else if (healthStatus === "healthy") {
+            logger.info("Upgraded container is already healthy");
+          }
+        } else {
+          // No health check, wait a brief moment for container to stabilize
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } catch (err) {
+        logger.warn("Could not check upgraded container health, proceeding anyway:", err.message);
+        // Wait a brief moment anyway
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Restart dependent containers to reconnect to the upgraded service
-      if (stackContainers.length > 0) {
-        logger.info(
-          `🔄 Restarting ${stackContainers.length} dependent container(s) to reconnect...`
-        );
-        for (const container of stackContainers) {
-          try {
-            logger.info(`   Restarting ${container.name}...`);
+      // Prioritize containers that use network_mode (they were stopped earlier)
+      // These need to be restarted to reconnect to the new container
+      const networkModeContainers = dependentContainers.filter((c) => c.dependencyReason === "network_mode");
+      const otherContainers = dependentContainers.filter((c) => c.dependencyReason !== "network_mode");
+      
+      // Restart network_mode containers first (they're critical)
+      for (const container of networkModeContainers) {
+        try {
+          // These containers were stopped earlier, so they should be stopped now
+          // Just start them - they'll automatically connect to the new container by name
+          logger.info(`   Starting ${container.name} (network_mode: service:${cleanUpgradedContainerName})...`);
+          await portainerService.startContainer(portainerUrl, endpointId, container.id);
+          logger.info(`   ✅ ${container.name} started successfully`);
+        } catch (err) {
+          logger.error(`   ⚠️  Failed to start ${container.name}:`, err.message);
+          // Continue with other containers
+        }
+      }
+      
+      // Then handle other dependent containers (stack-based)
+      for (const container of otherContainers) {
+        try {
+          if (container.isRunning) {
+            logger.info(`   Restarting ${container.name} (${container.dependencyReason})...`);
             await portainerService.stopContainer(portainerUrl, endpointId, container.id);
             await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief wait
             await portainerService.startContainer(portainerUrl, endpointId, container.id);
             logger.info(`   ✅ ${container.name} restarted successfully`);
-          } catch (err) {
-            logger.error(`   ⚠️  Failed to restart ${container.name}:`, err.message);
-            // Continue with other containers
+          } else if (container.isStopped) {
+            // Container was stopped (possibly because dependency was down)
+            // Try to start it now that the dependency is back up
+            logger.info(`   Starting ${container.name} (was stopped, ${container.dependencyReason})...`);
+            try {
+              await portainerService.startContainer(portainerUrl, endpointId, container.id);
+              logger.info(`   ✅ ${container.name} started successfully`);
+            } catch (startErr) {
+              // If start fails, it might need a full restart
+              logger.info(`   Attempting full restart of ${container.name}...`);
+              await portainerService.stopContainer(portainerUrl, endpointId, container.id).catch(() => {
+                // Ignore if already stopped
+              });
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              await portainerService.startContainer(portainerUrl, endpointId, container.id);
+              logger.info(`   ✅ ${container.name} restarted successfully`);
+            }
           }
+        } catch (err) {
+          logger.error(`   ⚠️  Failed to restart ${container.name}:`, err.message);
+          // Continue with other containers
         }
-        logger.info(`✅ All dependent containers restarted`);
-      } else {
-        logger.info(`ℹ️  No other running containers found in stack ${stackName}`);
       }
-    } catch (err) {
-      logger.error("⚠️  Error restarting dependent containers:", err.message);
-      // Don't fail the upgrade if dependent restart fails
+      logger.info(`✅ Dependent container restart process completed`);
+    } else {
+      logger.info(`ℹ️  No dependent containers found`);
     }
+  } catch (err) {
+    logger.error("⚠️  Error restarting dependent containers:", err.message);
+    // Don't fail the upgrade if dependent restart fails
   }
 
   // Invalidate cache for this image so next check gets fresh data
   dockerRegistryService.clearDigestCache(imageRepo, currentTag);
+
+  // Update the container cache to mark this container as no longer having an update
+  // This ensures the cache persists across app restarts
+  try {
+    const cached = await getContainerCache("containers");
+    if (cached && cached.containers && Array.isArray(cached.containers)) {
+      let cacheUpdated = false;
+      const updatedContainers = cached.containers.map((cachedContainer) => {
+        // Match by containerId (can be full or shortened)
+        const matchesId =
+          cachedContainer.id === containerId ||
+          cachedContainer.id === workingContainerId ||
+          cachedContainer.id === newContainer.Id ||
+          cachedContainer.id?.substring(0, 12) === containerId.substring(0, 12) ||
+          cachedContainer.id?.substring(0, 12) === workingContainerId.substring(0, 12);
+        
+        // Also match by name as fallback
+        const matchesName = cachedContainer.name === originalContainerName.replace("/", "");
+        
+        if (matchesId || matchesName) {
+          cacheUpdated = true;
+          return { ...cachedContainer, hasUpdate: false };
+        }
+        return cachedContainer;
+      });
+
+      if (cacheUpdated) {
+        // Update the cache with the modified container
+        const updatedCache = {
+          ...cached,
+          containers: updatedContainers,
+        };
+        await setContainerCache("containers", updatedCache);
+        logger.info("Updated container cache to mark upgraded container as up-to-date", {
+          module: "containerService",
+          operation: "upgradeSingleContainer",
+          containerName: originalContainerName,
+          containerId: containerId.substring(0, 12),
+        });
+      }
+    }
+  } catch (cacheError) {
+    // Don't fail the upgrade if cache update fails
+    logger.warn("Failed to update container cache after upgrade:", cacheError.message);
+  }
 
   logger.info(`✅ Upgrade completed successfully for ${originalContainerName}`);
 
@@ -1109,21 +1370,43 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
         // Create a map of previous containers by unique identifier
-        // Use combination of id, portainerUrl, and endpointId for uniqueness
+        // Use combination of name, portainerUrl, and endpointId for uniqueness
+        // (Name is more stable than ID, which changes after upgrades)
         const previousContainersMap = new Map();
         previousCache.containers.forEach((container) => {
-          const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
+          // Use name as primary key since container IDs change after upgrades
+          const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
           previousContainersMap.set(key, container);
         });
 
         // Check each new container for newly detected updates
         for (const container of allContainers) {
           if (container.hasUpdate) {
-            const key = `${container.id}-${container.portainerUrl}-${container.endpointId}`;
+            // Match by name (more stable than ID which changes after upgrades)
+            const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
             const previousContainer = previousContainersMap.get(key);
 
             // Only notify if this is a newly detected update (didn't have update before)
-            if (!previousContainer || !previousContainer.hasUpdate) {
+            // Match by name instead of ID since container IDs change after upgrades.
+            // This is the key fix: by matching by name, we can track the same container across upgrades,
+            // preventing false notifications when the container ID changes but name stays the same.
+            // 
+            // Key fix: If previous container (matched by name) had hasUpdate: false, we skip notification
+            // even if new one shows hasUpdate: true. This prevents false notifications after upgrades
+            // when the cache shows hasUpdate: false but a fresh fetch shows hasUpdate: true again.
+            // 
+            // We notify if:
+            // 1. No previous container exists (truly new container)
+            // 
+            // We do NOT notify if:
+            // - Previous container had hasUpdate: false (was up-to-date or just upgraded - prevents false notifications)
+            // - Previous container had hasUpdate: true (already had update - don't notify again)
+            // 
+            // Note: This means we won't notify for containers that were truly up-to-date and now have a new update,
+            // but that's acceptable to prevent false notifications after upgrades.
+            const shouldNotify = !previousContainer;
+            
+            if (shouldNotify) {
               // Format container data for notification
               const imageName = container.image || "Unknown";
               const currentVersion = container.currentVersion || container.currentTag || "Unknown";

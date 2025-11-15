@@ -9,6 +9,7 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import Alert from "../components/ui/Alert";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
+import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
@@ -124,25 +125,10 @@ function PortainerPage({
     selectableContainersCount > 0 &&
     containersWithUpdates.every((c) => portainerPage.selectedContainers.has(c.id));
 
-  // Handle batch upgrade click
-  const [batchUpgradeConfirm, setBatchUpgradeConfirm] = useState(false);
-  const [batchUpgradeData, setBatchUpgradeData] = useState(null);
-
+  // Handle batch upgrade click - now opens modal directly
   const handleBatchUpgradeClick = useCallback(() => {
-    const upgradeData = portainerPage.handleBatchUpgrade();
-    if (upgradeData) {
-      setBatchUpgradeData(upgradeData);
-      setBatchUpgradeConfirm(true);
-    }
+    portainerPage.handleBatchUpgrade();
   }, [portainerPage]);
-
-  const handleBatchUpgradeConfirm = useCallback(async () => {
-    if (batchUpgradeData?.containers) {
-      await portainerPage.executeBatchUpgrade(batchUpgradeData.containers);
-      setBatchUpgradeConfirm(false);
-      setBatchUpgradeData(null);
-    }
-  }, [batchUpgradeData, portainerPage]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -417,20 +403,6 @@ function PortainerPage({
         </div>
       </div>
 
-      {/* Batch Upgrade Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={batchUpgradeConfirm}
-        onClose={() => {
-          setBatchUpgradeConfirm(false);
-          setBatchUpgradeData(null);
-        }}
-        onConfirm={handleBatchUpgradeConfirm}
-        title="Upgrade Containers?"
-        message={`Upgrade ${batchUpgradeData?.containerCount || 0} selected container(s)?`}
-        confirmText="Upgrade"
-        cancelText="Cancel"
-        variant="primary"
-      />
 
       {/* Batch Delete Confirm Dialog */}
       <ConfirmDialog
@@ -462,6 +434,17 @@ function PortainerPage({
           containerName={portainerPage.upgradeModal.container.name}
           onConfirm={portainerPage.executeUpgrade}
           onSuccess={portainerPage.handleUpgradeSuccess}
+        />
+      )}
+
+      {/* Batch Upgrade Progress Modal */}
+      {portainerPage.batchUpgradeModal.containers.length > 0 && (
+        <BatchUpgradeProgressModal
+          isOpen={portainerPage.batchUpgradeModal.isOpen}
+          onClose={portainerPage.closeBatchUpgradeModal}
+          containers={portainerPage.batchUpgradeModal.containers}
+          onConfirm={portainerPage.executeBatchUpgrade}
+          onSuccess={portainerPage.handleBatchUpgradeSuccess}
         />
       )}
     </div>
