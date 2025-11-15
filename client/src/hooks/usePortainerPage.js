@@ -112,6 +112,12 @@ export function usePortainerPage({
   const [batchUpgrading, setBatchUpgrading] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
 
+  // Upgrade modal state
+  const [upgradeModal, setUpgradeModal] = useState({
+    isOpen: false,
+    container: null,
+  });
+
   // Sort Portainer instances alphabetically
   const sortedPortainerInstances = useMemo(() => {
     return [...portainerInstances].sort((a, b) => {
@@ -240,9 +246,31 @@ export function usePortainerPage({
     [isPortainerContainer, selectedContainers]
   );
 
-  // Upgrade single container
+  // Open upgrade modal
   const handleUpgrade = useCallback(
-    async (container) => {
+    (container) => {
+      setUpgradeModal({
+        isOpen: true,
+        container,
+      });
+    },
+    []
+  );
+
+  // Close upgrade modal
+  const closeUpgradeModal = useCallback(() => {
+    setUpgradeModal({
+      isOpen: false,
+      container: null,
+    });
+  }, []);
+
+  // Execute the actual upgrade (called by the modal)
+  const executeUpgrade = useCallback(
+    async () => {
+      const container = upgradeModal.container;
+      if (!container) return;
+
       try {
         setUpgrading((prev) => ({ ...prev, [container.id]: true }));
         const response = await axios.post(
@@ -269,36 +297,29 @@ export function usePortainerPage({
             return next;
           });
 
-          const oldImage = response.data.oldImage || container.image;
-          const newImage = response.data.newImage || container.image;
-          toast.success(
-            `Container ${container.name} upgraded successfully! From: ${oldImage} To: ${newImage}`
-          );
-
           if (fetchContainers) {
             fetchContainers();
           }
         }
       } catch (err) {
-        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-        const errorDetails = err.response?.data?.details || err.stack || null;
-
-        // Show error modal instead of toast
-        setErrorModal({
-          isOpen: true,
-          title: "Container Upgrade Failed",
-          message: errorMessage,
-          containerName: container.name,
-          details: errorDetails,
-        });
-
-        console.error("Error upgrading container:", err);
+        // Error will be handled by the modal
+        throw err;
       } finally {
         setUpgrading((prev) => ({ ...prev, [container.id]: false }));
       }
     },
-    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers, setErrorModal]
+    [upgradeModal.container, successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]
   );
+
+  // Handle upgrade success callback
+  const handleUpgradeSuccess = useCallback(() => {
+    const container = upgradeModal.container;
+    if (container) {
+      const oldImage = container.image;
+      // The new image info would come from the response, but we'll use the container's image
+      toast.success(`Container ${container.name} upgraded successfully!`);
+    }
+  }, [upgradeModal.container]);
 
   // Batch upgrade - returns data for confirmation dialog
   const handleBatchUpgrade = useCallback(() => {
@@ -589,6 +610,12 @@ export function usePortainerPage({
     // Error modal
     errorModal,
     closeErrorModal,
+
+    // Upgrade modal
+    upgradeModal,
+    closeUpgradeModal,
+    executeUpgrade,
+    handleUpgradeSuccess,
 
     // Computed data
     sortedPortainerInstances,

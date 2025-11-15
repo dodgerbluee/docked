@@ -504,6 +504,15 @@ body.dark-mode .githubIconLink:hover {
   position: relative;
 }
 
+.upgradeCheckmark.upgrading {
+  width: auto;
+  min-width: 100px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--dodger-blue);
+}
+
 .upgradeCheckmark:hover {
   color: var(--text-primary);
 }
@@ -515,6 +524,24 @@ body.dark-mode .githubIconLink:hover {
 
 .upgradeCheckmark.disabled:hover {
   color: var(--text-secondary);
+}
+
+.upgradingText {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--dodger-blue);
+  white-space: nowrap;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 body.dark-mode .upgradeCheckmark {

@@ -8,6 +8,7 @@ import LoadingSpinner from "../components/ui/LoadingSpinner";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import Alert from "../components/ui/Alert";
+import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
@@ -452,6 +453,17 @@ function PortainerPage({
         containerName={errorModal.containerName}
         details={errorModal.details}
       />
+
+      {/* Upgrade Progress Modal */}
+      {portainerPage.upgradeModal.container && (
+        <UpgradeProgressModal
+          isOpen={portainerPage.upgradeModal.isOpen}
+          onClose={portainerPage.closeUpgradeModal}
+          containerName={portainerPage.upgradeModal.container.name}
+          onConfirm={portainerPage.executeUpgrade}
+          onSuccess={portainerPage.handleUpgradeSuccess}
+        />
+      )}
     </div>
   );
 }
