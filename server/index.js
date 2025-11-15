@@ -617,7 +617,7 @@ async function checkImageUpdates(
 
   // Format digest for display (shortened version)
   const formatDigest = (digest) => {
-    if (!digest) return null;
+    if (!digest) {return null;}
     // Return first 12 characters after "sha256:" for display
     return digest.replace("sha256:", "").substring(0, 12);
   };
@@ -828,8 +828,8 @@ app.get("/api/containers", async (req, res) => {
 
     // Sort stacks: named stacks first, then "Standalone"
     groupedContainers.sort((a, b) => {
-      if (a.stackName === "Standalone") return 1;
-      if (b.stackName === "Standalone") return -1;
+      if (a.stackName === "Standalone") {return 1;}
+      if (b.stackName === "Standalone") {return -1;}
       return a.stackName.localeCompare(b.stackName);
     });
 
@@ -839,7 +839,7 @@ app.get("/api/containers", async (req, res) => {
       try {
         await authenticatePortainer(portainerUrl);
         const endpoints = await getEndpoints(portainerUrl);
-        if (endpoints.length === 0) continue;
+        if (endpoints.length === 0) {continue;}
 
         const endpointId = endpoints[0].Id;
         const images = await getImages(portainerUrl, endpointId);
@@ -996,7 +996,7 @@ app.get("/api/images/unused", async (req, res) => {
       try {
         await authenticatePortainer(portainerUrl);
         const endpoints = await getEndpoints(portainerUrl);
-        if (endpoints.length === 0) continue;
+        if (endpoints.length === 0) {continue;}
 
         const endpointId = endpoints[0].Id;
         const images = await getImages(portainerUrl, endpointId);

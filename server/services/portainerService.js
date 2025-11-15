@@ -26,6 +26,52 @@ function clearAuthToken(portainerUrl) {
 }
 
 /**
+ * Normalize URL (remove trailing slash for consistency)
+ * @param {string} url - URL to normalize
+ * @returns {string} - Normalized URL
+ */
+function normalizeUrlForStorage(url) {
+  try {
+    const urlObj = new URL(url);
+    // Reconstruct URL without trailing slash
+    return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return url.replace(/\/$/, "");
+  }
+}
+
+/**
+ * Store authentication token for both IP URL and original URL
+ * This ensures tokens can be found regardless of which URL is used
+ * @param {string} ipUrl - IP-based URL
+ * @param {string} originalUrl - Original URL with domain
+ * @param {string} token - Authentication token
+ * @param {string} authType - Authentication type ('apikey' or 'password')
+ */
+function storeTokenForBothUrls(ipUrl, originalUrl, token, authType) {
+  // Normalize URLs before storing to ensure consistency
+  const normalizedIpUrl = normalizeUrlForStorage(ipUrl);
+  const normalizedOriginalUrl = normalizeUrlForStorage(originalUrl);
+
+  // Store with both original and normalized versions
+  authTokens.set(ipUrl, token);
+  authTokens.set(originalUrl, token);
+  authTokens.set(normalizedIpUrl, token);
+  authTokens.set(normalizedOriginalUrl, token);
+
+  authTypes.set(ipUrl, authType);
+  authTypes.set(originalUrl, authType);
+  authTypes.set(normalizedIpUrl, authType);
+  authTypes.set(normalizedOriginalUrl, authType);
+
+  logger.debug("Stored token for both URLs", {
+    ipUrl: normalizedIpUrl,
+    originalUrl: normalizedOriginalUrl,
+    authType: authType,
+  });
+}
+
+/**
  * Get axios config for IP fallback requests
  * Disables SSL verification and sets Host header when using IP address
  * @param {string} ipUrl - IP-based URL (e.g., "https://192.168.69.50:9443")
@@ -106,26 +152,23 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
           // Try multiple URL variations with the IP address
           const originalUrl = new URL(portainerUrl);
           const ipAddress = instance.ip_address;
-          const originalPort = originalUrl.port;
+          const originalPort = originalUrl.port; // This can be empty string if not specified
 
           // List of URL variations to try (in order of preference)
           const ipUrlVariations = [];
 
-          // 1. Try with original protocol and port (if port was explicitly set)
-          if (originalPort) {
+          // 1. Try with original protocol and port (if port was explicitly set and not empty)
+          if (originalPort && originalPort.trim() !== "") {
             ipUrlVariations.push(`${originalUrl.protocol}//${ipAddress}:${originalPort}`);
-          }
-
-          // 2. Try with original protocol and default/common ports
-          if (originalUrl.protocol === "https:") {
-            ipUrlVariations.push(`https://${ipAddress}:443`);
-            ipUrlVariations.push(`https://${ipAddress}:9443`); // Common Portainer HTTPS port
-            // Also try HTTP versions (in case HTTPS doesn't work with IP)
-            ipUrlVariations.push(`http://${ipAddress}:9000`); // Portainer default HTTP port
-            ipUrlVariations.push(`http://${ipAddress}:80`);
           } else {
-            ipUrlVariations.push(`http://${ipAddress}:80`);
-            ipUrlVariations.push(`http://${ipAddress}:9000`); // Common Portainer HTTP port
+            // 2. If no port specified, use Portainer defaults
+            if (originalUrl.protocol === "https:") {
+              // For HTTPS, only try 9443 (Portainer's default HTTPS port)
+              ipUrlVariations.push(`https://${ipAddress}:9443`);
+            } else {
+              // For HTTP, only try 9000 (Portainer's default HTTP port)
+              ipUrlVariations.push(`http://${ipAddress}:9000`);
+            }
           }
 
           // Try each variation until one works
@@ -192,12 +235,13 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
 
 /**
  * Authenticate with a specific Portainer instance
- * @param {string} portainerUrl - Portainer instance URL
+ * @param {string} portainerUrl - Portainer instance URL (can be IP URL for nginx upgrades)
  * @param {string} username - Username for this instance (required for password auth)
  * @param {string} password - Password for this instance (required for password auth)
  * @param {string} apiKey - API key for this instance (required for API key auth)
  * @param {string} authType - Authentication type: 'password' or 'apikey'
  * @param {boolean} skipCache - If true, skip cache check and always re-authenticate (for validation)
+ * @param {string} originalUrl - Original URL with domain (for setting Host header when using IP URL)
  * @returns {Promise<string>} - Authentication token
  */
 async function authenticatePortainer(
@@ -206,11 +250,77 @@ async function authenticatePortainer(
   password = null,
   apiKey = null,
   authType = "apikey",
-  skipCache = false
+  skipCache = false,
+  originalUrl = null
 ) {
+  // Use originalUrl for Host header if provided, otherwise use portainerUrl
+  const urlForHostHeader = originalUrl || portainerUrl;
   // Check if we already have a valid token for this instance (unless skipping cache for validation)
   if (!skipCache && authTokens.has(portainerUrl)) {
     return authTokens.get(portainerUrl);
+  }
+
+  // If credentials are not provided, try to fetch them from the database
+  // This is especially important when using IP URLs for nginx upgrades
+  if (!apiKey && !username && !password) {
+    try {
+      const instances = await getAllPortainerInstances();
+      // Try to match by IP URL first, then by original URL
+      const instance = instances.find((inst) => {
+        try {
+          const instUrl = new URL(inst.url);
+          const portainerUrlObj = new URL(portainerUrl);
+          // Match by IP if portainerUrl is an IP
+          if (/^\d+\.\d+\.\d+\.\d+$/.test(portainerUrlObj.hostname)) {
+            // Check if instance IP matches
+            if (inst.ip_address === portainerUrlObj.hostname) {
+              return true;
+            }
+          }
+          // Match by original URL
+          if (inst.url === portainerUrl || inst.url === originalUrl) {
+            return true;
+          }
+          // Match by normalized URLs
+          const normalizedInstUrl = normalizeUrlForStorage(inst.url);
+          const normalizedPortainerUrl = normalizeUrlForStorage(portainerUrl);
+          if (
+            normalizedInstUrl === normalizedPortainerUrl ||
+            normalizedInstUrl === normalizeUrlForStorage(originalUrl || "")
+          ) {
+            return true;
+          }
+          return false;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (instance) {
+        authType = instance.auth_type || "apikey";
+        if (authType === "apikey") {
+          apiKey = instance.api_key;
+        } else {
+          username = instance.username;
+          password = instance.password;
+        }
+        // Use original URL for matching if we found instance by IP
+        if (!originalUrl && instance.url !== portainerUrl) {
+          originalUrl = instance.url;
+        }
+        logger.debug("Fetched credentials from database for authentication", {
+          portainerUrl: portainerUrl,
+          originalUrl: originalUrl || instance.url,
+          instanceName: instance.name,
+          authType: authType,
+        });
+      }
+    } catch (error) {
+      logger.warn("Failed to fetch credentials from database", {
+        error: error.message,
+        portainerUrl: portainerUrl,
+      });
+    }
   }
 
   // Validate credentials based on auth type
@@ -220,23 +330,69 @@ async function authenticatePortainer(
     }
     // For API key auth, validate the key by making an actual API call
     // Portainer API keys use X-API-Key header, not Authorization Bearer
+    // Check if portainerUrl is an IP URL and originalUrl is provided
+    const isIpUrl = /^\d+\.\d+\.\d+\.\d+$/.test(new URL(portainerUrl).hostname);
+
     try {
-      // Test the API key by making a request to a protected endpoint with IP fallback
-      const testResponse = await requestWithIpFallback(async (url) => {
+      let testResponse;
+
+      if (isIpUrl && originalUrl) {
+        // Direct request with IP URL, using original URL for Host header
+        logger.debug("Validating API key with IP URL", {
+          ipUrl: portainerUrl,
+          originalUrl: originalUrl,
+        });
         const baseConfig = {
           headers: {
             "X-API-Key": apiKey,
             "Content-Type": "application/json",
           },
         };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return await axios.get(`${url}/api/endpoints`, ipConfig);
-      }, portainerUrl);
+        const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
+        logger.debug("IP fallback config", {
+          headers: ipConfig.headers,
+          hasHttpsAgent: !!ipConfig.httpsAgent,
+        });
+        testResponse = await axios.get(`${portainerUrl}/api/endpoints`, ipConfig);
+      } else {
+        // Use normal IP fallback flow
+        logger.debug("Validating API key with normal flow", {
+          portainerUrl,
+          urlForHostHeader,
+        });
+        testResponse = await requestWithIpFallback(async (url) => {
+          const baseConfig = {
+            headers: {
+              "X-API-Key": apiKey,
+              "Content-Type": "application/json",
+            },
+          };
+          const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+          return await axios.get(`${url}/api/endpoints`, ipConfig);
+        }, portainerUrl);
+      }
       // If we get here, the API key is valid
+      // Store with both original and normalized URL
+      const normalizedUrl = normalizeUrlForStorage(portainerUrl);
       authTokens.set(portainerUrl, apiKey);
+      authTokens.set(normalizedUrl, apiKey);
       authTypes.set(portainerUrl, "apikey");
+      authTypes.set(normalizedUrl, "apikey");
       return apiKey;
     } catch (apiKeyError) {
+      // Enhanced error logging for debugging
+      logger.error("API key validation failed", {
+        portainerUrl,
+        originalUrl,
+        isIpUrl: isIpUrl,
+        status: apiKeyError.response?.status,
+        statusText: apiKeyError.response?.statusText,
+        responseData: apiKeyError.response?.data,
+        message: apiKeyError.message,
+        code: apiKeyError.code,
+        stack: apiKeyError.stack,
+      });
+
       if (apiKeyError.response?.status === 401 || apiKeyError.response?.status === 403) {
         throw new Error("Invalid API key. Please check your API key and try again.");
       }
@@ -254,23 +410,46 @@ async function authenticatePortainer(
   const authPassword = password;
 
   try {
-    // Try the standard Portainer API v2 format with IP fallback
-    const response = await requestWithIpFallback(async (url) => {
+    // Try the standard Portainer API v2 format
+    // If portainerUrl is an IP URL and originalUrl is provided, use IP URL directly
+    const isIpUrl = /^\d+\.\d+\.\d+\.\d+$/.test(new URL(portainerUrl).hostname);
+    let response;
+
+    if (isIpUrl && originalUrl) {
+      // Direct request with IP URL, using original URL for Host header
       const baseConfig = {
         headers: {
           "Content-Type": "application/json",
         },
       };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.post(
-        `${url}/api/auth`,
+      const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
+      response = await axios.post(
+        `${portainerUrl}/api/auth`,
         {
           username: authUsername,
           password: authPassword,
         },
         ipConfig
       );
-    }, portainerUrl);
+    } else {
+      // Use normal IP fallback flow
+      response = await requestWithIpFallback(async (url) => {
+        const baseConfig = {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        };
+        const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+        return await axios.post(
+          `${url}/api/auth`,
+          {
+            username: authUsername,
+            password: authPassword,
+          },
+          ipConfig
+        );
+      }, portainerUrl);
+    }
 
     // Portainer returns jwt in response.data
     const authToken = response.data.jwt || response.data.token;
@@ -279,9 +458,12 @@ async function authenticatePortainer(
       throw new Error("Authentication response missing token");
     }
 
-    // Store token for this instance
+    // Store token for this instance (both original and normalized URL)
+    const normalizedUrl = normalizeUrlForStorage(portainerUrl);
     authTokens.set(portainerUrl, authToken);
+    authTokens.set(normalizedUrl, authToken);
     authTypes.set(portainerUrl, "password");
+    authTypes.set(normalizedUrl, "password");
     return authToken;
   } catch (error) {
     // Enhanced error logging
@@ -311,8 +493,11 @@ async function authenticatePortainer(
             const altToken = altResponse.data.jwt || altResponse.data.token;
             if (altToken) {
               logger.info(`Alternative authentication format succeeded for ${portainerUrl}`);
+              const normalizedUrl = normalizeUrlForStorage(portainerUrl);
               authTokens.set(portainerUrl, altToken);
+              authTokens.set(normalizedUrl, altToken);
               authTypes.set(portainerUrl, "password");
+              authTypes.set(normalizedUrl, "password");
               return altToken;
             }
           } catch (altError) {
@@ -343,30 +528,82 @@ async function authenticatePortainer(
  * @returns {Object} - Headers object with Authorization or X-API-Key
  */
 function getAuthHeaders(portainerUrl) {
-  // Try to get token with the provided URL first
-  let token = authTokens.get(portainerUrl);
-  let authType = authTypes.get(portainerUrl);
+  const normalizedUrl = normalizeUrlForStorage(portainerUrl);
+
+  // Try to get token with the provided URL first (both original and normalized)
+  let token = authTokens.get(portainerUrl) || authTokens.get(normalizedUrl);
+  let authType = authTypes.get(portainerUrl) || authTypes.get(normalizedUrl);
 
   // If not found, check all stored tokens to find a match
   // This handles cases where token was stored with original URL but we're using IP URL or vice versa
   if (!token) {
     // Check all stored tokens - if portainerUrl is an IP URL, find the matching original URL token
+    // or vice versa
     for (const [storedUrl, storedToken] of authTokens.entries()) {
-      // Check if this stored URL's IP matches the portainerUrl, or if portainerUrl contains an IP
-      const { urlWithIp } = require("../utils/dnsResolver");
-      const { getAllPortainerInstances } = require("../db/database");
+      const normalizedStoredUrl = normalizeUrlForStorage(storedUrl);
 
-      // Try to find instance by checking if storedUrl or portainerUrl match
-      // This is a synchronous check - we'll iterate through stored tokens
-      if (storedUrl === portainerUrl) {
+      // First try exact match (both original and normalized)
+      if (
+        storedUrl === portainerUrl ||
+        storedUrl === normalizedUrl ||
+        normalizedStoredUrl === portainerUrl ||
+        normalizedStoredUrl === normalizedUrl
+      ) {
         token = storedToken;
         authType = authTypes.get(storedUrl);
         break;
+      }
+
+      // If exact match fails, try to match by checking if one is an IP URL and the other is the original
+      // Extract hostnames/IPs from both URLs and compare ports/protocols
+      try {
+        const storedUrlObj = new URL(storedUrl);
+        const portainerUrlObj = new URL(portainerUrl);
+        const storedHost = storedUrlObj.hostname;
+        const portainerHost = portainerUrlObj.hostname;
+
+        // Check if one is an IP address and they have the same port and protocol
+        const storedIsIp = /^\d+\.\d+\.\d+\.\d+$/.test(storedHost);
+        const portainerIsIp = /^\d+\.\d+\.\d+\.\d+$/.test(portainerHost);
+
+        // Normalize ports - if not specified, use defaults (9443 for HTTPS, 9000 for HTTP)
+        const getNormalizedPort = (urlObj) => {
+          if (urlObj.port) {
+            return urlObj.port;
+          }
+          return urlObj.protocol === "https:" ? "9443" : "9000";
+        };
+
+        const storedPort = getNormalizedPort(storedUrlObj);
+        const portainerPort = getNormalizedPort(portainerUrlObj);
+
+        // If one is IP and one is domain, and they match on protocol/port, they're the same instance
+        if (
+          storedIsIp !== portainerIsIp &&
+          storedUrlObj.protocol === portainerUrlObj.protocol &&
+          storedPort === portainerPort
+        ) {
+          // They're likely the same instance (one is IP, one is domain)
+          // Use the stored token
+          token = storedToken;
+          authType = authTypes.get(storedUrl);
+          break;
+        }
+      } catch (urlError) {
+        // Invalid URL format, skip this check
+        continue;
       }
     }
   }
 
   if (!token) {
+    // Log available tokens for debugging
+    const availableUrls = Array.from(authTokens.keys());
+    logger.error(`No authentication token for ${portainerUrl}`, {
+      requestedUrl: portainerUrl,
+      normalizedUrl: normalizedUrl,
+      availableTokens: availableUrls,
+    });
     throw new Error(`No authentication token for ${portainerUrl}`);
   }
 
@@ -547,12 +784,13 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
 
 /**
  * Pull new image
- * @param {string} portainerUrl - Portainer instance URL
+ * @param {string} portainerUrl - Portainer instance URL (can be IP URL for nginx upgrades)
  * @param {string|number} endpointId - Endpoint ID
  * @param {string} imageName - Image name (repo:tag)
+ * @param {string} originalUrl - Original URL with domain (for authentication when using IP URL)
  * @returns {Promise<Object>} - Pull result
  */
-async function pullImage(portainerUrl, endpointId, imageName) {
+async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = {
@@ -562,7 +800,9 @@ async function pullImage(portainerUrl, endpointId, imageName) {
           tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
         },
       };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      // Use originalUrl for Host header if provided, otherwise use portainerUrl
+      const urlForHostHeader = originalUrl || portainerUrl;
+      const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
       return await axios.post(
         `${url}/api/endpoints/${endpointId}/docker/images/create`,
         null,
@@ -572,8 +812,17 @@ async function pullImage(portainerUrl, endpointId, imageName) {
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
-      return pullImage(portainerUrl, endpointId, imageName);
+      // Pass originalUrl for authentication so it can fetch credentials from database
+      await authenticatePortainer(
+        portainerUrl,
+        null,
+        null,
+        null,
+        "apikey",
+        false,
+        originalUrl || portainerUrl
+      );
+      return pullImage(portainerUrl, endpointId, imageName, originalUrl);
     }
     throw error;
   }
@@ -601,6 +850,48 @@ async function stopContainer(portainerUrl, endpointId, containerId) {
     if (error.response?.status === 401) {
       await authenticatePortainer(portainerUrl);
       return stopContainer(portainerUrl, endpointId, containerId);
+    }
+    // Handle connection errors (socket hang up, ECONNRESET) - nginx might have gone down
+    // Retry with IP fallback if available
+    if (
+      error.code === "ECONNRESET" ||
+      error.code === "ECONNREFUSED" ||
+      error.message === "socket hang up"
+    ) {
+      logger.warn(
+        "Connection error during stopContainer, container may have stopped or nginx went down",
+        {
+          module: "portainerService",
+          operation: "stopContainer",
+          containerId: containerId.substring(0, 12),
+          error: error.message,
+          code: error.code,
+        }
+      );
+      // Try to verify if container is actually stopped
+      try {
+        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
+        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
+        if (status === "exited" || status === "stopped") {
+          logger.debug("Container is stopped despite connection error", {
+            module: "portainerService",
+            operation: "stopContainer",
+            containerId: containerId.substring(0, 12),
+          });
+          return; // Container is stopped, which is what we wanted
+        }
+      } catch (checkErr) {
+        // If we can't verify, assume the stop command succeeded before the connection dropped
+        logger.warn(
+          "Could not verify container state after connection error, assuming stop succeeded",
+          {
+            module: "portainerService",
+            operation: "stopContainer",
+            containerId: containerId.substring(0, 12),
+          }
+        );
+        return; // Assume stop succeeded
+      }
     }
     // Handle "already stopped" scenarios gracefully
     // 304 = Not Modified (container already in desired state)
@@ -824,6 +1115,9 @@ async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 10
 module.exports = {
   authenticatePortainer,
   clearAuthToken,
+  storeTokenForBothUrls,
+  getAuthHeaders,
+  getIpFallbackConfig,
   getEndpoints,
   getContainers,
   getContainerDetails,

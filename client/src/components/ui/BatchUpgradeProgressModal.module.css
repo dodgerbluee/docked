@@ -430,6 +430,20 @@
   box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
 }
 
+.viewLogsButton {
+  background: transparent !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.viewLogsButton:hover:not(:disabled) {
+  background: var(--dodger-blue) !important;
+  color: white !important;
+  border-color: var(--dodger-blue) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -504,4 +518,3 @@
     width: 100%;
   }
 }
-

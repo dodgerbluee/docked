@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
@@ -12,6 +13,7 @@ import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
 import BatchPage from "./pages/BatchPage";
 import PortainerPage from "./pages/PortainerPage";
+import LogsPage from "./pages/LogsPage";
 import Header from "./components/Header/Header";
 import TabNavigation from "./components/TabNavigation/TabNavigation";
 import RateLimitError from "./components/ErrorDisplay/RateLimitError";
@@ -771,6 +773,8 @@ function App() {
           onReorderTabs={handleReorderTabs}
           draggedTabIndex={draggedTabIndex}
           onDraggedTabIndexChange={setDraggedTabIndex}
+          onNavigateToSettings={handleNavigateToSettings}
+          onSetSettingsTab={setSettingsTab}
         />
       );
     } else if (activeTab === "tracked-apps") {
@@ -833,66 +837,8 @@ function App() {
 
   // Axios interceptor and auth token setup are now handled by useAuth hook
 
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
-    // Clear any stale auth data when showing login
-    return <Login onLogin={handleLoginWithNavigation} />;
-  }
-
-  // If password not changed, force settings page
-  if (!passwordChanged) {
-    return (
-      <div className="App">
-        <header className="App-header">
-          <div className="header-content">
-            <div>
-              <h1>
-                <img
-                  src="/img/logo.png"
-                  alt="Docked"
-                  style={{ height: "1.9em", verticalAlign: "middle", marginRight: "12px" }}
-                />
-                <img
-                  src="/img/text-header.png"
-                  alt="docked"
-                  style={{ height: "1.25em", verticalAlign: "middle", maxWidth: "50%" }}
-                />
-              </h1>
-              <p>Portainer Container Manager</p>
-            </div>
-          </div>
-        </header>
-        <div className="container">
-          <Settings
-            username={username}
-            onUsernameUpdate={handleUsernameUpdate}
-            onLogout={handleLogoutWithCleanup}
-            isFirstLogin={true}
-            avatar={avatar}
-            recentAvatars={recentAvatars}
-            onAvatarChange={handleAvatarChange}
-            onRecentAvatarsChange={(avatars) => {
-              setRecentAvatars(avatars);
-              // Refresh recent avatars from server to get latest
-              fetchRecentAvatars();
-            }}
-            onAvatarUploaded={async () => {
-              // Refresh avatar from server after upload to ensure it's up to date
-              await fetchAvatar();
-            }}
-            onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
-            onPortainerInstancesChange={() => {
-              fetchPortainerInstances();
-              fetchContainers();
-            }}
-            onBatchConfigUpdate={handleBatchConfigUpdate}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  // Create a HomePage component that contains the main app content
+  const HomePage = () => (
     <BatchConfigContext.Provider value={batchConfigContextValue}>
       <div className="App">
         <Header
@@ -1142,6 +1088,153 @@ function App() {
 
       {/* AddTrackedImageModal is now managed by TrackedAppsPage component */}
     </BatchConfigContext.Provider>
+  );
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLoginWithNavigation} />;
+  }
+
+  // If password not changed, force settings page
+  if (!passwordChanged) {
+    return (
+      <div className="App">
+        <header className="App-header">
+          <div className="header-content">
+            <div>
+              <h1>
+                <img
+                  src="/img/logo.png"
+                  alt="Docked"
+                  style={{ height: "1.9em", verticalAlign: "middle", marginRight: "12px" }}
+                />
+                <img
+                  src="/img/text-header.png"
+                  alt="docked"
+                  style={{ height: "1.25em", verticalAlign: "middle", maxWidth: "50%" }}
+                />
+              </h1>
+              <p>Portainer Container Manager</p>
+            </div>
+          </div>
+        </header>
+        <div className="container">
+          <Settings
+            username={username}
+            onUsernameUpdate={handleUsernameUpdate}
+            onLogout={handleLogoutWithCleanup}
+            isFirstLogin={true}
+            avatar={avatar}
+            recentAvatars={recentAvatars}
+            onAvatarChange={handleAvatarChange}
+            onRecentAvatarsChange={(avatars) => {
+              setRecentAvatars(avatars);
+              fetchRecentAvatars();
+            }}
+            onAvatarUploaded={async () => {
+              await fetchAvatar();
+            }}
+            onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
+            onPortainerInstancesChange={() => {
+              fetchPortainerInstances();
+              fetchContainers();
+            }}
+            onBatchConfigUpdate={handleBatchConfigUpdate}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Use React Router for routing
+  return (
+    <Routes>
+      <Route
+        path="/logs"
+        element={
+          <LogsPage
+            headerProps={{
+              username,
+              userRole,
+              avatar,
+              darkMode,
+              notificationCount,
+              activeContainersWithUpdates,
+              activeTrackedAppsBehind,
+              showNotificationMenu,
+              showAvatarMenu,
+              onToggleNotificationMenu: (show) => {
+                if (show !== undefined) {
+                  setShowNotificationMenu(show);
+                  if (show) setShowAvatarMenu(false);
+                } else {
+                  setShowNotificationMenu((prev) => {
+                    if (!prev) setShowAvatarMenu(false);
+                    return !prev;
+                  });
+                }
+              },
+              onToggleAvatarMenu: (show) => {
+                if (show !== undefined) {
+                  setShowAvatarMenu(show);
+                  if (show) setShowNotificationMenu(false);
+                } else {
+                  setShowAvatarMenu((prev) => {
+                    if (!prev) setShowNotificationMenu(false);
+                    return !prev;
+                  });
+                }
+              },
+              onDismissContainerNotification: handleDismissContainerNotification,
+              onDismissTrackedAppNotification: handleDismissTrackedAppNotification,
+              onTemporaryThemeToggle: handleTemporaryThemeToggle,
+              onLogout: handleLogoutWithCleanup,
+            }}
+            settingsProps={{
+              username,
+              passwordChanged,
+              avatar,
+              recentAvatars,
+              onUsernameUpdate: handleUsernameUpdate,
+              onLogout: handleLogoutWithCleanup,
+              onPasswordUpdateSuccess: handlePasswordUpdateSuccessWithNavigation,
+              onPortainerInstancesChange: async () => {
+                await fetchPortainerInstances();
+                await fetchContainers(false);
+              },
+              onAvatarChange: handleAvatarChange,
+              onRecentAvatarsChange: (avatars) => {
+                setRecentAvatars(avatars);
+                fetchRecentAvatars();
+              },
+              onAvatarUploaded: async () => {
+                await fetchAvatar();
+              },
+              onBatchConfigUpdate: handleBatchConfigUpdate,
+              colorScheme,
+              onColorSchemeChange: handleColorSchemeChange,
+              onClearPortainerData: handleClear,
+              onClearTrackedAppData: handleClearGitHubCache,
+              onEditInstance: (instance) => {
+                setEditingPortainerInstance(instance);
+                setShowAddPortainerModal(true);
+              },
+              editingPortainerInstance,
+              refreshInstances: editingPortainerInstance === null ? fetchPortainerInstances : null,
+            }}
+            onNavigateToSummary={handleNavigateToSummary}
+            onNavigateToSettings={handleNavigateToSettings}
+            onNavigateToBatch={handleNavigateToBatch}
+            onNavigateToPortainer={handleNavigateToPortainer}
+            onNavigateToTrackedApps={handleNavigateToTrackedApps}
+            onSetSettingsTab={setSettingsTab}
+            API_BASE_URL={API_BASE_URL}
+          />
+        }
+      />
+      <Route path="/" element={<HomePage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
