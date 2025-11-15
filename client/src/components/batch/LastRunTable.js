@@ -61,10 +61,7 @@ const LastRunTable = React.memo(function LastRunTable({ latestRunsByJobType }) {
       {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.error_message && (
         <Alert variant="error" className={styles.error}>
           <strong>Tracked Apps Scan Error:</strong>{" "}
-          {
-            latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]
-              .error_message
-          }
+          {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK].error_message}
         </Alert>
       )}
     </Card>
@@ -93,12 +90,9 @@ const LastRunRow = React.memo(function LastRunRow({ run, jobType, isContainer })
       </div>
       <div className={styles.tableCell}>
         <div className={styles.detailItem}>
-          {run.containers_checked || 0} {isContainer ? "containers" : "apps"}{" "}
-          checked
+          {run.containers_checked || 0} {isContainer ? "containers" : "apps"} checked
         </div>
-        <div className={styles.detailItem}>
-          {run.containers_updated || 0} updates found
-        </div>
+        <div className={styles.detailItem}>{run.containers_updated || 0} updates found</div>
       </div>
     </div>
   );
@@ -115,4 +109,3 @@ LastRunTable.propTypes = {
 };
 
 export default LastRunTable;
-

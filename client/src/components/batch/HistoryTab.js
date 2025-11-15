@@ -17,10 +17,7 @@ import styles from "./HistoryTab.module.css";
  * HistoryTab Component
  * Displays batch run history and logs
  */
-const HistoryTab = React.memo(function HistoryTab({
-  onTriggerBatch,
-  onTriggerTrackedAppsBatch,
-}) {
+const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTrackedAppsBatch }) {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [displayCount, setDisplayCount] = useState(8);
 
@@ -73,7 +70,6 @@ const HistoryTab = React.memo(function HistoryTab({
     setDisplayCount(displayCount + 8);
   };
 
-
   if (loading) {
     return (
       <div className={styles.loading}>
@@ -86,32 +82,38 @@ const HistoryTab = React.memo(function HistoryTab({
 
   return (
     <div className={styles.historyTab}>
-      {error && <Alert variant="error" className={styles.error}>{error}</Alert>}
+      {error && (
+        <Alert variant="error" className={styles.error}>
+          {error}
+        </Alert>
+      )}
 
       {/* Batch Jobs */}
       <div className={styles.section}>
         <div
           className={styles.stackHeader}
-          onClick={() => handleToggleSection('next-scheduled-runs')}
+          onClick={() => handleToggleSection("next-scheduled-runs")}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              handleToggleSection('next-scheduled-runs');
+              handleToggleSection("next-scheduled-runs");
             }
           }}
           role="button"
           tabIndex={0}
-          aria-expanded={!collapsedSections.has('next-scheduled-runs')}
-          aria-label={`Batch Jobs - ${collapsedSections.has('next-scheduled-runs') ? "Expand" : "Collapse"}`}
+          aria-expanded={!collapsedSections.has("next-scheduled-runs")}
+          aria-label={`Batch Jobs - ${collapsedSections.has("next-scheduled-runs") ? "Expand" : "Collapse"}`}
         >
           <div className={styles.stackHeaderLeft}>
             <button
               className={styles.stackToggle}
-              aria-label={collapsedSections.has('next-scheduled-runs') ? "Expand section" : "Collapse section"}
+              aria-label={
+                collapsedSections.has("next-scheduled-runs") ? "Expand section" : "Collapse section"
+              }
               aria-hidden="true"
               tabIndex={-1}
             >
-              {collapsedSections.has('next-scheduled-runs') ? "▶" : "▼"}
+              {collapsedSections.has("next-scheduled-runs") ? "▶" : "▼"}
             </button>
             <Clock size={18} className={styles.stackIcon} />
             <h3 className={styles.stackName}>Batch Jobs</h3>
@@ -122,7 +124,7 @@ const HistoryTab = React.memo(function HistoryTab({
             </span>
           )}
         </div>
-        {!collapsedSections.has('next-scheduled-runs') && (
+        {!collapsedSections.has("next-scheduled-runs") && (
           <Card>
             {hasEnabledJobs ? (
               <div className={styles.scheduledRunsTable}>
@@ -175,26 +177,28 @@ const HistoryTab = React.memo(function HistoryTab({
       <div className={styles.section}>
         <div
           className={styles.stackHeader}
-          onClick={() => handleToggleSection('run-history')}
+          onClick={() => handleToggleSection("run-history")}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              handleToggleSection('run-history');
+              handleToggleSection("run-history");
             }
           }}
           role="button"
           tabIndex={0}
-          aria-expanded={!collapsedSections.has('run-history')}
-          aria-label={`Run History - ${collapsedSections.has('run-history') ? "Expand" : "Collapse"}`}
+          aria-expanded={!collapsedSections.has("run-history")}
+          aria-label={`Run History - ${collapsedSections.has("run-history") ? "Expand" : "Collapse"}`}
         >
           <div className={styles.stackHeaderLeft}>
             <button
               className={styles.stackToggle}
-              aria-label={collapsedSections.has('run-history') ? "Expand section" : "Collapse section"}
+              aria-label={
+                collapsedSections.has("run-history") ? "Expand section" : "Collapse section"
+              }
               aria-hidden="true"
               tabIndex={-1}
             >
-              {collapsedSections.has('run-history') ? "▶" : "▼"}
+              {collapsedSections.has("run-history") ? "▶" : "▼"}
             </button>
             <HistoryIcon size={18} className={styles.stackIcon} />
             <h3 className={styles.stackName}>Run History</h3>
@@ -203,7 +207,7 @@ const HistoryTab = React.memo(function HistoryTab({
             {recentRuns.length} run{recentRuns.length !== 1 ? "s" : ""}
           </span>
         </div>
-        {!collapsedSections.has('run-history') && (
+        {!collapsedSections.has("run-history") && (
           <div className={styles.historyAndLogs}>
             {/* Logs Display - Top, takes 2 card widths */}
             <div className={styles.logsSection}>
@@ -263,4 +267,3 @@ HistoryTab.propTypes = {
 };
 
 export default HistoryTab;
-

@@ -49,8 +49,8 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           instanceUrl
             ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
             : portainerOnly
-            ? "🔄 Fetching containers from Portainer"
-            : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
+              ? "🔄 Fetching containers from Portainer"
+              : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
         );
 
         // Backend will automatically fetch from Portainer if no cache exists
@@ -87,9 +87,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
             response.data.containers &&
             response.data.containers.some(
               (container) =>
-                container.latestDigest ||
-                container.latestTag ||
-                container.latestVersion
+                container.latestDigest || container.latestTag || container.latestVersion
             );
           if (hasDockerHubData) {
             setDockerHubDataPulled(true);
@@ -117,8 +115,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
                   existingInstancesMap.set(apiInst.url, {
                     ...existingInst,
                     containers: apiInst.containers || [],
-                    withUpdates:
-                      apiInst.withUpdates || existingInst.withUpdates || [],
+                    withUpdates: apiInst.withUpdates || existingInst.withUpdates || [],
                     upToDate: apiInst.upToDate || existingInst.upToDate || [],
                   });
                 } else {
@@ -140,9 +137,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
               const updatedInstances = portainerInstancesFromAPI
                 .filter((inst) => responseUrls.has(inst.url))
                 .map((existingInst) => {
-                  return (
-                    existingInstancesMap.get(existingInst.url) || existingInst
-                  );
+                  return existingInstancesMap.get(existingInst.url) || existingInst;
                 });
 
               response.data.portainerInstances.forEach((apiInst) => {
@@ -199,7 +194,12 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
         }
       }
     },
-    [containers.length, portainerInstancesFromAPI, fetchUnusedImages, successfullyUpdatedContainersRef]
+    [
+      containers.length,
+      portainerInstancesFromAPI,
+      fetchUnusedImages,
+      successfullyUpdatedContainersRef,
+    ]
   );
 
   const fetchPortainerInstances = useCallback(async () => {
@@ -265,4 +265,3 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     lastImageDeleteTimeRef,
   };
 };
-

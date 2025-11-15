@@ -37,12 +37,7 @@ export const getRateLimitErrorMessage = (err, hasCredentials = false) => {
  * @returns {string} The error message
  */
 export const extractErrorMessage = (err, defaultMessage = "An error occurred") => {
-  return (
-    err.response?.data?.error ||
-    err.response?.data?.message ||
-    err.message ||
-    defaultMessage
-  );
+  return err.response?.data?.error || err.response?.data?.message || err.message || defaultMessage;
 };
 
 /**
@@ -78,4 +73,3 @@ export const handleDockerHubError = async (
 
   return errorMessage;
 };
-

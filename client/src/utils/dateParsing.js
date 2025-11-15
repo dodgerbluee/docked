@@ -17,7 +17,7 @@ const SQLITE_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/;
  */
 export function parseSQLiteDate(dateString) {
   if (!dateString) return null;
-  
+
   if (dateString instanceof Date) {
     return dateString;
   }
@@ -28,7 +28,7 @@ export function parseSQLiteDate(dateString) {
       // SQLite datetime without timezone - assume UTC and add 'Z'
       return new Date(dateString.replace(" ", "T") + "Z");
     }
-    
+
     // ISO string without timezone - assume UTC
     if (
       dateString.includes("T") &&
@@ -37,11 +37,10 @@ export function parseSQLiteDate(dateString) {
     ) {
       return new Date(dateString + "Z");
     }
-    
+
     // Already has timezone info or is in a different format
     return new Date(dateString);
   }
 
   return new Date(dateString);
 }
-

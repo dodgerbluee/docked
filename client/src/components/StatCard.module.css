@@ -4,7 +4,9 @@
   padding: var(--spacing-lg, 20px);
   text-align: center;
   box-shadow: 0 2px 8px var(--shadow);
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s;
   border: 2px solid var(--border-color);
 }
 
@@ -95,4 +97,3 @@ body.dark-mode .statValueBlue {
 body.dark-mode .statLabelRed {
   color: var(--dodger-red);
 }
-

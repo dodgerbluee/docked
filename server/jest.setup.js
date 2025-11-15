@@ -4,16 +4,16 @@
  */
 
 // Set NODE_ENV to test
-process.env.NODE_ENV = 'test';
+process.env.NODE_ENV = "test";
 
 // Set DATA_DIR to a temporary directory for tests
-process.env.DATA_DIR = process.env.DATA_DIR || require('os').tmpdir() + '/docked-test-data';
+process.env.DATA_DIR = process.env.DATA_DIR || require("os").tmpdir() + "/docked-test-data";
 
 // Set LOGS_DIR to a temporary directory for tests
-process.env.LOGS_DIR = process.env.LOGS_DIR || require('os').tmpdir() + '/docked-test-logs';
+process.env.LOGS_DIR = process.env.LOGS_DIR || require("os").tmpdir() + "/docked-test-logs";
 
 // Disable console logging during tests to reduce noise
-process.env.DISABLE_CONSOLE_LOGGING = 'true';
+process.env.DISABLE_CONSOLE_LOGGING = "true";
 
 // Clean up timers after all tests
 afterAll(() => {
@@ -28,4 +28,3 @@ afterAll(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
 });
-

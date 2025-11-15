@@ -51,9 +51,7 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
         <span className={styles.runId}>Run #{run.id}</span>
         <div className={styles.badges}>
           <JobTypeBadge jobType={run.job_type} />
-          {run.status === "completed" && (
-            <CheckCircle2 size={18} className={styles.successIcon} />
-          )}
+          {run.status === "completed" && <CheckCircle2 size={18} className={styles.successIcon} />}
           {run.status === "failed" && (
             <div
               className={styles.errorIconContainer}
@@ -66,7 +64,7 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
           {Number(run.is_manual) === 1 && <ManualBadge />}
         </div>
       </div>
-      
+
       <div className={styles.timestamps}>
         <div className={styles.timestampRow}>
           <span className={styles.timestampLabel}>Started:</span>
@@ -89,7 +87,8 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
       {hasDetails && (
         <div className={styles.stats}>
           <div className={styles.statItem}>
-            {run.containers_checked || 0} {isContainer ? "containers" : "apps"} checked • {run.containers_updated || 0} updates found
+            {run.containers_checked || 0} {isContainer ? "containers" : "apps"} checked •{" "}
+            {run.containers_updated || 0} updates found
           </div>
         </div>
       )}
@@ -106,18 +105,15 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
         >
           <div className={styles.errorModalContent}>
             <div className={styles.errorModalMessage}>
-              {run.error_message.split('\n').map((line, i) => (
+              {run.error_message.split("\n").map((line, i) => (
                 <React.Fragment key={i}>
                   {line}
-                  {i < run.error_message.split('\n').length - 1 && <br />}
+                  {i < run.error_message.split("\n").length - 1 && <br />}
                 </React.Fragment>
               ))}
             </div>
             <div className={styles.errorModalActions}>
-              <Button
-                variant="primary"
-                onClick={() => setShowErrorModal(false)}
-              >
+              <Button variant="primary" onClick={() => setShowErrorModal(false)}>
                 Close
               </Button>
             </div>
@@ -146,4 +142,3 @@ RunCard.propTypes = {
 };
 
 export default RunCard;
-

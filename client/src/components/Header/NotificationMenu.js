@@ -43,9 +43,7 @@ const NotificationMenu = ({
                   }}
                 >
                   <div className="notification-item-title">{container.name}</div>
-                  <div className="notification-item-subtitle">
-                    Update available
-                  </div>
+                  <div className="notification-item-subtitle">Update available</div>
                 </div>
                 <button
                   className="notification-dismiss-button"
@@ -80,9 +78,7 @@ const NotificationMenu = ({
         )}
         {activeTrackedAppsBehind.length > 0 && (
           <>
-            {activeContainersWithUpdates.length > 0 && (
-              <div className="notification-divider" />
-            )}
+            {activeContainersWithUpdates.length > 0 && <div className="notification-divider" />}
             <div className="notification-section-header">
               Tracked App Updates ({activeTrackedAppsBehind.length})
             </div>
@@ -126,9 +122,7 @@ const NotificationMenu = ({
             )}
           </>
         )}
-        {notificationCount === 0 && (
-          <div className="notification-empty">No new notifications</div>
-        )}
+        {notificationCount === 0 && <div className="notification-empty">No new notifications</div>}
       </div>
     </div>
   );
@@ -147,4 +141,3 @@ NotificationMenu.propTypes = {
 };
 
 export default memo(NotificationMenu);
-

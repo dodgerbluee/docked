@@ -4,8 +4,8 @@
  * Note: Environment variables are no longer used. Configure credentials through the Settings UI.
  */
 
-const { getDockerHubCredentials } = require('../db/database');
-const logger = require('./logger');
+const { getDockerHubCredentials } = require("../db/database");
+const logger = require("./logger");
 
 // Cache credentials in memory to avoid DB queries on every request
 let cachedCreds = null;
@@ -20,7 +20,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 async function getDockerHubCreds() {
   // Check cache first
   const now = Date.now();
-  if (cachedCreds && (now - cacheTimestamp) < CACHE_TTL) {
+  if (cachedCreds && now - cacheTimestamp < CACHE_TTL) {
     return cachedCreds;
   }
 
@@ -36,7 +36,7 @@ async function getDockerHubCreds() {
       return cachedCreds;
     }
   } catch (error) {
-    logger.error('Error fetching Docker Hub credentials from database:', error.message);
+    logger.error("Error fetching Docker Hub credentials from database:", error.message);
   }
 
   // No credentials available
@@ -58,4 +58,3 @@ module.exports = {
   getDockerHubCreds,
   clearCache,
 };
-

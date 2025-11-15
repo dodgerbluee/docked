@@ -11,7 +11,7 @@ let toastContainer = null;
  */
 export function initToastContainer() {
   if (typeof document === "undefined") return;
-  
+
   if (!toastContainer) {
     toastContainer = document.createElement("div");
     toastContainer.id = "toast-container";
@@ -126,4 +126,3 @@ export const toast = {
   warning: (message, duration) => showToast(message, "warning", duration),
   info: (message, duration) => showToast(message, "info", duration),
 };
-

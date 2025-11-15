@@ -77,4 +77,3 @@ body.dark-mode .dismissButton:hover:not(:disabled) {
   border-color: var(--border-color) !important;
   color: var(--text-primary) !important;
 }
-

@@ -49,4 +49,3 @@ export const GRID_COLUMNS = {
   TABLET: 2,
   MOBILE: 1,
 };
-

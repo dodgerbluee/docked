@@ -121,7 +121,11 @@ const Modal = React.memo(function Modal({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
-      <div className={`${styles.modal} ${sizeClass} ${className}`} onClick={(e) => e.stopPropagation()} {...props}>
+      <div
+        className={`${styles.modal} ${sizeClass} ${className}`}
+        onClick={(e) => e.stopPropagation()}
+        {...props}
+      >
         {(title || showCloseButton) && (
           <div className={styles.header}>
             {title && <h3 className={styles.title}>{title}</h3>}
@@ -157,4 +161,3 @@ Modal.propTypes = {
 };
 
 export default Modal;
-

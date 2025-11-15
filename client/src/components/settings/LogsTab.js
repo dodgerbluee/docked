@@ -45,30 +45,28 @@ function LogsTab() {
       if (!incremental) {
         setLoading(true);
       }
-      
+
       // Check if user is at bottom before fetching
       wasAtBottomRef.current = checkIfAtBottom();
-      
-      const params = incremental && lastLineCount > 0 
-        ? { since: lastLineCount }
-        : { lines: 500 };
-      
+
+      const params = incremental && lastLineCount > 0 ? { since: lastLineCount } : { lines: 500 };
+
       const response = await axios.get(`${API_BASE_URL}/api/logs`, {
         params,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
       });
-      
+
       if (response.data.success) {
         const newLogs = response.data.logs || "";
         const newLineCount = response.data.totalLines || 0;
-        
+
         if (incremental && logs && newLogs) {
           // Append new lines to existing logs
           setLogs((prevLogs) => {
-            const prevLines = prevLogs.split('\n').filter(line => line.trim());
-            const newLines = newLogs.split('\n').filter(line => line.trim());
+            const prevLines = prevLogs.split("\n").filter((line) => line.trim());
+            const newLines = newLogs.split("\n").filter((line) => line.trim());
             // Only add lines that aren't already present (avoid duplicates)
             const existingLastLine = prevLines[prevLines.length - 1];
             const newLinesToAdd = newLines.filter((line, idx) => {
@@ -78,16 +76,20 @@ function LogsTab() {
               }
               return true;
             });
-            return prevLogs + (prevLogs && newLinesToAdd.length > 0 ? '\n' : '') + newLinesToAdd.join('\n');
+            return (
+              prevLogs +
+              (prevLogs && newLinesToAdd.length > 0 ? "\n" : "") +
+              newLinesToAdd.join("\n")
+            );
           });
         } else {
           // Full refresh (initial load or manual refresh)
           setLogs(newLogs);
         }
-        
+
         setLastLineCount(newLineCount);
         setIsInitialLoad(false);
-        
+
         // Auto-scroll if user was at bottom
         if (wasAtBottomRef.current) {
           setTimeout(scrollToBottom, 0);
@@ -141,8 +143,8 @@ function LogsTab() {
     if (!logs) return null;
 
     // Split logs by lines
-    const lines = logs.split('\n').filter(line => line.trim());
-    
+    const lines = logs.split("\n").filter((line) => line.trim());
+
     return lines.map((line, index) => {
       // Try to parse as JSON (Winston structured logs)
       let logEntry = null;
@@ -152,20 +154,31 @@ function LogsTab() {
         // Not JSON, treat as plain text
       }
 
-      if (logEntry && typeof logEntry === 'object') {
+      if (logEntry && typeof logEntry === "object") {
         // Format JSON log entry
-        const { timestamp, level, message, module, service, requestId, userId, jobId, batchId, ...metadata } = logEntry;
-        
+        const {
+          timestamp,
+          level,
+          message,
+          module,
+          service,
+          requestId,
+          userId,
+          jobId,
+          batchId,
+          ...metadata
+        } = logEntry;
+
         // Determine log level color
         let levelClass = styles.logDefault;
-        const levelLower = (level || '').toLowerCase();
-        if (levelLower === 'info') {
+        const levelLower = (level || "").toLowerCase();
+        if (levelLower === "info") {
           levelClass = styles.logInfo;
-        } else if (levelLower === 'warn' || levelLower === 'warning') {
+        } else if (levelLower === "warn" || levelLower === "warning") {
           levelClass = styles.logWarn;
-        } else if (levelLower === 'error' || levelLower === 'err' || levelLower === 'critical') {
+        } else if (levelLower === "error" || levelLower === "err" || levelLower === "critical") {
           levelClass = styles.logError;
-        } else if (levelLower === 'debug') {
+        } else if (levelLower === "debug") {
           levelClass = styles.logDebug;
         }
 
@@ -177,13 +190,28 @@ function LogsTab() {
         if (userId) contextParts.push(`[user:${userId}]`);
         if (jobId) contextParts.push(`[job:${jobId}]`);
         if (batchId) contextParts.push(`[batch:${batchId}]`);
-        const contextStr = contextParts.length > 0 ? contextParts.join(' ') + ' ' : '';
+        const contextStr = contextParts.length > 0 ? contextParts.join(" ") + " " : "";
 
         // Filter out empty metadata
-        const metaKeys = Object.keys(metadata).filter(key => {
+        const metaKeys = Object.keys(metadata).filter((key) => {
           const value = metadata[key];
-          return value !== null && value !== undefined && value !== '' && 
-                 !['timestamp', 'level', 'message', 'module', 'service', 'requestId', 'userId', 'jobId', 'batchId', 'stack'].includes(key);
+          return (
+            value !== null &&
+            value !== undefined &&
+            value !== "" &&
+            ![
+              "timestamp",
+              "level",
+              "message",
+              "module",
+              "service",
+              "requestId",
+              "userId",
+              "jobId",
+              "batchId",
+              "stack",
+            ].includes(key)
+          );
         });
 
         const hasExpandableContent = metaKeys.length > 0 || metadata.stack;
@@ -191,29 +219,37 @@ function LogsTab() {
 
         return (
           <div key={index} className={styles.logEntry}>
-            <div 
-              className={`${styles.logLine} ${hasExpandableContent ? styles.logLineClickable : ''}`}
+            <div
+              className={`${styles.logLine} ${hasExpandableContent ? styles.logLineClickable : ""}`}
               onClick={hasExpandableContent ? () => toggleLogExpansion(index) : undefined}
               role={hasExpandableContent ? "button" : undefined}
               tabIndex={hasExpandableContent ? 0 : undefined}
-              onKeyDown={hasExpandableContent ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  toggleLogExpansion(index);
-                }
-              } : undefined}
+              onKeyDown={
+                hasExpandableContent
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleLogExpansion(index);
+                      }
+                    }
+                  : undefined
+              }
             >
               <span className={styles.expandIcon}>
                 {hasExpandableContent ? (
-                  isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                  isExpanded ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )
                 ) : (
-                  <span style={{ width: '14px', display: 'inline-block' }}></span>
+                  <span style={{ width: "14px", display: "inline-block" }}></span>
                 )}
               </span>
-              <span className={styles.logTimestamp}>{timestamp || ''}</span>
+              <span className={styles.logTimestamp}>{timestamp || ""}</span>
               <span className={styles.logDefault}> </span>
               <span className={styles.logDefault}>[</span>
-              <span className={levelClass}>{level?.toUpperCase() || 'UNKNOWN'}</span>
+              <span className={levelClass}>{level?.toUpperCase() || "UNKNOWN"}</span>
               <span className={styles.logDefault}>]</span>
               {contextStr && (
                 <>
@@ -222,10 +258,10 @@ function LogsTab() {
                 </>
               )}
               <span className={styles.logDefault}> </span>
-              <span className={styles.logMessage}>{message || ''}</span>
+              <span className={styles.logMessage}>{message || ""}</span>
               {hasExpandableContent && (
                 <span className={styles.expandHint}>
-                  {isExpanded ? ' (click to collapse)' : ' (click to expand)'}
+                  {isExpanded ? " (click to collapse)" : " (click to expand)"}
                 </span>
               )}
             </div>
@@ -233,7 +269,11 @@ function LogsTab() {
               <div className={styles.logMetadata}>
                 <div className={styles.metadataHeader}>Metadata</div>
                 <pre className={styles.logMetadataContent}>
-                  {JSON.stringify(Object.fromEntries(metaKeys.map(k => [k, metadata[k]])), null, 2)}
+                  {JSON.stringify(
+                    Object.fromEntries(metaKeys.map((k) => [k, metadata[k]])),
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
             )}
@@ -249,30 +289,30 @@ function LogsTab() {
 
       // Plain text log line - try to find log level in brackets
       const bracketMatch = line.match(/(\[)(info|warn|warning|error|err|debug)(\])/i);
-      
+
       if (bracketMatch) {
         const matchIndex = bracketMatch.index;
         const beforeMatch = line.substring(0, matchIndex);
         const [, openBracket, levelText, closeBracket] = bracketMatch;
         const afterMatch = line.substring(matchIndex + bracketMatch[0].length);
-        
+
         let levelClass = styles.logDefault;
         const lowerLevel = levelText.toLowerCase();
-        if (lowerLevel === 'info') {
+        if (lowerLevel === "info") {
           levelClass = styles.logInfo;
-        } else if (lowerLevel === 'warn' || lowerLevel === 'warning') {
+        } else if (lowerLevel === "warn" || lowerLevel === "warning") {
           levelClass = styles.logWarn;
-        } else if (lowerLevel === 'error' || lowerLevel === 'err') {
+        } else if (lowerLevel === "error" || lowerLevel === "err") {
           levelClass = styles.logError;
-        } else if (lowerLevel === 'debug') {
+        } else if (lowerLevel === "debug") {
           levelClass = styles.logDebug;
         }
-        
+
         return (
           <div key={index} className={styles.logEntry}>
             <div className={styles.logLine}>
               <span className={styles.expandIcon}>
-                <span style={{ width: '14px', display: 'inline-block' }}></span>
+                <span style={{ width: "14px", display: "inline-block" }}></span>
               </span>
               <span className={styles.logDefault}>{beforeMatch}</span>
               <span className={styles.logDefault}>{openBracket}</span>
@@ -289,7 +329,7 @@ function LogsTab() {
         <div key={index} className={styles.logEntry}>
           <div className={styles.logLine}>
             <span className={styles.expandIcon}>
-              <span style={{ width: '14px', display: 'inline-block' }}></span>
+              <span style={{ width: "14px", display: "inline-block" }}></span>
             </span>
             <span className={styles.logDefault}>{line}</span>
           </div>
@@ -343,7 +383,7 @@ function LogsTab() {
           </Alert>
         )}
 
-        <div 
+        <div
           ref={contentRef}
           className={styles.content}
           onScroll={() => {
@@ -364,4 +404,3 @@ function LogsTab() {
 LogsTab.propTypes = {};
 
 export default LogsTab;
-

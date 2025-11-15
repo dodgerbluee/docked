@@ -58,4 +58,3 @@ export const trackedImageShape = PropTypes.shape({
   repository: PropTypes.string,
   owner: PropTypes.string,
 });
-

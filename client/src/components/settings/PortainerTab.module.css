@@ -65,7 +65,9 @@ body.dark-mode .addButton:hover:not(:disabled) {
 }
 
 .instanceCard {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .instanceCard:hover {
@@ -184,4 +186,3 @@ body.dark-mode .addInstanceCard:hover .addInstanceText {
 .addInstanceIcon {
   flex-shrink: 0;
 }
-

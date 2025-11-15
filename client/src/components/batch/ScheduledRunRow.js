@@ -30,9 +30,7 @@ const ScheduledRunRow = React.memo(function ScheduledRunRow({
         <JobTypeBadge jobType={jobType} />
       </td>
       <td className={styles.tableCell}>
-        <span className={styles.nextRun}>
-          {formatNextRun(nextRunDate)}
-        </span>
+        <span className={styles.nextRun}>{formatNextRun(nextRunDate)}</span>
       </td>
       <td className={styles.tableCell}>
         {lastRun ? (
@@ -44,9 +42,7 @@ const ScheduledRunRow = React.memo(function ScheduledRunRow({
         )}
       </td>
       <td className={styles.tableCell}>
-        <span className={styles.interval}>
-          {formatInterval(config?.intervalMinutes)}
-        </span>
+        <span className={styles.interval}>{formatInterval(config?.intervalMinutes)}</span>
       </td>
       <td className={styles.tableCell}>
         <Button
@@ -80,4 +76,3 @@ ScheduledRunRow.propTypes = {
 };
 
 export default ScheduledRunRow;
-

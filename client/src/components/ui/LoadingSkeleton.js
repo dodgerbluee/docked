@@ -51,4 +51,3 @@ CardSkeleton.propTypes = {
 };
 
 export default LoadingSkeleton;
-

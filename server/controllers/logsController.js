@@ -3,12 +3,12 @@
  * Handles HTTP requests for application logs
  */
 
-const fs = require('fs');
-const path = require('path');
-const logger = require('../utils/logger');
+const fs = require("fs");
+const path = require("path");
+const logger = require("../utils/logger");
 
 // Use the same logs directory path as logger.js
-const logsDir = process.env.LOGS_DIR || path.join(__dirname, '../../logs');
+const logsDir = process.env.LOGS_DIR || path.join(__dirname, "../../logs");
 
 /**
  * Get application logs
@@ -20,10 +20,10 @@ async function getLogsHandler(req, res, next) {
   try {
     const lines = parseInt(req.query.lines) || 500; // Default to last 500 lines
     const since = parseInt(req.query.since); // Line count to fetch after (for incremental updates)
-    const logFile = req.query.file || 'combined.log'; // Default to combined.log (Winston's combined log)
-    
+    const logFile = req.query.file || "combined.log"; // Default to combined.log (Winston's combined log)
+
     const logFilePath = path.join(logsDir, logFile);
-    
+
     // Check if logs directory exists
     if (!fs.existsSync(logsDir)) {
       return res.json({
@@ -49,43 +49,43 @@ async function getLogsHandler(req, res, next) {
     // Read the log file
     let fileContent;
     try {
-      fileContent = fs.readFileSync(logFilePath, 'utf8');
+      fileContent = fs.readFileSync(logFilePath, "utf8");
     } catch (readError) {
-      logger.error('Error reading log file:', readError);
+      logger.error("Error reading log file:", readError);
       return res.status(500).json({
         success: false,
         error: `Failed to read log file: ${readError.message}`,
       });
     }
 
-    const allLines = fileContent.split('\n');
+    const allLines = fileContent.split("\n");
     const totalLines = allLines.length;
-    
+
     let recentLines;
     let returnedLines;
     let newLines = 0;
-    
+
     if (since !== undefined && since >= 0) {
       // Incremental fetch: only get lines after the 'since' count
       if (since >= totalLines) {
         // No new lines
-        recentLines = '';
+        recentLines = "";
         returnedLines = 0;
         newLines = 0;
       } else {
         // Get lines after 'since'
         const newLinesArray = allLines.slice(since);
-        recentLines = newLinesArray.join('\n');
+        recentLines = newLinesArray.join("\n");
         returnedLines = newLinesArray.length;
         newLines = returnedLines;
       }
     } else {
       // Full fetch: get the last N lines
-      recentLines = allLines.slice(-lines).join('\n');
-      returnedLines = recentLines.split('\n').length;
+      recentLines = allLines.slice(-lines).join("\n");
+      returnedLines = recentLines.split("\n").length;
       newLines = returnedLines;
     }
-    
+
     res.json({
       success: true,
       logs: recentLines,
@@ -94,10 +94,10 @@ async function getLogsHandler(req, res, next) {
       newLines: newLines,
     });
   } catch (error) {
-    logger.error('Error fetching logs:', error);
+    logger.error("Error fetching logs:", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch logs',
+      error: error.message || "Failed to fetch logs",
     });
   }
 }
@@ -105,4 +105,3 @@ async function getLogsHandler(req, res, next) {
 module.exports = {
   getLogsHandler,
 };
-

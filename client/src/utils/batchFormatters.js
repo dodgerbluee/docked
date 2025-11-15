@@ -3,7 +3,12 @@
  */
 
 import { parseSQLiteDate } from "./dateParsing";
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE, MINUTES_PER_HOUR, DEFAULT_INTERVAL_MINUTES } from "../constants/numbers";
+import {
+  MILLISECONDS_PER_SECOND,
+  SECONDS_PER_MINUTE,
+  MINUTES_PER_HOUR,
+  DEFAULT_INTERVAL_MINUTES,
+} from "../constants/numbers";
 
 const TIMEZONE = "America/Chicago";
 const DATE_FORMAT_OPTIONS = {
@@ -24,7 +29,7 @@ const DATE_FORMAT_OPTIONS = {
  */
 export const formatDuration = (ms) => {
   if (!ms && ms !== 0) return "N/A";
-  
+
   // Handle negative durations (shouldn't happen with fix, but handle gracefully)
   const absMs = Math.abs(ms);
   const seconds = Math.floor(absMs / MILLISECONDS_PER_SECOND);
@@ -51,7 +56,7 @@ export const formatDuration = (ms) => {
  */
 export const formatDate = (dateString) => {
   if (!dateString) return "N/A";
-  
+
   const date = parseSQLiteDate(dateString);
   if (!date) return "N/A";
 
@@ -65,15 +70,15 @@ export const formatDate = (dateString) => {
  */
 export const formatNextRun = (nextRunDate) => {
   if (!nextRunDate) return "N/A";
-  
+
   if (nextRunDate instanceof Date) {
     return nextRunDate.toLocaleString("en-US", DATE_FORMAT_OPTIONS);
   }
-  
+
   // Handle string dates
   const date = parseSQLiteDate(nextRunDate);
   if (!date) return "N/A";
-  
+
   return date.toLocaleString("en-US", DATE_FORMAT_OPTIONS);
 };
 
@@ -84,7 +89,7 @@ export const formatNextRun = (nextRunDate) => {
  */
 export const formatInterval = (intervalMinutes) => {
   if (!intervalMinutes) return "N/A";
-  
+
   if (intervalMinutes === DEFAULT_INTERVAL_MINUTES) {
     return "1 hour";
   } else if (intervalMinutes < MINUTES_PER_HOUR) {
@@ -94,4 +99,3 @@ export const formatInterval = (intervalMinutes) => {
     return hours % 1 === 0 ? `${hours} hours` : `${hours.toFixed(1)} hours`;
   }
 };
-

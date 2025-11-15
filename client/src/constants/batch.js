@@ -39,4 +39,3 @@ export const BATCH_STATUS_LABELS = {
 export const REFRESH_INTERVAL_MS = DEFAULT_POLLING_INTERVAL_MS;
 
 export const DEFAULT_RUN_LIMIT = 20;
-

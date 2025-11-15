@@ -25,9 +25,7 @@ export function usePortainerSettings({
 
   const fetchPortainerInstances = useCallback(async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/portainer/instances`
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/portainer/instances`);
       if (response.data.success) {
         setPortainerInstances(response.data.instances || []);
       }
@@ -70,10 +68,7 @@ export function usePortainerSettings({
           );
           setInstanceSuccess("Portainer instance updated successfully!");
         } else {
-          await axios.post(
-            `${API_BASE_URL}/api/portainer/instances`,
-            instanceForm
-          );
+          await axios.post(`${API_BASE_URL}/api/portainer/instances`, instanceForm);
           setInstanceSuccess("Portainer instance added successfully!");
         }
 
@@ -85,19 +80,12 @@ export function usePortainerSettings({
         }
         setTimeout(() => setInstanceSuccess(""), 3000);
       } catch (err) {
-        setInstanceError(
-          err.response?.data?.error || "Failed to save Portainer instance"
-        );
+        setInstanceError(err.response?.data?.error || "Failed to save Portainer instance");
       } finally {
         setInstanceLoading(false);
       }
     },
-    [
-      editingInstance,
-      instanceForm,
-      fetchPortainerInstances,
-      onPortainerInstancesChange,
-    ]
+    [editingInstance, instanceForm, fetchPortainerInstances, onPortainerInstancesChange]
   );
 
   const handleDeleteInstance = useCallback(
@@ -111,9 +99,7 @@ export function usePortainerSettings({
         }
         setTimeout(() => setInstanceSuccess(""), 3000);
       } catch (err) {
-        setInstanceError(
-          err.response?.data?.error || "Failed to delete Portainer instance"
-        );
+        setInstanceError(err.response?.data?.error || "Failed to delete Portainer instance");
       }
     },
     [fetchPortainerInstances, onPortainerInstancesChange]
@@ -150,4 +136,3 @@ export function usePortainerSettings({
     fetchPortainerInstances,
   };
 }
-

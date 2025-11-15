@@ -43,9 +43,7 @@ function CurrentTab({
     );
   }
 
-  const hasUpToDate = groupedStacks.some((stack) =>
-    stack.containers.some((c) => !c.hasUpdate)
-  );
+  const hasUpToDate = groupedStacks.some((stack) => stack.containers.some((c) => !c.hasUpdate));
 
   if (!hasUpToDate) {
     return (
@@ -80,7 +78,8 @@ function CurrentTab({
       </div>
       {lastPullTime && (
         <div className={styles.lastPullTime}>
-          Last scanned: {lastPullTime.toLocaleString("en-US", {
+          Last scanned:{" "}
+          {lastPullTime.toLocaleString("en-US", {
             timeZone: "America/Chicago",
             year: "numeric",
             month: "numeric",
@@ -110,4 +109,3 @@ CurrentTab.propTypes = {
 };
 
 export default CurrentTab;
-

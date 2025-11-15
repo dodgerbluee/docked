@@ -10,8 +10,8 @@
 export function isUnknown(img) {
   return (
     !img.latest_version ||
-    img.latest_version === 'Unknown' ||
-    (typeof img.latest_version === 'string' && img.latest_version.trim() === '')
+    img.latest_version === "Unknown" ||
+    (typeof img.latest_version === "string" && img.latest_version.trim() === "")
   );
 }
 
@@ -35,9 +35,7 @@ export function calculateTrackedAppsStats(trackedImages, dismissedNotifications 
     // Must not have updates and versions should match
     return (
       !img.has_update ||
-      (img.current_version &&
-        img.latest_version &&
-        img.current_version === img.latest_version)
+      (img.current_version && img.latest_version && img.current_version === img.latest_version)
     );
   }).length;
 
@@ -69,4 +67,3 @@ export function calculateTrackedAppsStats(trackedImages, dismissedNotifications 
     activeTrackedAppsBehind,
   };
 }
-

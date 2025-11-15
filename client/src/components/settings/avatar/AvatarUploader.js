@@ -7,10 +7,7 @@ import styles from "./AvatarUploader.module.css";
  * AvatarUploader Component
  * Handles file selection and upload area
  */
-const AvatarUploader = React.memo(function AvatarUploader({
-  onFileSelect,
-  isUploading,
-}) {
+const AvatarUploader = React.memo(function AvatarUploader({ onFileSelect, isUploading }) {
   const fileInputRef = React.useRef(null);
 
   const handleFileChange = (e) => {
@@ -59,4 +56,3 @@ AvatarUploader.propTypes = {
 };
 
 export default AvatarUploader;
-

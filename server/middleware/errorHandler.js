@@ -2,7 +2,7 @@
  * Error handling middleware
  */
 
-const logger = require('../utils/logger');
+const logger = require("../utils/logger");
 
 /**
  * Global error handler middleware
@@ -13,8 +13,8 @@ const logger = require('../utils/logger');
  */
 function errorHandler(err, req, res, next) {
   // Log error with context
-  logger.error('Request error', {
-    module: 'errorHandler',
+  logger.error("Request error", {
+    module: "errorHandler",
     error: err,
     method: req.method,
     url: req.url,
@@ -27,13 +27,13 @@ function errorHandler(err, req, res, next) {
 
   // Default error
   const status = err.status || err.statusCode || 500;
-  const message = err.message || 'Internal server error';
+  const message = err.message || "Internal server error";
 
   // Don't leak error details in production
   const errorResponse = {
     success: false,
     error: message,
-    ...(process.env.NODE_ENV === 'development' && { 
+    ...(process.env.NODE_ENV === "development" && {
       stack: err.stack,
       details: err.details,
     }),
@@ -57,4 +57,3 @@ module.exports = {
   errorHandler,
   asyncHandler,
 };
-

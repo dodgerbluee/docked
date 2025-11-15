@@ -22,4 +22,3 @@ function GitLabIcon({ size = 18, ...props }) {
 }
 
 export default GitLabIcon;
-

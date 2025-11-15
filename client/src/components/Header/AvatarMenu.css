@@ -48,7 +48,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
   }
   50% {
@@ -69,7 +70,7 @@
   opacity: 0.95;
   color: white;
   line-height: 1.2;
-  font-family: 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+  font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 500;
 }
 
@@ -79,7 +80,7 @@
   color: white;
   line-height: 1.2;
   margin-top: 2px;
-  font-family: 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+  font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 500;
 }
 
@@ -128,4 +129,3 @@
   background: var(--border-color);
   margin: 4px 0;
 }
-

@@ -11,9 +11,9 @@ export const useTheme = (isAuthenticated, authToken) => {
   const [darkMode, setDarkMode] = useState(() => {
     // Check localStorage first for saved dark mode state
     try {
-      const saved = localStorage.getItem('darkMode');
-      if (saved === 'true' || saved === 'false') {
-        return saved === 'true';
+      const saved = localStorage.getItem("darkMode");
+      if (saved === "true" || saved === "false") {
+        return saved === "true";
       }
     } catch (e) {
       // Ignore localStorage errors
@@ -100,7 +100,7 @@ export const useTheme = (isAuthenticated, authToken) => {
     }
     // Persist dark mode state to localStorage for immediate application on page load
     try {
-      localStorage.setItem('darkMode', darkMode.toString());
+      localStorage.setItem("darkMode", darkMode.toString());
     } catch (e) {
       // Silently fail if localStorage is not available
     }
@@ -114,4 +114,3 @@ export const useTheme = (isAuthenticated, authToken) => {
     handleTemporaryThemeToggle,
   };
 };
-

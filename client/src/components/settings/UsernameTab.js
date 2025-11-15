@@ -75,4 +75,3 @@ UsernameTab.propTypes = {
 };
 
 export default UsernameTab;
-
