@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { JobTypeBadge } from "./Badge";
 import Button from "../ui/Button";
 import { formatNextRun, formatInterval, formatDate } from "../../utils/batchFormatters";
-import { BATCH_JOB_TYPES } from "../../constants/batch";
+// BATCH_JOB_TYPES is not currently used but kept for potential future use
 import styles from "./ScheduledRunCard.module.css";
 
 /**

@@ -11,7 +11,7 @@ import { useBatchTriggers } from "./useBatchTriggers";
  */
 export function useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch) {
   const contextValue = useContext(BatchConfigContext);
-  const batchConfigs = contextValue?.batchConfig || {};
+  const batchConfigs = useMemo(() => contextValue?.batchConfig || {}, [contextValue?.batchConfig]);
 
   // Use composed hooks
   const batchRuns = useBatchRuns();

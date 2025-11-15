@@ -14,13 +14,35 @@ const logger = require("../utils/logger");
 
 // Use DATA_DIR environment variable or default to /data
 // This allows the database to be stored outside the codebase
-const DATA_DIR = process.env.DATA_DIR || "/data";
+// In test environment, default to temp directory
+function getDataDir() {
+  if (process.env.DATA_DIR) {
+    return process.env.DATA_DIR;
+  }
+  if (process.env.NODE_ENV === 'test') {
+    const os = require('os');
+    return path.join(os.tmpdir(), 'docked-test-data');
+  }
+  return "/data";
+}
+
+const DATA_DIR = getDataDir();
 const DB_PATH = path.join(DATA_DIR, "users.db");
 
 // Ensure the data directory exists
 if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  logger.info(`Created data directory: ${DATA_DIR}`);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    logger.info(`Created data directory: ${DATA_DIR}`);
+  } catch (err) {
+    // In test environment, don't throw - just log the error
+    if (process.env.NODE_ENV === 'test') {
+      logger.error(`Failed to create test data directory: ${DATA_DIR}`, err);
+    } else {
+      logger.error(`Failed to create data directory: ${DATA_DIR}`, err);
+      throw err;
+    }
+  }
 }
 
 // Create database connection

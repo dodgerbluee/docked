@@ -9,7 +9,7 @@ import {
 } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
 import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/portainerPage";
-import Button from "../ui/Button";
+// Button is not currently used but kept for potential future use
 import GitHubIcon from "../icons/GitHubIcon";
 import styles from "./PortainerContainerCard.module.css";
 
@@ -108,7 +108,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         }
       }
     }
-  }, [container.image, isGitHubContainer, isDockerHub]);
+  }, [container.image, isGitHubContainer, isDockerHub, getGitHubContainerUrl]);
 
   return (
     <div

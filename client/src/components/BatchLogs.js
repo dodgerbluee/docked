@@ -6,9 +6,10 @@
 import React, {
   useState,
   useEffect,
-  useCallback,
   useRef,
   useContext,
+  useMemo,
+  useCallback,
 } from "react";
 import axios from "axios";
 import "./Settings.css";
@@ -22,7 +23,7 @@ function BatchLogs({
 }) {
   // Get batchConfigs from Context - this will automatically update when state changes
   const contextValue = useContext(BatchConfigContext);
-  const batchConfigs = contextValue?.batchConfig || {};
+  const batchConfigs = useMemo(() => contextValue?.batchConfig || {}, [contextValue?.batchConfig]);
 
   // Check if any job type is enabled
   const hasEnabledJobs =
@@ -31,6 +32,7 @@ function BatchLogs({
     batchConfigs["tracked-apps-check"]?.enabled ||
     false;
 
+  // eslint-disable-next-line no-unused-vars
   const [latestRun, setLatestRun] = useState(null);
   const [latestRunsByJobType, setLatestRunsByJobType] = useState({});
   const [recentRuns, setRecentRuns] = useState([]);
@@ -77,7 +79,7 @@ function BatchLogs({
     }, 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchLatestRun, fetchRecentRuns]);
 
   // Calculate next scheduled run for Docker Hub Scan
   useEffect(() => {
@@ -293,7 +295,7 @@ function BatchLogs({
     }
   }, [batchConfigs, recentRuns]);
 
-  const fetchLatestRun = async () => {
+  const fetchLatestRun = useCallback(async () => {
     try {
       // Fetch latest run overall (for backward compatibility)
       const response = await axios.get(`${API_BASE_URL}/api/batch/runs/latest`);
@@ -322,9 +324,9 @@ function BatchLogs({
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedRun, loading, setLatestRun, setSelectedRun, setLatestRunsByJobType, setError, setLoading]);
 
-  const fetchRecentRuns = async () => {
+  const fetchRecentRuns = useCallback(async () => {
     try {
       const response = await axios.get(
         `${API_BASE_URL}/api/batch/runs?limit=20`
@@ -335,7 +337,7 @@ function BatchLogs({
     } catch (err) {
       console.error("Error fetching recent batch runs:", err);
     }
-  };
+  }, [setRecentRuns]);
 
   const formatDuration = (ms) => {
     if (!ms && ms !== 0) return "N/A";

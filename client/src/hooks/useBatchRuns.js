@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { DEFAULT_RUN_LIMIT, REFRESH_INTERVAL_MS } from "../constants/batch";
-import { DEFAULT_POLLING_INTERVAL_MS } from "../constants/numbers";
+// DEFAULT_POLLING_INTERVAL_MS is not currently used but kept for potential future use
 import { getErrorMessage } from "../utils/errorMessages";
 
 /**

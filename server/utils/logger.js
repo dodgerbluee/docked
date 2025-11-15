@@ -308,21 +308,29 @@ function updateLogLevel() {
 
 // Initialize log level from database after module is fully loaded
 // This avoids circular dependency during module initialization
-setTimeout(() => {
-  try {
-    updateLogLevel();
-    // Log that logger is initialized (this helps verify logging is working)
-    winstonLogger.info('Logger initialized', {
-      module: 'logger',
-      initialLevel: initialLogLevel,
-      currentLevel: winstonLogger.level,
-      transports: winstonLogger.transports.map(t => t.constructor.name),
-    });
-  } catch (err) {
-    // Log initialization error to console as fallback
-    console.error('[logger] Error initializing logger:', err.message);
+// Skip in test environment to avoid teardown issues
+if (process.env.NODE_ENV !== 'test' && typeof jest === 'undefined') {
+  const initTimer = setTimeout(() => {
+    try {
+      updateLogLevel();
+      // Log that logger is initialized (this helps verify logging is working)
+      winstonLogger.info('Logger initialized', {
+        module: 'logger',
+        initialLevel: initialLogLevel,
+        currentLevel: winstonLogger.level,
+        transports: winstonLogger.transports.map(t => t.constructor.name),
+      });
+    } catch (err) {
+      // Log initialization error to console as fallback
+      console.error('[logger] Error initializing logger:', err.message);
+    }
+  }, 100);
+  
+  // Store timer reference for cleanup if needed
+  if (typeof global !== 'undefined') {
+    global.__loggerInitTimer = initTimer;
   }
-}, 100);
+}
 
 // Check if debug logging is enabled (for performance optimization)
 function isDebugEnabled() {
@@ -468,14 +476,20 @@ const logger = {
 };
 
 // Update log level periodically (every 5 seconds) to pick up database changes
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
+// Skip in test environment to avoid teardown issues
+if (typeof setInterval !== 'undefined' && process.env.NODE_ENV !== 'test' && typeof jest === 'undefined') {
+  const updateTimer = setInterval(() => {
     try {
       updateLogLevel();
     } catch (err) {
       // Silently fail - don't log errors about log level updates
     }
   }, 5000);
+  
+  // Store timer reference for cleanup if needed
+  if (typeof global !== 'undefined') {
+    global.__loggerUpdateTimer = updateTimer;
+  }
 }
 
 module.exports = logger;

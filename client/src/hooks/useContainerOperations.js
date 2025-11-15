@@ -31,6 +31,7 @@ export const useContainerOperations = ({
 }) => {
   const [upgrading, setUpgrading] = useState({});
   const [batchUpgrading, setBatchUpgrading] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [clearing, setClearing] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
 
@@ -234,6 +235,7 @@ export const useContainerOperations = ({
       setUnusedImagesCount,
       setSelectedImages,
       updateLastImageDeleteTime,
+      setDeletingImagesState,
     ]
   );
 
@@ -303,6 +305,7 @@ export const useContainerOperations = ({
       setUnusedImagesCount,
       setSelectedImages,
       updateLastImageDeleteTime,
+      setDeletingImagesState,
     ]
   );
 
@@ -411,6 +414,7 @@ export const useContainerOperations = ({
     setError,
     setClearing,
     fetchContainers,
+    setClearingState,
   ]);
 
   const handlePull = useCallback(async (

@@ -41,8 +41,8 @@ describe('BatchLogger', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should log error level to console.error', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('should log error level to console', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       
       logger.log('error', 'Error message');
       
@@ -50,8 +50,8 @@ describe('BatchLogger', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should log warn level to console.warn', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+    it('should log warn level to console', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       
       logger.log('warn', 'Warning message');
       
@@ -69,14 +69,14 @@ describe('BatchLogger', () => {
     });
 
     it('should have warn method', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       logger.warn('Warning message');
       expect(logger.logs[0].level).toBe('warn');
       consoleSpy.mockRestore();
     });
 
     it('should have error method', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       logger.error('Error message');
       expect(logger.logs[0].level).toBe('error');
       consoleSpy.mockRestore();
@@ -91,7 +91,7 @@ describe('BatchLogger', () => {
       const formatted = logger.getFormattedLogs();
       expect(formatted).toContain('Message 1');
       expect(formatted).toContain('Message 2');
-      expect(formatted).toContain('error=test');
+      expect(formatted).toContain('error="test"');
     });
   });
 

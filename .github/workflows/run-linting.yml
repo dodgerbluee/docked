@@ -39,16 +39,22 @@ jobs:
       - name: Run ESLint (server)
         run: |
           cd server
-          if [ -f "node_modules/.bin/eslint" ]; then
+          # Check if lint script exists in package.json
+          if grep -q '"lint"' package.json; then
+            npm run lint
+          elif [ -f "node_modules/.bin/eslint" ]; then
             npx eslint . --ext .js || echo "ESLint not configured for server"
           else
-            echo "ESLint not installed, skipping"
+            echo "No linting configured for server, skipping"
           fi
 
       - name: Run ESLint (client)
         run: |
           cd client
-          if [ -f "node_modules/.bin/eslint" ]; then
+          # Check if lint script exists in package.json
+          if grep -q '"lint"' package.json; then
+            npm run lint
+          elif [ -f "node_modules/.bin/eslint" ]; then
             npx eslint src --ext .js,.jsx || echo "ESLint not configured for client"
           else
             # Use react-scripts ESLint if available

@@ -9,15 +9,7 @@ import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
-import {
-  getDockerHubUrl,
-  getDockerHubTagsUrl,
-  getDockerHubRepoUrl,
-  getGitHubRepoUrl,
-  formatTimeAgo,
-  parseUTCTimestamp,
-  formatBytes,
-} from "./utils/formatters";
+// Formatter utilities are now used in their respective components
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
 import BatchLogs from "./components/BatchLogs";
@@ -81,7 +73,6 @@ function App() {
   const [activeTab, setActiveTab] = useState(TAB_NAMES.SUMMARY);
   const [contentTab, setContentTab] = useState(CONTENT_TABS.UPDATES);
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
-  const [collapsedUnusedImages, setCollapsedUnusedImages] = useState(false);
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [pulling, setPulling] = useState(false);
   const [lastPullTime, setLastPullTime] = useState(() => {
@@ -116,7 +107,6 @@ function App() {
   // Tracked images - using custom hook
   const {
     trackedImages,
-    setTrackedImages,
     fetchTrackedImages,
   } = useTrackedImages();
   // Avatar management - using custom hook
@@ -124,8 +114,6 @@ function App() {
   const {
     avatar,
     recentAvatars,
-    avatarRef,
-    setAvatar,
     setRecentAvatars,
     fetchAvatar,
     fetchRecentAvatars,
@@ -133,7 +121,7 @@ function App() {
   } = avatarManagement;
 
   // Version - using custom hook
-  const { version, environment, isDevBuild } = useVersion();
+  const { version, isDevBuild } = useVersion();
 
   // Batch config - using custom hook
   const {
@@ -144,13 +132,13 @@ function App() {
 
   // Memoize context value to ensure React detects changes
   // MUST be called before any early returns (React Hooks rule)
-  // Only depend on batchConfig - setBatchConfig is stable from useState
+  // Include setBatchConfig in dependencies as it's part of the context value
   const batchConfigContextValue = useMemo(
     () => ({
       batchConfig,
       setBatchConfig,
     }),
-    [batchConfig]
+    [batchConfig, setBatchConfig]
   );
 
   // Container data management - using custom hook
@@ -185,7 +173,6 @@ function App() {
     fetchUnusedImages,
     fetchPortainerInstances,
     updateLastImageDeleteTime,
-    lastImageDeleteTimeRef,
   } = containersData;
 
   // Batch processing - using custom hook
@@ -266,7 +253,6 @@ function App() {
   const {
     handleToggleSelect,
     handleSelectAll,
-    handleToggleStackSelect,
     handleToggleImageSelect,
     handleSelectAllImages,
   } = selectionHandlers;
@@ -318,7 +304,7 @@ function App() {
       clearTimeout(batchInitialTimeoutRef.current);
       batchInitialTimeoutRef.current = null;
     }
-  }, [handleLogout]);
+  }, [handleLogout, batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef]);
 
   // Theme, color scheme, and Docker Hub credentials are now managed by hooks
 
@@ -339,7 +325,7 @@ function App() {
         fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
       }
     }
-  }, [isAuthenticated, authToken, passwordChanged, fetchColorScheme, fetchDockerHubCredentials]);
+  }, [isAuthenticated, authToken, passwordChanged, fetchColorScheme, fetchDockerHubCredentials, dataFetched, fetchContainers]);
 
   // Reset dataFetched and dockerHubDataPulled when logging out
   useEffect(() => {
@@ -354,7 +340,7 @@ function App() {
         batchIntervalRef.current = null;
       }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, setDataFetched, setDockerHubDataPulled, setPortainerInstancesFromAPI, batchIntervalRef]);
 
   // Batch config fetching is now handled by useBatchConfig hook
 
@@ -512,10 +498,6 @@ function App() {
     () => containers.filter((c) => c.hasUpdate),
     [containers]
   );
-  const containersUpToDate = useMemo(
-    () => containers.filter((c) => !c.hasUpdate),
-    [containers]
-  );
 
   // Portainer instances management - using custom hook
   const { portainerInstances, containersByPortainer } = usePortainerInstances({
@@ -574,6 +556,8 @@ function App() {
 
 
   // Calculate aggregated containers for selected instances (for header Select All)
+  // Note: This is calculated but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const aggregatedContainersWithUpdates = useMemo(() => {
     const instancesToShow = selectedPortainerInstances.size > 0
       ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
@@ -591,6 +575,8 @@ function App() {
   }, [selectedPortainerInstances, portainerInstances, containersByPortainer]);
 
   // Calculate filtered unused images for selected instances (for header Select All)
+  // Note: This is calculated but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const portainerUnusedImagesFiltered = useMemo(() => {
     const instancesToShow = selectedPortainerInstances.size > 0
       ? portainerInstances.filter((inst) => selectedPortainerInstances.has(inst.name))
@@ -605,32 +591,38 @@ function App() {
   // unusedImagesByPortainer is now calculated in useSummaryStats hook
 
   // Enhanced navigation handlers with menu-closing logic
+  // Note: These are defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToPortainerWithMenu = useCallback((container) => {
     setShowNotificationMenu(false);
     handleNavigateToPortainer(container);
   }, [handleNavigateToPortainer]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToTrackedAppsWithMenu = useCallback(() => {
     setShowNotificationMenu(false);
     handleNavigateToTrackedApps();
   }, [handleNavigateToTrackedApps]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToSummaryWithMenu = useCallback(() => {
     setShowNotificationMenu(false);
     setShowAvatarMenu(false);
     handleNavigateToSummary();
   }, [handleNavigateToSummary]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToSettingsWithMenu = useCallback(() => {
     setShowAvatarMenu(false);
     handleNavigateToSettings();
   }, [handleNavigateToSettings]);
 
+  // eslint-disable-next-line no-unused-vars
   const handleNavigateToBatchWithMenu = useCallback(() => {
     setActiveTab(TAB_NAMES.CONFIGURATION);
     setConfigurationTab(CONFIGURATION_TABS.HISTORY);
     setShowAvatarMenu(false);
-  }, []);
+  }, [setActiveTab, setConfigurationTab, setShowAvatarMenu]);
 
   // Summary statistics are now calculated in the useSummaryStats hook within SummaryPage component
 
@@ -679,6 +671,8 @@ function App() {
   // renderPortainerTab removed - functionality moved to PortainerPage component
 
   // Render main content based on activeTab
+  // Note: This function is defined but not currently used - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const renderContent = () => {
     if (activeTab === "summary") {
       return (

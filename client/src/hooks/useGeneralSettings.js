@@ -256,7 +256,7 @@ export function useGeneralSettings({
         });
       }
     },
-    [batchConfigs, onBatchConfigUpdate, fetchBatchConfig]
+    [batchConfigs, onBatchConfigUpdate]
   );
 
   return {

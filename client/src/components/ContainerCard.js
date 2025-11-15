@@ -4,7 +4,7 @@
  */
 
 import React, { memo } from 'react';
-import { getDockerHubUrl, getDockerHubTagsUrl, formatTimeAgo } from '../utils/formatters';
+import { getDockerHubUrl, formatTimeAgo } from '../utils/formatters';
 
 const ContainerCard = memo(
   ({

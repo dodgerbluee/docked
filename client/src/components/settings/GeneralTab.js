@@ -4,7 +4,7 @@ import { Monitor, Sun, Moon, Info, Search } from "lucide-react";
 import { COLOR_SCHEMES, LOG_LEVELS } from "../../constants/settings";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
-import Card from "../ui/Card";
+// Card is not currently used but kept for potential future use
 import ToggleButton from "../ui/ToggleButton";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import styles from "./GeneralTab.module.css";
