@@ -98,8 +98,8 @@ export function getGitHubRepoUrl(imageName) {
   const parts = repo.split("/");
   if (parts.length >= 2) {
     const namespace = parts[0];
-    // eslint-disable-next-line no-unused-vars
-    const imageRepo = parts[1];
+    // Extract namespace for filtering
+    // parts[1] is imageRepo - kept for potential future use
 
     // Skip common non-GitHub namespaces
     const skipNamespaces = [
