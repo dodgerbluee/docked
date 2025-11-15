@@ -14,7 +14,8 @@ RUN npm install
 COPY client/ ./
 
 # Build React app
-RUN npm run build
+# Use NODE_OPTIONS to provide localStorage file path for Node.js 25+
+RUN NODE_OPTIONS="--localstorage-file=/tmp/.localstorage" npm run build
 
 # Stage 2: Build backend and serve frontend
 FROM node:25-alpine
