@@ -108,7 +108,9 @@ async function checkTrackedImage(trackedImage) {
 
   // Format digest for display (shortened version)
   const formatDigest = (digest) => {
-    if (!digest) return null;
+    if (!digest) {
+      return null;
+    }
     // Return first 12 characters after "sha256:" for display
     return digest.replace("sha256:", "").substring(0, 12);
   };
@@ -259,7 +261,9 @@ async function checkGitHubTrackedImage(trackedImage) {
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
       // This must match the normalization in trackedImageController.js
       const normalizeVersion = (v) => {
-        if (!v) return "";
+        if (!v) {
+          return "";
+        }
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 
@@ -290,7 +294,7 @@ async function checkGitHubTrackedImage(trackedImage) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitHub tags may vary
           try {
-            let currentVersionTag = trackedImage.current_version;
+            const currentVersionTag = trackedImage.current_version;
             currentVersionRelease = await githubService.getReleaseByTag(
               githubRepo,
               currentVersionTag
@@ -373,7 +377,9 @@ async function checkGitHubTrackedImage(trackedImage) {
   let currentVersionToStore = trackedImage.current_version;
   // Normalize versions for comparison (must match normalization in checkGitHubTrackedImage)
   const normalizeVersionForComparison = (v) => {
-    if (!v) return "";
+    if (!v) {
+      return "";
+    }
     return String(v).replace(/^v/i, "").trim().toLowerCase();
   };
 
@@ -551,7 +557,9 @@ async function checkGitLabTrackedImage(trackedImage) {
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
       // This must match the normalization in trackedImageController.js
       const normalizeVersion = (v) => {
-        if (!v) return "";
+        if (!v) {
+          return "";
+        }
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 
@@ -582,7 +590,7 @@ async function checkGitLabTrackedImage(trackedImage) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitLab tags may vary
           try {
-            let currentVersionTag = trackedImage.current_version;
+            const currentVersionTag = trackedImage.current_version;
             currentVersionRelease = await gitlabService.getReleaseByTag(
               gitlabRepo,
               currentVersionTag,
@@ -671,7 +679,9 @@ async function checkGitLabTrackedImage(trackedImage) {
   let currentVersionToStore = trackedImage.current_version;
   // Normalize versions for comparison (must match normalization in checkGitLabTrackedImage)
   const normalizeVersionForComparison = (v) => {
-    if (!v) return "";
+    if (!v) {
+      return "";
+    }
     return String(v).replace(/^v/i, "").trim().toLowerCase();
   };
 

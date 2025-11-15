@@ -103,6 +103,7 @@ async function detectBackendIp(
     // Generate list of IPs to test:
     // 1. Common backend IPs (proxy + 40, +50, +20, +30, etc.)
     // 2. IPs near the proxy IP
+    // NOTE: This is a heuristic and may detect the wrong IP. Users should verify the detected IP.
     const testIps = [];
     const offsets = [40, 50, 20, 30, 10, 5, 15, 25, 35, 45, 100, 200];
 
@@ -128,6 +129,12 @@ async function detectBackendIp(
         testIps.push(ip);
       }
     }
+
+    logger.debug(`Testing ${testIps.length} potential backend IPs for proxy ${proxyIp}`, {
+      proxyIp: proxyIp,
+      testIps: testIps.slice(0, 10), // Log first 10 to avoid spam
+      note: "This is a heuristic - detected IP may be incorrect. Verify in Settings > Portainer Instances.",
+    });
 
     // Try common Portainer ports
     const portsToTry = [9000, 9443, 80, 443];
@@ -166,9 +173,18 @@ async function detectBackendIp(
               timeout: 2000, // Short timeout for testing
             });
             // If we get a response (even 401 means the server is there), this might be the backend
+            // WARNING: This is a heuristic - the detected IP might not be the correct Portainer instance
             if (response.status === 200 || response.status === 401) {
-              logger.info(
-                `Detected potential backend IP: ${testIp}:${port} (status: ${response.status})`
+              logger.warn(
+                `⚠️  Detected potential backend IP: ${testIp}:${port} (status: ${response.status}). ` +
+                  `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+                {
+                  proxyIp: proxyIp,
+                  detectedIp: testIp,
+                  port: port,
+                  status: response.status,
+                  warning: "Auto-detected IP may be incorrect - verify manually",
+                }
               );
               return testIp;
             }
@@ -184,7 +200,16 @@ async function detectBackendIp(
                 }
               );
               if (authResponse.data.jwt || authResponse.data.token) {
-                logger.info(`Detected backend IP via authentication: ${testIp}:${port}`);
+                logger.warn(
+                  `⚠️  Detected backend IP via authentication: ${testIp}:${port}. ` +
+                    `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+                  {
+                    proxyIp: proxyIp,
+                    detectedIp: testIp,
+                    port: port,
+                    warning: "Auto-detected IP may be incorrect - verify manually",
+                  }
+                );
                 return testIp;
               }
             } catch (authErr) {
@@ -195,8 +220,15 @@ async function detectBackendIp(
               }
               // 401 means server is there, might be the backend
               if (authErr.response?.status === 401) {
-                logger.info(
-                  `Detected potential backend IP: ${testIp}:${port} (auth failed but server exists)`
+                logger.warn(
+                  `⚠️  Detected potential backend IP: ${testIp}:${port} (auth failed but server exists). ` +
+                    `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+                  {
+                    proxyIp: proxyIp,
+                    detectedIp: testIp,
+                    port: port,
+                    warning: "Auto-detected IP may be incorrect - verify manually",
+                  }
                 );
                 return testIp;
               }
@@ -209,8 +241,16 @@ async function detectBackendIp(
           }
           // Other errors might mean the server exists
           if (error.response) {
-            logger.info(
-              `Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status})`
+            logger.warn(
+              `⚠️  Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status}). ` +
+                `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+              {
+                proxyIp: proxyIp,
+                detectedIp: testIp,
+                port: port,
+                status: error.response.status,
+                warning: "Auto-detected IP may be incorrect - verify manually",
+              }
             );
             return testIp;
           }

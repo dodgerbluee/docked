@@ -29,9 +29,9 @@ async function getTrackedImages(req, res, next) {
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
     const formattedImages = images.map((image) => {
-      let latestVersion = image.latest_version ? String(image.latest_version) : null;
-      let currentVersionPublishDate = image.current_version_publish_date || null;
-      let latestVersionPublishDate = image.latest_version_publish_date || null;
+      const latestVersion = image.latest_version ? String(image.latest_version) : null;
+      const currentVersionPublishDate = image.current_version_publish_date || null;
+      const latestVersionPublishDate = image.latest_version_publish_date || null;
 
       // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
       // This ensures we can show the release date for the latest version
@@ -276,9 +276,12 @@ async function updateTrackedImageEndpoint(req, res, next) {
 
     // Update tracked image
     const updateData = {};
-    if (name !== undefined && name !== null) updateData.name = String(name).trim();
-    if (imageName !== undefined && imageName !== null)
+    if (name !== undefined && name !== null) {
+      updateData.name = String(name).trim();
+    }
+    if (imageName !== undefined && imageName !== null) {
       updateData.image_name = String(imageName).trim();
+    }
     if (gitlabToken !== undefined) {
       // Allow setting to null/empty string to clear token
       updateData.gitlab_token = gitlabToken && gitlabToken.trim() ? gitlabToken.trim() : null;
@@ -289,7 +292,9 @@ async function updateTrackedImageEndpoint(req, res, next) {
       // If updating current_version to match latest_version, also update has_update flag
       // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
       const normalizeVersion = (v) => {
-        if (!v) return "";
+        if (!v) {
+          return "";
+        }
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 

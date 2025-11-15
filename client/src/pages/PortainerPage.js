@@ -9,11 +9,13 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import Alert from "../components/ui/Alert";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
+import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
+import { SETTINGS_TABS } from "../constants/settings";
 import styles from "./PortainerPage.module.css";
 
 /**
@@ -46,6 +48,8 @@ function PortainerPage({
   onSetSelectedPortainerInstances,
   contentTab: controlledContentTab,
   onSetContentTab,
+  onNavigateToSettings,
+  onSetSettingsTab,
 }) {
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
@@ -124,25 +128,10 @@ function PortainerPage({
     selectableContainersCount > 0 &&
     containersWithUpdates.every((c) => portainerPage.selectedContainers.has(c.id));
 
-  // Handle batch upgrade click
-  const [batchUpgradeConfirm, setBatchUpgradeConfirm] = useState(false);
-  const [batchUpgradeData, setBatchUpgradeData] = useState(null);
-
+  // Handle batch upgrade click - now opens modal directly
   const handleBatchUpgradeClick = useCallback(() => {
-    const upgradeData = portainerPage.handleBatchUpgrade();
-    if (upgradeData) {
-      setBatchUpgradeData(upgradeData);
-      setBatchUpgradeConfirm(true);
-    }
+    portainerPage.handleBatchUpgrade();
   }, [portainerPage]);
-
-  const handleBatchUpgradeConfirm = useCallback(async () => {
-    if (batchUpgradeData?.containers) {
-      await portainerPage.executeBatchUpgrade(batchUpgradeData.containers);
-      setBatchUpgradeConfirm(false);
-      setBatchUpgradeData(null);
-    }
-  }, [batchUpgradeData, portainerPage]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -417,21 +406,6 @@ function PortainerPage({
         </div>
       </div>
 
-      {/* Batch Upgrade Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={batchUpgradeConfirm}
-        onClose={() => {
-          setBatchUpgradeConfirm(false);
-          setBatchUpgradeData(null);
-        }}
-        onConfirm={handleBatchUpgradeConfirm}
-        title="Upgrade Containers?"
-        message={`Upgrade ${batchUpgradeData?.containerCount || 0} selected container(s)?`}
-        confirmText="Upgrade"
-        cancelText="Cancel"
-        variant="primary"
-      />
-
       {/* Batch Delete Confirm Dialog */}
       <ConfirmDialog
         isOpen={batchDeleteConfirm}
@@ -459,9 +433,63 @@ function PortainerPage({
         <UpgradeProgressModal
           isOpen={portainerPage.upgradeModal.isOpen}
           onClose={portainerPage.closeUpgradeModal}
-          containerName={portainerPage.upgradeModal.container.name}
+          containerName={portainerPage.upgradeModal.container?.name}
+          container={portainerPage.upgradeModal.container}
           onConfirm={portainerPage.executeUpgrade}
           onSuccess={portainerPage.handleUpgradeSuccess}
+          onNavigateToLogs={() => {
+            // Close modal first to prevent it from blocking navigation
+            portainerPage.closeUpgradeModal();
+
+            // Navigate to settings
+            if (onNavigateToSettings) {
+              onNavigateToSettings();
+            }
+
+            // Set logs tab after a delay to ensure Settings page is rendered
+            if (onSetSettingsTab) {
+              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    onSetSettingsTab(SETTINGS_TABS.LOGS);
+                  }, 200);
+                });
+              });
+            }
+          }}
+        />
+      )}
+
+      {/* Batch Upgrade Progress Modal */}
+      {portainerPage.batchUpgradeModal.containers.length > 0 && (
+        <BatchUpgradeProgressModal
+          isOpen={portainerPage.batchUpgradeModal.isOpen}
+          onClose={portainerPage.closeBatchUpgradeModal}
+          containers={portainerPage.batchUpgradeModal.containers}
+          onConfirm={portainerPage.executeBatchUpgrade}
+          onSuccess={portainerPage.handleBatchUpgradeSuccess}
+          onNavigateToLogs={() => {
+            // Close modal first to prevent it from blocking navigation
+            portainerPage.closeBatchUpgradeModal();
+
+            // Navigate to settings
+            if (onNavigateToSettings) {
+              onNavigateToSettings();
+            }
+
+            // Set logs tab after a delay to ensure Settings page is rendered
+            if (onSetSettingsTab) {
+              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    onSetSettingsTab(SETTINGS_TABS.LOGS);
+                  }, 200);
+                });
+              });
+            }
+          }}
         />
       )}
     </div>
@@ -494,6 +522,8 @@ PortainerPage.propTypes = {
   onSetSelectedPortainerInstances: PropTypes.func,
   contentTab: PropTypes.string,
   onSetContentTab: PropTypes.func,
+  onNavigateToSettings: PropTypes.func,
+  onSetSettingsTab: PropTypes.func,
 };
 
 PortainerPage.displayName = "PortainerPage";

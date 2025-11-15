@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 // PropTypes is not currently used but kept for potential future use
 import { RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
 import axios from "axios";
@@ -62,28 +62,31 @@ function LogsTab() {
         const newLogs = response.data.logs || "";
         const newLineCount = response.data.totalLines || 0;
 
-        if (incremental && logs && newLogs) {
+        if (incremental && logs && logs.trim().length > 0) {
           // Append new lines to existing logs
-          setLogs((prevLogs) => {
-            const prevLines = prevLogs.split("\n").filter((line) => line.trim());
-            const newLines = newLogs.split("\n").filter((line) => line.trim());
-            // Only add lines that aren't already present (avoid duplicates)
-            const existingLastLine = prevLines[prevLines.length - 1];
-            const newLinesToAdd = newLines.filter((line, idx) => {
-              // Skip first line if it matches the last line we have (could be a continuation)
-              if (idx === 0 && existingLastLine && line === existingLastLine) {
-                return false;
-              }
-              return true;
+          if (newLogs && newLogs.trim().length > 0) {
+            setLogs((prevLogs) => {
+              const prevLines = prevLogs.split("\n").filter((line) => line.trim());
+              const newLines = newLogs.split("\n").filter((line) => line.trim());
+              // Only add lines that aren't already present (avoid duplicates)
+              const existingLastLine = prevLines[prevLines.length - 1];
+              const newLinesToAdd = newLines.filter((line, idx) => {
+                // Skip first line if it matches the last line we have (could be a continuation)
+                if (idx === 0 && existingLastLine && line === existingLastLine) {
+                  return false;
+                }
+                return true;
+              });
+              return (
+                prevLogs +
+                (prevLogs && newLinesToAdd.length > 0 ? "\n" : "") +
+                newLinesToAdd.join("\n")
+              );
             });
-            return (
-              prevLogs +
-              (prevLogs && newLinesToAdd.length > 0 ? "\n" : "") +
-              newLinesToAdd.join("\n")
-            );
-          });
+          }
+          // If no new logs but we have existing logs, keep them (don't clear)
         } else {
-          // Full refresh (initial load or manual refresh)
+          // Full refresh (initial load or manual refresh when no logs exist)
           setLogs(newLogs);
         }
 
@@ -126,6 +129,15 @@ function LogsTab() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, isInitialLoad]);
+
+  // Memoize refresh handler to prevent unnecessary re-renders
+  const handleRefresh = useCallback(() => {
+    // If we have existing logs, do incremental fetch to get new entries
+    // Otherwise, do a full fetch
+    const hasExistingLogs = logs && logs.trim().length > 0;
+    fetchLogs(hasExistingLogs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs]);
 
   const toggleLogExpansion = (logIndex) => {
     setExpandedLogs((prev) => {
@@ -366,7 +378,7 @@ function LogsTab() {
               </Button>
               <Button
                 variant="outline"
-                onClick={fetchLogs}
+                onClick={handleRefresh}
                 icon={RefreshCw}
                 iconPosition="left"
                 size="sm"

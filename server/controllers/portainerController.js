@@ -16,7 +16,7 @@ const {
 const { validateRequiredFields } = require("../utils/validation");
 const portainerService = require("../services/portainerService");
 const logger = require("../utils/logger");
-const { resolveUrlToIp, detectBackendIp } = require("../utils/dnsResolver");
+const { resolveUrlToIp } = require("../utils/dnsResolver");
 
 /**
  * Validate Portainer instance credentials without creating the instance
@@ -192,53 +192,22 @@ async function createInstance(req, res, next) {
     const instanceName = name.trim() || new URL(url).hostname;
 
     // Resolve URL to IP address for fallback when DNS fails
-    let ipAddress = await resolveUrlToIp(url.trim());
+    // Simple DNS lookup - store whatever the hostname resolves to
+    const ipAddress = await resolveUrlToIp(url.trim());
     if (ipAddress) {
-      logger.debug("Resolved Portainer URL to IP address", {
+      logger.info("Resolved Portainer URL to IP address via DNS", {
         module: "portainerController",
         operation: "createInstance",
         url: url.trim(),
         ipAddress: ipAddress,
+        note: "This IP will be used for fallback when DNS is unavailable (e.g., during nginx upgrades)",
       });
-
-      // Try to detect the actual backend IP if behind a proxy
-      // This is useful when the resolved IP is a proxy (like nginx proxy manager)
-      // and we need the actual Portainer instance IP
-      try {
-        const backendIp = await detectBackendIp(
-          ipAddress,
-          url.trim(),
-          apiKey || null,
-          username || null,
-          password || null,
-          authType
-        );
-
-        if (backendIp && backendIp !== ipAddress) {
-          logger.debug("Detected backend IP behind proxy", {
-            module: "portainerController",
-            operation: "createInstance",
-            url: url.trim(),
-            proxyIp: ipAddress,
-            backendIp: backendIp,
-          });
-          ipAddress = backendIp; // Use the detected backend IP instead
-        }
-      } catch (detectError) {
-        // Non-fatal - if detection fails, use the proxy IP
-        logger.warn("Backend IP detection failed, using proxy IP", {
-          module: "portainerController",
-          operation: "createInstance",
-          url: url.trim(),
-          error: detectError,
-        });
-      }
     } else {
       logger.warn("Failed to resolve URL to IP address", {
         module: "portainerController",
         operation: "createInstance",
         url: url.trim(),
-        note: "Will use URL only",
+        note: "IP fallback will not be available. If this instance is behind a proxy, you may need to manually set the IP address in Settings.",
       });
     }
 
@@ -340,52 +309,22 @@ async function updateInstance(req, res, next) {
 
     // Resolve URL to IP address for fallback when DNS fails
     // Only resolve if URL changed, otherwise keep existing IP
+    // Simple DNS lookup - store whatever the hostname resolves to
     let ipAddress = existing.ip_address;
     if (url.trim() !== existing.url) {
-      let resolvedIp = await resolveUrlToIp(url.trim());
+      const resolvedIp = await resolveUrlToIp(url.trim());
       if (resolvedIp) {
-        logger.debug("Resolved Portainer URL to IP address for update", {
+        logger.info("Resolved Portainer URL to IP address via DNS for update", {
           module: "portainerController",
           operation: "updateInstance",
           url: url.trim(),
           ipAddress: resolvedIp,
+          note: "This IP will be used for fallback when DNS is unavailable (e.g., during nginx upgrades)",
         });
-
-        // Try to detect the actual backend IP if behind a proxy
-        try {
-          const backendIp = await detectBackendIp(
-            resolvedIp,
-            url.trim(),
-            apiKey || existing.api_key || null,
-            username || existing.username || null,
-            password || existing.password || null,
-            finalAuthType
-          );
-
-          if (backendIp && backendIp !== resolvedIp) {
-            logger.debug("Detected backend IP behind proxy for update", {
-              module: "portainerController",
-              operation: "updateInstance",
-              url: url.trim(),
-              proxyIp: resolvedIp,
-              backendIp: backendIp,
-            });
-            resolvedIp = backendIp;
-          }
-        } catch (detectError) {
-          // Non-fatal - if detection fails, use the proxy IP
-          logger.warn("Backend IP detection failed during update, using proxy IP", {
-            module: "portainerController",
-            operation: "updateInstance",
-            url: url.trim(),
-            error: detectError,
-          });
-        }
-
         ipAddress = resolvedIp;
       } else {
         logger.warn(
-          `Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`
+          `Failed to resolve ${url.trim()} to IP address - keeping existing IP (${existing.ip_address || "none"}) if available`
         );
       }
     }
@@ -464,7 +403,9 @@ async function deleteInstance(req, res, next) {
 
     // Normalize URL for comparison (remove trailing slash, lowercase)
     const normalizeUrl = (url) => {
-      if (!url) return "";
+      if (!url) {
+        return "";
+      }
       return url.trim().replace(/\/+$/, "").toLowerCase();
     };
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
