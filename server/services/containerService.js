@@ -98,7 +98,9 @@ async function checkImageUpdates(
 
   // Format digest for display (shortened version)
   const formatDigest = (digest) => {
-    if (!digest) {return null;}
+    if (!digest) {
+      return null;
+    }
     // Return first 12 characters after "sha256:" for display
     return digest.replace("sha256:", "").substring(0, 12);
   };
@@ -335,8 +337,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 // Store token for both URLs
                 const authHeaders = portainerService.getAuthHeaders(workingPortainerUrl);
                 const token =
-                  authHeaders["X-API-Key"] ||
-                  authHeaders["Authorization"]?.replace("Bearer ", "");
+                  authHeaders["X-API-Key"] || authHeaders["Authorization"]?.replace("Bearer ", "");
                 if (token) {
                   portainerService.storeTokenForBothUrls(
                     workingPortainerUrl,
@@ -514,7 +515,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     logger.info("🔍 Checking for containers that depend on this container via network_mode...");
     const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
     for (const container of allContainers) {
-      if (container.Id === workingContainerId) {continue;} // Skip the one we're upgrading
+      if (container.Id === workingContainerId) {
+        continue;
+      } // Skip the one we're upgrading
 
       try {
         const details = await portainerService.getContainerDetails(
@@ -704,10 +707,15 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           Aliases: networkData.Aliases || undefined,
         };
         // Remove empty objects
-        if (!endpointsConfig[networkName].IPAMConfig)
-          {delete endpointsConfig[networkName].IPAMConfig;}
-        if (!endpointsConfig[networkName].Links) {delete endpointsConfig[networkName].Links;}
-        if (!endpointsConfig[networkName].Aliases) {delete endpointsConfig[networkName].Aliases;}
+        if (!endpointsConfig[networkName].IPAMConfig) {
+          delete endpointsConfig[networkName].IPAMConfig;
+        }
+        if (!endpointsConfig[networkName].Links) {
+          delete endpointsConfig[networkName].Links;
+        }
+        if (!endpointsConfig[networkName].Aliases) {
+          delete endpointsConfig[networkName].Aliases;
+        }
         // If all fields are empty, remove the network entry
         if (Object.keys(endpointsConfig[networkName]).length === 0) {
           delete endpointsConfig[networkName];
@@ -1012,7 +1020,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     const dependentContainers = [];
 
     for (const container of allContainers) {
-      if (container.Id === newContainer.Id) {continue;} // Skip the one we just upgraded
+      if (container.Id === newContainer.Id) {
+        continue;
+      } // Skip the one we just upgraded
 
       try {
         const details = await portainerService.getContainerDetails(
@@ -1626,8 +1636,12 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Sort stacks: named stacks first, then "Standalone"
   groupedContainers.sort((a, b) => {
-    if (a.stackName === "Standalone") {return 1;}
-    if (b.stackName === "Standalone") {return -1;}
+    if (a.stackName === "Standalone") {
+      return 1;
+    }
+    if (b.stackName === "Standalone") {
+      return -1;
+    }
     return a.stackName.localeCompare(b.stackName);
   });
 
@@ -1658,8 +1672,12 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
     // Sort stacks: named stacks first, then "Standalone"
     mergedGroupedContainers.sort((a, b) => {
-      if (a.stackName === "Standalone") {return 1;}
-      if (b.stackName === "Standalone") {return -1;}
+      if (a.stackName === "Standalone") {
+        return 1;
+      }
+      if (b.stackName === "Standalone") {
+        return -1;
+      }
       return a.stackName.localeCompare(b.stackName);
     });
 
@@ -1688,7 +1706,9 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
           authType
         );
         const endpoints = await portainerService.getEndpoints(portainerUrl);
-        if (endpoints.length === 0) {continue;}
+        if (endpoints.length === 0) {
+          continue;
+        }
 
         const endpointId = endpoints[0].Id;
         const images = await portainerService.getImages(portainerUrl, endpointId);
@@ -2070,7 +2090,9 @@ async function getUnusedImages() {
         authType
       );
       const endpoints = await portainerService.getEndpoints(portainerUrl);
-      if (endpoints.length === 0) {continue;}
+      if (endpoints.length === 0) {
+        continue;
+      }
 
       const endpointId = endpoints[0].Id;
       const images = await portainerService.getImages(portainerUrl, endpointId);

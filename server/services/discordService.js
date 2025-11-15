@@ -307,7 +307,9 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
  * @returns {string|null} - Docker Hub URL or null
  */
 function getDockerHubRepoUrl(imageName) {
-  if (!imageName) {return null;}
+  if (!imageName) {
+    return null;
+  }
 
   // Parse image name (remove tag if present)
   let repo = imageName;
