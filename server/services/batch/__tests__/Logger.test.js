@@ -23,10 +23,10 @@ describe("BatchLogger", () => {
     });
   });
 
-  describe('log', () => {
-    it('should log message with timestamp and metadata', () => {
-      logger.log('info', 'Test message', { key: 'value' });
-      
+  describe("log", () => {
+    it("should log message with timestamp and metadata", () => {
+      logger.log("info", "Test message", { key: "value" });
+
       expect(logger.logs).toHaveLength(1);
       expect(logger.logs[0]).toMatchObject({
         level: "info",
@@ -37,41 +37,41 @@ describe("BatchLogger", () => {
       expect(logger.logs[0].timestamp).toBeDefined();
     });
 
-    it('should log error level to console', () => {
-      logger.log('error', 'Error message');
-      
+    it("should log error level to console", () => {
+      logger.log("error", "Error message");
+
       // Verify error log is stored in memory
       expect(logger.logs).toHaveLength(1);
-      expect(logger.logs[0].level).toBe('error');
-      expect(logger.logs[0].message).toBe('Error message');
+      expect(logger.logs[0].level).toBe("error");
+      expect(logger.logs[0].message).toBe("Error message");
       expect(logger.logs[0].timestamp).toBeDefined();
     });
 
-    it('should log warn level to console', () => {
-      logger.log('warn', 'Warning message');
-      
+    it("should log warn level to console", () => {
+      logger.log("warn", "Warning message");
+
       // Verify warn log is stored in memory
       expect(logger.logs).toHaveLength(1);
-      expect(logger.logs[0].level).toBe('warn');
-      expect(logger.logs[0].message).toBe('Warning message');
+      expect(logger.logs[0].level).toBe("warn");
+      expect(logger.logs[0].message).toBe("Warning message");
       expect(logger.logs[0].timestamp).toBeDefined();
     });
   });
 
-  describe('convenience methods', () => {
-    it('should have info method', () => {
-      logger.info('Info message');
-      expect(logger.logs[0].level).toBe('info');
+  describe("convenience methods", () => {
+    it("should have info method", () => {
+      logger.info("Info message");
+      expect(logger.logs[0].level).toBe("info");
     });
 
-    it('should have warn method', () => {
-      logger.warn('Warning message');
-      expect(logger.logs[0].level).toBe('warn');
+    it("should have warn method", () => {
+      logger.warn("Warning message");
+      expect(logger.logs[0].level).toBe("warn");
     });
 
-    it('should have error method', () => {
-      logger.error('Error message');
-      expect(logger.logs[0].level).toBe('error');
+    it("should have error method", () => {
+      logger.error("Error message");
+      expect(logger.logs[0].level).toBe("error");
     });
   });
 
