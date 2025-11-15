@@ -95,7 +95,6 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
           })
           .catch((error) => {
             apiCompleted = true;
-            apiError = error;
             throw error;
           });
 
