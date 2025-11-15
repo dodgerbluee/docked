@@ -12,7 +12,7 @@ function validateRequiredFields(body, requiredFields) {
   const missing = requiredFields.filter((field) => !body[field]);
   if (missing.length > 0) {
     return {
-      error: `Missing required fields: ${missing.join(', ')}`,
+      error: `Missing required fields: ${missing.join(", ")}`,
       missingFields: missing,
     };
   }
@@ -25,7 +25,7 @@ function validateRequiredFields(body, requiredFields) {
  * @returns {boolean} - True if valid
  */
 function isValidContainerId(containerId) {
-  if (!containerId || typeof containerId !== 'string' || containerId.length < 12) {
+  if (!containerId || typeof containerId !== "string" || containerId.length < 12) {
     return false;
   }
   return true;
@@ -46,7 +46,7 @@ function isValidEndpointId(endpointId) {
  * @returns {boolean} - True if valid
  */
 function isValidImageName(imageName) {
-  if (!imageName || typeof imageName !== 'string' || imageName.length === 0) {
+  if (!imageName || typeof imageName !== "string" || imageName.length === 0) {
     return false;
   }
   return true;
@@ -60,7 +60,7 @@ function isValidImageName(imageName) {
 function isValidPortainerUrl(url) {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
@@ -73,13 +73,13 @@ function isValidPortainerUrl(url) {
  */
 function validateImageArray(images) {
   if (!Array.isArray(images) || images.length === 0) {
-    return { error: 'images array is required and must not be empty' };
+    return { error: "images array is required and must not be empty" };
   }
 
   for (const image of images) {
     if (!image.id || !image.portainerUrl || !image.endpointId) {
       return {
-        error: 'Each image must have id, portainerUrl, and endpointId',
+        error: "Each image must have id, portainerUrl, and endpointId",
         invalidImage: image,
       };
     }
@@ -95,7 +95,7 @@ function validateImageArray(images) {
  */
 function validateContainerArray(containers) {
   if (!Array.isArray(containers) || containers.length === 0) {
-    return { error: 'containers array is required and must not be empty' };
+    return { error: "containers array is required and must not be empty" };
   }
 
   for (const container of containers) {
@@ -106,7 +106,7 @@ function validateContainerArray(containers) {
       !container.portainerUrl
     ) {
       return {
-        error: 'Each container must have containerId, endpointId, imageName, and portainerUrl',
+        error: "Each container must have containerId, endpointId, imageName, and portainerUrl",
         invalidContainer: container,
       };
     }
@@ -124,4 +124,3 @@ module.exports = {
   validateImageArray,
   validateContainerArray,
 };
-

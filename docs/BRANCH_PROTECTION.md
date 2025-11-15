@@ -5,6 +5,7 @@ This document describes the recommended branch protection rules for the Docked r
 ## Overview
 
 Branch protection rules enforce code quality and security standards by requiring:
+
 - Code reviews before merging
 - Passing CI/CD checks
 - Up-to-date branches
@@ -210,6 +211,7 @@ Code owners are defined in `.github/CODEOWNERS`. They are automatically requeste
 ### When to Bypass
 
 Only in **critical emergencies**:
+
 - Security vulnerability requiring immediate fix
 - Production outage requiring hotfix
 - Critical data loss prevention
@@ -217,6 +219,7 @@ Only in **critical emergencies**:
 ### How to Bypass
 
 1. **Via GitHub API** (if bypass allowed):
+
    ```bash
    # Force push (if allowed)
    git push --force origin main
@@ -256,6 +259,7 @@ gh api repos/your-org/docked/branches/main/protection
 ### Audit Logs
 
 GitHub provides audit logs for:
+
 - Protection rule changes
 - Bypass events
 - Force pushes
@@ -270,6 +274,7 @@ Review regularly in **Settings** → **Audit log**.
 **Issue**: PR shows "Required status checks must pass"
 
 **Solutions**:
+
 1. Check Actions tab for failed workflows
 2. Fix failing checks
 3. Push new commits to trigger re-run
@@ -280,6 +285,7 @@ Review regularly in **Settings** → **Audit log**.
 **Issue**: Required check not showing in PR
 
 **Solutions**:
+
 1. Verify workflow file is correct
 2. Check workflow ran successfully
 3. Ensure job name matches required check name
@@ -290,6 +296,7 @@ Review regularly in **Settings** → **Audit log**.
 **Issue**: Push rejected due to protection rules
 
 **Solutions**:
+
 1. Create a branch and PR instead
 2. Request permission if legitimate need
 3. Follow standard PR process
@@ -312,4 +319,3 @@ Review regularly in **Settings** → **Audit log**.
 ---
 
 **Last Updated**: 2025-01-XX
-

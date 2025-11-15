@@ -154,7 +154,7 @@ body.dark-mode .content {
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: "Courier New", Courier, monospace;
 }
 
 .logStack {
@@ -193,7 +193,7 @@ body.dark-mode .content {
   color: var(--dodger-red);
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: "Courier New", Courier, monospace;
 }
 
 /* Log level color coding - only the level text inside brackets is colored */
@@ -234,4 +234,3 @@ body.dark-mode .logDebug {
   text-align: center;
   padding: 40px;
 }
-

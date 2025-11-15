@@ -4,8 +4,8 @@
  * Supports backward compatibility with legacy base64 tokens
  */
 
-const { getUserByUsername, getUserById } = require('../db/database');
-const { verifyToken } = require('../utils/jwt');
+const { getUserByUsername, getUserById } = require("../db/database");
+const { verifyToken } = require("../utils/jwt");
 
 /**
  * Middleware to verify authentication token
@@ -16,12 +16,12 @@ const { verifyToken } = require('../utils/jwt');
  */
 async function authenticate(req, res, next) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace("Bearer ", "");
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -29,13 +29,13 @@ async function authenticate(req, res, next) {
       // Try JWT verification first (new tokens)
       try {
         const decoded = verifyToken(token);
-        
+
         // Verify user still exists
         const user = await getUserById(decoded.userId);
         if (!user) {
           return res.status(401).json({
             success: false,
-            error: 'User not found',
+            error: "User not found",
           });
         }
 
@@ -50,12 +50,12 @@ async function authenticate(req, res, next) {
       } catch (jwtError) {
         // If JWT verification fails, try legacy base64 token format
         // This provides backward compatibility during migration
-        if (jwtError.message === 'Token expired' || jwtError.message === 'Invalid token') {
+        if (jwtError.message === "Token expired" || jwtError.message === "Invalid token") {
           // Try legacy token format
           try {
-            const decoded = Buffer.from(token, 'base64').toString('utf-8');
-            const parts = decoded.split(':');
-            
+            const decoded = Buffer.from(token, "base64").toString("utf-8");
+            const parts = decoded.split(":");
+
             if (parts.length >= 2) {
               const userId = parseInt(parts[0]);
               const username = parts[1];
@@ -68,7 +68,7 @@ async function authenticate(req, res, next) {
                 if (!userByUsername) {
                   return res.status(401).json({
                     success: false,
-                    error: 'Invalid token',
+                    error: "Invalid token",
                   });
                 }
                 req.user = {
@@ -90,18 +90,18 @@ async function authenticate(req, res, next) {
             // Both JWT and legacy token failed
             return res.status(401).json({
               success: false,
-              error: 'Invalid token',
+              error: "Invalid token",
             });
           }
         }
-        
+
         // Re-throw JWT errors that aren't about invalid/expired tokens
         throw jwtError;
       }
     } catch (err) {
       return res.status(401).json({
         success: false,
-        error: err.message || 'Invalid token',
+        error: err.message || "Invalid token",
       });
     }
   } catch (error) {

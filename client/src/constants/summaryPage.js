@@ -39,4 +39,3 @@ export const VARIANT_MAP = {
   [STAT_CARD_VARIANTS.UNUSED_IMAGES]: "unusedImages",
   [STAT_CARD_VARIANTS.CURRENT]: "current",
 };
-

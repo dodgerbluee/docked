@@ -4,13 +4,13 @@ import { API_BASE_URL } from "../constants/api";
 
 /**
  * Custom hook to fetch application version from the API
- * 
+ *
  * @returns {Object} Version information object
  * @returns {string|null} version - Application version string (e.g., "1.2.5" or "1.2.5-dev")
  * @returns {string|null} environment - Current environment ("development" or "production")
  * @returns {boolean} isDevBuild - Whether this is a local development build
  * @returns {boolean} loading - Whether the version is currently being fetched
- * 
+ *
  * @example
  * const { version, isDevBuild, loading } = useVersion();
  * if (loading) return <Spinner />;
@@ -49,4 +49,3 @@ export const useVersion = () => {
 
   return { version, environment, isDevBuild, loading };
 };
-

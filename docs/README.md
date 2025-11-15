@@ -34,16 +34,19 @@ This directory contains comprehensive documentation for the Docked project.
 ## Quick Links
 
 ### For Developers
+
 - [Getting Started](../README.md#installation)
 - [Development Setup](../README.md#development-mode)
 - [Contributing](../README.md#contributing)
 
 ### For Maintainers
+
 - [Release Process](../RELEASE.md)
 - [CI/CD System](./CICD.md)
 - [Branch Protection](./BRANCH_PROTECTION.md)
 
 ### For Security Researchers
+
 - [Security Policy](../SECURITY.md)
 - [Vulnerability Reporting](../SECURITY.md#reporting-a-vulnerability)
 
@@ -75,4 +78,3 @@ When updating documentation:
 ---
 
 **Last Updated**: 2025-01-XX
-

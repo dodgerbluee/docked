@@ -21,6 +21,7 @@ A modern web application for managing Docker container updates through Portainer
 ## Versioning
 
 Docked follows [Semantic Versioning 2.0.0](https://semver.org/):
+
 - **MAJOR** version for incompatible API changes
 - **MINOR** version for new functionality in a backward compatible manner
 - **PATCH** version for backward compatible bug fixes
@@ -60,7 +61,6 @@ ADMIN_PASSWORD=your_admin_password
 ```
 
 **Note:** Portainer instances and Docker Hub credentials are now managed through the Settings UI in the application. You no longer need to configure them in the environment file.
-
 
 ## Usage
 
@@ -127,7 +127,6 @@ The application uses SQLite to store user credentials. The database file is loca
 ## How It Works
 
 1. **Backend** (`server/index.js`):
-
    - Authenticates with Portainer API
    - Fetches all containers from Portainer
    - Checks for available image updates

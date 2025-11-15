@@ -2,40 +2,40 @@
  * Component tests for ErrorBoundary
  */
 
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import ErrorBoundary from '../ErrorBoundary';
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import ErrorBoundary from "../ErrorBoundary";
 
 // Component that throws an error
 const ThrowError = ({ shouldThrow }) => {
   if (shouldThrow) {
-    throw new Error('Test error');
+    throw new Error("Test error");
   }
   return <div>No error</div>;
 };
 
-describe('ErrorBoundary Component', () => {
+describe("ErrorBoundary Component", () => {
   beforeEach(() => {
     // Suppress console.error for these tests
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
     console.error.mockRestore();
   });
 
-  it('renders children when there is no error', () => {
+  it("renders children when there is no error", () => {
     render(
       <ErrorBoundary>
         <div>Test content</div>
       </ErrorBoundary>
     );
 
-    expect(screen.getByText('Test content')).toBeInTheDocument();
+    expect(screen.getByText("Test content")).toBeInTheDocument();
   });
 
-  it('renders error UI when child component throws', () => {
+  it("renders error UI when child component throws", () => {
     render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
@@ -46,4 +46,3 @@ describe('ErrorBoundary Component', () => {
     expect(screen.getByText(/try again/i)).toBeInTheDocument();
   });
 });
-

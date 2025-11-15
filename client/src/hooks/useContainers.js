@@ -2,8 +2,8 @@
  * Custom hook for fetching and managing containers
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
 
 // In production, API is served from same origin, so use relative URLs
 import { API_BASE_URL } from "../constants/api";
@@ -32,8 +32,8 @@ export function useContainers() {
       }
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to fetch containers');
-      console.error('Error fetching containers:', err);
+      setError(err.response?.data?.error || "Failed to fetch containers");
+      console.error("Error fetching containers:", err);
     } finally {
       setLoading(false);
     }
@@ -52,4 +52,3 @@ export function useContainers() {
     refetch: fetchContainers,
   };
 }
-

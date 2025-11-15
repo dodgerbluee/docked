@@ -3,27 +3,20 @@
  * Displays information about a single container
  */
 
-import React, { memo } from 'react';
-import { getDockerHubUrl, formatTimeAgo } from '../utils/formatters';
+import React, { memo } from "react";
+import { getDockerHubUrl, formatTimeAgo } from "../utils/formatters";
 
 const ContainerCard = memo(
-  ({
-    container,
-    isPortainer,
-    selected,
-    upgrading,
-    onToggleSelect,
-    onUpgrade,
-  }) => {
+  ({ container, isPortainer, selected, upgrading, onToggleSelect, onUpgrade }) => {
     return (
       <div
-        className={`container-card ${container.hasUpdate ? 'update-available' : ''} ${
-          isPortainer ? 'portainer-disabled' : ''
+        className={`container-card ${container.hasUpdate ? "update-available" : ""} ${
+          isPortainer ? "portainer-disabled" : ""
         }`}
         title={
           isPortainer
-            ? 'Portainer cannot be upgraded automatically. It must be upgraded manually.'
-            : ''
+            ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+            : ""
         }
       >
         <div className="card-header">
@@ -37,8 +30,8 @@ const ContainerCard = memo(
                 disabled={upgrading || isPortainer}
                 title={
                   isPortainer
-                    ? 'Portainer cannot be upgraded automatically. It must be upgraded manually.'
-                    : ''
+                    ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                    : ""
                 }
               />
             </label>
@@ -47,7 +40,7 @@ const ContainerCard = memo(
         <div className="card-body">
           {container.portainerName && (
             <p className="portainer-info">
-              <strong>Portainer:</strong>{' '}
+              <strong>Portainer:</strong>{" "}
               <span className="portainer-badge">{container.portainerName}</span>
             </p>
           )}
@@ -60,19 +53,15 @@ const ContainerCard = memo(
           {container.hasUpdate && (
             <>
               <p className="tag-info">
-                <strong>Current:</strong>{' '}
+                <strong>Current:</strong>{" "}
                 <span className="version-badge current">
-                  {container.currentDigest ? (
-                    `sha256:${container.currentDigest}`
-                  ) : (
-                    container.currentVersion ||
-                    container.currentTag ||
-                    'latest'
-                  )}
+                  {container.currentDigest
+                    ? `sha256:${container.currentDigest}`
+                    : container.currentVersion || container.currentTag || "latest"}
                 </span>
               </p>
               <p className="tag-info">
-                <strong>Latest:</strong>{' '}
+                <strong>Latest:</strong>{" "}
                 <span className="version-badge new">
                   {container.latestDigest ? (
                     <a
@@ -89,14 +78,15 @@ const ContainerCard = memo(
                       sha256:{container.latestDigest}
                     </a>
                   ) : (
-                    container.newVersion ||
-                    container.latestTag ||
-                    'latest'
+                    container.newVersion || container.latestTag || "latest"
                   )}
                 </span>
               </p>
               {container.latestPublishDate && (
-                <p className="publish-info" style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                <p
+                  className="publish-info"
+                  style={{ fontSize: "0.8rem", color: "var(--text-tertiary)", marginTop: "4px" }}
+                >
                   <strong>Published:</strong> {formatTimeAgo(container.latestPublishDate)}
                 </p>
               )}
@@ -104,10 +94,8 @@ const ContainerCard = memo(
           )}
           {!container.hasUpdate && container.currentDigest && (
             <p className="tag-info">
-              <strong>Digest:</strong>{' '}
-              <span className="version-badge current">
-                sha256:{container.currentDigest}
-              </span>
+              <strong>Digest:</strong>{" "}
+              <span className="version-badge current">sha256:{container.currentDigest}</span>
             </p>
           )}
         </div>
@@ -119,11 +107,11 @@ const ContainerCard = memo(
               disabled={upgrading || isPortainer}
               title={
                 isPortainer
-                  ? 'Portainer cannot be upgraded automatically. It must be upgraded manually.'
-                  : ''
+                  ? "Portainer cannot be upgraded automatically. It must be upgraded manually."
+                  : ""
               }
             >
-              {upgrading ? 'Upgrading...' : 'Upgrade Now'}
+              {upgrading ? "Upgrading..." : "Upgrade Now"}
             </button>
           </div>
         )}
@@ -132,7 +120,6 @@ const ContainerCard = memo(
   }
 );
 
-ContainerCard.displayName = 'ContainerCard';
+ContainerCard.displayName = "ContainerCard";
 
 export default ContainerCard;
-

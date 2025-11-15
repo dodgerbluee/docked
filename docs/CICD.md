@@ -35,6 +35,7 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
 #### 1. Continuous Integration (CI)
 
 **CI Pipeline** (`.github/workflows/ci.yml`) - GitLab-style single pipeline
+
 - Triggers: Pull requests and pushes to main/master
 - Purpose: Unified CI pipeline for all code changes
 - Jobs (run in parallel, then build depends on lint/test):
@@ -49,6 +50,7 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
 #### 2. Continuous Deployment (CD)
 
 **Pre-Release** (`.github/workflows/pre-release.yml`)
+
 - Triggers: Pushes to main/master
 - Purpose: Create development releases
 - Actions:
@@ -58,7 +60,8 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
   - Tag repository
 
 **Release** (`.github/workflows/release.yml`)
-- Triggers: Tag push (v*.*.*) or manual dispatch
+
+- Triggers: Tag push (v*.*.\*) or manual dispatch
 - Purpose: Create production releases
 - Actions:
   - Extract version from tag
@@ -69,6 +72,7 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
   - Create GitHub release
 
 **Promote Dev to Production** (`.github/workflows/promote-dev-to-production.yml`) ⭐ Recommended
+
 - Triggers: Manual workflow dispatch
 - Purpose: One-click promotion from dev to production
 - Actions:
@@ -80,6 +84,7 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
   - Tags Docker image as version and `latest`
 
 **Promote to Latest** (`.github/workflows/promote-to-latest.yml`)
+
 - Triggers: Manual workflow dispatch
 - Purpose: Quick promotion - just re-tag existing dev image as `latest`
 - Actions:
@@ -91,6 +96,7 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
 #### 3. Security
 
 **Security Scan** (`.github/workflows/security.yml`)
+
 - Triggers: Push, PR, schedule (weekly), manual
 - Purpose: Security vulnerability scanning
 - Scans:
@@ -104,80 +110,93 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
 Reusable workflows reduce duplication and ensure consistency:
 
 ### Setup Node.js
+
 **File**: `.github/workflows/reusable/setup-node.yml`
 
 Sets up Node.js environment and installs dependencies.
 
 **Inputs:**
+
 - `node-version`: Node.js version (required)
 - `cache-dependency-paths`: Package lock file paths (optional)
 
 **Usage:**
+
 ```yaml
 jobs:
   setup:
     uses: ./.github/workflows/reusable/setup-node.yml
     with:
-      node-version: '18'
+      node-version: "18"
 ```
 
 ### Run Tests
+
 **File**: `.github/workflows/reusable/run-tests.yml`
 
 Runs tests for both server and client.
 
 **Inputs:**
+
 - `node-version`: Node.js version (required)
 - `run-coverage`: Run with coverage (default: false)
 - `upload-coverage`: Upload to Codecov (default: false)
 
 **Outputs:**
+
 - `server-tests-passed`: Whether server tests passed
 - `client-tests-passed`: Whether client tests passed
 
 **Usage:**
+
 ```yaml
 jobs:
   test:
     uses: ./.github/workflows/reusable/run-tests.yml
     with:
-      node-version: '18'
+      node-version: "18"
       run-coverage: true
       upload-coverage: true
 ```
 
 ### Run Linting
+
 **File**: `.github/workflows/reusable/run-linting.yml`
 
 Runs ESLint and optionally checks formatting.
 
 **Inputs:**
+
 - `node-version`: Node.js version (required)
 - `check-formatting`: Check code formatting (default: false)
 
 **Usage:**
+
 ```yaml
 jobs:
   lint:
     uses: ./.github/workflows/reusable/run-linting.yml
     with:
-      node-version: '18'
+      node-version: "18"
       check-formatting: true
 ```
 
 ## Branch Strategy
 
 ### Main Branch
+
 - **Purpose**: Production-ready code
 - **Protection**: Required PR reviews, status checks
 - **Workflows**: CI on push, pre-release on merge
 
 ### Release Branches
+
 - **Purpose**: Stabilize releases (future enhancement)
 - **Naming**: `release/vX.Y.Z`
 - **Workflows**: Release candidate builds
 
 ### Hotfix Branches
+
 - **Purpose**: Critical bug fixes
 - **Naming**: `hotfix/vX.Y.Z`
 - **Workflows**: Fast-track release
@@ -195,17 +214,20 @@ Docked follows [Semantic Versioning 2.0.0](https://semver.org/):
 ### Version Bumping
 
 **Automated** (pre-release):
+
 - Analyzes commits since last release
 - Determines increment type (major/minor/patch)
 - Creates dev version (e.g., `1.2.3-dev`)
 
 **Manual** (release):
+
 - Use `scripts/version-bump.js`
 - Creates version tag (e.g., `v1.2.3`)
 
 ### Version Scripts
 
 **Version Bump** (`scripts/version-bump.js`)
+
 ```bash
 node scripts/version-bump.js 1.2.3
 ```
@@ -213,11 +235,13 @@ node scripts/version-bump.js 1.2.3
 Updates version in all `package.json` files.
 
 **Release Validation** (`scripts/validate-release.js`)
+
 ```bash
 node scripts/validate-release.js
 ```
 
 Validates release readiness:
+
 - Version consistency
 - CHANGELOG entry
 - Tests passing
@@ -237,6 +261,7 @@ All security checks are **blocking** (fail on vulnerabilities):
 ### Security Workflow
 
 The security workflow runs:
+
 - On every PR (dependency review)
 - On push to main (full scan)
 - Weekly schedule (maintenance)
@@ -245,6 +270,7 @@ The security workflow runs:
 ### Security Policy
 
 See [SECURITY.md](../SECURITY.md) for:
+
 - Vulnerability reporting
 - Supported versions
 - Security best practices
@@ -262,12 +288,14 @@ See [SECURITY.md](../SECURITY.md) for:
 ### Multi-Architecture
 
 Docker images are built for:
+
 - `linux/amd64`
 - `linux/arm64`
 
 ### Registry
 
 Images are published to:
+
 - GitHub Container Registry (`ghcr.io/your-org/docked`)
 
 ## Release Process
@@ -308,6 +336,7 @@ See [RELEASE.md](../RELEASE.md) for detailed release process.
 ### Artifacts
 
 Build artifacts are uploaded for:
+
 - Client build (`client-build`)
 - Release artifacts (`release-artifacts`)
 - Test coverage reports
@@ -329,21 +358,25 @@ Build artifacts are uploaded for:
 ### Common Issues
 
 **Tests Failing**
+
 - Check test output in Actions logs
 - Run tests locally: `npm test`
 - Verify Node.js version matches
 
 **Security Checks Failing**
+
 - Review vulnerability details
 - Update dependencies: `npm audit fix`
 - Check Snyk dashboard for details
 
 **Build Failing**
+
 - Check build logs for errors
 - Verify all dependencies installed
 - Check Node.js version compatibility
 
 **Release Failing**
+
 - Verify version format (SemVer)
 - Check CHANGELOG.md has entry
 - Ensure all tests pass
@@ -359,6 +392,7 @@ Build artifacts are uploaded for:
 ### For Developers
 
 1. **Run checks locally** before pushing
+
    ```bash
    npm test
    npm run lint
@@ -393,6 +427,7 @@ Build artifacts are uploaded for:
 ### Updating Actions
 
 Actions are versioned. Update carefully:
+
 - Test in development branch first
 - Review changelog for breaking changes
 - Update all workflows using the action
@@ -400,6 +435,7 @@ Actions are versioned. Update carefully:
 ### Dependency Updates
 
 Dependabot automatically creates PRs for:
+
 - npm dependencies (weekly)
 - GitHub Actions (weekly)
 - Docker base images (weekly)
@@ -429,4 +465,3 @@ Planned improvements:
 ---
 
 **Last Updated**: 2025-01-XX
-

@@ -4,11 +4,7 @@ import { useCallback } from "react";
  * Custom hook for navigation handlers
  * Centralizes navigation logic for consistent behavior
  */
-export const useNavigation = ({
-  setActiveTab,
-  setContentTab,
-  setSelectedPortainerInstances,
-}) => {
+export const useNavigation = ({ setActiveTab, setContentTab, setSelectedPortainerInstances }) => {
   const handleNavigateToSummary = useCallback(() => {
     setActiveTab("summary");
   }, [setActiveTab]);
@@ -50,4 +46,3 @@ export const useNavigation = ({
     handleNavigateToBatch,
   };
 };
-

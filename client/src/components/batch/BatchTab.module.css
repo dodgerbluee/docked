@@ -93,7 +93,6 @@ body.dark-mode .titleIcon {
   margin-top: 8px;
 }
 
-
 .formActions {
   margin-top: 24px;
 }
@@ -121,4 +120,3 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
 }
-

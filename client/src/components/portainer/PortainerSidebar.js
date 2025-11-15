@@ -1,7 +1,10 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { Plus } from "lucide-react";
-import { PORTAINER_CONTENT_TABS, PORTAINER_CONTENT_TAB_LABELS } from "../../constants/portainerPage";
+import {
+  PORTAINER_CONTENT_TABS,
+  PORTAINER_CONTENT_TAB_LABELS,
+} from "../../constants/portainerPage";
 import styles from "./PortainerSidebar.module.css";
 
 /**
@@ -19,20 +22,20 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
   const handleInstanceToggle = (instanceName, checked) => {
     onSelectedPortainerInstancesChange((prev) => {
       const next = new Set(prev);
-      
+
       if (checked) {
         next.add(instanceName);
-        
+
         // Check if all instances are now selected
         const allInstances = portainerInstances.filter((inst) => inst != null && inst.name);
-        const allSelected = allInstances.length > 0 &&
-          allInstances.every((inst) => next.has(inst.name));
-        
+        const allSelected =
+          allInstances.length > 0 && allInstances.every((inst) => next.has(inst.name));
+
         // If all are selected, clear all to show all
         if (allSelected) {
           return new Set();
         }
-        
+
         return next;
       } else {
         next.delete(instanceName);
@@ -96,10 +99,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           {portainerInstances
             .filter((inst) => inst != null && inst.name)
             .map((instance) => (
-              <div
-                key={instance.name}
-                className={styles.filterLabel}
-              >
+              <div key={instance.name} className={styles.filterLabel}>
                 <label className={styles.checkbox}>
                   <input
                     type="checkbox"
@@ -108,15 +108,23 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
                     aria-label={`Filter by ${instance.name}`}
                   />
                 </label>
-                <span 
+                <span
                   className={styles.filterText}
-                  onClick={() => handleInstanceToggle(instance.name, !selectedPortainerInstances.has(instance.name))}
+                  onClick={() =>
+                    handleInstanceToggle(
+                      instance.name,
+                      !selectedPortainerInstances.has(instance.name)
+                    )
+                  }
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      handleInstanceToggle(instance.name, !selectedPortainerInstances.has(instance.name));
+                      handleInstanceToggle(
+                        instance.name,
+                        !selectedPortainerInstances.has(instance.name)
+                      );
                     }
                   }}
                 >
@@ -151,4 +159,3 @@ PortainerSidebar.propTypes = {
 PortainerSidebar.displayName = "PortainerSidebar";
 
 export default PortainerSidebar;
-

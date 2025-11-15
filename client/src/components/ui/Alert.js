@@ -6,12 +6,7 @@ import styles from "./Alert.module.css";
  * Alert Component
  * Reusable alert/notification component
  */
-const Alert = React.memo(function Alert({
-  children,
-  variant = "info",
-  className = "",
-  ...props
-}) {
+const Alert = React.memo(function Alert({ children, variant = "info", className = "", ...props }) {
   const variantClass = styles[variant] || styles.info;
 
   return (
@@ -28,4 +23,3 @@ Alert.propTypes = {
 };
 
 export default Alert;
-

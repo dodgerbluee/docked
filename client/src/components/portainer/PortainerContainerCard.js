@@ -50,8 +50,9 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   const imageNameWithoutVersion = extractImageName(container.image);
 
   // Check if image is from GitHub Container Registry (starts with ghcr.io AND not found on Docker Hub)
-  const isGitHubContainer = container.image && 
-    container.image.startsWith("ghcr.io/") && 
+  const isGitHubContainer =
+    container.image &&
+    container.image.startsWith("ghcr.io/") &&
     container.existsInDockerHub === false;
   const isDockerHub = container.existsInDockerHub !== false && !isGitHubContainer;
 
@@ -63,52 +64,60 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     return `https://${imageWithoutVersion}`;
   };
 
-
   // Copy version to clipboard
-  const handleVersionClick = useCallback(async (e) => {
-    e.stopPropagation();
-    if (imageVersion) {
-      try {
-        await navigator.clipboard.writeText(imageVersion);
-        showToast("Version text copied", "info");
-      } catch (err) {
-        console.error("Failed to copy version to clipboard:", err);
-        showToast("Failed to copy version", "error");
+  const handleVersionClick = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      if (imageVersion) {
+        try {
+          await navigator.clipboard.writeText(imageVersion);
+          showToast("Version text copied", "info");
+        } catch (err) {
+          console.error("Failed to copy version to clipboard:", err);
+          showToast("Failed to copy version", "error");
+        }
       }
-    }
-  }, [imageVersion]);
+    },
+    [imageVersion]
+  );
 
   // Copy container name to clipboard
-  const handleContainerNameClick = useCallback(async (e) => {
-    e.stopPropagation();
-    if (container.name) {
-      try {
-        await navigator.clipboard.writeText(container.name);
-        showToast("Container name copied", "info");
-      } catch (err) {
-        console.error("Failed to copy container name to clipboard:", err);
-        showToast("Failed to copy container name", "error");
+  const handleContainerNameClick = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      if (container.name) {
+        try {
+          await navigator.clipboard.writeText(container.name);
+          showToast("Container name copied", "info");
+        } catch (err) {
+          console.error("Failed to copy container name to clipboard:", err);
+          showToast("Failed to copy container name", "error");
+        }
       }
-    }
-  }, [container.name]);
+    },
+    [container.name]
+  );
 
   // Open Docker Hub or GitHub Container Registry link for image name
-  const handleImageNameClick = useCallback((e) => {
-    e.stopPropagation();
-    if (container.image) {
-      if (isGitHubContainer) {
-        const githubUrl = getGitHubContainerUrl(container.image);
-        if (githubUrl) {
-          window.open(githubUrl, "_blank", "noopener,noreferrer");
-        }
-      } else if (isDockerHub) {
-        const dockerHubUrl = getDockerHubRepoUrl(container.image);
-        if (dockerHubUrl) {
-          window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
+  const handleImageNameClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      if (container.image) {
+        if (isGitHubContainer) {
+          const githubUrl = getGitHubContainerUrl(container.image);
+          if (githubUrl) {
+            window.open(githubUrl, "_blank", "noopener,noreferrer");
+          }
+        } else if (isDockerHub) {
+          const dockerHubUrl = getDockerHubRepoUrl(container.image);
+          if (dockerHubUrl) {
+            window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
+          }
         }
       }
-    }
-  }, [container.image, isGitHubContainer, isDockerHub, getGitHubContainerUrl]);
+    },
+    [container.image, isGitHubContainer, isDockerHub, getGitHubContainerUrl]
+  );
 
   return (
     <div
@@ -119,9 +128,12 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       role="article"
       aria-label={`Container ${container.name}`}
     >
-      <div className={styles.cardHeader} title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}>
+      <div
+        className={styles.cardHeader}
+        title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+      >
         <div className={styles.headerLeft}>
-          <h3 
+          <h3
             className={styles.containerName}
             title={container.name}
             onClick={handleContainerNameClick}
@@ -142,11 +154,14 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           </label>
         )}
       </div>
-      <div className={styles.cardBody} title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}>
+      <div
+        className={styles.cardBody}
+        title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+      >
         <div className={styles.imageHeaderContainer}>
           <div className={styles.imageHeaderLeft}>
-            <h4 
-              className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ''}`}
+            <h4
+              className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ""}`}
               title={imageNameWithoutVersion}
               onClick={handleImageNameClick}
             >
@@ -156,7 +171,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               <div className={styles.iconGroup}>
                 {isDockerHub ? (
                   <a
-                    href={getDockerHubRepoUrl(container.image) || '#'}
+                    href={getDockerHubRepoUrl(container.image) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.dockerIconLink}
@@ -177,7 +192,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                   </a>
                 ) : isGitHubContainer ? (
                   <a
-                    href={getGitHubContainerUrl(container.image) || '#'}
+                    href={getGitHubContainerUrl(container.image) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.githubIconLink}
@@ -200,7 +215,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             <div className={styles.iconGroup}>
               {isDockerHub ? (
                 <a
-                  href={getDockerHubRepoUrl(container.image) || '#'}
+                  href={getDockerHubRepoUrl(container.image) || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.dockerIconLink}
@@ -221,7 +236,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 </a>
               ) : isGitHubContainer ? (
                 <a
-                  href={getGitHubContainerUrl(container.image) || '#'}
+                  href={getGitHubContainerUrl(container.image) || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.githubIconLink}
@@ -239,9 +254,21 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               ) : null}
               {showUpdates && (
                 <span
-                  className={`${styles.upgradeCheckmark} ${(isPortainer || upgrading) ? styles.disabled : ''}`}
-                  title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"}
-                  aria-label={isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"}
+                  className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""}`}
+                  title={
+                    isPortainer
+                      ? PORTAINER_CONTAINER_MESSAGE
+                      : upgrading
+                        ? "Upgrading..."
+                        : "Upgrade"
+                  }
+                  aria-label={
+                    isPortainer
+                      ? PORTAINER_CONTAINER_MESSAGE
+                      : upgrading
+                        ? "Upgrading..."
+                        : "Upgrade"
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isPortainer && !upgrading) {
@@ -255,8 +282,9 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             </div>
           )}
         </div>
-        {showUpdates && container.portainerName && (
-          container.portainerUrl ? (
+        {showUpdates &&
+          container.portainerName &&
+          (container.portainerUrl ? (
             <a
               href={container.portainerUrl}
               target="_blank"
@@ -268,19 +296,17 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               {container.portainerName}
             </a>
           ) : (
-            <span className={styles.portainerBadge} title={`Portainer instance: ${container.portainerName}`}>
+            <span
+              className={styles.portainerBadge}
+              title={`Portainer instance: ${container.portainerName}`}
+            >
               {container.portainerName}
             </span>
-          )
-        )}
+          ))}
         {showUpdates && (
           <p className={styles.metaItem}>
             <strong>Version:</strong>{" "}
-            <span 
-              className={styles.versionText} 
-              title={imageVersion}
-              onClick={handleVersionClick}
-            >
+            <span className={styles.versionText} title={imageVersion} onClick={handleVersionClick}>
               {imageVersion}
             </span>
           </p>
@@ -292,8 +318,8 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         )}
         {!showUpdates && container.currentDigest && (
           <>
-            {container.portainerName && (
-              container.portainerUrl ? (
+            {container.portainerName &&
+              (container.portainerUrl ? (
                 <a
                   href={container.portainerUrl}
                   target="_blank"
@@ -305,15 +331,17 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                   {container.portainerName}
                 </a>
               ) : (
-                <span className={styles.portainerBadge} title={`Portainer instance: ${container.portainerName}`}>
+                <span
+                  className={styles.portainerBadge}
+                  title={`Portainer instance: ${container.portainerName}`}
+                >
                   {container.portainerName}
                 </span>
-              )
-            )}
+              ))}
             <p className={styles.metaItem}>
               <strong>Version:</strong>{" "}
-              <span 
-                className={styles.versionText} 
+              <span
+                className={styles.versionText}
                 title={imageVersion}
                 onClick={handleVersionClick}
               >
@@ -352,16 +380,15 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                       : "View tags on Docker Hub"
                   }
                 >
-                  {container.currentDigest 
+                  {container.currentDigest
                     ? `sha256:${container.currentDigest}`
-                    : (container.currentTag || container.currentVersion || 'latest')}
+                    : container.currentTag || container.currentVersion || "latest"}
                 </a>
               </span>
             </p>
             {container.currentVersionPublishDate && (
               <p className={styles.metaItem}>
-                <strong>Published:</strong>{" "}
-                {formatTimeAgo(container.currentVersionPublishDate)}
+                <strong>Published:</strong> {formatTimeAgo(container.currentVersionPublishDate)}
               </p>
             )}
           </>
@@ -384,4 +411,3 @@ PortainerContainerCard.propTypes = {
 PortainerContainerCard.displayName = "PortainerContainerCard";
 
 export default PortainerContainerCard;
-

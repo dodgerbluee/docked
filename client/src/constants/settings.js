@@ -53,4 +53,3 @@ export const DEFAULT_BATCH_CONFIG = {
   intervalValue: 60,
   intervalUnit: BATCH_INTERVAL_UNITS.MINUTES,
 };
-

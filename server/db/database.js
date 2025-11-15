@@ -19,9 +19,9 @@ function getDataDir() {
   if (process.env.DATA_DIR) {
     return process.env.DATA_DIR;
   }
-  if (process.env.NODE_ENV === 'test') {
-    const os = require('os');
-    return path.join(os.tmpdir(), 'docked-test-data');
+  if (process.env.NODE_ENV === "test") {
+    const os = require("os");
+    return path.join(os.tmpdir(), "docked-test-data");
   }
   return "/data";
 }
@@ -36,7 +36,7 @@ if (!fs.existsSync(DATA_DIR)) {
     logger.info(`Created data directory: ${DATA_DIR}`);
   } catch (err) {
     // In test environment, don't throw - just log the error
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       logger.error(`Failed to create test data directory: ${DATA_DIR}`, err);
     } else {
       logger.error(`Failed to create data directory: ${DATA_DIR}`, err);
@@ -108,58 +108,49 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error(
-            "Error creating portainer_instances table:",
-            err.message
-          );
+          logger.error("Error creating portainer_instances table:", err.message);
         } else {
           logger.info("Portainer instances table ready");
           // Create indexes for portainer_instances table
-          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating portainer URL index:", idxErr.message);
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating portainer URL index:", idxErr.message);
+              }
             }
-          });
-          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating display_order index:", idxErr.message);
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating display_order index:", idxErr.message);
+              }
             }
-          });
+          );
           // Add display_order column if it doesn't exist (migration)
           db.run(
             `ALTER TABLE portainer_instances ADD COLUMN display_order INTEGER DEFAULT 0`,
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                logger.error(
-                  "Error adding display_order column:",
-                  alterErr.message
-                );
+                logger.error("Error adding display_order column:", alterErr.message);
               }
             }
           );
           // Add api_key and auth_type columns if they don't exist (migration)
-          db.run(
-            `ALTER TABLE portainer_instances ADD COLUMN api_key TEXT`,
-            (alterErr) => {
-              // Ignore error if column already exists
-              if (alterErr && !alterErr.message.includes("duplicate column")) {
-                logger.error(
-                  "Error adding api_key column:",
-                  alterErr.message
-                );
-              }
+          db.run(`ALTER TABLE portainer_instances ADD COLUMN api_key TEXT`, (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.error("Error adding api_key column:", alterErr.message);
             }
-          );
+          });
           db.run(
             `ALTER TABLE portainer_instances ADD COLUMN auth_type TEXT DEFAULT 'password'`,
             (alterErr) => {
               // Ignore error if column already exists
               if (alterErr && !alterErr.message.includes("duplicate column")) {
-                logger.error(
-                  "Error adding auth_type column:",
-                  alterErr.message
-                );
+                logger.error("Error adding auth_type column:", alterErr.message);
               } else {
                 // Update existing rows to have auth_type = 'password'
                 db.run(
@@ -174,18 +165,12 @@ function initializeDatabase() {
             }
           );
           // Add ip_address column if it doesn't exist (migration)
-          db.run(
-            `ALTER TABLE portainer_instances ADD COLUMN ip_address TEXT`,
-            (alterErr) => {
-              // Ignore error if column already exists
-              if (alterErr && !alterErr.message.includes("duplicate column")) {
-                logger.error(
-                  "Error adding ip_address column:",
-                  alterErr.message
-                );
-              }
+          db.run(`ALTER TABLE portainer_instances ADD COLUMN ip_address TEXT`, (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.error("Error adding ip_address column:", alterErr.message);
             }
-          );
+          });
           // Make username and password nullable for API key auth
           // Note: SQLite doesn't support ALTER COLUMN, so we'll handle this in application logic
         }
@@ -203,10 +188,7 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error(
-            "Error creating docker_hub_credentials table:",
-            err.message
-          );
+          logger.error("Error creating docker_hub_credentials table:", err.message);
         } else {
           logger.info("Docker Hub credentials table ready");
         }
@@ -234,13 +216,10 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error(
-            "Error creating tracked_images table:",
-            err.message
-          );
+          logger.error("Error creating tracked_images table:", err.message);
         } else {
           logger.info("Tracked images table ready");
-          
+
           // Migrate existing tracked_images table to add new columns if needed
           db.run("ALTER TABLE tracked_images ADD COLUMN github_repo TEXT", (alterErr) => {
             // Ignore error if column already exists
@@ -248,42 +227,52 @@ function initializeDatabase() {
               logger.error("Error adding github_repo column:", alterErr.message);
             }
           });
-          db.run("ALTER TABLE tracked_images ADD COLUMN source_type TEXT DEFAULT 'docker'", (alterErr) => {
-            // Ignore error if column already exists
-            if (alterErr && !alterErr.message.includes("duplicate column")) {
-              logger.error("Error adding source_type column:", alterErr.message);
+          db.run(
+            "ALTER TABLE tracked_images ADD COLUMN source_type TEXT DEFAULT 'docker'",
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                logger.error("Error adding source_type column:", alterErr.message);
+              }
             }
-          });
+          );
           db.run("ALTER TABLE tracked_images ADD COLUMN gitlab_token TEXT", (alterErr) => {
             // Ignore error if column already exists
             if (alterErr && !alterErr.message.includes("duplicate column")) {
               logger.error("Error adding gitlab_token column:", alterErr.message);
             }
           });
-          db.run("ALTER TABLE tracked_images ADD COLUMN current_version_publish_date TEXT", (alterErr) => {
-            // Ignore error if column already exists
-            if (alterErr && !alterErr.message.includes("duplicate column")) {
-              logger.error("Error adding current_version_publish_date column:", alterErr.message);
+          db.run(
+            "ALTER TABLE tracked_images ADD COLUMN current_version_publish_date TEXT",
+            (alterErr) => {
+              // Ignore error if column already exists
+              if (alterErr && !alterErr.message.includes("duplicate column")) {
+                logger.error("Error adding current_version_publish_date column:", alterErr.message);
+              }
             }
-          });
-          
+          );
+
           // SQLite doesn't support ALTER COLUMN, so we need to recreate the table
           // to remove the NOT NULL constraint from image_name
-          db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_images'", [], (err, row) => {
-            if (!err && row && row.sql && row.sql.includes('image_name TEXT NOT NULL')) {
-              logger.info("Migrating tracked_images table to allow NULL image_name...");
-              // Check if new columns already exist
-              db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
-                if (pragmaErr) {
-                  logger.error("Error checking table info:", pragmaErr.message);
-                  return;
-                }
-                
-                const hasGithubRepo = columns.some(col => col.name === 'github_repo');
-                const hasSourceType = columns.some(col => col.name === 'source_type');
-                
-                // Create new table with correct schema
-                db.run(`
+          db.get(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_images'",
+            [],
+            (err, row) => {
+              if (!err && row && row.sql && row.sql.includes("image_name TEXT NOT NULL")) {
+                logger.info("Migrating tracked_images table to allow NULL image_name...");
+                // Check if new columns already exist
+                db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
+                  if (pragmaErr) {
+                    logger.error("Error checking table info:", pragmaErr.message);
+                    return;
+                  }
+
+                  const hasGithubRepo = columns.some((col) => col.name === "github_repo");
+                  const hasSourceType = columns.some((col) => col.name === "source_type");
+
+                  // Create new table with correct schema
+                  db.run(
+                    `
                   CREATE TABLE IF NOT EXISTS tracked_images_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -302,19 +291,25 @@ function initializeDatabase() {
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(image_name, github_repo)
                   )
-                `, (createErr) => {
-                  if (createErr) {
-                    logger.error("Error creating new tracked_images table:", createErr.message);
-                  } else {
-                    // Copy data from old table to new table
-                    // Use COALESCE to handle existing columns or defaults
-                    const githubRepoSelect = hasGithubRepo ? 'github_repo' : 'NULL';
-                    const sourceTypeSelect = hasSourceType ? 'source_type' : "'docker'";
-                    
-                    const hasLatestVersionPublishDate = columns.some(col => col.name === 'latest_version_publish_date');
-                    const latestVersionPublishDateSelect = hasLatestVersionPublishDate ? 'latest_version_publish_date' : 'NULL';
-                    
-                    db.run(`
+                `,
+                    (createErr) => {
+                      if (createErr) {
+                        logger.error("Error creating new tracked_images table:", createErr.message);
+                      } else {
+                        // Copy data from old table to new table
+                        // Use COALESCE to handle existing columns or defaults
+                        const githubRepoSelect = hasGithubRepo ? "github_repo" : "NULL";
+                        const sourceTypeSelect = hasSourceType ? "source_type" : "'docker'";
+
+                        const hasLatestVersionPublishDate = columns.some(
+                          (col) => col.name === "latest_version_publish_date"
+                        );
+                        const latestVersionPublishDateSelect = hasLatestVersionPublishDate
+                          ? "latest_version_publish_date"
+                          : "NULL";
+
+                        db.run(
+                          `
                       INSERT INTO tracked_images_new 
                       (id, name, image_name, github_repo, source_type, current_version, current_digest, latest_version, latest_digest, has_update, current_version_publish_date, latest_version_publish_date, last_checked, created_at, updated_at)
                       SELECT 
@@ -334,70 +329,109 @@ function initializeDatabase() {
                         created_at, 
                         updated_at
                       FROM tracked_images
-                    `, (copyErr) => {
-                      if (copyErr) {
-                        logger.error("Error copying data to new table:", copyErr.message);
-                      } else {
-                        // Drop old table
-                        db.run("DROP TABLE tracked_images", (dropErr) => {
-                          if (dropErr) {
-                            logger.error("Error dropping old tracked_images table:", dropErr.message);
-                          } else {
-                            // Rename new table
-                            db.run("ALTER TABLE tracked_images_new RENAME TO tracked_images", (renameErr) => {
-                              if (renameErr) {
-                                logger.error("Error renaming tracked_images table:", renameErr.message);
-                              } else {
-                                logger.info("Successfully migrated tracked_images table");
-                                // Recreate indexes
-                                db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)", () => {});
-                                db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)", () => {});
-                                db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)", () => {});
-                              }
-                            });
+                    `,
+                          (copyErr) => {
+                            if (copyErr) {
+                              logger.error("Error copying data to new table:", copyErr.message);
+                            } else {
+                              // Drop old table
+                              db.run("DROP TABLE tracked_images", (dropErr) => {
+                                if (dropErr) {
+                                  logger.error(
+                                    "Error dropping old tracked_images table:",
+                                    dropErr.message
+                                  );
+                                } else {
+                                  // Rename new table
+                                  db.run(
+                                    "ALTER TABLE tracked_images_new RENAME TO tracked_images",
+                                    (renameErr) => {
+                                      if (renameErr) {
+                                        logger.error(
+                                          "Error renaming tracked_images table:",
+                                          renameErr.message
+                                        );
+                                      } else {
+                                        logger.info("Successfully migrated tracked_images table");
+                                        // Recreate indexes
+                                        db.run(
+                                          "CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)",
+                                          () => {}
+                                        );
+                                        db.run(
+                                          "CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)",
+                                          () => {}
+                                        );
+                                        db.run(
+                                          "CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)",
+                                          () => {}
+                                        );
+                                      }
+                                    }
+                                  );
+                                }
+                              });
+                            }
                           }
-                        });
+                        );
                       }
-                    });
-                  }
-                });
-              });
-            }
-          });
-          
-          // Check if latest_version_publish_date column exists, add it if not
-          db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
-            if (!pragmaErr && columns) {
-              const hasLatestVersionPublishDate = columns.some(col => col.name === 'latest_version_publish_date');
-              if (!hasLatestVersionPublishDate) {
-                logger.info("Adding latest_version_publish_date column to tracked_images...");
-                db.run("ALTER TABLE tracked_images ADD COLUMN latest_version_publish_date TEXT", (alterErr) => {
-                  if (alterErr) {
-                    logger.error("Error adding latest_version_publish_date column:", alterErr.message);
-                  } else {
-                    logger.info("Successfully added latest_version_publish_date column");
-                  }
+                    }
+                  );
                 });
               }
             }
+          );
+
+          // Check if latest_version_publish_date column exists, add it if not
+          db.all("PRAGMA table_info(tracked_images)", [], (pragmaErr, columns) => {
+            if (!pragmaErr && columns) {
+              const hasLatestVersionPublishDate = columns.some(
+                (col) => col.name === "latest_version_publish_date"
+              );
+              if (!hasLatestVersionPublishDate) {
+                logger.info("Adding latest_version_publish_date column to tracked_images...");
+                db.run(
+                  "ALTER TABLE tracked_images ADD COLUMN latest_version_publish_date TEXT",
+                  (alterErr) => {
+                    if (alterErr) {
+                      logger.error(
+                        "Error adding latest_version_publish_date column:",
+                        alterErr.message
+                      );
+                    } else {
+                      logger.info("Successfully added latest_version_publish_date column");
+                    }
+                  }
+                );
+              }
+            }
           });
-          
+
           // Create indexes
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating tracked_images name index:", idxErr.message);
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating tracked_images name index:", idxErr.message);
+              }
             }
-          });
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating tracked_images image_name index:", idxErr.message);
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating tracked_images image_name index:", idxErr.message);
+              }
             }
-          });
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating tracked_images github_repo index:", idxErr.message);
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating tracked_images github_repo index:", idxErr.message);
+              }
             }
-          });
+          );
         }
       }
     );
@@ -417,16 +451,22 @@ function initializeDatabase() {
         } else {
           logger.info("Container cache table ready");
           // Create indexes for container_cache table
-          db.run("CREATE INDEX IF NOT EXISTS idx_cache_key ON container_cache(cache_key)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating cache_key index:", idxErr.message);
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_cache_key ON container_cache(cache_key)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating cache_key index:", idxErr.message);
+              }
             }
-          });
-          db.run("CREATE INDEX IF NOT EXISTS idx_cache_updated_at ON container_cache(updated_at)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating cache updated_at index:", idxErr.message);
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_cache_updated_at ON container_cache(updated_at)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating cache updated_at index:", idxErr.message);
+              }
             }
-          });
+          );
         }
       }
     );
@@ -443,10 +483,7 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error(
-            "Error creating batch_config table:",
-            err.message
-          );
+          logger.error("Error creating batch_config table:", err.message);
         } else {
           logger.info("Batch config table ready");
           // Check if job_type column exists and if there's a CHECK constraint on id
@@ -455,47 +492,55 @@ function initializeDatabase() {
               logger.error("Error checking batch_config schema:", pragmaErr.message);
               return;
             }
-            
-            const hasJobType = columns.some(col => col.name === 'job_type');
-            
+
+            const hasJobType = columns.some((col) => col.name === "job_type");
+
             // Check for CHECK constraint by looking at table creation SQL
-            db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='batch_config'", (sqlErr, tableInfo) => {
-              if (sqlErr) {
-                logger.error("Error checking batch_config SQL:", sqlErr.message);
-                return;
-              }
-              
-              const hasCheckConstraint = tableInfo && tableInfo.sql && tableInfo.sql.includes('CHECK') && tableInfo.sql.includes('id = 1');
-              const needsMigration = !hasJobType || hasCheckConstraint;
-              
-              if (needsMigration) {
-                logger.info("Migrating batch_config table to remove CHECK constraint and add job_type column...");
-                // Always recreate the table to remove CHECK constraint
-                db.run("BEGIN TRANSACTION", (beginErr) => {
-                  if (beginErr) {
-                    logger.error("Error beginning transaction:", beginErr.message);
-                    return;
-                  }
-                  
-                  // Get existing data
-                  db.all("SELECT * FROM batch_config", [], (selectErr, oldRows) => {
-                    if (selectErr) {
-                      logger.error("Error reading old batch_config:", selectErr.message);
-                      db.run("ROLLBACK");
+            db.get(
+              "SELECT sql FROM sqlite_master WHERE type='table' AND name='batch_config'",
+              (sqlErr, tableInfo) => {
+                if (sqlErr) {
+                  logger.error("Error checking batch_config SQL:", sqlErr.message);
+                  return;
+                }
+
+                const hasCheckConstraint =
+                  tableInfo &&
+                  tableInfo.sql &&
+                  tableInfo.sql.includes("CHECK") &&
+                  tableInfo.sql.includes("id = 1");
+                const needsMigration = !hasJobType || hasCheckConstraint;
+
+                if (needsMigration) {
+                  logger.info(
+                    "Migrating batch_config table to remove CHECK constraint and add job_type column..."
+                  );
+                  // Always recreate the table to remove CHECK constraint
+                  db.run("BEGIN TRANSACTION", (beginErr) => {
+                    if (beginErr) {
+                      logger.error("Error beginning transaction:", beginErr.message);
                       return;
                     }
-                    
-                    // Drop old table
-                    db.run("DROP TABLE batch_config", (dropErr) => {
-                      if (dropErr) {
-                        logger.error("Error dropping batch_config:", dropErr.message);
+
+                    // Get existing data
+                    db.all("SELECT * FROM batch_config", [], (selectErr, oldRows) => {
+                      if (selectErr) {
+                        logger.error("Error reading old batch_config:", selectErr.message);
                         db.run("ROLLBACK");
                         return;
                       }
-                      
-                      // Create new table with job_type and no CHECK constraint
-                      db.run(
-                        `CREATE TABLE batch_config (
+
+                      // Drop old table
+                      db.run("DROP TABLE batch_config", (dropErr) => {
+                        if (dropErr) {
+                          logger.error("Error dropping batch_config:", dropErr.message);
+                          db.run("ROLLBACK");
+                          return;
+                        }
+
+                        // Create new table with job_type and no CHECK constraint
+                        db.run(
+                          `CREATE TABLE batch_config (
                           id INTEGER PRIMARY KEY AUTOINCREMENT,
                           job_type TEXT NOT NULL UNIQUE,
                           enabled INTEGER DEFAULT 0,
@@ -503,139 +548,180 @@ function initializeDatabase() {
                           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                         )`,
-                        (createErr) => {
-                          if (createErr) {
-                            logger.error("Error recreating batch_config:", createErr.message);
-                            db.run("ROLLBACK");
-                            return;
-                          }
-                          
-                          // Migrate old data - assume it's for docker-hub-pull
-                          if (oldRows && oldRows.length > 0) {
-                            const oldRow = oldRows[0];
-                            db.run(
-                              "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', ?, ?)",
-                              [oldRow.enabled || 0, oldRow.interval_minutes || 60],
-                              (insertErr) => {
-                                if (insertErr) {
-                                  logger.error("Error migrating docker-hub-pull config:", insertErr.message);
-                                }
-                                // Also ensure tracked-apps-check exists
-                                db.run(
-                                  "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
-                                  (insertErr2) => {
-                                    if (insertErr2) {
-                                      logger.error("Error creating tracked-apps-check config:", insertErr2.message);
-                                    }
-                                    db.run("COMMIT", (commitErr) => {
-                                      if (commitErr) {
-                                        logger.error("Error committing transaction:", commitErr.message);
-                                      } else {
-                                        logger.info("✅ Successfully migrated batch_config table (removed CHECK constraint)");
-                                      }
-                                    });
+                          (createErr) => {
+                            if (createErr) {
+                              logger.error("Error recreating batch_config:", createErr.message);
+                              db.run("ROLLBACK");
+                              return;
+                            }
+
+                            // Migrate old data - assume it's for docker-hub-pull
+                            if (oldRows && oldRows.length > 0) {
+                              const oldRow = oldRows[0];
+                              db.run(
+                                "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', ?, ?)",
+                                [oldRow.enabled || 0, oldRow.interval_minutes || 60],
+                                (insertErr) => {
+                                  if (insertErr) {
+                                    logger.error(
+                                      "Error migrating docker-hub-pull config:",
+                                      insertErr.message
+                                    );
                                   }
+                                  // Also ensure tracked-apps-check exists
+                                  db.run(
+                                    "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
+                                    (insertErr2) => {
+                                      if (insertErr2) {
+                                        logger.error(
+                                          "Error creating tracked-apps-check config:",
+                                          insertErr2.message
+                                        );
+                                      }
+                                      db.run("COMMIT", (commitErr) => {
+                                        if (commitErr) {
+                                          logger.error(
+                                            "Error committing transaction:",
+                                            commitErr.message
+                                          );
+                                        } else {
+                                          logger.info(
+                                            "✅ Successfully migrated batch_config table (removed CHECK constraint)"
+                                          );
+                                        }
+                                      });
+                                    }
+                                  );
+                                }
+                              );
+                            } else {
+                              // No old data, just create defaults
+                              db.run(
+                                "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
+                                (insertErr1) => {
+                                  if (insertErr1) {
+                                    logger.error(
+                                      "Error creating docker-hub-pull config:",
+                                      insertErr1.message
+                                    );
+                                  }
+                                  db.run(
+                                    "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
+                                    (insertErr2) => {
+                                      if (insertErr2) {
+                                        logger.error(
+                                          "Error creating tracked-apps-check config:",
+                                          insertErr2.message
+                                        );
+                                      }
+                                      db.run("COMMIT", (commitErr) => {
+                                        if (commitErr) {
+                                          logger.error(
+                                            "Error committing transaction:",
+                                            commitErr.message
+                                          );
+                                        } else {
+                                          logger.info(
+                                            "✅ Successfully recreated batch_config table (removed CHECK constraint)"
+                                          );
+                                        }
+                                      });
+                                    }
+                                  );
+                                }
+                              );
+                            }
+                          }
+                        );
+                      });
+                    });
+                  });
+                } else {
+                  // Column exists, proceed with normal migration
+                  // Migrate old single-row config to new per-job-type configs
+                  db.get("SELECT * FROM batch_config WHERE id = 1", (migrateErr, oldRow) => {
+                    if (!migrateErr && oldRow && !oldRow.job_type) {
+                      // Old format exists, migrate it
+                      const enabled = oldRow.enabled || 0;
+                      const intervalMinutes = oldRow.interval_minutes || 60;
+
+                      // Delete old row
+                      db.run("DELETE FROM batch_config WHERE id = 1", (delErr) => {
+                        if (delErr) {
+                          logger.error("Error deleting old batch_config:", delErr.message);
+                        } else {
+                          // Insert new rows for each job type
+                          db.run(
+                            "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', ?, ?)",
+                            [enabled, intervalMinutes],
+                            (insertErr1) => {
+                              if (insertErr1) {
+                                logger.error(
+                                  "Error migrating docker-hub-pull config:",
+                                  insertErr1.message
                                 );
                               }
-                            );
-                          } else {
-                            // No old data, just create defaults
+                            }
+                          );
+                          db.run(
+                            "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', ?, ?)",
+                            [enabled, intervalMinutes],
+                            (insertErr2) => {
+                              if (insertErr2) {
+                                logger.error(
+                                  "Error migrating tracked-apps-check config:",
+                                  insertErr2.message
+                                );
+                              } else {
+                                logger.info("✅ Migrated batch_config to per-job-type format");
+                              }
+                            }
+                          );
+                        }
+                      });
+                    } else {
+                      // No old config or already migrated, initialize defaults
+                      db.get(
+                        "SELECT id FROM batch_config WHERE job_type = 'docker-hub-pull'",
+                        (initErr1, row1) => {
+                          if (!initErr1 && !row1) {
                             db.run(
                               "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
                               (insertErr1) => {
                                 if (insertErr1) {
-                                  logger.error("Error creating docker-hub-pull config:", insertErr1.message);
+                                  logger.error(
+                                    "Error initializing docker-hub-pull config:",
+                                    insertErr1.message
+                                  );
                                 }
-                                db.run(
-                                  "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
-                                  (insertErr2) => {
-                                    if (insertErr2) {
-                                      logger.error("Error creating tracked-apps-check config:", insertErr2.message);
-                                    }
-                                    db.run("COMMIT", (commitErr) => {
-                                      if (commitErr) {
-                                        logger.error("Error committing transaction:", commitErr.message);
-                                      } else {
-                                        logger.info("✅ Successfully recreated batch_config table (removed CHECK constraint)");
-                                      }
-                                    });
-                                  }
-                                );
                               }
                             );
                           }
                         }
                       );
-                    });
-                  });
-                });
-              } else {
-              // Column exists, proceed with normal migration
-              // Migrate old single-row config to new per-job-type configs
-              db.get("SELECT * FROM batch_config WHERE id = 1", (migrateErr, oldRow) => {
-                if (!migrateErr && oldRow && !oldRow.job_type) {
-                  // Old format exists, migrate it
-                  const enabled = oldRow.enabled || 0;
-                  const intervalMinutes = oldRow.interval_minutes || 60;
-                  
-                  // Delete old row
-                  db.run("DELETE FROM batch_config WHERE id = 1", (delErr) => {
-                    if (delErr) {
-                      logger.error("Error deleting old batch_config:", delErr.message);
-                    } else {
-                      // Insert new rows for each job type
-                      db.run(
-                        "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', ?, ?)",
-                        [enabled, intervalMinutes],
-                        (insertErr1) => {
-                          if (insertErr1) {
-                            logger.error("Error migrating docker-hub-pull config:", insertErr1.message);
-                          }
-                        }
-                      );
-                      db.run(
-                        "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', ?, ?)",
-                        [enabled, intervalMinutes],
-                        (insertErr2) => {
-                          if (insertErr2) {
-                            logger.error("Error migrating tracked-apps-check config:", insertErr2.message);
-                          } else {
-                            logger.info("✅ Migrated batch_config to per-job-type format");
-                          }
-                        }
-                      );
-                    }
-                  });
-                } else {
-                  // No old config or already migrated, initialize defaults
-                  db.get("SELECT id FROM batch_config WHERE job_type = 'docker-hub-pull'", (initErr1, row1) => {
-                    if (!initErr1 && !row1) {
-                      db.run(
-                        "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
-                        (insertErr1) => {
-                          if (insertErr1) {
-                            logger.error("Error initializing docker-hub-pull config:", insertErr1.message);
-                          }
-                        }
-                      );
-                    }
-                  });
-                  db.get("SELECT id FROM batch_config WHERE job_type = 'tracked-apps-check'", (initErr2, row2) => {
-                    if (!initErr2 && !row2) {
-                      db.run(
-                        "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
-                        (insertErr2) => {
-                          if (insertErr2) {
-                            logger.error("Error initializing tracked-apps-check config:", insertErr2.message);
+                      db.get(
+                        "SELECT id FROM batch_config WHERE job_type = 'tracked-apps-check'",
+                        (initErr2, row2) => {
+                          if (!initErr2 && !row2) {
+                            db.run(
+                              "INSERT INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
+                              (insertErr2) => {
+                                if (insertErr2) {
+                                  logger.error(
+                                    "Error initializing tracked-apps-check config:",
+                                    insertErr2.message
+                                  );
+                                }
+                              }
+                            );
                           }
                         }
                       );
                     }
                   });
                 }
-              });
-            }
-            }); // Close db.get at line 391
+              }
+            ); // Close db.get at line 391
           }); // Close db.all at line 382
         }
       }
@@ -682,12 +768,15 @@ function initializeDatabase() {
         } else {
           logger.info("Discord webhooks table ready");
           // Create index for discord_webhooks table
-          db.run("CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating discord_webhooks enabled index:", idxErr.message);
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating discord_webhooks enabled index:", idxErr.message);
+              }
             }
-          });
-          
+          );
+
           // Add avatar_url column if it doesn't exist (migration)
           db.run("ALTER TABLE discord_webhooks ADD COLUMN avatar_url TEXT", (alterErr) => {
             // Ignore error if column already exists
@@ -697,7 +786,7 @@ function initializeDatabase() {
               logger.info("Added avatar_url column to discord_webhooks table");
             }
           });
-          
+
           // Add guild_id and channel_id columns if they don't exist (migration)
           db.run("ALTER TABLE discord_webhooks ADD COLUMN guild_id TEXT", (alterErr) => {
             if (alterErr && !alterErr.message.includes("duplicate column")) {
@@ -706,7 +795,7 @@ function initializeDatabase() {
               logger.info("Added guild_id column to discord_webhooks table");
             }
           });
-          
+
           db.run("ALTER TABLE discord_webhooks ADD COLUMN channel_id TEXT", (alterErr) => {
             if (alterErr && !alterErr.message.includes("duplicate column")) {
               logger.error("Error adding channel_id column:", alterErr.message);
@@ -738,16 +827,22 @@ function initializeDatabase() {
         } else {
           logger.info("Batch runs table ready");
           // Create indexes for batch_runs table
-          db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating batch_runs started_at index:", idxErr.message);
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating batch_runs started_at index:", idxErr.message);
+              }
             }
-          });
-          db.run("CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)", (idxErr) => {
-            if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating batch_runs status index:", idxErr.message);
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating batch_runs status index:", idxErr.message);
+              }
             }
-          });
+          );
           // Add job_type column if it doesn't exist (migration)
           db.run(
             `ALTER TABLE batch_runs ADD COLUMN job_type TEXT DEFAULT 'docker-hub-pull'`,
@@ -756,15 +851,12 @@ function initializeDatabase() {
             }
           );
           // Add is_manual column if it doesn't exist (migration)
-          db.run(
-            `ALTER TABLE batch_runs ADD COLUMN is_manual INTEGER DEFAULT 0`,
-            (alterErr) => {
-              // Ignore error if column already exists
-              if (alterErr && !alterErr.message.includes("duplicate column")) {
-                logger.error("Error adding is_manual column:", alterErr.message);
-              }
+          db.run(`ALTER TABLE batch_runs ADD COLUMN is_manual INTEGER DEFAULT 0`, (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.error("Error adding is_manual column:", alterErr.message);
             }
-          );
+          });
         }
       }
     );
@@ -784,8 +876,7 @@ async function createDefaultAdmin() {
     if (row.count === 0) {
       // Use ADMIN_PASSWORD if set and not empty, otherwise default to 'admin'
       const defaultPassword =
-        (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) ||
-        "admin";
+        (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) || "admin";
       const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
       db.run(
@@ -795,9 +886,7 @@ async function createDefaultAdmin() {
           if (err) {
             logger.error("Error creating default admin:", err.message);
           } else {
-            logger.info(
-              "Default admin user created (username: admin, password: admin)"
-            );
+            logger.info("Default admin user created (username: admin, password: admin)");
             logger.info("⚠️  Password change will be required on first login!");
           }
         }
@@ -861,11 +950,7 @@ async function verifyPassword(plainPassword, hashedPassword) {
  * @param {boolean} markPasswordChanged - Mark password as changed (for first login)
  * @returns {Promise<void>}
  */
-async function updatePassword(
-  username,
-  newPassword,
-  markPasswordChanged = true
-) {
+async function updatePassword(username, newPassword, markPasswordChanged = true) {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   return new Promise((resolve, reject) => {
     db.run(
@@ -980,40 +1065,44 @@ function getPortainerInstanceById(id) {
  * @param {string} ipAddress - IP address (optional, will be resolved if not provided)
  * @returns {Promise<number>} - ID of created instance
  */
-function createPortainerInstance(name, url, username, password, apiKey = null, authType = 'apikey', ipAddress = null) {
+function createPortainerInstance(
+  name,
+  url,
+  username,
+  password,
+  apiKey = null,
+  authType = "apikey",
+  ipAddress = null
+) {
   return new Promise((resolve, reject) => {
     // Get max display_order to set new instance at the end
-    db.get(
-      "SELECT MAX(display_order) as max_order FROM portainer_instances",
-      [],
-      (err, row) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        const nextOrder = (row?.max_order ?? -1) + 1;
-
-        // Use appropriate fields based on auth type
-        // IMPORTANT: When creating with a specific auth type, only store data for that method
-        // Use empty strings instead of null to satisfy NOT NULL constraints
-        const finalUsername = authType === 'apikey' ? '' : (username || '');
-        const finalPassword = authType === 'apikey' ? '' : (password || '');
-        // Only store API key when using API key auth, otherwise set to null
-        const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
-
-        db.run(
-          "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder, ipAddress],
-          function (insertErr) {
-            if (insertErr) {
-              reject(insertErr);
-            } else {
-              resolve(this.lastID);
-            }
-          }
-        );
+    db.get("SELECT MAX(display_order) as max_order FROM portainer_instances", [], (err, row) => {
+      if (err) {
+        reject(err);
+        return;
       }
-    );
+      const nextOrder = (row?.max_order ?? -1) + 1;
+
+      // Use appropriate fields based on auth type
+      // IMPORTANT: When creating with a specific auth type, only store data for that method
+      // Use empty strings instead of null to satisfy NOT NULL constraints
+      const finalUsername = authType === "apikey" ? "" : username || "";
+      const finalPassword = authType === "apikey" ? "" : password || "";
+      // Only store API key when using API key auth, otherwise set to null
+      const finalApiKey = authType === "apikey" ? apiKey || null : null;
+
+      db.run(
+        "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder, ipAddress],
+        function (insertErr) {
+          if (insertErr) {
+            reject(insertErr);
+          } else {
+            resolve(this.lastID);
+          }
+        }
+      );
+    });
   });
 }
 
@@ -1029,15 +1118,24 @@ function createPortainerInstance(name, url, username, password, apiKey = null, a
  * @param {string} ipAddress - IP address (optional)
  * @returns {Promise<void>}
  */
-function updatePortainerInstance(id, name, url, username, password, apiKey = null, authType = 'apikey', ipAddress = null) {
+function updatePortainerInstance(
+  id,
+  name,
+  url,
+  username,
+  password,
+  apiKey = null,
+  authType = "apikey",
+  ipAddress = null
+) {
   return new Promise((resolve, reject) => {
     // Use appropriate fields based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
     // Use empty strings instead of null to satisfy NOT NULL constraints
-    const finalUsername = authType === 'apikey' ? '' : (username || '');
-    const finalPassword = authType === 'apikey' ? '' : (password || '');
+    const finalUsername = authType === "apikey" ? "" : username || "";
+    const finalPassword = authType === "apikey" ? "" : password || "";
     // Clear API key when using password auth, set it when using API key auth
-    const finalApiKey = authType === 'apikey' ? (apiKey || null) : null;
+    const finalApiKey = authType === "apikey" ? apiKey || null : null;
 
     db.run(
       "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, ip_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1060,17 +1158,13 @@ function updatePortainerInstance(id, name, url, username, password, apiKey = nul
  */
 function deletePortainerInstance(id) {
   return new Promise((resolve, reject) => {
-    db.run(
-      "DELETE FROM portainer_instances WHERE id = ?",
-      [id],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+    db.run("DELETE FROM portainer_instances WHERE id = ?", [id], function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 
@@ -1172,17 +1266,13 @@ function updateDockerHubCredentials(username, token) {
  */
 function deleteDockerHubCredentials() {
   return new Promise((resolve, reject) => {
-    db.run(
-      "DELETE FROM docker_hub_credentials WHERE id = 1",
-      [],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+    db.run("DELETE FROM docker_hub_credentials WHERE id = 1", [], function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 
@@ -1299,7 +1389,7 @@ function getBatchConfig(jobType = null) {
             reject(err);
           } else {
             const configs = {};
-            rows.forEach(row => {
+            rows.forEach((row) => {
               configs[row.job_type] = {
                 enabled: row.enabled === 1,
                 intervalMinutes: row.interval_minutes,
@@ -1307,11 +1397,15 @@ function getBatchConfig(jobType = null) {
               };
             });
             // Ensure both job types exist
-            if (!configs['docker-hub-pull']) {
-              configs['docker-hub-pull'] = { enabled: false, intervalMinutes: 60, updatedAt: null };
+            if (!configs["docker-hub-pull"]) {
+              configs["docker-hub-pull"] = { enabled: false, intervalMinutes: 60, updatedAt: null };
             }
-            if (!configs['tracked-apps-check']) {
-              configs['tracked-apps-check'] = { enabled: false, intervalMinutes: 60, updatedAt: null };
+            if (!configs["tracked-apps-check"]) {
+              configs["tracked-apps-check"] = {
+                enabled: false,
+                intervalMinutes: 60,
+                updatedAt: null,
+              };
             }
             resolve(configs);
           }
@@ -1362,7 +1456,7 @@ function updateBatchConfig(jobType, enabled, intervalMinutes) {
  * @param {boolean} isManual - Whether this run was manually triggered
  * @returns {Promise<number>} - ID of created batch run
  */
-function createBatchRun(status = 'running', jobType = 'docker-hub-pull', isManual = false) {
+function createBatchRun(status = "running", jobType = "docker-hub-pull", isManual = false) {
   return new Promise((resolve, reject) => {
     db.run(
       "INSERT INTO batch_runs (status, job_type, is_manual, started_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
@@ -1388,52 +1482,58 @@ function createBatchRun(status = 'running', jobType = 'docker-hub-pull', isManua
  * @param {string} logs - Log output from the run
  * @returns {Promise<void>}
  */
-function updateBatchRun(runId, status, containersChecked = 0, containersUpdated = 0, errorMessage = null, logs = null) {
+function updateBatchRun(
+  runId,
+  status,
+  containersChecked = 0,
+  containersUpdated = 0,
+  errorMessage = null,
+  logs = null
+) {
   return new Promise((resolve, reject) => {
     // Calculate duration
-    db.get(
-      "SELECT started_at FROM batch_runs WHERE id = ?",
-      [runId],
-      (err, row) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        if (!row) {
-          reject(new Error('Batch run not found'));
-          return;
-        }
+    db.get("SELECT started_at FROM batch_runs WHERE id = ?", [runId], (err, row) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      if (!row) {
+        reject(new Error("Batch run not found"));
+        return;
+      }
 
-        // Parse started_at as UTC (SQLite DATETIME is stored as UTC without timezone info)
-        const startedAtStr = row.started_at;
-        let startedAt;
-        if (typeof startedAtStr === 'string' && /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)) {
-          // SQLite datetime format - convert to ISO and add Z for UTC
-          startedAt = new Date(startedAtStr.replace(' ', 'T') + 'Z');
-        } else {
-          startedAt = new Date(startedAtStr);
-        }
-        
-        // Use current time in UTC for consistency
-        const completedAt = new Date();
-        const durationMs = completedAt.getTime() - startedAt.getTime();
+      // Parse started_at as UTC (SQLite DATETIME is stored as UTC without timezone info)
+      const startedAtStr = row.started_at;
+      let startedAt;
+      if (
+        typeof startedAtStr === "string" &&
+        /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)
+      ) {
+        // SQLite datetime format - convert to ISO and add Z for UTC
+        startedAt = new Date(startedAtStr.replace(" ", "T") + "Z");
+      } else {
+        startedAt = new Date(startedAtStr);
+      }
 
-        db.run(
-          `UPDATE batch_runs 
+      // Use current time in UTC for consistency
+      const completedAt = new Date();
+      const durationMs = completedAt.getTime() - startedAt.getTime();
+
+      db.run(
+        `UPDATE batch_runs 
            SET status = ?, completed_at = CURRENT_TIMESTAMP, duration_ms = ?, 
                containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
            WHERE id = ?`,
-          [status, durationMs, containersChecked, containersUpdated, errorMessage, logs, runId],
-          function (updateErr) {
-            if (updateErr) {
-              reject(updateErr);
-            } else {
-              resolve();
-            }
+        [status, durationMs, containersChecked, containersUpdated, errorMessage, logs, runId],
+        function (updateErr) {
+          if (updateErr) {
+            reject(updateErr);
+          } else {
+            resolve();
           }
-        );
-      }
-    );
+        }
+      );
+    });
   });
 }
 
@@ -1444,17 +1544,13 @@ function updateBatchRun(runId, status, containersChecked = 0, containersUpdated 
  */
 function getBatchRunById(runId) {
   return new Promise((resolve, reject) => {
-    db.get(
-      "SELECT * FROM batch_runs WHERE id = ?",
-      [runId],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
-        }
+    db.get("SELECT * FROM batch_runs WHERE id = ?", [runId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
       }
-    );
+    });
   });
 }
 
@@ -1465,17 +1561,13 @@ function getBatchRunById(runId) {
  */
 function getRecentBatchRuns(limit = 50) {
   return new Promise((resolve, reject) => {
-    db.all(
-      "SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT ?",
-      [limit],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows || []);
-        }
+    db.all("SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT ?", [limit], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows || []);
       }
-    );
+    });
   });
 }
 
@@ -1485,17 +1577,13 @@ function getRecentBatchRuns(limit = 50) {
  */
 function getLatestBatchRun() {
   return new Promise((resolve, reject) => {
-    db.get(
-      "SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT 1",
-      [],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
-        }
+    db.get("SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT 1", [], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
       }
-    );
+    });
   });
 }
 
@@ -1526,13 +1614,13 @@ function getLatestBatchRunByJobType(jobType) {
  */
 function getLatestBatchRunsByJobType() {
   return new Promise((resolve, reject) => {
-    const jobTypes = ['docker-hub-pull', 'tracked-apps-check'];
-    const promises = jobTypes.map(jobType => 
-      getLatestBatchRunByJobType(jobType).then(run => ({ jobType, run }))
+    const jobTypes = ["docker-hub-pull", "tracked-apps-check"];
+    const promises = jobTypes.map((jobType) =>
+      getLatestBatchRunByJobType(jobType).then((run) => ({ jobType, run }))
     );
-    
+
     Promise.all(promises)
-      .then(results => {
+      .then((results) => {
         const latestRuns = {};
         results.forEach(({ jobType, run }) => {
           latestRuns[jobType] = run;
@@ -1565,17 +1653,13 @@ function closeDatabase() {
  */
 function getAllTrackedImages() {
   return new Promise((resolve, reject) => {
-    db.all(
-      "SELECT * FROM tracked_images ORDER BY name ASC",
-      [],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows || []);
-        }
+    db.all("SELECT * FROM tracked_images ORDER BY name ASC", [], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows || []);
       }
-    );
+    });
   });
 }
 
@@ -1586,17 +1670,13 @@ function getAllTrackedImages() {
  */
 function getTrackedImageById(id) {
   return new Promise((resolve, reject) => {
-    db.get(
-      "SELECT * FROM tracked_images WHERE id = ?",
-      [id],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
-        }
+    db.get("SELECT * FROM tracked_images WHERE id = ?", [id], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
       }
-    );
+    });
   });
 }
 
@@ -1609,29 +1689,21 @@ function getTrackedImageById(id) {
 function getTrackedImageByImageName(imageName = null, githubRepo = null) {
   return new Promise((resolve, reject) => {
     if (githubRepo) {
-      db.get(
-        "SELECT * FROM tracked_images WHERE github_repo = ?",
-        [githubRepo],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row || null);
-          }
+      db.get("SELECT * FROM tracked_images WHERE github_repo = ?", [githubRepo], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
         }
-      );
+      });
     } else if (imageName) {
-      db.get(
-        "SELECT * FROM tracked_images WHERE image_name = ?",
-        [imageName],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row || null);
-          }
+      db.get("SELECT * FROM tracked_images WHERE image_name = ?", [imageName], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
         }
-      );
+      });
     } else {
       resolve(null);
     }
@@ -1647,7 +1719,13 @@ function getTrackedImageByImageName(imageName = null, githubRepo = null) {
  * @param {string} gitlabToken - GitLab token for authentication (optional)
  * @returns {Promise<number>} - ID of created tracked image
  */
-function createTrackedImage(name, imageName = null, githubRepo = null, sourceType = 'docker', gitlabToken = null) {
+function createTrackedImage(
+  name,
+  imageName = null,
+  githubRepo = null,
+  sourceType = "docker",
+  gitlabToken = null
+) {
   return new Promise((resolve, reject) => {
     db.run(
       "INSERT INTO tracked_images (name, image_name, github_repo, source_type, gitlab_token) VALUES (?, ?, ?, ?, ?)",
@@ -1675,47 +1753,47 @@ function updateTrackedImage(id, updateData) {
     const values = [];
 
     if (updateData.name !== undefined) {
-      fields.push('name = ?');
+      fields.push("name = ?");
       values.push(updateData.name);
     }
     if (updateData.image_name !== undefined) {
-      fields.push('image_name = ?');
+      fields.push("image_name = ?");
       values.push(updateData.image_name);
     }
     if (updateData.current_version !== undefined) {
-      fields.push('current_version = ?');
+      fields.push("current_version = ?");
       values.push(updateData.current_version);
     }
     if (updateData.current_digest !== undefined) {
-      fields.push('current_digest = ?');
+      fields.push("current_digest = ?");
       values.push(updateData.current_digest);
     }
     if (updateData.latest_version !== undefined) {
-      fields.push('latest_version = ?');
+      fields.push("latest_version = ?");
       values.push(updateData.latest_version);
     }
     if (updateData.latest_digest !== undefined) {
-      fields.push('latest_digest = ?');
+      fields.push("latest_digest = ?");
       values.push(updateData.latest_digest);
     }
     if (updateData.has_update !== undefined) {
-      fields.push('has_update = ?');
+      fields.push("has_update = ?");
       values.push(updateData.has_update ? 1 : 0);
     }
     if (updateData.last_checked !== undefined) {
-      fields.push('last_checked = ?');
+      fields.push("last_checked = ?");
       values.push(updateData.last_checked);
     }
     if (updateData.current_version_publish_date !== undefined) {
-      fields.push('current_version_publish_date = ?');
+      fields.push("current_version_publish_date = ?");
       values.push(updateData.current_version_publish_date);
     }
     if (updateData.latest_version_publish_date !== undefined) {
-      fields.push('latest_version_publish_date = ?');
+      fields.push("latest_version_publish_date = ?");
       values.push(updateData.latest_version_publish_date);
     }
     if (updateData.gitlab_token !== undefined) {
-      fields.push('gitlab_token = ?');
+      fields.push("gitlab_token = ?");
       values.push(updateData.gitlab_token);
     }
 
@@ -1724,10 +1802,10 @@ function updateTrackedImage(id, updateData) {
       return;
     }
 
-    fields.push('updated_at = CURRENT_TIMESTAMP');
+    fields.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id);
 
-    const sql = `UPDATE tracked_images SET ${fields.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE tracked_images SET ${fields.join(", ")} WHERE id = ?`;
 
     db.run(sql, values, function (err) {
       if (err) {
@@ -1746,17 +1824,13 @@ function updateTrackedImage(id, updateData) {
  */
 function deleteTrackedImage(id) {
   return new Promise((resolve, reject) => {
-    db.run(
-      "DELETE FROM tracked_images WHERE id = ?",
-      [id],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+    db.run("DELETE FROM tracked_images WHERE id = ?", [id], function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 
@@ -1793,17 +1867,13 @@ function clearLatestVersionsForAllTrackedImages() {
  */
 function getSetting(key) {
   return new Promise((resolve, reject) => {
-    db.get(
-      "SELECT value FROM settings WHERE key = ?",
-      [key],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row ? row.value : null);
-        }
+    db.get("SELECT value FROM settings WHERE key = ?", [key], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row ? row.value : null);
       }
-    );
+    });
   });
 }
 
@@ -1845,9 +1915,9 @@ function getAllDiscordWebhooks() {
           reject(err);
         } else {
           // Don't expose full webhook URL for security, just indicate if it's set
-          const sanitized = rows.map(row => ({
+          const sanitized = rows.map((row) => ({
             id: row.id,
-            webhookUrl: row.webhook_url ? '***configured***' : null,
+            webhookUrl: row.webhook_url ? "***configured***" : null,
             serverName: row.server_name || null,
             channelName: row.channel_name || null,
             avatarUrl: row.avatar_url || null,
@@ -1897,7 +1967,15 @@ function getDiscordWebhookById(id) {
  * @param {string} channelId - Channel ID (optional)
  * @returns {Promise<number>} - ID of created webhook
  */
-function createDiscordWebhook(webhookUrl, serverName = null, channelName = null, enabled = true, avatarUrl = null, guildId = null, channelId = null) {
+function createDiscordWebhook(
+  webhookUrl,
+  serverName = null,
+  channelName = null,
+  enabled = true,
+  avatarUrl = null,
+  guildId = null,
+  channelId = null
+) {
   return new Promise((resolve, reject) => {
     db.run(
       "INSERT INTO discord_webhooks (webhook_url, server_name, channel_name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
@@ -1925,31 +2003,31 @@ function updateDiscordWebhook(id, updateData) {
     const values = [];
 
     if (updateData.webhookUrl !== undefined) {
-      fields.push('webhook_url = ?');
+      fields.push("webhook_url = ?");
       values.push(updateData.webhookUrl);
     }
     if (updateData.serverName !== undefined) {
-      fields.push('server_name = ?');
+      fields.push("server_name = ?");
       values.push(updateData.serverName);
     }
     if (updateData.channelName !== undefined) {
-      fields.push('channel_name = ?');
+      fields.push("channel_name = ?");
       values.push(updateData.channelName);
     }
     if (updateData.avatarUrl !== undefined) {
-      fields.push('avatar_url = ?');
+      fields.push("avatar_url = ?");
       values.push(updateData.avatarUrl);
     }
     if (updateData.guildId !== undefined) {
-      fields.push('guild_id = ?');
+      fields.push("guild_id = ?");
       values.push(updateData.guildId);
     }
     if (updateData.channelId !== undefined) {
-      fields.push('channel_id = ?');
+      fields.push("channel_id = ?");
       values.push(updateData.channelId);
     }
     if (updateData.enabled !== undefined) {
-      fields.push('enabled = ?');
+      fields.push("enabled = ?");
       values.push(updateData.enabled ? 1 : 0);
     }
 
@@ -1958,10 +2036,10 @@ function updateDiscordWebhook(id, updateData) {
       return;
     }
 
-    fields.push('updated_at = CURRENT_TIMESTAMP');
+    fields.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id);
 
-    const sql = `UPDATE discord_webhooks SET ${fields.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE discord_webhooks SET ${fields.join(", ")} WHERE id = ?`;
 
     db.run(sql, values, function (err) {
       if (err) {
@@ -1980,17 +2058,13 @@ function updateDiscordWebhook(id, updateData) {
  */
 function deleteDiscordWebhook(id) {
   return new Promise((resolve, reject) => {
-    db.run(
-      "DELETE FROM discord_webhooks WHERE id = ?",
-      [id],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+    db.run("DELETE FROM discord_webhooks WHERE id = ?", [id], function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 

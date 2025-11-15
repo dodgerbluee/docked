@@ -21,15 +21,9 @@ export const useSummaryStats = ({
   dismissedTrackedAppNotifications = new Map(),
 }) => {
   // Calculate containers with updates and up to date
-  const containersWithUpdates = useMemo(
-    () => containers.filter((c) => c.hasUpdate),
-    [containers]
-  );
+  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
 
-  const containersUpToDate = useMemo(
-    () => containers.filter((c) => !c.hasUpdate),
-    [containers]
-  );
+  const containersUpToDate = useMemo(() => containers.filter((c) => !c.hasUpdate), [containers]);
 
   // Calculate unused images per Portainer instance (match by URL)
   const unusedImagesByPortainer = useMemo(() => {
@@ -42,17 +36,12 @@ export const useSummaryStats = ({
 
   // Calculate tracked apps statistics
   const trackedAppsStats = useMemo(
-    () =>
-      calculateTrackedAppsStats(trackedImages, dismissedTrackedAppNotifications),
+    () => calculateTrackedAppsStats(trackedImages, dismissedTrackedAppNotifications),
     [trackedImages, dismissedTrackedAppNotifications]
   );
 
-  const {
-    totalTrackedApps,
-    trackedAppsUpToDate,
-    trackedAppsBehind,
-    trackedAppsUnknown,
-  } = trackedAppsStats;
+  const { totalTrackedApps, trackedAppsUpToDate, trackedAppsBehind, trackedAppsUnknown } =
+    trackedAppsStats;
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
@@ -92,4 +81,3 @@ export const useSummaryStats = ({
 
   return summaryStats;
 };
-

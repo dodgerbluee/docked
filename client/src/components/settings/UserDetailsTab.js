@@ -44,4 +44,3 @@ UserDetailsTab.propTypes = {
 };
 
 export default UserDetailsTab;
-

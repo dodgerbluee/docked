@@ -33,4 +33,3 @@ export function getTrackedDockerImages(trackedImages) {
 export function filterTrackedItems(predefinedList, trackedItems) {
   return predefinedList.filter((item) => !trackedItems.includes(item));
 }
-

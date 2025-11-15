@@ -34,9 +34,7 @@ const ScheduledRunCard = React.memo(function ScheduledRunCard({
         <div className={styles.info}>
           <div className={styles.runInfoRow}>
             <span className={styles.runLabel}>Next Run:</span>
-            <span className={styles.nextRun}>
-              {formatNextRun(nextRunDate)}
-            </span>
+            <span className={styles.nextRun}>{formatNextRun(nextRunDate)}</span>
           </div>
           {lastRun && (
             <div className={styles.runInfoRow}>
@@ -81,4 +79,3 @@ ScheduledRunCard.propTypes = {
 };
 
 export default ScheduledRunCard;
-

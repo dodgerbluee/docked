@@ -7,21 +7,25 @@
 ## 📦 Downloads
 
 ### Source Code
+
 - **Source Tarball:** [docked-{{VERSION}}-source.tar.gz](https://github.com/{{REPO}}/releases/download/v{{VERSION}}/docked-{{VERSION}}-source.tar.gz)
 - **SHA256 Checksum:** [docked-{{VERSION}}-source.tar.gz.sha256](https://github.com/{{REPO}}/releases/download/v{{VERSION}}/docked-{{VERSION}}-source.tar.gz.sha256)
 
 ### Container Image
+
 ```bash
 docker pull ghcr.io/{{REPO}}:{{VERSION}}
 docker pull ghcr.io/{{REPO}}:latest  # Updated to v{{VERSION}}
 ```
 
 ### Package Managers
+
 - **Docker Compose:** Update `image:` tag to `ghcr.io/{{REPO}}:{{VERSION}}`
 
 ## 🔐 Verification
 
 Verify the checksum:
+
 ```bash
 sha256sum -c docked-{{VERSION}}-source.tar.gz.sha256
 ```
@@ -33,16 +37,19 @@ sha256sum -c docked-{{VERSION}}-source.tar.gz.sha256
 ## 🔄 Upgrade Instructions
 
 1. **Backup your data**
+
    ```bash
    cp -r data/users.db data/users.db.backup
    ```
 
 2. **Stop the application**
+
    ```bash
    docker-compose down
    ```
 
 3. **Update to new version**
+
    ```bash
    docker-compose pull
    docker-compose up -d
@@ -79,4 +86,3 @@ Thanks to all contributors who made this release possible!
 - **Contributors:** {{CONTRIBUTOR_COUNT}}
 - **Issues Closed:** {{ISSUES_CLOSED}}
 - **Pull Requests Merged:** {{PRS_MERGED}}
-

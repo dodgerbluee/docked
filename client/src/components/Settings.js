@@ -77,7 +77,7 @@ function Settings({
 
   // Use prop if provided, otherwise use internal state
   const [internalActiveSection, setInternalActiveSection] = useState(activeSection);
-  
+
   // If first login, always show password section regardless of activeSection prop
   const currentActiveSection = isFirstLogin
     ? SETTINGS_TABS.PASSWORD
@@ -253,9 +253,7 @@ function Settings({
             <UserDetailsTab userInfo={settings.userInfo} />
           )}
 
-          {currentActiveSection === SETTINGS_TABS.LOGS && (
-            <LogsTab />
-          )}
+          {currentActiveSection === SETTINGS_TABS.LOGS && <LogsTab />}
         </>
       )}
     </>

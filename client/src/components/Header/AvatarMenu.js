@@ -26,7 +26,7 @@ const AvatarMenu = ({
       <button
         className="avatar-button"
         onClick={() => {
-          if (typeof onToggleAvatarMenu === 'function') {
+          if (typeof onToggleAvatarMenu === "function") {
             onToggleAvatarMenu(!showAvatarMenu);
           }
         }}
@@ -36,9 +36,7 @@ const AvatarMenu = ({
         {avatar ? (
           <img
             src={
-              avatar.startsWith("blob:") ||
-              avatar.startsWith("http") ||
-              avatar.startsWith("/img/")
+              avatar.startsWith("blob:") || avatar.startsWith("http") || avatar.startsWith("/img/")
                 ? avatar
                 : `${API_BASE_URL}${avatar}`
             }
@@ -58,7 +56,7 @@ const AvatarMenu = ({
         <div
           data-username-role
           onClick={() => {
-            if (typeof onToggleAvatarMenu === 'function') {
+            if (typeof onToggleAvatarMenu === "function") {
               onToggleAvatarMenu(!showAvatarMenu);
             }
           }}
@@ -144,4 +142,3 @@ AvatarMenu.propTypes = {
 };
 
 export default memo(AvatarMenu);
-

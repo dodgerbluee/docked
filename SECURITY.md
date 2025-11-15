@@ -4,12 +4,12 @@
 
 We actively support the following versions with security updates:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| Latest  | :white_check_mark: |
-| Latest - 1 | :white_check_mark: |
-| Latest - 2 | :white_check_mark: |
-| < Latest - 2 | :x: |
+| Version      | Supported          |
+| ------------ | ------------------ |
+| Latest       | :white_check_mark: |
+| Latest - 1   | :white_check_mark: |
+| Latest - 2   | :white_check_mark: |
+| < Latest - 2 | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -124,6 +124,7 @@ Docked includes the following security features:
 Security updates are released as patch versions (e.g., 1.2.3 → 1.2.4) and are marked with the `security` label in the changelog.
 
 Subscribe to security advisories:
+
 - Watch the repository for security advisories
 - Subscribe to release notifications
 - Monitor the CHANGELOG.md for security updates
@@ -144,10 +145,10 @@ We thank the following individuals and organizations for responsibly disclosing 
 ## Contact
 
 For security-related questions or concerns, please contact:
+
 - GitHub Security Advisories: [Create an advisory](https://github.com/your-org/docked/security/advisories/new)
 - Repository Maintainers: @docked-maintainers
 
 ---
 
 **Last Updated**: 2025-01-XX
-

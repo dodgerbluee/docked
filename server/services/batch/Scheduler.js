@@ -4,10 +4,7 @@
  * retries, error handling, and concurrent execution support
  */
 
-const {
-  getBatchConfig,
-  getLatestBatchRunByJobType,
-} = require("../../db/database");
+const { getBatchConfig, getLatestBatchRunByJobType } = require("../../db/database");
 const BatchLogger = require("./Logger");
 const { setLogLevel: setBatchLogLevel } = require("./Logger");
 
@@ -63,17 +60,12 @@ class Scheduler {
               timestampDate: new Date(timestamp).toISOString(),
             });
           } else {
-            this.logger.warn(
-              `⚠️ Failed to parse last run time for ${jobType}`,
-              {
-                completedAt: lastRun.completed_at,
-              }
-            );
+            this.logger.warn(`⚠️ Failed to parse last run time for ${jobType}`, {
+              completedAt: lastRun.completed_at,
+            });
           }
         } else {
-          this.logger.info(
-            `ℹ️ No completed runs found for ${jobType} - will run on first check`
-          );
+          this.logger.info(`ℹ️ No completed runs found for ${jobType} - will run on first check`);
         }
       } catch (err) {
         this.logger.warn(`Failed to load last run time for ${jobType}`, {
@@ -133,16 +125,12 @@ class Scheduler {
     }
 
     this.logger.debug(
-      `Setting up interval check every ${this.checkIntervalMs}ms (${
-        this.checkIntervalMs / 1000
-      }s)`
+      `Setting up interval check every ${this.checkIntervalMs}ms (${this.checkIntervalMs / 1000}s)`
     );
 
     // Start periodic check
     this.checkInterval = setInterval(() => {
-      this.logger.debug(
-        `Interval callback triggered at ${new Date().toISOString()}`
-      );
+      this.logger.debug(`Interval callback triggered at ${new Date().toISOString()}`);
       this.checkAndScheduleJobs().catch((err) => {
         this.logger.error("Error in scheduler check", {
           error: err.message,
@@ -196,9 +184,7 @@ class Scheduler {
   async checkAndScheduleJobs() {
     try {
       const timestamp = new Date().toISOString();
-      this.logger.debug(
-        `\n========== BATCH SCHEDULER CHECK [${timestamp}] ==========`
-      );
+      this.logger.debug(`\n========== BATCH SCHEDULER CHECK [${timestamp}] ==========`);
 
       const allConfigs = await getBatchConfig();
       if (!allConfigs) {
@@ -209,13 +195,10 @@ class Scheduler {
       const now = Date.now();
       const jobTypes = this.batchManager.getRegisteredJobTypes();
 
-      this.logger.debug(
-        `Checking ${jobTypes.length} job type(s): ${jobTypes.join(", ")}`,
-        {
-          currentTime: new Date(now).toISOString(),
-          currentTimeMs: now,
-        }
-      );
+      this.logger.debug(`Checking ${jobTypes.length} job type(s): ${jobTypes.join(", ")}`, {
+        currentTime: new Date(now).toISOString(),
+        currentTimeMs: now,
+      });
 
       for (const jobType of jobTypes) {
         const config = allConfigs[jobType] || {
@@ -230,9 +213,7 @@ class Scheduler {
         });
 
         if (!config.enabled || config.intervalMinutes < 1) {
-          this.logger.debug(
-            `${jobType}: Skipped - disabled or invalid interval`
-          );
+          this.logger.debug(`${jobType}: Skipped - disabled or invalid interval`);
           // Job is disabled or invalid interval - clear any existing timer
           if (this.jobTimers.has(jobType)) {
             clearTimeout(this.jobTimers.get(jobType));
@@ -243,8 +224,7 @@ class Scheduler {
 
         // Check if job is already running (prevent duplicate runs)
         const isRunning =
-          this.batchManager.runningJobs &&
-          this.batchManager.runningJobs.get(jobType);
+          this.batchManager.runningJobs && this.batchManager.runningJobs.get(jobType);
         if (isRunning) {
           this.logger.debug(`${jobType}: Skipped - already running`);
           continue;
@@ -262,8 +242,7 @@ class Scheduler {
         const shouldRun = condition1 || condition2;
 
         this.logger.debug(`${jobType}: Scheduling check`, {
-          lastRunTime:
-            lastRunTime === 0 ? "NEVER" : new Date(lastRunTime).toISOString(),
+          lastRunTime: lastRunTime === 0 ? "NEVER" : new Date(lastRunTime).toISOString(),
           lastRunTimeMs: lastRunTime,
           currentTime: new Date(now).toISOString(),
           currentTimeMs: now,
@@ -278,20 +257,12 @@ class Scheduler {
 
         if (shouldRun) {
           // Job is due - run it (don't await, let it run in background)
-          this.logger.info(
-            `⏰ Job ${jobType} is due to run - triggering execution`,
-            {
-              timeSinceLastRun:
-                Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 +
-                " minutes",
-              intervalMinutes: config.intervalMinutes,
-              lastRunTime:
-                lastRunTime === 0
-                  ? "never"
-                  : new Date(lastRunTime).toISOString(),
-              now: new Date(now).toISOString(),
-            }
-          );
+          this.logger.info(`⏰ Job ${jobType} is due to run - triggering execution`, {
+            timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
+            intervalMinutes: config.intervalMinutes,
+            lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
+            now: new Date(now).toISOString(),
+          });
 
           this.runJob(jobType)
             .then(() => {
@@ -306,9 +277,7 @@ class Scheduler {
         } else {
           const minutesUntilNext =
             Math.round(((intervalMs - timeSinceLastRun) / 1000 / 60) * 10) / 10;
-          this.logger.debug(
-            `${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`
-          );
+          this.logger.debug(`${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`);
         }
       }
 
@@ -332,8 +301,7 @@ class Scheduler {
     // This prevents the scheduler from thinking the job already ran if it fails or takes a long time
 
     this.logger.info(`Executing job: ${jobType}`, {
-      lastRunTime:
-        lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
+      lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
     });
 
     try {
