@@ -31,5 +31,8 @@
         "jest": "^30.2.0",
         "nodemon": "^3.0.2",
         "supertest": "^7.1.4"
+    },
+    "overrides": {
+        "js-yaml": "^4.1.1"
     }
 }
