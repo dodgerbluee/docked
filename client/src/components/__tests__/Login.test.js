@@ -2,12 +2,54 @@
  * Component tests for Login component
  */
 
-// Mock axios before any imports
-jest.mock("axios");
-
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+
+// Mock axios
+jest.mock("axios", () => {
+  // Create mocks inside factory function
+  const post = jest.fn();
+  const create = jest.fn(() => ({
+    post: post,
+    get: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+    create: create,
+    defaults: {
+      headers: {
+        common: {},
+      },
+    },
+    interceptors: {
+      request: { use: jest.fn(), eject: jest.fn() },
+      response: { use: jest.fn(), eject: jest.fn() },
+    },
+  }));
+
+  return {
+    __esModule: true,
+    default: {
+      post: post,
+      get: jest.fn(),
+      put: jest.fn(),
+      patch: jest.fn(),
+      delete: jest.fn(),
+      create: create,
+      defaults: {
+        headers: {
+          common: {},
+        },
+      },
+      interceptors: {
+        request: { use: jest.fn(), eject: jest.fn() },
+        response: { use: jest.fn(), eject: jest.fn() },
+      },
+    },
+  };
+});
+
 import Login from "../Login";
 import axios from "axios";
 
@@ -17,6 +59,8 @@ describe("Login Component", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+    // Clear axios mocks but keep the mock function
+    axios.post.mockClear();
   });
 
   it("renders login form", () => {
@@ -28,11 +72,15 @@ describe("Login Component", () => {
   });
 
   it("shows error message on login failure", async () => {
-    axios.post.mockRejectedValueOnce({
+    // Mock the post method to reject with proper error structure
+    // Since both axios.post and axios.create().post use the same mock function,
+    // mocking axios.post should work for both
+    const error = {
       response: {
         data: { error: "Invalid credentials" },
       },
-    });
+    };
+    axios.post.mockImplementationOnce(() => Promise.reject(error));
 
     render(<Login onLogin={mockOnLogin} />);
 
@@ -60,7 +108,7 @@ describe("Login Component", () => {
       },
     };
 
-    axios.post.mockResolvedValueOnce(mockResponse);
+    axios.post.mockImplementationOnce(() => Promise.resolve(mockResponse));
 
     render(<Login onLogin={mockOnLogin} />);
 
