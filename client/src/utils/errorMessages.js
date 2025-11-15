@@ -32,4 +32,3 @@ export const SUCCESS_MESSAGES = {
 export function getErrorMessage(category, key, fallback = ERROR_MESSAGES.GENERAL.UNKNOWN) {
   return ERROR_MESSAGES[category]?.[key] || fallback;
 }
-

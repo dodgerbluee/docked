@@ -31,35 +31,31 @@ function ErrorModal({ isOpen, onClose, title, message, containerName, details })
         <div className={styles.errorIcon}>
           <AlertCircle size={48} />
         </div>
-        
+
         {containerName && (
           <div className={styles.containerName}>
             <strong>Container:</strong> {containerName}
           </div>
         )}
-        
+
         <div className={styles.errorMessage}>
-          {message.split('\n').map((line, i) => (
+          {message.split("\n").map((line, i) => (
             <React.Fragment key={i}>
               {line}
-              {i < message.split('\n').length - 1 && <br />}
+              {i < message.split("\n").length - 1 && <br />}
             </React.Fragment>
           ))}
         </div>
-        
+
         {details && (
           <details className={styles.errorDetails}>
             <summary className={styles.detailsSummary}>Technical Details</summary>
             <pre className={styles.detailsContent}>{details}</pre>
           </details>
         )}
-        
+
         <div className={styles.actions}>
-          <Button
-            variant="primary"
-            onClick={onClose}
-            className={styles.closeButton}
-          >
+          <Button variant="primary" onClick={onClose} className={styles.closeButton}>
             Close
           </Button>
         </div>
@@ -78,4 +74,3 @@ ErrorModal.propTypes = {
 };
 
 export default ErrorModal;
-

@@ -33,4 +33,3 @@ BatchTabNavigation.propTypes = {
 };
 
 export default BatchTabNavigation;
-

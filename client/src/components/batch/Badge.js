@@ -36,8 +36,7 @@ export const JobTypeBadge = React.memo(function JobTypeBadge({ jobType }) {
     }
   };
 
-  const jobTypeLabel =
-    BATCH_JOB_TYPE_LABELS[jobType] || jobType || "Unknown Job";
+  const jobTypeLabel = BATCH_JOB_TYPE_LABELS[jobType] || jobType || "Unknown Job";
 
   return (
     <span className={`${styles.badge} ${getJobTypeClass(jobType)}`}>
@@ -82,8 +81,7 @@ export const StatusBadge = React.memo(function StatusBadge({ status }) {
     }
   };
 
-  const statusLabel =
-    BATCH_STATUS_LABELS[status] || BATCH_STATUS_LABELS[BATCH_STATUS.RUNNING];
+  const statusLabel = BATCH_STATUS_LABELS[status] || BATCH_STATUS_LABELS[BATCH_STATUS.RUNNING];
 
   return (
     <span className={`${styles.badge} ${getStatusClass(status)}`}>
@@ -109,4 +107,3 @@ export const ManualBadge = React.memo(function ManualBadge() {
     </span>
   );
 });
-

@@ -82,16 +82,11 @@ async function deleteImages(req, res, next) {
           instance.api_key,
           instance.auth_type || "apikey"
         );
-        logger.info(
-          `Deleting image ${id.substring(0, 12)} from ${portainerUrl}`
-        );
+        logger.info(`Deleting image ${id.substring(0, 12)} from ${portainerUrl}`);
         await portainerService.deleteImage(portainerUrl, endpointId, id, true);
         results.push({ id, success: true });
       } catch (error) {
-        logger.error(
-          `Failed to delete image ${id.substring(0, 12)}:`,
-          error.message
-        );
+        logger.error(`Failed to delete image ${id.substring(0, 12)}:`, error.message);
         errors.push({ id, error: error.message });
       }
     }

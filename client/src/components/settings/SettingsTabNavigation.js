@@ -28,9 +28,7 @@ function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged }) {
           return (
             <button
               key={tab}
-              className={`${styles.tab} ${
-                activeTab === tab ? styles.active : ""
-              }`}
+              className={`${styles.tab} ${activeTab === tab ? styles.active : ""}`}
               onClick={() => onTabChange(tab)}
               disabled={isDisabled}
             >
@@ -50,4 +48,3 @@ SettingsTabNavigation.propTypes = {
 };
 
 export default SettingsTabNavigation;
-

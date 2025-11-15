@@ -56,8 +56,8 @@ const DiscordTab = React.memo(function DiscordTab({
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Discord Notifications</h3>
       <p className={styles.description}>
-        Configure Discord webhooks to receive notifications when new versions
-        of tracked software are available. You can add up to 3 webhooks.
+        Configure Discord webhooks to receive notifications when new versions of tracked software
+        are available. You can add up to 3 webhooks.
       </p>
 
       {discordSuccess && <Alert variant="info">{discordSuccess}</Alert>}
@@ -83,9 +83,7 @@ const DiscordTab = React.memo(function DiscordTab({
                       {webhook.serverName || "Unnamed Server"}
                     </strong>
                     {webhook.channelName && (
-                      <div className={styles.channelName}>
-                        Channel: {webhook.channelName}
-                      </div>
+                      <div className={styles.channelName}>Channel: {webhook.channelName}</div>
                     )}
                     <div className={styles.webhookMeta}>
                       {webhook.enabled ? (
@@ -95,8 +93,7 @@ const DiscordTab = React.memo(function DiscordTab({
                       )}
                       {webhook.updatedAt && (
                         <span className={styles.lastUpdated}>
-                          • Last updated:{" "}
-                          {new Date(webhook.updatedAt).toLocaleDateString()}
+                          • Last updated: {new Date(webhook.updatedAt).toLocaleDateString()}
                         </span>
                       )}
                     </div>
@@ -125,8 +122,7 @@ const DiscordTab = React.memo(function DiscordTab({
 
       {discordWebhooks.length >= 3 && (
         <p className={styles.maxReached}>
-          Maximum of 3 webhooks reached. Remove an existing webhook to add a new
-          one.
+          Maximum of 3 webhooks reached. Remove an existing webhook to add a new one.
         </p>
       )}
 
@@ -138,12 +134,19 @@ const DiscordTab = React.memo(function DiscordTab({
             Go to <strong>Server Settings</strong> → <strong>Integrations</strong> →{" "}
             <strong>Webhooks</strong>
           </li>
-          <li>Click <strong>"New Webhook"</strong></li>
+          <li>
+            Click <strong>"New Webhook"</strong>
+          </li>
           <li>
             Open and customize the webhook details:
             <ul className={styles.instructionsSubList}>
               <li>Choose the channel where you want notifications</li>
-              <li>Rename it <strong><i>Docked</i></strong></li>
+              <li>
+                Rename it{" "}
+                <strong>
+                  <i>Docked</i>
+                </strong>
+              </li>
               <li>
                 Use the Docked logo as the webhook avatar
                 <Button
@@ -169,7 +172,9 @@ const DiscordTab = React.memo(function DiscordTab({
             </ul>
           </li>
           <li>Copy the webhook URL</li>
-          <li>Click <strong>"Add Webhook"</strong> above and paste the URL</li>
+          <li>
+            Click <strong>"Add Webhook"</strong> above and paste the URL
+          </li>
           <li>Optionally add a server name for easy identification</li>
         </ol>
       </Card>

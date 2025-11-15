@@ -7,10 +7,10 @@
   --text-primary: #000000;
   --text-secondary: #333333;
   --text-tertiary: #666666;
-  --dodger-blue: #005A9C;
-  --dodger-blue-light: #1E88E5;
+  --dodger-blue: #005a9c;
+  --dodger-blue-light: #1e88e5;
   --dodger-blue-dark: #003d6b;
-  --dodger-red: #EF3E42;
+  --dodger-red: #ef3e42;
   --dodger-red-light: #ff6b6f;
   --tracked-apps-purple: #8b5cf6;
   --tracked-apps-purple-light: #a78bfa;
@@ -18,8 +18,8 @@
   --success-green-light: #4ade80;
   --border-color: #e0e0e0;
   --shadow: rgba(0, 0, 0, 0.1);
-  --header-bg: linear-gradient(135deg, #005A9C 0%, #003d6b 100%);
-  
+  --header-bg: linear-gradient(135deg, #005a9c 0%, #003d6b 100%);
+
   /* Spacing Tokens - Design System */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -37,10 +37,10 @@ body.dark-mode {
   --text-primary: #ffffff;
   --text-secondary: #e0e0e0;
   --text-tertiary: #b0b0b0;
-  --dodger-blue: #1E88E5;
+  --dodger-blue: #1e88e5;
   --dodger-blue-light: #42a5f5;
   --dodger-blue-dark: #1565c0;
-  --dodger-red: #EF3E42;
+  --dodger-red: #ef3e42;
   --dodger-red-light: #ff6b6f;
   --tracked-apps-purple: #8b5cf6;
   --tracked-apps-purple-light: #a78bfa;
@@ -159,7 +159,7 @@ body.dark-mode .primary-button:hover:not(:disabled) {
   color: white;
   text-align: left;
   cursor: pointer;
-  font-family: 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+  font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 700;
   user-select: none;
   -webkit-user-select: none;
@@ -167,7 +167,6 @@ body.dark-mode .primary-button:hover:not(:disabled) {
   -ms-user-select: none;
   letter-spacing: -0.01em;
 }
-
 
 .App-header p {
   font-size: 1rem;
@@ -419,7 +418,6 @@ body.dark-mode .primary-button:hover:not(:disabled) {
   transform: translateY(-2px);
 }
 
-
 .container {
   background: var(--bg-primary);
   border-radius: 12px;
@@ -593,7 +591,7 @@ body.dark-mode .tab.active {
 }
 
 .tab-badge::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
@@ -676,7 +674,6 @@ body.dark-mode .add-instance-tab.add-instance-icon-only:hover {
   width: 20px;
   height: 20px;
 }
-
 
 .tab-content {
   min-height: 400px;
@@ -1043,7 +1040,8 @@ body.dark-mode .instance-stat .stat-number.current {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.loading, .error {
+.loading,
+.error {
   text-align: center;
   padding: 30px;
   font-size: 1.1rem;
@@ -1076,7 +1074,8 @@ body.dark-mode .instance-stat .stat-number.current {
   background: var(--dodger-red-light);
 }
 
-.updates-section, .up-to-date-section {
+.updates-section,
+.up-to-date-section {
   margin-bottom: 30px;
 }
 
@@ -1175,7 +1174,8 @@ body.dark-mode .stack-toggle {
   gap: 12px;
 }
 
-.updates-section h2, .up-to-date-section h2 {
+.updates-section h2,
+.up-to-date-section h2 {
   color: var(--text-primary);
   font-size: 1.6rem;
   border-bottom: 2px solid var(--dodger-blue);
@@ -1277,7 +1277,9 @@ body.dark-mode .batch-upgrade-button:hover:not(:disabled) {
   border-radius: 6px;
   padding: 10px;
   box-shadow: 0 1px 4px var(--shadow);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   overflow: hidden;
   border: 1px solid var(--border-color);
 }
@@ -1391,7 +1393,9 @@ body.dark-mode .portainer-badge {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 10px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   display: flex;
   flex-direction: column;
 }
@@ -1920,7 +1924,7 @@ body.dark-mode .portainer-sidebar-add:hover {
   .containers-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .App-header h1 {
     font-size: 2rem;
   }

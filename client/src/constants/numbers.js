@@ -13,4 +13,3 @@ export const MIN_INTERVAL_VALUE = 1;
 export const REFETCH_DELAY_MS = 1000;
 
 export const DEFAULT_POLLING_INTERVAL_MS = 10000; // 10 seconds
-

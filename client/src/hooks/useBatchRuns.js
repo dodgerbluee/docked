@@ -48,9 +48,7 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
   // Fetch recent runs
   const fetchRecentRuns = useCallback(async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`);
       if (response.data.success) {
         setRecentRuns(response.data.runs || []);
       }
@@ -90,4 +88,3 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
     }, [fetchLatestRun, fetchRecentRuns]),
   };
 }
-

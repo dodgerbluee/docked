@@ -16,7 +16,8 @@ Development → Dev Build → Testing → Production Release
 
 **Workflow**: `pre-release.yml`  
 **Trigger**: Push to `main` branch  
-**Creates**: 
+**Creates**:
+
 - Dev tag: `v1.2.3-dev`
 - Docker image: `:dev`
 - GitHub pre-release
@@ -36,6 +37,7 @@ You have **three options** for creating production releases:
 **Best for**: When you've tested a dev build and want to promote it
 
 **Steps**:
+
 1. Test your dev build (`:dev` Docker image)
 2. Go to GitHub Actions → "Promote Dev to Production"
 3. Click "Run workflow"
@@ -44,6 +46,7 @@ You have **three options** for creating production releases:
 6. Click "Run workflow"
 
 **What it does**:
+
 - ✅ Extracts version from latest dev tag (removes `-dev` suffix)
 - ✅ Runs full test suite and security scans
 - ✅ Builds production artifacts
@@ -53,6 +56,7 @@ You have **three options** for creating production releases:
 - ✅ Attaches release artifacts
 
 **Example**:
+
 - Latest dev: `v1.2.3-dev`
 - Promotes to: `v1.2.3` (production)
 
@@ -65,6 +69,7 @@ You have **three options** for creating production releases:
 **Best for**: When you want to create a release from a specific commit
 
 **Steps**:
+
 1. Ensure code is ready for release
 2. Create and push tag:
    ```bash
@@ -74,13 +79,15 @@ You have **three options** for creating production releases:
 3. Workflow runs automatically
 
 **What it does**:
+
 - ✅ Runs tests and security scans
 - ✅ Builds production artifacts
 - ✅ Builds and pushes Docker images
 - ✅ Generates changelog
 - ✅ Creates GitHub release
 
-**When to use**: 
+**When to use**:
+
 - Creating release from specific commit
 - Not using dev builds
 - Traditional Git workflow
@@ -94,6 +101,7 @@ You have **three options** for creating production releases:
 **Best for**: One-off releases or releases not from dev
 
 **Steps**:
+
 1. Go to GitHub Actions → "Release"
 2. Click "Run workflow"
 3. Enter version (e.g., `1.2.3`)
@@ -112,6 +120,7 @@ You have **three options** for creating production releases:
 **Best for**: When dev build is already good, just update `latest` tag
 
 **Steps**:
+
 1. Go to GitHub Actions → "Promote Dev to Latest"
 2. Click "Run workflow"
 3. Type `promote` in confirmation
@@ -119,6 +128,7 @@ You have **three options** for creating production releases:
 5. Click "Run workflow"
 
 **What it does**:
+
 - ✅ Re-tags existing `:dev` image as `:latest`
 - ✅ Optionally creates GitHub release
 - ⚠️ Does NOT rebuild or run tests
@@ -129,12 +139,12 @@ You have **three options** for creating production releases:
 
 ## Comparison Table
 
-| Method | Trigger | Tests | Rebuild | Artifacts | Use Case |
-|--------|---------|-------|---------|-----------|----------|
-| **Promote Dev** ⭐ | Manual | ✅ | ✅ | ✅ | Tested dev → production |
-| **Tag Push** | Git tag | ✅ | ✅ | ✅ | Release from specific commit |
-| **Manual Release** | Manual | ✅ | ✅ | ✅ | One-off releases |
-| **Quick Promote** | Manual | ❌ | ❌ | ❌ | Just update `latest` tag |
+| Method             | Trigger | Tests | Rebuild | Artifacts | Use Case                     |
+| ------------------ | ------- | ----- | ------- | --------- | ---------------------------- |
+| **Promote Dev** ⭐ | Manual  | ✅    | ✅      | ✅        | Tested dev → production      |
+| **Tag Push**       | Git tag | ✅    | ✅      | ✅        | Release from specific commit |
+| **Manual Release** | Manual  | ✅    | ✅      | ✅        | One-off releases             |
+| **Quick Promote**  | Manual  | ❌    | ❌      | ❌        | Just update `latest` tag     |
 
 ## Recommended Workflow
 
@@ -144,6 +154,7 @@ You have **three options** for creating production releases:
    - Auto-creates dev build (`v1.2.3-dev`)
 
 2. **Test** → Pull and test dev Docker image
+
    ```bash
    docker pull ghcr.io/your-org/docked:dev
    # Test the application
@@ -169,11 +180,13 @@ You have **three options** for creating production releases:
 ## Version Management
 
 ### Dev Versions
+
 - Format: `v1.2.3-dev`
 - Auto-incremented based on commits
 - Created by `pre-release.yml`
 
 ### Production Versions
+
 - Format: `v1.2.3`
 - Follows Semantic Versioning
 - Created by promotion or tag workflows
@@ -181,12 +194,14 @@ You have **three options** for creating production releases:
 ### Version Override
 
 When using "Promote Dev to Production", you can override the version:
+
 - Leave empty: Uses latest dev version (removes `-dev`)
 - Provide version: Uses your specified version (e.g., `1.2.4`)
 
 ## Permissions
 
 All promotion workflows require:
+
 - Repository owner, OR
 - Admin permissions
 
@@ -195,18 +210,22 @@ This prevents unauthorized releases.
 ## Troubleshooting
 
 ### "No dev tag found"
+
 - Ensure a dev build has been created (push to main)
 - Check that `pre-release.yml` workflow ran successfully
 
 ### "Tag already exists"
+
 - Version has already been released
 - Use a different version or delete existing tag
 
 ### "Permission denied"
+
 - You need owner or admin permissions
 - Contact repository owner
 
 ### Promotion failed
+
 - Check workflow logs for errors
 - Ensure all tests pass
 - Verify Docker registry access
@@ -229,4 +248,3 @@ This prevents unauthorized releases.
 ---
 
 **Last Updated**: 2025-01-XX
-

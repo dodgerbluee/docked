@@ -4,10 +4,10 @@
  * Handles job registration, execution, and coordination
  */
 
-const { createBatchRun, updateBatchRun } = require('../../db/database');
-const BatchLogger = require('./Logger');
-const Scheduler = require('./Scheduler');
-const logger = require('../../utils/logger');
+const { createBatchRun, updateBatchRun } = require("../../db/database");
+const BatchLogger = require("./Logger");
+const Scheduler = require("./Scheduler");
+const logger = require("../../utils/logger");
 
 class BatchManager {
   constructor() {
@@ -22,7 +22,7 @@ class BatchManager {
    */
   registerHandler(handler) {
     const jobType = handler.getJobType();
-    
+
     if (this.handlers.has(jobType)) {
       throw new Error(`Job handler for type '${jobType}' is already registered`);
     }
@@ -71,23 +71,23 @@ class BatchManager {
       this.runningJobs.set(jobType, true);
 
       // Create batch run record
-      logger.info('Creating batch run record');
-      runId = await createBatchRun('running', jobType, isManual);
-      logger.info('Batch run record created', { runId });
+      logger.info("Creating batch run record");
+      runId = await createBatchRun("running", jobType, isManual);
+      logger.info("Batch run record created", { runId });
 
       // Execute the job
-      logger.info('Starting job execution');
+      logger.info("Starting job execution");
       const result = await handler.execute({ logger });
 
       // Update batch run as completed
-      logger.info('Job execution completed successfully', {
+      logger.info("Job execution completed successfully", {
         itemsChecked: result.itemsChecked,
         itemsUpdated: result.itemsUpdated,
       });
 
       await updateBatchRun(
         runId,
-        'completed',
+        "completed",
         result.itemsChecked || 0,
         result.itemsUpdated || 0,
         null,
@@ -97,7 +97,7 @@ class BatchManager {
       // Update scheduler's last run time
       this.scheduler.updateLastRunTime(jobType, Date.now());
 
-      logger.info('Batch run marked as completed', { runId });
+      logger.info("Batch run marked as completed", { runId });
 
       return {
         runId,
@@ -108,8 +108,8 @@ class BatchManager {
       };
     } catch (err) {
       const errorMessage = err.message || `Failed to execute job: ${jobType}`;
-      
-      logger.error('Job execution failed', {
+
+      logger.error("Job execution failed", {
         error: errorMessage,
         stack: err.stack,
       });
@@ -117,17 +117,10 @@ class BatchManager {
       // Update batch run as failed
       if (runId) {
         try {
-          await updateBatchRun(
-            runId,
-            'failed',
-            0,
-            0,
-            errorMessage,
-            logger.getFormattedLogs()
-          );
-          logger.info('Batch run marked as failed', { runId });
+          await updateBatchRun(runId, "failed", 0, 0, errorMessage, logger.getFormattedLogs());
+          logger.info("Batch run marked as failed", { runId });
         } catch (updateErr) {
-          logger.error('Failed to update batch run status', {
+          logger.error("Failed to update batch run status", {
             error: updateErr.message,
           });
         }
@@ -136,7 +129,7 @@ class BatchManager {
       throw err;
     } finally {
       this.runningJobs.set(jobType, false);
-      logger.info('Job execution finished');
+      logger.info("Job execution finished");
     }
   }
 
@@ -145,16 +138,16 @@ class BatchManager {
    */
   async start() {
     if (this.handlers.size === 0) {
-      logger.warn('⚠️  No job handlers registered. Batch manager will not start.');
+      logger.warn("⚠️  No job handlers registered. Batch manager will not start.");
       return;
     }
 
     logger.info(`🚀 Starting batch manager with ${this.handlers.size} registered job handler(s)`);
-    
+
     try {
       await this.scheduler.start();
     } catch (err) {
-      logger.error('❌ Failed to start batch system:', err);
+      logger.error("❌ Failed to start batch system:", err);
       throw err;
     }
   }
@@ -164,7 +157,7 @@ class BatchManager {
    */
   stop() {
     this.scheduler.stop();
-    logger.info('⏹️  Batch manager stopped');
+    logger.info("⏹️  Batch manager stopped");
   }
 
   /**
@@ -182,4 +175,3 @@ class BatchManager {
 }
 
 module.exports = BatchManager;
-

@@ -29,12 +29,7 @@ const RateLimitError = ({
           <h4 className={rateLimitStyles.rateLimitTitle}>Error</h4>
           <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
           <div className={rateLimitStyles.rateLimitActions}>
-            <Button
-              onClick={onRetry}
-              disabled={pulling || loading}
-              variant="primary"
-              size="sm"
-            >
+            <Button onClick={onRetry} disabled={pulling || loading} variant="primary" size="sm">
               {pulling || loading ? "Retrying..." : "Try Again"}
             </Button>
           </div>
@@ -45,12 +40,7 @@ const RateLimitError = ({
 
   // Rate limit error - show as modal overlay
   return (
-    <Modal
-      isOpen={true}
-      onClose={onDismiss}
-      title="⚠️ Docker Hub Rate Limit Exceeded"
-      size="md"
-    >
+    <Modal isOpen={true} onClose={onDismiss} title="⚠️ Docker Hub Rate Limit Exceeded" size="md">
       <div className={rateLimitStyles.rateLimitContent}>
         <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
         <div className={rateLimitStyles.rateLimitActions}>
@@ -89,4 +79,3 @@ RateLimitError.propTypes = {
 };
 
 export default memo(RateLimitError);
-

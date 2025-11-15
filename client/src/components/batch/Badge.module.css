@@ -63,7 +63,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -72,7 +73,7 @@
 }
 
 .statusRunning::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: 12px;
@@ -114,4 +115,3 @@
   color: var(--dodger-red);
   border-color: rgba(239, 62, 66, 0.3);
 }
-

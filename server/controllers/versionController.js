@@ -10,7 +10,7 @@ const fs = require("fs");
 /**
  * Get application version
  * Reads version from package.json and determines build type
- * 
+ *
  * @route GET /api/version
  * @access Public (no authentication required)
  * @returns {Object} Version information
@@ -21,25 +21,25 @@ const fs = require("fs");
 const getVersion = (req, res) => {
   try {
     const isDevelopment = process.env.NODE_ENV !== "production";
-    
+
     // Try multiple locations for package.json
     // 1. Root package.json (for local dev and when copied to Docker)
     const rootPackageJsonPath = path.join(__dirname, "..", "..", "package.json");
     // 2. Server package.json (fallback in Docker if root isn't copied)
     const serverPackageJsonPath = path.join(__dirname, "..", "package.json");
-    
+
     let packageJsonPath = null;
     if (fs.existsSync(rootPackageJsonPath)) {
       packageJsonPath = rootPackageJsonPath;
     } else if (fs.existsSync(serverPackageJsonPath)) {
       packageJsonPath = serverPackageJsonPath;
     }
-    
+
     if (packageJsonPath) {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
       let version = packageJson.version || null;
       let isDevBuild = false;
-      
+
       /**
        * Determine if this is a local development build
        * Logic:
@@ -56,14 +56,14 @@ const getVersion = (req, res) => {
         isDevBuild = true;
       }
       // Versions with "-dev" suffix are formal dev releases, not local dev builds
-      
+
       return res.json({
         version,
         environment: process.env.NODE_ENV || "development",
         isDevBuild, // Flag to indicate this is a local development build
       });
     }
-    
+
     // If package.json doesn't exist, return null (for local dev)
     return res.json({
       version: null,
@@ -81,4 +81,3 @@ const getVersion = (req, res) => {
 module.exports = {
   getVersion,
 };
-

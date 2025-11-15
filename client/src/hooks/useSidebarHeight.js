@@ -4,9 +4,9 @@ import { useEffect } from "react";
  * Custom hook for matching sidebar height to stacks container height
  * Ensures sidebar never goes below minimum required height for content
  * Uses MutationObserver to watch for content changes and requestAnimationFrame for smooth updates
- * 
+ *
  * @param {string} activeTab - The currently active tab name
- * 
+ *
  * @example
  * useSidebarHeight("portainer");
  */
@@ -76,10 +76,7 @@ export const useSidebarHeight = (activeTab) => {
     const observer = new MutationObserver((mutations) => {
       // Only update if the mutation is not a style change on the sidebar itself
       const shouldUpdate = mutations.some((mutation) => {
-        if (
-          mutation.type === "attributes" &&
-          mutation.attributeName === "style"
-        ) {
+        if (mutation.type === "attributes" && mutation.attributeName === "style") {
           // Ignore style changes on the sidebar itself to prevent loops
           return mutation.target !== document.querySelector(".portainer-sidebar");
         }
@@ -129,4 +126,3 @@ export const useSidebarHeight = (activeTab) => {
     };
   }, [activeTab]);
 };
-

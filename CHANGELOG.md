@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Comprehensive release process with automated workflows
 - GitHub Actions CI/CD pipeline
 - Automated changelog generation
@@ -15,11 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release artifact generation with checksums
 
 ### Changed
+
 - Updated version management to follow SemVer 2.0.0
 
 ## [1.0.0] - 2024-01-01
 
 ### Added
+
 - Initial release of Docked
 - Secure authentication system
 - Portainer integration for container management
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive logging and monitoring
 
 ### Security
+
 - JWT-based authentication
 - Password hashing with bcrypt
 - Rate limiting for API endpoints
@@ -41,4 +45,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [Unreleased]: https://github.com/your-org/docked/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/your-org/docked/releases/tag/v1.0.0
-

@@ -44,9 +44,7 @@ function UpdatesTab({
     );
   }
 
-  const hasUpdates = groupedStacks.some((stack) =>
-    stack.containers.some((c) => c.hasUpdate)
-  );
+  const hasUpdates = groupedStacks.some((stack) => stack.containers.some((c) => c.hasUpdate));
 
   if (!hasUpdates) {
     return (
@@ -55,8 +53,8 @@ function UpdatesTab({
           {dockerHubDataPulled
             ? "No containers with updates available."
             : hasData
-            ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
-            : "Pull from Docker Hub to check for available upgrades."}
+              ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
+              : "Pull from Docker Hub to check for available upgrades."}
         </p>
       </div>
     );
@@ -83,7 +81,8 @@ function UpdatesTab({
       </div>
       {lastPullTime && (
         <div className={styles.lastPullTime}>
-          Last scanned: {lastPullTime.toLocaleString("en-US", {
+          Last scanned:{" "}
+          {lastPullTime.toLocaleString("en-US", {
             timeZone: "America/Chicago",
             year: "numeric",
             month: "numeric",
@@ -114,4 +113,3 @@ UpdatesTab.propTypes = {
 };
 
 export default UpdatesTab;
-

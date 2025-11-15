@@ -78,11 +78,7 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
-  const {
-    errorModal,
-    closeErrorModal,
-    ...portainerPage
-  } = usePortainerPage({
+  const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,
     containers,
     unusedImages,
@@ -104,9 +100,7 @@ function PortainerPage({
   });
 
   const handleToggleCollapsed = useCallback(() => {
-    portainerPage.setCollapsedUnusedImages(
-      !portainerPage.collapsedUnusedImages
-    );
+    portainerPage.setCollapsedUnusedImages(!portainerPage.collapsedUnusedImages);
   }, [portainerPage]);
 
   // Check if we have any data at all
@@ -122,7 +116,12 @@ function PortainerPage({
     return portainerPage.groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate && !portainerPage.isPortainerContainer(c))
     );
-  }, [portainerPage.contentTab, portainerPage.groupedStacks, portainerPage.isPortainerContainer, portainerPage]);
+  }, [
+    portainerPage.contentTab,
+    portainerPage.groupedStacks,
+    portainerPage.isPortainerContainer,
+    portainerPage,
+  ]);
 
   const selectableContainersCount = containersWithUpdates.length;
   const allSelectableSelected =
@@ -169,7 +168,10 @@ function PortainerPage({
 
   // Toolbar actions based on active tab
   const toolbarActions = useMemo(() => {
-    if (portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES && selectableContainersCount > 0) {
+    if (
+      portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES &&
+      selectableContainersCount > 0
+    ) {
       return (
         <>
           <Button
@@ -205,11 +207,17 @@ function PortainerPage({
         </>
       );
     }
-    
-    if (portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && portainerPage.portainerUnusedImages.length > 0) {
-      const allImagesSelected = portainerPage.portainerUnusedImages.length > 0 &&
-        portainerPage.portainerUnusedImages.every((img) => portainerPage.selectedImages.has(img.id));
-      
+
+    if (
+      portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED &&
+      portainerPage.portainerUnusedImages.length > 0
+    ) {
+      const allImagesSelected =
+        portainerPage.portainerUnusedImages.length > 0 &&
+        portainerPage.portainerUnusedImages.every((img) =>
+          portainerPage.selectedImages.has(img.id)
+        );
+
       return (
         <>
           <Button
@@ -280,11 +288,7 @@ function PortainerPage({
         <div className={styles.headerContent}>
           <h2 className={styles.portainerHeader}>Portainer Instances</h2>
           <div className={styles.headerActions}>
-            {toolbarActions && (
-              <div className={styles.toolbarActions}>
-                {toolbarActions}
-              </div>
-            )}
+            {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
             <div className={styles.buttonContainer}>
               <Button
                 onClick={onPullDockerHub}
@@ -296,9 +300,7 @@ function PortainerPage({
               >
                 {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
               </Button>
-              {showCheckmark && (
-                <Check className={styles.checkmark} size={20} />
-              )}
+              {showCheckmark && <Check className={styles.checkmark} size={20} />}
             </div>
           </div>
         </div>
@@ -345,16 +347,18 @@ function PortainerPage({
             contentTab={portainerPage.contentTab}
             onContentTabChange={portainerPage.setContentTab}
             selectedPortainerInstances={portainerPage.selectedPortainerInstances}
-            onSelectedPortainerInstancesChange={
-              portainerPage.setSelectedPortainerInstances
-            }
+            onSelectedPortainerInstancesChange={portainerPage.setSelectedPortainerInstances}
             onAddInstance={onAddInstance}
           />
         </ErrorBoundary>
 
         <div className={styles.portainerContentArea}>
           {portainerPage.aggregatedContainers.isLoading && (
-            <LoadingSpinner size="sm" message="Loading data..." className={styles.loadingIndicator} />
+            <LoadingSpinner
+              size="sm"
+              message="Loading data..."
+              className={styles.loadingIndicator}
+            />
           )}
 
           {/* Tab Content */}
@@ -482,18 +486,17 @@ PortainerPage.propTypes = {
   fetchUnusedImages: PropTypes.func.isRequired,
   onAddInstance: PropTypes.func.isRequired,
   onPullDockerHub: PropTypes.func.isRequired,
-      pullingDockerHub: PropTypes.bool,
-      pullError: PropTypes.string,
-      pullSuccess: PropTypes.string,
-      activeTab: PropTypes.string,
-      onTabChange: PropTypes.func,
-      selectedPortainerInstances: PropTypes.instanceOf(Set),
-      onSetSelectedPortainerInstances: PropTypes.func,
-      contentTab: PropTypes.string,
-      onSetContentTab: PropTypes.func,
-    };
+  pullingDockerHub: PropTypes.bool,
+  pullError: PropTypes.string,
+  pullSuccess: PropTypes.string,
+  activeTab: PropTypes.string,
+  onTabChange: PropTypes.func,
+  selectedPortainerInstances: PropTypes.instanceOf(Set),
+  onSetSelectedPortainerInstances: PropTypes.func,
+  contentTab: PropTypes.string,
+  onSetContentTab: PropTypes.func,
+};
 
 PortainerPage.displayName = "PortainerPage";
 
 export default PortainerPage;
-
