@@ -116,12 +116,7 @@ function PortainerPage({
     return portainerPage.groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate && !portainerPage.isPortainerContainer(c))
     );
-  }, [
-    portainerPage.contentTab,
-    portainerPage.groupedStacks,
-    portainerPage.isPortainerContainer,
-    portainerPage,
-  ]);
+  }, [portainerPage]);
 
   const selectableContainersCount = containersWithUpdates.length;
   const allSelectableSelected =
@@ -138,7 +133,7 @@ function PortainerPage({
       setBatchUpgradeData(upgradeData);
       setBatchUpgradeConfirm(true);
     }
-  }, [portainerPage.handleBatchUpgrade, portainerPage]);
+  }, [portainerPage]);
 
   const handleBatchUpgradeConfirm = useCallback(async () => {
     if (batchUpgradeData?.containers) {
@@ -146,7 +141,7 @@ function PortainerPage({
       setBatchUpgradeConfirm(false);
       setBatchUpgradeData(null);
     }
-  }, [batchUpgradeData, portainerPage.executeBatchUpgrade, portainerPage]);
+  }, [batchUpgradeData, portainerPage]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -156,7 +151,7 @@ function PortainerPage({
     if (deleteData) {
       setBatchDeleteConfirm(true);
     }
-  }, [portainerPage.handleDeleteImages, portainerPage]);
+  }, [portainerPage]);
 
   const handleBatchDeleteConfirm = useCallback(async () => {
     const deleteData = portainerPage.handleDeleteImages();
@@ -164,7 +159,7 @@ function PortainerPage({
       await portainerPage.executeDeleteImages(deleteData.images);
       setBatchDeleteConfirm(false);
     }
-  }, [portainerPage.handleDeleteImages, portainerPage.executeDeleteImages, portainerPage]);
+  }, [portainerPage]);
 
   // Toolbar actions based on active tab
   const toolbarActions = useMemo(() => {
@@ -257,17 +252,9 @@ function PortainerPage({
 
     return null;
   }, [
-    portainerPage.contentTab,
     selectableContainersCount,
     containersWithUpdates,
     allSelectableSelected,
-    portainerPage.selectedContainers,
-    portainerPage.batchUpgrading,
-    portainerPage.selectedImages,
-    portainerPage.deletingImages,
-    portainerPage.portainerUnusedImages,
-    portainerPage.handleToggleSelect,
-    portainerPage.handleToggleImageSelect,
     handleBatchUpgradeClick,
     handleBatchDeleteClick,
     portainerPage,

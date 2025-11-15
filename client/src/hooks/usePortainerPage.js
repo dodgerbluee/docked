@@ -68,11 +68,15 @@ export function usePortainerPage({
     new Set()
   );
   const isSelectedInstancesControlled = onSetSelectedPortainerInstances !== undefined;
-  const selectedPortainerInstances = isSelectedInstancesControlled
-    ? controlledSelectedPortainerInstances !== undefined
-      ? controlledSelectedPortainerInstances
-      : new Set()
-    : internalSelectedPortainerInstances;
+  const selectedPortainerInstances = useMemo(
+    () =>
+      isSelectedInstancesControlled
+        ? controlledSelectedPortainerInstances !== undefined
+          ? controlledSelectedPortainerInstances
+          : new Set()
+        : internalSelectedPortainerInstances,
+    [isSelectedInstancesControlled, controlledSelectedPortainerInstances, internalSelectedPortainerInstances]
+  );
 
   const setSelectedPortainerInstances = useCallback(
     (value) => {

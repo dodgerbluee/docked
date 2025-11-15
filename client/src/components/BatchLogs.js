@@ -59,18 +59,6 @@ function BatchLogs({
     lastCalculatedIntervalRefTrackedApps.current = null;
   }, [batchConfigs]);
 
-  useEffect(() => {
-    fetchLatestRun();
-    fetchRecentRuns();
-    // Refresh every 10 seconds to show updates
-    const interval = setInterval(() => {
-      fetchLatestRun();
-      fetchRecentRuns();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [fetchLatestRun, fetchRecentRuns]);
-
   // Calculate next scheduled run for Docker Hub Scan
   useEffect(() => {
     const dockerHubConfig = batchConfigs["docker-hub-pull"];
@@ -298,6 +286,19 @@ function BatchLogs({
       console.error("Error fetching recent batch runs:", err);
     }
   }, [setRecentRuns]);
+
+  // Auto-refresh runs
+  useEffect(() => {
+    fetchLatestRun();
+    fetchRecentRuns();
+    // Refresh every 10 seconds to show updates
+    const interval = setInterval(() => {
+      fetchLatestRun();
+      fetchRecentRuns();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fetchLatestRun, fetchRecentRuns]);
 
   const formatDuration = (ms) => {
     if (!ms && ms !== 0) return "N/A";
