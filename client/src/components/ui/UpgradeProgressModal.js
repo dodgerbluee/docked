@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import { CheckCircle2, Loader2, AlertCircle, Wifi } from "lucide-react";
 import axios from "axios";
@@ -26,14 +26,17 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   const [errorMessage, setErrorMessage] = useState(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  const steps = [
-    { label: "Stopping container...", duration: 2000 },
-    { label: "Pulling latest image...", duration: 5000 },
-    { label: "Removing old container...", duration: 1500 },
-    { label: "Creating new container...", duration: 2000 },
-    { label: "Starting container...", duration: 2000 },
-    { label: "Waiting for container to be ready...", duration: 10000 },
-  ];
+  const steps = useMemo(
+    () => [
+      { label: "Stopping container...", duration: 2000 },
+      { label: "Pulling latest image...", duration: 5000 },
+      { label: "Removing old container...", duration: 1500 },
+      { label: "Creating new container...", duration: 2000 },
+      { label: "Starting container...", duration: 2000 },
+      { label: "Waiting for container to be ready...", duration: 10000 },
+    ],
+    []
+  );
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -82,14 +85,16 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
       // Show progress steps
       for (let i = 0; i < steps.length; i++) {
-        setCurrentStep(i);
+        const stepIndex = i;
+        const stepDuration = steps[stepIndex].duration;
+        setCurrentStep(stepIndex);
 
         // Wait for the step duration, but if API completes, move faster
         const stepStartTime = Date.now();
         await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
             const elapsed = Date.now() - stepStartTime;
-            if (apiCompleted || elapsed >= steps[i].duration) {
+            if (apiCompleted || elapsed >= stepDuration) {
               clearInterval(checkInterval);
               resolve();
             }
