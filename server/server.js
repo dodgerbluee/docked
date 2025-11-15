@@ -157,19 +157,24 @@ const batchSystem = require("./services/batch");
 process.on("unhandledRejection", (reason, promise) => {
   logger.error("Unhandled Promise Rejection", {
     module: "server",
-    reason: reason instanceof Error ? {
-      message: reason.message,
-      stack: reason.stack,
-      name: reason.name,
-    } : reason,
+    reason:
+      reason instanceof Error
+        ? {
+            message: reason.message,
+            stack: reason.stack,
+            name: reason.name,
+          }
+        : reason,
     promise: promise,
   });
+  // In test mode, don't exit - let Jest handle it
   // In development, log but don't exit - let nodemon handle restarts
   // In production, exit to prevent undefined behavior
   if (process.env.NODE_ENV === "production") {
     logger.critical("Exiting due to unhandled rejection in production");
     process.exit(1);
   }
+  // In test mode, just log - don't exit
 });
 
 // Handle uncaught exceptions
@@ -186,93 +191,100 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-// Start server
-try {
-  logger.info("Server starting", {
-    module: "server",
-    environment: process.env.NODE_ENV || "development",
-    port: config.port,
-  });
+// Only start the server if this file is being run directly (not required by tests)
+// require.main === module means this file was executed directly (e.g., node server.js)
+// We also skip if NODE_ENV is 'test' to prevent server startup during tests
+const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
 
-  const server = app.listen(config.port, () => {
-    logger.info("Server started successfully", {
+if (shouldStartServer) {
+  // Start server
+  try {
+    logger.info("Server starting", {
       module: "server",
       environment: process.env.NODE_ENV || "development",
       port: config.port,
-      nodeVersion: process.version,
     });
 
-    if (process.env.NODE_ENV === "development") {
-      logger.debug("Development configuration", {
+    const server = app.listen(config.port, () => {
+      logger.info("Server started successfully", {
         module: "server",
-        portainerUrls: config.portainer.urls,
-        portainerUsername: config.portainer.username,
-        dockerHubAuthConfigured: "Configure via Settings UI",
-        cacheTTL: "24 hours",
-      });
-    }
-
-    // Start batch system (runs jobs in background even when browser is closed)
-    // Use setImmediate to ensure server is fully started before starting batch system
-    setImmediate(() => {
-      batchSystem
-        .start()
-        .then(() => {
-          logger.info("Batch system started", {
-            module: "server",
-            service: "batch",
-          });
-        })
-        .catch((err) => {
-          logger.error("Failed to start batch system", {
-            module: "server",
-            service: "batch",
-            error: err,
-          });
-          // Don't crash the server if batch system fails to start
-        });
-    });
-  });
-
-  server.on("error", (err) => {
-    logger.critical("Server listen error", {
-      module: "server",
-      error: err,
-      port: config.port,
-      code: err.code,
-    });
-    if (err.code === "EADDRINUSE") {
-      logger.critical(`Port ${config.port} is already in use`, {
-        module: "server",
+        environment: process.env.NODE_ENV || "development",
         port: config.port,
+        nodeVersion: process.version,
       });
-    }
-    // Exit on listen errors
+
+      if (process.env.NODE_ENV === "development") {
+        logger.debug("Development configuration", {
+          module: "server",
+          portainerUrls: config.portainer.urls,
+          portainerUsername: config.portainer.username,
+          dockerHubAuthConfigured: "Configure via Settings UI",
+          cacheTTL: "24 hours",
+        });
+      }
+
+      // Start batch system (runs jobs in background even when browser is closed)
+      // Use setImmediate to ensure server is fully started before starting batch system
+      setImmediate(() => {
+        batchSystem
+          .start()
+          .then(() => {
+            logger.info("Batch system started", {
+              module: "server",
+              service: "batch",
+            });
+          })
+          .catch((err) => {
+            logger.error("Failed to start batch system", {
+              module: "server",
+              service: "batch",
+              error: err,
+            });
+            // Don't crash the server if batch system fails to start
+          });
+      });
+    });
+
+    server.on("error", (err) => {
+      logger.critical("Server listen error", {
+        module: "server",
+        error: err,
+        port: config.port,
+        code: err.code,
+      });
+      if (err.code === "EADDRINUSE") {
+        logger.critical(`Port ${config.port} is already in use`, {
+          module: "server",
+          port: config.port,
+        });
+      }
+      // Exit on listen errors
+      process.exit(1);
+    });
+  } catch (error) {
+    logger.critical("Failed to start server", {
+      module: "server",
+      error: error,
+    });
     process.exit(1);
+  }
+
+  // Graceful shutdown handling (only register if server is starting)
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
   });
-} catch (error) {
-  logger.critical("Failed to start server", {
-    module: "server",
-    error: error,
+
+  process.on("SIGINT", () => {
+    logger.info("SIGINT received, shutting down gracefully", {
+      module: "server",
+    });
+    batchSystem.stop();
+    process.exit(0);
   });
-  process.exit(1);
 }
-
-// Graceful shutdown handling
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received, shutting down gracefully", {
-    module: "server",
-  });
-  batchSystem.stop();
-  process.exit(0);
-});
-
-process.on("SIGINT", () => {
-  logger.info("SIGINT received, shutting down gracefully", {
-    module: "server",
-  });
-  batchSystem.stop();
-  process.exit(0);
-});
 
 module.exports = app;

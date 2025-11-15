@@ -15,6 +15,10 @@ process.env.LOGS_DIR = process.env.LOGS_DIR || require("os").tmpdir() + "/docked
 // Disable console logging during tests to reduce noise
 process.env.DISABLE_CONSOLE_LOGGING = "true";
 
+// Suppress dotenv messages in test mode
+// This is done by setting quiet mode when dotenv is loaded
+// The config/index.js file already uses { quiet: true }
+
 // Clean up timers after all tests
 afterAll(() => {
   // Clear any pending timers from logger
