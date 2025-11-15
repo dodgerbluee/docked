@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import PropTypes from "prop-types";
-import { Clock, PlayCircle, History as HistoryIcon } from "lucide-react";
+import { Clock, History as HistoryIcon, ChevronDown } from "lucide-react";
 import { useBatchLogs } from "../../hooks/useBatchLogs";
-import ScheduledRunCard from "./ScheduledRunCard";
-import LastRunTable from "./LastRunTable";
+import ScheduledRunRow from "./ScheduledRunRow";
 import RunCard from "./RunCard";
 import LogViewer from "./LogViewer";
 import Alert from "../ui/Alert";
 import Card from "../ui/Card";
 import EmptyState from "../ui/EmptyState";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
+import Button from "../ui/Button";
 import { BATCH_JOB_TYPES } from "../../constants/batch";
 import styles from "./HistoryTab.module.css";
 
@@ -22,6 +22,7 @@ const HistoryTab = React.memo(function HistoryTab({
   onTriggerTrackedAppsBatch,
 }) {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
+  const [displayCount, setDisplayCount] = useState(8);
 
   const {
     latestRunsByJobType,
@@ -54,17 +55,24 @@ const HistoryTab = React.memo(function HistoryTab({
     });
   };
 
-  // Count enabled jobs for Next Scheduled Runs
+  // Count enabled jobs for Batch Jobs
   const enabledJobsCount = [
     batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled,
     batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled,
   ].filter(Boolean).length;
 
-  // Count runs for Last Run section
-  const lastRunCount = [
-    latestRunsByJobType[BATCH_JOB_TYPES.DOCKER_HUB_PULL],
-    latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK],
-  ].filter(Boolean).length;
+  // Pagination for run history
+  const displayedRuns = useMemo(() => {
+    return recentRuns.slice(0, displayCount);
+  }, [recentRuns, displayCount]);
+
+  const hasMoreRuns = recentRuns.length > displayCount;
+  const canShowMore = displayCount < recentRuns.length;
+
+  const handleShowMore = () => {
+    setDisplayCount(displayCount + 8);
+  };
+
 
   if (loading) {
     return (
@@ -80,7 +88,7 @@ const HistoryTab = React.memo(function HistoryTab({
     <div className={styles.historyTab}>
       {error && <Alert variant="error" className={styles.error}>{error}</Alert>}
 
-      {/* Next Scheduled Runs */}
+      {/* Batch Jobs */}
       <div className={styles.section}>
         <div
           className={styles.stackHeader}
@@ -94,7 +102,7 @@ const HistoryTab = React.memo(function HistoryTab({
           role="button"
           tabIndex={0}
           aria-expanded={!collapsedSections.has('next-scheduled-runs')}
-          aria-label={`Next Scheduled Runs - ${collapsedSections.has('next-scheduled-runs') ? "Expand" : "Collapse"}`}
+          aria-label={`Batch Jobs - ${collapsedSections.has('next-scheduled-runs') ? "Expand" : "Collapse"}`}
         >
           <div className={styles.stackHeaderLeft}>
             <button
@@ -106,7 +114,7 @@ const HistoryTab = React.memo(function HistoryTab({
               {collapsedSections.has('next-scheduled-runs') ? "▶" : "▼"}
             </button>
             <Clock size={18} className={styles.stackIcon} />
-            <h3 className={styles.stackName}>Next Scheduled Runs</h3>
+            <h3 className={styles.stackName}>Batch Jobs</h3>
           </div>
           {hasEnabledJobs && (
             <span className={styles.stackCount}>
@@ -117,25 +125,40 @@ const HistoryTab = React.memo(function HistoryTab({
         {!collapsedSections.has('next-scheduled-runs') && (
           <Card>
             {hasEnabledJobs ? (
-              <div className={styles.scheduledRuns}>
-                {batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled && (
-                  <ScheduledRunCard
-                    jobType={BATCH_JOB_TYPES.DOCKER_HUB_PULL}
-                    config={batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]}
-                    nextRunDate={nextScheduledRunDockerHub}
-                    isTriggering={triggeringBatch}
-                    onTrigger={handleTriggerBatch}
-                  />
-                )}
-                {batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled && (
-                  <ScheduledRunCard
-                    jobType={BATCH_JOB_TYPES.TRACKED_APPS_CHECK}
-                    config={batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
-                    nextRunDate={nextScheduledRunTrackedApps}
-                    isTriggering={triggeringTrackedAppsBatch}
-                    onTrigger={handleTriggerTrackedAppsBatch}
-                  />
-                )}
+              <div className={styles.scheduledRunsTable}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th className={styles.tableHeader}>Job Type</th>
+                      <th className={styles.tableHeader}>Next Run</th>
+                      <th className={styles.tableHeader}>Last Run</th>
+                      <th className={styles.tableHeader}>Interval</th>
+                      <th className={styles.tableHeader}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled && (
+                      <ScheduledRunRow
+                        jobType={BATCH_JOB_TYPES.DOCKER_HUB_PULL}
+                        config={batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]}
+                        nextRunDate={nextScheduledRunDockerHub}
+                        lastRun={latestRunsByJobType[BATCH_JOB_TYPES.DOCKER_HUB_PULL]}
+                        isTriggering={triggeringBatch}
+                        onTrigger={handleTriggerBatch}
+                      />
+                    )}
+                    {batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled && (
+                      <ScheduledRunRow
+                        jobType={BATCH_JOB_TYPES.TRACKED_APPS_CHECK}
+                        config={batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
+                        nextRunDate={nextScheduledRunTrackedApps}
+                        lastRun={latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
+                        isTriggering={triggeringTrackedAppsBatch}
+                        onTrigger={handleTriggerTrackedAppsBatch}
+                      />
+                    )}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <EmptyState
@@ -148,77 +171,85 @@ const HistoryTab = React.memo(function HistoryTab({
         )}
       </div>
 
-      {/* Last Run Summary */}
-      {lastRunCount > 0 && (
-        <div className={styles.section}>
-          <div
-            className={styles.stackHeader}
-            onClick={() => handleToggleSection('last-run')}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleToggleSection('last-run');
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-expanded={!collapsedSections.has('last-run')}
-            aria-label={`Last Run - ${collapsedSections.has('last-run') ? "Expand" : "Collapse"}`}
-          >
-            <div className={styles.stackHeaderLeft}>
-              <button
-                className={styles.stackToggle}
-                aria-label={collapsedSections.has('last-run') ? "Expand section" : "Collapse section"}
-                aria-hidden="true"
-                tabIndex={-1}
-              >
-                {collapsedSections.has('last-run') ? "▶" : "▼"}
-              </button>
-              <PlayCircle size={18} className={styles.stackIcon} />
-              <h3 className={styles.stackName}>Last Run</h3>
-            </div>
-            <span className={styles.stackCount}>
-              {lastRunCount} run{lastRunCount !== 1 ? "s" : ""}
-            </span>
+      {/* Unified Run History and Logs */}
+      <div className={styles.section}>
+        <div
+          className={styles.stackHeader}
+          onClick={() => handleToggleSection('run-history')}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleToggleSection('run-history');
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-expanded={!collapsedSections.has('run-history')}
+          aria-label={`Run History - ${collapsedSections.has('run-history') ? "Expand" : "Collapse"}`}
+        >
+          <div className={styles.stackHeaderLeft}>
+            <button
+              className={styles.stackToggle}
+              aria-label={collapsedSections.has('run-history') ? "Expand section" : "Collapse section"}
+              aria-hidden="true"
+              tabIndex={-1}
+            >
+              {collapsedSections.has('run-history') ? "▶" : "▼"}
+            </button>
+            <HistoryIcon size={18} className={styles.stackIcon} />
+            <h3 className={styles.stackName}>Run History</h3>
           </div>
-          {!collapsedSections.has('last-run') && (
-            <LastRunTable latestRunsByJobType={latestRunsByJobType} />
-          )}
+          <span className={styles.stackCount}>
+            {recentRuns.length} run{recentRuns.length !== 1 ? "s" : ""}
+          </span>
         </div>
-      )}
+        {!collapsedSections.has('run-history') && (
+          <div className={styles.historyAndLogs}>
+            {/* Logs Display - Top, takes 2 card widths */}
+            <div className={styles.logsSection}>
+              <LogViewer selectedRun={selectedRun} />
+            </div>
 
-      {/* Run History and Logs */}
-      <div className={styles.historyAndLogs}>
-        {/* Run History Grid */}
-        <div className={styles.runHistorySection}>
-          <div className={styles.runHistoryHeader}>
-            <HistoryIcon size={18} className={styles.runHistoryIcon} />
-            <h4 className={styles.runHistoryTitle}>Run History</h4>
-          </div>
-          {recentRuns.length === 0 ? (
-            <EmptyState
-              message="No batch runs yet"
-              icon={HistoryIcon}
-              className={styles.emptyState}
-            />
-          ) : (
-            <div className={styles.runHistoryGrid}>
-              {recentRuns.map((run) => (
-                <RunCard
-                  key={run.id}
-                  run={run}
-                  isSelected={selectedRun?.id === run.id}
-                  onClick={setSelectedRun}
+            {/* Run History Grid - Below logs, 4 cards per row */}
+            <div className={styles.runHistorySection}>
+              <div className={styles.runHistoryHeader}>
+                <HistoryIcon size={18} className={styles.runHistoryIcon} />
+                <h4 className={styles.runHistoryTitle}>All Runs</h4>
+              </div>
+              {recentRuns.length === 0 ? (
+                <EmptyState
+                  message="No batch runs yet"
+                  icon={HistoryIcon}
+                  className={styles.emptyState}
                 />
-              ))}
+              ) : (
+                <>
+                  <div className={styles.runHistoryGrid}>
+                    {displayedRuns.map((run) => (
+                      <RunCard
+                        key={run.id}
+                        run={run}
+                        isSelected={selectedRun?.id === run.id}
+                        onClick={setSelectedRun}
+                      />
+                    ))}
+                  </div>
+                  {hasMoreRuns && canShowMore && (
+                    <div className={styles.showMoreContainer}>
+                      <Button
+                        variant="outline"
+                        onClick={handleShowMore}
+                        icon={ChevronDown}
+                        iconPosition="right"
+                        className={styles.showMoreButton}
+                      >
+                        Show More ({displayCount} of {recentRuns.length})
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Logs Display */}
-        {selectedRun && (
-          <div className={styles.logsSection}>
-            <LogViewer selectedRun={selectedRun} />
           </div>
         )}
       </div>

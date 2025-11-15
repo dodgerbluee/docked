@@ -25,6 +25,7 @@ const trackedImageController = require("../controllers/trackedImageController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
+const logsController = require("../controllers/logsController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -273,5 +274,8 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
 // Settings routes
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
+
+// Logs routes
+router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
 
 module.exports = router;

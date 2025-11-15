@@ -9,7 +9,16 @@ import { API_BASE_URL } from "../constants/api";
 export const useTheme = (isAuthenticated, authToken) => {
   const [colorScheme, setColorScheme] = useState("system"); // 'system', 'light', or 'dark'
   const [darkMode, setDarkMode] = useState(() => {
-    // Initial dark mode based on system preference
+    // Check localStorage first for saved dark mode state
+    try {
+      const saved = localStorage.getItem('darkMode');
+      if (saved === 'true' || saved === 'false') {
+        return saved === 'true';
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    // Fallback to system preference
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
 
@@ -82,12 +91,18 @@ export const useTheme = (isAuthenticated, authToken) => {
     }
   }, [colorScheme]);
 
-  // Update body class when dark mode changes
+  // Update body class when dark mode changes and persist to localStorage
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add("dark-mode");
     } else {
       document.body.classList.remove("dark-mode");
+    }
+    // Persist dark mode state to localStorage for immediate application on page load
+    try {
+      localStorage.setItem('darkMode', darkMode.toString());
+    } catch (e) {
+      // Silently fail if localStorage is not available
     }
   }, [darkMode]);
 

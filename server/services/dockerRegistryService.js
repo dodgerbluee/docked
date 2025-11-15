@@ -170,8 +170,14 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
     }
 
     // Only log failures, not every status check
+    // Suppress warnings for 404s when tag contains @sha256 (expected behavior)
     if (response.status !== 200) {
-      logger.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
+      if (response.status === 404 && tag && tag.includes("@sha256")) {
+        // Expected - Docker Hub doesn't support fetching by digest in tag format
+        logger.debug(`      ⏭️  Skipping 404 for ${imageRepo}:${tag} (tag contains digest)`);
+      } else {
+        logger.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
+      }
     }
     return null;
   } catch (error) {
@@ -201,6 +207,16 @@ async function getLatestImageDigest(imageRepo, tag = "latest") {
   logger.debug(
     `      🐳 Docker Registry: Fetching digest for ${imageRepo}:${tag}`
   );
+  
+  // Skip lookup if tag already contains a digest (e.g., "tag@sha256:abc123")
+  // Docker Hub doesn't support fetching manifests by digest in tag format
+  if (tag && tag.includes("@sha256")) {
+    logger.debug(
+      `      ⏭️  Skipping digest lookup for ${imageRepo}:${tag} (tag already contains digest)`
+    );
+    return null;
+  }
+  
   const registry = detectRegistry(imageRepo);
 
   switch (registry.type) {

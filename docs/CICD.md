@@ -17,41 +17,34 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
 
 ```
 .github/workflows/
-├── ci-pr-checks.yml          # PR validation and quality checks
-├── ci-push.yml               # Continuous integration on main branch
-├── release.yml               # Production release workflow
-├── pre-release.yml           # Development pre-release workflow
-├── promote-to-latest.yml     # Promote dev to latest
-├── security.yml              # Security scanning
-├── docker-build.yml          # Docker image building
-└── reusable/                 # Reusable workflow templates
-    ├── setup-node.yml        # Node.js setup
-    ├── run-tests.yml         # Test execution
-    └── run-linting.yml       # Linting and formatting
+├── ci.yml                          # Main CI pipeline (GitLab-style)
+├── release.yml                     # Production release workflow (tag-based)
+├── pre-release.yml                 # Development pre-release workflow
+├── promote-dev-to-production.yml   # ⭐ Promote dev to production (recommended)
+├── promote-to-latest.yml           # Quick promote dev to latest (re-tag only)
+├── security.yml                    # Scheduled security scanning
+├── docker-build.yml                # Docker image building
+└── reusable/                       # Reusable workflow templates
+    ├── setup-node.yml              # Node.js setup
+    ├── run-tests.yml               # Test execution
+    └── run-linting.yml             # Linting and formatting
 ```
 
 ### Workflow Types
 
 #### 1. Continuous Integration (CI)
 
-**PR Checks** (`.github/workflows/ci-pr-checks.yml`)
-- Triggers: Pull requests to main/master
-- Purpose: Validate code quality before merge
-- Checks:
-  - PR title validation (conventional commits)
-  - Linting and formatting
-  - Unit and integration tests
-  - Security scanning
-  - Build validation
-  - Changelog validation (if version changed)
-
-**Push to Main** (`.github/workflows/ci-push.yml`)
-- Triggers: Pushes to main/master branch
-- Purpose: Continuous integration after merge
-- Actions:
-  - Run tests with coverage
-  - Run linting
-  - Security scanning (informational)
+**CI Pipeline** (`.github/workflows/ci.yml`) - GitLab-style single pipeline
+- Triggers: Pull requests and pushes to main/master
+- Purpose: Unified CI pipeline for all code changes
+- Jobs (run in parallel, then build depends on lint/test):
+  - **validate-pr-title**: PR title validation (PRs only)
+  - **lint**: Linting and formatting checks
+  - **test**: Unit and integration tests with coverage
+  - **security**: Security scanning (npm audit, Snyk, CodeQL)
+  - **build**: Build validation (depends on lint/test)
+  - **validate-changelog**: Changelog validation if version changed (PRs only)
+  - **all-checks**: Final gate ensuring all checks passed
 
 #### 2. Continuous Deployment (CD)
 
@@ -75,14 +68,25 @@ The Docked project uses GitHub Actions for CI/CD. The system is designed to:
   - Generate changelog
   - Create GitHub release
 
+**Promote Dev to Production** (`.github/workflows/promote-dev-to-production.yml`) ⭐ Recommended
+- Triggers: Manual workflow dispatch
+- Purpose: One-click promotion from dev to production
+- Actions:
+  - Validates permissions (admin/owner only)
+  - Extracts version from latest dev tag (or uses override)
+  - Runs full test suite and security scans
+  - Builds production artifacts and Docker images
+  - Creates git tag and GitHub release
+  - Tags Docker image as version and `latest`
+
 **Promote to Latest** (`.github/workflows/promote-to-latest.yml`)
 - Triggers: Manual workflow dispatch
-- Purpose: Promote dev release to latest
+- Purpose: Quick promotion - just re-tag existing dev image as `latest`
 - Actions:
   - Validate permissions
-  - Build release version
-  - Tag Docker image as `latest`
-  - Create GitHub release (optional)
+  - Re-tag dev Docker image as `latest` (no rebuild)
+  - Optionally create GitHub release
+- Use case: When dev build is already good and you just need to update `latest` tag
 
 #### 3. Security
 

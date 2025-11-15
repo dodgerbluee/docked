@@ -538,7 +538,7 @@ function BatchLogs({
               marginBottom: "20px",
             }}
           >
-            Next Scheduled Runs
+            Batch Jobs
           </h3>
           {hasEnabledJobs ? (
             <div

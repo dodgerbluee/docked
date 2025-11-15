@@ -5,6 +5,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 400px;
 }
 
 .header {
@@ -22,11 +24,11 @@
   flex: 1;
   padding: 15px;
   overflow-y: auto;
-  max-height: 600px;
   font-family: monospace;
   font-size: 0.85rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
+  min-height: 0;
 }
 
 /* Keep dark mode using bg-primary for better contrast */
@@ -39,6 +41,39 @@ body.dark-mode .content {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary);
+}
+
+/* Log level color coding - only the level text inside brackets is colored */
+.logDefault {
+  color: var(--text-primary);
+}
+
+.logInfo {
+  color: var(--success-green);
+  font-weight: 600;
+}
+
+.logWarn {
+  color: #fbbf24; /* Yellow/amber for warnings */
+  font-weight: 600;
+}
+
+body.dark-mode .logWarn {
+  color: #fcd34d; /* Lighter yellow for dark mode */
+}
+
+.logError {
+  color: var(--dodger-red);
+  font-weight: 600;
+}
+
+.logDebug {
+  color: #fb923c; /* Orange for debug logs (lighter than warn) */
+  font-weight: 600;
+}
+
+body.dark-mode .logDebug {
+  color: #fdba74; /* Lighter orange for dark mode */
 }
 
 .empty {

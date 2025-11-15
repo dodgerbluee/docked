@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { RefreshCw, Check } from "lucide-react";
+import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
@@ -77,7 +78,11 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
-  const portainerPage = usePortainerPage({
+  const {
+    errorModal,
+    closeErrorModal,
+    ...portainerPage
+  } = usePortainerPage({
     portainerInstances,
     containers,
     unusedImages,
@@ -444,6 +449,16 @@ function PortainerPage({
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Error Modal for Container Upgrade Failures */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={closeErrorModal}
+        title={errorModal.title}
+        message={errorModal.message}
+        containerName={errorModal.containerName}
+        details={errorModal.details}
       />
     </div>
   );

@@ -1,18 +1,20 @@
-name: CI - PR Checks
+name: CI Pipeline
 
 on:
+  push:
+    branches: [main, master]
   pull_request:
     branches: [main, master]
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:
 
 env:
   NODE_VERSION: '18'
 
 jobs:
-  # Validate PR title follows conventional commits
+  # Validate PR title follows conventional commits (PRs only)
   validate-pr-title:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,13 +52,13 @@ jobs:
       node-version: ${{ env.NODE_VERSION }}
       check-formatting: true
 
-  # Run tests
+  # Run tests with coverage
   test:
     uses: ./.github/workflows/reusable/run-tests.yml
     with:
       node-version: ${{ env.NODE_VERSION }}
       run-coverage: true
-      upload-coverage: true
+      upload-coverage: ${{ github.event_name == 'push' }}
 
   # Security checks
   security:
@@ -85,7 +87,8 @@ jobs:
           cd server && npm ci
           cd ../client && npm ci
 
-      - name: Dependency Review
+      - name: Dependency Review (PRs only)
+        if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
@@ -104,9 +107,27 @@ jobs:
           cd client
           npm audit --audit-level=moderate
 
+      - name: Run Snyk security scan
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: snyk/actions/node@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
   # Build validation
   build:
     runs-on: ubuntu-latest
+    needs: [lint, test]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -140,9 +161,10 @@ jobs:
           path: client/build
           retention-days: 1
 
-  # Validate changelog (if version changed)
+  # Validate changelog (if version changed) - PRs only
   validate-changelog:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -176,22 +198,50 @@ jobs:
           fi
           echo "✅ CHANGELOG.md contains entry for version $VERSION"
 
-  # All checks must pass
+  # Final gate - all checks must pass
   all-checks:
     runs-on: ubuntu-latest
-    needs: [validate-pr-title, lint, test, security, build, validate-changelog]
+    needs: 
+      - validate-pr-title
+      - lint
+      - test
+      - security
+      - build
+      - validate-changelog
     if: always()
     steps:
       - name: Check all jobs
         run: |
-          if [ "${{ needs.validate-pr-title.result }}" != "success" ] || \
-             [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.security.result }}" != "success" ] || \
-             [ "${{ needs.build.result }}" != "success" ] || \
-             [ "${{ needs.validate-changelog.result }}" != "success" ]; then
-            echo "❌ One or more checks failed"
+          FAILED_JOBS=""
+          
+          if [ "${{ needs.validate-pr-title.result }}" != "success" ] && [ "${{ needs.validate-pr-title.result }}" != "skipped" ]; then
+            FAILED_JOBS="${FAILED_JOBS} validate-pr-title"
+          fi
+          
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            FAILED_JOBS="${FAILED_JOBS} lint"
+          fi
+          
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            FAILED_JOBS="${FAILED_JOBS} test"
+          fi
+          
+          if [ "${{ needs.security.result }}" != "success" ]; then
+            FAILED_JOBS="${FAILED_JOBS} security"
+          fi
+          
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            FAILED_JOBS="${FAILED_JOBS} build"
+          fi
+          
+          if [ "${{ needs.validate-changelog.result }}" != "success" ] && [ "${{ needs.validate-changelog.result }}" != "skipped" ]; then
+            FAILED_JOBS="${FAILED_JOBS} validate-changelog"
+          fi
+          
+          if [ -n "$FAILED_JOBS" ]; then
+            echo "❌ The following checks failed:$FAILED_JOBS"
             exit 1
           fi
+          
           echo "✅ All checks passed"
 

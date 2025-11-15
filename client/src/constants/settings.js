@@ -11,6 +11,7 @@ export const SETTINGS_TABS = {
   DOCKERHUB: "dockerhub",
   DISCORD: "discord",
   USER_DETAILS: "userdetails",
+  LOGS: "logs",
 };
 
 export const SETTINGS_TAB_LABELS = {
@@ -22,6 +23,7 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.DOCKERHUB]: "Docker Hub",
   [SETTINGS_TABS.DISCORD]: "Notifications",
   [SETTINGS_TABS.USER_DETAILS]: "User Details",
+  [SETTINGS_TABS.LOGS]: "Logs",
 };
 
 export const COLOR_SCHEMES = {

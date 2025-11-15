@@ -74,9 +74,9 @@ export const StatusBadge = React.memo(function StatusBadge({ status }) {
       case BATCH_STATUS.RUNNING:
         return <Circle size={12} className={styles.badgeIcon} />;
       case BATCH_STATUS.COMPLETED:
-        return <CheckCircle2 size={14} className={styles.badgeIcon} />;
+        return <CheckCircle2 size={14} className={`${styles.badgeIcon} ${styles.successIcon}`} />;
       case BATCH_STATUS.FAILED:
-        return <XCircle size={14} className={styles.badgeIcon} />;
+        return <XCircle size={14} className={`${styles.badgeIcon} ${styles.errorIcon}`} />;
       default:
         return <Circle size={12} className={styles.badgeIcon} />;
     }

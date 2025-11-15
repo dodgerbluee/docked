@@ -157,7 +157,7 @@ const DiscordTab = React.memo(function DiscordTab({
                 </Button>
                 <a
                   ref={downloadLinkRef}
-                  href="/img/image.png"
+                  href="/img/logo.png"
                   download="docked-logo.png"
                   style={{ display: "none" }}
                   aria-hidden="true"

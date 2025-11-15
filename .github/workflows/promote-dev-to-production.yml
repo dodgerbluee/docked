@@ -1,0 +1,366 @@
+name: Promote Dev to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "promote" to confirm promoting dev to production'
+        required: true
+        type: string
+      version_override:
+        description: 'Override version (leave empty to use latest dev version)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  NODE_VERSION: '18'
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Check repository permissions
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: repo } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const actor = context.actor;
+            const isOwner = repo.owner.login.toLowerCase() === actor.toLowerCase();
+            
+            let hasAdmin = false;
+            try {
+              const { data: permissions } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: actor
+              });
+              hasAdmin = permissions.permission === 'admin';
+            } catch (error) {
+              hasAdmin = false;
+            }
+            
+            if (!isOwner && !hasAdmin) {
+              core.setFailed('Only repository owners and admins can promote to production.');
+            }
+            
+            core.info(`User ${actor} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Get version from dev or override
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            # Use provided version override
+            RELEASE_VERSION="${{ github.event.inputs.version_override }}"
+            echo "Using provided version: $RELEASE_VERSION"
+          else
+            # Fetch all tags
+            git fetch --tags --force
+            
+            # Find the latest dev tag (e.g., v1.0.3-dev)
+            LATEST_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -1)
+            
+            if [ -z "$LATEST_DEV_TAG" ]; then
+              echo "❌ Error: No dev tag found. Please ensure a dev pre-release has been created first."
+              exit 1
+            fi
+            
+            # Extract version from dev tag (e.g., v1.0.3-dev -> 1.0.3)
+            RELEASE_VERSION=$(echo "$LATEST_DEV_TAG" | sed 's/^v\(.*\)-dev$/\1/')
+            echo "Latest dev tag: $LATEST_DEV_TAG"
+            echo "Promoting to version: $RELEASE_VERSION"
+          fi
+          
+          # Validate version format
+          if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Error: Invalid version format: $RELEASE_VERSION"
+            echo "Version must be in format X.Y.Z (e.g., 1.2.3)"
+            exit 1
+          fi
+          
+          TAG_NAME="v${RELEASE_VERSION}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Final production version: $RELEASE_VERSION (tag: $TAG_NAME)"
+
+      - name: Check if version already exists
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "❌ Error: Tag $TAG_NAME already exists. Please use a different version or delete the existing tag."
+            exit 1
+          fi
+          echo "✓ Version $TAG_NAME is available"
+
+      - name: Update version in package.json files
+        run: |
+          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          echo "Updating version to $RELEASE_VERSION in all package.json files"
+          npm pkg set version="$RELEASE_VERSION"
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
+          echo "✓ Version updated to $RELEASE_VERSION"
+
+      - name: Run tests
+        run: |
+          cd server
+          npm test -- --coverage --watchAll=false
+          cd ../client
+          CI=true npm test -- --coverage --watchAll=false
+
+      - name: Run security scans
+        run: |
+          npm audit --audit-level=moderate
+          cd server && npm audit --audit-level=moderate
+          cd ../client && npm audit --audit-level=moderate
+
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+
+      - name: Create release artifacts
+        run: |
+          mkdir -p release-artifacts
+          tar -czf release-artifacts/docked-${{ steps.version.outputs.release_version }}-source.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='data' \
+            --exclude='.github' \
+            --exclude='release-artifacts' \
+            .
+          cd release-artifacts
+          sha256sum docked-${{ steps.version.outputs.release_version }}-source.tar.gz > docked-${{ steps.version.outputs.release_version }}-source.tar.gz.sha256
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
+            ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          build-args: |
+            NODE_ENV=production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Get commits since previous release
+        id: commits
+        run: |
+          # Find the latest formal release tag (excluding dev and latest tags)
+          PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
+          
+          if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
+            BASE_TAG="$PREVIOUS_RELEASE_TAG"
+            echo "Using previous release tag: $BASE_TAG"
+          else
+            BASE_TAG=""
+            echo "No previous release tags found, using all commits"
+          fi
+          
+          # Get commits between BASE_TAG and HEAD, filtering for conventional commits
+          if [ -z "$BASE_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true) | head -50)
+          else
+            COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true))
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            COMMITS_LIST="- No conventional commits since previous release"
+          else
+            COMMITS_LIST=$(echo "$COMMITS" | while IFS='|' read -r subject hash fullhash; do
+              echo "- $subject ([${hash:0:7}](https://github.com/${{ github.repository }}/commit/$fullhash))"
+            done)
+          fi
+          
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
+            echo "previous_tag=$PREVIOUS_RELEASE_TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+          configurationPath: .github/changelog-config.json
+
+      - name: Commit version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --quiet package.json server/package.json client/package.json; then
+            echo "No version changes to commit"
+          else
+            git add package.json server/package.json client/package.json
+            git commit -m "chore: promote dev to production v${{ steps.version.outputs.release_version }} [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✓ Committed version update to ${{ steps.version.outputs.release_version }}"
+          fi
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag_name }}" -m "Release v${{ steps.version.outputs.release_version }}"
+          git push origin "${{ steps.version.outputs.tag_name }}"
+          echo "✓ Created and pushed tag ${{ steps.version.outputs.tag_name }}"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          RELEASE_NAME="v$RELEASE_VERSION"
+          RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          # Create changelog link
+          if [ -n "${{ steps.commits.outputs.previous_tag }}" ]; then
+            PREV_TAG="${{ steps.commits.outputs.previous_tag }}"
+            CHANGELOG_LINK="[${PREV_TAG}...${TAG_NAME}](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG_NAME})"
+          else
+            CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
+          fi
+          
+          RELEASE_BODY=$(cat <<EOF
+          ## 🚀 Release v$RELEASE_VERSION
+          
+          **Release Date:** $RELEASE_DATE  
+          **Promoted by:** @${{ github.actor }}  
+          **Promoted from:** Latest dev build
+          
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ## 📦 Downloads
+          
+          ### Source Code
+          - **Source Tarball:** [docked-$RELEASE_VERSION-source.tar.gz](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/docked-$RELEASE_VERSION-source.tar.gz)
+          - **SHA256 Checksum:** [docked-$RELEASE_VERSION-source.tar.gz.sha256](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/docked-$RELEASE_VERSION-source.tar.gz.sha256)
+          
+          ### Container Image
+          \`\`\`bash
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}:$RELEASE_VERSION
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          \`\`\`
+          
+          ## 📝 Commits in This Release
+          
+          ${{ steps.commits.outputs.commits }}
+          
+          ---
+          
+          $CHANGELOG_LINK
+          
+          ## 🔄 Upgrade Instructions
+          
+          See [UPGRADE.md](https://github.com/${{ github.repository }}/blob/main/UPGRADE.md) for detailed upgrade instructions.
+          EOF
+          )
+          
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "$RELEASE_BODY" \
+            --repo ${{ github.repository }}
+          
+          echo "✓ Created GitHub release: $TAG_NAME"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+          retention-days: 90
+
+      - name: Attach artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          
+          # Download artifacts
+          gh release download "$TAG_NAME" --dir release-artifacts --repo ${{ github.repository }} || true
+          
+          # Upload artifacts if they exist
+          if [ -f "release-artifacts/docked-$RELEASE_VERSION-source.tar.gz" ]; then
+            gh release upload "$TAG_NAME" \
+              release-artifacts/docked-$RELEASE_VERSION-source.tar.gz \
+              release-artifacts/docked-$RELEASE_VERSION-source.tar.gz.sha256 \
+              --repo ${{ github.repository }} || echo "Artifacts may already be attached"
+          fi
+
+      - name: Promotion summary
+        run: |
+          echo "## ✅ Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Successfully promoted **dev** to **production**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ steps.version.outputs.release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Docker Images:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**GitHub Release:** [v${{ steps.version.outputs.release_version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.release_version }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Promoted by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Promoted at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  validation:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm != 'promote'
+    steps:
+      - name: Validation failed
+        run: |
+          echo "❌ Promotion cancelled. You must type 'promote' in the confirmation field."
+          exit 1
+

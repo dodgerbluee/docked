@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { X } from "lucide-react";
 import Button from "./Button";
@@ -113,7 +114,7 @@ const Modal = React.memo(function Modal({
 
   const sizeClass = size && styles[size] ? styles[size] : styles.md;
 
-  return (
+  const modalContent = (
     <div
       className={styles.overlay}
       onClick={handleOverlayClick}
@@ -140,6 +141,9 @@ const Modal = React.memo(function Modal({
       </div>
     </div>
   );
+
+  // Render modal using portal to document.body to avoid positioning issues
+  return createPortal(modalContent, document.body);
 });
 
 Modal.propTypes = {
