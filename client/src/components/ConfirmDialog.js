@@ -111,18 +111,10 @@ function ConfirmDialog({
           <p>{message}</p>
         </div>
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.cancelButton}
-            onClick={onCancel}
-          >
+          <button type="button" className={styles.cancelButton} onClick={onCancel}>
             {cancelLabel}
           </button>
-          <button
-            type="button"
-            className={styles.confirmButton}
-            onClick={onConfirm}
-          >
+          <button type="button" className={styles.confirmButton} onClick={onConfirm}>
             {confirmLabel}
           </button>
         </div>
@@ -142,4 +134,3 @@ ConfirmDialog.propTypes = {
 };
 
 export default ConfirmDialog;
-

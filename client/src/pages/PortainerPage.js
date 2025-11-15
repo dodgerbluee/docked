@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { RefreshCw, Check } from "lucide-react";
+import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
@@ -77,7 +78,7 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
-  const portainerPage = usePortainerPage({
+  const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,
     containers,
     unusedImages,
@@ -99,9 +100,7 @@ function PortainerPage({
   });
 
   const handleToggleCollapsed = useCallback(() => {
-    portainerPage.setCollapsedUnusedImages(
-      !portainerPage.collapsedUnusedImages
-    );
+    portainerPage.setCollapsedUnusedImages(!portainerPage.collapsedUnusedImages);
   }, [portainerPage]);
 
   // Check if we have any data at all
@@ -117,7 +116,7 @@ function PortainerPage({
     return portainerPage.groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate && !portainerPage.isPortainerContainer(c))
     );
-  }, [portainerPage.contentTab, portainerPage.groupedStacks, portainerPage.isPortainerContainer]);
+  }, [portainerPage]);
 
   const selectableContainersCount = containersWithUpdates.length;
   const allSelectableSelected =
@@ -134,7 +133,7 @@ function PortainerPage({
       setBatchUpgradeData(upgradeData);
       setBatchUpgradeConfirm(true);
     }
-  }, [portainerPage.handleBatchUpgrade]);
+  }, [portainerPage]);
 
   const handleBatchUpgradeConfirm = useCallback(async () => {
     if (batchUpgradeData?.containers) {
@@ -142,7 +141,7 @@ function PortainerPage({
       setBatchUpgradeConfirm(false);
       setBatchUpgradeData(null);
     }
-  }, [batchUpgradeData, portainerPage.executeBatchUpgrade]);
+  }, [batchUpgradeData, portainerPage]);
 
   // Handle batch delete for unused images
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
@@ -152,7 +151,7 @@ function PortainerPage({
     if (deleteData) {
       setBatchDeleteConfirm(true);
     }
-  }, [portainerPage.handleDeleteImages]);
+  }, [portainerPage]);
 
   const handleBatchDeleteConfirm = useCallback(async () => {
     const deleteData = portainerPage.handleDeleteImages();
@@ -160,11 +159,14 @@ function PortainerPage({
       await portainerPage.executeDeleteImages(deleteData.images);
       setBatchDeleteConfirm(false);
     }
-  }, [portainerPage.handleDeleteImages, portainerPage.executeDeleteImages]);
+  }, [portainerPage]);
 
   // Toolbar actions based on active tab
   const toolbarActions = useMemo(() => {
-    if (portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES && selectableContainersCount > 0) {
+    if (
+      portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES &&
+      selectableContainersCount > 0
+    ) {
       return (
         <>
           <Button
@@ -200,11 +202,17 @@ function PortainerPage({
         </>
       );
     }
-    
-    if (portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && portainerPage.portainerUnusedImages.length > 0) {
-      const allImagesSelected = portainerPage.portainerUnusedImages.length > 0 &&
-        portainerPage.portainerUnusedImages.every((img) => portainerPage.selectedImages.has(img.id));
-      
+
+    if (
+      portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED &&
+      portainerPage.portainerUnusedImages.length > 0
+    ) {
+      const allImagesSelected =
+        portainerPage.portainerUnusedImages.length > 0 &&
+        portainerPage.portainerUnusedImages.every((img) =>
+          portainerPage.selectedImages.has(img.id)
+        );
+
       return (
         <>
           <Button
@@ -244,19 +252,12 @@ function PortainerPage({
 
     return null;
   }, [
-    portainerPage.contentTab,
     selectableContainersCount,
     containersWithUpdates,
     allSelectableSelected,
-    portainerPage.selectedContainers,
-    portainerPage.batchUpgrading,
-    portainerPage.selectedImages,
-    portainerPage.deletingImages,
-    portainerPage.portainerUnusedImages,
-    portainerPage.handleToggleSelect,
-    portainerPage.handleToggleImageSelect,
     handleBatchUpgradeClick,
     handleBatchDeleteClick,
+    portainerPage,
   ]);
 
   if (portainerInstances.length === 0) {
@@ -274,11 +275,7 @@ function PortainerPage({
         <div className={styles.headerContent}>
           <h2 className={styles.portainerHeader}>Portainer Instances</h2>
           <div className={styles.headerActions}>
-            {toolbarActions && (
-              <div className={styles.toolbarActions}>
-                {toolbarActions}
-              </div>
-            )}
+            {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
             <div className={styles.buttonContainer}>
               <Button
                 onClick={onPullDockerHub}
@@ -290,9 +287,7 @@ function PortainerPage({
               >
                 {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
               </Button>
-              {showCheckmark && (
-                <Check className={styles.checkmark} size={20} />
-              )}
+              {showCheckmark && <Check className={styles.checkmark} size={20} />}
             </div>
           </div>
         </div>
@@ -339,16 +334,18 @@ function PortainerPage({
             contentTab={portainerPage.contentTab}
             onContentTabChange={portainerPage.setContentTab}
             selectedPortainerInstances={portainerPage.selectedPortainerInstances}
-            onSelectedPortainerInstancesChange={
-              portainerPage.setSelectedPortainerInstances
-            }
+            onSelectedPortainerInstancesChange={portainerPage.setSelectedPortainerInstances}
             onAddInstance={onAddInstance}
           />
         </ErrorBoundary>
 
         <div className={styles.portainerContentArea}>
           {portainerPage.aggregatedContainers.isLoading && (
-            <LoadingSpinner size="sm" message="Loading data..." className={styles.loadingIndicator} />
+            <LoadingSpinner
+              size="sm"
+              message="Loading data..."
+              className={styles.loadingIndicator}
+            />
           )}
 
           {/* Tab Content */}
@@ -445,6 +442,16 @@ function PortainerPage({
         cancelText="Cancel"
         variant="danger"
       />
+
+      {/* Error Modal for Container Upgrade Failures */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={closeErrorModal}
+        title={errorModal.title}
+        message={errorModal.message}
+        containerName={errorModal.containerName}
+        details={errorModal.details}
+      />
     </div>
   );
 }
@@ -466,18 +473,17 @@ PortainerPage.propTypes = {
   fetchUnusedImages: PropTypes.func.isRequired,
   onAddInstance: PropTypes.func.isRequired,
   onPullDockerHub: PropTypes.func.isRequired,
-      pullingDockerHub: PropTypes.bool,
-      pullError: PropTypes.string,
-      pullSuccess: PropTypes.string,
-      activeTab: PropTypes.string,
-      onTabChange: PropTypes.func,
-      selectedPortainerInstances: PropTypes.instanceOf(Set),
-      onSetSelectedPortainerInstances: PropTypes.func,
-      contentTab: PropTypes.string,
-      onSetContentTab: PropTypes.func,
-    };
+  pullingDockerHub: PropTypes.bool,
+  pullError: PropTypes.string,
+  pullSuccess: PropTypes.string,
+  activeTab: PropTypes.string,
+  onTabChange: PropTypes.func,
+  selectedPortainerInstances: PropTypes.instanceOf(Set),
+  onSetSelectedPortainerInstances: PropTypes.func,
+  contentTab: PropTypes.string,
+  onSetContentTab: PropTypes.func,
+};
 
 PortainerPage.displayName = "PortainerPage";
 
 export default PortainerPage;
-

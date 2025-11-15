@@ -25,13 +25,8 @@ const StatItem = ({ value, label, variant = "", onClick }) => {
 
   // Map variant to CSS module class name
   const variantClass = variant ? styles[variant] : null;
-  
-  const numberClasses = [
-    styles.statNumber,
-    variantClass,
-  ]
-    .filter(Boolean)
-    .join(" ");
+
+  const numberClasses = [styles.statNumber, variantClass].filter(Boolean).join(" ");
 
   return (
     <div
@@ -56,4 +51,3 @@ StatItem.propTypes = {
 };
 
 export default StatItem;
-

@@ -8,24 +8,20 @@ import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
 export const useNotifications = (containers, trackedImages) => {
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
-  const [dismissedContainerNotifications, setDismissedContainerNotifications] =
-    useState(() => {
-      try {
-        const stored = localStorage.getItem("dismissedContainerNotifications");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          return new Map(Object.entries(parsed));
-        }
-      } catch (err) {
-        console.error("Error loading dismissed container notifications:", err);
+  const [dismissedContainerNotifications, setDismissedContainerNotifications] = useState(() => {
+    try {
+      const stored = localStorage.getItem("dismissedContainerNotifications");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return new Map(Object.entries(parsed));
       }
-      return new Map();
-    });
+    } catch (err) {
+      console.error("Error loading dismissed container notifications:", err);
+    }
+    return new Map();
+  });
 
-  const [
-    dismissedTrackedAppNotifications,
-    setDismissedTrackedAppNotifications,
-  ] = useState(() => {
+  const [dismissedTrackedAppNotifications, setDismissedTrackedAppNotifications] = useState(() => {
     try {
       const stored = localStorage.getItem("dismissedTrackedAppNotifications");
       if (stored) {
@@ -42,10 +38,7 @@ export const useNotifications = (containers, trackedImages) => {
   useEffect(() => {
     try {
       const containerData = Object.fromEntries(dismissedContainerNotifications);
-      localStorage.setItem(
-        "dismissedContainerNotifications",
-        JSON.stringify(containerData)
-      );
+      localStorage.setItem("dismissedContainerNotifications", JSON.stringify(containerData));
     } catch (err) {
       console.error("Error saving dismissed container notifications:", err);
     }
@@ -53,31 +46,21 @@ export const useNotifications = (containers, trackedImages) => {
 
   useEffect(() => {
     try {
-      const trackedAppData = Object.fromEntries(
-        dismissedTrackedAppNotifications
-      );
-      localStorage.setItem(
-        "dismissedTrackedAppNotifications",
-        JSON.stringify(trackedAppData)
-      );
+      const trackedAppData = Object.fromEntries(dismissedTrackedAppNotifications);
+      localStorage.setItem("dismissedTrackedAppNotifications", JSON.stringify(trackedAppData));
     } catch (err) {
       console.error("Error saving dismissed tracked app notifications:", err);
     }
   }, [dismissedTrackedAppNotifications]);
 
   // Filter containers with updates
-  const containersWithUpdates = useMemo(
-    () => containers.filter((c) => c.hasUpdate),
-    [containers]
-  );
+  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
 
   // Filter out dismissed notifications, but show again if version has changed
   const activeContainersWithUpdates = useMemo(
     () =>
       containersWithUpdates.filter((container) => {
-        const dismissedVersion = dismissedContainerNotifications.get(
-          container.id
-        );
+        const dismissedVersion = dismissedContainerNotifications.get(container.id);
         if (!dismissedVersion) {
           // Not dismissed, show it
           return true;
@@ -136,4 +119,3 @@ export const useNotifications = (containers, trackedImages) => {
     handleDismissTrackedAppNotification,
   };
 };
-

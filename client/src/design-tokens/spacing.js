@@ -13,4 +13,3 @@ export const SPACING = {
   "3xl": "30px",
   "4xl": "32px",
 };
-

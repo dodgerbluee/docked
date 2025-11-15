@@ -10,7 +10,7 @@ export const BATCH_TABS = {
 };
 
 export const BATCH_TAB_LABELS = {
-  [BATCH_TABS.HISTORY]: "History",
+  [BATCH_TABS.HISTORY]: "Jobs",
   [BATCH_TABS.SETTINGS]: "Settings",
 };
 
@@ -39,4 +39,3 @@ export const BATCH_STATUS_LABELS = {
 export const REFRESH_INTERVAL_MS = DEFAULT_POLLING_INTERVAL_MS;
 
 export const DEFAULT_RUN_LIMIT = 20;
-

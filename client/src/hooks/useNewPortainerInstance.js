@@ -8,7 +8,7 @@ import { updateStateFromPullResponse } from "../utils/containerStateHelpers";
  * Custom hook for handling new Portainer instance creation
  * Extracts the complex logic for fetching data after adding a new instance
  * Handles Docker Hub pull, error handling, and navigation after instance creation
- * 
+ *
  * @param {Object} params - Hook parameters
  * @param {Function} params.setPortainerInstancesFromAPI - Setter for Portainer instances
  * @param {Function} params.setContainers - Setter for containers state
@@ -23,7 +23,7 @@ import { updateStateFromPullResponse } from "../utils/containerStateHelpers";
  * @param {Object} params.successfullyUpdatedContainersRef - Ref tracking successfully updated containers
  * @returns {Object} Hook return value
  * @returns {Function} return.handleNewInstanceDataFetch - Handler for new instance data fetching
- * 
+ *
  * @example
  * const { handleNewInstanceDataFetch } = useNewPortainerInstance({
  *   setPortainerInstancesFromAPI,
@@ -129,4 +129,3 @@ export const useNewPortainerInstance = ({
     handleNewInstanceDataFetch,
   };
 };
-

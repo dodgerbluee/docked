@@ -66,7 +66,6 @@ const UnusedTab = React.memo(function UnusedTab({
     }
   };
 
-
   return (
     <div className={styles.contentTabPanel}>
       <div className={styles.stackGroup}>
@@ -139,12 +138,15 @@ const UnusedTab = React.memo(function UnusedTab({
                               {image.portainerName}
                             </a>
                           ) : (
-                            <span className={styles.portainerBadge} title={`Portainer instance: ${image.portainerName}`}>
+                            <span
+                              className={styles.portainerBadge}
+                              title={`Portainer instance: ${image.portainerName}`}
+                            >
                               {image.portainerName}
                             </span>
                           )}
                           <span
-                            className={`${styles.deleteIcon} ${deletingImages ? styles.disabled : ''}`}
+                            className={`${styles.deleteIcon} ${deletingImages ? styles.disabled : ""}`}
                             title={deletingImages ? "Deleting..." : "Delete Image"}
                             aria-label={deletingImages ? "Deleting..." : "Delete Image"}
                             onClick={(e) => {
@@ -195,7 +197,6 @@ const UnusedTab = React.memo(function UnusedTab({
         cancelText="Cancel"
         variant="danger"
       />
-
     </div>
   );
 });
@@ -219,4 +220,3 @@ UnusedTab.propTypes = {
 UnusedTab.displayName = "UnusedTab";
 
 export default UnusedTab;
-

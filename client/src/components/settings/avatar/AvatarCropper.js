@@ -54,17 +54,7 @@ export const cropImage = (image, crop, zoom, pan, previewSize = 400) => {
     canvas.width = outputSize;
     canvas.height = outputSize;
 
-    ctx.drawImage(
-      image,
-      sourceX,
-      sourceY,
-      sourceSize,
-      sourceSize,
-      0,
-      0,
-      outputSize,
-      outputSize
-    );
+    ctx.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, outputSize, outputSize);
 
     canvas.toBlob(
       (blob) => {
@@ -80,4 +70,3 @@ export const cropImage = (image, crop, zoom, pan, previewSize = 400) => {
     );
   });
 };
-

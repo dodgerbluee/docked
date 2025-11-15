@@ -1,16 +1,19 @@
 import React from "react";
 import PropTypes from "prop-types";
 import styles from "./PortainerTabNavigation.module.css";
-import { PORTAINER_CONTENT_TABS, PORTAINER_CONTENT_TAB_LABELS } from "../../constants/portainerPage";
+import {
+  PORTAINER_CONTENT_TABS,
+  PORTAINER_CONTENT_TAB_LABELS,
+} from "../../constants/portainerPage";
 
 /**
  * PortainerTabNavigation Component
  * Renders the tab navigation buttons for the Portainer page content tabs
  */
-const PortainerTabNavigation = React.memo(function PortainerTabNavigation({ 
-  activeTab, 
+const PortainerTabNavigation = React.memo(function PortainerTabNavigation({
+  activeTab,
   onTabChange,
-  toolbarActions 
+  toolbarActions,
 }) {
   const tabs = [
     PORTAINER_CONTENT_TABS.UPDATES,
@@ -24,9 +27,7 @@ const PortainerTabNavigation = React.memo(function PortainerTabNavigation({
         {tabs.map((tab) => (
           <button
             key={tab}
-            className={`${styles.tab} ${
-              activeTab === tab ? styles.active : ""
-            }`}
+            className={`${styles.tab} ${activeTab === tab ? styles.active : ""}`}
             onClick={() => onTabChange(tab)}
             role="tab"
             aria-selected={activeTab === tab}
@@ -37,11 +38,7 @@ const PortainerTabNavigation = React.memo(function PortainerTabNavigation({
           </button>
         ))}
       </div>
-      {toolbarActions && (
-        <div className={styles.tabsRight}>
-          {toolbarActions}
-        </div>
-      )}
+      {toolbarActions && <div className={styles.tabsRight}>{toolbarActions}</div>}
     </div>
   );
 });
@@ -55,4 +52,3 @@ PortainerTabNavigation.propTypes = {
 PortainerTabNavigation.displayName = "PortainerTabNavigation";
 
 export default PortainerTabNavigation;
-

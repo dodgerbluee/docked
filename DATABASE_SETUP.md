@@ -36,6 +36,7 @@ The database file is automatically created on first server start.
 ## Default User
 
 On first run, a default admin user is created:
+
 - **Username**: `admin`
 - **Password**: `admin` (or value from `ADMIN_PASSWORD` env var)
 
@@ -44,10 +45,12 @@ On first run, a default admin user is created:
 ## API Endpoints
 
 ### Public Endpoints
+
 - `POST /api/auth/login` - User login
 - `GET /api/auth/verify` - Verify token
 
 ### Protected Endpoints (require authentication)
+
 - `GET /api/auth/me` - Get current user info
 - `POST /api/auth/update-password` - Update password
 
@@ -62,6 +65,7 @@ On first run, a default admin user is created:
 ## Database Recommendations
 
 ### SQLite (Current)
+
 - ✅ Simple setup, no additional server needed
 - ✅ Good for single-instance deployments
 - ✅ File-based, easy to backup
@@ -69,6 +73,7 @@ On first run, a default admin user is created:
 - ❌ Not ideal for high-traffic applications
 
 ### PostgreSQL (Recommended for Production)
+
 - ✅ Excellent performance
 - ✅ Supports concurrent connections
 - ✅ Advanced features (transactions, constraints)
@@ -77,6 +82,7 @@ On first run, a default admin user is created:
 - ❌ More complex setup
 
 ### MySQL (Alternative)
+
 - ✅ Good performance
 - ✅ Widely used
 - ✅ Good documentation
@@ -107,4 +113,3 @@ To migrate to PostgreSQL:
 5. ⚠️ Consider adding password complexity requirements
 6. ⚠️ Consider adding account lockout after failed attempts
 7. ⚠️ Consider adding password expiration policies
-

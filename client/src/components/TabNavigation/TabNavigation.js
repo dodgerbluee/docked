@@ -61,9 +61,7 @@ const TabNavigation = ({
         >
           <MonitorSmartphone size={18} />
           Tracked Apps
-          {trackedAppsBehind > 0 && (
-            <span className="tab-badge">{trackedAppsBehind}</span>
-          )}
+          {trackedAppsBehind > 0 && <span className="tab-badge">{trackedAppsBehind}</span>}
         </button>
       </div>
     </div>
@@ -78,4 +76,3 @@ TabNavigation.propTypes = {
 };
 
 export default memo(TabNavigation);
-

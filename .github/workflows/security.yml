@@ -1,31 +1,14 @@
 name: Security Scan
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+  # Note: PR and push security checks are handled by ci.yml workflow
+  # This workflow only runs on schedule and manual dispatch for periodic security scans
   schedule:
     # Run weekly on Mondays
     - cron: '0 0 * * 1'
   workflow_dispatch:
 
 jobs:
-  dependency-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
-
   npm-audit:
     runs-on: ubuntu-latest
     steps:
@@ -49,17 +32,17 @@ jobs:
           cd ../client && npm ci
 
       - name: Run npm audit (root)
-        run: npm audit --audit-level=moderate || true
+        run: npm audit --audit-level=moderate
 
       - name: Run npm audit (server)
         run: |
           cd server
-          npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate
 
       - name: Run npm audit (client)
         run: |
           cd client
-          npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate
 
   snyk-scan:
     runs-on: ubuntu-latest
@@ -86,7 +69,7 @@ jobs:
 
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
-        continue-on-error: true
+        continue-on-error: false
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:

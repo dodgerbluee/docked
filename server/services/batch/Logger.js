@@ -4,15 +4,15 @@
  * Provides backward compatibility with existing batch system code
  */
 
-const logger = require('../../utils/logger');
-const { runWithContext } = require('../../utils/logger');
+const logger = require("../../utils/logger");
+const { runWithContext } = require("../../utils/logger");
 
 class BatchLogger {
-  constructor(jobType = 'system', jobId = null) {
+  constructor(jobType = "system", jobId = null) {
     this.jobType = jobType;
     this.jobId = jobId;
     this.logs = [];
-    this.module = 'batch';
+    this.module = "batch";
   }
 
   /**
@@ -23,7 +23,7 @@ class BatchLogger {
   _getLoggerWithContext(metadata = {}) {
     const context = {
       module: this.module,
-      service: 'batch',
+      service: "batch",
       jobType: this.jobType,
       jobId: this.jobId,
       ...metadata,
@@ -54,7 +54,7 @@ class BatchLogger {
     // Use centralized logger with context
     const childLogger = this._getLoggerWithContext(metadata);
     childLogger[level](message, {
-      operation: metadata.operation || 'batch-job',
+      operation: metadata.operation || "batch-job",
       ...metadata,
     });
 
@@ -65,21 +65,21 @@ class BatchLogger {
    * Log info message
    */
   info(message, metadata = {}) {
-    return this.log('info', message, metadata);
+    return this.log("info", message, metadata);
   }
 
   /**
    * Log warning message
    */
   warn(message, metadata = {}) {
-    return this.log('warn', message, metadata);
+    return this.log("warn", message, metadata);
   }
 
   /**
    * Log error message
    */
   error(message, metadata = {}) {
-    return this.log('error', message, metadata);
+    return this.log("error", message, metadata);
   }
 
   /**
@@ -87,13 +87,13 @@ class BatchLogger {
    */
   debug(message, metadataOrFn = {}) {
     // Support lazy evaluation for performance
-    if (typeof metadataOrFn === 'function') {
-      return this.log('debug', message, () => ({
-        operation: 'batch-job',
+    if (typeof metadataOrFn === "function") {
+      return this.log("debug", message, () => ({
+        operation: "batch-job",
         ...metadataOrFn(),
       }));
     }
-    return this.log('debug', message, metadataOrFn);
+    return this.log("debug", message, metadataOrFn);
   }
 
   /**
@@ -102,15 +102,15 @@ class BatchLogger {
    */
   getFormattedLogs() {
     return this.logs
-      .map(entry => {
+      .map((entry) => {
         const metaStr = Object.keys(entry)
-          .filter(key => !['timestamp', 'level', 'jobType', 'jobId', 'message'].includes(key))
-          .map(key => `${key}=${JSON.stringify(entry[key])}`)
-          .join(' ');
-        const jobIdStr = entry.jobId ? ` [job:${entry.jobId}]` : '';
-        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? ' ' + metaStr : ''}`;
+          .filter((key) => !["timestamp", "level", "jobType", "jobId", "message"].includes(key))
+          .map((key) => `${key}=${JSON.stringify(entry[key])}`)
+          .join(" ");
+        const jobIdStr = entry.jobId ? ` [job:${entry.jobId}]` : "";
+        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? " " + metaStr : ""}`;
       })
-      .join('\n');
+      .join("\n");
   }
 
   /**
@@ -137,6 +137,5 @@ module.exports.setLogLevel = (level) => {
   logger.updateLevel();
 };
 module.exports.getLogLevel = () => {
-  return logger.isDebugEnabled() ? 'debug' : 'info';
+  return logger.isDebugEnabled() ? "debug" : "info";
 };
-

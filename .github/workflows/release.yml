@@ -121,13 +121,13 @@ jobs:
 
       - name: Run npm audit
         run: |
-          npm audit --audit-level=moderate || true
-          cd server && npm audit --audit-level=moderate || true
-          cd ../client && npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate
+          cd server && npm audit --audit-level=moderate
+          cd ../client && npm audit --audit-level=moderate
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
-        continue-on-error: true
+        continue-on-error: false
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:

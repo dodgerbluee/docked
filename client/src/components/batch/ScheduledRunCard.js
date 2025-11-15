@@ -3,18 +3,19 @@ import PropTypes from "prop-types";
 import { RefreshCw } from "lucide-react";
 import { JobTypeBadge } from "./Badge";
 import Button from "../ui/Button";
-import { formatNextRun, formatInterval } from "../../utils/batchFormatters";
-import { BATCH_JOB_TYPES } from "../../constants/batch";
+import { formatNextRun, formatInterval, formatDate } from "../../utils/batchFormatters";
+// BATCH_JOB_TYPES is not currently used but kept for potential future use
 import styles from "./ScheduledRunCard.module.css";
 
 /**
  * ScheduledRunCard Component
- * Displays a scheduled run with trigger button
+ * Displays a scheduled run with trigger button, next run, and last run times
  */
 const ScheduledRunCard = React.memo(function ScheduledRunCard({
   jobType,
   config,
   nextRunDate,
+  lastRun,
   isTriggering,
   onTrigger,
 }) {
@@ -31,9 +32,18 @@ const ScheduledRunCard = React.memo(function ScheduledRunCard({
       </div>
       <div className={styles.content}>
         <div className={styles.info}>
-          <span className={styles.nextRun}>
-            {formatNextRun(nextRunDate)}
-          </span>
+          <div className={styles.runInfoRow}>
+            <span className={styles.runLabel}>Next Run:</span>
+            <span className={styles.nextRun}>{formatNextRun(nextRunDate)}</span>
+          </div>
+          {lastRun && (
+            <div className={styles.runInfoRow}>
+              <span className={styles.runLabel}>Last Run:</span>
+              <span className={styles.lastRun}>
+                {formatDate(lastRun.completed_at || lastRun.started_at)}
+              </span>
+            </div>
+          )}
           <span className={styles.interval}>
             (Interval: {formatInterval(config?.intervalMinutes)})
           </span>
@@ -60,9 +70,12 @@ ScheduledRunCard.propTypes = {
     intervalMinutes: PropTypes.number,
   }),
   nextRunDate: PropTypes.instanceOf(Date),
+  lastRun: PropTypes.shape({
+    started_at: PropTypes.string,
+    completed_at: PropTypes.string,
+  }),
   isTriggering: PropTypes.bool,
   onTrigger: PropTypes.func,
 };
 
 export default ScheduledRunCard;
-

@@ -38,13 +38,13 @@ const Header = ({
   };
 
   const handleNotificationToggle = () => {
-    if (typeof onToggleNotificationMenu === 'function') {
+    if (typeof onToggleNotificationMenu === "function") {
       onToggleNotificationMenu(!showNotificationMenu);
     }
   };
 
   const handleNotificationClose = () => {
-    if (typeof onToggleNotificationMenu === 'function') {
+    if (typeof onToggleNotificationMenu === "function") {
       onToggleNotificationMenu(false);
     }
   };
@@ -58,7 +58,7 @@ const Header = ({
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
+            if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               handleLogoClick();
             }
@@ -66,14 +66,8 @@ const Header = ({
           aria-label="Navigate to Summary"
         >
           <h1 className={styles.logo}>
-            <img
-              src="/img/image.png"
-              alt="Docked"
-              className={styles.logoImage}
-            />
-            <span className={styles.logoText}>
-              Docked
-            </span>
+            <img src="/img/logo.png" alt="Docked" className={styles.logoImage} />
+            <img src="/img/text-header.png" alt="docked" className={styles.logoTextImage} />
           </h1>
         </div>
         <div className={styles.headerActions}>
@@ -85,10 +79,7 @@ const Header = ({
                 aria-label="Notifications"
                 title="Notifications"
               >
-                <Bell
-                  size={25}
-                  className={styles.notificationIcon}
-                />
+                <Bell size={25} className={styles.notificationIcon} />
                 {notificationCount > 0 && (
                   <span className={styles.notificationBadge}>
                     {notificationCount > 99 ? "99+" : notificationCount}
@@ -155,4 +146,3 @@ Header.propTypes = {
 };
 
 export default memo(Header);
-

@@ -1,7 +1,7 @@
 /**
  * Job Handler Interface
  * Base class for all batch job handlers
- * 
+ *
  * This interface ensures all batch jobs follow the same contract,
  * making it easy to add new batch types without modifying core logic.
  */
@@ -12,7 +12,7 @@ class JobHandler {
    * @returns {string} - Unique job type identifier (e.g., 'docker-hub-pull')
    */
   getJobType() {
-    throw new Error('getJobType() must be implemented by subclass');
+    throw new Error("getJobType() must be implemented by subclass");
   }
 
   /**
@@ -20,7 +20,7 @@ class JobHandler {
    * @returns {string} - Human-readable job name (e.g., 'Docker Hub Scan')
    */
   getDisplayName() {
-    throw new Error('getDisplayName() must be implemented by subclass');
+    throw new Error("getDisplayName() must be implemented by subclass");
   }
 
   /**
@@ -33,7 +33,7 @@ class JobHandler {
    * @property {Error|null} error - Error if job failed
    */
   async execute(context) {
-    throw new Error('execute() must be implemented by subclass');
+    throw new Error("execute() must be implemented by subclass");
   }
 
   /**
@@ -42,14 +42,14 @@ class JobHandler {
    * @returns {Object} - Validation result { valid: boolean, error?: string }
    */
   validateConfig(config) {
-    if (!config || typeof config !== 'object') {
-      return { valid: false, error: 'Config must be an object' };
+    if (!config || typeof config !== "object") {
+      return { valid: false, error: "Config must be an object" };
     }
-    if (typeof config.enabled !== 'boolean') {
-      return { valid: false, error: 'Config must have enabled boolean' };
+    if (typeof config.enabled !== "boolean") {
+      return { valid: false, error: "Config must have enabled boolean" };
     }
-    if (typeof config.intervalMinutes !== 'number' || config.intervalMinutes < 1) {
-      return { valid: false, error: 'Config must have intervalMinutes >= 1' };
+    if (typeof config.intervalMinutes !== "number" || config.intervalMinutes < 1) {
+      return { valid: false, error: "Config must have intervalMinutes >= 1" };
     }
     return { valid: true };
   }
@@ -67,4 +67,3 @@ class JobHandler {
 }
 
 module.exports = JobHandler;
-

@@ -3,7 +3,7 @@
  * Initializes and exports the batch manager with all registered job handlers
  */
 
-const logger = require('../../utils/logger');
+const logger = require("../../utils/logger");
 
 // Lazy load batch manager to avoid initialization issues
 let batchManager = null;
@@ -105,5 +105,7 @@ module.exports = {
   getStatus,
   getRegisteredJobTypes,
   getHandler,
-  get batchManager() { return batchManager; }, // Export for testing
+  get batchManager() {
+    return batchManager;
+  }, // Export for testing
 };

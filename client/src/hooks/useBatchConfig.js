@@ -75,4 +75,3 @@ export const useBatchConfig = (isAuthenticated, authToken, passwordChanged) => {
     handleBatchConfigUpdate,
   };
 };
-

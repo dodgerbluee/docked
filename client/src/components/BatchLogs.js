@@ -3,13 +3,7 @@
  * Displays batch processing logs and run history
  */
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useContext,
-} from "react";
+import React, { useState, useEffect, useRef, useContext, useMemo, useCallback } from "react";
 import axios from "axios";
 import "./Settings.css";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
@@ -22,7 +16,7 @@ function BatchLogs({
 }) {
   // Get batchConfigs from Context - this will automatically update when state changes
   const contextValue = useContext(BatchConfigContext);
-  const batchConfigs = contextValue?.batchConfig || {};
+  const batchConfigs = useMemo(() => contextValue?.batchConfig || {}, [contextValue?.batchConfig]);
 
   // Check if any job type is enabled
   const hasEnabledJobs =
@@ -31,6 +25,7 @@ function BatchLogs({
     batchConfigs["tracked-apps-check"]?.enabled ||
     false;
 
+  // eslint-disable-next-line no-unused-vars
   const [latestRun, setLatestRun] = useState(null);
   const [latestRunsByJobType, setLatestRunsByJobType] = useState({});
   const [recentRuns, setRecentRuns] = useState([]);
@@ -38,12 +33,9 @@ function BatchLogs({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [triggeringBatch, setTriggeringBatch] = useState(false);
-  const [triggeringTrackedAppsBatch, setTriggeringTrackedAppsBatch] =
-    useState(false);
-  const [nextScheduledRunDockerHub, setNextScheduledRunDockerHub] =
-    useState(null);
-  const [nextScheduledRunTrackedApps, setNextScheduledRunTrackedApps] =
-    useState(null);
+  const [triggeringTrackedAppsBatch, setTriggeringTrackedAppsBatch] = useState(false);
+  const [nextScheduledRunDockerHub, setNextScheduledRunDockerHub] = useState(null);
+  const [nextScheduledRunTrackedApps, setNextScheduledRunTrackedApps] = useState(null);
   const lastCalculatedRunIdRefDockerHub = useRef(null);
   const lastCalculatedIntervalRefDockerHub = useRef(null);
   const baseScheduledTimeRefDockerHub = useRef(null);
@@ -67,26 +59,10 @@ function BatchLogs({
     lastCalculatedIntervalRefTrackedApps.current = null;
   }, [batchConfigs]);
 
-  useEffect(() => {
-    fetchLatestRun();
-    fetchRecentRuns();
-    // Refresh every 10 seconds to show updates
-    const interval = setInterval(() => {
-      fetchLatestRun();
-      fetchRecentRuns();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   // Calculate next scheduled run for Docker Hub Scan
   useEffect(() => {
     const dockerHubConfig = batchConfigs["docker-hub-pull"];
-    if (
-      !dockerHubConfig ||
-      !dockerHubConfig.enabled ||
-      !dockerHubConfig.intervalMinutes
-    ) {
+    if (!dockerHubConfig || !dockerHubConfig.enabled || !dockerHubConfig.intervalMinutes) {
       setNextScheduledRunDockerHub(null);
       baseScheduledTimeRefDockerHub.current = null;
       return;
@@ -138,14 +114,9 @@ function BatchLogs({
         const lastKey = `${lastCalculatedRunIdRefDockerHub.current || "none"}-${
           lastCalculatedIntervalRefDockerHub.current || 0
         }`;
-        if (
-          currentKey === lastKey &&
-          baseScheduledTimeRefDockerHub.current !== null
-        ) {
+        if (currentKey === lastKey && baseScheduledTimeRefDockerHub.current !== null) {
           // Use the cached time - don't recalculate from current time
-          setNextScheduledRunDockerHub(
-            new Date(baseScheduledTimeRefDockerHub.current)
-          );
+          setNextScheduledRunDockerHub(new Date(baseScheduledTimeRefDockerHub.current));
           return;
         }
         // First time calculating - use current time and store it
@@ -155,28 +126,20 @@ function BatchLogs({
     }
 
     // Check if we need to recalculate (only if run ID or interval changed)
-    const currentKey = `${lastRunId || "none"}-${
-      dockerHubConfig.intervalMinutes
-    }`;
+    const currentKey = `${lastRunId || "none"}-${dockerHubConfig.intervalMinutes}`;
     const lastKey = `${lastCalculatedRunIdRefDockerHub.current || "none"}-${
       lastCalculatedIntervalRefDockerHub.current || 0
     }`;
 
-    if (
-      currentKey === lastKey &&
-      baseScheduledTimeRefDockerHub.current !== null
-    ) {
+    if (currentKey === lastKey && baseScheduledTimeRefDockerHub.current !== null) {
       // Same run and interval - use cached time, don't recalculate
-      setNextScheduledRunDockerHub(
-        new Date(baseScheduledTimeRefDockerHub.current)
-      );
+      setNextScheduledRunDockerHub(new Date(baseScheduledTimeRefDockerHub.current));
       return;
     }
 
     // Only update if the run ID or interval actually changed
     lastCalculatedRunIdRefDockerHub.current = lastRunId;
-    lastCalculatedIntervalRefDockerHub.current =
-      dockerHubConfig.intervalMinutes;
+    lastCalculatedIntervalRefDockerHub.current = dockerHubConfig.intervalMinutes;
 
     // Store the calculated time (as timestamp) so it doesn't change
     if (calculatedNextRun) {
@@ -188,11 +151,7 @@ function BatchLogs({
   // Calculate next scheduled run for Tracked Apps Scan
   useEffect(() => {
     const trackedAppsConfig = batchConfigs["tracked-apps-check"];
-    if (
-      !trackedAppsConfig ||
-      !trackedAppsConfig.enabled ||
-      !trackedAppsConfig.intervalMinutes
-    ) {
+    if (!trackedAppsConfig || !trackedAppsConfig.enabled || !trackedAppsConfig.intervalMinutes) {
       setNextScheduledRunTrackedApps(null);
       baseScheduledTimeRefTrackedApps.current = null;
       return;
@@ -202,8 +161,7 @@ function BatchLogs({
 
     // Find the most recent completed run for tracked-apps-check
     const lastCompletedRun = recentRuns.find(
-      (run) =>
-        run.status === "completed" && run.job_type === "tracked-apps-check"
+      (run) => run.status === "completed" && run.job_type === "tracked-apps-check"
     );
     let calculatedNextRun = null;
     let lastRunId = null;
@@ -224,8 +182,7 @@ function BatchLogs({
     } else {
       // Check for running job
       const runningRun = recentRuns.find(
-        (run) =>
-          run.status === "running" && run.job_type === "tracked-apps-check"
+        (run) => run.status === "running" && run.job_type === "tracked-apps-check"
       );
       if (runningRun && runningRun.started_at) {
         lastRunId = runningRun.id;
@@ -246,14 +203,9 @@ function BatchLogs({
         const lastKey = `${
           lastCalculatedRunIdRefTrackedApps.current || "none"
         }-${lastCalculatedIntervalRefTrackedApps.current || 0}`;
-        if (
-          currentKey === lastKey &&
-          baseScheduledTimeRefTrackedApps.current !== null
-        ) {
+        if (currentKey === lastKey && baseScheduledTimeRefTrackedApps.current !== null) {
           // Use the cached time - don't recalculate from current time
-          setNextScheduledRunTrackedApps(
-            new Date(baseScheduledTimeRefTrackedApps.current)
-          );
+          setNextScheduledRunTrackedApps(new Date(baseScheduledTimeRefTrackedApps.current));
           return;
         }
         // First time calculating - use current time and store it
@@ -263,28 +215,20 @@ function BatchLogs({
     }
 
     // Check if we need to recalculate (only if run ID or interval changed)
-    const currentKey = `${lastRunId || "none"}-${
-      trackedAppsConfig.intervalMinutes
-    }`;
+    const currentKey = `${lastRunId || "none"}-${trackedAppsConfig.intervalMinutes}`;
     const lastKey = `${lastCalculatedRunIdRefTrackedApps.current || "none"}-${
       lastCalculatedIntervalRefTrackedApps.current || 0
     }`;
 
-    if (
-      currentKey === lastKey &&
-      baseScheduledTimeRefTrackedApps.current !== null
-    ) {
+    if (currentKey === lastKey && baseScheduledTimeRefTrackedApps.current !== null) {
       // Same run and interval - use cached time, don't recalculate
-      setNextScheduledRunTrackedApps(
-        new Date(baseScheduledTimeRefTrackedApps.current)
-      );
+      setNextScheduledRunTrackedApps(new Date(baseScheduledTimeRefTrackedApps.current));
       return;
     }
 
     // Only update if the run ID or interval actually changed
     lastCalculatedRunIdRefTrackedApps.current = lastRunId;
-    lastCalculatedIntervalRefTrackedApps.current =
-      trackedAppsConfig.intervalMinutes;
+    lastCalculatedIntervalRefTrackedApps.current = trackedAppsConfig.intervalMinutes;
 
     // Store the calculated time (as timestamp) so it doesn't change
     if (calculatedNextRun) {
@@ -293,7 +237,7 @@ function BatchLogs({
     }
   }, [batchConfigs, recentRuns]);
 
-  const fetchLatestRun = async () => {
+  const fetchLatestRun = useCallback(async () => {
     try {
       // Fetch latest run overall (for backward compatibility)
       const response = await axios.get(`${API_BASE_URL}/api/batch/runs/latest`);
@@ -322,20 +266,39 @@ function BatchLogs({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    selectedRun,
+    loading,
+    setLatestRun,
+    setSelectedRun,
+    setLatestRunsByJobType,
+    setError,
+    setLoading,
+  ]);
 
-  const fetchRecentRuns = async () => {
+  const fetchRecentRuns = useCallback(async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/batch/runs?limit=20`
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=20`);
       if (response.data.success) {
         setRecentRuns(response.data.runs || []);
       }
     } catch (err) {
       console.error("Error fetching recent batch runs:", err);
     }
-  };
+  }, [setRecentRuns]);
+
+  // Auto-refresh runs
+  useEffect(() => {
+    fetchLatestRun();
+    fetchRecentRuns();
+    // Refresh every 10 seconds to show updates
+    const interval = setInterval(() => {
+      fetchLatestRun();
+      fetchRecentRuns();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fetchLatestRun, fetchRecentRuns]);
 
   const formatDuration = (ms) => {
     if (!ms && ms !== 0) return "N/A";
@@ -515,9 +478,7 @@ function BatchLogs({
 
         {loading && (
           <div style={{ textAlign: "center", padding: "40px" }}>
-            <p style={{ color: "var(--text-secondary)" }}>
-              Loading batch logs...
-            </p>
+            <p style={{ color: "var(--text-secondary)" }}>Loading batch logs...</p>
           </div>
         )}
 
@@ -538,12 +499,10 @@ function BatchLogs({
               marginBottom: "20px",
             }}
           >
-            Next Scheduled Runs
+            Batch Jobs
           </h3>
           {hasEnabledJobs ? (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {/* Docker Hub Scan */}
               {batchConfigs["docker-hub-pull"]?.enabled && (
                 <div
@@ -557,9 +516,7 @@ function BatchLogs({
                     borderRadius: "6px",
                   }}
                 >
-                  <div
-                    style={{ fontWeight: "600", color: "var(--text-primary)" }}
-                  >
+                  <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
                     {getJobTypeBadge("docker-hub-pull")}
                   </div>
                   <div
@@ -595,20 +552,17 @@ function BatchLogs({
                       >
                         (Interval:{" "}
                         {batchConfigs["docker-hub-pull"]?.intervalMinutes
-                          ? batchConfigs["docker-hub-pull"].intervalMinutes ===
-                            60
+                          ? batchConfigs["docker-hub-pull"].intervalMinutes === 60
                             ? "1 hour"
-                            : batchConfigs["docker-hub-pull"].intervalMinutes <
-                              60
-                            ? `${batchConfigs["docker-hub-pull"].intervalMinutes} minutes`
-                            : (() => {
-                                const hours =
-                                  batchConfigs["docker-hub-pull"]
-                                    .intervalMinutes / 60;
-                                return hours % 1 === 0
-                                  ? `${hours} hours`
-                                  : `${hours.toFixed(1)} hours`;
-                              })()
+                            : batchConfigs["docker-hub-pull"].intervalMinutes < 60
+                              ? `${batchConfigs["docker-hub-pull"].intervalMinutes} minutes`
+                              : (() => {
+                                  const hours =
+                                    batchConfigs["docker-hub-pull"].intervalMinutes / 60;
+                                  return hours % 1 === 0
+                                    ? `${hours} hours`
+                                    : `${hours.toFixed(1)} hours`;
+                                })()
                           : "N/A"}
                         )
                       </span>
@@ -680,9 +634,7 @@ function BatchLogs({
                     borderRadius: "6px",
                   }}
                 >
-                  <div
-                    style={{ fontWeight: "600", color: "var(--text-primary)" }}
-                  >
+                  <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
                     {getJobTypeBadge("tracked-apps-check")}
                   </div>
                   <div
@@ -718,20 +670,17 @@ function BatchLogs({
                       >
                         (Interval:{" "}
                         {batchConfigs["tracked-apps-check"]?.intervalMinutes
-                          ? batchConfigs["tracked-apps-check"]
-                              .intervalMinutes === 60
+                          ? batchConfigs["tracked-apps-check"].intervalMinutes === 60
                             ? "1 hour"
-                            : batchConfigs["tracked-apps-check"]
-                                .intervalMinutes < 60
-                            ? `${batchConfigs["tracked-apps-check"].intervalMinutes} minutes`
-                            : (() => {
-                                const hours =
-                                  batchConfigs["tracked-apps-check"]
-                                    .intervalMinutes / 60;
-                                return hours % 1 === 0
-                                  ? `${hours} hours`
-                                  : `${hours.toFixed(1)} hours`;
-                              })()
+                            : batchConfigs["tracked-apps-check"].intervalMinutes < 60
+                              ? `${batchConfigs["tracked-apps-check"].intervalMinutes} minutes`
+                              : (() => {
+                                  const hours =
+                                    batchConfigs["tracked-apps-check"].intervalMinutes / 60;
+                                  return hours % 1 === 0
+                                    ? `${hours} hours`
+                                    : `${hours.toFixed(1)} hours`;
+                                })()
                           : "N/A"}
                         )
                       </span>
@@ -748,10 +697,7 @@ function BatchLogs({
                               fetchRecentRuns();
                             }, 1000);
                           } catch (err) {
-                            console.error(
-                              "Error triggering tracked apps batch:",
-                              err
-                            );
+                            console.error("Error triggering tracked apps batch:", err);
                           } finally {
                             setTriggeringTrackedAppsBatch(false);
                           }
@@ -767,9 +713,7 @@ function BatchLogs({
                         color: "#8b5cf6",
                         border: "1px solid #8b5cf6",
                         borderRadius: "8px",
-                        cursor: triggeringTrackedAppsBatch
-                          ? "not-allowed"
-                          : "pointer",
+                        cursor: triggeringTrackedAppsBatch ? "not-allowed" : "pointer",
                         transition: "all 0.3s",
                         display: "flex",
                         alignItems: "center",
@@ -804,15 +748,14 @@ function BatchLogs({
                 color: "var(--text-secondary)",
               }}
             >
-              No batch jobs are currently scheduled. Enable batch processing in
-              Settings to schedule automatic runs.
+              No batch jobs are currently scheduled. Enable batch processing in Settings to schedule
+              automatic runs.
             </div>
           )}
         </div>
 
         {/* Latest Run Summary - Show last run for each job type */}
-        {(latestRunsByJobType["docker-hub-pull"] ||
-          latestRunsByJobType["tracked-apps-check"]) && (
+        {(latestRunsByJobType["docker-hub-pull"] || latestRunsByJobType["tracked-apps-check"]) && (
           <div
             style={{
               background: "var(--bg-secondary)",
@@ -933,9 +876,7 @@ function BatchLogs({
                       borderBottom: "1px solid var(--border-color)",
                     }}
                   >
-                    {getStatusBadge(
-                      latestRunsByJobType["docker-hub-pull"].status
-                    )}
+                    {getStatusBadge(latestRunsByJobType["docker-hub-pull"].status)}
                   </div>
                   <div
                     style={{
@@ -945,9 +886,7 @@ function BatchLogs({
                       borderBottom: "1px solid var(--border-color)",
                     }}
                   >
-                    {formatDate(
-                      latestRunsByJobType["docker-hub-pull"].started_at
-                    )}
+                    {formatDate(latestRunsByJobType["docker-hub-pull"].started_at)}
                   </div>
                   <div
                     style={{
@@ -958,9 +897,7 @@ function BatchLogs({
                     }}
                   >
                     {latestRunsByJobType["docker-hub-pull"].completed_at
-                      ? formatDate(
-                          latestRunsByJobType["docker-hub-pull"].completed_at
-                        )
+                      ? formatDate(latestRunsByJobType["docker-hub-pull"].completed_at)
                       : "N/A"}
                   </div>
                   <div
@@ -972,9 +909,7 @@ function BatchLogs({
                     }}
                   >
                     {latestRunsByJobType["docker-hub-pull"].duration_ms
-                      ? formatDuration(
-                          latestRunsByJobType["docker-hub-pull"].duration_ms
-                        )
+                      ? formatDuration(latestRunsByJobType["docker-hub-pull"].duration_ms)
                       : "N/A"}
                   </div>
                   <div
@@ -986,14 +921,11 @@ function BatchLogs({
                     }}
                   >
                     <div style={{ marginBottom: "4px" }}>
-                      {latestRunsByJobType["docker-hub-pull"]
-                        .containers_checked || 0}{" "}
-                      containers checked
+                      {latestRunsByJobType["docker-hub-pull"].containers_checked || 0} containers
+                      checked
                     </div>
                     <div>
-                      {latestRunsByJobType["docker-hub-pull"]
-                        .containers_updated || 0}{" "}
-                      updates found
+                      {latestRunsByJobType["docker-hub-pull"].containers_updated || 0} updates found
                     </div>
                   </div>
                 </div>
@@ -1016,9 +948,7 @@ function BatchLogs({
                       borderBottom: "1px solid var(--border-color)",
                     }}
                   >
-                    {getStatusBadge(
-                      latestRunsByJobType["tracked-apps-check"].status
-                    )}
+                    {getStatusBadge(latestRunsByJobType["tracked-apps-check"].status)}
                   </div>
                   <div
                     style={{
@@ -1028,9 +958,7 @@ function BatchLogs({
                       borderBottom: "1px solid var(--border-color)",
                     }}
                   >
-                    {formatDate(
-                      latestRunsByJobType["tracked-apps-check"].started_at
-                    )}
+                    {formatDate(latestRunsByJobType["tracked-apps-check"].started_at)}
                   </div>
                   <div
                     style={{
@@ -1041,9 +969,7 @@ function BatchLogs({
                     }}
                   >
                     {latestRunsByJobType["tracked-apps-check"].completed_at
-                      ? formatDate(
-                          latestRunsByJobType["tracked-apps-check"].completed_at
-                        )
+                      ? formatDate(latestRunsByJobType["tracked-apps-check"].completed_at)
                       : "N/A"}
                   </div>
                   <div
@@ -1055,9 +981,7 @@ function BatchLogs({
                     }}
                   >
                     {latestRunsByJobType["tracked-apps-check"].duration_ms
-                      ? formatDuration(
-                          latestRunsByJobType["tracked-apps-check"].duration_ms
-                        )
+                      ? formatDuration(latestRunsByJobType["tracked-apps-check"].duration_ms)
                       : "N/A"}
                   </div>
                   <div
@@ -1069,14 +993,12 @@ function BatchLogs({
                     }}
                   >
                     <div style={{ marginBottom: "4px" }}>
-                      {latestRunsByJobType["tracked-apps-check"]
-                        .containers_checked || 0}{" "}
-                      apps checked
+                      {latestRunsByJobType["tracked-apps-check"].containers_checked || 0} apps
+                      checked
                     </div>
                     <div>
-                      {latestRunsByJobType["tracked-apps-check"]
-                        .containers_updated || 0}{" "}
-                      updates found
+                      {latestRunsByJobType["tracked-apps-check"].containers_updated || 0} updates
+                      found
                     </div>
                   </div>
                 </div>
@@ -1141,9 +1063,7 @@ function BatchLogs({
                   background: "var(--bg-tertiary)",
                 }}
               >
-                <h4 style={{ margin: 0, color: "var(--text-primary)" }}>
-                  Run History
-                </h4>
+                <h4 style={{ margin: 0, color: "var(--text-primary)" }}>Run History</h4>
               </div>
               <div style={{ maxHeight: "600px", overflowY: "auto" }}>
                 {recentRuns.length === 0 ? (
@@ -1166,15 +1086,12 @@ function BatchLogs({
                         borderBottom: "1px solid var(--border-color)",
                         cursor: "pointer",
                         background:
-                          selectedRun?.id === run.id
-                            ? "var(--bg-tertiary)"
-                            : "transparent",
+                          selectedRun?.id === run.id ? "var(--bg-tertiary)" : "transparent",
                         transition: "background 0.2s",
                       }}
                       onMouseEnter={(e) => {
                         if (selectedRun?.id !== run.id) {
-                          e.currentTarget.style.background =
-                            "var(--bg-tertiary)";
+                          e.currentTarget.style.background = "var(--bg-tertiary)";
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -1264,9 +1181,7 @@ function BatchLogs({
                 }}
               >
                 <h4 style={{ margin: 0, color: "var(--text-primary)" }}>
-                  {selectedRun
-                    ? `Run #${selectedRun.id} Logs`
-                    : "Select a run to view logs"}
+                  {selectedRun ? `Run #${selectedRun.id} Logs` : "Select a run to view logs"}
                 </h4>
               </div>
               <div

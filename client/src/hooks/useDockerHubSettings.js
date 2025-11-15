@@ -13,9 +13,7 @@ export function useDockerHubSettings() {
 
   const fetchDockerHubCredentials = useCallback(async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/docker-hub/credentials`
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/docker-hub/credentials`);
       if (response.data.success) {
         setDockerHubCredentials(response.data.credentials);
       }
@@ -36,9 +34,7 @@ export function useDockerHubSettings() {
 
   const handleDeleteDockerHubCreds = useCallback(async () => {
     try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/docker-hub/credentials`
-      );
+      const response = await axios.delete(`${API_BASE_URL}/api/docker-hub/credentials`);
       if (response.data.success) {
         setDockerHubSuccess("Docker Hub credentials removed successfully!");
         setDockerHubCredentials(null);
@@ -60,4 +56,3 @@ export function useDockerHubSettings() {
     fetchDockerHubCredentials,
   };
 }
-

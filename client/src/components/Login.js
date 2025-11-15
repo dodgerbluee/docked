@@ -50,10 +50,7 @@ function Login({ onLogin }) {
         // Store token in localStorage
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("username", username);
-        localStorage.setItem(
-          "passwordChanged",
-          response.data.passwordChanged ? "true" : "false"
-        );
+        localStorage.setItem("passwordChanged", response.data.passwordChanged ? "true" : "false");
         // Store role if provided
         if (response.data.role) {
           localStorage.setItem("userRole", response.data.role);
@@ -68,10 +65,7 @@ function Login({ onLogin }) {
         setError(response.data.error || "Login failed");
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          "Failed to connect to server. Please try again."
-      );
+      setError(err.response?.data?.error || "Failed to connect to server. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +77,7 @@ function Login({ onLogin }) {
         <div className="login-header">
           <h1>
             <img
-              src="/img/image.png"
+              src="/img/logo.png"
               alt="Docked"
               style={{
                 height: "2em",
@@ -92,11 +86,7 @@ function Login({ onLogin }) {
                 display: "inline-block",
               }}
             />
-            <span
-              style={{ display: "inline-block", transform: "translateY(3px)" }}
-            >
-              Docked
-            </span>
+            <span style={{ display: "inline-block", transform: "translateY(3px)" }}>Docked</span>
           </h1>
           <p>Portainer Container Manager</p>
         </div>

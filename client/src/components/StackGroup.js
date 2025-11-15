@@ -3,8 +3,8 @@
  * Displays a group of containers organized by stack
  */
 
-import React, { memo } from 'react';
-import ContainerCard from './ContainerCard';
+import React, { memo } from "react";
+import ContainerCard from "./ContainerCard";
 
 const StackGroup = memo(
   ({
@@ -32,23 +32,19 @@ const StackGroup = memo(
       return null;
     }
 
-    const stackKey = `${stack.stackName}-${showUpdates ? 'updates' : 'current'}`;
+    const stackKey = `${stack.stackName}-${showUpdates ? "updates" : "current"}`;
     const isCollapsed = collapsed.has(stackKey);
     const displayName =
-      stack.stackName === 'Standalone'
-        ? 'Standalone Containers'
-        : `Stack: ${stack.stackName}`;
+      stack.stackName === "Standalone" ? "Standalone Containers" : `Stack: ${stack.stackName}`;
 
-    const containersToShow = showUpdates
-      ? stackContainersWithUpdates
-      : stackContainersUpToDate;
+    const containersToShow = showUpdates ? stackContainersWithUpdates : stackContainersUpToDate;
 
     return (
       <div className="stack-group">
         <div className="stack-header" onClick={() => onToggleStack(stackKey)}>
           <div className="stack-header-left">
             <button className="stack-toggle" aria-label="Toggle stack">
-              {isCollapsed ? '▶' : '▼'}
+              {isCollapsed ? "▶" : "▼"}
             </button>
             <h3 className="stack-name">{displayName}</h3>
           </div>
@@ -56,13 +52,13 @@ const StackGroup = memo(
             {showUpdates && stackContainersWithUpdates.length > 0 && (
               <span className="update-count">
                 {stackContainersWithUpdates.length} update
-                {stackContainersWithUpdates.length !== 1 ? 's' : ''} available
+                {stackContainersWithUpdates.length !== 1 ? "s" : ""} available
               </span>
             )}
             {!showUpdates && (
               <span>
                 {stackContainersUpToDate.length} container
-                {stackContainersUpToDate.length !== 1 ? 's' : ''}
+                {stackContainersUpToDate.length !== 1 ? "s" : ""}
               </span>
             )}
           </span>
@@ -90,7 +86,6 @@ const StackGroup = memo(
   }
 );
 
-StackGroup.displayName = 'StackGroup';
+StackGroup.displayName = "StackGroup";
 
 export default StackGroup;
-

@@ -12,11 +12,11 @@ const {
   updatePortainerInstanceOrder,
   getContainerCache,
   setContainerCache,
-} = require('../db/database');
-const { validateRequiredFields } = require('../utils/validation');
-const portainerService = require('../services/portainerService');
-const logger = require('../utils/logger');
-const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
+} = require("../db/database");
+const { validateRequiredFields } = require("../utils/validation");
+const portainerService = require("../services/portainerService");
+const logger = require("../utils/logger");
+const { resolveUrlToIp, detectBackendIp } = require("../utils/dnsResolver");
 
 /**
  * Validate Portainer instance credentials without creating the instance
@@ -26,22 +26,20 @@ const { resolveUrlToIp, detectBackendIp } = require('../utils/dnsResolver');
  */
 async function validateInstance(req, res, next) {
   try {
-    const { url, username, password, apiKey, authType = 'apikey' } = req.body;
+    const { url, username, password, apiKey, authType = "apikey" } = req.body;
 
     // Validate required fields based on auth type
-    if (authType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { url, apiKey },
-        ['url', 'apiKey']
-      );
+    if (authType === "apikey") {
+      const validationError = validateRequiredFields({ url, apiKey }, ["url", "apiKey"]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
     } else {
-      const validationError = validateRequiredFields(
-        { url, username, password },
-        ['url', 'username', 'password']
-      );
+      const validationError = validateRequiredFields({ url, username, password }, [
+        "url",
+        "username",
+        "password",
+      ]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
@@ -50,16 +48,16 @@ async function validateInstance(req, res, next) {
     // Validate URL format
     try {
       const urlObj = new URL(url);
-      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
         return res.status(400).json({
           success: false,
-          error: 'URL must use http:// or https://',
+          error: "URL must use http:// or https://",
         });
       }
     } catch (err) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid URL format',
+        error: "Invalid URL format",
       });
     }
 
@@ -73,18 +71,18 @@ async function validateInstance(req, res, next) {
         authType,
         true // skipCache = true for validation
       );
-      
+
       // If we get here, authentication succeeded
       res.json({
         success: true,
-        message: 'Authentication successful',
+        message: "Authentication successful",
       });
     } catch (authError) {
       // Authentication failed - clear any cached token for this URL
       portainerService.clearAuthToken(url.trim());
       return res.status(401).json({
         success: false,
-        error: authError.message || 'Authentication failed. Please check your credentials.',
+        error: authError.message || "Authentication failed. Please check your credentials.",
       });
     }
   } catch (error) {
@@ -122,11 +120,11 @@ async function getInstance(req, res, next) {
   try {
     const { id } = req.params;
     const instance = await getPortainerInstanceById(parseInt(id));
-    
+
     if (!instance) {
       return res.status(404).json({
         success: false,
-        error: 'Portainer instance not found',
+        error: "Portainer instance not found",
       });
     }
 
@@ -149,22 +147,25 @@ async function getInstance(req, res, next) {
  */
 async function createInstance(req, res, next) {
   try {
-    const { name, url, username, password, apiKey, authType = 'apikey' } = req.body;
+    const { name, url, username, password, apiKey, authType = "apikey" } = req.body;
 
     // Validate required fields based on auth type
-    if (authType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { name, url, apiKey },
-        ['name', 'url', 'apiKey']
-      );
+    if (authType === "apikey") {
+      const validationError = validateRequiredFields({ name, url, apiKey }, [
+        "name",
+        "url",
+        "apiKey",
+      ]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
     } else {
-      const validationError = validateRequiredFields(
-        { name, url, username, password },
-        ['name', 'url', 'username', 'password']
-      );
+      const validationError = validateRequiredFields({ name, url, username, password }, [
+        "name",
+        "url",
+        "username",
+        "password",
+      ]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
@@ -174,16 +175,16 @@ async function createInstance(req, res, next) {
     try {
       const urlObj = new URL(url);
       // Ensure URL has http or https
-      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
         return res.status(400).json({
           success: false,
-          error: 'URL must use http:// or https://',
+          error: "URL must use http:// or https://",
         });
       }
     } catch (err) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid URL format',
+        error: "Invalid URL format",
       });
     }
 
@@ -193,13 +194,13 @@ async function createInstance(req, res, next) {
     // Resolve URL to IP address for fallback when DNS fails
     let ipAddress = await resolveUrlToIp(url.trim());
     if (ipAddress) {
-      logger.debug('Resolved Portainer URL to IP address', {
-        module: 'portainerController',
-        operation: 'createInstance',
+      logger.debug("Resolved Portainer URL to IP address", {
+        module: "portainerController",
+        operation: "createInstance",
         url: url.trim(),
         ipAddress: ipAddress,
       });
-      
+
       // Try to detect the actual backend IP if behind a proxy
       // This is useful when the resolved IP is a proxy (like nginx proxy manager)
       // and we need the actual Portainer instance IP
@@ -212,11 +213,11 @@ async function createInstance(req, res, next) {
           password || null,
           authType
         );
-        
+
         if (backendIp && backendIp !== ipAddress) {
-          logger.debug('Detected backend IP behind proxy', {
-            module: 'portainerController',
-            operation: 'createInstance',
+          logger.debug("Detected backend IP behind proxy", {
+            module: "portainerController",
+            operation: "createInstance",
             url: url.trim(),
             proxyIp: ipAddress,
             backendIp: backendIp,
@@ -225,19 +226,19 @@ async function createInstance(req, res, next) {
         }
       } catch (detectError) {
         // Non-fatal - if detection fails, use the proxy IP
-        logger.warn('Backend IP detection failed, using proxy IP', {
-          module: 'portainerController',
-          operation: 'createInstance',
+        logger.warn("Backend IP detection failed, using proxy IP", {
+          module: "portainerController",
+          operation: "createInstance",
           url: url.trim(),
           error: detectError,
         });
       }
     } else {
-      logger.warn('Failed to resolve URL to IP address', {
-        module: 'portainerController',
-        operation: 'createInstance',
+      logger.warn("Failed to resolve URL to IP address", {
+        module: "portainerController",
+        operation: "createInstance",
         url: url.trim(),
-        note: 'Will use URL only',
+        note: "Will use URL only",
       });
     }
 
@@ -246,8 +247,8 @@ async function createInstance(req, res, next) {
     const id = await createPortainerInstance(
       instanceName,
       url.trim(),
-      authType === 'apikey' ? '' : (username ? username.trim() : ''),
-      authType === 'apikey' ? '' : (password || ''),
+      authType === "apikey" ? "" : username ? username.trim() : "",
+      authType === "apikey" ? "" : password || "",
       apiKey || null,
       authType,
       ipAddress
@@ -255,15 +256,15 @@ async function createInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Portainer instance created successfully',
+      message: "Portainer instance created successfully",
       id,
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
+    if (error.message.includes("UNIQUE constraint failed")) {
       return res.status(400).json({
         success: false,
-        error: 'A Portainer instance with this URL already exists',
+        error: "A Portainer instance with this URL already exists",
       });
     }
     next(error);
@@ -286,19 +287,16 @@ async function updateInstance(req, res, next) {
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Portainer instance not found',
+        error: "Portainer instance not found",
       });
     }
 
     // Use existing authType if not provided
-    const finalAuthType = authType || existing.auth_type || 'apikey';
+    const finalAuthType = authType || existing.auth_type || "apikey";
 
     // Validate required fields based on auth type
-    if (finalAuthType === 'apikey') {
-      const validationError = validateRequiredFields(
-        { name, url },
-        ['name', 'url']
-      );
+    if (finalAuthType === "apikey") {
+      const validationError = validateRequiredFields({ name, url }, ["name", "url"]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
@@ -306,14 +304,15 @@ async function updateInstance(req, res, next) {
       if (!apiKey && !existing.api_key) {
         return res.status(400).json({
           success: false,
-          error: 'API key is required for API key authentication',
+          error: "API key is required for API key authentication",
         });
       }
     } else {
-      const validationError = validateRequiredFields(
-        { name, url, username },
-        ['name', 'url', 'username']
-      );
+      const validationError = validateRequiredFields({ name, url, username }, [
+        "name",
+        "url",
+        "username",
+      ]);
       if (validationError) {
         return res.status(400).json(validationError);
       }
@@ -323,35 +322,35 @@ async function updateInstance(req, res, next) {
     try {
       const urlObj = new URL(url);
       // Ensure URL has http or https
-      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
         return res.status(400).json({
           success: false,
-          error: 'URL must use http:// or https://',
+          error: "URL must use http:// or https://",
         });
       }
     } catch (err) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid URL format',
+        error: "Invalid URL format",
       });
     }
 
     // If name is empty, use URL hostname as default
     const instanceName = name.trim() || new URL(url).hostname;
-    
+
     // Resolve URL to IP address for fallback when DNS fails
     // Only resolve if URL changed, otherwise keep existing IP
     let ipAddress = existing.ip_address;
     if (url.trim() !== existing.url) {
       let resolvedIp = await resolveUrlToIp(url.trim());
       if (resolvedIp) {
-        logger.debug('Resolved Portainer URL to IP address for update', {
-          module: 'portainerController',
-          operation: 'updateInstance',
+        logger.debug("Resolved Portainer URL to IP address for update", {
+          module: "portainerController",
+          operation: "updateInstance",
           url: url.trim(),
           ipAddress: resolvedIp,
         });
-        
+
         // Try to detect the actual backend IP if behind a proxy
         try {
           const backendIp = await detectBackendIp(
@@ -362,11 +361,11 @@ async function updateInstance(req, res, next) {
             password || existing.password || null,
             finalAuthType
           );
-          
+
           if (backendIp && backendIp !== resolvedIp) {
-            logger.debug('Detected backend IP behind proxy for update', {
-              module: 'portainerController',
-              operation: 'updateInstance',
+            logger.debug("Detected backend IP behind proxy for update", {
+              module: "portainerController",
+              operation: "updateInstance",
               url: url.trim(),
               proxyIp: resolvedIp,
               backendIp: backendIp,
@@ -375,36 +374,38 @@ async function updateInstance(req, res, next) {
           }
         } catch (detectError) {
           // Non-fatal - if detection fails, use the proxy IP
-          logger.warn('Backend IP detection failed during update, using proxy IP', {
-            module: 'portainerController',
-            operation: 'updateInstance',
+          logger.warn("Backend IP detection failed during update, using proxy IP", {
+            module: "portainerController",
+            operation: "updateInstance",
             url: url.trim(),
             error: detectError,
           });
         }
-        
+
         ipAddress = resolvedIp;
       } else {
-        logger.warn(`Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`);
+        logger.warn(
+          `Failed to resolve ${url.trim()} to IP address - keeping existing IP if available`
+        );
       }
     }
-    
+
     // Handle credentials based on auth type
     // IMPORTANT: When switching auth methods, explicitly clear the old method's data
     let passwordToUse = null;
     let apiKeyToUse = null;
-    
+
     // Check if auth type is changing
     const authTypeChanged = existing.auth_type !== finalAuthType;
-    
-    if (finalAuthType === 'apikey') {
+
+    if (finalAuthType === "apikey") {
       // For API key auth, use provided apiKey or keep existing (if not switching)
       apiKeyToUse = apiKey || (authTypeChanged ? null : existing.api_key);
       // Always clear password data when using API key auth
-      passwordToUse = '';
+      passwordToUse = "";
     } else {
       // For password auth, use provided password or keep existing (if not switching)
-      passwordToUse = password || (authTypeChanged ? '' : existing.password);
+      passwordToUse = password || (authTypeChanged ? "" : existing.password);
       // Always clear API key data when using password auth
       apiKeyToUse = null;
     }
@@ -416,8 +417,8 @@ async function updateInstance(req, res, next) {
       parseInt(id),
       instanceName,
       url.trim(),
-      finalAuthType === 'apikey' ? '' : (username ? username.trim() : ''),
-      passwordToUse || '',
+      finalAuthType === "apikey" ? "" : username ? username.trim() : "",
+      passwordToUse || "",
       apiKeyToUse,
       finalAuthType,
       ipAddress
@@ -425,14 +426,14 @@ async function updateInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Portainer instance updated successfully',
+      message: "Portainer instance updated successfully",
     });
   } catch (error) {
     // Handle unique constraint violation
-    if (error.message.includes('UNIQUE constraint failed')) {
+    if (error.message.includes("UNIQUE constraint failed")) {
       return res.status(400).json({
         success: false,
-        error: 'A Portainer instance with this URL already exists',
+        error: "A Portainer instance with this URL already exists",
       });
     }
     next(error);
@@ -454,17 +455,17 @@ async function deleteInstance(req, res, next) {
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Portainer instance not found',
+        error: "Portainer instance not found",
       });
     }
 
     // Get the instance URL before deletion so we can remove its containers from cache
     const deletedInstanceUrl = existing.url;
-    
+
     // Normalize URL for comparison (remove trailing slash, lowercase)
     const normalizeUrl = (url) => {
-      if (!url) return '';
-      return url.trim().replace(/\/+$/, '').toLowerCase();
+      if (!url) return "";
+      return url.trim().replace(/\/+$/, "").toLowerCase();
     };
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
@@ -473,28 +474,26 @@ async function deleteInstance(req, res, next) {
 
     // Remove containers from cache that belong to the deleted instance
     try {
-      const cached = await getContainerCache('containers');
+      const cached = await getContainerCache("containers");
       if (cached && cached.containers && Array.isArray(cached.containers)) {
         // Log for debugging
         const totalContainersBefore = cached.containers.length;
-        const containersWithUpdatesBefore = cached.containers.filter(c => c.hasUpdate).length;
-        
+        const containersWithUpdatesBefore = cached.containers.filter((c) => c.hasUpdate).length;
+
         // Filter out containers from the deleted instance using normalized URL comparison
         // IMPORTANT: Preserve all container properties including hasUpdate flag
-        const filteredContainers = cached.containers.filter(
-          (container) => {
-            const containerUrl = normalizeUrl(container.portainerUrl);
-            const shouldKeep = containerUrl !== normalizedDeletedUrl;
-            return shouldKeep;
-          }
-        );
+        const filteredContainers = cached.containers.filter((container) => {
+          const containerUrl = normalizeUrl(container.portainerUrl);
+          const shouldKeep = containerUrl !== normalizedDeletedUrl;
+          return shouldKeep;
+        });
 
         // Log for debugging
         const totalContainersAfter = filteredContainers.length;
-        const containersWithUpdatesAfter = filteredContainers.filter(c => c.hasUpdate).length;
-        logger.info('Filtering containers from cache after instance deletion', {
-          module: 'portainerController',
-          operation: 'deleteInstance',
+        const containersWithUpdatesAfter = filteredContainers.filter((c) => c.hasUpdate).length;
+        logger.info("Filtering containers from cache after instance deletion", {
+          module: "portainerController",
+          operation: "deleteInstance",
           instanceUrl: deletedInstanceUrl,
           containersBefore: totalContainersBefore,
           containersAfter: totalContainersAfter,
@@ -511,14 +510,16 @@ async function deleteInstance(req, res, next) {
 
         // Update stacks to remove containers from deleted instance using normalized URL comparison
         const filteredStacks = cached.stacks
-          ? cached.stacks.map((stack) => ({
-              ...stack,
-              containers: stack.containers
-                ? stack.containers.filter(
-                    (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
-                  )
-                : [],
-            })).filter((stack) => stack.containers && stack.containers.length > 0)
+          ? cached.stacks
+              .map((stack) => ({
+                ...stack,
+                containers: stack.containers
+                  ? stack.containers.filter(
+                      (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
+                    )
+                  : [],
+              }))
+              .filter((stack) => stack.containers && stack.containers.length > 0)
           : [];
 
         // Recalculate portainerInstances stats based on filtered containers
@@ -528,21 +529,21 @@ async function deleteInstance(req, res, next) {
           const instanceContainers = filteredContainers.filter(
             (c) => normalizeUrl(c.portainerUrl) === instanceUrl
           );
-          
+
           // Preserve hasUpdate flag from filtered containers
           const withUpdates = instanceContainers.filter((c) => c.hasUpdate === true);
           const upToDate = instanceContainers.filter((c) => c.hasUpdate !== true);
-          
-          logger.debug('Recalculated instance stats after filtering', {
-            module: 'portainerController',
-            operation: 'deleteInstance',
+
+          logger.debug("Recalculated instance stats after filtering", {
+            module: "portainerController",
+            operation: "deleteInstance",
             instanceName: instance.name,
             instanceUrl: instance.url,
             totalContainers: instanceContainers.length,
             withUpdates: withUpdates.length,
             upToDate: upToDate.length,
           });
-          
+
           return {
             ...instance,
             containers: instanceContainers,
@@ -567,19 +568,19 @@ async function deleteInstance(req, res, next) {
           // unusedImagesCount will be recalculated on next fetch based on remaining instances
         };
 
-        await setContainerCache('containers', updatedCache);
-        logger.info('Removed containers from cache for deleted instance', {
-          module: 'portainerController',
-          operation: 'deleteInstance',
+        await setContainerCache("containers", updatedCache);
+        logger.info("Removed containers from cache for deleted instance", {
+          module: "portainerController",
+          operation: "deleteInstance",
           instanceUrl: deletedInstanceUrl,
           containersRemoved: totalContainersBefore - totalContainersAfter,
         });
       }
     } catch (cacheError) {
       // Log error but don't fail the delete operation
-      logger.error('Error updating container cache after instance deletion', {
-        module: 'portainerController',
-        operation: 'deleteInstance',
+      logger.error("Error updating container cache after instance deletion", {
+        module: "portainerController",
+        operation: "deleteInstance",
         instanceUrl: deletedInstanceUrl,
         error: cacheError,
       });
@@ -587,7 +588,7 @@ async function deleteInstance(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Portainer instance deleted successfully',
+      message: "Portainer instance deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -607,16 +608,16 @@ async function updateInstanceOrder(req, res, next) {
     if (!Array.isArray(orders)) {
       return res.status(400).json({
         success: false,
-        error: 'orders must be an array',
+        error: "orders must be an array",
       });
     }
 
     // Validate each order entry
     for (const order of orders) {
-      if (typeof order.id !== 'number' || typeof order.display_order !== 'number') {
+      if (typeof order.id !== "number" || typeof order.display_order !== "number") {
         return res.status(400).json({
           success: false,
-          error: 'Each order entry must have id (number) and display_order (number)',
+          error: "Each order entry must have id (number) and display_order (number)",
         });
       }
     }
@@ -625,7 +626,7 @@ async function updateInstanceOrder(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Portainer instance order updated successfully',
+      message: "Portainer instance order updated successfully",
     });
   } catch (error) {
     next(error);
@@ -641,4 +642,3 @@ module.exports = {
   deleteInstance,
   updateInstanceOrder,
 };
-

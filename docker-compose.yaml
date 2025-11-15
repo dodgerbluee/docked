@@ -11,6 +11,7 @@ services:
       - PORT=3002
       - DATA_DIR=/data
       - TZ=America/Chicago
+      - NODE_ENV=development
     volumes:
       - ./data:/data
     networks:

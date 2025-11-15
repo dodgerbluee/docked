@@ -16,6 +16,7 @@ import AvatarTab from "./settings/AvatarTab";
 import DockerHubTab from "./settings/DockerHubTab";
 import DiscordTab from "./settings/DiscordTab";
 import UserDetailsTab from "./settings/UserDetailsTab";
+import LogsTab from "./settings/LogsTab";
 
 function Settings({
   username,
@@ -76,15 +77,18 @@ function Settings({
 
   // Use prop if provided, otherwise use internal state
   const [internalActiveSection, setInternalActiveSection] = useState(activeSection);
-  
+
   // If first login, always show password section regardless of activeSection prop
   const currentActiveSection = isFirstLogin
     ? SETTINGS_TABS.PASSWORD
     : activeSection || internalActiveSection;
+  // eslint-disable-next-line no-unused-vars
   const setActiveSection = onSectionChange || setInternalActiveSection;
 
   // Local state for data clearing operations
+  // eslint-disable-next-line no-unused-vars
   const [clearingPortainerData, setClearingPortainerData] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [clearingTrackedAppData, setClearingTrackedAppData] = useState(false);
 
   // Sync local color scheme changes
@@ -92,7 +96,7 @@ function Settings({
     if (settings.localColorScheme !== colorScheme) {
       settings.setGeneralSettingsChanged(true);
     }
-  }, [settings.localColorScheme, colorScheme]);
+  }, [settings.localColorScheme, colorScheme, settings]);
 
   // If first login, always show password section
   useEffect(() => {
@@ -248,6 +252,8 @@ function Settings({
           {currentActiveSection === SETTINGS_TABS.USER_DETAILS && (
             <UserDetailsTab userInfo={settings.userInfo} />
           )}
+
+          {currentActiveSection === SETTINGS_TABS.LOGS && <LogsTab />}
         </>
       )}
     </>

@@ -40,9 +40,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
       ? "Standalone Containers"
       : `Stack: ${stack.stackName}`;
 
-  const containersToShow = showUpdates
-    ? stackContainersWithUpdates
-    : stackContainersUpToDate;
+  const containersToShow = showUpdates ? stackContainersWithUpdates : stackContainersUpToDate;
 
   return (
     <div className={styles.stackGroup}>
@@ -78,25 +76,25 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
           </span>
         )}
       </div>
-            {!isCollapsed && containersToShow.length > 0 && (
-              <div className={styles.containersGrid}>
-                {containersToShow.map((container) => {
-                  const isPortainer = isPortainerContainer(container);
-                  return (
-                    <PortainerContainerCard
-                      key={container.id}
-                      container={container}
-                      isPortainer={isPortainer}
-                      selected={selectedContainers.has(container.id)}
-                      upgrading={upgrading[container.id] || false}
-                      showUpdates={showUpdates}
-                      onToggleSelect={onToggleSelect}
-                      onUpgrade={onUpgrade}
-                    />
-                  );
-                })}
-              </div>
-            )}
+      {!isCollapsed && containersToShow.length > 0 && (
+        <div className={styles.containersGrid}>
+          {containersToShow.map((container) => {
+            const isPortainer = isPortainerContainer(container);
+            return (
+              <PortainerContainerCard
+                key={container.id}
+                container={container}
+                isPortainer={isPortainer}
+                selected={selectedContainers.has(container.id)}
+                upgrading={upgrading[container.id] || false}
+                showUpdates={showUpdates}
+                onToggleSelect={onToggleSelect}
+                onUpgrade={onUpgrade}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });
@@ -117,4 +115,3 @@ PortainerStackGroup.propTypes = {
 PortainerStackGroup.displayName = "PortainerStackGroup";
 
 export default PortainerStackGroup;
-

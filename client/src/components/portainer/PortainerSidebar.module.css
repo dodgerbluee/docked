@@ -174,7 +174,9 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
   border: solid white;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0);
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
   opacity: 0;
   z-index: 2;
 }
@@ -238,4 +240,3 @@ body.dark-mode .addButton:hover {
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
 }
-

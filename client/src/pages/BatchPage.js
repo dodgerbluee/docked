@@ -25,9 +25,7 @@ function BatchPage({
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
 }) {
-  const [internalTab, setInternalTab] = useState(
-    controlledActiveTab || BATCH_TABS.HISTORY
-  );
+  const [internalTab, setInternalTab] = useState(controlledActiveTab || BATCH_TABS.HISTORY);
 
   // Sync internal tab when controlled tab changes
   useEffect(() => {
@@ -117,4 +115,3 @@ BatchPage.propTypes = {
 };
 
 export default BatchPage;
-
