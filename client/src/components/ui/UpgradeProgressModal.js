@@ -69,17 +69,17 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
       // Start the upgrade process - call the API immediately
       const upgradePromise = onConfirm();
 
-      // Track API completion status
-      let apiCompleted = false;
+      // Track API completion status using a ref to avoid closure issues
+      const apiCompletedRef = { current: false };
       let apiError = null;
 
       // Monitor API completion
       const apiCompletion = upgradePromise
         .then(() => {
-          apiCompleted = true;
+          apiCompletedRef.current = true;
         })
         .catch((error) => {
-          apiCompleted = true;
+          apiCompletedRef.current = true;
           apiError = error;
         });
 
@@ -94,7 +94,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
         await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
             const elapsed = Date.now() - stepStartTime;
-            if (apiCompleted || elapsed >= stepDuration) {
+            // Use ref to avoid closure warning
+            if (apiCompletedRef.current || elapsed >= stepDuration) {
               clearInterval(checkInterval);
               resolve();
             }
