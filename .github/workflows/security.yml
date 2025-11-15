@@ -76,7 +76,7 @@ jobs:
           args: --severity-threshold=high --all-projects
 
       - name: Upload Snyk results to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         continue-on-error: true
 
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
@@ -116,5 +116,5 @@ jobs:
           cd ../client && npm ci
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v4
 
