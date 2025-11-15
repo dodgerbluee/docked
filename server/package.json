@@ -1,6 +1,6 @@
 {
   "name": "docked-server",
-  "version": "1.3.7-dev",
+  "version": "1.3.7",
   "description": "Backend server for Docked",
   "main": "server.js",
   "scripts": {
