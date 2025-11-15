@@ -6,6 +6,13 @@
   position: relative;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform;
+  isolation: isolate;
+  z-index: 1001;
+}
+
+/* Avatar and username move together when either is hovered */
+.avatar-menu-container:hover {
+  transform: translateY(-1px);
 }
 
 .avatar-button {
@@ -88,22 +95,50 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--bg-primary) !important;
+  border: 1px solid var(--border-color) !important;
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--shadow);
   min-width: 200px;
-  z-index: 1001;
+  z-index: 9999 !important;
+  isolation: isolate;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  contain: layout style paint;
+}
+
+/* Ensure solid background in light mode */
+:root .avatar-menu {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .avatar-menu {
+  background: #1a1a1a !important;
+  border: 1px solid #404040 !important;
 }
 
 .avatar-menu-actions {
   padding: 4px;
+  background: var(--bg-primary) !important;
+}
+
+/* Ensure solid background in light mode */
+:root .avatar-menu-actions {
+  background: #ffffff !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .avatar-menu-actions {
+  background: #1a1a1a !important;
 }
 
 .avatar-menu-item {
   width: 100%;
   padding: 10px 12px;
-  background: transparent;
+  background: transparent !important;
   border: none;
   color: var(--text-primary);
   text-align: left;
@@ -117,7 +152,17 @@
 }
 
 .avatar-menu-item:hover {
-  background: var(--bg-secondary);
+  background: var(--bg-secondary) !important;
+}
+
+/* Ensure solid hover background in light mode */
+:root .avatar-menu-item:hover {
+  background: #f5f5f5 !important;
+}
+
+/* Ensure solid hover background in dark mode */
+body.dark-mode .avatar-menu-item:hover {
+  background: #1a1a1a !important;
 }
 
 .avatar-menu-item svg {

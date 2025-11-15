@@ -49,7 +49,7 @@ const VersionFooter = ({ version, isDevBuild }) => {
         <Github size={14} aria-hidden="true" />
         <span>GitHub</span>
       </a>
-      {displayVersion && releaseUrl ? (
+      {displayVersion && releaseUrl && !isDevBuild ? (
         <>
           <span className="version-footer-separator" aria-hidden="true">
             |

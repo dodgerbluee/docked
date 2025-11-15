@@ -288,6 +288,7 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   margin-bottom: 10px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
+  transform: none !important;
 }
 
 .updateAvailable .imageHeaderContainer {
@@ -304,6 +305,7 @@ body.dark-mode .updateAvailable .imageHeaderContainer {
   gap: 8px;
   flex: 1;
   min-width: 0;
+  transform: none !important;
 }
 
 .imageHeader {
@@ -432,6 +434,8 @@ body.dark-mode .digestLink:hover {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  transition: none;
+  transform: none !important;
 }
 
 .dockerIconLink {
@@ -444,9 +448,7 @@ body.dark-mode .digestLink:hover {
   padding: 0;
   margin: 0;
   cursor: pointer;
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   width: 24px;
   height: 24px;
@@ -454,7 +456,6 @@ body.dark-mode .digestLink:hover {
 
 .dockerIconLink:hover {
   opacity: 0.8;
-  transform: scale(1.1);
 }
 
 .dockerIconSmall {
@@ -474,9 +475,7 @@ body.dark-mode .digestLink:hover {
   padding: 0;
   margin: 0;
   cursor: pointer;
-  transition:
-    color 0.2s,
-    transform 0.2s;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   width: 24px;
   height: 24px;
@@ -484,7 +483,6 @@ body.dark-mode .digestLink:hover {
 
 .githubIconLink:hover {
   color: var(--dodger-blue);
-  transform: scale(1.1);
 }
 
 body.dark-mode .githubIconLink:hover {
@@ -495,19 +493,19 @@ body.dark-mode .githubIconLink:hover {
   color: var(--text-secondary);
   flex-shrink: 0;
   cursor: pointer;
-  transition:
-    color 0.2s,
-    transform 0.2s;
-  width: 20px;
-  height: 20px;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transform: translateZ(0);
+  will-change: color;
+  position: relative;
 }
 
 .upgradeCheckmark:hover {
   color: var(--text-primary);
-  transform: scale(1.1);
 }
 
 .upgradeCheckmark.disabled {
@@ -516,7 +514,6 @@ body.dark-mode .githubIconLink:hover {
 }
 
 .upgradeCheckmark.disabled:hover {
-  transform: none;
   color: var(--text-secondary);
 }
 

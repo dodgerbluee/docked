@@ -7,6 +7,9 @@
   background: var(--header-bg);
   border-radius: 12px;
   box-shadow: 0 4px 12px var(--shadow);
+  isolation: isolate;
+  position: relative;
+  z-index: 1000;
 }
 
 .headerContent {
@@ -19,16 +22,8 @@
   gap: 15px;
 }
 
-/* When logo is hovered, move both logo container and avatar container uniformly */
-.headerContent:has(.logoContainer:hover) .logoContainer,
-.headerContent:has(.logoContainer:hover) .headerActions {
-  transform: translateY(-1px);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* When avatar area is hovered, move both logo container and avatar container uniformly */
-.headerContent:has(.headerActions:hover) .logoContainer,
-.headerContent:has(.headerActions:hover) .headerActions {
+/* When logo is hovered, move only the logo container (logo and text-logo move together) */
+.headerContent:has(.logoContainer:hover) .logoContainer {
   transform: translateY(-1px);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -87,12 +82,6 @@
   transform: translateY(-1px);
 }
 
-/* When headerContent detects hover on either logo or avatar, logoImage moves with container */
-.headerContent:has(.logoContainer:hover) .logoImage,
-.headerContent:has(.headerActions:hover) .logoImage {
-  transform: translateY(-1px);
-}
-
 .logoTextImage {
   display: inline-block;
   height: 1.25em; /* Half of 2.5em */
@@ -112,11 +101,6 @@
   transform: translateY(-1px);
 }
 
-/* Ensure logoTextImage moves uniformly when avatar is hovered */
-.headerContent:has(.headerActions:hover) .logoTextImage {
-  transform: translateY(-1px);
-}
-
 .headerActions {
   display: flex;
   align-items: center;
@@ -129,11 +113,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  isolation: isolate;
 }
 
 .notificationWrapper {
   position: relative;
   margin-right: 18px;
+  isolation: isolate;
+  z-index: 1001;
 }
 
 .notificationButton {
@@ -152,6 +139,7 @@
   position: relative;
 }
 
+/* Alarm moves independently when hovered */
 .notificationButton:hover {
   transform: translateY(-2px);
 }

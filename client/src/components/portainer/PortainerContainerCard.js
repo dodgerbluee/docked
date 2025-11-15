@@ -276,7 +276,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                     }
                   }}
                 >
-                  <HardDriveDownload size={14} />
+                  <HardDriveDownload size={18} />
                 </span>
               )}
             </div>
