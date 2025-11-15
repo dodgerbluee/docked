@@ -10,6 +10,7 @@ const config = require("../config");
 const { urlWithIp } = require("../utils/dnsResolver");
 const { getAllPortainerInstances } = require("../db/database");
 const logger = require("../utils/logger");
+const { validateUrlForSSRF } = require("../utils/validation");
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
@@ -348,6 +349,11 @@ async function authenticatePortainer(
             "Content-Type": "application/json",
           },
         };
+        // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+        const ssrfValidation = validateUrlForSSRF(portainerUrl, true);
+        if (!ssrfValidation.valid) {
+          throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+        }
         const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
         logger.debug("IP fallback config", {
           headers: ipConfig.headers,
@@ -367,6 +373,11 @@ async function authenticatePortainer(
               "Content-Type": "application/json",
             },
           };
+          // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+          const ssrfValidation = validateUrlForSSRF(url, true);
+          if (!ssrfValidation.valid) {
+            throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+          }
           const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
           return await axios.get(`${url}/api/endpoints`, ipConfig);
         }, portainerUrl);
@@ -422,6 +433,11 @@ async function authenticatePortainer(
           "Content-Type": "application/json",
         },
       };
+      // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+      const ssrfValidation = validateUrlForSSRF(portainerUrl, true);
+      if (!ssrfValidation.valid) {
+        throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+      }
       const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
       response = await axios.post(
         `${portainerUrl}/api/auth`,
@@ -439,6 +455,11 @@ async function authenticatePortainer(
             "Content-Type": "application/json",
           },
         };
+        // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+        const ssrfValidation = validateUrlForSSRF(url, true);
+        if (!ssrfValidation.valid) {
+          throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+        }
         const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
         return await axios.post(
           `${url}/api/auth`,

@@ -14,6 +14,7 @@ const {
   clearContainerCache,
 } = require("../db/database");
 const logger = require("../utils/logger");
+const { validateUrlForSSRF } = require("../utils/validation");
 
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
@@ -265,6 +266,11 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
               originalUrl: portainerUrl,
               ipUrl: workingPortainerUrl,
             });
+            // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+            const ssrfValidation = validateUrlForSSRF(workingPortainerUrl, true);
+            if (!ssrfValidation.valid) {
+              throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+            }
             const baseConfig = { headers: portainerService.getAuthHeaders(workingPortainerUrl) };
             const ipConfig = portainerService.getIpFallbackConfig(
               workingPortainerUrl,
@@ -401,6 +407,11 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 retryError.message?.includes("getaddrinfo") ||
                 !retryError.response
               ) {
+                // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
+                const ssrfValidation = validateUrlForSSRF(workingPortainerUrl, true);
+                if (!ssrfValidation.valid) {
+                  throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+                }
                 const baseConfig = {
                   headers: portainerService.getAuthHeaders(workingPortainerUrl),
                 };
