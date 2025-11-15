@@ -403,7 +403,9 @@ async function deleteInstance(req, res, next) {
 
     // Normalize URL for comparison (remove trailing slash, lowercase)
     const normalizeUrl = (url) => {
-      if (!url) {return "";}
+      if (!url) {
+        return "";
+      }
       return url.trim().replace(/\/+$/, "").toLowerCase();
     };
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);

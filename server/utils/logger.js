@@ -191,11 +191,21 @@ const consoleFormat = winston.format.combine(
   winston.format.printf(
     ({ timestamp, level, message, module, requestId, userId, jobId, batchId, ...meta }) => {
       const contextParts = [];
-      if (module) {contextParts.push(`[${module}]`);}
-      if (requestId) {contextParts.push(`[req:${requestId.substring(0, 8)}]`);}
-      if (userId) {contextParts.push(`[user:${userId}]`);}
-      if (jobId) {contextParts.push(`[job:${jobId}]`);}
-      if (batchId) {contextParts.push(`[batch:${batchId}]`);}
+      if (module) {
+        contextParts.push(`[${module}]`);
+      }
+      if (requestId) {
+        contextParts.push(`[req:${requestId.substring(0, 8)}]`);
+      }
+      if (userId) {
+        contextParts.push(`[user:${userId}]`);
+      }
+      if (jobId) {
+        contextParts.push(`[job:${jobId}]`);
+      }
+      if (batchId) {
+        contextParts.push(`[batch:${batchId}]`);
+      }
 
       const contextStr = contextParts.length > 0 ? contextParts.join(" ") + " " : "";
       let msg = `${timestamp} [${level}] ${contextStr}${message}`;
