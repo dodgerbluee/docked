@@ -9,6 +9,7 @@ const { URL } = require("url");
 const config = require("../config");
 const { urlWithIp } = require("../utils/dnsResolver");
 const { getAllPortainerInstances } = require("../db/database");
+const logger = require("../utils/logger");
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
@@ -601,6 +602,41 @@ async function stopContainer(portainerUrl, endpointId, containerId) {
       await authenticatePortainer(portainerUrl);
       return stopContainer(portainerUrl, endpointId, containerId);
     }
+    // Handle "already stopped" scenarios gracefully
+    // 304 = Not Modified (container already in desired state)
+    // 304 can occur when container is already stopped
+    if (error.response?.status === 304) {
+      logger.debug("Container already stopped (304 Not Modified)", {
+        module: "portainerService",
+        operation: "stopContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return; // Container is already stopped, which is fine
+    }
+    // 409 = Conflict (container might already be stopped or in transition)
+    if (error.response?.status === 409) {
+      // Check if container is actually stopped
+      try {
+        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
+        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
+        if (status === "exited" || status === "stopped") {
+          logger.debug("Container already stopped (409 Conflict, but verified stopped)", {
+            module: "portainerService",
+            operation: "stopContainer",
+            containerId: containerId.substring(0, 12),
+          });
+          return; // Container is already stopped, which is fine
+        }
+      } catch (checkErr) {
+        // If we can't verify, log and continue anyway
+        logger.warn("Could not verify container state after 409, assuming stopped", {
+          module: "portainerService",
+          operation: "stopContainer",
+          containerId: containerId.substring(0, 12),
+        });
+        return;
+      }
+    }
     throw error;
   }
 }
@@ -626,6 +662,25 @@ async function removeContainer(portainerUrl, endpointId, containerId) {
     if (error.response?.status === 401) {
       await authenticatePortainer(portainerUrl);
       return removeContainer(portainerUrl, endpointId, containerId);
+    }
+    // Handle "already removed" scenarios gracefully
+    // 404 = Not Found (container already removed)
+    if (error.response?.status === 404) {
+      logger.debug("Container already removed (404 Not Found)", {
+        module: "portainerService",
+        operation: "removeContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return; // Container is already removed, which is fine
+    }
+    // 304 = Not Modified (container already in desired state)
+    if (error.response?.status === 304) {
+      logger.debug("Container already removed (304 Not Modified)", {
+        module: "portainerService",
+        operation: "removeContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return; // Container is already removed, which is fine
     }
     throw error;
   }
@@ -691,6 +746,39 @@ async function startContainer(portainerUrl, endpointId, containerId) {
     if (error.response?.status === 401) {
       await authenticatePortainer(portainerUrl);
       return startContainer(portainerUrl, endpointId, containerId);
+    }
+    // Handle "already started" scenarios gracefully
+    // 304 = Not Modified (container already running)
+    if (error.response?.status === 304) {
+      logger.debug("Container already started (304 Not Modified)", {
+        module: "portainerService",
+        operation: "startContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return; // Container is already running, which is fine
+    }
+    // 409 = Conflict (container might already be running or in transition)
+    if (error.response?.status === 409) {
+      // Check if container is actually running
+      try {
+        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
+        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
+        if (status === "running") {
+          logger.debug("Container already running (409 Conflict, but verified running)", {
+            module: "portainerService",
+            operation: "startContainer",
+            containerId: containerId.substring(0, 12),
+          });
+          return; // Container is already running, which is fine
+        }
+      } catch (checkErr) {
+        // If we can't verify, re-throw the original error
+        logger.warn("Could not verify container state after 409", {
+          module: "portainerService",
+          operation: "startContainer",
+          containerId: containerId.substring(0, 12),
+        });
+      }
     }
     throw error;
   }
