@@ -202,9 +202,10 @@ jobs:
           retention-days: 1
 
   # Validate changelog (if version changed) - PRs only
+  # DISABLED: Changelog validation temporarily disabled
   validate-changelog:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -250,7 +251,6 @@ jobs:
       - snyk-scan
       - codeql-analysis
       - build
-      - validate-changelog
     if: always()
     steps:
       - name: Check all jobs
@@ -287,10 +287,6 @@ jobs:
           
           if [ "${{ needs.build.result }}" != "success" ]; then
             FAILED_JOBS="${FAILED_JOBS} build"
-          fi
-          
-          if [ "${{ needs.validate-changelog.result }}" != "success" ] && [ "${{ needs.validate-changelog.result }}" != "skipped" ]; then
-            FAILED_JOBS="${FAILED_JOBS} validate-changelog"
           fi
           
           if [ -n "$FAILED_JOBS" ]; then

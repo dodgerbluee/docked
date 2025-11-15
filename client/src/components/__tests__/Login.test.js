@@ -2,14 +2,14 @@
  * Component tests for Login component
  */
 
+// Mock axios before any imports
+jest.mock("axios");
+
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import Login from "../Login";
 import axios from "axios";
-
-// Mock axios
-jest.mock("axios");
 
 describe("Login Component", () => {
   const mockOnLogin = jest.fn();
