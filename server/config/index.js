@@ -3,7 +3,7 @@
  * Centralizes all environment variables and configuration settings
  */
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const config = {
   port: process.env.PORT || 3001,

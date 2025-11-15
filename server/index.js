@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const logger = require("./utils/logger");
 
 const app = express();

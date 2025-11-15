@@ -3,20 +3,37 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--bg-primary) !important;
+  border: 1px solid var(--border-color) !important;
   border-radius: 12px;
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.15),
     0 2px 8px rgba(0, 0, 0, 0.1);
-  min-width: 340px;
-  max-width: 420px;
+  min-width: 380px;
+  max-width: 480px;
   max-height: 560px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  z-index: 1001;
+  z-index: 9999 !important;
   animation: slideDown 0.2s ease-out;
+  isolation: isolate;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  contain: layout style paint;
+}
+
+/* Ensure solid background in light mode */
+:root .notification-menu {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .notification-menu {
+  background: #1a1a1a !important;
+  border: 1px solid #404040 !important;
 }
 
 @keyframes slideDown {
@@ -38,12 +55,24 @@ body.dark-mode .notification-menu {
 
 .notification-menu-header {
   padding: 18px 20px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+}
+
+/* Ensure solid background in light mode */
+:root .notification-menu-header {
+  background: #f5f5f5 !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .notification-menu-header {
+  background: #1a1a1a !important;
+  border-bottom: 1px solid #404040 !important;
 }
 
 .notification-menu-header h3 {
@@ -78,6 +107,18 @@ body.dark-mode .notification-count-badge {
   flex: 1;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
+  background: var(--bg-primary) !important;
+  overflow-x: hidden;
+}
+
+/* Ensure solid background in light mode */
+:root .notification-menu-content {
+  background: #ffffff !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .notification-menu-content {
+  background: #1a1a1a !important;
 }
 
 .notification-menu-content::-webkit-scrollbar {
@@ -117,7 +158,7 @@ body.dark-mode .notification-section-header {
 
 .notification-item {
   padding: 14px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color) !important;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
@@ -125,7 +166,19 @@ body.dark-mode .notification-section-header {
   align-items: center;
   gap: 12px;
   position: relative;
-  background: var(--bg-primary);
+  background: var(--bg-primary) !important;
+}
+
+/* Ensure solid background in light mode */
+:root .notification-item {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+/* Ensure solid background in dark mode */
+body.dark-mode .notification-item {
+  background: #1a1a1a !important;
+  border-bottom: 1px solid #404040 !important;
 }
 
 .notification-item::before {
@@ -142,7 +195,6 @@ body.dark-mode .notification-section-header {
 
 .notification-item:hover {
   background: rgba(30, 144, 255, 0.06);
-  transform: translateX(2px);
 }
 
 .notification-item:hover::before {
