@@ -363,7 +363,6 @@ export const useContainerOperations = ({
     setDockerHubDataPulled,
     setDataFetched,
     setError,
-    setClearing,
     fetchContainers,
     setClearingState,
   ]);
