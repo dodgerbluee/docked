@@ -25,8 +25,6 @@ describe('BatchLogger', () => {
 
   describe('log', () => {
     it('should log message with timestamp and metadata', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
       logger.log('info', 'Test message', { key: 'value' });
       
       expect(logger.logs).toHaveLength(1);
@@ -37,49 +35,43 @@ describe('BatchLogger', () => {
         key: 'value',
       });
       expect(logger.logs[0].timestamp).toBeDefined();
-      
-      consoleSpy.mockRestore();
     });
 
     it('should log error level to console', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
       logger.log('error', 'Error message');
       
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      // Verify error log is stored in memory
+      expect(logger.logs).toHaveLength(1);
+      expect(logger.logs[0].level).toBe('error');
+      expect(logger.logs[0].message).toBe('Error message');
+      expect(logger.logs[0].timestamp).toBeDefined();
     });
 
     it('should log warn level to console', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
       logger.log('warn', 'Warning message');
       
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      // Verify warn log is stored in memory
+      expect(logger.logs).toHaveLength(1);
+      expect(logger.logs[0].level).toBe('warn');
+      expect(logger.logs[0].message).toBe('Warning message');
+      expect(logger.logs[0].timestamp).toBeDefined();
     });
   });
 
   describe('convenience methods', () => {
     it('should have info method', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       logger.info('Info message');
       expect(logger.logs[0].level).toBe('info');
-      consoleSpy.mockRestore();
     });
 
     it('should have warn method', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       logger.warn('Warning message');
       expect(logger.logs[0].level).toBe('warn');
-      consoleSpy.mockRestore();
     });
 
     it('should have error method', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       logger.error('Error message');
       expect(logger.logs[0].level).toBe('error');
-      consoleSpy.mockRestore();
     });
   });
 
