@@ -41,6 +41,54 @@ function isValidEndpointId(endpointId) {
 }
 
 /**
+ * Validates and sanitizes a path component to prevent path traversal attacks
+ * @param {string|number} pathComponent - Path component to validate
+ * @returns {Object} - { valid: boolean, sanitized?: string, error?: string }
+ */
+function validatePathComponent(pathComponent) {
+  if (pathComponent === undefined || pathComponent === null) {
+    return {
+      valid: false,
+      error: "Path component cannot be null or undefined",
+    };
+  }
+
+  // Convert to string for validation
+  const str = String(pathComponent);
+
+  // Block path traversal attempts
+  if (
+    str.includes("..") ||
+    str.includes("/") ||
+    str.includes("\\") ||
+    str.includes("%2e") ||
+    str.includes("%2f") ||
+    str.includes("%5c") ||
+    str.trim() !== str ||
+    str.length === 0
+  ) {
+    return {
+      valid: false,
+      error: "Path component contains invalid characters",
+    };
+  }
+
+  // Additional check: ensure it's alphanumeric with allowed characters (for IDs)
+  // Allow alphanumeric, hyphens, underscores (common in IDs)
+  if (!/^[a-zA-Z0-9_-]+$/.test(str)) {
+    return {
+      valid: false,
+      error: "Path component contains invalid characters",
+    };
+  }
+
+  return {
+    valid: true,
+    sanitized: str,
+  };
+}
+
+/**
  * Validates image name format
  * @param {string} imageName - Image name to validate
  * @returns {boolean} - True if valid
@@ -250,6 +298,7 @@ module.exports = {
   isValidImageName,
   isValidPortainerUrl,
   validateUrlForSSRF,
+  validatePathComponent,
   validateImageArray,
   validateContainerArray,
 };

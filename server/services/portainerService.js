@@ -10,7 +10,7 @@ const config = require("../config");
 const { urlWithIp } = require("../utils/dnsResolver");
 const { getAllPortainerInstances } = require("../db/database");
 const logger = require("../utils/logger");
-const { validateUrlForSSRF } = require("../utils/validation");
+const { validateUrlForSSRF, validatePathComponent } = require("../utils/validation");
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
@@ -359,7 +359,9 @@ async function authenticatePortainer(
           headers: ipConfig.headers,
           hasHttpsAgent: !!ipConfig.httpsAgent,
         });
-        testResponse = await axios.get(`${portainerUrl}/api/endpoints`, ipConfig);
+        // Use proper URL construction instead of string interpolation
+        const url = new URL("/api/endpoints", portainerUrl);
+        testResponse = await axios.get(url.toString(), ipConfig);
       } else {
         // Use normal IP fallback flow
         logger.debug("Validating API key with normal flow", {
@@ -379,7 +381,9 @@ async function authenticatePortainer(
             throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
           }
           const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
-          return await axios.get(`${url}/api/endpoints`, ipConfig);
+          // Use proper URL construction instead of string interpolation
+          const requestUrl = new URL("/api/endpoints", url);
+          return await axios.get(requestUrl.toString(), ipConfig);
         }, portainerUrl);
       }
       // If we get here, the API key is valid
@@ -439,8 +443,10 @@ async function authenticatePortainer(
         throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
       }
       const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
+      // Use proper URL construction instead of string interpolation
+      const url = new URL("/api/auth", portainerUrl);
       response = await axios.post(
-        `${portainerUrl}/api/auth`,
+        url.toString(),
         {
           username: authUsername,
           password: authPassword,
@@ -461,8 +467,10 @@ async function authenticatePortainer(
           throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
         }
         const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+        // Use proper URL construction instead of string interpolation
+        const requestUrl = new URL("/api/auth", url);
         return await axios.post(
-          `${url}/api/auth`,
+          requestUrl.toString(),
           {
             username: authUsername,
             password: authPassword,

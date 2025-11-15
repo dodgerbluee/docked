@@ -4,6 +4,7 @@
  */
 
 const axios = require("axios");
+const { URL } = require("url");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
 const config = require("../config");
@@ -14,7 +15,7 @@ const {
   clearContainerCache,
 } = require("../db/database");
 const logger = require("../utils/logger");
-const { validateUrlForSSRF } = require("../utils/validation");
+const { validateUrlForSSRF, validatePathComponent } = require("../utils/validation");
 
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
@@ -271,16 +272,30 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             if (!ssrfValidation.valid) {
               throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
             }
+
+            // Validate path components to prevent path traversal attacks
+            const endpointValidation = validatePathComponent(endpointId);
+            const containerIdValidation = validatePathComponent(containerIdToTry);
+
+            if (!endpointValidation.valid || !containerIdValidation.valid) {
+              throw new Error(
+                `Invalid path component: ${endpointValidation.error || containerIdValidation.error}`
+              );
+            }
+
+            // Use proper URL construction instead of string interpolation
+            const url = new URL(
+              `/api/endpoints/${endpointValidation.sanitized}/docker/containers/${containerIdValidation.sanitized}/json`,
+              workingPortainerUrl
+            );
+
             const baseConfig = { headers: portainerService.getAuthHeaders(workingPortainerUrl) };
             const ipConfig = portainerService.getIpFallbackConfig(
               workingPortainerUrl,
               portainerUrl,
               baseConfig
             );
-            const response = await axios.get(
-              `${workingPortainerUrl}/api/endpoints/${endpointId}/docker/containers/${containerIdToTry}/json`,
-              ipConfig
-            );
+            const response = await axios.get(url.toString(), ipConfig);
             return response.data;
           }
           throw originalError;
@@ -412,6 +427,23 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 if (!ssrfValidation.valid) {
                   throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
                 }
+
+                // Validate path components to prevent path traversal attacks
+                const endpointValidation = validatePathComponent(endpointId);
+                const containerIdValidation = validatePathComponent(containerIdToTry);
+
+                if (!endpointValidation.valid || !containerIdValidation.valid) {
+                  throw new Error(
+                    `Invalid path component: ${endpointValidation.error || containerIdValidation.error}`
+                  );
+                }
+
+                // Use proper URL construction instead of string interpolation
+                const url = new URL(
+                  `/api/endpoints/${endpointValidation.sanitized}/docker/containers/${containerIdValidation.sanitized}/json`,
+                  workingPortainerUrl
+                );
+
                 const baseConfig = {
                   headers: portainerService.getAuthHeaders(workingPortainerUrl),
                 };
@@ -420,10 +452,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                   portainerUrl,
                   baseConfig
                 );
-                const response = await axios.get(
-                  `${workingPortainerUrl}/api/endpoints/${endpointId}/docker/containers/${containerIdToTry}/json`,
-                  ipConfig
-                );
+                const response = await axios.get(url.toString(), ipConfig);
                 return response.data;
               }
               throw retryError;
