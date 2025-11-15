@@ -144,12 +144,65 @@ async function checkImageUpdates(
  * @returns {Promise<Object>} - Upgrade result
  */
 async function upgradeSingleContainer(portainerUrl, endpointId, containerId, imageName) {
-  // Get container details to preserve configuration
-  const containerDetails = await portainerService.getContainerDetails(
-    portainerUrl,
-    endpointId,
-    containerId
-  );
+  // Normalize container ID - Docker API accepts both full and shortened IDs
+  // Try with the provided ID first, then fall back to shortened version if needed
+  const normalizeContainerId = (id) => {
+    // If it's a full 64-character hash, try both full and shortened
+    if (id && id.length === 64) {
+      return id.substring(0, 12);
+    }
+    return id;
+  };
+
+  let containerDetails;
+  let workingContainerId = containerId; // Use the ID that works for subsequent operations
+  const normalizedId = normalizeContainerId(containerId);
+  
+  try {
+    // Try with the original ID first
+    containerDetails = await portainerService.getContainerDetails(
+      portainerUrl,
+      endpointId,
+      containerId
+    );
+  } catch (error) {
+    // If 404 and we haven't tried the shortened version, try that
+    if (error.response?.status === 404 && normalizedId !== containerId) {
+      logger.info("Container not found with full ID, trying shortened version", {
+        module: "containerService",
+        operation: "upgradeSingleContainer",
+        originalId: containerId.substring(0, 12),
+        shortenedId: normalizedId,
+      });
+      try {
+        containerDetails = await portainerService.getContainerDetails(
+          portainerUrl,
+          endpointId,
+          normalizedId
+        );
+        // Use the normalized ID for subsequent operations
+        workingContainerId = normalizedId;
+      } catch (shortError) {
+        // If still 404, provide a better error message
+        if (shortError.response?.status === 404) {
+          throw new Error(
+            `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
+            `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
+          );
+        }
+        throw shortError;
+      }
+    } else if (error.response?.status === 404) {
+      // Already tried shortened version or it's the same, provide helpful error
+      throw new Error(
+        `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
+        `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
+      );
+    } else {
+      // Re-throw other errors
+      throw error;
+    }
+  }
 
   // Preserve the original container name (important for stacks)
   const originalContainerName = containerDetails.Name;
@@ -186,9 +239,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
-    containerId: containerId.substring(0, 12),
+    containerId: workingContainerId.substring(0, 12),
   });
-  await portainerService.stopContainer(portainerUrl, endpointId, containerId);
+  await portainerService.stopContainer(portainerUrl, endpointId, workingContainerId);
 
   // Wait for container to fully stop (important for databases and services)
   logger.debug("Waiting for container to stop", {
@@ -203,7 +256,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        containerId
+        workingContainerId
       );
       // Docker API returns State as an object with Status property
       const containerStatus =
@@ -243,13 +296,52 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
-    containerId: containerId.substring(0, 12),
+    containerId: workingContainerId.substring(0, 12),
   });
-  await portainerService.removeContainer(portainerUrl, endpointId, containerId);
+  await portainerService.removeContainer(portainerUrl, endpointId, workingContainerId);
 
-  // Clean HostConfig - remove container-specific references
+  // Clean HostConfig - remove container-specific references and invalid fields
   const cleanHostConfig = { ...containerDetails.HostConfig };
   delete cleanHostConfig.ContainerIDFile;
+  // Remove fields that shouldn't be in create request
+  delete cleanHostConfig.Runtime;
+  delete cleanHostConfig.RestartCount;
+  delete cleanHostConfig.AutoRemove;
+  // Ensure RestartPolicy is valid
+  if (cleanHostConfig.RestartPolicy && typeof cleanHostConfig.RestartPolicy === "object") {
+    // Keep restart policy but ensure it's valid
+    if (!cleanHostConfig.RestartPolicy.Name) {
+      cleanHostConfig.RestartPolicy = { Name: "no" };
+    }
+  }
+
+  // Clean NetworkingConfig - Docker API expects specific format
+  let networkingConfig = undefined;
+  if (containerDetails.NetworkSettings?.Networks) {
+    const networks = containerDetails.NetworkSettings.Networks;
+    // Convert network settings to the format Docker API expects
+    const endpointsConfig = {};
+    for (const [networkName, networkData] of Object.entries(networks)) {
+      if (networkData && typeof networkData === "object") {
+        endpointsConfig[networkName] = {
+          IPAMConfig: networkData.IPAMConfig || undefined,
+          Links: networkData.Links || undefined,
+          Aliases: networkData.Aliases || undefined,
+        };
+        // Remove empty objects
+        if (!endpointsConfig[networkName].IPAMConfig) delete endpointsConfig[networkName].IPAMConfig;
+        if (!endpointsConfig[networkName].Links) delete endpointsConfig[networkName].Links;
+        if (!endpointsConfig[networkName].Aliases) delete endpointsConfig[networkName].Aliases;
+        // If all fields are empty, remove the network entry
+        if (Object.keys(endpointsConfig[networkName]).length === 0) {
+          delete endpointsConfig[networkName];
+        }
+      }
+    }
+    if (Object.keys(endpointsConfig).length > 0) {
+      networkingConfig = { EndpointsConfig: endpointsConfig };
+    }
+  }
 
   // Create new container with same configuration
   logger.info("Creating new container", {
@@ -258,29 +350,66 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     containerName: originalContainerName,
     image: newImageName,
   });
+
+  // Build container config, only including defined values
   const containerConfig = {
     Image: newImageName,
-    Cmd: containerDetails.Config.Cmd,
-    Env: containerDetails.Config.Env,
-    ExposedPorts: containerDetails.Config.ExposedPorts,
-    HostConfig: cleanHostConfig,
-    Labels: containerDetails.Config.Labels,
-    WorkingDir: containerDetails.Config.WorkingDir,
-    Entrypoint: containerDetails.Config.Entrypoint,
-    NetworkingConfig: containerDetails.NetworkSettings?.Networks
-      ? {
-          EndpointsConfig: containerDetails.NetworkSettings.Networks,
-        }
-      : undefined,
   };
 
+  // Add optional fields only if they exist and are valid
+  if (containerDetails.Config.Cmd) {
+    containerConfig.Cmd = containerDetails.Config.Cmd;
+  }
+  if (containerDetails.Config.Env && Array.isArray(containerDetails.Config.Env)) {
+    containerConfig.Env = containerDetails.Config.Env;
+  }
+  if (containerDetails.Config.ExposedPorts && Object.keys(containerDetails.Config.ExposedPorts).length > 0) {
+    containerConfig.ExposedPorts = containerDetails.Config.ExposedPorts;
+  }
+  if (cleanHostConfig && Object.keys(cleanHostConfig).length > 0) {
+    containerConfig.HostConfig = cleanHostConfig;
+  }
+  if (containerDetails.Config.Labels && Object.keys(containerDetails.Config.Labels).length > 0) {
+    containerConfig.Labels = containerDetails.Config.Labels;
+  }
+  if (containerDetails.Config.WorkingDir) {
+    containerConfig.WorkingDir = containerDetails.Config.WorkingDir;
+  }
+  if (containerDetails.Config.Entrypoint) {
+    containerConfig.Entrypoint = containerDetails.Config.Entrypoint;
+  }
+  if (networkingConfig) {
+    containerConfig.NetworkingConfig = networkingConfig;
+  }
+
   // Pass container name as separate parameter (Docker API uses it as query param)
-  const newContainer = await portainerService.createContainer(
-    portainerUrl,
-    endpointId,
-    containerConfig,
-    originalContainerName
-  );
+  let newContainer;
+  try {
+    newContainer = await portainerService.createContainer(
+      portainerUrl,
+      endpointId,
+      containerConfig,
+      originalContainerName
+    );
+  } catch (error) {
+    // Provide more detailed error information
+    if (error.response?.status === 400) {
+      const errorMessage = error.response?.data?.message || error.message || "Invalid container configuration";
+      logger.error("Failed to create container - invalid configuration", {
+        module: "containerService",
+        operation: "upgradeSingleContainer",
+        containerName: originalContainerName,
+        error: errorMessage,
+        errorDetails: error.response?.data,
+      });
+      throw new Error(
+        `Failed to create container: ${errorMessage}. ` +
+        `This may be due to invalid network configuration, port conflicts, or other container settings. ` +
+        `Please check the container configuration in Portainer.`
+      );
+    }
+    throw error;
+  }
 
   // Start the new container
   logger.info("Starting new container", {
@@ -292,18 +421,20 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
 
   // Wait for container to be healthy/ready (CRITICAL for databases)
+  // Initialize wait time variables before using them
+  const maxWaitTime = 120000; // 2 minutes max for databases with health checks
+  const checkInterval = 2000; // Check every 2 seconds
+  const startTime = Date.now();
+  let consecutiveRunningChecks = 0;
+  const requiredStableChecks = 3; // Container must be running for 3 consecutive checks (6 seconds)
+  let isReady = false;
+
   logger.info("Waiting for container to be ready", {
     module: "containerService",
     operation: "upgradeSingleContainer",
     containerName: originalContainerName,
     maxWaitTime: `${maxWaitTime / 1000}s`,
   });
-  let isReady = false;
-  const maxWaitTime = 120000; // 2 minutes max for databases with health checks
-  const checkInterval = 2000; // Check every 2 seconds
-  const startTime = Date.now();
-  let consecutiveRunningChecks = 0;
-  const requiredStableChecks = 3; // Container must be running for 3 consecutive checks (6 seconds)
 
   while (Date.now() - startTime < maxWaitTime) {
     await new Promise((resolve) => setTimeout(resolve, checkInterval));

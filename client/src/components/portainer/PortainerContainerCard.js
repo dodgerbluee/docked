@@ -254,7 +254,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               ) : null}
               {showUpdates && (
                 <span
-                  className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""}`}
+                  className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""} ${upgrading ? styles.upgrading : ""}`}
                   title={
                     isPortainer
                       ? PORTAINER_CONTAINER_MESSAGE
@@ -276,7 +276,11 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                     }
                   }}
                 >
-                  <HardDriveDownload size={18} />
+                  {upgrading ? (
+                    <span className={styles.upgradingText}>Upgrading...</span>
+                  ) : (
+                    <HardDriveDownload size={18} />
+                  )}
                 </span>
               )}
             </div>
