@@ -47,14 +47,14 @@ jobs:
 
   # Run linting and formatting checks
   lint:
-    uses: ./.github/workflows/reusable/run-linting.yml
+    uses: ./.github/workflows/run-linting.yml
     with:
       node-version: '18'
       check-formatting: true
 
   # Run tests with coverage
   test:
-    uses: ./.github/workflows/reusable/run-tests.yml
+    uses: ./.github/workflows/run-tests.yml
     with:
       node-version: '18'
       run-coverage: true
