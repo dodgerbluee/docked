@@ -36,29 +36,34 @@ jobs:
           cd server && npm ci
           cd ../client && npm ci
 
-      - name: Run ESLint (server)
-        run: |
-          cd server
-          # Check if lint script exists in package.json
-          if grep -q '"lint"' package.json; then
-            npm run lint
-          elif [ -f "node_modules/.bin/eslint" ]; then
-            npx eslint . --ext .js || echo "ESLint not configured for server"
-          else
-            echo "No linting configured for server, skipping"
-          fi
+      # - name: Run ESLint (server)
+      #   run: |
+      #     cd server
+      #     if [ -f "node_modules/.bin/eslint" ]; then
+      #       npx eslint . --ext .js
+      #     else
+      #       npm install --save-dev eslint@^8.57.0
+      #       npx eslint . --ext .js
+      #     fi
 
       - name: Run ESLint (client)
         run: |
           cd client
-          # Check if lint script exists in package.json
-          if grep -q '"lint"' package.json; then
-            npm run lint
-          elif [ -f "node_modules/.bin/eslint" ]; then
-            npx eslint src --ext .js,.jsx || echo "ESLint not configured for client"
+          if [ -f "node_modules/.bin/eslint" ]; then
+            npx eslint src --ext .js,.jsx
+          elif [ -d "node_modules/react-scripts" ]; then
+            CI=true npm run build 2>&1 | tee /tmp/build.log
+            BUILD_EXIT_CODE=${PIPESTATUS[0]}
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+              if grep -qiE "(eslint|Failed to compile)" /tmp/build.log; then
+                grep -iE "(eslint|error|warning|Failed)" /tmp/build.log | head -50
+                exit 1
+              fi
+              exit $BUILD_EXIT_CODE
+            fi
           else
-            # Use react-scripts ESLint if available
-            CI=true npm run build 2>&1 | grep -i "eslint" || echo "ESLint check completed via build"
+            npm install --save-dev eslint
+            npx eslint src --ext .js,.jsx
           fi
 
       - name: Check formatting (Prettier)
