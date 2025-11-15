@@ -1,7 +1,7 @@
 node_modules
-build
-dist
-coverage
+**/build
+**/dist
+**/coverage
 *.log
 package-lock.json
 .DS_Store

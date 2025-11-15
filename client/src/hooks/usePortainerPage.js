@@ -75,7 +75,11 @@ export function usePortainerPage({
           ? controlledSelectedPortainerInstances
           : new Set()
         : internalSelectedPortainerInstances,
-    [isSelectedInstancesControlled, controlledSelectedPortainerInstances, internalSelectedPortainerInstances]
+    [
+      isSelectedInstancesControlled,
+      controlledSelectedPortainerInstances,
+      internalSelectedPortainerInstances,
+    ]
   );
 
   const setSelectedPortainerInstances = useCallback(
