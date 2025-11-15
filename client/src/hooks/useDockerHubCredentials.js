@@ -34,4 +34,3 @@ export const useDockerHubCredentials = (isAuthenticated, authToken) => {
     fetchDockerHubCredentials,
   };
 };
-

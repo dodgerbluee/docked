@@ -3,16 +3,16 @@
  * Handles HTTP requests for container operations
  */
 
-const containerService = require('../services/containerService');
-const portainerService = require('../services/portainerService');
+const containerService = require("../services/containerService");
+const portainerService = require("../services/portainerService");
 const {
   validateRequiredFields,
   isValidContainerId,
   validateContainerArray,
-} = require('../utils/validation');
-const { RateLimitExceededError } = require('../utils/retry');
-const { getAllPortainerInstances } = require('../db/database');
-const logger = require('../utils/logger');
+} = require("../utils/validation");
+const { RateLimitExceededError } = require("../utils/retry");
+const { getAllPortainerInstances } = require("../db/database");
+const logger = require("../utils/logger");
 
 /**
  * Get all containers with update status
@@ -23,8 +23,8 @@ const logger = require('../utils/logger');
 async function getContainers(req, res, next) {
   try {
     // Check if we should fetch from Portainer only (no Docker Hub)
-    const portainerOnly = req.query.portainerOnly === 'true';
-    
+    const portainerOnly = req.query.portainerOnly === "true";
+
     if (portainerOnly) {
       // Fetch from Portainer without Docker Hub checks
       const result = await containerService.getContainersFromPortainer();
@@ -35,40 +35,40 @@ async function getContainers(req, res, next) {
     // IMPORTANT: Never call Docker Hub here - only return cached data or fetch from Portainer
     // Docker Hub is ONLY called via /api/containers/pull endpoint (manual pull or batch process)
     const cached = await containerService.getAllContainersWithUpdates(false);
-    
+
     // If cache is empty or has no containers, fetch from Portainer only (NO Docker Hub)
     if (!cached || !cached.containers || cached.containers.length === 0) {
-      logger.info('No cached container data found, fetching from Portainer only', {
-        module: 'containerController',
-        operation: 'getContainers',
-        source: 'portainer-only',
+      logger.info("No cached container data found, fetching from Portainer only", {
+        module: "containerController",
+        operation: "getContainers",
+        source: "portainer-only",
       });
       const portainerResult = await containerService.getContainersFromPortainer();
       // Don't cache this result - user must click "Pull" to cache with Docker Hub data
       res.json(portainerResult);
       return;
     }
-    
+
     // Return cached data (may contain Docker Hub info from previous pull, but no new Docker Hub calls)
     res.json(cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
-    logger.error('Error getting containers from cache', {
-      module: 'containerController',
-      operation: 'getContainers',
+    logger.error("Error getting containers from cache", {
+      module: "containerController",
+      operation: "getContainers",
       error: error,
     });
     try {
       const portainerResult = await containerService.getContainersFromPortainer();
-      logger.info('Fallback to Portainer-only fetch succeeded', {
-        module: 'containerController',
-        operation: 'getContainers',
+      logger.info("Fallback to Portainer-only fetch succeeded", {
+        module: "containerController",
+        operation: "getContainers",
       });
       res.json(portainerResult);
     } catch (portainerError) {
-      logger.error('Fallback to Portainer-only fetch failed', {
-        module: 'containerController',
-        operation: 'getContainers',
+      logger.error("Fallback to Portainer-only fetch failed", {
+        module: "containerController",
+        operation: "getContainers",
         error: portainerError,
       });
       res.json({
@@ -92,62 +92,62 @@ async function getContainers(req, res, next) {
 async function pullContainers(req, res, next) {
   try {
     const { portainerUrl } = req.body;
-    logger.info('Pull request received - fetching container data from Docker Hub', {
-      module: 'containerController',
-      operation: 'pullContainers',
-      portainerUrl: portainerUrl || 'all-instances',
-      note: 'This is the ONLY endpoint that calls Docker Hub',
+    logger.info("Pull request received - fetching container data from Docker Hub", {
+      module: "containerController",
+      operation: "pullContainers",
+      portainerUrl: portainerUrl || "all-instances",
+      note: "This is the ONLY endpoint that calls Docker Hub",
     });
-    
+
     // Force refresh - this is the ONLY place that should call Docker Hub
     // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process, 3) After adding new instance
     const result = await containerService.getAllContainersWithUpdates(true, portainerUrl);
-    
-    logger.info('Container data pull completed successfully', {
-      module: 'containerController',
-      operation: 'pullContainers',
+
+    logger.info("Container data pull completed successfully", {
+      module: "containerController",
+      operation: "pullContainers",
       containerCount: result.containers?.length || 0,
-      portainerUrl: portainerUrl || 'all-instances',
+      portainerUrl: portainerUrl || "all-instances",
     });
-    
+
     res.json({
       success: true,
-      message: 'Container data pulled successfully',
+      message: "Container data pulled successfully",
       ...result,
     });
   } catch (error) {
     // Handle rate limit exceeded errors specially
     if (error.isRateLimitExceeded || error instanceof RateLimitExceededError) {
-      logger.warn('Docker Hub rate limit exceeded', {
-        module: 'containerController',
-        operation: 'pullContainers',
+      logger.warn("Docker Hub rate limit exceeded", {
+        module: "containerController",
+        operation: "pullContainers",
         error: error,
-        portainerUrl: req.body?.portainerUrl || 'all-instances',
+        portainerUrl: req.body?.portainerUrl || "all-instances",
       });
       return res.status(429).json({
         success: false,
-        error: error.message || 'Docker Hub rate limit exceeded',
+        error: error.message || "Docker Hub rate limit exceeded",
         rateLimitExceeded: true,
-        message: 'Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.',
+        message:
+          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.",
       });
     }
-    
-    logger.error('Error pulling container data from Docker Hub', {
-      module: 'containerController',
-      operation: 'pullContainers',
+
+    logger.error("Error pulling container data from Docker Hub", {
+      module: "containerController",
+      operation: "pullContainers",
       error: error,
-      portainerUrl: req.body?.portainerUrl || 'all-instances',
+      portainerUrl: req.body?.portainerUrl || "all-instances",
     });
-    
+
     // Return a more detailed error response
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to pull container data',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      error: error.message || "Failed to pull container data",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 }
-
 
 /**
  * Upgrade a single container
@@ -162,22 +162,23 @@ async function upgradeContainer(req, res, next) {
 
     // Validate input
     if (!isValidContainerId(containerId)) {
-      return res.status(400).json({ error: 'Invalid container ID' });
+      return res.status(400).json({ error: "Invalid container ID" });
     }
 
-    const validationError = validateRequiredFields(
-      { endpointId, imageName, portainerUrl },
-      ['endpointId', 'imageName', 'portainerUrl']
-    );
+    const validationError = validateRequiredFields({ endpointId, imageName, portainerUrl }, [
+      "endpointId",
+      "imageName",
+      "portainerUrl",
+    ]);
     if (validationError) {
       return res.status(400).json(validationError);
     }
 
     // Get instance credentials from database
     const instances = await getAllPortainerInstances();
-    const instance = instances.find(inst => inst.url === portainerUrl);
+    const instance = instances.find((inst) => inst.url === portainerUrl);
     if (!instance) {
-      return res.status(404).json({ error: 'Portainer instance not found' });
+      return res.status(404).json({ error: "Portainer instance not found" });
     }
 
     await portainerService.authenticatePortainer(
@@ -185,7 +186,7 @@ async function upgradeContainer(req, res, next) {
       instance.username,
       instance.password,
       instance.api_key,
-      instance.auth_type || 'apikey'
+      instance.auth_type || "apikey"
     );
     const result = await containerService.upgradeSingleContainer(
       portainerUrl,
@@ -196,7 +197,7 @@ async function upgradeContainer(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Container upgraded successfully',
+      message: "Container upgraded successfully",
       ...result,
     });
   } catch (error) {
@@ -222,7 +223,7 @@ async function batchUpgradeContainers(req, res, next) {
 
     // Get all instances once to avoid repeated DB queries
     const instances = await getAllPortainerInstances();
-    const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
+    const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Group containers by Portainer instance for efficient authentication
     const containersByInstance = new Map();
@@ -234,7 +235,7 @@ async function batchUpgradeContainers(req, res, next) {
       if (!containersByInstance.has(container.portainerUrl)) {
         containersByInstance.set(container.portainerUrl, {
           instance,
-          containers: []
+          containers: [],
         });
       }
       containersByInstance.get(container.portainerUrl).containers.push(container);
@@ -249,13 +250,13 @@ async function batchUpgradeContainers(req, res, next) {
             instance.username,
             instance.password,
             instance.api_key,
-            instance.auth_type || 'apikey'
+            instance.auth_type || "apikey"
           );
           return { portainerUrl, success: true };
         } catch (error) {
-          logger.error('Failed to authenticate Portainer instance', {
-            module: 'containerController',
-            operation: 'batchUpgradeContainers',
+          logger.error("Failed to authenticate Portainer instance", {
+            module: "containerController",
+            operation: "batchUpgradeContainers",
             portainerUrl: portainerUrl,
             error: error,
           });
@@ -280,7 +281,7 @@ async function batchUpgradeContainers(req, res, next) {
           instance.username,
           instance.password,
           instance.api_key,
-          instance.auth_type || 'apikey'
+          instance.auth_type || "apikey"
         );
 
         const result = await containerService.upgradeSingleContainer(
@@ -291,18 +292,18 @@ async function batchUpgradeContainers(req, res, next) {
         );
         return { success: true, result, containerId: container.containerId };
       } catch (error) {
-        logger.error('Error upgrading container in batch', {
-          module: 'containerController',
-          operation: 'batchUpgradeContainers',
+        logger.error("Error upgrading container in batch", {
+          module: "containerController",
+          operation: "batchUpgradeContainers",
           containerId: container.containerId,
-          containerName: container.containerName || 'Unknown',
+          containerName: container.containerName || "Unknown",
           portainerUrl: container.portainerUrl,
           error: error,
         });
         return {
           success: false,
           containerId: container.containerId,
-          containerName: container.containerName || 'Unknown',
+          containerName: container.containerName || "Unknown",
           error: error.message,
         };
       }
@@ -316,7 +317,7 @@ async function batchUpgradeContainers(req, res, next) {
     const errors = [];
 
     for (const settledResult of upgradeResults) {
-      if (settledResult.status === 'fulfilled') {
+      if (settledResult.status === "fulfilled") {
         const upgradeResult = settledResult.value;
         if (upgradeResult.success) {
           results.push(upgradeResult.result);
@@ -330,9 +331,9 @@ async function batchUpgradeContainers(req, res, next) {
       } else {
         // Promise was rejected (shouldn't happen since we catch all errors, but handle it)
         errors.push({
-          containerId: 'unknown',
-          containerName: 'Unknown',
-          error: settledResult.reason?.message || 'Unknown error',
+          containerId: "unknown",
+          containerName: "Unknown",
+          error: settledResult.reason?.message || "Unknown error",
         });
       }
     }
@@ -356,25 +357,25 @@ async function batchUpgradeContainers(req, res, next) {
  */
 async function clearCache(req, res, next) {
   try {
-    const { clearContainerCache } = require('../db/database');
+    const { clearContainerCache } = require("../db/database");
     await clearContainerCache();
-    logger.info('Container cache cleared', {
-      module: 'containerController',
-      operation: 'clearCache',
+    logger.info("Container cache cleared", {
+      module: "containerController",
+      operation: "clearCache",
     });
     res.json({
       success: true,
-      message: 'Cache cleared successfully',
+      message: "Cache cleared successfully",
     });
   } catch (error) {
-    logger.error('Error clearing container cache', {
-      module: 'containerController',
-      operation: 'clearCache',
+    logger.error("Error clearing container cache", {
+      module: "containerController",
+      operation: "clearCache",
       error: error,
     });
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to clear cache',
+      error: error.message || "Failed to clear cache",
     });
   }
 }
@@ -386,4 +387,3 @@ module.exports = {
   upgradeContainer,
   batchUpgradeContainers,
 };
-

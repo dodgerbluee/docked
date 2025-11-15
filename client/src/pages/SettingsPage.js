@@ -36,23 +36,24 @@ function SettingsPage({
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
 }) {
-  const [internalTab, setInternalTab] = useState(
-    controlledActiveTab || SETTINGS_TABS.GENERAL
-  );
+  const [internalTab, setInternalTab] = useState(controlledActiveTab || SETTINGS_TABS.GENERAL);
 
   // Use controlled tab if provided, otherwise use internal state
   const settingsTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
-  
+
   // If first login, force password tab
   const activeTab = !passwordChanged ? SETTINGS_TABS.PASSWORD : settingsTab;
 
-  const handleTabChange = useCallback((tab) => {
-    if (onControlledTabChange) {
-      onControlledTabChange(tab);
-    } else {
-      setInternalTab(tab);
-    }
-  }, [onControlledTabChange]);
+  const handleTabChange = useCallback(
+    (tab) => {
+      if (onControlledTabChange) {
+        onControlledTabChange(tab);
+      } else {
+        setInternalTab(tab);
+      }
+    },
+    [onControlledTabChange]
+  );
 
   const handleRecentAvatarsChange = useCallback(
     (avatars) => {
@@ -114,9 +115,7 @@ function SettingsPage({
             onSectionChange={handleTabChange}
             showUserInfoAboveTabs={false}
             onEditInstance={onEditInstance}
-            refreshInstances={
-              editingPortainerInstance === null ? refreshInstances : null
-            }
+            refreshInstances={editingPortainerInstance === null ? refreshInstances : null}
             onBatchConfigUpdate={onBatchConfigUpdate}
             colorScheme={colorScheme}
             onColorSchemeChange={onColorSchemeChange}
@@ -155,4 +154,3 @@ SettingsPage.propTypes = {
 };
 
 export default SettingsPage;
-

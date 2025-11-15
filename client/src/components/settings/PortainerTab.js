@@ -61,9 +61,7 @@ const PortainerTab = React.memo(function PortainerTab({
                   </div>
                   <div className={styles.instanceUrl}>{instance.url}</div>
                   {instance.auth_type === "password" && instance.username && (
-                    <div className={styles.instanceUsername}>
-                      Username: {instance.username}
-                    </div>
+                    <div className={styles.instanceUsername}>Username: {instance.username}</div>
                   )}
                 </div>
                 <ActionButtons
@@ -121,4 +119,3 @@ PortainerTab.propTypes = {
 };
 
 export default PortainerTab;
-

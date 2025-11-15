@@ -24,24 +24,25 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
 
     try {
       isFetchingRef.current = true;
-      
+
       // Use a stable cache key instead of Date.now() to prevent unnecessary re-fetches
       // Only cache bust if we don't have a blob URL already
       const currentAvatar = avatarRef.current;
-      const cacheBustUrl = currentAvatar && currentAvatar.startsWith("blob:")
-        ? `/api/avatars`
-        : `/api/avatars?t=${Date.now()}`;
-      
+      const cacheBustUrl =
+        currentAvatar && currentAvatar.startsWith("blob:")
+          ? `/api/avatars`
+          : `/api/avatars?t=${Date.now()}`;
+
       const response = await axios.get(`${API_BASE_URL}${cacheBustUrl}`, {
         responseType: "blob",
       });
       const avatarUrl = URL.createObjectURL(response.data);
-      
+
       // Clean up old blob URL if it exists
       if (currentAvatar && currentAvatar.startsWith("blob:")) {
         URL.revokeObjectURL(currentAvatar);
       }
-      
+
       setAvatar(avatarUrl);
     } catch (err) {
       if (err.response?.status !== 404) {
@@ -64,9 +65,7 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
           .filter((avatar) => avatar && avatar.url) // Filter out invalid avatars
           .map((avatar) => ({
             ...avatar,
-            url: avatar.url.startsWith("http")
-              ? avatar.url
-              : `${API_BASE_URL}${avatar.url}`,
+            url: avatar.url.startsWith("http") ? avatar.url : `${API_BASE_URL}${avatar.url}`,
           }));
         setRecentAvatars(avatars);
       }
@@ -77,34 +76,31 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
     }
   }, [isAuthenticated, authToken]);
 
-  const handleAvatarChange = useCallback(
-    async (newAvatar) => {
-      const currentAvatar = avatarRef.current;
+  const handleAvatarChange = useCallback(async (newAvatar) => {
+    const currentAvatar = avatarRef.current;
 
-      if (currentAvatar && currentAvatar.startsWith("blob:")) {
-        URL.revokeObjectURL(currentAvatar);
-      }
+    if (currentAvatar && currentAvatar.startsWith("blob:")) {
+      URL.revokeObjectURL(currentAvatar);
+    }
 
-      if (newAvatar === "/img/default-avatar.jpg") {
+    if (newAvatar === "/img/default-avatar.jpg") {
+      setAvatar(newAvatar);
+      return;
+    }
+
+    if (typeof newAvatar === "string") {
+      if (newAvatar.startsWith("blob:")) {
         setAvatar(newAvatar);
-        return;
+      } else if (newAvatar.startsWith("http") || newAvatar.startsWith("/img/")) {
+        setAvatar(newAvatar);
+      } else {
+        setAvatar(`${API_BASE_URL}${newAvatar}`);
       }
-
-      if (typeof newAvatar === "string") {
-        if (newAvatar.startsWith("blob:")) {
-          setAvatar(newAvatar);
-        } else if (newAvatar.startsWith("http") || newAvatar.startsWith("/img/")) {
-          setAvatar(newAvatar);
-        } else {
-          setAvatar(`${API_BASE_URL}${newAvatar}`);
-        }
-      } else if (newAvatar instanceof File) {
-        const blobUrl = URL.createObjectURL(newAvatar);
-        setAvatar(blobUrl);
-      }
-    },
-    []
-  );
+    } else if (newAvatar instanceof File) {
+      const blobUrl = URL.createObjectURL(newAvatar);
+      setAvatar(blobUrl);
+    }
+  }, []);
 
   return {
     avatar,
@@ -117,4 +113,3 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
     handleAvatarChange,
   };
 };
-

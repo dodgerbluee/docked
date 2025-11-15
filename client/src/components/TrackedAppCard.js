@@ -3,14 +3,14 @@
  * Reusable card component for displaying a tracked app (Docker image, GitHub repo, or GitLab repo)
  */
 
-import React, { useMemo, useCallback } from 'react';
-import PropTypes from 'prop-types';
-import { Pencil, Check } from 'lucide-react';
-import { getDockerHubRepoUrl } from '../utils/formatters';
-import GitHubIcon from './icons/GitHubIcon';
-import GitLabIcon from './icons/GitLabIcon';
-import Button from './ui/Button';
-import styles from './TrackedAppCard.module.css';
+import React, { useMemo, useCallback } from "react";
+import PropTypes from "prop-types";
+import { Pencil, Check } from "lucide-react";
+import { getDockerHubRepoUrl } from "../utils/formatters";
+import GitHubIcon from "./icons/GitHubIcon";
+import GitLabIcon from "./icons/GitLabIcon";
+import Button from "./ui/Button";
+import styles from "./TrackedAppCard.module.css";
 
 /**
  * TrackedAppCard component
@@ -20,50 +20,52 @@ import styles from './TrackedAppCard.module.css';
  * @param {boolean} selected - Whether the card is selected
  * @param {Function} onToggleSelect - Handler for toggling selection
  */
-const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade, selected = false, onToggleSelect }) {
+const TrackedAppCard = React.memo(function TrackedAppCard({
+  image,
+  onEdit,
+  onUpgrade,
+  selected = false,
+  onToggleSelect,
+}) {
   // Memoize computed values
   const hasNoLatestVersion = useMemo(
     () =>
       !image.latest_version ||
-      image.latest_version === 'Unknown' ||
-      image.latest_version.trim() === '',
+      image.latest_version === "Unknown" ||
+      image.latest_version.trim() === "",
     [image.latest_version]
   );
 
-  const subheaderText = (image.source_type === 'github' || image.source_type === 'gitlab') && image.github_repo
-    ? image.github_repo
-    : (image.github_repo || image.image_name);
+  const subheaderText =
+    (image.source_type === "github" || image.source_type === "gitlab") && image.github_repo
+      ? image.github_repo
+      : image.github_repo || image.image_name;
 
   // Construct GitHub/GitLab release URL for a version
   const getVersionReleaseUrl = (version) => {
-    if (!version || version === 'Not set' || !image.github_repo) return null;
+    if (!version || version === "Not set" || !image.github_repo) return null;
     // Use releaseUrl if available (for latest version), otherwise construct it
     if (version === image.latest_version && image.releaseUrl) {
       return image.releaseUrl;
     }
     // Construct URL based on source type
-    if (image.source_type === 'gitlab') {
-      const repoUrl = image.github_repo.startsWith('http')
-        ? image.github_repo.replace(/\/$/, '')
+    if (image.source_type === "gitlab") {
+      const repoUrl = image.github_repo.startsWith("http")
+        ? image.github_repo.replace(/\/$/, "")
         : `https://gitlab.com/${image.github_repo}`;
       return `${repoUrl}/-/releases/${version}`;
     } else {
       // GitHub
-      const repoUrl = image.github_repo.startsWith('http')
+      const repoUrl = image.github_repo.startsWith("http")
         ? image.github_repo
         : `https://github.com/${image.github_repo}`;
       return `${repoUrl}/releases/tag/${version}`;
     }
   };
 
-
   const publishDate = useMemo(() => {
-    if (image.source_type === 'github' || image.source_type === 'gitlab') {
-      if (
-        image.latest_version &&
-        image.has_update &&
-        image.latestVersionPublishDate
-      ) {
+    if (image.source_type === "github" || image.source_type === "gitlab") {
+      if (image.latest_version && image.has_update && image.latestVersionPublishDate) {
         return image.latestVersionPublishDate;
       } else if (image.currentVersionPublishDate) {
         return image.currentVersionPublishDate;
@@ -92,16 +94,13 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
   return (
     <div
       className={`${styles.card} ${
-        hasNoLatestVersion && !image.has_update ? styles.unknownBorder : ''
+        hasNoLatestVersion && !image.has_update ? styles.unknownBorder : ""
       } ${image.has_update ? styles.updateAvailable : styles.noUpdate}`}
     >
       <div className={styles.content}>
         <div className={styles.header}>
           <div className={styles.titleRow}>
-            <span 
-              className={styles.name}
-              title={image.name}
-            >
+            <span className={styles.name} title={image.name}>
               {image.name}
             </span>
           </div>
@@ -117,15 +116,16 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
           )}
         </div>
 
-        <div className={`${styles.repoInfo} ${image.has_update ? styles.repoInfoWithUpdates : ''}`}>
-          {(image.source_type === 'github' || image.source_type === 'gitlab') && image.github_repo ? (
+        <div className={`${styles.repoInfo} ${image.has_update ? styles.repoInfoWithUpdates : ""}`}>
+          {(image.source_type === "github" || image.source_type === "gitlab") &&
+          image.github_repo ? (
             <a
               href={
-                image.github_repo.startsWith('http')
+                image.github_repo.startsWith("http")
                   ? image.github_repo
-                  : image.source_type === 'gitlab'
-                  ? `https://gitlab.com/${image.github_repo}`
-                  : `https://github.com/${image.github_repo}`
+                  : image.source_type === "gitlab"
+                    ? `https://gitlab.com/${image.github_repo}`
+                    : `https://github.com/${image.github_repo}`
               }
               target="_blank"
               rel="noopener noreferrer"
@@ -141,10 +141,14 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
             </span>
           )}
           <div className={styles.iconGroup}>
-            {image.source_type === 'github' && image.github_repo && (
+            {image.source_type === "github" && image.github_repo && (
               <>
                 <a
-                  href={image.github_repo.startsWith('http') ? image.github_repo : `https://github.com/${image.github_repo}`}
+                  href={
+                    image.github_repo.startsWith("http")
+                      ? image.github_repo
+                      : `https://github.com/${image.github_repo}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.githubIconLink}
@@ -179,10 +183,14 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
                 )}
               </>
             )}
-            {image.source_type === 'gitlab' && image.github_repo && (
+            {image.source_type === "gitlab" && image.github_repo && (
               <>
                 <a
-                  href={image.github_repo.startsWith('http') ? image.github_repo : `https://gitlab.com/${image.github_repo}`}
+                  href={
+                    image.github_repo.startsWith("http")
+                      ? image.github_repo
+                      : `https://gitlab.com/${image.github_repo}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.githubIconLink}
@@ -217,10 +225,10 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
                 )}
               </>
             )}
-            {(!image.source_type || image.source_type === 'docker') && image.image_name && (
+            {(!image.source_type || image.source_type === "docker") && image.image_name && (
               <>
                 <a
-                  href={getDockerHubRepoUrl(image.image_name) || '#'}
+                  href={getDockerHubRepoUrl(image.image_name) || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.dockerIconLink}
@@ -267,8 +275,9 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
         <div className={styles.versionInfo}>
           {image.latest_version && image.has_update && (
             <p className={styles.metaItem}>
-              <strong>Latest:</strong>{' '}
-              {(image.source_type === 'github' || image.source_type === 'gitlab') && getVersionReleaseUrl(image.latest_version) ? (
+              <strong>Latest:</strong>{" "}
+              {(image.source_type === "github" || image.source_type === "gitlab") &&
+              getVersionReleaseUrl(image.latest_version) ? (
                 <a
                   href={getVersionReleaseUrl(image.latest_version)}
                   target="_blank"
@@ -285,27 +294,30 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
             </p>
           )}
           <p className={styles.metaItem}>
-            <strong>Current:</strong>{' '}
-            {(image.source_type === 'github' || image.source_type === 'gitlab') && getVersionReleaseUrl(image.current_version) ? (
+            <strong>Current:</strong>{" "}
+            {(image.source_type === "github" || image.source_type === "gitlab") &&
+            getVersionReleaseUrl(image.current_version) ? (
               <a
                 href={getVersionReleaseUrl(image.current_version)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.versionLink}
-                title={image.current_version || 'Not set'}
+                title={image.current_version || "Not set"}
                 onClick={(e) => e.stopPropagation()}
               >
-                {image.current_version || 'Not set'}
+                {image.current_version || "Not set"}
               </a>
             ) : (
-              <span title={image.current_version || 'Not set'}>{image.current_version || 'Not set'}</span>
+              <span title={image.current_version || "Not set"}>
+                {image.current_version || "Not set"}
+              </span>
             )}
           </p>
           {publishDate ? (
             <p className={styles.metaItem}>
               <strong>Released:</strong> {new Date(publishDate).toLocaleDateString()}
             </p>
-          ) : (image.source_type === 'github' || image.source_type === 'gitlab') &&
+          ) : (image.source_type === "github" || image.source_type === "gitlab") &&
             (image.current_version || image.latest_version) ? (
             <p className={styles.metaItem}>
               <strong>Released:</strong> <span className={styles.unavailable}>Not available</span>
@@ -314,8 +326,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
         </div>
       </div>
 
-      <div className={styles.actions}>
-      </div>
+      <div className={styles.actions}></div>
     </div>
   );
 });
@@ -329,7 +340,7 @@ TrackedAppCard.propTypes = {
     current_version: PropTypes.string,
     latest_version: PropTypes.string,
     has_update: PropTypes.bool,
-    source_type: PropTypes.oneOf(['github', 'gitlab', 'docker']),
+    source_type: PropTypes.oneOf(["github", "gitlab", "docker"]),
     releaseUrl: PropTypes.string,
     latestVersionPublishDate: PropTypes.string,
     currentVersionPublishDate: PropTypes.string,
@@ -341,4 +352,3 @@ TrackedAppCard.propTypes = {
 };
 
 export default TrackedAppCard;
-

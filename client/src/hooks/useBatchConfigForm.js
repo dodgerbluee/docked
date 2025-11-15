@@ -83,8 +83,7 @@ export function useBatchConfigForm(batchConfigs) {
 
       if (isNaN(numValue) || numValue < 1 || currentValue === "") {
         // Reset to minimum value if invalid
-        const defaultValue =
-          localConfigs[jobType]?.intervalValue || DEFAULT_INTERVAL_MINUTES;
+        const defaultValue = localConfigs[jobType]?.intervalValue || DEFAULT_INTERVAL_MINUTES;
         setIntervalInputs((prev) => ({
           ...prev,
           [jobType]: String(defaultValue),
@@ -110,4 +109,3 @@ export function useBatchConfigForm(batchConfigs) {
     handleIntervalBlur,
   };
 }
-

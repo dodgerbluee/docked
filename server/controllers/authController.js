@@ -3,8 +3,8 @@
  * Handles user authentication with database
  */
 
-const axios = require('axios');
-const { validateRequiredFields } = require('../utils/validation');
+const axios = require("axios");
+const { validateRequiredFields } = require("../utils/validation");
 const {
   getUserByUsername,
   verifyPassword,
@@ -13,11 +13,11 @@ const {
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
-} = require('../db/database');
-const { clearCache } = require('../utils/dockerHubCreds');
-const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require('../utils/jwt');
-const fs = require('fs');
-const path = require('path');
+} = require("../db/database");
+const { clearCache } = require("../utils/dockerHubCreds");
+const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Login endpoint
@@ -30,10 +30,10 @@ async function login(req, res, next) {
     const { username, password } = req.body;
 
     // Validate input
-    const validationError = validateRequiredFields(
-      { username, password },
-      ['username', 'password']
-    );
+    const validationError = validateRequiredFields({ username, password }, [
+      "username",
+      "password",
+    ]);
     if (validationError) {
       return res.status(400).json(validationError);
     }
@@ -43,7 +43,7 @@ async function login(req, res, next) {
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid username or password',
+        error: "Invalid username or password",
       });
     }
 
@@ -52,7 +52,7 @@ async function login(req, res, next) {
     if (!passwordValid) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid username or password',
+        error: "Invalid username or password",
       });
     }
 
@@ -91,26 +91,26 @@ async function login(req, res, next) {
  */
 async function verifyToken(req, res, next) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace("Bearer ", "");
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: 'No token provided',
+        error: "No token provided",
       });
     }
 
     try {
       // Try JWT verification first
       const decoded = verifyJWT(token);
-      
+
       // Verify user still exists
-      const { getUserById } = require('../db/database');
+      const { getUserById } = require("../db/database");
       const user = await getUserById(decoded.userId);
       if (!user) {
         return res.status(401).json({
           success: false,
-          error: 'User not found',
+          error: "User not found",
         });
       }
 
@@ -122,19 +122,19 @@ async function verifyToken(req, res, next) {
     } catch (jwtError) {
       // Try legacy token format for backward compatibility
       try {
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
-        const parts = decoded.split(':');
+        const decoded = Buffer.from(token, "base64").toString("utf-8");
+        const parts = decoded.split(":");
         const userId = parseInt(parts[0]);
         const username = parts[1];
 
-        const { getUserById } = require('../db/database');
+        const { getUserById } = require("../db/database");
         const user = await getUserById(userId);
         if (!user) {
           const userByUsername = await getUserByUsername(username);
           if (!userByUsername) {
             return res.status(401).json({
               success: false,
-              error: 'Invalid token',
+              error: "Invalid token",
             });
           }
           return res.json({
@@ -152,7 +152,7 @@ async function verifyToken(req, res, next) {
       } catch (legacyError) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid token',
+          error: "Invalid token",
         });
       }
     }
@@ -175,7 +175,7 @@ async function updateUserPassword(req, res, next) {
     if (!username) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -183,7 +183,7 @@ async function updateUserPassword(req, res, next) {
     if (!newPassword) {
       return res.status(400).json({
         success: false,
-        error: 'New password is required',
+        error: "New password is required",
       });
     }
 
@@ -191,7 +191,7 @@ async function updateUserPassword(req, res, next) {
     if (newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        error: 'New password must be at least 6 characters long',
+        error: "New password must be at least 6 characters long",
       });
     }
 
@@ -200,7 +200,7 @@ async function updateUserPassword(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -210,14 +210,14 @@ async function updateUserPassword(req, res, next) {
       if (!currentPassword) {
         return res.status(400).json({
           success: false,
-          error: 'Current password is required',
+          error: "Current password is required",
         });
       }
       const passwordValid = await verifyPassword(currentPassword, user.password_hash);
       if (!passwordValid) {
         return res.status(401).json({
           success: false,
-          error: 'Current password is incorrect',
+          error: "Current password is incorrect",
         });
       }
     } else {
@@ -225,14 +225,14 @@ async function updateUserPassword(req, res, next) {
       if (!currentPassword) {
         return res.status(400).json({
           success: false,
-          error: 'Current password is required',
+          error: "Current password is required",
         });
       }
       const passwordValid = await verifyPassword(currentPassword, user.password_hash);
       if (!passwordValid) {
         return res.status(401).json({
           success: false,
-          error: 'Current password is incorrect',
+          error: "Current password is incorrect",
         });
       }
     }
@@ -242,7 +242,7 @@ async function updateUserPassword(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Password updated successfully',
+      message: "Password updated successfully",
     });
   } catch (error) {
     next(error);
@@ -262,7 +262,7 @@ async function getCurrentUser(req, res, next) {
     if (!username) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -270,7 +270,7 @@ async function getCurrentUser(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -303,7 +303,7 @@ async function updateUserUsername(req, res, next) {
     if (!oldUsername) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
     }
 
@@ -311,21 +311,21 @@ async function updateUserUsername(req, res, next) {
     if (!newUsername || newUsername.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'New username is required',
+        error: "New username is required",
       });
     }
 
     if (newUsername.length < 3) {
       return res.status(400).json({
         success: false,
-        error: 'Username must be at least 3 characters long',
+        error: "Username must be at least 3 characters long",
       });
     }
 
     if (!password) {
       return res.status(400).json({
         success: false,
-        error: 'Password is required to change username',
+        error: "Password is required to change username",
       });
     }
 
@@ -334,7 +334,7 @@ async function updateUserUsername(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: "User not found",
       });
     }
 
@@ -342,7 +342,7 @@ async function updateUserUsername(req, res, next) {
     if (!passwordValid) {
       return res.status(401).json({
         success: false,
-        error: 'Password is incorrect',
+        error: "Password is incorrect",
       });
     }
 
@@ -351,22 +351,22 @@ async function updateUserUsername(req, res, next) {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        error: 'Username already exists',
+        error: "Username already exists",
       });
     }
 
     // Get user ID before updating username
     const userId = user.id;
-    
+
     // Migrate avatar from old username directory to user ID directory before username change
     await migrateAvatarFromUsername(userId, oldUsername);
-    
+
     // Update username in database
     await updateUsername(oldUsername, newUsername.trim());
 
     // Generate new JWT token with updated username but same user ID
     // This ensures authentication continues to work after username change
-    const { generateToken, generateRefreshToken } = require('../utils/jwt');
+    const { generateToken, generateRefreshToken } = require("../utils/jwt");
     const newToken = generateToken({
       userId: userId,
       username: newUsername.trim(),
@@ -380,7 +380,7 @@ async function updateUserUsername(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Username updated successfully',
+      message: "Username updated successfully",
       newUsername: newUsername.trim(),
       token: newToken, // Return new token so frontend can update it
       refreshToken: newRefreshToken,
@@ -399,7 +399,7 @@ async function updateUserUsername(req, res, next) {
 async function getDockerHubCreds(req, res, next) {
   try {
     const credentials = await getDockerHubCredentials();
-    
+
     if (!credentials) {
       return res.json({
         success: true,
@@ -435,23 +435,23 @@ async function validateDockerHubCreds(req, res, next) {
     if (!username || username.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Docker Hub username is required',
+        error: "Docker Hub username is required",
       });
     }
 
     if (!token || token.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Docker Hub personal access token is required',
+        error: "Docker Hub personal access token is required",
       });
     }
 
     // Test authentication by making a request to Docker Hub auth API
     try {
-      const authUrl = 'https://auth.docker.io/token';
+      const authUrl = "https://auth.docker.io/token";
       const params = {
-        service: 'registry.docker.io',
-        scope: 'repository:library/alpine:pull', // Use a public repo for validation
+        service: "registry.docker.io",
+        scope: "repository:library/alpine:pull", // Use a public repo for validation
       };
 
       const response = await axios.get(authUrl, {
@@ -466,20 +466,20 @@ async function validateDockerHubCreds(req, res, next) {
       // If we get here, authentication succeeded
       res.json({
         success: true,
-        message: 'Docker Hub credentials validated successfully',
+        message: "Docker Hub credentials validated successfully",
       });
     } catch (authError) {
       // Authentication failed
       if (authError.response?.status === 401) {
         return res.status(401).json({
           success: false,
-          error: 'Authentication failed. Please check your username and token.',
+          error: "Authentication failed. Please check your username and token.",
         });
       }
       // Other errors (network, timeout, etc.)
       return res.status(500).json({
         success: false,
-        error: authError.message || 'Failed to validate Docker Hub credentials. Please try again.',
+        error: authError.message || "Failed to validate Docker Hub credentials. Please try again.",
       });
     }
   } catch (error) {
@@ -501,19 +501,19 @@ async function updateDockerHubCreds(req, res, next) {
     if (!username || username.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Docker Hub username is required',
+        error: "Docker Hub username is required",
       });
     }
 
     // Get existing credentials if token is not provided
     let tokenToUse = token && token.trim().length > 0 ? token.trim() : null;
-    
+
     if (!tokenToUse) {
       const existingCreds = await getDockerHubCredentials();
       if (!existingCreds || !existingCreds.token) {
         return res.status(400).json({
           success: false,
-          error: 'Docker Hub personal access token is required',
+          error: "Docker Hub personal access token is required",
         });
       }
       // Use existing token
@@ -522,13 +522,13 @@ async function updateDockerHubCreds(req, res, next) {
 
     // Update credentials
     await updateDockerHubCredentials(username.trim(), tokenToUse);
-    
+
     // Clear cache so new credentials are used immediately
     clearCache();
 
     res.json({
       success: true,
-      message: 'Docker Hub credentials updated successfully',
+      message: "Docker Hub credentials updated successfully",
     });
   } catch (error) {
     next(error);
@@ -544,13 +544,13 @@ async function updateDockerHubCreds(req, res, next) {
 async function deleteDockerHubCreds(req, res, next) {
   try {
     await deleteDockerHubCredentials();
-    
+
     // Clear cache so credentials are removed immediately
     clearCache();
 
     res.json({
       success: true,
-      message: 'Docker Hub credentials deleted successfully',
+      message: "Docker Hub credentials deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -565,53 +565,55 @@ async function deleteDockerHubCreds(req, res, next) {
  */
 async function migrateAvatarFromUsername(userId, oldUsername) {
   try {
-    const DATA_DIR = process.env.DATA_DIR || '/data';
-    const AVATARS_DIR = path.join(DATA_DIR, 'avatars');
+    const DATA_DIR = process.env.DATA_DIR || "/data";
+    const AVATARS_DIR = path.join(DATA_DIR, "avatars");
     const oldAvatarDir = path.join(AVATARS_DIR, oldUsername);
     const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
-    
+
     // If old directory doesn't exist, nothing to migrate
     if (!fs.existsSync(oldAvatarDir)) {
       return;
     }
-    
+
     // If new directory already exists, don't overwrite
     if (fs.existsSync(newAvatarDir)) {
       return;
     }
-    
+
     // Create new directory
     fs.mkdirSync(newAvatarDir, { recursive: true });
-    
+
     // Copy main avatar if it exists
-    const oldAvatarPath = path.join(oldAvatarDir, 'avatar.jpg');
+    const oldAvatarPath = path.join(oldAvatarDir, "avatar.jpg");
     if (fs.existsSync(oldAvatarPath)) {
-      const newAvatarPath = path.join(newAvatarDir, 'avatar.jpg');
+      const newAvatarPath = path.join(newAvatarDir, "avatar.jpg");
       fs.copyFileSync(oldAvatarPath, newAvatarPath);
     }
-    
+
     // Copy recent avatars directory if it exists
-    const oldRecentDir = path.join(oldAvatarDir, 'recent');
+    const oldRecentDir = path.join(oldAvatarDir, "recent");
     if (fs.existsSync(oldRecentDir)) {
-      const newRecentDir = path.join(newAvatarDir, 'recent');
+      const newRecentDir = path.join(newAvatarDir, "recent");
       fs.mkdirSync(newRecentDir, { recursive: true });
-      
+
       // Copy all recent avatar files
       const recentFiles = fs.readdirSync(oldRecentDir);
-      recentFiles.forEach(file => {
+      recentFiles.forEach((file) => {
         const oldFilePath = path.join(oldRecentDir, file);
         const newFilePath = path.join(newRecentDir, file);
-        if (fs.statSync(oldFilePath).isFile() && file.endsWith('.jpg')) {
+        if (fs.statSync(oldFilePath).isFile() && file.endsWith(".jpg")) {
           fs.copyFileSync(oldFilePath, newFilePath);
         }
       });
     }
-    
-    const logger = require('../utils/logger');
-    logger.info(`Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`);
+
+    const logger = require("../utils/logger");
+    logger.info(
+      `Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`
+    );
   } catch (err) {
-    const logger = require('../utils/logger');
-    logger.error('Error migrating avatar during username update:', err);
+    const logger = require("../utils/logger");
+    logger.error("Error migrating avatar during username update:", err);
     // Don't throw - migration failure shouldn't break username update
   }
 }

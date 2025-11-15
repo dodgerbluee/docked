@@ -4,30 +4,24 @@ import { buildContainersByPortainer } from "../utils/containerHelpers";
 /**
  * Custom hook for managing Portainer instances
  * Merges API instances with container data and provides sorted, filtered instances
- * 
+ *
  * @param {Object} params - Hook parameters
  * @param {Array} params.portainerInstancesFromAPI - Portainer instances from API response
  * @param {Array} params.containers - Array of containers to merge with instances
  * @returns {Object} Hook return value
  * @returns {Array} return.portainerInstances - Merged and sorted Portainer instances
  * @returns {Object} return.containersByPortainer - Containers grouped by Portainer URL
- * 
+ *
  * @example
  * const { portainerInstances, containersByPortainer } = usePortainerInstances({
  *   portainerInstancesFromAPI: instances,
  *   containers: allContainers
  * });
  */
-export const usePortainerInstances = ({
-  portainerInstancesFromAPI,
-  containers,
-}) => {
+export const usePortainerInstances = ({ portainerInstancesFromAPI, containers }) => {
   // Build containersByPortainer map for rendering (always needed)
   // Use URL as the key instead of name, since URL is stable and doesn't change when renamed
-  const containersByPortainer = useMemo(
-    () => buildContainersByPortainer(containers),
-    [containers]
-  );
+  const containersByPortainer = useMemo(() => buildContainersByPortainer(containers), [containers]);
 
   // Merge API instances with container data
   const portainerInstances = useMemo(() => {
@@ -83,4 +77,3 @@ export const usePortainerInstances = ({
     containersByPortainer,
   };
 };
-

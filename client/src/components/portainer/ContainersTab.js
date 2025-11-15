@@ -56,95 +56,95 @@ const ContainersTab = React.memo(function ContainersTab({
               // Always put Standalone at the bottom
               const aIsStandalone = a.stackName === STACK_NAMES.STANDALONE;
               const bIsStandalone = b.stackName === STACK_NAMES.STANDALONE;
-              
+
               if (aIsStandalone && !bIsStandalone) return 1;
               if (!aIsStandalone && bIsStandalone) return -1;
-              
+
               // Check if stack has any containers with updates
               const aHasUpdates = a.containers.some((c) => c.hasUpdate);
               const bHasUpdates = b.containers.some((c) => c.hasUpdate);
-              
+
               // First sort by hasUpdates (stacks with updates first)
               if (aHasUpdates && !bHasUpdates) return -1;
               if (!aHasUpdates && bHasUpdates) return 1;
-              
+
               // Then sort alphabetically by stack name
-              const nameA = (a.stackName || '').toLowerCase();
-              const nameB = (b.stackName || '').toLowerCase();
+              const nameA = (a.stackName || "").toLowerCase();
+              const nameB = (b.stackName || "").toLowerCase();
               return nameA.localeCompare(nameB);
             })
             .map((stack) => {
-            const stackKey = `${stack.stackName}-all`;
-            const isCollapsed = collapsedStacks.has(stackKey);
-            const displayName =
-              stack.stackName === STACK_NAMES.STANDALONE
-                ? "Standalone Containers"
-                : `Stack: ${stack.stackName}`;
+              const stackKey = `${stack.stackName}-all`;
+              const isCollapsed = collapsedStacks.has(stackKey);
+              const displayName =
+                stack.stackName === STACK_NAMES.STANDALONE
+                  ? "Standalone Containers"
+                  : `Stack: ${stack.stackName}`;
 
-            return (
-              <div key={stackKey} className={styles.stackGroup}>
-                <div
-                  className={styles.stackHeader}
-                  onClick={() => onToggleStack(stackKey)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onToggleStack(stackKey);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={!isCollapsed}
-                  aria-label={`${displayName} - ${isCollapsed ? "Expand" : "Collapse"}`}
-                >
-                  <div className={styles.stackHeaderLeft}>
-                    <button
-                      className={styles.stackToggle}
-                      aria-label={isCollapsed ? "Expand stack" : "Collapse stack"}
-                      aria-hidden="true"
-                      tabIndex={-1}
-                    >
-                      {isCollapsed ? "▶" : "▼"}
-                    </button>
-                    <h3 className={styles.stackName}>{displayName}</h3>
+              return (
+                <div key={stackKey} className={styles.stackGroup}>
+                  <div
+                    className={styles.stackHeader}
+                    onClick={() => onToggleStack(stackKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onToggleStack(stackKey);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={!isCollapsed}
+                    aria-label={`${displayName} - ${isCollapsed ? "Expand" : "Collapse"}`}
+                  >
+                    <div className={styles.stackHeaderLeft}>
+                      <button
+                        className={styles.stackToggle}
+                        aria-label={isCollapsed ? "Expand stack" : "Collapse stack"}
+                        aria-hidden="true"
+                        tabIndex={-1}
+                      >
+                        {isCollapsed ? "▶" : "▼"}
+                      </button>
+                      <h3 className={styles.stackName}>{displayName}</h3>
+                    </div>
+                    <span className={styles.stackCount}>
+                      {stack.containers.length} container
+                      {stack.containers.length !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  <span className={styles.stackCount}>
-                    {stack.containers.length} container
-                    {stack.containers.length !== 1 ? "s" : ""}
-                  </span>
+                  {!isCollapsed && stack.containers.length > 0 && (
+                    <div className={styles.containersGrid}>
+                      {[...stack.containers]
+                        .sort((a, b) => {
+                          // First sort by hasUpdate (updates first)
+                          if (a.hasUpdate && !b.hasUpdate) return -1;
+                          if (!a.hasUpdate && b.hasUpdate) return 1;
+                          // Then sort alphabetically by container name
+                          const nameA = (a.name || "").toLowerCase();
+                          const nameB = (b.name || "").toLowerCase();
+                          return nameA.localeCompare(nameB);
+                        })
+                        .map((container) => {
+                          const isPortainer = isPortainerContainer(container);
+                          return (
+                            <PortainerContainerCard
+                              key={container.id}
+                              container={container}
+                              isPortainer={isPortainer}
+                              selected={selectedContainers.has(container.id)}
+                              upgrading={upgrading[container.id] || false}
+                              showUpdates={container.hasUpdate}
+                              onToggleSelect={onToggleSelect}
+                              onUpgrade={onUpgrade}
+                            />
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
-                {!isCollapsed && stack.containers.length > 0 && (
-                  <div className={styles.containersGrid}>
-                    {[...stack.containers]
-                      .sort((a, b) => {
-                        // First sort by hasUpdate (updates first)
-                        if (a.hasUpdate && !b.hasUpdate) return -1;
-                        if (!a.hasUpdate && b.hasUpdate) return 1;
-                        // Then sort alphabetically by container name
-                        const nameA = (a.name || '').toLowerCase();
-                        const nameB = (b.name || '').toLowerCase();
-                        return nameA.localeCompare(nameB);
-                      })
-                      .map((container) => {
-                        const isPortainer = isPortainerContainer(container);
-                        return (
-                          <PortainerContainerCard
-                            key={container.id}
-                            container={container}
-                            isPortainer={isPortainer}
-                            selected={selectedContainers.has(container.id)}
-                            upgrading={upgrading[container.id] || false}
-                            showUpdates={container.hasUpdate}
-                            onToggleSelect={onToggleSelect}
-                            onUpgrade={onUpgrade}
-                          />
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
         {lastPullTime && (
           <div className={styles.lastPullTime} aria-live="polite">
@@ -167,8 +167,8 @@ const ContainersTab = React.memo(function ContainersTab({
       const emptyMessage = dockerHubDataPulled
         ? "No containers with updates available."
         : hasData
-        ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
-        : "Pull from Docker Hub to check for available upgrades.";
+          ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
+          : "Pull from Docker Hub to check for available upgrades.";
 
       return <EmptyState message={emptyMessage} className={styles.emptyState} />;
     }
@@ -317,4 +317,3 @@ ContainersTab.propTypes = {
 ContainersTab.displayName = "ContainersTab";
 
 export default ContainersTab;
-

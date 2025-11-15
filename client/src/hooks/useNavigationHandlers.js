@@ -8,7 +8,7 @@ import {
 /**
  * Custom hook to consolidate navigation handlers for SummaryPage
  * Reduces code duplication and provides consistent navigation behavior
- * 
+ *
  * @param {Object} handlers - Navigation handler functions
  * @param {Function} handlers.onNavigateToPortainer - Navigate to Portainer tab
  * @param {Function} handlers.onNavigateToTrackedApps - Navigate to Tracked Apps tab
@@ -104,4 +104,3 @@ export const useNavigationHandlers = ({
     handleTrackedAppsClick,
   };
 };
-

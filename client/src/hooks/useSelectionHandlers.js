@@ -29,12 +29,8 @@ export const useSelectionHandlers = ({
 
   const handleSelectAll = useCallback(
     (containersToSelect) => {
-      const selectableContainers = containersToSelect.filter(
-        (c) => !isPortainerContainer(c)
-      );
-      const allSelected = selectableContainers.every((c) =>
-        selectedContainers.has(c.id)
-      );
+      const selectableContainers = containersToSelect.filter((c) => !isPortainerContainer(c));
+      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
       if (allSelected) {
         setSelectedContainers(new Set());
       } else {
@@ -52,9 +48,7 @@ export const useSelectionHandlers = ({
       );
       if (selectableContainers.length === 0) return;
 
-      const allSelected = selectableContainers.every((c) =>
-        selectedContainers.has(c.id)
-      );
+      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
 
       setSelectedContainers((prev) => {
         const next = new Set(prev);
@@ -100,4 +94,3 @@ export const useSelectionHandlers = ({
     handleSelectAllImages,
   };
 };
-

@@ -3,9 +3,9 @@
  * Handles fetching release information from GitHub repositories
  */
 
-const axios = require('axios');
-const config = require('../config');
-const Cache = require('../utils/cache');
+const axios = require("axios");
+const config = require("../config");
+const Cache = require("../utils/cache");
 
 // Cache for GitHub releases (key: owner/repo, value: { releases, timestamp })
 const releaseCache = new Cache();
@@ -17,44 +17,47 @@ const RELEASE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
  * @returns {Object|null} - { owner, repo } or null if invalid
  */
 function parseGitHubRepo(repoInput) {
-  if (!repoInput || typeof repoInput !== 'string') {
+  if (!repoInput || typeof repoInput !== "string") {
     return null;
   }
 
   const trimmed = repoInput.trim();
-  
+
   // Handle GitHub URL formats:
   // https://github.com/owner/repo
   // https://github.com/owner/repo/
   // git@github.com:owner/repo.git
   // owner/repo
   let owner, repo;
-  
-  if (trimmed.startsWith('https://github.com/')) {
-    const parts = trimmed.replace('https://github.com/', '').split('/').filter(p => p);
+
+  if (trimmed.startsWith("https://github.com/")) {
+    const parts = trimmed
+      .replace("https://github.com/", "")
+      .split("/")
+      .filter((p) => p);
     if (parts.length >= 2) {
       owner = parts[0];
-      repo = parts[1].replace('.git', '');
+      repo = parts[1].replace(".git", "");
     }
-  } else if (trimmed.startsWith('git@github.com:')) {
-    const parts = trimmed.replace('git@github.com:', '').replace('.git', '').split('/');
+  } else if (trimmed.startsWith("git@github.com:")) {
+    const parts = trimmed.replace("git@github.com:", "").replace(".git", "").split("/");
     if (parts.length >= 2) {
       owner = parts[0];
       repo = parts[1];
     }
-  } else if (trimmed.includes('/')) {
+  } else if (trimmed.includes("/")) {
     // Assume owner/repo format
-    const parts = trimmed.split('/').filter(p => p);
+    const parts = trimmed.split("/").filter((p) => p);
     if (parts.length >= 2) {
       owner = parts[0];
-      repo = parts[1].replace('.git', '');
+      repo = parts[1].replace(".git", "");
     }
   }
-  
+
   if (owner && repo) {
     return { owner: owner.trim(), repo: repo.trim() };
   }
-  
+
   return null;
 }
 
@@ -66,7 +69,7 @@ function parseGitHubRepo(repoInput) {
 async function getLatestRelease(repoInput) {
   const repoInfo = parseGitHubRepo(repoInput);
   if (!repoInfo) {
-    throw new Error('Invalid GitHub repository format. Use owner/repo or full GitHub URL.');
+    throw new Error("Invalid GitHub repository format. Use owner/repo or full GitHub URL.");
   }
 
   const { owner, repo } = repoInfo;
@@ -82,16 +85,16 @@ async function getLatestRelease(repoInput) {
     // Use GitHub API to get latest release
     // First try the /releases/latest endpoint (only returns actual releases, not pre-releases)
     const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
-    
+
     const headers = {
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Docked/1.0',
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Docked/1.0",
     };
 
     // Add GitHub token if available for higher rate limits
     const githubToken = process.env.GITHUB_TOKEN;
     if (githubToken) {
-      headers['Authorization'] = `token ${githubToken}`;
+      headers["Authorization"] = `token ${githubToken}`;
     }
 
     let response;
@@ -110,14 +113,18 @@ async function getLatestRelease(repoInput) {
           timeout: 10000,
           validateStatus: (status) => status < 500,
         });
-        
+
         if (response.status === 200 && response.data && response.data.length > 0) {
           // Filter out pre-releases and drafts, get the latest actual release
-          const releases = response.data.filter(r => !r.prerelease && !r.draft);
+          const releases = response.data.filter((r) => !r.prerelease && !r.draft);
           if (releases.length > 0) {
             const latest = releases[0];
             // Cache the result
-            releaseCache.set(cacheKey, { releases: [latest], timestamp: Date.now() }, RELEASE_CACHE_TTL);
+            releaseCache.set(
+              cacheKey,
+              { releases: [latest], timestamp: Date.now() },
+              RELEASE_CACHE_TTL
+            );
             return latest;
           }
         }
@@ -138,7 +145,9 @@ async function getLatestRelease(repoInput) {
       throw new Error(`Repository ${owner}/${repo} not found or has no releases`);
     }
     if (error.response?.status === 403) {
-      throw new Error('GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable.');
+      throw new Error(
+        "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
+      );
     }
     throw new Error(`Failed to fetch GitHub releases: ${error.message}`);
   }
@@ -153,7 +162,7 @@ async function getLatestRelease(repoInput) {
 async function getAllReleases(repoInput, limit = 10) {
   const repoInfo = parseGitHubRepo(repoInput);
   if (!repoInfo) {
-    throw new Error('Invalid GitHub repository format. Use owner/repo or full GitHub URL.');
+    throw new Error("Invalid GitHub repository format. Use owner/repo or full GitHub URL.");
   }
 
   const { owner, repo } = repoInfo;
@@ -167,16 +176,16 @@ async function getAllReleases(repoInput, limit = 10) {
 
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=${limit}`;
-    
+
     const headers = {
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Docked/1.0',
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Docked/1.0",
     };
 
     // Add GitHub token if available for higher rate limits
     const githubToken = process.env.GITHUB_TOKEN;
     if (githubToken) {
-      headers['Authorization'] = `token ${githubToken}`;
+      headers["Authorization"] = `token ${githubToken}`;
     }
 
     const response = await axios.get(url, {
@@ -186,7 +195,7 @@ async function getAllReleases(repoInput, limit = 10) {
     });
 
     if (response.status === 200 && response.data) {
-      const releases = response.data.filter(r => !r.prerelease && !r.draft).slice(0, limit);
+      const releases = response.data.filter((r) => !r.prerelease && !r.draft).slice(0, limit);
       // Cache the result
       releaseCache.set(cacheKey, { releases, timestamp: Date.now() }, RELEASE_CACHE_TTL);
       return releases;
@@ -198,7 +207,9 @@ async function getAllReleases(repoInput, limit = 10) {
       throw new Error(`Repository ${owner}/${repo} not found`);
     }
     if (error.response?.status === 403) {
-      throw new Error('GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable.');
+      throw new Error(
+        "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
+      );
     }
     throw new Error(`Failed to fetch GitHub releases: ${error.message}`);
   }
@@ -213,7 +224,7 @@ async function getAllReleases(repoInput, limit = 10) {
 async function getReleaseByTag(repoInput, tagName) {
   const repoInfo = parseGitHubRepo(repoInput);
   if (!repoInfo) {
-    throw new Error('Invalid GitHub repository format. Use owner/repo or full GitHub URL.');
+    throw new Error("Invalid GitHub repository format. Use owner/repo or full GitHub URL.");
   }
 
   if (!tagName) {
@@ -231,16 +242,16 @@ async function getReleaseByTag(repoInput, tagName) {
 
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tagName}`;
-    
+
     const headers = {
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Docked/1.0',
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Docked/1.0",
     };
 
     // Add GitHub token if available for higher rate limits
     const githubToken = process.env.GITHUB_TOKEN;
     if (githubToken) {
-      headers['Authorization'] = `token ${githubToken}`;
+      headers["Authorization"] = `token ${githubToken}`;
     }
 
     const response = await axios.get(url, {
@@ -263,7 +274,9 @@ async function getReleaseByTag(repoInput, tagName) {
       return null;
     }
     if (error.response?.status === 403) {
-      throw new Error('GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable.');
+      throw new Error(
+        "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
+      );
     }
     // Don't throw for other errors, just return null
     return null;
@@ -275,8 +288,8 @@ async function getReleaseByTag(repoInput, tagName) {
  */
 function clearReleaseCache() {
   releaseCache.clear();
-  const logger = require('../utils/logger');
-  logger.info('🗑️ GitHub release cache cleared');
+  const logger = require("../utils/logger");
+  logger.info("🗑️ GitHub release cache cleared");
 }
 
 module.exports = {
@@ -286,4 +299,3 @@ module.exports = {
   getReleaseByTag,
   clearReleaseCache,
 };
-

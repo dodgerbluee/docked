@@ -31,4 +31,3 @@ EmptyState.propTypes = {
 };
 
 export default EmptyState;
-

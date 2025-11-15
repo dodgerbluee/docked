@@ -10,9 +10,7 @@
 export const isPortainerContainer = (container) => {
   const imageName = container.image?.toLowerCase() || "";
   const containerName = container.name?.toLowerCase() || "";
-  return (
-    imageName.includes("portainer") || containerName.includes("portainer")
-  );
+  return imageName.includes("portainer") || containerName.includes("portainer");
 };
 
 /**
@@ -43,4 +41,3 @@ export const buildContainersByPortainer = (containers) => {
     return acc;
   }, {});
 };
-

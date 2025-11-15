@@ -3,17 +3,20 @@
  * Main page component for the Tracked Apps view
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
-import { RefreshCw, Check } from 'lucide-react';
-import { useTrackedApps } from '../hooks/useTrackedApps';
-import TrackedAppCard from '../components/TrackedAppCard';
-import AddTrackedImageModal from '../components/AddTrackedImageModal';
-import ConfirmDialog from '../components/ConfirmDialog';
-import Button from '../components/ui/Button';
-import TrackedAppsSidebar from '../components/trackedApps/TrackedAppsSidebar';
-import { TRACKED_APPS_CONTENT_TABS, TRACKED_APPS_SOURCE_FILTERS } from '../constants/trackedAppsPage';
-import styles from './TrackedAppsPage.module.css';
+import React, { useMemo, useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import { RefreshCw, Check } from "lucide-react";
+import { useTrackedApps } from "../hooks/useTrackedApps";
+import TrackedAppCard from "../components/TrackedAppCard";
+import AddTrackedImageModal from "../components/AddTrackedImageModal";
+import ConfirmDialog from "../components/ConfirmDialog";
+import Button from "../components/ui/Button";
+import TrackedAppsSidebar from "../components/trackedApps/TrackedAppsSidebar";
+import {
+  TRACKED_APPS_CONTENT_TABS,
+  TRACKED_APPS_SOURCE_FILTERS,
+} from "../constants/trackedAppsPage";
+import styles from "./TrackedAppsPage.module.css";
 
 /**
  * TrackedAppsPage component
@@ -84,12 +87,12 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       return trackedImages;
     }
     return trackedImages.filter((img) => {
-      const sourceType = img.source_type || 'docker';
-      if (sourceType === 'docker') {
+      const sourceType = img.source_type || "docker";
+      if (sourceType === "docker") {
         return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.DOCKERHUB);
-      } else if (sourceType === 'github') {
+      } else if (sourceType === "github") {
         return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.GITHUB);
-      } else if (sourceType === 'gitlab') {
+      } else if (sourceType === "gitlab") {
         return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.GITLAB);
       }
       return false;
@@ -178,7 +181,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   const handleSelectAll = () => {
     const allAppIds = appsWithUpdates.map((app) => app.id);
     const allSelected = allAppIds.length > 0 && allAppIds.every((id) => selectedApps.has(id));
-    
+
     if (allSelected) {
       // Deselect all
       setSelectedApps(new Set());
@@ -191,23 +194,23 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   // Handle batch mark upgraded
   const handleBatchMarkUpgraded = async () => {
     if (selectedApps.size === 0) return;
-    
+
     setMarkingUpgraded(true);
     try {
       // Get all selected apps with their latest versions
       const selectedAppsData = appsWithUpdates.filter((app) => selectedApps.has(app.id));
-      
+
       // Process each app sequentially
       for (const app of selectedAppsData) {
         if (app.latest_version) {
           await handleUpgrade(app.id, app.latest_version);
         }
       }
-      
+
       // Clear selection after processing
       setSelectedApps(new Set());
     } catch (error) {
-      console.error('Error marking apps as upgraded:', error);
+      console.error("Error marking apps as upgraded:", error);
     } finally {
       setMarkingUpgraded(false);
     }
@@ -250,16 +253,14 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
             <Button
               onClick={handleCheckTrackedImagesUpdates}
               disabled={checkingUpdates || trackedImages.length === 0 || markingUpgraded}
-              title={checkingUpdates ? 'Checking for updates...' : 'Check for updates'}
+              title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
               variant="outline"
               icon={RefreshCw}
               size="sm"
             >
-              {checkingUpdates ? 'Checking for Updates...' : 'Check for Updates'}
+              {checkingUpdates ? "Checking for Updates..." : "Check for Updates"}
             </Button>
-            {showCheckmark && (
-              <Check className={styles.checkmark} size={20} />
-            )}
+            {showCheckmark && <Check className={styles.checkmark} size={20} />}
           </div>
         </div>
       </div>
@@ -274,9 +275,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
         />
         <div className={styles.trackedAppsContentArea}>
           <div className={styles.contentTabPanel}>
-            {trackedImageError && (
-              <div className={styles.errorMessage}>{trackedImageError}</div>
-            )}
+            {trackedImageError && <div className={styles.errorMessage}>{trackedImageError}</div>}
 
             {displayedApps.length > 0 || filteredBySource.length === 0 ? (
               <div className={styles.appsContainer}>
@@ -287,26 +286,30 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                       <div className={styles.section}>
                         <div
                           className={styles.stackHeader}
-                          onClick={() => handleToggleSection('apps-with-updates')}
+                          onClick={() => handleToggleSection("apps-with-updates")}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              handleToggleSection('apps-with-updates');
+                              handleToggleSection("apps-with-updates");
                             }
                           }}
                           role="button"
                           tabIndex={0}
-                          aria-expanded={!collapsedSections.has('apps-with-updates')}
-                          aria-label={`Apps with Updates - ${collapsedSections.has('apps-with-updates') ? "Expand" : "Collapse"}`}
+                          aria-expanded={!collapsedSections.has("apps-with-updates")}
+                          aria-label={`Apps with Updates - ${collapsedSections.has("apps-with-updates") ? "Expand" : "Collapse"}`}
                         >
                           <div className={styles.stackHeaderLeft}>
                             <button
                               className={styles.stackToggle}
-                              aria-label={collapsedSections.has('apps-with-updates') ? "Expand section" : "Collapse section"}
+                              aria-label={
+                                collapsedSections.has("apps-with-updates")
+                                  ? "Expand section"
+                                  : "Collapse section"
+                              }
                               aria-hidden="true"
                               tabIndex={-1}
                             >
-                              {collapsedSections.has('apps-with-updates') ? "▶" : "▼"}
+                              {collapsedSections.has("apps-with-updates") ? "▶" : "▼"}
                             </button>
                             <h3 className={styles.stackName}>Apps with Updates</h3>
                           </div>
@@ -314,7 +317,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                             {appsWithUpdates.length} app{appsWithUpdates.length !== 1 ? "s" : ""}
                           </span>
                         </div>
-                        {!collapsedSections.has('apps-with-updates') && (
+                        {!collapsedSections.has("apps-with-updates") && (
                           <div className={styles.gridWithUpdates}>
                             {appsWithUpdates.map((image) => (
                               <TrackedAppCard
@@ -337,35 +340,40 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                         {appsWithUpdates.length > 0 && appsWithoutUpdates.length > 0 && (
                           <div
                             className={styles.stackHeader}
-                            onClick={() => handleToggleSection('all-other-apps')}
+                            onClick={() => handleToggleSection("all-other-apps")}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
-                                handleToggleSection('all-other-apps');
+                                handleToggleSection("all-other-apps");
                               }
                             }}
                             role="button"
                             tabIndex={0}
-                            aria-expanded={!collapsedSections.has('all-other-apps')}
-                            aria-label={`All Other Apps - ${collapsedSections.has('all-other-apps') ? "Expand" : "Collapse"}`}
+                            aria-expanded={!collapsedSections.has("all-other-apps")}
+                            aria-label={`All Other Apps - ${collapsedSections.has("all-other-apps") ? "Expand" : "Collapse"}`}
                           >
                             <div className={styles.stackHeaderLeft}>
                               <button
                                 className={styles.stackToggle}
-                                aria-label={collapsedSections.has('all-other-apps') ? "Expand section" : "Collapse section"}
+                                aria-label={
+                                  collapsedSections.has("all-other-apps")
+                                    ? "Expand section"
+                                    : "Collapse section"
+                                }
                                 aria-hidden="true"
                                 tabIndex={-1}
                               >
-                                {collapsedSections.has('all-other-apps') ? "▶" : "▼"}
+                                {collapsedSections.has("all-other-apps") ? "▶" : "▼"}
                               </button>
                               <h3 className={styles.stackName}>All Other Apps</h3>
                             </div>
                             <span className={styles.stackCount}>
-                              {appsWithoutUpdates.length} app{appsWithoutUpdates.length !== 1 ? "s" : ""}
+                              {appsWithoutUpdates.length} app
+                              {appsWithoutUpdates.length !== 1 ? "s" : ""}
                             </span>
                           </div>
                         )}
-                        {!collapsedSections.has('all-other-apps') && (
+                        {!collapsedSections.has("all-other-apps") && (
                           <div className={styles.gridWithoutUpdates}>
                             {appsWithoutUpdates.map((image) => (
                               <TrackedAppCard
@@ -388,26 +396,30 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                   <div className={styles.section}>
                     <div
                       className={styles.stackHeader}
-                      onClick={() => handleToggleSection('updates-tab')}
+                      onClick={() => handleToggleSection("updates-tab")}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          handleToggleSection('updates-tab');
+                          handleToggleSection("updates-tab");
                         }
                       }}
                       role="button"
                       tabIndex={0}
-                      aria-expanded={!collapsedSections.has('updates-tab')}
-                      aria-label={`Apps with Updates - ${collapsedSections.has('updates-tab') ? "Expand" : "Collapse"}`}
+                      aria-expanded={!collapsedSections.has("updates-tab")}
+                      aria-label={`Apps with Updates - ${collapsedSections.has("updates-tab") ? "Expand" : "Collapse"}`}
                     >
                       <div className={styles.stackHeaderLeft}>
                         <button
                           className={styles.stackToggle}
-                          aria-label={collapsedSections.has('updates-tab') ? "Expand section" : "Collapse section"}
+                          aria-label={
+                            collapsedSections.has("updates-tab")
+                              ? "Expand section"
+                              : "Collapse section"
+                          }
                           aria-hidden="true"
                           tabIndex={-1}
                         >
-                          {collapsedSections.has('updates-tab') ? "▶" : "▼"}
+                          {collapsedSections.has("updates-tab") ? "▶" : "▼"}
                         </button>
                         <h3 className={styles.stackName}>Apps with Updates</h3>
                       </div>
@@ -415,7 +427,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                         {displayedApps.length} app{displayedApps.length !== 1 ? "s" : ""}
                       </span>
                     </div>
-                    {!collapsedSections.has('updates-tab') && (
+                    {!collapsedSections.has("updates-tab") && (
                       <div className={styles.gridWithUpdates}>
                         {displayedApps.map((image) => (
                           <TrackedAppCard
@@ -436,26 +448,30 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                   <div className={styles.section}>
                     <div
                       className={styles.stackHeader}
-                      onClick={() => handleToggleSection('up-to-date-tab')}
+                      onClick={() => handleToggleSection("up-to-date-tab")}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          handleToggleSection('up-to-date-tab');
+                          handleToggleSection("up-to-date-tab");
                         }
                       }}
                       role="button"
                       tabIndex={0}
-                      aria-expanded={!collapsedSections.has('up-to-date-tab')}
-                      aria-label={`Up to Date - ${collapsedSections.has('up-to-date-tab') ? "Expand" : "Collapse"}`}
+                      aria-expanded={!collapsedSections.has("up-to-date-tab")}
+                      aria-label={`Up to Date - ${collapsedSections.has("up-to-date-tab") ? "Expand" : "Collapse"}`}
                     >
                       <div className={styles.stackHeaderLeft}>
                         <button
                           className={styles.stackToggle}
-                          aria-label={collapsedSections.has('up-to-date-tab') ? "Expand section" : "Collapse section"}
+                          aria-label={
+                            collapsedSections.has("up-to-date-tab")
+                              ? "Expand section"
+                              : "Collapse section"
+                          }
                           aria-hidden="true"
                           tabIndex={-1}
                         >
-                          {collapsedSections.has('up-to-date-tab') ? "▶" : "▼"}
+                          {collapsedSections.has("up-to-date-tab") ? "▶" : "▼"}
                         </button>
                         <h3 className={styles.stackName}>Up to Date</h3>
                       </div>
@@ -463,7 +479,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                         {displayedApps.length} app{displayedApps.length !== 1 ? "s" : ""}
                       </span>
                     </div>
-                    {!collapsedSections.has('up-to-date-tab') && (
+                    {!collapsedSections.has("up-to-date-tab") && (
                       <div className={styles.gridWithoutUpdates}>
                         {displayedApps.map((image) => (
                           <TrackedAppCard
@@ -482,21 +498,19 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
               </div>
             ) : (
               <div className={styles.emptyState}>
-                <div className={styles.grid}>
-                  {renderAddNewCard()}
-                </div>
+                <div className={styles.grid}>{renderAddNewCard()}</div>
               </div>
             )}
 
             {lastScanTime && (
               <div className={styles.lastScanTime}>
-                Last scanned:{' '}
+                Last scanned:{" "}
                 {lastScanTime.toLocaleString(undefined, {
-                  year: 'numeric',
-                  month: 'numeric',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: 'numeric',
+                  year: "numeric",
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "numeric",
                   hour12: true,
                 })}
               </div>
@@ -514,7 +528,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
         onSuccess={handleModalSuccess}
         trackedImages={trackedImages}
         initialData={editingTrackedImageData}
-          onDelete={handleDelete}
+        onDelete={handleDelete}
       />
 
       <ConfirmDialog
@@ -527,7 +541,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
           }
         }}
         onCancel={() =>
-          setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null })
+          setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null })
         }
       />
     </div>
@@ -539,4 +553,3 @@ TrackedAppsPage.propTypes = {
 };
 
 export default TrackedAppsPage;
-

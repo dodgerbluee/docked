@@ -5,12 +5,14 @@ This guide provides step-by-step instructions for upgrading Docked to new versio
 ## General Upgrade Process
 
 1. **Backup your data**
+
    ```bash
    # Backup the database
    cp -r data/users.db data/users.db.backup
    ```
 
 2. **Stop the application**
+
    ```bash
    docker-compose down
    # or
@@ -18,6 +20,7 @@ This guide provides step-by-step instructions for upgrading Docked to new versio
    ```
 
 3. **Pull the new version**
+
    ```bash
    git pull origin main
    # or update Docker image
@@ -25,16 +28,19 @@ This guide provides step-by-step instructions for upgrading Docked to new versio
    ```
 
 4. **Update dependencies** (if needed)
+
    ```bash
    npm run install-all
    ```
 
 5. **Run database migrations** (if any)
+
    ```bash
    # Migrations are handled automatically on startup
    ```
 
 6. **Start the application**
+
    ```bash
    docker-compose up -d
    # or
@@ -53,20 +59,24 @@ This guide provides step-by-step instructions for upgrading Docked to new versio
 ### Upgrading to v1.1.0
 
 **Breaking Changes:**
+
 - API endpoint `/api/v1/containers` has been removed
 - Use `/api/v2/containers` instead
 
 **Migration Steps:**
+
 1. Update any custom scripts using the old API endpoint
 2. Review the new API documentation
 
 ### Upgrading to v1.2.0
 
 **Breaking Changes:**
+
 - Database schema changes require migration
 - Old configuration format deprecated
 
 **Migration Steps:**
+
 1. The database will be automatically migrated on first startup
 2. Backup your database before upgrading
 3. Review new configuration options in `server/.env`
@@ -74,17 +84,21 @@ This guide provides step-by-step instructions for upgrading Docked to new versio
 ### Upgrading to v2.0.0
 
 **Breaking Changes:**
+
 - Complete API redesign
 - New authentication system
 - Database schema changes
 
 **Migration Steps:**
+
 1. **Full backup required**
+
    ```bash
    cp -r data/ data-backup/
    ```
 
 2. **Export your configuration**
+
    ```bash
    # Export Portainer instances
    # Export tracked applications
@@ -188,6 +202,7 @@ docker-compose restart
 ### Issue: Database migration fails
 
 **Solution:**
+
 1. Restore database backup
 2. Check database file permissions
 3. Ensure sufficient disk space
@@ -196,6 +211,7 @@ docker-compose restart
 ### Issue: Application won't start
 
 **Solution:**
+
 1. Check application logs: `docker-compose logs`
 2. Verify environment variables
 3. Check port availability
@@ -204,6 +220,7 @@ docker-compose restart
 ### Issue: Missing data after upgrade
 
 **Solution:**
+
 1. Restore from backup
 2. Check data directory permissions
 3. Verify volume mounts in Docker
@@ -223,6 +240,5 @@ If you encounter issues during upgrade:
 ## Version Compatibility
 
 | Docked Version | Node.js | Docker | Portainer API |
-|----------------|---------|--------|---------------|
+| -------------- | ------- | ------ | ------------- |
 | 1.0.0+         | 18+     | 20+    | 2.0+          |
-

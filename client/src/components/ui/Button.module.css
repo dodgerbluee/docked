@@ -128,4 +128,3 @@ body.dark-mode .primary {
 body.dark-mode .primary:hover:not(:disabled) {
   box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
 }
-

@@ -6,7 +6,9 @@
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.1);
   min-width: 340px;
   max-width: 420px;
   max-height: 560px;
@@ -29,7 +31,9 @@
 }
 
 body.dark-mode .notification-menu {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .notification-menu-header {
@@ -125,7 +129,7 @@ body.dark-mode .notification-section-header {
 }
 
 .notification-item::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -214,7 +218,13 @@ body.dark-mode .notification-dismiss-button:hover {
 
 .notification-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, var(--border-color) 20%, var(--border-color) 80%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--border-color) 20%,
+    var(--border-color) 80%,
+    transparent 100%
+  );
   margin: 6px 20px;
 }
 
@@ -257,9 +267,8 @@ body.dark-mode .notification-view-all:hover {
 }
 
 .notification-empty::before {
-  content: '🔔';
+  content: "🔔";
   font-size: 2rem;
   opacity: 0.5;
   margin-bottom: 4px;
 }
-

@@ -1,7 +1,12 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { Plus } from "lucide-react";
-import { TRACKED_APPS_CONTENT_TABS, TRACKED_APPS_CONTENT_TAB_LABELS, TRACKED_APPS_SOURCE_FILTERS, TRACKED_APPS_SOURCE_FILTER_LABELS } from "../../constants/trackedAppsPage";
+import {
+  TRACKED_APPS_CONTENT_TABS,
+  TRACKED_APPS_CONTENT_TAB_LABELS,
+  TRACKED_APPS_SOURCE_FILTERS,
+  TRACKED_APPS_SOURCE_FILTER_LABELS,
+} from "../../constants/trackedAppsPage";
 import styles from "./TrackedAppsSidebar.module.css";
 
 /**
@@ -18,20 +23,19 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
   const handleSourceFilterToggle = (sourceType, checked) => {
     onSelectedSourceFiltersChange((prev) => {
       const next = new Set(prev);
-      
+
       if (checked) {
         next.add(sourceType);
-        
+
         // Check if all sources are now selected
         const allSources = Object.values(TRACKED_APPS_SOURCE_FILTERS);
-        const allSelected = allSources.length > 0 &&
-          allSources.every((source) => next.has(source));
-        
+        const allSelected = allSources.length > 0 && allSources.every((source) => next.has(source));
+
         // If all are selected, clear all to show all
         if (allSelected) {
           return new Set();
         }
-        
+
         return next;
       } else {
         next.delete(sourceType);
@@ -89,10 +93,7 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
       <div className={styles.filterContainer}>
         <div className={styles.filterBox}>
           {sourceFilters.map((sourceType) => (
-            <div
-              key={sourceType}
-              className={styles.filterLabel}
-            >
+            <div key={sourceType} className={styles.filterLabel}>
               <label className={styles.checkbox}>
                 <input
                   type="checkbox"
@@ -101,9 +102,11 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
                   aria-label={`Filter by ${TRACKED_APPS_SOURCE_FILTER_LABELS[sourceType]}`}
                 />
               </label>
-              <span 
+              <span
                 className={styles.filterText}
-                onClick={() => handleSourceFilterToggle(sourceType, !selectedSourceFilters.has(sourceType))}
+                onClick={() =>
+                  handleSourceFilterToggle(sourceType, !selectedSourceFilters.has(sourceType))
+                }
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -143,4 +146,3 @@ TrackedAppsSidebar.propTypes = {
 TrackedAppsSidebar.displayName = "TrackedAppsSidebar";
 
 export default TrackedAppsSidebar;
-

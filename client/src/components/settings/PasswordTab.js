@@ -97,4 +97,3 @@ PasswordTab.propTypes = {
 };
 
 export default PasswordTab;
-
