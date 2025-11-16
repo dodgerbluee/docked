@@ -134,14 +134,13 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         target.closest("label") ||
         target.closest('[role="button"]') ||
         // Check for specific interactive elements by class or data attributes
-        (target.closest && (
-          target.closest(`.${styles.checkbox}`) ||
-          target.closest(`.${styles.upgradeCheckmark}`) ||
-          target.closest(`.${styles.containerName}`) ||
-          target.closest(`.${styles.imageHeader}`) ||
-          target.closest(`.${styles.versionText}`) ||
-          target.closest(`.${styles.portainerBadge}`)
-        ));
+        (target.closest &&
+          (target.closest(`.${styles.checkbox}`) ||
+            target.closest(`.${styles.upgradeCheckmark}`) ||
+            target.closest(`.${styles.containerName}`) ||
+            target.closest(`.${styles.imageHeader}`) ||
+            target.closest(`.${styles.versionText}`) ||
+            target.closest(`.${styles.portainerBadge}`)));
 
       if (showUpdates && !isPortainer && !upgrading && !isInteractiveElement && onUpgrade) {
         onUpgrade(container);
@@ -176,10 +175,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           </h3>
         </div>
         {showUpdates && (
-          <label
-            className={styles.checkbox}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <label className={styles.checkbox} onClick={(e) => e.stopPropagation()}>
             <input
               type="checkbox"
               checked={selected}

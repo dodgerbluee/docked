@@ -138,10 +138,7 @@ const UnusedTab = React.memo(function UnusedTab({
                           : "<none>"}
                       </h3>
                     </div>
-                    <label
-                      className={styles.checkbox}
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <label className={styles.checkbox} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedImages.has(image.id)}
