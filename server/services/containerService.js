@@ -7,12 +7,10 @@ const axios = require("axios");
 const { URL } = require("url");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
-const config = require("../config");
 const {
   getAllPortainerInstances,
   getContainerCache,
   setContainerCache,
-  clearContainerCache,
 } = require("../db/database");
 const logger = require("../utils/logger");
 const { validateUrlForSSRF, validatePathComponent } = require("../utils/validation");
@@ -86,7 +84,9 @@ async function checkImageUpdates(
     if (currentDigest && latestDigest) {
       // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
       const normalizeDigest = (digest) => {
-        if (!digest) return null;
+        if (!digest) {
+          return null;
+        }
         // Ensure digest starts with sha256: for consistent comparison
         return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
       };
@@ -544,8 +544,6 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   const imageRepo = imageParts[0];
   const currentTag = imageParts[1];
 
-  // Get the image digest from registry for the current tag
-  const latestImageInfo = await dockerRegistryService.getLatestImageDigest(imageRepo, currentTag);
   // Use the current tag for upgrades (to get the latest version of that tag)
   const newTag = currentTag;
   const newImageName = `${imageRepo}:${newTag}`;
@@ -582,11 +580,16 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           container.Id
         );
 
-        // Check if this container uses network_mode: service:containerName
+        // Check if this container uses network_mode: service:containerName or container:containerName
         const networkMode = details.HostConfig?.NetworkMode || "";
-        if (networkMode && networkMode.startsWith("service:")) {
-          const serviceName = networkMode.replace("service:", "");
-          if (serviceName === cleanContainerName) {
+        if (networkMode) {
+          let targetContainerName = null;
+          if (networkMode.startsWith("service:")) {
+            targetContainerName = networkMode.replace("service:", "");
+          } else if (networkMode.startsWith("container:")) {
+            targetContainerName = networkMode.replace("container:", "");
+          }
+          if (targetContainerName === cleanContainerName) {
             const containerStatus =
               details.State?.Status || (details.State?.Running ? "running" : "exited");
             if (containerStatus === "running") {
@@ -612,7 +615,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       for (const container of dependentContainersToStop) {
         try {
           logger.info(
-            `   Stopping ${container.name} (uses network_mode: service:${cleanContainerName})...`
+            `   Stopping ${container.name} (uses network_mode pointing to ${cleanContainerName})...`
           );
           await portainerService.stopContainer(portainerUrl, endpointId, container.id);
           logger.info(`   ✅ ${container.name} stopped`);
@@ -718,14 +721,17 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   delete cleanHostConfig.RestartCount;
   delete cleanHostConfig.AutoRemove;
 
-  // CRITICAL: When using network_mode: service:*, Docker doesn't allow PortBindings
+  // CRITICAL: When using network_mode: service:* or container:*, Docker doesn't allow PortBindings
+  // Both modes share the network stack with another container, so ports cannot be exposed
   // This matches what Portainer does - filter out conflicting fields
   const networkMode = cleanHostConfig.NetworkMode || "";
-  if (networkMode && networkMode.startsWith("service:")) {
-    // Remove port bindings - they conflict with service network mode
-    // Ports are exposed on the service container (tunnel), not this one
+  const isSharedNetworkMode =
+    networkMode && (networkMode.startsWith("service:") || networkMode.startsWith("container:"));
+  if (isSharedNetworkMode) {
+    // Remove port bindings - they conflict with shared network modes
+    // Ports are exposed on the service/container being shared, not this one
     if (cleanHostConfig.PortBindings) {
-      logger.info("Removing PortBindings (conflicts with network_mode: service)", {
+      logger.info("Removing PortBindings (conflicts with shared network mode)", {
         module: "containerService",
         operation: "upgradeSingleContainer",
         containerName: originalContainerName,
@@ -747,11 +753,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   }
 
   // Clean NetworkingConfig - Docker API expects specific format
-  // BUT: Containers using network_mode: service:* don't have their own network config
+  // BUT: Containers using network_mode: service:* or container:* don't have their own network config
   let networkingConfig = undefined;
-  const isServiceNetworkMode = networkMode && networkMode.startsWith("service:");
 
-  if (!isServiceNetworkMode && containerDetails.NetworkSettings?.Networks) {
+  if (!isSharedNetworkMode && containerDetails.NetworkSettings?.Networks) {
     const networks = containerDetails.NetworkSettings.Networks;
     // Convert network settings to the format Docker API expects
     const endpointsConfig = {};
@@ -782,7 +787,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       networkingConfig = { EndpointsConfig: endpointsConfig };
     }
   }
-  // If using service network mode, networkingConfig stays undefined (correct behavior)
+  // If using shared network mode (service:* or container:*), networkingConfig stays undefined (correct behavior)
 
   // Create new container with same configuration
   logger.info("Creating new container", {
@@ -804,7 +809,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   if (containerDetails.Config.Env && Array.isArray(containerDetails.Config.Env)) {
     containerConfig.Env = containerDetails.Config.Env;
   }
+  // CRITICAL: ExposedPorts conflict with shared network modes (service:* or container:*)
+  // Only include ExposedPorts if not using a shared network mode
   if (
+    !isSharedNetworkMode &&
     containerDetails.Config.ExposedPorts &&
     Object.keys(containerDetails.Config.ExposedPorts).length > 0
   ) {
@@ -1097,11 +1105,16 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         let dependsOnUpgraded = false;
         let dependencyReason = "";
 
-        // Check 1: network_mode: service:containerName
+        // Check 1: network_mode: service:containerName or container:containerName
         const networkMode = details.HostConfig?.NetworkMode || "";
-        if (networkMode && networkMode.startsWith("service:")) {
-          const serviceName = networkMode.replace("service:", "");
-          if (serviceName === cleanContainerName) {
+        if (networkMode) {
+          let targetContainerName = null;
+          if (networkMode.startsWith("service:")) {
+            targetContainerName = networkMode.replace("service:", "");
+          } else if (networkMode.startsWith("container:")) {
+            targetContainerName = networkMode.replace("container:", "");
+          }
+          if (targetContainerName === cleanContainerName) {
             dependsOnUpgraded = true;
             dependencyReason = "network_mode";
           }
@@ -1207,15 +1220,19 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       // Recreate network_mode containers first (they're critical)
       for (const container of networkModeContainers) {
         try {
-          logger.info(
-            `   Recreating ${container.name} (network_mode: service:${cleanContainerName})...`
-          );
-
           // Get the container details to recreate it
           const containerDetails = await portainerService.getContainerDetails(
             portainerUrl,
             endpointId,
             container.id
+          );
+
+          const containerNetworkMode = containerDetails.HostConfig?.NetworkMode || "";
+          const networkModeType = containerNetworkMode.startsWith("service:")
+            ? "service"
+            : "container";
+          logger.info(
+            `   Recreating ${container.name} (network_mode: ${networkModeType}:${cleanContainerName})...`
           );
 
           // Remove the old container (it's already stopped)
@@ -1241,12 +1258,34 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             cleanHostConfig.RestartPolicy = { Name: cleanHostConfig.RestartPolicy };
           }
 
-          // Check if this container uses network_mode: service:*
+          // Check if this container uses network_mode: service:* or container:*
           const networkMode = cleanHostConfig.NetworkMode || "";
-          const usesServiceNetworkMode = networkMode && networkMode.startsWith("service:");
+          const isSharedNetworkMode =
+            networkMode &&
+            (networkMode.startsWith("service:") || networkMode.startsWith("container:"));
 
-          // If using network_mode: service:*, remove port bindings (conflicts with service network mode)
-          if (usesServiceNetworkMode) {
+          // CRITICAL: Ensure network_mode uses container NAME, not ID
+          // When we get container details, network_mode might have the old container ID cached
+          // We need to explicitly set it to use the service/container name
+          if (isSharedNetworkMode) {
+            if (networkMode.startsWith("service:")) {
+              // Ensure we're using the container name, not any ID reference
+              cleanHostConfig.NetworkMode = `service:${cleanContainerName}`;
+              logger.info(
+                `   Updated network_mode to use container name: service:${cleanContainerName}`
+              );
+            } else if (networkMode.startsWith("container:")) {
+              // Ensure we're using the container name, not any ID reference
+              cleanHostConfig.NetworkMode = `container:${cleanContainerName}`;
+              logger.info(
+                `   Updated network_mode to use container name: container:${cleanContainerName}`
+              );
+            }
+          }
+
+          // If using shared network mode (service:* or container:*), remove port bindings
+          // Both modes share the network stack, so ports cannot be exposed
+          if (isSharedNetworkMode) {
             if (cleanHostConfig.PortBindings) {
               delete cleanHostConfig.PortBindings;
             }
@@ -1256,9 +1295,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           }
 
           // Prepare networking config
-          // Skip NetworkingConfig entirely if using network_mode: service:*
+          // Skip NetworkingConfig entirely if using shared network mode (service:* or container:*)
           let networkingConfig = null;
-          if (!usesServiceNetworkMode && containerDetails.NetworkSettings?.Networks) {
+          if (!isSharedNetworkMode && containerDetails.NetworkSettings?.Networks) {
             const networks = containerDetails.NetworkSettings.Networks;
             networkingConfig = { EndpointsConfig: {} };
             for (const [networkName, networkData] of Object.entries(networks)) {
@@ -1293,11 +1332,20 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             Image: containerDetails.Config.Image,
             Cmd: containerDetails.Config.Cmd,
             Env: containerDetails.Config.Env,
-            ExposedPorts: containerDetails.Config.ExposedPorts,
             HostConfig: cleanHostConfig,
             Labels: containerDetails.Config.Labels,
             WorkingDir: containerDetails.Config.WorkingDir,
           };
+
+          // CRITICAL: ExposedPorts conflict with shared network modes (service:* or container:*)
+          // Only include ExposedPorts if not using a shared network mode
+          if (
+            !isSharedNetworkMode &&
+            containerDetails.Config.ExposedPorts &&
+            Object.keys(containerDetails.Config.ExposedPorts).length > 0
+          ) {
+            containerConfig.ExposedPorts = containerDetails.Config.ExposedPorts;
+          }
 
           if (containerDetails.Config.Entrypoint) {
             containerConfig.Entrypoint = containerDetails.Config.Entrypoint;
@@ -1701,6 +1749,9 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     return a.stackName.localeCompare(b.stackName);
   });
 
+  // Declare unusedImagesCount variable
+  let unusedImagesCount = 0;
+
   // If filtering by specific instance, merge with existing cache
   if (filterPortainerUrl && existingCache) {
     // Remove containers from the filtered instance from existing cache
@@ -1745,7 +1796,6 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     unusedImagesCount = existingCache.unusedImagesCount || 0;
   } else {
     // Get unused images count for all instances
-    unusedImagesCount = 0;
     for (const instance of portainerInstances) {
       const portainerUrl = instance.url || instance;
       const username = instance.username;
@@ -1994,7 +2044,6 @@ async function getContainersFromPortainer() {
             const imageParts = imageName.includes(":")
               ? imageName.split(":")
               : [imageName, "latest"];
-            const repo = imageParts[0];
             const currentTag = imageParts[1];
 
             // Extract stack name from labels
