@@ -3,29 +3,29 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on semantic version tags (e.g., v1.2.3)
+      - "v*.*.*" # Triggers on semantic version tags (e.g., v1.2.3)
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.2.3)'
+        description: "Release version (e.g., 1.2.3)"
         required: true
         type: string
       release_type:
-        description: 'Release type'
+        description: "Release type"
         required: true
         type: choice
         options:
           - stable
           - pre-release
       create_tag:
-        description: 'Create git tag'
+        description: "Create git tag"
         required: true
         type: boolean
         default: true
 
 env:
   REGISTRY: ghcr.io
-  NODE_VERSION: '18'
+  NODE_VERSION: "18"
 
 jobs:
   # Extract version from tag or input
@@ -66,7 +66,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -107,7 +107,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -149,7 +149,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -165,21 +165,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Get default branch
           DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
-          
+
           # Checkout default branch (handles both tag push and workflow dispatch)
           git fetch origin $DEFAULT_BRANCH
           git checkout $DEFAULT_BRANCH
-          
+
           # Update version in package.json files on the branch
           VERSION="${{ needs.version.outputs.version }}"
           npm pkg set version="$VERSION"
           cd server && npm pkg set version="$VERSION"
           cd ../client && npm pkg set version="$VERSION"
           cd ../..
-          
+
           # Check if there are changes to commit
           if git diff --quiet package.json server/package.json client/package.json; then
             echo "No version changes to commit (version already up to date)"
@@ -189,7 +189,7 @@ jobs:
             git push origin $DEFAULT_BRANCH
             echo "✓ Committed version update to $VERSION on $DEFAULT_BRANCH"
           fi
-          
+
           # Checkout back to the tag/commit for building
           git checkout ${{ github.sha }}
 
@@ -219,7 +219,7 @@ jobs:
             --exclude='.github' \
             --exclude='release-artifacts' \
             .
-          
+
           # Create checksums
           cd release-artifacts
           sha256sum docked-${{ needs.version.outputs.version }}-source.tar.gz > docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256
@@ -252,8 +252,8 @@ jobs:
           flavor: |
             latest=false
 
-  # Build and push Docker image for amd64 (runs in parallel with arm64)
-  docker-amd64:
+  # Build and push Docker image for multi-arch (amd64 + arm64)
+  docker-build:
     runs-on: ubuntu-latest
     needs: [version, build, docker-metadata]
     permissions:
@@ -294,7 +294,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image (amd64)
+      - name: Build and push Docker image (multi-arch amd64 + arm64)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -305,62 +305,7 @@ jobs:
             NODE_ENV=production
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64
-
-  # Build and push Docker image for arm64 (runs in parallel with amd64)
-  docker-arm64:
-    runs-on: ubuntu-latest
-    needs: [version, build, docker-metadata]
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          # Fetch the latest from branch to get version update from build job
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Update version in package.json files
-        run: |
-          VERSION="${{ needs.version.outputs.version }}"
-          echo "Updating version to $VERSION in all package.json files for Docker build"
-          # Ensure we have the latest version from the branch (updated by build job)
-          git fetch origin
-          # Update version in package.json files
-          npm pkg set version="$VERSION"
-          cd server && npm pkg set version="$VERSION"
-          cd ../client && npm pkg set version="$VERSION"
-          cd ..
-          echo "✓ Version updated to $VERSION"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image (arm64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ needs.docker-metadata.outputs.tags }}
-          labels: ${{ needs.docker-metadata.outputs.labels }}
-          build-args: |
-            NODE_ENV=production
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
 
   # Generate changelog
   changelog:
@@ -389,7 +334,7 @@ jobs:
   # Create GitHub release
   release:
     runs-on: ubuntu-latest
-    needs: [version, build, docker-amd64, docker-arm64, changelog]
+    needs: [version, build, docker-build, changelog]
     permissions:
       contents: write
     steps:
@@ -409,32 +354,32 @@ jobs:
           name: Release v${{ needs.version.outputs.version }}
           body: |
             ## 🚀 Release v${{ needs.version.outputs.version }}
-            
+
             **Release Date:** ${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
-            
+
             ${{ needs.changelog.outputs.changelog }}
-            
+
             ## 📦 Downloads
-            
+
             ### Source Code
             - **Source Tarball:** [docked-${{ needs.version.outputs.version }}-source.tar.gz](https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}/docked-${{ needs.version.outputs.version }}-source.tar.gz)
             - **SHA256 Checksum:** [docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256](https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}/docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256)
-            
+
             ### Container Image
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.version.outputs.version }}
             ```
-            
+
             **Note:** The `latest` tag is only created after manual promotion via the "Promote Dev to Latest" workflow.
-            
+
             ## 📚 Documentation
-            
+
             - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation)
             - [Upgrade Guide](https://github.com/${{ github.repository }}/blob/main/UPGRADE.md)
             - [Full Changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
-            
+
             ## 🔐 Verification
-            
+
             Verify the checksum:
             ```bash
             sha256sum -c docked-${{ needs.version.outputs.version }}-source.tar.gz.sha256
@@ -462,4 +407,3 @@ jobs:
           echo "2. Respond to any issues"
           echo "3. Update documentation if needed"
           echo "4. Plan next release"
-
