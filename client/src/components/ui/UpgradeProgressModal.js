@@ -40,18 +40,20 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
   // Reset state when modal opens/closes
   useEffect(() => {
-    if (isOpen && stage === "confirm") {
+    if (isOpen) {
+      // When modal opens, always reset to confirm stage
+      setStage("confirm");
       setCurrentStep(0);
       setErrorMessage(null);
+      setReconnectAttempts(0);
     } else if (!isOpen) {
-      // Reset to confirm stage when modal closes
-      setTimeout(() => {
-        setStage("confirm");
-        setCurrentStep(0);
-        setErrorMessage(null);
-      }, 300); // Wait for close animation
+      // Reset to confirm stage when modal closes (but keep it quick for reopening)
+      setStage("confirm");
+      setCurrentStep(0);
+      setErrorMessage(null);
+      setReconnectAttempts(0);
     }
-  }, [isOpen, stage]);
+  }, [isOpen]);
 
   const handleConfirm = useCallback(async () => {
     setStage("progress");
@@ -166,14 +168,15 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           }
 
           if (upgradeCompleted) {
-            // Upgrade completed! Show success
+            // Upgrade completed! Show success checkmark overlay
             setStage("success");
             if (onSuccess) {
               onSuccess();
             }
+            // Show checkmark for 5 seconds, then close
             setTimeout(() => {
               onClose();
-            }, 2000);
+            }, 5000);
             return;
           } else {
             // Timeout - show error but suggest manual refresh
@@ -194,18 +197,18 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
       // Small delay to show final step completion
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Show success state
+      // Show success checkmark overlay in the progress view
       setStage("success");
 
-      // Call success callback if provided
+      // Call success callback if provided (but don't show alert - we show checkmark instead)
       if (onSuccess) {
         onSuccess();
       }
 
-      // Auto-close after showing success for 2 seconds
+      // Auto-close after showing success checkmark for 5 seconds
       setTimeout(() => {
         onClose();
-      }, 2000);
+      }, 5000);
     } catch (error) {
       setErrorMessage(error.response?.data?.error || error.message || "Unknown error occurred");
       setStage("error");
@@ -213,11 +216,9 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   }, [onConfirm, onSuccess, onClose, steps, container, containerName]);
 
   const handleClose = useCallback(() => {
-    // Only allow closing if not in progress or reconnecting (unless it's an error)
-    if (stage === "confirm" || stage === "success" || stage === "error") {
-      onClose();
-    }
-  }, [stage, onClose]);
+    // Allow closing at any time - user can click outside to continue working
+    onClose();
+  }, [onClose]);
 
   const handleRetry = useCallback(() => {
     setStage("confirm");
@@ -232,8 +233,9 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
       isOpen={isOpen}
       onClose={handleClose}
       size="md"
-      showCloseButton={stage !== "progress" && stage !== "reconnecting"}
+      showCloseButton={true}
       className={styles.modal}
+      nonBlocking={true}
     >
       <div className={styles.content}>
         {/* Confirmation Stage */}
@@ -275,19 +277,25 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           </div>
         )}
 
-        {/* Progress Stage */}
-        {stage === "progress" && (
+        {/* Progress Stage - show during progress AND success (so overlay appears on top) */}
+        {(stage === "progress" || stage === "success") && (
           <div className={styles.progressStage}>
             <div className={styles.progressIconContainer}>
-              <Loader2 size={48} className={styles.spinner} />
+              {stage === "success" ? (
+                <CheckCircle2 size={48} className={styles.successIconInline} />
+              ) : (
+                <Loader2 size={48} className={styles.spinner} />
+              )}
             </div>
-            <h3 className={styles.title}>Upgrading Container</h3>
+            <h3 className={styles.title}>
+              {stage === "success" ? "Upgrade Complete!" : "Upgrading Container"}
+            </h3>
             <p className={styles.containerName}>{containerName}</p>
             <div className={styles.stepsContainer}>
               {steps.map((step, index) => {
-                const isActive = index === currentStep;
-                const isCompleted = index < currentStep;
-                const isPending = index > currentStep;
+                const isActive = index === currentStep && stage !== "success";
+                const isCompleted = index < currentStep || stage === "success";
+                const isPending = index > currentStep && stage !== "success";
 
                 return (
                   <div
@@ -310,6 +318,16 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Success Overlay - appears over progress view */}
+        {stage === "success" && (
+          <div className={styles.successOverlay}>
+            <div className={styles.successCheckmarkContainer}>
+              <CheckCircle2 size={80} className={styles.successCheckmark} />
+            </div>
+            <h3 className={styles.successTitle}>Upgrade Complete!</h3>
           </div>
         )}
 
@@ -350,19 +368,6 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* Success Stage */}
-        {stage === "success" && (
-          <div className={styles.successStage}>
-            <div className={styles.iconContainer}>
-              <CheckCircle2 size={64} className={styles.successIcon} />
-            </div>
-            <h3 className={styles.title}>Upgrade Complete!</h3>
-            <p className={styles.message}>
-              <strong>{containerName}</strong> has been successfully upgraded.
-            </p>
           </div>
         )}
 

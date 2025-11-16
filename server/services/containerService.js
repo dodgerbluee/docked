@@ -90,10 +90,10 @@ async function checkImageUpdates(
         // Ensure digest starts with sha256: for consistent comparison
         return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
       };
-      
+
       const normalizedCurrent = normalizeDigest(currentDigest);
       const normalizedLatest = normalizeDigest(latestDigest);
-      
+
       // If digests are different, there's an update available
       hasUpdate = normalizedCurrent !== normalizedLatest;
     } else if (currentDigest === null && latestDigest) {

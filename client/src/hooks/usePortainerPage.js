@@ -254,18 +254,19 @@ export function usePortainerPage({
 
   // Open upgrade modal
   const handleUpgrade = useCallback((container) => {
+    // Always reopen modal, even if it was just closed (allows clicking card again)
     setUpgradeModal({
       isOpen: true,
       container,
     });
   }, []);
 
-  // Close upgrade modal
+  // Close upgrade modal (but keep container reference so it can be reopened)
   const closeUpgradeModal = useCallback(() => {
-    setUpgradeModal({
+    setUpgradeModal((prev) => ({
       isOpen: false,
-      container: null,
-    });
+      container: prev.container, // Keep container reference so clicking card again works
+    }));
   }, []);
 
   // Execute the actual upgrade (called by the modal)
@@ -341,8 +342,8 @@ export function usePortainerPage({
   const handleUpgradeSuccess = useCallback(() => {
     const container = upgradeModal.container;
     if (container) {
-      // The new image info would come from the response, but we'll use the container's image
-      toast.success(`Container ${container.name} upgraded successfully!`);
+      // Show success toast notification (stays longer for better visibility)
+      toast.success(`Container ${container.name} upgraded successfully!`, 8000);
 
       // Refresh containers to get updated data (especially important after reconnection)
       if (fetchContainers) {
