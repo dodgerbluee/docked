@@ -1,6 +1,7 @@
 .content {
   padding: 32px;
   text-align: center;
+  position: relative;
 }
 
 /* Icon Containers */
@@ -168,6 +169,7 @@
 /* Progress Stage */
 .progressStage {
   animation: fadeIn 0.3s ease-out;
+  position: relative;
 }
 
 /* Reconnecting Stage */
@@ -293,7 +295,95 @@
   color: var(--text-tertiary);
 }
 
-/* Success Stage */
+/* Success Overlay - appears over progress view */
+.successOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  border-radius: 8px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.successCheckmarkContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+  animation: successCheckmarkPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.successCheckmark {
+  color: #10b981;
+  filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.4));
+}
+
+.successIconInline {
+  color: #10b981;
+  animation: successScale 0.5s ease-out;
+}
+
+.successTitle {
+  margin: 0;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: fadeInUp 0.4s ease-out 0.2s both;
+}
+
+@keyframes successCheckmarkPop {
+  0% {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(10deg);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.95) rotate(-5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes successScale {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Success Stage (kept for backward compatibility if needed) */
 .successStage {
   animation: fadeInScale 0.5s ease-out;
 }

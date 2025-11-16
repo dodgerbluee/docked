@@ -111,7 +111,11 @@ const SummaryPage = ({
           <StatCard
             value={summaryStats.containersWithUpdates}
             label="Updates Available"
-            variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
+            variant={
+              summaryStats.containersWithUpdates > 0
+                ? STAT_CARD_VARIANTS.UPDATE_AVAILABLE
+                : STAT_CARD_VARIANTS.DEFAULT
+            }
             clickable
             onClick={() => handlePortainerStatClick(CONTENT_TABS.UPDATES)}
           />
@@ -164,7 +168,11 @@ const SummaryPage = ({
             <StatCard
               value={summaryStats.trackedAppsBehind}
               label="Updates Available"
-              variant={STAT_CARD_VARIANTS.UPDATE_AVAILABLE}
+              variant={
+                summaryStats.trackedAppsBehind > 0
+                  ? STAT_CARD_VARIANTS.UPDATE_AVAILABLE
+                  : STAT_CARD_VARIANTS.DEFAULT
+              }
               clickable
               onClick={handleTrackedAppsClick}
             />

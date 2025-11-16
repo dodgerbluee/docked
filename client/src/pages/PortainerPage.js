@@ -431,6 +431,7 @@ function PortainerPage({
       {/* Upgrade Progress Modal */}
       {portainerPage.upgradeModal.container && (
         <UpgradeProgressModal
+          key={`upgrade-modal-${portainerPage.upgradeModal.container.id}`}
           isOpen={portainerPage.upgradeModal.isOpen}
           onClose={portainerPage.closeUpgradeModal}
           containerName={portainerPage.upgradeModal.container?.name}

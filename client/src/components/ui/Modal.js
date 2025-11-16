@@ -17,13 +17,17 @@ const Modal = React.memo(function Modal({
   size = "md",
   showCloseButton = true,
   className = "",
+  nonBlocking = false,
   ...props
 }) {
   const mouseDownTargetRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      // Only lock body scroll if modal is blocking
+      if (!nonBlocking) {
+        document.body.style.overflow = "hidden";
+      }
     } else {
       document.body.style.overflow = "";
     }
@@ -31,7 +35,7 @@ const Modal = React.memo(function Modal({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isOpen]);
+  }, [isOpen, nonBlocking]);
 
   useEffect(() => {
     const handleEscape = (e) => {
@@ -114,9 +118,11 @@ const Modal = React.memo(function Modal({
 
   const sizeClass = size && styles[size] ? styles[size] : styles.md;
 
+  const overlayClass = nonBlocking ? `${styles.overlay} ${styles.nonBlocking}` : styles.overlay;
+
   const modalContent = (
     <div
-      className={styles.overlay}
+      className={overlayClass}
       onClick={handleOverlayClick}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
@@ -158,6 +164,7 @@ Modal.propTypes = {
   size: PropTypes.oneOf(["sm", "md", "lg", "xl"]),
   showCloseButton: PropTypes.bool,
   className: PropTypes.string,
+  nonBlocking: PropTypes.bool,
 };
 
 export default Modal;
