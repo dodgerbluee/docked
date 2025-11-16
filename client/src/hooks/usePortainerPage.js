@@ -542,7 +542,7 @@ export function usePortainerPage({
             next.delete(image.id);
             return next;
           });
-          toast.success(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
+          toast.info(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
           if (fetchContainers) {
             fetchContainers().catch(() => {});
           }
@@ -613,7 +613,7 @@ export function usePortainerPage({
             deletedIds.forEach((id) => next.delete(id));
             return next;
           });
-          toast.success(`Successfully deleted ${deletedCount} image(s).`);
+          toast.info(`Successfully deleted ${deletedCount} image(s).`);
           if (fetchContainers) {
             fetchContainers().catch(() => {});
           }

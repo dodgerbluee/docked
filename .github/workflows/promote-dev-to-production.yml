@@ -17,14 +17,17 @@ env:
   NODE_VERSION: '18'
 
 jobs:
-  promote:
+  # Job 1: Prepare promotion (get version, validate, update package.json)
+  prepare-promotion:
     runs-on: ubuntu-latest
     if: github.event.inputs.confirm == 'promote'
     permissions:
-      contents: write
-      packages: write
-      pull-requests: read
-      issues: read
+      contents: read
+    outputs:
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      release_version: ${{ steps.version.outputs.release_version }}
+      commits: ${{ steps.commits.outputs.commits }}
+      previous_tag: ${{ steps.commits.outputs.previous_tag }}
     steps:
       - name: Check repository permissions
         uses: actions/github-script@v8
@@ -82,14 +85,10 @@ jobs:
         id: version
         run: |
           if [ -n "${{ github.event.inputs.version_override }}" ]; then
-            # Use provided version override
             RELEASE_VERSION="${{ github.event.inputs.version_override }}"
             echo "Using provided version: $RELEASE_VERSION"
           else
-            # Fetch all tags
             git fetch --tags --force
-            
-            # Find the latest dev tag (e.g., v1.0.3-dev)
             LATEST_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -1)
             
             if [ -z "$LATEST_DEV_TAG" ]; then
@@ -97,13 +96,11 @@ jobs:
               exit 1
             fi
             
-            # Extract version from dev tag (e.g., v1.0.3-dev -> 1.0.3)
             RELEASE_VERSION=$(echo "$LATEST_DEV_TAG" | sed 's/^v\(.*\)-dev$/\1/')
             echo "Latest dev tag: $LATEST_DEV_TAG"
             echo "Promoting to version: $RELEASE_VERSION"
           fi
           
-          # Validate version format
           if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "❌ Error: Invalid version format: $RELEASE_VERSION"
             echo "Version must be in format X.Y.Z (e.g., 1.2.3)"
@@ -124,86 +121,20 @@ jobs:
           fi
           echo "✓ Version $TAG_NAME is available"
 
-      - name: Update version in package.json files
-        run: |
-          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
-          echo "Updating version to $RELEASE_VERSION in all package.json files"
-          npm pkg set version="$RELEASE_VERSION"
-          cd server && npm pkg set version="$RELEASE_VERSION"
-          cd ../client && npm pkg set version="$RELEASE_VERSION"
-          cd ..
-          echo "✓ Version updated to $RELEASE_VERSION"
-
-      - name: Run tests
-        run: |
-          cd server
-          npm test -- --coverage --watchAll=false
-          cd ../client
-          CI=true npm test -- --coverage --watchAll=false
-
-      - name: Run security scans
-        run: |
-          npm audit --audit-level=moderate
-          cd server && npm audit --audit-level=moderate
-          cd ../client && npm audit --audit-level=moderate
-
-      - name: Build client
-        run: |
-          cd client
-          npm run build
-
-      - name: Create release artifacts
-        run: |
-          mkdir -p release-artifacts
-          tar -czf release-artifacts/docked-${{ steps.version.outputs.release_version }}-source.tar.gz \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='data' \
-            --exclude='.github' \
-            --exclude='release-artifacts' \
-            .
-          cd release-artifacts
-          sha256sum docked-${{ steps.version.outputs.release_version }}-source.tar.gz > docked-${{ steps.version.outputs.release_version }}-source.tar.gz.sha256
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker images
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}:latest
-          build-args: |
-            NODE_ENV=production
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-
       - name: Get commits since previous release
         id: commits
         run: |
-          # Find the latest formal release tag (excluding dev and latest tags)
           PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
           
           if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
             BASE_TAG="$PREVIOUS_RELEASE_TAG"
             echo "Using previous release tag: $BASE_TAG"
+            echo "previous_tag=$PREVIOUS_RELEASE_TAG" >> $GITHUB_OUTPUT
           else
             BASE_TAG=""
             echo "No previous release tags found, using all commits"
           fi
           
-          # Get commits between BASE_TAG and HEAD, filtering for conventional commits
           if [ -z "$BASE_TAG" ]; then
             COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true) | head -50)
           else
@@ -221,10 +152,265 @@ jobs:
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
-          if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
-            echo "previous_tag=$PREVIOUS_RELEASE_TAG" >> $GITHUB_OUTPUT
-          fi
+
+  # Job 2: Run tests and security scans
+  test-and-security:
+    runs-on: ubuntu-latest
+    needs: prepare-promotion
+    if: github.event.inputs.confirm == 'promote'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run tests
+        run: |
+          cd server
+          npm test -- --coverage --watchAll=false
+          cd ../client
+          CI=true npm test -- --coverage --watchAll=false
+
+      - name: Run security scans
+        run: |
+          npm audit --audit-level=moderate
+          cd server && npm audit --audit-level=moderate
+          cd ../client && npm audit --audit-level=moderate
+
+  # Job 3: Build application and create artifacts
+  build:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, test-and-security]
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Update version in package.json files
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          echo "Updating version to $RELEASE_VERSION in all package.json files"
+          npm pkg set version="$RELEASE_VERSION"
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
+
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+
+      - name: Create release artifacts
+        run: |
+          mkdir -p release-artifacts
+          tar -czf release-artifacts/docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='data' \
+            --exclude='.github' \
+            --exclude='release-artifacts' \
+            .
+          cd release-artifacts
+          sha256sum docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz > docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+          retention-days: 90
+
+  # Job 4: Extract Docker metadata (shared by both build jobs)
+  docker-metadata:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, build]
+    if: github.event.inputs.confirm == 'promote'
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
+    steps:
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ needs.prepare-promotion.outputs.release_version }}
+            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          flavor: |
+            latest=true
+
+  # Job 5: Build and push Docker image for amd64 (runs in parallel with arm64)
+  docker-amd64:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, build, docker-metadata]
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update version in package.json files
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          echo "Updating version to $RELEASE_VERSION in all package.json files for Docker build"
+          git fetch origin
+          npm pkg set version="$RELEASE_VERSION"
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ needs.docker-metadata.outputs.tags }}
+          labels: ${{ needs.docker-metadata.outputs.labels }}
+          build-args: |
+            NODE_ENV=production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # Job 6: Build and push Docker image for arm64 (runs in parallel with amd64)
+  docker-arm64:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, build, docker-metadata]
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update version in package.json files
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          echo "Updating version to $RELEASE_VERSION in all package.json files for Docker build"
+          git fetch origin
+          npm pkg set version="$RELEASE_VERSION"
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ needs.docker-metadata.outputs.tags }}
+          labels: ${{ needs.docker-metadata.outputs.labels }}
+          build-args: |
+            NODE_ENV=production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/arm64
+
+  # Job 7: Create release and finalize promotion
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, build, docker-amd64, docker-arm64]
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Update version in package.json files
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          npm pkg set version="$RELEASE_VERSION"
+          cd server && npm pkg set version="$RELEASE_VERSION"
+          cd ../client && npm pkg set version="$RELEASE_VERSION"
+          cd ..
 
       - name: Generate changelog
         id: changelog
@@ -242,31 +428,36 @@ jobs:
             echo "No version changes to commit"
           else
             git add package.json server/package.json client/package.json
-            git commit -m "chore: promote dev to production v${{ steps.version.outputs.release_version }} [skip ci]"
+            git commit -m "chore: promote dev to production v${{ needs.prepare-promotion.outputs.release_version }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
-            echo "✓ Committed version update to ${{ steps.version.outputs.release_version }}"
+            echo "✓ Committed version update to ${{ needs.prepare-promotion.outputs.release_version }}"
           fi
 
       - name: Create git tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.tag_name }}" -m "Release v${{ steps.version.outputs.release_version }}"
-          git push origin "${{ steps.version.outputs.tag_name }}"
-          echo "✓ Created and pushed tag ${{ steps.version.outputs.tag_name }}"
+          git tag -a "${{ needs.prepare-promotion.outputs.tag_name }}" -m "Release v${{ needs.prepare-promotion.outputs.release_version }}"
+          git push origin "${{ needs.prepare-promotion.outputs.tag_name }}"
+          echo "✓ Created and pushed tag ${{ needs.prepare-promotion.outputs.tag_name }}"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
 
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          TAG_NAME="${{ needs.prepare-promotion.outputs.tag_name }}"
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
           RELEASE_NAME="v$RELEASE_VERSION"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
           
-          # Create changelog link
-          if [ -n "${{ steps.commits.outputs.previous_tag }}" ]; then
-            PREV_TAG="${{ steps.commits.outputs.previous_tag }}"
+          if [ -n "${{ needs.prepare-promotion.outputs.previous_tag }}" ]; then
+            PREV_TAG="${{ needs.prepare-promotion.outputs.previous_tag }}"
             CHANGELOG_LINK="[${PREV_TAG}...${TAG_NAME}](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG_NAME})"
           else
             CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
@@ -295,7 +486,7 @@ jobs:
           
           ## 📝 Commits in This Release
           
-          ${{ steps.commits.outputs.commits }}
+          ${{ needs.prepare-promotion.outputs.commits }}
           
           ---
           
@@ -311,27 +502,14 @@ jobs:
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_BODY" \
             --repo ${{ github.repository }}
-          
-          echo "✓ Created GitHub release: $TAG_NAME"
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts
-          path: release-artifacts/
-          retention-days: 90
 
       - name: Attach artifacts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
+          TAG_NAME="${{ needs.prepare-promotion.outputs.tag_name }}"
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
           
-          # Download artifacts
-          gh release download "$TAG_NAME" --dir release-artifacts --repo ${{ github.repository }} || true
-          
-          # Upload artifacts if they exist
           if [ -f "release-artifacts/docked-$RELEASE_VERSION-source.tar.gz" ]; then
             gh release upload "$TAG_NAME" \
               release-artifacts/docked-$RELEASE_VERSION-source.tar.gz \
@@ -345,12 +523,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Successfully promoted **dev** to **production**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** v${{ steps.version.outputs.release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ needs.prepare-promotion.outputs.release_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Docker Images:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.version.outputs.release_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.prepare-promotion.outputs.release_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**GitHub Release:** [v${{ steps.version.outputs.release_version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.release_version }})" >> $GITHUB_STEP_SUMMARY
+          echo "**GitHub Release:** [v${{ needs.prepare-promotion.outputs.release_version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare-promotion.outputs.release_version }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Promoted by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "**Promoted at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
@@ -363,4 +541,3 @@ jobs:
         run: |
           echo "❌ Promotion cancelled. You must type 'promote' in the confirmation field."
           exit 1
-

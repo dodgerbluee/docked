@@ -4,6 +4,7 @@ import { Home } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
 import BatchTabNavigation from "../components/batch/BatchTabNavigation";
 import Button from "../components/ui/Button";
+import { CardSkeleton } from "../components/ui/LoadingSkeleton";
 import { BATCH_TABS } from "../constants/batch";
 import styles from "./BatchPage.module.css";
 
@@ -78,7 +79,9 @@ function BatchPage({
           <Suspense
             fallback={
               <div className={styles.loadingContainer}>
-                <div className={styles.loadingText}>Loading...</div>
+                <CardSkeleton />
+                <CardSkeleton />
+                <CardSkeleton />
               </div>
             }
           >
