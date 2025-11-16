@@ -55,6 +55,14 @@ body.dark-mode .currentCard:hover {
   cursor: not-allowed;
 }
 
+.clickableCard {
+  cursor: pointer;
+}
+
+.clickableCard:hover {
+  cursor: pointer;
+}
+
 .cardHeader {
   display: flex;
   justify-content: space-between;

@@ -84,8 +84,24 @@ async function checkImageUpdates(
 
     // Compare digests to determine if update is available
     if (currentDigest && latestDigest) {
+      // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
+      const normalizeDigest = (digest) => {
+        if (!digest) return null;
+        // Ensure digest starts with sha256: for consistent comparison
+        return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
+      };
+      
+      const normalizedCurrent = normalizeDigest(currentDigest);
+      const normalizedLatest = normalizeDigest(latestDigest);
+      
       // If digests are different, there's an update available
-      hasUpdate = currentDigest !== latestDigest;
+      hasUpdate = normalizedCurrent !== normalizedLatest;
+    } else if (currentDigest === null && latestDigest) {
+      // If we can't get current digest but we have latest digest, we can't be sure
+      // This could happen if the image was just upgraded and digest info isn't available yet
+      // In this case, assume no update to avoid false positives
+      // The next check will properly compare digests once they're available
+      hasUpdate = false;
     } else {
       // Fallback: if we can't compare digests, compare tags
       // If current tag is different from latest tag, there's an update

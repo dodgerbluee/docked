@@ -21,7 +21,7 @@
 
 /* Icons */
 .warningIcon {
-  color: var(--dodger-blue);
+  color: #10b981;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -134,12 +134,12 @@
   padding: 12px;
   background: var(--bg-secondary);
   border-radius: 8px;
-  border-left: 3px solid var(--dodger-blue);
+  border-left: 3px solid #10b981;
 }
 
 .nginxWarning {
-  background-color: rgba(59, 130, 246, 0.1);
-  border: 1px solid var(--dodger-blue);
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
   border-radius: 8px;
   padding: 16px;
   margin: 0 0 32px 0;
@@ -157,7 +157,7 @@
 }
 
 .nginxWarning .warning strong {
-  color: var(--dodger-blue);
+  color: #10b981;
 }
 
 /* Confirmation Stage */

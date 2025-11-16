@@ -119,14 +119,48 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     [container.image, isGitHubContainer, isDockerHub, getGitHubContainerUrl]
   );
 
+  // Handle card click to open upgrade modal (only on Updates tab)
+  const handleCardClick = useCallback(
+    (e) => {
+      // Don't trigger if clicking on interactive elements
+      // Check if the click target is an interactive element or its child
+      const target = e.target;
+      const isInteractiveElement =
+        target.tagName === "A" ||
+        target.tagName === "BUTTON" ||
+        target.tagName === "INPUT" ||
+        target.closest("a") ||
+        target.closest("button") ||
+        target.closest("label") ||
+        target.closest('[role="button"]') ||
+        // Check for specific interactive elements by class or data attributes
+        (target.closest && (
+          target.closest(`.${styles.checkbox}`) ||
+          target.closest(`.${styles.upgradeCheckmark}`) ||
+          target.closest(`.${styles.containerName}`) ||
+          target.closest(`.${styles.imageHeader}`) ||
+          target.closest(`.${styles.versionText}`) ||
+          target.closest(`.${styles.portainerBadge}`)
+        ));
+
+      if (showUpdates && !isPortainer && !upgrading && !isInteractiveElement && onUpgrade) {
+        onUpgrade(container);
+      }
+    },
+    [showUpdates, isPortainer, upgrading, onUpgrade, container]
+  );
+
   return (
     <div
       className={`${styles.containerCard} ${
         showUpdates ? styles.updateAvailable : styles.currentCard
-      } ${isPortainer ? styles.portainerDisabled : ""}`}
+      } ${isPortainer ? styles.portainerDisabled : ""} ${
+        showUpdates && !isPortainer && !upgrading ? styles.clickableCard : ""
+      }`}
       title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
       role="article"
       aria-label={`Container ${container.name}`}
+      onClick={handleCardClick}
     >
       <div
         className={styles.cardHeader}
@@ -142,11 +176,17 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           </h3>
         </div>
         {showUpdates && (
-          <label className={styles.checkbox}>
+          <label
+            className={styles.checkbox}
+            onClick={(e) => e.stopPropagation()}
+          >
             <input
               type="checkbox"
               checked={selected}
-              onChange={() => onToggleSelect(container.id)}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect(container.id);
+              }}
               disabled={upgrading || isPortainer}
               title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
               aria-label={`Select ${container.name} for upgrade`}

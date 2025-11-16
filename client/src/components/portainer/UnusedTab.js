@@ -104,20 +104,51 @@ const UnusedTab = React.memo(function UnusedTab({
           <>
             <div className={styles.imagesGrid}>
               {unusedImages.map((image) => (
-                <div key={image.id} className={styles.imageCard}>
+                <div
+                  key={image.id}
+                  className={`${styles.imageCard} ${!deletingImages ? styles.clickableCard : ""}`}
+                  onClick={(e) => {
+                    // Don't trigger if clicking on interactive elements
+                    const target = e.target;
+                    const isInteractiveElement =
+                      target.tagName === "A" ||
+                      target.tagName === "INPUT" ||
+                      target.closest("a") ||
+                      target.closest("label") ||
+                      target.closest(`.${styles.checkbox}`) ||
+                      target.closest(`.${styles.deleteIcon}`) ||
+                      target.closest(`.${styles.portainerBadge}`);
+
+                    if (!deletingImages && !isInteractiveElement) {
+                      handleDeleteClick(image);
+                    }
+                  }}
+                >
                   <div className={styles.cardHeader}>
                     <div className={styles.headerLeft}>
-                      <h3>
+                      <h3
+                        title={
+                          image.repoTags && image.repoTags.length > 0
+                            ? image.repoTags[0].replace(/:<none>$/, "")
+                            : "<none>"
+                        }
+                      >
                         {image.repoTags && image.repoTags.length > 0
                           ? image.repoTags[0].replace(/:<none>$/, "")
                           : "<none>"}
                       </h3>
                     </div>
-                    <label className={styles.checkbox}>
+                    <label
+                      className={styles.checkbox}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedImages.has(image.id)}
-                        onChange={() => onToggleImageSelect(image.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onToggleImageSelect(image.id);
+                        }}
                         disabled={deletingImages}
                       />
                     </label>

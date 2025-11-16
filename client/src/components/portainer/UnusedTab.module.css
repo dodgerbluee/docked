@@ -108,6 +108,14 @@ body.dark-mode .imageCard:hover {
   border-left: 2px solid var(--dodger-red) !important;
 }
 
+.clickableCard {
+  cursor: pointer;
+}
+
+.clickableCard:hover {
+  cursor: pointer;
+}
+
 .cardHeader {
   display: flex;
   justify-content: space-between;
@@ -129,7 +137,11 @@ body.dark-mode .imageCard:hover {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .checkbox {
