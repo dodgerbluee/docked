@@ -89,7 +89,7 @@ jobs:
           npm test -- --coverage --watchAll=false
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./server/coverage/coverage-final.json,./client/coverage/coverage-final.json
           flags: server,client
