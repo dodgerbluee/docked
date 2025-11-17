@@ -11,6 +11,7 @@ import TrackedAppCard from "../components/TrackedAppCard";
 import AddTrackedImageModal from "../components/AddTrackedImageModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Button from "../components/ui/Button";
+import SearchInput from "../components/ui/SearchInput";
 import TrackedAppsSidebar from "../components/trackedApps/TrackedAppsSidebar";
 import {
   TRACKED_APPS_CONTENT_TABS,
@@ -51,6 +52,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   const [selectedSourceFilters, setSelectedSourceFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [markingUpgraded, setMarkingUpgraded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleToggleSelect = (appId) => {
     setSelectedApps((prev) => {
@@ -99,14 +101,37 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     });
   }, [trackedImages, selectedSourceFilters]);
 
+  // Filter by search query
+  const filteredBySearch = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return filteredBySource;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return filteredBySource.filter((img) => {
+      const name = img.name?.toLowerCase() || "";
+      const imageName = img.image_name?.toLowerCase() || "";
+      const githubRepo = img.github_repo?.toLowerCase() || "";
+      const currentVersion = img.current_version?.toLowerCase() || "";
+      const latestVersion = img.latest_version?.toLowerCase() || "";
+      return (
+        name.includes(query) ||
+        imageName.includes(query) ||
+        githubRepo.includes(query) ||
+        currentVersion.includes(query) ||
+        latestVersion.includes(query)
+      );
+    });
+  }, [filteredBySource, searchQuery]);
+
   // Memoize filtered arrays based on content tab
   const appsWithUpdates = useMemo(
-    () => filteredBySource.filter((img) => img.has_update),
-    [filteredBySource]
+    () => filteredBySearch.filter((img) => img.has_update),
+    [filteredBySearch]
   );
   const appsWithoutUpdates = useMemo(
-    () => filteredBySource.filter((img) => !img.has_update),
-    [filteredBySource]
+    () => filteredBySearch.filter((img) => !img.has_update),
+    [filteredBySearch]
   );
 
   // Get apps to display based on content tab
@@ -159,11 +184,6 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       <div className={styles.addCardIcon}>+</div>
     </div>
   );
-
-  const handleAddApp = () => {
-    setEditingTrackedImageData(null);
-    setShowAddTrackedImageModal(true);
-  };
 
   const handleToggleSection = (sectionKey) => {
     setCollapsedSections((prev) => {
@@ -227,40 +247,48 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
           <h2 className={styles.summaryHeaderTitle}>Tracked Apps</h2>
-          <div className={styles.buttonContainer}>
-            {appsWithUpdates.length > 0 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAll}
-                  disabled={markingUpgraded}
-                >
-                  {allAppsWithUpdatesSelected ? "Deselect All" : "Select All"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBatchMarkUpgraded}
-                  disabled={selectedApps.size === 0 || markingUpgraded}
-                >
-                  {markingUpgraded
-                    ? `Marking Upgraded (${selectedApps.size})...`
-                    : `Mark Upgraded (${selectedApps.size})`}
-                </Button>
-              </>
-            )}
-            <Button
-              onClick={handleCheckTrackedImagesUpdates}
-              disabled={checkingUpdates || trackedImages.length === 0 || markingUpgraded}
-              title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
-              variant="outline"
-              icon={RefreshCw}
-              size="sm"
-            >
-              {checkingUpdates ? "Checking for Updates..." : "Check for Updates"}
-            </Button>
-            {showCheckmark && <Check className={styles.checkmark} size={20} />}
+          <div className={styles.headerActions}>
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search apps..."
+              className={styles.searchInput}
+            />
+            <div className={styles.buttonContainer}>
+              {appsWithUpdates.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    disabled={markingUpgraded}
+                  >
+                    {allAppsWithUpdatesSelected ? "Deselect All" : "Select All"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBatchMarkUpgraded}
+                    disabled={selectedApps.size === 0 || markingUpgraded}
+                  >
+                    {markingUpgraded
+                      ? `Marking Upgraded (${selectedApps.size})...`
+                      : `Mark Upgraded (${selectedApps.size})`}
+                  </Button>
+                </>
+              )}
+              <Button
+                onClick={handleCheckTrackedImagesUpdates}
+                disabled={checkingUpdates || trackedImages.length === 0 || markingUpgraded}
+                title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
+                variant="outline"
+                icon={RefreshCw}
+                size="sm"
+              >
+                {checkingUpdates ? "Checking for Updates..." : "Check for Updates"}
+              </Button>
+              {showCheckmark && <Check className={styles.checkmark} size={20} />}
+            </div>
           </div>
         </div>
       </div>
@@ -271,13 +299,15 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
           onContentTabChange={setContentTab}
           selectedSourceFilters={selectedSourceFilters}
           onSelectedSourceFiltersChange={setSelectedSourceFilters}
-          onAddApp={handleAddApp}
         />
         <div className={styles.trackedAppsContentArea}>
           <div className={styles.contentTabPanel}>
             {trackedImageError && <div className={styles.errorMessage}>{trackedImageError}</div>}
 
-            {displayedApps.length > 0 || filteredBySource.length === 0 ? (
+            {/* Always show appsContainer for UP_TO_DATE and UPDATES tabs, or when there are apps to display */}
+            {contentTab === TRACKED_APPS_CONTENT_TABS.UP_TO_DATE ||
+            contentTab === TRACKED_APPS_CONTENT_TABS.UPDATES ||
+            displayedApps.length > 0 ? (
               <div className={styles.appsContainer}>
                 {contentTab === TRACKED_APPS_CONTENT_TABS.ALL && (
                   <>
@@ -329,6 +359,8 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                                 onToggleSelect={handleToggleSelect}
                               />
                             ))}
+                            {/* Add new app card - only show if Up to Date section doesn't exist */}
+                            {appsWithoutUpdates.length === 0 && renderAddNewCard()}
                           </div>
                         )}
                       </div>
@@ -383,8 +415,8 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                                 onUpgrade={handleUpgrade}
                               />
                             ))}
-                            {/* Add new app button - always at the end */}
-                            {renderAddNewCard()}
+                            {/* Add new app card - always at the end when Up to Date section exists */}
+                            {appsWithoutUpdates.length > 0 && renderAddNewCard()}
                           </div>
                         )}
                       </div>
@@ -481,26 +513,30 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
                     </div>
                     {!collapsedSections.has("up-to-date-tab") && (
                       <div className={styles.gridWithoutUpdates}>
-                        {displayedApps.map((image) => (
-                          <TrackedAppCard
-                            key={image.id}
-                            image={image}
-                            onEdit={handleEditTrackedImage}
-                            onUpgrade={handleUpgrade}
-                          />
-                        ))}
-                        {/* Add new app button - always at the end */}
+                        {displayedApps.length > 0
+                          ? displayedApps.map((image) => (
+                              <TrackedAppCard
+                                key={image.id}
+                                image={image}
+                                onEdit={handleEditTrackedImage}
+                                onUpgrade={handleUpgrade}
+                              />
+                            ))
+                          : null}
+                        {/* Add new app button - always visible, even when no apps */}
                         {renderAddNewCard()}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            ) : (
+            ) : // Only show empty state if we're on ALL tab and have no apps
+            // UP_TO_DATE and UPDATES tabs should always show their sections
+            contentTab === TRACKED_APPS_CONTENT_TABS.ALL ? (
               <div className={styles.emptyState}>
                 <div className={styles.grid}>{renderAddNewCard()}</div>
               </div>
-            )}
+            ) : null}
 
             {lastScanTime && (
               <div className={styles.lastScanTime}>

@@ -13,6 +13,7 @@ import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModa
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
+import SearchInput from "../components/ui/SearchInput";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
@@ -53,6 +54,7 @@ function PortainerPage({
 }) {
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Show checkmark when pull completes successfully
   useEffect(() => {
@@ -83,6 +85,7 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
+
   const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,
     containers,
@@ -103,6 +106,26 @@ function PortainerPage({
     contentTab: controlledContentTab,
     onSetContentTab,
   });
+
+  // Filter containers based on search query
+  const filteredGroupedStacks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return portainerPage.groupedStacks;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return portainerPage.groupedStacks
+      .map((stack) => ({
+        ...stack,
+        containers: stack.containers.filter((container) => {
+          const name = container.name?.toLowerCase() || "";
+          const image = container.image?.toLowerCase() || "";
+          const stackName = stack.stackName?.toLowerCase() || "";
+          return name.includes(query) || image.includes(query) || stackName.includes(query);
+        }),
+      }))
+      .filter((stack) => stack.containers.length > 0);
+  }, [portainerPage.groupedStacks, searchQuery]);
 
   const handleToggleCollapsed = useCallback(() => {
     portainerPage.setCollapsedUnusedImages(!portainerPage.collapsedUnusedImages);
@@ -250,21 +273,18 @@ function PortainerPage({
     portainerPage,
   ]);
 
-  if (portainerInstances.length === 0) {
-    return (
-      <EmptyState
-        message="No Portainer instances configured. Add one using the + button in the sidebar."
-        className={styles.emptyState}
-      />
-    );
-  }
-
   return (
     <div className={styles.portainerPage}>
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
           <h2 className={styles.portainerHeader}>Portainer Instances</h2>
           <div className={styles.headerActions}>
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search containers..."
+              className={styles.searchInput}
+            />
             {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
             <div className={styles.buttonContainer}>
               <Button
@@ -330,79 +350,88 @@ function PortainerPage({
         </ErrorBoundary>
 
         <div className={styles.portainerContentArea}>
-          {portainerPage.aggregatedContainers.isLoading && (
-            <LoadingSpinner
-              size="sm"
-              message="Loading data..."
-              className={styles.loadingIndicator}
+          {portainerInstances.length === 0 ? (
+            <EmptyState
+              message="No Portainer instances configured. Add one using the + button in the sidebar."
+              className={styles.emptyState}
             />
+          ) : (
+            <>
+              {portainerPage.aggregatedContainers.isLoading && (
+                <LoadingSpinner
+                  size="sm"
+                  message="Loading data..."
+                  className={styles.loadingIndicator}
+                />
+              )}
+
+              {/* Tab Content */}
+              <div
+                className={styles.contentTabPanel}
+                role="tabpanel"
+                id={`${portainerPage.contentTab}-panel`}
+                aria-labelledby={`${portainerPage.contentTab}-tab`}
+              >
+                <ErrorBoundary>
+                  {(portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES ||
+                    portainerPage.contentTab === PORTAINER_CONTENT_TABS.CURRENT) && (
+                    <ContainersTab
+                      groupedStacks={filteredGroupedStacks}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      showUpdates={portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES}
+                      dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                      lastPullTime={portainerPage.lastPullTime}
+                      collapsedStacks={portainerPage.collapsedStacks}
+                      selectedContainers={portainerPage.selectedContainers}
+                      upgrading={portainerPage.upgrading}
+                      isPortainerContainer={portainerPage.isPortainerContainer}
+                      onToggleStack={portainerPage.toggleStack}
+                      onToggleSelect={portainerPage.handleToggleSelect}
+                      onUpgrade={portainerPage.handleUpgrade}
+                    />
+                  )}
+
+                  {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
+                    <ContainersTab
+                      groupedStacks={filteredGroupedStacks}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      showUpdates={null}
+                      showAll={true}
+                      dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                      lastPullTime={portainerPage.lastPullTime}
+                      collapsedStacks={portainerPage.collapsedStacks}
+                      selectedContainers={portainerPage.selectedContainers}
+                      upgrading={portainerPage.upgrading}
+                      isPortainerContainer={portainerPage.isPortainerContainer}
+                      onToggleStack={portainerPage.toggleStack}
+                      onToggleSelect={portainerPage.handleToggleSelect}
+                      onUpgrade={portainerPage.handleUpgrade}
+                    />
+                  )}
+
+                  {portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && (
+                    <UnusedTab
+                      unusedImages={portainerPage.portainerUnusedImages}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      selectedImages={portainerPage.selectedImages}
+                      deletingImages={portainerPage.deletingImages}
+                      formatBytes={portainerPage.formatBytes}
+                      onToggleImageSelect={portainerPage.handleToggleImageSelect}
+                      onDeleteImage={portainerPage.handleDeleteImage}
+                      executeDeleteImage={portainerPage.executeDeleteImage}
+                      onDeleteImages={portainerPage.handleDeleteImages}
+                      executeDeleteImages={portainerPage.executeDeleteImages}
+                      collapsedUnusedImages={portainerPage.collapsedUnusedImages}
+                      onToggleCollapsed={handleToggleCollapsed}
+                    />
+                  )}
+                </ErrorBoundary>
+              </div>
+            </>
           )}
-
-          {/* Tab Content */}
-          <div
-            className={styles.contentTabPanel}
-            role="tabpanel"
-            id={`${portainerPage.contentTab}-panel`}
-            aria-labelledby={`${portainerPage.contentTab}-tab`}
-          >
-            <ErrorBoundary>
-              {(portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES ||
-                portainerPage.contentTab === PORTAINER_CONTENT_TABS.CURRENT) && (
-                <ContainersTab
-                  groupedStacks={portainerPage.groupedStacks}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  showUpdates={portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES}
-                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
-                  lastPullTime={portainerPage.lastPullTime}
-                  collapsedStacks={portainerPage.collapsedStacks}
-                  selectedContainers={portainerPage.selectedContainers}
-                  upgrading={portainerPage.upgrading}
-                  isPortainerContainer={portainerPage.isPortainerContainer}
-                  onToggleStack={portainerPage.toggleStack}
-                  onToggleSelect={portainerPage.handleToggleSelect}
-                  onUpgrade={portainerPage.handleUpgrade}
-                />
-              )}
-
-              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
-                <ContainersTab
-                  groupedStacks={portainerPage.groupedStacks}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  showUpdates={null}
-                  showAll={true}
-                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
-                  lastPullTime={portainerPage.lastPullTime}
-                  collapsedStacks={portainerPage.collapsedStacks}
-                  selectedContainers={portainerPage.selectedContainers}
-                  upgrading={portainerPage.upgrading}
-                  isPortainerContainer={portainerPage.isPortainerContainer}
-                  onToggleStack={portainerPage.toggleStack}
-                  onToggleSelect={portainerPage.handleToggleSelect}
-                  onUpgrade={portainerPage.handleUpgrade}
-                />
-              )}
-
-              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && (
-                <UnusedTab
-                  unusedImages={portainerPage.portainerUnusedImages}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  selectedImages={portainerPage.selectedImages}
-                  deletingImages={portainerPage.deletingImages}
-                  formatBytes={portainerPage.formatBytes}
-                  onToggleImageSelect={portainerPage.handleToggleImageSelect}
-                  onDeleteImage={portainerPage.handleDeleteImage}
-                  executeDeleteImage={portainerPage.executeDeleteImage}
-                  onDeleteImages={portainerPage.handleDeleteImages}
-                  executeDeleteImages={portainerPage.executeDeleteImages}
-                  collapsedUnusedImages={portainerPage.collapsedUnusedImages}
-                  onToggleCollapsed={handleToggleCollapsed}
-                />
-              )}
-            </ErrorBoundary>
-          </div>
         </div>
       </div>
 

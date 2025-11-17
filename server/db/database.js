@@ -72,6 +72,7 @@ function initializeDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
+        email TEXT,
         role TEXT DEFAULT 'Administrator',
         password_changed INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -82,14 +83,26 @@ function initializeDatabase() {
           logger.error("Error creating users table:", err.message);
         } else {
           logger.info("Users table ready");
+          // Add email column if it doesn't exist (for existing databases)
+          db.run("ALTER TABLE users ADD COLUMN email TEXT", (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.warn("Note: email column may already exist:", alterErr.message);
+            }
+          });
           // Create indexes for users table
           db.run("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
               logger.error("Error creating username index:", idxErr.message);
             }
           });
-          // Create default admin user if no users exist
-          createDefaultAdmin();
+          // Add instance_admin column if it doesn't exist (for existing databases)
+          db.run("ALTER TABLE users ADD COLUMN instance_admin INTEGER DEFAULT 0", (alterErr) => {
+            // Ignore error if column already exists
+            if (alterErr && !alterErr.message.includes("duplicate column")) {
+              logger.warn("Note: instance_admin column may already exist:", alterErr.message);
+            }
+          });
         }
       }
     );
@@ -864,38 +877,6 @@ function initializeDatabase() {
 }
 
 /**
- * Create default admin user if no users exist
- */
-async function createDefaultAdmin() {
-  db.get("SELECT COUNT(*) as count FROM users", async (err, row) => {
-    if (err) {
-      logger.error("Error checking users:", err.message);
-      return;
-    }
-
-    if (row.count === 0) {
-      // Use ADMIN_PASSWORD if set and not empty, otherwise default to 'admin'
-      const defaultPassword =
-        (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) || "admin";
-      const passwordHash = await bcrypt.hash(defaultPassword, 10);
-
-      db.run(
-        "INSERT INTO users (username, password_hash, role, password_changed) VALUES (?, ?, ?, ?)",
-        ["admin", passwordHash, "Administrator", 0],
-        (err) => {
-          if (err) {
-            logger.error("Error creating default admin:", err.message);
-          } else {
-            logger.info("Default admin user created (username: admin, password: admin)");
-            logger.info("⚠️  Password change will be required on first login!");
-          }
-        }
-      );
-    }
-  });
-}
-
-/**
  * Get user by username
  * @param {string} username - Username to lookup
  * @returns {Promise<Object|null>} - User object or null
@@ -990,18 +971,87 @@ async function updateUsername(oldUsername, newUsername) {
 }
 
 /**
+ * Wait for database to be ready (users table exists)
+ * @param {number} maxRetries - Maximum number of retries (default: 10)
+ * @param {number} retryDelay - Delay between retries in ms (default: 100)
+ * @returns {Promise<void>}
+ */
+function waitForDatabase(maxRetries = 10, retryDelay = 100) {
+  return new Promise((resolve, reject) => {
+    let retries = 0;
+    const checkTable = () => {
+      db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
+        if (err) {
+          if (retries < maxRetries) {
+            retries++;
+            setTimeout(checkTable, retryDelay);
+          } else {
+            reject(new Error(`Database not ready after ${maxRetries} retries: ${err.message}`));
+          }
+        } else if (row) {
+          // Table exists, database is ready
+          resolve();
+        } else {
+          // Table doesn't exist yet, retry
+          if (retries < maxRetries) {
+            retries++;
+            setTimeout(checkTable, retryDelay);
+          } else {
+            reject(
+              new Error(`Database not ready after ${maxRetries} retries: users table not found`)
+            );
+          }
+        }
+      });
+    };
+    checkTable();
+  });
+}
+
+/**
+ * Check if any users exist
+ * @returns {Promise<boolean>} True if any users exist
+ */
+function hasAnyUsers() {
+  return new Promise((resolve, reject) => {
+    db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+      if (err) {
+        // If table doesn't exist, there are no users
+        if (err.message.includes("no such table")) {
+          resolve(false);
+        } else {
+          reject(err);
+        }
+      } else {
+        resolve(row.count > 0);
+      }
+    });
+  });
+}
+
+/**
  * Create a new user
  * @param {string} username - Username
  * @param {string} password - Plain text password
- * @param {string} role - User role (default: 'admin')
+ * @param {string} email - User email (optional)
+ * @param {string} role - User role (default: 'Administrator')
+ * @param {boolean} passwordChanged - Whether password has been changed (default: true for registered users)
+ * @param {boolean} instanceAdmin - Whether user is instance admin (default: false)
  * @returns {Promise<void>}
  */
-async function createUser(username, password, role = "admin") {
+async function createUser(
+  username,
+  password,
+  email = null,
+  role = "Administrator",
+  passwordChanged = true,
+  instanceAdmin = false
+) {
   const passwordHash = await bcrypt.hash(password, 10);
   return new Promise((resolve, reject) => {
     db.run(
-      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-      [username, passwordHash, role],
+      "INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin) VALUES (?, ?, ?, ?, ?, ?)",
+      [username, passwordHash, email, role, passwordChanged ? 1 : 0, instanceAdmin ? 1 : 0],
       function (err) {
         if (err) {
           reject(err);
@@ -1360,7 +1410,41 @@ function getBatchConfig(jobType = null) {
         [jobType],
         (err, row) => {
           if (err) {
-            reject(err);
+            // If table doesn't exist, create it and return defaults
+            if (err.message && err.message.includes("no such table")) {
+              // Table doesn't exist yet, create defaults and return them
+              db.run(
+                `CREATE TABLE IF NOT EXISTS batch_config (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  job_type TEXT NOT NULL UNIQUE,
+                  enabled INTEGER DEFAULT 0,
+                  interval_minutes INTEGER DEFAULT 60,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`,
+                (createErr) => {
+                  if (createErr) {
+                    reject(createErr);
+                  } else {
+                    // Insert default for this job type
+                    db.run(
+                      "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES (?, 0, 60)",
+                      [jobType],
+                      () => {
+                        // Return default config
+                        resolve({
+                          enabled: false,
+                          intervalMinutes: 60,
+                          updatedAt: null,
+                        });
+                      }
+                    );
+                  }
+                }
+              );
+            } else {
+              reject(err);
+            }
           } else {
             if (row) {
               resolve({
@@ -1369,12 +1453,18 @@ function getBatchConfig(jobType = null) {
                 updatedAt: row.updated_at,
               });
             } else {
-              // Return default if no row exists
-              resolve({
-                enabled: false,
-                intervalMinutes: 60,
-                updatedAt: null,
-              });
+              // Return default if no row exists, and try to create it
+              db.run(
+                "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES (?, 0, 60)",
+                [jobType],
+                () => {
+                  resolve({
+                    enabled: false,
+                    intervalMinutes: 60,
+                    updatedAt: null,
+                  });
+                }
+              );
             }
           }
         }
@@ -1386,7 +1476,52 @@ function getBatchConfig(jobType = null) {
         [],
         (err, rows) => {
           if (err) {
-            reject(err);
+            // If table doesn't exist, create it and return defaults
+            if (err.message && err.message.includes("no such table")) {
+              // Table doesn't exist yet, create it with defaults
+              db.run(
+                `CREATE TABLE IF NOT EXISTS batch_config (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  job_type TEXT NOT NULL UNIQUE,
+                  enabled INTEGER DEFAULT 0,
+                  interval_minutes INTEGER DEFAULT 60,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`,
+                (createErr) => {
+                  if (createErr) {
+                    reject(createErr);
+                  } else {
+                    // Insert defaults for both job types
+                    db.run(
+                      "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
+                      () => {
+                        db.run(
+                          "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
+                          () => {
+                            // Return default configs
+                            resolve({
+                              "docker-hub-pull": {
+                                enabled: false,
+                                intervalMinutes: 60,
+                                updatedAt: null,
+                              },
+                              "tracked-apps-check": {
+                                enabled: false,
+                                intervalMinutes: 60,
+                                updatedAt: null,
+                              },
+                            });
+                          }
+                        );
+                      }
+                    );
+                  }
+                }
+              );
+            } else {
+              reject(err);
+            }
           } else {
             const configs = {};
             rows.forEach((row) => {
@@ -1399,6 +1534,11 @@ function getBatchConfig(jobType = null) {
             // Ensure both job types exist
             if (!configs["docker-hub-pull"]) {
               configs["docker-hub-pull"] = { enabled: false, intervalMinutes: 60, updatedAt: null };
+              // Try to create it
+              db.run(
+                "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
+                () => {}
+              );
             }
             if (!configs["tracked-apps-check"]) {
               configs["tracked-apps-check"] = {
@@ -1406,6 +1546,11 @@ function getBatchConfig(jobType = null) {
                 intervalMinutes: 60,
                 updatedAt: null,
               };
+              // Try to create it
+              db.run(
+                "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
+                () => {}
+              );
             }
             resolve(configs);
           }
@@ -2095,6 +2240,8 @@ module.exports = {
   verifyPassword,
   updatePassword,
   updateUsername,
+  waitForDatabase,
+  hasAnyUsers,
   createUser,
   getAllPortainerInstances,
   getPortainerInstanceById,

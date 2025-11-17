@@ -25,6 +25,10 @@
   gap: 12px;
 }
 
+.searchInput {
+  flex: 0 1 auto;
+}
+
 .checkmark {
   color: var(--dodger-blue);
   animation: checkmarkFadeIn 0.3s ease-out;
