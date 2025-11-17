@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { RefreshCw, Check } from "lucide-react";
+import axios from "axios";
 import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Button from "../components/ui/Button";
@@ -17,6 +18,7 @@ import SearchInput from "../components/ui/SearchInput";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
+import { API_BASE_URL } from "../utils/api";
 import styles from "./PortainerPage.module.css";
 
 /**
@@ -55,6 +57,8 @@ function PortainerPage({
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pullingPortainerOnly, setPullingPortainerOnly] = useState(false);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 
   // Show checkmark when pull completes successfully
   useEffect(() => {
@@ -85,6 +89,56 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
+
+  // Fetch developer mode state
+  const fetchDeveloperMode = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
+      if (response.data.success) {
+        setDeveloperModeEnabled(response.data.enabled || false);
+      }
+    } catch (err) {
+      // If endpoint doesn't exist yet, default to false
+      console.error("Error fetching developer mode:", err);
+      setDeveloperModeEnabled(false);
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchDeveloperMode();
+  }, [fetchDeveloperMode]);
+
+  // Listen for settings save events to refetch developer mode
+  useEffect(() => {
+    const handleSettingsSaved = () => {
+      fetchDeveloperMode();
+    };
+    window.addEventListener("generalSettingsSaved", handleSettingsSaved);
+    return () => {
+      window.removeEventListener("generalSettingsSaved", handleSettingsSaved);
+    };
+  }, [fetchDeveloperMode]);
+
+  // Handler for Portainer-only data update (no Docker Hub)
+  const handlePullPortainerOnly = useCallback(async () => {
+    try {
+      setPullingPortainerOnly(true);
+      setLocalPullError("");
+      console.log("🔄 Pulling Portainer data only (no Docker Hub)...");
+
+      // Use fetchContainers with portainerOnly=true to update all state properly
+      await fetchContainers(false, null, true);
+      console.log("✅ Portainer data updated successfully");
+    } catch (err) {
+      console.error("Error pulling Portainer data:", err);
+      setLocalPullError(
+        err.response?.data?.error || err.message || "Failed to pull Portainer data"
+      );
+    } finally {
+      setPullingPortainerOnly(false);
+    }
+  }, [fetchContainers]);
 
   const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,
@@ -200,7 +254,7 @@ function PortainerPage({
             }}
             disabled={portainerPage.batchUpgrading}
           >
-            {allSelectableSelected ? "Deselect All" : "Select All"}
+            {allSelectableSelected ? "Unselect All" : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -246,7 +300,7 @@ function PortainerPage({
             }}
             disabled={portainerPage.deletingImages}
           >
-            {allImagesSelected ? "Deselect All" : "Select All"}
+            {allImagesSelected ? "Unselect All" : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -277,16 +331,35 @@ function PortainerPage({
     <div className={styles.portainerPage}>
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
-          <h2 className={styles.portainerHeader}>Portainer Instances</h2>
-          <div className={styles.headerActions}>
+          <h2 className={styles.portainerHeader}>Portainer</h2>
+          <div className={styles.headerLeft}>
             <SearchInput
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search containers..."
               className={styles.searchInput}
             />
+          </div>
+          <div className={styles.headerActions}>
             {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
             <div className={styles.buttonContainer}>
+              {developerModeEnabled && (
+                <Button
+                  onClick={handlePullPortainerOnly}
+                  disabled={pullingPortainerOnly || portainerInstances.length === 0}
+                  title={
+                    pullingPortainerOnly
+                      ? "Updating Portainer data..."
+                      : "Update Portainer data only (no Docker Hub)"
+                  }
+                  variant="outline"
+                  icon={RefreshCw}
+                  size="sm"
+                  style={{ backgroundColor: "var(--warning-light)", borderColor: "var(--warning)" }}
+                >
+                  {pullingPortainerOnly ? "Updating..." : "Update Portainer Only"}
+                </Button>
+              )}
               <Button
                 onClick={onPullDockerHub}
                 disabled={pullingDockerHub || portainerInstances.length === 0}
@@ -303,7 +376,7 @@ function PortainerPage({
         </div>
       </div>
 
-      {(pullingDockerHub || localPullError) && (
+      {(pullingDockerHub || pullingPortainerOnly || localPullError) && (
         <div className={styles.alertContainer}>
           {pullingDockerHub && (
             <Alert variant="info" className={styles.alert}>
@@ -329,7 +402,31 @@ function PortainerPage({
               </div>
             </Alert>
           )}
-          {!pullingDockerHub && localPullError && (
+          {pullingPortainerOnly && (
+            <Alert variant="info" className={styles.alert}>
+              <div className={styles.pullStatusContent}>
+                <div className={styles.pullSpinner}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                </div>
+                <div className={styles.pullStatusText}>
+                  <strong>Updating Portainer data...</strong>
+                  <span>Fetching container information from Portainer</span>
+                </div>
+              </div>
+            </Alert>
+          )}
+          {!pullingDockerHub && !pullingPortainerOnly && localPullError && (
             <Alert variant="error" className={styles.alert}>
               {localPullError}
             </Alert>
@@ -389,6 +486,7 @@ function PortainerPage({
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}
+                      developerModeEnabled={developerModeEnabled}
                     />
                   )}
 
@@ -408,6 +506,7 @@ function PortainerPage({
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}
+                      developerModeEnabled={developerModeEnabled}
                     />
                   )}
 

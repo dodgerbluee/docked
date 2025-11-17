@@ -116,43 +116,81 @@ export function useGeneralSettings({
 
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
+    setGeneralSettingsSuccess("");
+    const errors = [];
+
     try {
       // Save color scheme to DB
-      const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
-        colorScheme: localColorScheme,
-      });
-
-      // Save log level to DB
-      const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
-        logLevel: localLogLevel,
-      });
-
-      // Save refreshing toggles enabled to DB
-      const refreshingTogglesResponse = await axios.post(
-        `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
-        {
-          enabled: localRefreshingTogglesEnabled,
-        }
-      );
-
-      if (
-        colorSchemeResponse.data.success &&
-        logLevelResponse.data.success &&
-        refreshingTogglesResponse.data.success
-      ) {
-        if (onColorSchemeChange) {
+      let colorSchemeSuccess = false;
+      try {
+        const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
+          colorScheme: localColorScheme,
+        });
+        colorSchemeSuccess = colorSchemeResponse.data.success;
+        if (colorSchemeSuccess && onColorSchemeChange) {
+          // Update color scheme immediately for instant UI update
           onColorSchemeChange(localColorScheme);
         }
-        setLogLevel(localLogLevel);
-        setRefreshingTogglesEnabled(localRefreshingTogglesEnabled);
+      } catch (err) {
+        console.error("Error saving color scheme:", err);
+        errors.push("Failed to save color scheme");
+      }
+
+      // Save log level to DB
+      let logLevelSuccess = false;
+      try {
+        const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
+          logLevel: localLogLevel,
+        });
+        logLevelSuccess = logLevelResponse.data.success;
+        if (logLevelSuccess) {
+          setLogLevel(localLogLevel);
+        }
+      } catch (err) {
+        console.error("Error saving log level:", err);
+        errors.push("Failed to save log level");
+      }
+
+      // Save refreshing toggles enabled to DB
+      let refreshingTogglesSuccess = false;
+      try {
+        const refreshingTogglesResponse = await axios.post(
+          `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
+          {
+            enabled: localRefreshingTogglesEnabled,
+          }
+        );
+        refreshingTogglesSuccess = refreshingTogglesResponse.data.success;
+        if (refreshingTogglesSuccess) {
+          setRefreshingTogglesEnabled(localRefreshingTogglesEnabled);
+        }
+      } catch (err) {
+        console.error("Error saving developer mode:", err);
+        errors.push("Failed to save developer mode");
+      }
+
+      // Check if all settings were saved successfully
+      if (colorSchemeSuccess && logLevelSuccess && refreshingTogglesSuccess) {
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
+        // Dispatch custom event to notify other components (e.g., PortainerPage) to refetch settings
+        window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
-        throw new Error("Failed to save one or more settings");
+        // Some settings failed - show which ones
+        const errorMessage =
+          errors.length > 0
+            ? `Failed to save: ${errors.join(", ")}`
+            : "Failed to save one or more settings";
+        setGeneralSettingsSuccess(errorMessage);
+        console.error("Some settings failed to save:", {
+          colorSchemeSuccess,
+          logLevelSuccess,
+          refreshingTogglesSuccess,
+        });
       }
     } catch (err) {
       console.error("Error saving general settings:", err);
-      setGeneralSettingsSuccess("");
+      setGeneralSettingsSuccess(`Failed to save settings: ${err.message || "Unknown error"}`);
     } finally {
       setGeneralSettingsSaving(false);
     }
