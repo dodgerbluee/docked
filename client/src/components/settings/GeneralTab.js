@@ -118,7 +118,7 @@ const GeneralTab = React.memo(function GeneralTab({
         {/* When enabled, allows stopping, removing, repulling, starting, and verifying that the new container is up */}
         <div className={styles.formGroup}>
           <label htmlFor="refreshingToggles" className={styles.label}>
-            Enable Developer Mode
+            Developer Mode
           </label>
           <ToggleButton
             options={refreshingTogglesOptions}

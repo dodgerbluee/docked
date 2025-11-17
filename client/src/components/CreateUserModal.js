@@ -11,6 +11,14 @@ import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
+import {
+  validateUsername,
+  validatePassword,
+  validatePasswordMatch,
+  validateEmail,
+  validateRegistrationCode,
+} from "../utils/validation";
+import { getErrorMessage } from "../utils/errorHandling";
 import styles from "./CreateUserModal.module.css";
 
 function CreateUserModal({ isOpen, onClose, onSuccess }) {
@@ -96,32 +104,43 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
   };
 
   const validateForm = () => {
-    if (!formData.username || formData.username.length < 3) {
-      setError("Username must be at least 3 characters long");
+    // Validate username
+    const usernameError = validateUsername(formData.username);
+    if (usernameError) {
+      setError(usernameError);
       return false;
     }
 
-    if (!formData.password || formData.password.length < 8) {
-      setError("Password must be at least 8 characters long");
+    // Validate password
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      setError(passwordError);
       return false;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+    // Validate password match
+    const passwordMatchError = validatePasswordMatch(formData.password, formData.confirmPassword);
+    if (passwordMatchError) {
+      setError(passwordMatchError);
       return false;
     }
 
+    // Validate email (optional)
     if (formData.email && formData.email.trim() !== "") {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        setError("Invalid email format");
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        setError(emailError);
         return false;
       }
     }
 
-    if (requiresCode && !formData.registrationCode) {
-      setError("Registration code is required");
-      return false;
+    // Validate registration code if required
+    if (requiresCode) {
+      const codeError = validateRegistrationCode(formData.registrationCode);
+      if (codeError) {
+        setError(codeError);
+        return false;
+      }
     }
 
     return true;
@@ -170,10 +189,10 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
         }
         onClose();
       } else {
-        setError(response.data.error || "Failed to create user");
+        setError(getErrorMessage(response.data, "Failed to create user"));
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to create user. Please try again.");
+      setError(getErrorMessage(err, "Failed to create user. Please try again."));
     } finally {
       setLoading(false);
     }

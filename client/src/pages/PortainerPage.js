@@ -16,9 +16,11 @@ import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
 import SearchInput from "../components/ui/SearchInput";
 import { usePortainerPage } from "../hooks/usePortainerPage";
+import { useDebounce } from "../hooks/useDebounce";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
 import { API_BASE_URL } from "../utils/api";
+import { TIMING } from "../constants/timing";
 import styles from "./PortainerPage.module.css";
 
 /**
@@ -65,23 +67,16 @@ function PortainerPage({
     // Only show checkmark when we have success and we're not currently pulling
     if (pullSuccess && !pullingDockerHub) {
       setShowCheckmark(true);
-      // Hide checkmark after 3 seconds
+      // Hide checkmark after configured time
       const timer = setTimeout(() => {
         setShowCheckmark(false);
-      }, 3000);
+      }, TIMING.CHECKMARK_DISPLAY_TIME);
       return () => clearTimeout(timer);
-    } else if (pullingDockerHub) {
-      // Hide checkmark when pulling starts
+    } else {
+      // Hide checkmark when pulling starts or when there's no success
       setShowCheckmark(false);
     }
   }, [pullSuccess, pullingDockerHub]);
-
-  // Hide checkmark when checking starts
-  useEffect(() => {
-    if (pullingDockerHub) {
-      setShowCheckmark(false);
-    }
-  }, [pullingDockerHub]);
 
   useEffect(() => {
     if (pullError) {
@@ -161,13 +156,16 @@ function PortainerPage({
     onSetContentTab,
   });
 
+  // Debounce search query to avoid excessive filtering
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   // Filter containers based on search query
   const filteredGroupedStacks = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       return portainerPage.groupedStacks;
     }
 
-    const query = searchQuery.toLowerCase().trim();
+    const query = debouncedSearchQuery.toLowerCase().trim();
     return portainerPage.groupedStacks
       .map((stack) => ({
         ...stack,
@@ -179,7 +177,7 @@ function PortainerPage({
         }),
       }))
       .filter((stack) => stack.containers.length > 0);
-  }, [portainerPage.groupedStacks, searchQuery]);
+  }, [portainerPage.groupedStacks, debouncedSearchQuery]);
 
   const handleToggleCollapsed = useCallback(() => {
     portainerPage.setCollapsedUnusedImages(!portainerPage.collapsedUnusedImages);
