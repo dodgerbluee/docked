@@ -239,6 +239,14 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
 // Settings routes
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
+router.get(
+  "/settings/refreshing-toggles-enabled",
+  asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
+);
+router.post(
+  "/settings/refreshing-toggles-enabled",
+  asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
+);
 
 // Logs routes
 router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));

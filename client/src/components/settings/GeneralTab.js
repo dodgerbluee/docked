@@ -77,7 +77,7 @@ const GeneralTab = React.memo(function GeneralTab({
   return (
     <div className={styles.updateSection}>
       <h3 className={styles.title}>General Settings</h3>
-      {generalSettingsSuccess && <Alert variant="info">{generalSettingsSuccess}</Alert>}
+      {generalSettingsSuccess && <Alert variant={"info"}>{generalSettingsSuccess}</Alert>}
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -118,7 +118,7 @@ const GeneralTab = React.memo(function GeneralTab({
         {/* When enabled, allows stopping, removing, repulling, starting, and verifying that the new container is up */}
         <div className={styles.formGroup}>
           <label htmlFor="refreshingToggles" className={styles.label}>
-            Enable Rebuilding Containers
+            Enable Developer Mode
           </label>
           <ToggleButton
             options={refreshingTogglesOptions}
@@ -126,10 +126,7 @@ const GeneralTab = React.memo(function GeneralTab({
             onChange={handleRefreshingTogglesChange}
             className={styles.toggle}
           />
-          <small className={styles.helperText}>
-            For up to date images. When enabled, allows stopping, removing, repulling, starting, and
-            verifying that the new container is up.
-          </small>
+          <small className={styles.helperText}>Enables some testing features.</small>
         </div>
         <div className={styles.formActions}>
           <Button

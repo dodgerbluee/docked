@@ -19,6 +19,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
   onToggleStack,
   onToggleSelect,
   onUpgrade,
+  developerModeEnabled = false,
 }) {
   const stackContainersWithUpdates = containers.filter((c) => c.hasUpdate);
   const stackContainersUpToDate = containers.filter((c) => !c.hasUpdate);
@@ -90,6 +91,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
                 showUpdates={showUpdates}
                 onToggleSelect={onToggleSelect}
                 onUpgrade={onUpgrade}
+                developerModeEnabled={developerModeEnabled}
               />
             );
           })}

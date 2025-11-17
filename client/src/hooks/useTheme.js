@@ -41,22 +41,12 @@ export const useTheme = (isAuthenticated, authToken) => {
   }, [isAuthenticated, authToken]);
 
   // Handle color scheme preference change from Settings
-  const handleColorSchemeChange = useCallback(async (newColorScheme) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
-        colorScheme: newColorScheme,
-      });
-      if (response.data.success) {
-        setColorScheme(newColorScheme);
-        // Remove from localStorage since we're now using DB
-        localStorage.removeItem("colorScheme");
-      }
-    } catch (err) {
-      console.error("Error saving color scheme:", err);
-      // Fallback to localStorage if API fails (for backward compatibility)
-      setColorScheme(newColorScheme);
-      localStorage.setItem("colorScheme", newColorScheme);
-    }
+  // Note: This is called AFTER the API call in handleSaveGeneralSettings, so we just update the state
+  const handleColorSchemeChange = useCallback((newColorScheme) => {
+    // Update immediately for instant UI feedback (API call already happened in handleSaveGeneralSettings)
+    setColorScheme(newColorScheme);
+    // Remove from localStorage since we're now using DB
+    localStorage.removeItem("colorScheme");
   }, []);
 
   // Handle temporary theme toggle from avatar dropdown (doesn't persist)
