@@ -4,7 +4,7 @@
  */
 
 const axios = require("axios");
-const { validateRequiredFields } = require("../utils/validation");
+const { validateRequiredFields, isValidEmail } = require("../utils/validation");
 const {
   getUserByUsername,
   verifyPassword,
@@ -102,8 +102,7 @@ async function register(req, res, next) {
 
     // Validate email format if provided
     if (email && email.trim() !== "") {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      if (!isValidEmail(email.trim())) {
         return res.status(400).json({
           success: false,
           error: "Invalid email format",

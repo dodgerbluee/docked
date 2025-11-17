@@ -1,27 +1,15 @@
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Package, Lock } from "lucide-react";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import Input from "../ui/Input";
-import ToggleButton from "../ui/ToggleButton";
 import Alert from "../ui/Alert";
+import PortainerCredentialsStep from "./ImportCredentialsModal/PortainerCredentialsStep";
+import DockerHubCredentialsStep from "./ImportCredentialsModal/DockerHubCredentialsStep";
+import DiscordCredentialsStep from "./ImportCredentialsModal/DiscordCredentialsStep";
+import { validateRequired, validateDiscordWebhookUrl } from "../../utils/validation";
 import styles from "./ImportCredentialsModal.module.css";
-
-const AUTH_TYPE_OPTIONS = [
-  {
-    value: "apikey",
-    label: "API Key",
-    icon: Package,
-  },
-  {
-    value: "password",
-    label: "Username / Password",
-    icon: Lock,
-  },
-];
 
 /**
  * ImportCredentialsModal Component
@@ -93,30 +81,24 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
     if (step === "portainer") {
       credentials.portainerInstances?.forEach((cred, index) => {
         if (cred.auth_type === "apikey") {
-          if (!cred.apiKey?.trim()) {
-            stepErrors[`portainer_${index}_apiKey`] = "API key is required";
-          }
+          const error = validateRequired(cred.apiKey, "API key");
+          if (error) stepErrors[`portainer_${index}_apiKey`] = error;
         } else if (cred.auth_type === "password") {
-          if (!cred.username?.trim()) {
-            stepErrors[`portainer_${index}_username`] = "Username is required";
-          }
-          if (!cred.password?.trim()) {
-            stepErrors[`portainer_${index}_password`] = "Password is required";
-          }
+          const usernameError = validateRequired(cred.username, "Username");
+          if (usernameError) stepErrors[`portainer_${index}_username`] = usernameError;
+          const passwordError = validateRequired(cred.password, "Password");
+          if (passwordError) stepErrors[`portainer_${index}_password`] = passwordError;
         }
       });
     } else if (step === "dockerhub") {
-      if (!credentials.dockerHub?.username?.trim()) {
-        stepErrors.dockerhub_username = "Username is required";
-      }
-      if (!credentials.dockerHub?.token?.trim()) {
-        stepErrors.dockerhub_token = "Token is required";
-      }
+      const usernameError = validateRequired(credentials.dockerHub?.username, "Username");
+      if (usernameError) stepErrors.dockerhub_username = usernameError;
+      const tokenError = validateRequired(credentials.dockerHub?.token, "Token");
+      if (tokenError) stepErrors.dockerhub_token = tokenError;
     } else if (step === "discord") {
       credentials.discordWebhooks?.forEach((cred, index) => {
-        if (!cred.webhookUrl?.trim()) {
-          stepErrors[`discord_${index}_webhookUrl`] = "Webhook URL is required";
-        }
+        const error = validateDiscordWebhookUrl(cred.webhookUrl);
+        if (error) stepErrors[`discord_${index}_webhookUrl`] = error;
       });
     }
 
@@ -193,18 +175,16 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
       return { success: true };
     }
 
-    // Validate webhook URL format
-    const webhookPattern =
-      /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+$/;
-
+    // Validate webhook URL format using utility
     for (let i = 0; i < credentials.discordWebhooks.length; i++) {
       const cred = credentials.discordWebhooks[i];
       const webhook = configData.discordWebhooks[i];
 
-      if (!webhookPattern.test(cred.webhookUrl?.trim() || "")) {
+      const urlError = validateDiscordWebhookUrl(cred.webhookUrl);
+      if (urlError) {
         return {
           success: false,
-          error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": Invalid webhook URL format. Expected: https://discord.com/api/webhooks/{id}/{token}`,
+          error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": ${urlError}`,
         };
       }
 
@@ -345,7 +325,7 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
     }
   };
 
-  const updatePortainerCred = (index, field, value) => {
+  const handleUpdatePortainerCred = (index, field, value) => {
     setCredentials((prev) => {
       const updated = { ...prev };
       updated.portainerInstances = [...(updated.portainerInstances || [])];
@@ -356,16 +336,17 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
       return updated;
     });
     // Clear error for this field
-    if (errors[`portainer_${index}_${field}`]) {
+    const errorKey = `portainer_${index}_${field}`;
+    if (errors[errorKey]) {
       setErrors((prev) => {
         const updated = { ...prev };
-        delete updated[`portainer_${index}_${field}`];
+        delete updated[errorKey];
         return updated;
       });
     }
   };
 
-  const updateDockerHubCred = (field, value) => {
+  const handleUpdateDockerHubCred = (field, value) => {
     setCredentials((prev) => ({
       ...prev,
       dockerHub: {
@@ -373,16 +354,17 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
         [field]: value,
       },
     }));
-    if (errors[`dockerhub_${field}`]) {
+    const errorKey = `dockerhub_${field}`;
+    if (errors[errorKey]) {
       setErrors((prev) => {
         const updated = { ...prev };
-        delete updated[`dockerhub_${field}`];
+        delete updated[errorKey];
         return updated;
       });
     }
   };
 
-  const updateDiscordCred = (index, field, value) => {
+  const handleUpdateDiscordCred = (index, field, value) => {
     setCredentials((prev) => {
       const updated = { ...prev };
       updated.discordWebhooks = [...(updated.discordWebhooks || [])];
@@ -392,131 +374,14 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
       };
       return updated;
     });
-    if (errors[`discord_${index}_${field}`]) {
+    const errorKey = `discord_${index}_${field}`;
+    if (errors[errorKey]) {
       setErrors((prev) => {
         const updated = { ...prev };
-        delete updated[`discord_${index}_${field}`];
+        delete updated[errorKey];
         return updated;
       });
     }
-  };
-
-  const renderPortainerStep = () => {
-    if (!needsPortainerCreds) return null;
-
-    return (
-      <div className={styles.stepContent}>
-        <p className={styles.stepDescription}>
-          Enter credentials for each Portainer instance. These were not included in the export for
-          security reasons.
-        </p>
-        {credentials.portainerInstances?.map((cred, index) => {
-          const instance = configData.portainerInstances[index];
-          return (
-            <div key={index} className={styles.credentialGroup}>
-              <h4 className={styles.instanceTitle}>{instance.name}</h4>
-              <p className={styles.instanceUrl}>{instance.url}</p>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Authentication Method</label>
-                <ToggleButton
-                  options={AUTH_TYPE_OPTIONS}
-                  value={cred.auth_type}
-                  onChange={(value) => updatePortainerCred(index, "auth_type", value)}
-                  className={styles.authToggle}
-                />
-              </div>
-              {cred.auth_type === "apikey" ? (
-                <Input
-                  type="password"
-                  label="API Key"
-                  value={cred.apiKey}
-                  onChange={(e) => updatePortainerCred(index, "apiKey", e.target.value)}
-                  error={errors[`portainer_${index}_apiKey`]}
-                />
-              ) : (
-                <div className={styles.passwordFields}>
-                  <Input
-                    type="text"
-                    label="Username"
-                    value={cred.username}
-                    onChange={(e) => updatePortainerCred(index, "username", e.target.value)}
-                    error={errors[`portainer_${index}_username`]}
-                  />
-                  <Input
-                    type="password"
-                    label="Password"
-                    value={cred.password}
-                    onChange={(e) => updatePortainerCred(index, "password", e.target.value)}
-                    error={errors[`portainer_${index}_password`]}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderDockerHubStep = () => {
-    if (!needsDockerHubCreds) return null;
-
-    return (
-      <div className={styles.stepContent}>
-        <p className={styles.stepDescription}>
-          Enter your Docker Hub credentials. These were not included in the export for security
-          reasons.
-        </p>
-        <Input
-          type="text"
-          label="Docker Hub Username"
-          value={credentials.dockerHub?.username || ""}
-          onChange={(e) => updateDockerHubCred("username", e.target.value)}
-          error={errors.dockerhub_username}
-        />
-        <Input
-          type="password"
-          label="Docker Hub Personal Access Token"
-          value={credentials.dockerHub?.token || ""}
-          onChange={(e) => updateDockerHubCred("token", e.target.value)}
-          error={errors.dockerhub_token}
-        />
-      </div>
-    );
-  };
-
-  const renderDiscordStep = () => {
-    if (!needsDiscordCreds) return null;
-
-    return (
-      <div className={styles.stepContent}>
-        <p className={styles.stepDescription}>
-          Enter webhook URLs for each Discord webhook. These were not included in the export for
-          security reasons.
-        </p>
-        {credentials.discordWebhooks?.map((cred, index) => {
-          const webhook = configData.discordWebhooks[index];
-          return (
-            <div key={index} className={styles.credentialGroup}>
-              <h4 className={styles.instanceTitle}>
-                {webhook.server_name || `Webhook ${index + 1}`}
-              </h4>
-              {webhook.channel_name && (
-                <p className={styles.instanceUrl}>Channel: {webhook.channel_name}</p>
-              )}
-              <Input
-                type="text"
-                label="Webhook URL"
-                value={cred.webhookUrl}
-                onChange={(e) => updateDiscordCred(index, "webhookUrl", e.target.value)}
-                error={errors[`discord_${index}_webhookUrl`]}
-                placeholder="https://discord.com/api/webhooks/..."
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
   };
 
   const renderCurrentStep = () => {
@@ -525,11 +390,31 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
 
     switch (stepName) {
       case "portainer":
-        return renderPortainerStep();
+        return (
+          <PortainerCredentialsStep
+            instances={configData.portainerInstances || []}
+            credentials={credentials}
+            errors={errors}
+            onUpdateCredential={handleUpdatePortainerCred}
+          />
+        );
       case "dockerhub":
-        return renderDockerHubStep();
+        return (
+          <DockerHubCredentialsStep
+            credentials={credentials}
+            errors={errors}
+            onUpdateCredential={handleUpdateDockerHubCred}
+          />
+        );
       case "discord":
-        return renderDiscordStep();
+        return (
+          <DiscordCredentialsStep
+            webhooks={configData.discordWebhooks || []}
+            credentials={credentials}
+            errors={errors}
+            onUpdateCredential={handleUpdateDiscordCred}
+          />
+        );
       default:
         return null;
     }

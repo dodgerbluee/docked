@@ -9,4 +9,7 @@ module.exports = {
     "!jest.config.js",
     "!jest.setup.js",
   ],
+  transformIgnorePatterns: [
+    "node_modules/(?!(nanoid)/)",
+  ],
 };
