@@ -9,13 +9,31 @@ describe("Containers API", () => {
   let authToken;
 
   beforeAll(async () => {
+    // Create a test admin user if it doesn't exist
+    const { createUser, getUserByUsername } = require("../../db/database");
+    const testUsername = "admin";
+    const testPassword = process.env.ADMIN_PASSWORD || "admin";
+    try {
+      const existingUser = await getUserByUsername(testUsername);
+      if (!existingUser) {
+        await createUser(testUsername, testPassword, null, "Administrator", true, false);
+      }
+    } catch (error) {
+      // User might already exist, which is fine
+      if (!error.message.includes("UNIQUE constraint")) {
+        throw error;
+      }
+    }
+
     // Get auth token
-    const loginResponse = await request(app)
-      .post("/api/auth/login")
-      .send({
-        username: "admin",
-        password: process.env.ADMIN_PASSWORD || "admin",
-      });
+    const loginResponse = await request(app).post("/api/auth/login").send({
+      username: testUsername,
+      password: testPassword,
+    });
+
+    if (loginResponse.status !== 200) {
+      throw new Error(`Login failed: ${JSON.stringify(loginResponse.body)}`);
+    }
 
     authToken = loginResponse.body.token;
   });
