@@ -42,3 +42,18 @@
   margin: 0;
   text-align: center;
 }
+
+.exportContainer {
+  max-width: 100%;
+}
+
+.exportButtonContainer {
+  display: inline-block;
+  max-width: fit-content;
+}
+
+.exportHelperText {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}

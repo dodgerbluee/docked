@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
-import { CheckCircle2, Loader2, AlertCircle, Wifi } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, Wifi, Square } from "lucide-react";
 import axios from "axios";
 import Modal from "./Modal";
 import Button from "./Button";
 import { API_BASE_URL } from "../../utils/api";
+import { MODAL_STAGES } from "../../constants/modalStages";
+import { TIMING } from "../../constants/timing";
 import styles from "./UpgradeProgressModal.module.css";
 
 /**
@@ -21,44 +23,92 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   onError,
   onNavigateToLogs,
 }) {
-  const [stage, setStage] = useState("confirm"); // 'confirm' | 'progress' | 'reconnecting' | 'success' | 'error'
+  const [stage, setStage] = useState(MODAL_STAGES.CONFIRM);
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  const steps = useMemo(
-    () => [
-      { label: "Stopping container...", duration: 2000 },
-      { label: "Pulling latest image...", duration: 5000 },
-      { label: "Removing old container...", duration: 1500 },
-      { label: "Creating new container...", duration: 2000 },
-      { label: "Starting container...", duration: 2000 },
-      { label: "Waiting for container to be ready...", duration: 10000 },
-    ],
-    []
-  );
+  const steps = useMemo(() => {
+    // For tunnel containers (providesNetwork) - show all steps including dependent container handling
+    if (container?.providesNetwork) {
+      return [
+        {
+          label: "Stopping dependent containers...",
+          duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+        },
+        {
+          label: "Removing dependent containers...",
+          duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+        },
+        { label: "Waiting for cleanup...", duration: TIMING.STEP_DURATION_CLEANUP },
+        { label: "Stopping tunnel container...", duration: TIMING.STEP_DURATION_STOP },
+        { label: "Pulling latest image...", duration: TIMING.STEP_DURATION_PULL },
+        { label: "Removing old tunnel container...", duration: TIMING.STEP_DURATION_REMOVE },
+        { label: "Creating new tunnel container...", duration: TIMING.STEP_DURATION_CREATE },
+        { label: "Starting tunnel container...", duration: TIMING.STEP_DURATION_START },
+        { label: "Waiting for tunnel to be ready...", duration: TIMING.STEP_DURATION_WAIT_NETWORK },
+        { label: "Recreating dependent containers...", duration: TIMING.STEP_DURATION_RECREATE },
+        {
+          label: "Starting dependent containers...",
+          duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+        },
+      ];
+    }
 
-  // Reset state when modal opens/closes
+    // For dependent containers (usesNetworkMode) - show steps including network wait
+    if (container?.usesNetworkMode) {
+      return [
+        { label: "Stopping container...", duration: TIMING.STEP_DURATION_STOP },
+        { label: "Pulling latest image...", duration: TIMING.STEP_DURATION_PULL },
+        { label: "Removing old container...", duration: TIMING.STEP_DURATION_REMOVE },
+        {
+          label: "Waiting for network container to be ready...",
+          duration: TIMING.STEP_DURATION_WAIT_NETWORK,
+        },
+        { label: "Creating new container...", duration: TIMING.STEP_DURATION_CREATE },
+        { label: "Starting container...", duration: TIMING.STEP_DURATION_START },
+        {
+          label: "Waiting for container to be ready...",
+          duration: TIMING.STEP_DURATION_WAIT_READY_SHORT,
+        },
+      ];
+    }
+
+    // Default steps for regular containers
+    return [
+      { label: "Stopping container...", duration: TIMING.STEP_DURATION_STOP },
+      { label: "Pulling latest image...", duration: TIMING.STEP_DURATION_PULL },
+      { label: "Removing old container...", duration: TIMING.STEP_DURATION_REMOVE },
+      { label: "Creating new container...", duration: TIMING.STEP_DURATION_CREATE },
+      { label: "Starting container...", duration: TIMING.STEP_DURATION_START },
+      { label: "Waiting for container to be ready...", duration: TIMING.STEP_DURATION_WAIT_READY },
+    ];
+  }, [container]);
+
+  // Reset state when modal opens/closes or container changes
   useEffect(() => {
     if (isOpen) {
       // When modal opens, always reset to confirm stage
-      setStage("confirm");
+      setStage(MODAL_STAGES.CONFIRM);
       setCurrentStep(0);
       setErrorMessage(null);
       setReconnectAttempts(0);
     } else if (!isOpen) {
       // Reset to confirm stage when modal closes (but keep it quick for reopening)
-      setStage("confirm");
+      setStage(MODAL_STAGES.CONFIRM);
       setCurrentStep(0);
       setErrorMessage(null);
       setReconnectAttempts(0);
     }
-  }, [isOpen]);
+  }, [isOpen, container]);
 
   const handleConfirm = useCallback(async () => {
-    setStage("progress");
+    setStage(MODAL_STAGES.PROGRESS);
     setCurrentStep(0);
     setReconnectAttempts(0);
+
+    // Small delay to ensure initial render with checkboxes visible
+    await new Promise((resolve) => setTimeout(resolve, TIMING.INITIAL_RENDER_DELAY));
 
     // Detect if this is nginx-proxy-manager
     const isNginx =
@@ -89,14 +139,21 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
       for (let i = 0; i < steps.length; i++) {
         const stepIndex = i;
         const stepDuration = steps[stepIndex].duration;
+        const minStepDuration = TIMING.MIN_STEP_DURATION;
         setCurrentStep(stepIndex);
 
-        // Wait for the step duration, but if API completes, move faster
+        // Wait for the step duration, ensuring minimum visibility time
+        // Always show each step for at least minStepDuration, even if API completes early
         const stepStartTime = Date.now();
         await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
             const elapsed = Date.now() - stepStartTime;
-            // Use ref to avoid closure warning
+            // Always wait for minimum duration first
+            if (elapsed < minStepDuration) {
+              return; // Keep waiting
+            }
+            // After minimum duration, check if we should move on
+            // Move on if: API completed OR we've exceeded the step duration
             if (apiCompletedRef.current || elapsed >= stepDuration) {
               clearInterval(checkInterval);
               resolve();
@@ -105,8 +162,14 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
         });
       }
 
+      // Ensure we're on the final step
+      setCurrentStep(steps.length - 1);
+
       // Wait for API to complete (if not already done) and check for errors
       await apiCompletion;
+
+      // Small delay to show final step completion before success overlay
+      await new Promise((resolve) => setTimeout(resolve, TIMING.FINAL_STEP_DELAY));
 
       // If there was an error and it's nginx, try to reconnect
       if (apiError && isNginx) {
@@ -120,12 +183,12 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
         if (isNetworkError) {
           // Enter reconnecting state
-          setStage("reconnecting");
+          setStage(MODAL_STAGES.RECONNECTING);
           setCurrentStep(steps.length - 1); // Show final step
 
           // Poll for upgrade completion
-          const maxWaitTime = 120000; // 2 minutes max
-          const pollInterval = 3000; // Check every 3 seconds
+          const maxWaitTime = TIMING.RECONNECT_MAX_WAIT;
+          const pollInterval = TIMING.RECONNECT_POLL_INTERVAL;
           const startTime = Date.now();
           let upgradeCompleted = false;
           let attempts = 0;
@@ -168,22 +231,18 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           }
 
           if (upgradeCompleted) {
-            // Upgrade completed! Show success checkmark overlay
-            setStage("success");
+            // Upgrade completed! Call success callback and close immediately
             if (onSuccess) {
               onSuccess();
             }
-            // Show checkmark for 5 seconds, then close
-            setTimeout(() => {
-              onClose();
-            }, 5000);
+            onClose();
             return;
           } else {
             // Timeout - show error but suggest manual refresh
             setErrorMessage(
               "Upgrade may have completed, but we couldn't verify. Please refresh the page to check."
             );
-            setStage("error");
+            setStage(MODAL_STAGES.ERROR);
             return;
           }
         }
@@ -194,24 +253,14 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
         throw apiError;
       }
 
-      // Small delay to show final step completion
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Show success checkmark overlay in the progress view
-      setStage("success");
-
-      // Call success callback if provided (but don't show alert - we show checkmark instead)
+      // Call success callback and close modal immediately
       if (onSuccess) {
         onSuccess();
       }
-
-      // Auto-close after showing success checkmark for 5 seconds
-      setTimeout(() => {
-        onClose();
-      }, 5000);
+      onClose();
     } catch (error) {
       setErrorMessage(error.response?.data?.error || error.message || "Unknown error occurred");
-      setStage("error");
+      setStage(MODAL_STAGES.ERROR);
     }
   }, [onConfirm, onSuccess, onClose, steps, container, containerName]);
 
@@ -221,25 +270,28 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   }, [onClose]);
 
   const handleRetry = useCallback(() => {
-    setStage("confirm");
+    setStage(MODAL_STAGES.CONFIRM);
     setCurrentStep(0);
     setErrorMessage(null);
   }, []);
 
   if (!isOpen) return null;
 
+  // Use larger modal size for tunnel containers with many steps
+  const modalSize = container?.providesNetwork ? "lg" : "md";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      size="md"
+      size={modalSize}
       showCloseButton={true}
       className={styles.modal}
       nonBlocking={true}
     >
       <div className={styles.content}>
         {/* Confirmation Stage */}
-        {stage === "confirm" && (
+        {stage === MODAL_STAGES.CONFIRM && (
           <div className={styles.confirmStage}>
             <div className={styles.iconContainer}>
               <AlertCircle size={48} className={styles.warningIcon} />
@@ -260,6 +312,23 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                   refresh needed.
                 </p>
               </div>
+            ) : container?.providesNetwork ? (
+              <div className={styles.networkWarning}>
+                <p className={styles.warning}>
+                  <strong>⚠️ Network Provider:</strong> This container provides network access for
+                  other containers (network_mode). After upgrading, all containers that depend on
+                  this network will be recreated to reconnect to the new network container and
+                  ensure proper network connectivity for all dependent services.
+                </p>
+              </div>
+            ) : container?.usesNetworkMode ? (
+              <div className={styles.networkWarning}>
+                <p className={styles.warning}>
+                  <strong>⚠️ Network Configuration:</strong> This container uses a shared network
+                  configuration (network_mode). The network container and all containers using the
+                  same network will be restarted to ensure proper reconnection after the upgrade.
+                </p>
+              </div>
             ) : (
               <p className={styles.warning}>
                 The container will be stopped, removed, and recreated with the latest image. This
@@ -277,25 +346,19 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           </div>
         )}
 
-        {/* Progress Stage - show during progress AND success (so overlay appears on top) */}
-        {(stage === "progress" || stage === "success") && (
+        {/* Progress Stage */}
+        {stage === MODAL_STAGES.PROGRESS && (
           <div className={styles.progressStage}>
             <div className={styles.progressIconContainer}>
-              {stage === "success" ? (
-                <CheckCircle2 size={48} className={styles.successIconInline} />
-              ) : (
-                <Loader2 size={48} className={styles.spinner} />
-              )}
+              <Loader2 size={48} className={styles.spinner} />
             </div>
-            <h3 className={styles.title}>
-              {stage === "success" ? "Upgrade Complete!" : "Upgrading Container"}
-            </h3>
+            <h3 className={styles.title}>Upgrading Container</h3>
             <p className={styles.containerName}>{containerName}</p>
             <div className={styles.stepsContainer}>
               {steps.map((step, index) => {
-                const isActive = index === currentStep && stage !== "success";
-                const isCompleted = index < currentStep || stage === "success";
-                const isPending = index > currentStep && stage !== "success";
+                const isActive = index === currentStep;
+                const isCompleted = index < currentStep;
+                const isPending = index > currentStep;
 
                 return (
                   <div
@@ -310,7 +373,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                       ) : isActive ? (
                         <Loader2 size={20} className={styles.stepSpinner} />
                       ) : (
-                        <div className={styles.stepDot} />
+                        <Square size={20} className={styles.checkboxIcon} />
                       )}
                     </div>
                     <span className={styles.stepLabel}>{step.label}</span>
@@ -321,18 +384,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           </div>
         )}
 
-        {/* Success Overlay - appears over progress view */}
-        {stage === "success" && (
-          <div className={styles.successOverlay}>
-            <div className={styles.successCheckmarkContainer}>
-              <CheckCircle2 size={80} className={styles.successCheckmark} />
-            </div>
-            <h3 className={styles.successTitle}>Upgrade Complete!</h3>
-          </div>
-        )}
-
         {/* Reconnecting Stage */}
-        {stage === "reconnecting" && (
+        {stage === MODAL_STAGES.RECONNECTING && (
           <div className={styles.reconnectingStage}>
             <div className={styles.progressIconContainer}>
               <Wifi size={48} className={styles.reconnectingIcon} />
@@ -360,7 +413,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                       {isCompleted ? (
                         <CheckCircle2 size={20} className={styles.checkIcon} />
                       ) : (
-                        <div className={styles.stepDot} />
+                        <Square size={20} className={styles.checkboxIcon} />
                       )}
                     </div>
                     <span className={styles.stepLabel}>{step.label}</span>
@@ -372,7 +425,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
         )}
 
         {/* Error Stage */}
-        {stage === "error" && (
+        {stage === MODAL_STAGES.ERROR && (
           <div className={styles.errorStage}>
             <div className={styles.iconContainer}>
               <AlertCircle size={48} className={styles.errorIcon} />

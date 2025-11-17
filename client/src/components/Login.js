@@ -7,12 +7,15 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./Login.css";
 import { API_BASE_URL } from "../constants/api";
+import CreateUserModal from "./CreateUserModal";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [createUserSuccess, setCreateUserSuccess] = useState("");
 
   // Clear any stale auth data when component mounts
   useEffect(() => {
@@ -135,7 +138,38 @@ function Login({ onLogin }) {
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
+        {createUserSuccess && (
+          <div className="success-message" role="alert" aria-live="assertive">
+            {createUserSuccess}
+          </div>
+        )}
+        <div className="create-user-section">
+          <button
+            type="button"
+            className="create-user-button"
+            onClick={() => setShowCreateUserModal(true)}
+            disabled={loading}
+            aria-label="Create a new user account"
+          >
+            Create User
+          </button>
+        </div>
       </div>
+      <CreateUserModal
+        isOpen={showCreateUserModal}
+        onClose={() => {
+          setShowCreateUserModal(false);
+          setCreateUserSuccess("");
+        }}
+        onSuccess={(message) => {
+          setCreateUserSuccess(message);
+          setShowCreateUserModal(false);
+          // Clear success message after 5 seconds
+          setTimeout(() => {
+            setCreateUserSuccess("");
+          }, 5000);
+        }}
+      />
     </div>
   );
 }

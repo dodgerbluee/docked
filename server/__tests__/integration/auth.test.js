@@ -9,15 +9,23 @@ const bcrypt = require("bcrypt");
 
 describe("Authentication API", () => {
   let authToken;
-  let testUsername = "testuser";
-  let testPassword = "testpass123";
+  let testUsername = "admin";
+  let testPassword = process.env.ADMIN_PASSWORD || "admin";
 
   beforeAll(async () => {
-    // Create a test user
-    const passwordHash = await bcrypt.hash(testPassword, 10);
-    // Note: This assumes createUser function exists or we use direct DB insert
-    // For now, we'll test with existing admin user
-    testUsername = "admin";
+    // Create a test admin user if it doesn't exist
+    const { createUser, getUserByUsername } = require("../../db/database");
+    try {
+      const existingUser = await getUserByUsername(testUsername);
+      if (!existingUser) {
+        await createUser(testUsername, testPassword, null, "Administrator", true, false);
+      }
+    } catch (error) {
+      // User might already exist, which is fine
+      if (!error.message.includes("UNIQUE constraint")) {
+        throw error;
+      }
+    }
   });
 
   afterAll(async () => {

@@ -566,6 +566,51 @@ body.dark-mode .upgradeCheckmark:hover {
   color: #ffffff;
 }
 
+.rebuildButton {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateZ(0);
+  will-change: color;
+  position: relative;
+}
+
+.rebuildButton.upgrading {
+  width: auto;
+  min-width: 100px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--dodger-blue);
+}
+
+.rebuildButton:hover {
+  color: var(--text-primary);
+}
+
+.rebuildButton.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rebuildButton.disabled:hover {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .rebuildButton {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .rebuildButton:hover {
+  color: #ffffff;
+}
+
 .buttonGroup {
   display: flex;
   gap: 4px;

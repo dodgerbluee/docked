@@ -26,7 +26,12 @@ export const useNotifications = (containers, trackedImages) => {
       const stored = localStorage.getItem("dismissedTrackedAppNotifications");
       if (stored) {
         const parsed = JSON.parse(stored);
-        return new Map(Object.entries(parsed));
+        // Convert keys to strings to ensure consistent lookup (IDs might be numbers)
+        const map = new Map();
+        Object.entries(parsed).forEach(([key, value]) => {
+          map.set(String(key), value);
+        });
+        return map;
       }
     } catch (err) {
       console.error("Error loading dismissed tracked app notifications:", err);
@@ -46,6 +51,7 @@ export const useNotifications = (containers, trackedImages) => {
 
   useEffect(() => {
     try {
+      // Convert Map to object, ensuring keys are strings for JSON serialization
       const trackedAppData = Object.fromEntries(dismissedTrackedAppNotifications);
       localStorage.setItem("dismissedTrackedAppNotifications", JSON.stringify(trackedAppData));
     } catch (err) {
@@ -102,7 +108,8 @@ export const useNotifications = (containers, trackedImages) => {
   const handleDismissTrackedAppNotification = useCallback((imageId, latestVersion) => {
     setDismissedTrackedAppNotifications((prev) => {
       const newMap = new Map(prev);
-      newMap.set(imageId, latestVersion);
+      // Convert ID to string to ensure consistent storage and lookup
+      newMap.set(String(imageId), latestVersion);
       return newMap;
     });
   }, []);

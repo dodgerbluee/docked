@@ -291,6 +291,35 @@ function validateContainerArray(containers) {
   return null;
 }
 
+/**
+ * Validates email format using a ReDoS-safe regex pattern
+ * Uses a more specific pattern to avoid catastrophic backtracking
+ * @param {string} email - Email address to validate
+ * @returns {boolean} - True if email format is valid
+ */
+function isValidEmail(email) {
+  if (!email || typeof email !== "string") {
+    return false;
+  }
+
+  // ReDoS-safe email validation pattern
+  // Uses specific character classes instead of negated character classes with quantifiers
+  // This avoids catastrophic backtracking that can occur with [^\s@]+ patterns
+  // Pattern breakdown:
+  // - Local part: [a-zA-Z0-9._%+-]+ (alphanumeric and common email characters)
+  // - @ symbol
+  // - Domain: [a-zA-Z0-9.-]+ (alphanumeric, dots, hyphens)
+  // - TLD: \.[a-zA-Z]{2,} (at least 2 letters)
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  // Additional length check to prevent extremely long inputs
+  if (email.length > 254) {
+    return false;
+  }
+
+  return emailRegex.test(email);
+}
+
 module.exports = {
   validateRequiredFields,
   isValidContainerId,
@@ -301,4 +330,5 @@ module.exports = {
   validatePathComponent,
   validateImageArray,
   validateContainerArray,
+  isValidEmail,
 };

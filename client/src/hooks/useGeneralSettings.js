@@ -16,6 +16,8 @@ export function useGeneralSettings({
   const [localColorScheme, setLocalColorScheme] = useState(initialColorScheme);
   const [logLevel, setLogLevel] = useState("info");
   const [localLogLevel, setLocalLogLevel] = useState("info");
+  const [refreshingTogglesEnabled, setRefreshingTogglesEnabled] = useState(false);
+  const [localRefreshingTogglesEnabled, setLocalRefreshingTogglesEnabled] = useState(false);
   const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSuccess, setGeneralSettingsSuccess] = useState("");
@@ -36,6 +38,19 @@ export function useGeneralSettings({
       }
     } catch (err) {
       console.error("Error fetching log level:", err);
+    }
+  }, []);
+
+  const fetchRefreshingTogglesEnabled = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
+      if (response.data.success) {
+        setRefreshingTogglesEnabled(response.data.enabled || false);
+      }
+    } catch (err) {
+      // If endpoint doesn't exist yet, default to false
+      console.error("Error fetching refreshing toggles enabled:", err);
+      setRefreshingTogglesEnabled(false);
     }
   }, []);
 
@@ -83,7 +98,8 @@ export function useGeneralSettings({
   useEffect(() => {
     fetchLogLevel();
     fetchBatchConfig();
-  }, [fetchLogLevel, fetchBatchConfig]);
+    fetchRefreshingTogglesEnabled();
+  }, [fetchLogLevel, fetchBatchConfig, fetchRefreshingTogglesEnabled]);
 
   useEffect(() => {
     setLocalColorScheme(initialColorScheme);
@@ -94,39 +110,99 @@ export function useGeneralSettings({
     setLocalLogLevel(logLevel);
   }, [logLevel]);
 
+  useEffect(() => {
+    setLocalRefreshingTogglesEnabled(refreshingTogglesEnabled);
+  }, [refreshingTogglesEnabled]);
+
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
+    setGeneralSettingsSuccess("");
+    const errors = [];
+
     try {
       // Save color scheme to DB
-      const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
-        colorScheme: localColorScheme,
-      });
-
-      // Save log level to DB
-      const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
-        logLevel: localLogLevel,
-      });
-
-      if (colorSchemeResponse.data.success && logLevelResponse.data.success) {
-        if (onColorSchemeChange) {
+      let colorSchemeSuccess = false;
+      try {
+        const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
+          colorScheme: localColorScheme,
+        });
+        colorSchemeSuccess = colorSchemeResponse.data.success;
+        if (colorSchemeSuccess && onColorSchemeChange) {
+          // Update color scheme immediately for instant UI update
           onColorSchemeChange(localColorScheme);
         }
-        setLogLevel(localLogLevel);
+      } catch (err) {
+        console.error("Error saving color scheme:", err);
+        errors.push("Failed to save color scheme");
+      }
+
+      // Save log level to DB
+      let logLevelSuccess = false;
+      try {
+        const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
+          logLevel: localLogLevel,
+        });
+        logLevelSuccess = logLevelResponse.data.success;
+        if (logLevelSuccess) {
+          setLogLevel(localLogLevel);
+        }
+      } catch (err) {
+        console.error("Error saving log level:", err);
+        errors.push("Failed to save log level");
+      }
+
+      // Save refreshing toggles enabled to DB
+      let refreshingTogglesSuccess = false;
+      try {
+        const refreshingTogglesResponse = await axios.post(
+          `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
+          {
+            enabled: localRefreshingTogglesEnabled,
+          }
+        );
+        refreshingTogglesSuccess = refreshingTogglesResponse.data.success;
+        if (refreshingTogglesSuccess) {
+          setRefreshingTogglesEnabled(localRefreshingTogglesEnabled);
+        }
+      } catch (err) {
+        console.error("Error saving developer mode:", err);
+        errors.push("Failed to save developer mode");
+      }
+
+      // Check if all settings were saved successfully
+      if (colorSchemeSuccess && logLevelSuccess && refreshingTogglesSuccess) {
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
+        // Dispatch custom event to notify other components (e.g., PortainerPage) to refetch settings
+        window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
-        throw new Error("Failed to save one or more settings");
+        // Some settings failed - show which ones
+        const errorMessage =
+          errors.length > 0
+            ? `Failed to save: ${errors.join(", ")}`
+            : "Failed to save one or more settings";
+        setGeneralSettingsSuccess(errorMessage);
+        console.error("Some settings failed to save:", {
+          colorSchemeSuccess,
+          logLevelSuccess,
+          refreshingTogglesSuccess,
+        });
       }
     } catch (err) {
       console.error("Error saving general settings:", err);
-      setGeneralSettingsSuccess("");
+      setGeneralSettingsSuccess(`Failed to save settings: ${err.message || "Unknown error"}`);
     } finally {
       setGeneralSettingsSaving(false);
     }
-  }, [localColorScheme, localLogLevel, onColorSchemeChange]);
+  }, [localColorScheme, localLogLevel, localRefreshingTogglesEnabled, onColorSchemeChange]);
 
   const handleLogLevelChange = useCallback((newLevel) => {
     setLocalLogLevel(newLevel);
+    setGeneralSettingsChanged(true);
+  }, []);
+
+  const handleRefreshingTogglesChange = useCallback((enabled) => {
+    setLocalRefreshingTogglesEnabled(enabled === "on");
     setGeneralSettingsChanged(true);
   }, []);
 
@@ -252,12 +328,15 @@ export function useGeneralSettings({
     setLocalColorScheme,
     logLevel,
     localLogLevel,
+    refreshingTogglesEnabled,
+    localRefreshingTogglesEnabled,
     generalSettingsChanged,
     setGeneralSettingsChanged,
     generalSettingsSaving,
     generalSettingsSuccess,
     handleSaveGeneralSettings,
     handleLogLevelChange,
+    handleRefreshingTogglesChange,
     batchConfigs,
     setBatchConfigs,
     batchError,

@@ -95,14 +95,17 @@ npm run client
 
 When you first access the application, you'll be presented with a login page.
 
-**Default credentials:**
+**First-time setup:**
 
-- Username: `admin`
-- Password: `admin` (or the value set in `ADMIN_PASSWORD` environment variable)
+Since no default user is created, you'll need to create your first user account:
+
+1. Click the "Create User" button on the login page
+2. Enter your desired username, password, and optional email
+3. Log in with your newly created credentials
 
 **Note:** For production use, you should:
 
-1. Set a strong `ADMIN_PASSWORD` in your `.env` file (or change it in the Settings page after first login)
+1. Create a strong password for your first user account
 2. Consider using PostgreSQL or MySQL instead of SQLite for better performance and concurrent access
 3. Use JWT tokens instead of simple base64 tokens
 4. Regularly backup the `server/db/users.db` file
@@ -111,12 +114,11 @@ When you first access the application, you'll be presented with a login page.
 
 The application uses SQLite to store user credentials. The database file is located at `server/db/users.db`.
 
-**Default user:**
+**User Management:**
 
-- Username: `admin`
-- Password: `admin` (or the value set in `ADMIN_PASSWORD` environment variable)
-
-**Important:** Change the default password immediately after first login using the Settings page!
+- Create your first user using the "Create User" button on the login page
+- Additional users can be created by any authenticated user with the "Create User" button
+- Users can change their password in the Settings page after logging in
 
 **Database Recommendations:**
 
