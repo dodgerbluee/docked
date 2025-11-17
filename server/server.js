@@ -16,6 +16,8 @@ const { errorHandler } = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
+const { initializeRegistrationCode } = require("./utils/registrationCode");
+const { hasAnyUsers, waitForDatabase } = require("./db/database");
 
 const app = express();
 
@@ -204,6 +206,26 @@ if (shouldStartServer) {
       environment: process.env.NODE_ENV || "development",
       port: config.port,
     });
+
+    // Initialize registration code on startup if no users exist
+    // Wait for database to be ready first, then check for users
+    waitForDatabase()
+      .then(() => {
+        return hasAnyUsers();
+      })
+      .then((hasUsers) => {
+        if (!hasUsers) {
+          initializeRegistrationCode();
+        }
+      })
+      .catch((err) => {
+        logger.error("Error checking for existing users:", {
+          module: "server",
+          error: err,
+        });
+        // Initialize code anyway as a safety measure
+        initializeRegistrationCode();
+      });
 
     const server = app.listen(config.port, () => {
       logger.info("Server started successfully", {

@@ -169,6 +169,8 @@ function Settings({
               }}
               localLogLevel={settings.localLogLevel}
               handleLogLevelChange={settings.handleLogLevelChange}
+              localRefreshingTogglesEnabled={settings.localRefreshingTogglesEnabled}
+              handleRefreshingTogglesChange={settings.handleRefreshingTogglesChange}
               generalSettingsChanged={settings.generalSettingsChanged}
               generalSettingsSaving={settings.generalSettingsSaving}
               generalSettingsSuccess={settings.generalSettingsSuccess}

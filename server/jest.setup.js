@@ -3,6 +3,20 @@
  * Runs before all tests to configure the test environment
  */
 
+// Mock nanoid to avoid ES module issues in tests
+jest.mock("nanoid", () => {
+  const customAlphabet = (alphabet, size) => {
+    return () => {
+      let result = "";
+      for (let i = 0; i < size; i++) {
+        result += alphabet[Math.floor(Math.random() * alphabet.length)];
+      }
+      return result;
+    };
+  };
+  return { customAlphabet };
+});
+
 // Set NODE_ENV to test
 process.env.NODE_ENV = "test";
 

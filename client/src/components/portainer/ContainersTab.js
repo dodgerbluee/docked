@@ -26,6 +26,7 @@ const ContainersTab = React.memo(function ContainersTab({
   onToggleStack,
   onToggleSelect,
   onUpgrade,
+  developerModeEnabled = false,
 }) {
   if (isLoading && !hasData) {
     return (
@@ -137,6 +138,7 @@ const ContainersTab = React.memo(function ContainersTab({
                               showUpdates={container.hasUpdate}
                               onToggleSelect={onToggleSelect}
                               onUpgrade={onUpgrade}
+                              developerModeEnabled={developerModeEnabled}
                             />
                           );
                         })}
@@ -239,6 +241,7 @@ const ContainersTab = React.memo(function ContainersTab({
                         showUpdates={showUpdates}
                         onToggleSelect={onToggleSelect}
                         onUpgrade={onUpgrade}
+                        developerModeEnabled={developerModeEnabled}
                       />
                     );
                   })
@@ -285,6 +288,7 @@ const ContainersTab = React.memo(function ContainersTab({
             onToggleStack={onToggleStack}
             onToggleSelect={onToggleSelect}
             onUpgrade={onUpgrade}
+            developerModeEnabled={developerModeEnabled}
           />
         ))}
       </div>

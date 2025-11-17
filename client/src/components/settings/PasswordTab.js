@@ -28,17 +28,18 @@ const PasswordTab = React.memo(function PasswordTab({
       {passwordSuccess && <Alert variant="info">{passwordSuccess}</Alert>}
       {passwordError && <Alert variant="error">{passwordError}</Alert>}
       <form onSubmit={handlePasswordSubmit} className={styles.form}>
-        <Input
-          id="currentPassword"
-          label="Current Password"
-          type="password"
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-          disabled={passwordLoading}
-          helperText={isFirstLogin ? "Enter your current password to change it" : undefined}
-        />
+        {!isFirstLogin && (
+          <Input
+            id="currentPassword"
+            label="Current Password"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            disabled={passwordLoading}
+          />
+        )}
         <Input
           id="newPassword"
           label="New Password"

@@ -2,15 +2,25 @@
   padding: 0;
 }
 
-.summaryHeader {
-  /* Matches summary-header from App.css */
+.headerContent {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
 }
 
-.headerContent {
+.portainerHeader {
+  margin: 0;
+  margin-left: 240px; /* Align with content area: sidebar width (220px) + gap (20px) */
+  white-space: nowrap;
+}
+
+.headerLeft {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  width: 100%;
+  justify-content: flex-end;
+  margin-left: 0; /* No longer needs left margin since header is before it */
 }
 
 .headerActions {
@@ -19,10 +29,22 @@
   gap: 12px;
 }
 
+.portainerSidebarLayout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+  margin-top: -8px;
+  align-items: flex-start;
+}
+
 .buttonContainer {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.searchInput {
+  flex: 0 1 auto;
 }
 
 .checkmark {
@@ -133,14 +155,6 @@ body.dark-mode .pullSpinner svg {
   to {
     transform: rotate(360deg);
   }
-}
-
-.portainerSidebarLayout {
-  display: flex;
-  gap: 20px;
-  min-height: 600px;
-  margin-top: -8px;
-  align-items: flex-start;
 }
 
 .portainerContentArea {

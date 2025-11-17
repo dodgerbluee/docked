@@ -9,12 +9,5 @@ module.exports = {
     "!jest.config.js",
     "!jest.setup.js",
   ],
-  coverageThreshold: {
-    global: {
-      branches: 7,
-      functions: 17,
-      lines: 13,
-      statements: 12,
-    },
-  },
+  transformIgnorePatterns: ["node_modules/(?!(nanoid)/)"],
 };

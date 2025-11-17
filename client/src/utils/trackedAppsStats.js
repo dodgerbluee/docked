@@ -50,7 +50,8 @@ export function calculateTrackedAppsStats(trackedImages, dismissedNotifications 
   // Filter out dismissed notifications, but show again if version has changed
   const activeTrackedAppsBehind = trackedImages.filter((img) => {
     if (!img.has_update) return false;
-    const dismissedVersion = dismissedNotifications.get(img.id);
+    // Convert ID to string to match how it's stored in localStorage
+    const dismissedVersion = dismissedNotifications.get(String(img.id));
     if (!dismissedVersion) {
       // Not dismissed, show it
       return true;

@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import PropTypes from "prop-types";
-import { HardDriveDownload } from "lucide-react";
+import { HardDriveDownload, RefreshCw } from "lucide-react";
 import {
   getDockerHubUrl,
   getDockerHubTagsUrl,
@@ -25,6 +25,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   showUpdates,
   onToggleSelect,
   onUpgrade,
+  developerModeEnabled = false,
 }) {
   // Extract version/tag from image name
   const extractVersion = (imageName) => {
@@ -119,7 +120,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     [container.image, isGitHubContainer, isDockerHub, getGitHubContainerUrl]
   );
 
-  // Handle card click to open upgrade modal (only on Updates tab)
+  // Handle card click to open upgrade/rebuild modal
   const handleCardClick = useCallback(
     (e) => {
       // Don't trigger if clicking on interactive elements
@@ -137,16 +138,27 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         (target.closest &&
           (target.closest(`.${styles.checkbox}`) ||
             target.closest(`.${styles.upgradeCheckmark}`) ||
+            target.closest(`.${styles.rebuildButton}`) ||
             target.closest(`.${styles.containerName}`) ||
             target.closest(`.${styles.imageHeader}`) ||
             target.closest(`.${styles.versionText}`) ||
             target.closest(`.${styles.portainerBadge}`)));
 
-      if (showUpdates && !isPortainer && !upgrading && !isInteractiveElement && onUpgrade) {
+      // For "Up to Date" cards (showUpdates === false), only allow clicking if developer mode is enabled
+      // For "Updates" cards (showUpdates === true), allow clicking as normal
+      const canClickUpToDateCard = showUpdates || developerModeEnabled;
+
+      if (
+        !isPortainer &&
+        !upgrading &&
+        !isInteractiveElement &&
+        onUpgrade &&
+        canClickUpToDateCard
+      ) {
         onUpgrade(container);
       }
     },
-    [showUpdates, isPortainer, upgrading, onUpgrade, container]
+    [isPortainer, upgrading, onUpgrade, container, showUpdates, developerModeEnabled]
   );
 
   return (
@@ -154,7 +166,9 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       className={`${styles.containerCard} ${
         showUpdates ? styles.updateAvailable : styles.currentCard
       } ${isPortainer ? styles.portainerDisabled : ""} ${
-        showUpdates && !isPortainer && !upgrading ? styles.clickableCard : ""
+        !isPortainer && !upgrading && (showUpdates || developerModeEnabled)
+          ? styles.clickableCard
+          : ""
       }`}
       title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
       role="article"
@@ -203,47 +217,82 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             >
               {imageNameWithoutVersion}
             </h4>
-            {!showUpdates && container.image && (isDockerHub || isGitHubContainer) && (
+            {!showUpdates && (
               <div className={styles.iconGroup}>
-                {isDockerHub ? (
-                  <a
-                    href={getDockerHubRepoUrl(container.image) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.dockerIconLink}
-                    title="Open Docker Hub repository"
-                    aria-label="Open Docker Hub repository"
+                {container.image && (isDockerHub || isGitHubContainer) && (
+                  <>
+                    {isDockerHub ? (
+                      <a
+                        href={getDockerHubRepoUrl(container.image) || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.dockerIconLink}
+                        title="Open Docker Hub repository"
+                        aria-label="Open Docker Hub repository"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!getDockerHubRepoUrl(container.image)) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <img
+                          src="/img/docker-mark-white.svg"
+                          alt="Docker"
+                          className={styles.dockerIconSmall}
+                        />
+                      </a>
+                    ) : isGitHubContainer ? (
+                      <a
+                        href={getGitHubContainerUrl(container.image) || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.githubIconLink}
+                        title="Open GitHub Container Registry"
+                        aria-label="Open GitHub Container Registry"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!getGitHubContainerUrl(container.image)) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <GitHubIcon size={18} />
+                      </a>
+                    ) : null}
+                  </>
+                )}
+                {!isPortainer && developerModeEnabled && (
+                  <span
+                    className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
+                    title={
+                      isPortainer
+                        ? PORTAINER_CONTAINER_MESSAGE
+                        : upgrading
+                          ? "Rebuilding..."
+                          : "Rebuild container with latest image"
+                    }
+                    aria-label={
+                      isPortainer
+                        ? PORTAINER_CONTAINER_MESSAGE
+                        : upgrading
+                          ? "Rebuilding..."
+                          : "Rebuild container with latest image"
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!getDockerHubRepoUrl(container.image)) {
-                        e.preventDefault();
+                      if (!isPortainer && !upgrading && onUpgrade) {
+                        onUpgrade(container);
                       }
                     }}
                   >
-                    <img
-                      src="/img/docker-mark-white.svg"
-                      alt="Docker"
-                      className={styles.dockerIconSmall}
-                    />
-                  </a>
-                ) : isGitHubContainer ? (
-                  <a
-                    href={getGitHubContainerUrl(container.image) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.githubIconLink}
-                    title="Open GitHub Container Registry"
-                    aria-label="Open GitHub Container Registry"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!getGitHubContainerUrl(container.image)) {
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    <GitHubIcon size={18} />
-                  </a>
-                ) : null}
+                    {upgrading ? (
+                      <span className={styles.upgradingText}>Rebuilding...</span>
+                    ) : (
+                      <RefreshCw size={18} />
+                    )}
+                  </span>
+                )}
               </div>
             )}
           </div>

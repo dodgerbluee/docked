@@ -4,6 +4,7 @@ import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
+import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
 import Settings from "./components/Settings";
 import AddPortainerModal from "./components/AddPortainerModal";
@@ -52,6 +53,7 @@ function App() {
     username,
     userRole,
     passwordChanged,
+    isValidating,
     handleLogin,
     handleUsernameUpdate,
     handlePasswordUpdateSuccess,
@@ -271,8 +273,8 @@ function App() {
 
   // Enhanced handleLogin to include tab navigation
   const handleLoginWithNavigation = useCallback(
-    (token, user, pwdChanged) => {
-      handleLogin(token, user, pwdChanged);
+    (token, user, pwdChanged, role) => {
+      handleLogin(token, user, pwdChanged, role);
       // If password not changed, show settings immediately with password section
       if (!pwdChanged) {
         setActiveTab(TAB_NAMES.SETTINGS);
@@ -1091,6 +1093,23 @@ function App() {
   );
 
   // Show login page if not authenticated
+  // Show loading spinner while validating token
+  if (isValidating) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          width: "100vw",
+        }}
+      >
+        <LoadingSpinner size="md" message="Validating session..." />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Login onLogin={handleLoginWithNavigation} />;
   }

@@ -11,7 +11,7 @@ const {
   validateContainerArray,
 } = require("../utils/validation");
 const { RateLimitExceededError } = require("../utils/retry");
-const { getAllPortainerInstances } = require("../db/database");
+const { getAllPortainerInstances, setContainerCache } = require("../db/database");
 const logger = require("../utils/logger");
 
 /**
@@ -46,6 +46,62 @@ async function getContainers(req, res, next) {
       const portainerResult = await containerService.getContainersFromPortainer();
       // Don't cache this result - user must click "Pull" to cache with Docker Hub data
       res.json(portainerResult);
+      return;
+    }
+
+    // Check if cached data has network mode flags (providesNetwork, usesNetworkMode)
+    // If not, it's old cached data and we need to refresh from Portainer to add these flags
+    const hasNetworkModeFlags = cached.containers.some(
+      (container) =>
+        container.hasOwnProperty("providesNetwork") || container.hasOwnProperty("usesNetworkMode")
+    );
+
+    if (!hasNetworkModeFlags && cached.containers.length > 0) {
+      logger.info("Cached data missing network mode flags, refreshing from Portainer", {
+        module: "containerController",
+        operation: "getContainers",
+        source: "portainer-refresh-for-flags",
+      });
+      // Fetch fresh data from Portainer (includes network mode detection)
+      const portainerResult = await containerService.getContainersFromPortainer();
+
+      // Merge Portainer network mode flags into cached data (preserve Docker Hub update info)
+      const portainerContainersMap = new Map();
+      portainerResult.containers.forEach((c) => {
+        portainerContainersMap.set(c.id, c);
+      });
+
+      // Update cached containers with network mode flags from Portainer data
+      const updatedContainers = cached.containers.map((cachedContainer) => {
+        const portainerContainer = portainerContainersMap.get(cachedContainer.id);
+        if (portainerContainer) {
+          return {
+            ...cachedContainer,
+            providesNetwork: portainerContainer.providesNetwork || false,
+            usesNetworkMode: portainerContainer.usesNetworkMode || false,
+          };
+        }
+        // If container not found in Portainer data, add default flags
+        return {
+          ...cachedContainer,
+          providesNetwork: false,
+          usesNetworkMode: false,
+        };
+      });
+
+      const updatedCache = {
+        ...cached,
+        containers: updatedContainers,
+      };
+
+      // Update cache with network mode flags
+      try {
+        await setContainerCache("containers", updatedCache);
+      } catch (cacheError) {
+        logger.warn("Failed to update cache with network mode flags:", cacheError.message);
+      }
+
+      res.json(updatedCache);
       return;
     }
 

@@ -91,11 +91,35 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
     onUpgrade(image.id, image.latest_version);
   }, [image.id, image.latest_version, onUpgrade]);
 
+  // Check if current version is not available
+  // Only show red if the app has been checked (last_checked exists) and got a bad response
+  // New apps that haven't been checked yet should show blue (default state)
+  const hasNoCurrentVersion = useMemo(() => {
+    // Only consider it "not available" if the app has been checked
+    if (!image.last_checked) {
+      return false; // Not checked yet, use default blue
+    }
+    // Has been checked, now check if current version is unavailable
+    return (
+      !image.current_version ||
+      image.current_version === "Not set" ||
+      image.current_version === "Unknown" ||
+      (typeof image.current_version === "string" && image.current_version.trim() === "")
+    );
+  }, [image.current_version, image.last_checked]);
+
+  // Only show red border (unknownBorder) if the app has been checked and has no latest version
+  // New apps that haven't been checked yet should show blue (default state)
+  const shouldShowUnknownBorder = useMemo(() => {
+    // Only show unknown border if app has been checked and has no latest version
+    return image.last_checked && hasNoLatestVersion && !image.has_update;
+  }, [image.last_checked, hasNoLatestVersion, image.has_update]);
+
   return (
     <div
       className={`${styles.card} ${
-        hasNoLatestVersion && !image.has_update ? styles.unknownBorder : ""
-      } ${image.has_update ? styles.updateAvailable : styles.noUpdate}`}
+        shouldShowUnknownBorder ? styles.unknownBorder : ""
+      } ${image.has_update ? styles.updateAvailable : hasNoCurrentVersion ? styles.noCurrentVersion : styles.noUpdate}`}
     >
       <div className={styles.content}>
         <div className={styles.header}>
@@ -344,6 +368,7 @@ TrackedAppCard.propTypes = {
     releaseUrl: PropTypes.string,
     latestVersionPublishDate: PropTypes.string,
     currentVersionPublishDate: PropTypes.string,
+    last_checked: PropTypes.string,
   }).isRequired,
   onEdit: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,

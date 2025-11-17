@@ -3,6 +3,8 @@ const cors = require("cors");
 const axios = require("axios");
 require("dotenv").config({ quiet: true });
 const logger = require("./utils/logger");
+const { initializeRegistrationCode } = require("./utils/registrationCode");
+const { hasAnyUsers } = require("./db/database");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1222,6 +1224,20 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
 const batchSystem = require("./services/batch");
 
 logger.info("[SERVER] About to call app.listen() on port", PORT);
+
+// Initialize registration code on startup if no users exist
+hasAnyUsers()
+  .then((hasUsers) => {
+    if (!hasUsers) {
+      initializeRegistrationCode();
+    }
+  })
+  .catch((err) => {
+    logger.error("[SERVER] Error checking for existing users:", err);
+    // Initialize code anyway as a safety measure
+    initializeRegistrationCode();
+  });
+
 app.listen(PORT, () => {
   logger.info(`[SERVER] ✅ Server running on port ${PORT}`);
   logger.info(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);

@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { RefreshCw, Check } from "lucide-react";
+import axios from "axios";
 import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Button from "../components/ui/Button";
@@ -13,9 +14,13 @@ import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModa
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
+import SearchInput from "../components/ui/SearchInput";
 import { usePortainerPage } from "../hooks/usePortainerPage";
+import { useDebounce } from "../hooks/useDebounce";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
+import { API_BASE_URL } from "../utils/api";
+import { TIMING } from "../constants/timing";
 import styles from "./PortainerPage.module.css";
 
 /**
@@ -53,29 +58,25 @@ function PortainerPage({
 }) {
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pullingPortainerOnly, setPullingPortainerOnly] = useState(false);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 
   // Show checkmark when pull completes successfully
   useEffect(() => {
     // Only show checkmark when we have success and we're not currently pulling
     if (pullSuccess && !pullingDockerHub) {
       setShowCheckmark(true);
-      // Hide checkmark after 3 seconds
+      // Hide checkmark after configured time
       const timer = setTimeout(() => {
         setShowCheckmark(false);
-      }, 3000);
+      }, TIMING.CHECKMARK_DISPLAY_TIME);
       return () => clearTimeout(timer);
-    } else if (pullingDockerHub) {
-      // Hide checkmark when pulling starts
+    } else {
+      // Hide checkmark when pulling starts or when there's no success
       setShowCheckmark(false);
     }
   }, [pullSuccess, pullingDockerHub]);
-
-  // Hide checkmark when checking starts
-  useEffect(() => {
-    if (pullingDockerHub) {
-      setShowCheckmark(false);
-    }
-  }, [pullingDockerHub]);
 
   useEffect(() => {
     if (pullError) {
@@ -83,6 +84,57 @@ function PortainerPage({
       setShowCheckmark(false);
     }
   }, [pullError]);
+
+  // Fetch developer mode state
+  const fetchDeveloperMode = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
+      if (response.data.success) {
+        setDeveloperModeEnabled(response.data.enabled || false);
+      }
+    } catch (err) {
+      // If endpoint doesn't exist yet, default to false
+      console.error("Error fetching developer mode:", err);
+      setDeveloperModeEnabled(false);
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchDeveloperMode();
+  }, [fetchDeveloperMode]);
+
+  // Listen for settings save events to refetch developer mode
+  useEffect(() => {
+    const handleSettingsSaved = () => {
+      fetchDeveloperMode();
+    };
+    window.addEventListener("generalSettingsSaved", handleSettingsSaved);
+    return () => {
+      window.removeEventListener("generalSettingsSaved", handleSettingsSaved);
+    };
+  }, [fetchDeveloperMode]);
+
+  // Handler for Portainer-only data update (no Docker Hub)
+  const handlePullPortainerOnly = useCallback(async () => {
+    try {
+      setPullingPortainerOnly(true);
+      setLocalPullError("");
+      console.log("🔄 Pulling Portainer data only (no Docker Hub)...");
+
+      // Use fetchContainers with portainerOnly=true to update all state properly
+      await fetchContainers(false, null, true);
+      console.log("✅ Portainer data updated successfully");
+    } catch (err) {
+      console.error("Error pulling Portainer data:", err);
+      setLocalPullError(
+        err.response?.data?.error || err.message || "Failed to pull Portainer data"
+      );
+    } finally {
+      setPullingPortainerOnly(false);
+    }
+  }, [fetchContainers]);
+
   const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,
     containers,
@@ -103,6 +155,29 @@ function PortainerPage({
     contentTab: controlledContentTab,
     onSetContentTab,
   });
+
+  // Debounce search query to avoid excessive filtering
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Filter containers based on search query
+  const filteredGroupedStacks = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) {
+      return portainerPage.groupedStacks;
+    }
+
+    const query = debouncedSearchQuery.toLowerCase().trim();
+    return portainerPage.groupedStacks
+      .map((stack) => ({
+        ...stack,
+        containers: stack.containers.filter((container) => {
+          const name = container.name?.toLowerCase() || "";
+          const image = container.image?.toLowerCase() || "";
+          const stackName = stack.stackName?.toLowerCase() || "";
+          return name.includes(query) || image.includes(query) || stackName.includes(query);
+        }),
+      }))
+      .filter((stack) => stack.containers.length > 0);
+  }, [portainerPage.groupedStacks, debouncedSearchQuery]);
 
   const handleToggleCollapsed = useCallback(() => {
     portainerPage.setCollapsedUnusedImages(!portainerPage.collapsedUnusedImages);
@@ -177,7 +252,7 @@ function PortainerPage({
             }}
             disabled={portainerPage.batchUpgrading}
           >
-            {allSelectableSelected ? "Deselect All" : "Select All"}
+            {allSelectableSelected ? "Unselect All" : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -223,7 +298,7 @@ function PortainerPage({
             }}
             disabled={portainerPage.deletingImages}
           >
-            {allImagesSelected ? "Deselect All" : "Select All"}
+            {allImagesSelected ? "Unselect All" : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -250,23 +325,39 @@ function PortainerPage({
     portainerPage,
   ]);
 
-  if (portainerInstances.length === 0) {
-    return (
-      <EmptyState
-        message="No Portainer instances configured. Add one using the + button in the sidebar."
-        className={styles.emptyState}
-      />
-    );
-  }
-
   return (
     <div className={styles.portainerPage}>
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
-          <h2 className={styles.portainerHeader}>Portainer Instances</h2>
+          <h2 className={styles.portainerHeader}>Portainer</h2>
+          <div className={styles.headerLeft}>
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search containers..."
+              className={styles.searchInput}
+            />
+          </div>
           <div className={styles.headerActions}>
             {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
             <div className={styles.buttonContainer}>
+              {developerModeEnabled && (
+                <Button
+                  onClick={handlePullPortainerOnly}
+                  disabled={pullingPortainerOnly || portainerInstances.length === 0}
+                  title={
+                    pullingPortainerOnly
+                      ? "Updating Portainer data..."
+                      : "Update Portainer data only (no Docker Hub)"
+                  }
+                  variant="outline"
+                  icon={RefreshCw}
+                  size="sm"
+                  style={{ backgroundColor: "var(--warning-light)", borderColor: "var(--warning)" }}
+                >
+                  {pullingPortainerOnly ? "Updating..." : "Update Portainer Only"}
+                </Button>
+              )}
               <Button
                 onClick={onPullDockerHub}
                 disabled={pullingDockerHub || portainerInstances.length === 0}
@@ -283,7 +374,7 @@ function PortainerPage({
         </div>
       </div>
 
-      {(pullingDockerHub || localPullError) && (
+      {(pullingDockerHub || pullingPortainerOnly || localPullError) && (
         <div className={styles.alertContainer}>
           {pullingDockerHub && (
             <Alert variant="info" className={styles.alert}>
@@ -309,7 +400,31 @@ function PortainerPage({
               </div>
             </Alert>
           )}
-          {!pullingDockerHub && localPullError && (
+          {pullingPortainerOnly && (
+            <Alert variant="info" className={styles.alert}>
+              <div className={styles.pullStatusContent}>
+                <div className={styles.pullSpinner}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                </div>
+                <div className={styles.pullStatusText}>
+                  <strong>Updating Portainer data...</strong>
+                  <span>Fetching container information from Portainer</span>
+                </div>
+              </div>
+            </Alert>
+          )}
+          {!pullingDockerHub && !pullingPortainerOnly && localPullError && (
             <Alert variant="error" className={styles.alert}>
               {localPullError}
             </Alert>
@@ -330,79 +445,90 @@ function PortainerPage({
         </ErrorBoundary>
 
         <div className={styles.portainerContentArea}>
-          {portainerPage.aggregatedContainers.isLoading && (
-            <LoadingSpinner
-              size="sm"
-              message="Loading data..."
-              className={styles.loadingIndicator}
+          {portainerInstances.length === 0 ? (
+            <EmptyState
+              message="No Portainer instances configured. Add one using the + button in the sidebar."
+              className={styles.emptyState}
             />
+          ) : (
+            <>
+              {portainerPage.aggregatedContainers.isLoading && (
+                <LoadingSpinner
+                  size="sm"
+                  message="Loading data..."
+                  className={styles.loadingIndicator}
+                />
+              )}
+
+              {/* Tab Content */}
+              <div
+                className={styles.contentTabPanel}
+                role="tabpanel"
+                id={`${portainerPage.contentTab}-panel`}
+                aria-labelledby={`${portainerPage.contentTab}-tab`}
+              >
+                <ErrorBoundary>
+                  {(portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES ||
+                    portainerPage.contentTab === PORTAINER_CONTENT_TABS.CURRENT) && (
+                    <ContainersTab
+                      groupedStacks={filteredGroupedStacks}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      showUpdates={portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES}
+                      dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                      lastPullTime={portainerPage.lastPullTime}
+                      collapsedStacks={portainerPage.collapsedStacks}
+                      selectedContainers={portainerPage.selectedContainers}
+                      upgrading={portainerPage.upgrading}
+                      isPortainerContainer={portainerPage.isPortainerContainer}
+                      onToggleStack={portainerPage.toggleStack}
+                      onToggleSelect={portainerPage.handleToggleSelect}
+                      onUpgrade={portainerPage.handleUpgrade}
+                      developerModeEnabled={developerModeEnabled}
+                    />
+                  )}
+
+                  {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
+                    <ContainersTab
+                      groupedStacks={filteredGroupedStacks}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      showUpdates={null}
+                      showAll={true}
+                      dockerHubDataPulled={portainerPage.dockerHubDataPulled}
+                      lastPullTime={portainerPage.lastPullTime}
+                      collapsedStacks={portainerPage.collapsedStacks}
+                      selectedContainers={portainerPage.selectedContainers}
+                      upgrading={portainerPage.upgrading}
+                      isPortainerContainer={portainerPage.isPortainerContainer}
+                      onToggleStack={portainerPage.toggleStack}
+                      onToggleSelect={portainerPage.handleToggleSelect}
+                      onUpgrade={portainerPage.handleUpgrade}
+                      developerModeEnabled={developerModeEnabled}
+                    />
+                  )}
+
+                  {portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && (
+                    <UnusedTab
+                      unusedImages={portainerPage.portainerUnusedImages}
+                      isLoading={portainerPage.aggregatedContainers.isLoading}
+                      hasData={hasData}
+                      selectedImages={portainerPage.selectedImages}
+                      deletingImages={portainerPage.deletingImages}
+                      formatBytes={portainerPage.formatBytes}
+                      onToggleImageSelect={portainerPage.handleToggleImageSelect}
+                      onDeleteImage={portainerPage.handleDeleteImage}
+                      executeDeleteImage={portainerPage.executeDeleteImage}
+                      onDeleteImages={portainerPage.handleDeleteImages}
+                      executeDeleteImages={portainerPage.executeDeleteImages}
+                      collapsedUnusedImages={portainerPage.collapsedUnusedImages}
+                      onToggleCollapsed={handleToggleCollapsed}
+                    />
+                  )}
+                </ErrorBoundary>
+              </div>
+            </>
           )}
-
-          {/* Tab Content */}
-          <div
-            className={styles.contentTabPanel}
-            role="tabpanel"
-            id={`${portainerPage.contentTab}-panel`}
-            aria-labelledby={`${portainerPage.contentTab}-tab`}
-          >
-            <ErrorBoundary>
-              {(portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES ||
-                portainerPage.contentTab === PORTAINER_CONTENT_TABS.CURRENT) && (
-                <ContainersTab
-                  groupedStacks={portainerPage.groupedStacks}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  showUpdates={portainerPage.contentTab === PORTAINER_CONTENT_TABS.UPDATES}
-                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
-                  lastPullTime={portainerPage.lastPullTime}
-                  collapsedStacks={portainerPage.collapsedStacks}
-                  selectedContainers={portainerPage.selectedContainers}
-                  upgrading={portainerPage.upgrading}
-                  isPortainerContainer={portainerPage.isPortainerContainer}
-                  onToggleStack={portainerPage.toggleStack}
-                  onToggleSelect={portainerPage.handleToggleSelect}
-                  onUpgrade={portainerPage.handleUpgrade}
-                />
-              )}
-
-              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.ALL && (
-                <ContainersTab
-                  groupedStacks={portainerPage.groupedStacks}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  showUpdates={null}
-                  showAll={true}
-                  dockerHubDataPulled={portainerPage.dockerHubDataPulled}
-                  lastPullTime={portainerPage.lastPullTime}
-                  collapsedStacks={portainerPage.collapsedStacks}
-                  selectedContainers={portainerPage.selectedContainers}
-                  upgrading={portainerPage.upgrading}
-                  isPortainerContainer={portainerPage.isPortainerContainer}
-                  onToggleStack={portainerPage.toggleStack}
-                  onToggleSelect={portainerPage.handleToggleSelect}
-                  onUpgrade={portainerPage.handleUpgrade}
-                />
-              )}
-
-              {portainerPage.contentTab === PORTAINER_CONTENT_TABS.UNUSED && (
-                <UnusedTab
-                  unusedImages={portainerPage.portainerUnusedImages}
-                  isLoading={portainerPage.aggregatedContainers.isLoading}
-                  hasData={hasData}
-                  selectedImages={portainerPage.selectedImages}
-                  deletingImages={portainerPage.deletingImages}
-                  formatBytes={portainerPage.formatBytes}
-                  onToggleImageSelect={portainerPage.handleToggleImageSelect}
-                  onDeleteImage={portainerPage.handleDeleteImage}
-                  executeDeleteImage={portainerPage.executeDeleteImage}
-                  onDeleteImages={portainerPage.handleDeleteImages}
-                  executeDeleteImages={portainerPage.executeDeleteImages}
-                  collapsedUnusedImages={portainerPage.collapsedUnusedImages}
-                  onToggleCollapsed={handleToggleCollapsed}
-                />
-              )}
-            </ErrorBoundary>
-          </div>
         </div>
       </div>
 
