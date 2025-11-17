@@ -1,6 +1,5 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Plus } from "lucide-react";
 import {
   TRACKED_APPS_CONTENT_TABS,
   TRACKED_APPS_CONTENT_TAB_LABELS,
@@ -18,7 +17,6 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
   onContentTabChange,
   selectedSourceFilters,
   onSelectedSourceFiltersChange,
-  onAddApp,
 }) {
   const handleSourceFilterToggle = (sourceType, checked) => {
     onSelectedSourceFiltersChange((prev) => {
@@ -121,15 +119,6 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
             </div>
           ))}
         </div>
-        <button
-          className={`${styles.sidebarItem} ${styles.addButton}`}
-          onClick={onAddApp}
-          title="Add Tracked App"
-          aria-label="Add Tracked App"
-        >
-          <Plus size={16} aria-hidden="true" />
-          <span>Add App</span>
-        </button>
       </div>
     </div>
   );
@@ -140,7 +129,6 @@ TrackedAppsSidebar.propTypes = {
   onContentTabChange: PropTypes.func.isRequired,
   selectedSourceFilters: PropTypes.instanceOf(Set).isRequired,
   onSelectedSourceFiltersChange: PropTypes.func.isRequired,
-  onAddApp: PropTypes.func.isRequired,
 };
 
 TrackedAppsSidebar.displayName = "TrackedAppsSidebar";

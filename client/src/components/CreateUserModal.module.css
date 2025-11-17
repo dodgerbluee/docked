@@ -1,0 +1,58 @@
+/**
+ * CreateUserModal Styles
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.alert {
+  margin-bottom: 0;
+}
+
+.checkingCode {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.cancelButton {
+  min-width: 100px;
+}
+
+.submitButton {
+  min-width: 120px;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .submitButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}

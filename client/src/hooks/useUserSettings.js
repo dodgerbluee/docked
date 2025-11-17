@@ -114,10 +114,10 @@ export function useUserSettings({
       }
 
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/auth/update-password`, {
-          currentPassword,
-          newPassword,
-        });
+        // For first login, don't send currentPassword since it's optional
+        const requestBody = isFirstLogin ? { newPassword } : { currentPassword, newPassword };
+
+        const response = await axios.post(`${API_BASE_URL}/api/auth/update-password`, requestBody);
 
         if (response.data.success) {
           setPasswordSuccess("Password updated successfully!");

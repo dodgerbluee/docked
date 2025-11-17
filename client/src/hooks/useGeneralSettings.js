@@ -16,6 +16,8 @@ export function useGeneralSettings({
   const [localColorScheme, setLocalColorScheme] = useState(initialColorScheme);
   const [logLevel, setLogLevel] = useState("info");
   const [localLogLevel, setLocalLogLevel] = useState("info");
+  const [refreshingTogglesEnabled, setRefreshingTogglesEnabled] = useState(false);
+  const [localRefreshingTogglesEnabled, setLocalRefreshingTogglesEnabled] = useState(false);
   const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSuccess, setGeneralSettingsSuccess] = useState("");
@@ -36,6 +38,19 @@ export function useGeneralSettings({
       }
     } catch (err) {
       console.error("Error fetching log level:", err);
+    }
+  }, []);
+
+  const fetchRefreshingTogglesEnabled = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
+      if (response.data.success) {
+        setRefreshingTogglesEnabled(response.data.enabled || false);
+      }
+    } catch (err) {
+      // If endpoint doesn't exist yet, default to false
+      console.error("Error fetching refreshing toggles enabled:", err);
+      setRefreshingTogglesEnabled(false);
     }
   }, []);
 
@@ -83,7 +98,8 @@ export function useGeneralSettings({
   useEffect(() => {
     fetchLogLevel();
     fetchBatchConfig();
-  }, [fetchLogLevel, fetchBatchConfig]);
+    fetchRefreshingTogglesEnabled();
+  }, [fetchLogLevel, fetchBatchConfig, fetchRefreshingTogglesEnabled]);
 
   useEffect(() => {
     setLocalColorScheme(initialColorScheme);
@@ -93,6 +109,10 @@ export function useGeneralSettings({
   useEffect(() => {
     setLocalLogLevel(logLevel);
   }, [logLevel]);
+
+  useEffect(() => {
+    setLocalRefreshingTogglesEnabled(refreshingTogglesEnabled);
+  }, [refreshingTogglesEnabled]);
 
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
@@ -107,11 +127,24 @@ export function useGeneralSettings({
         logLevel: localLogLevel,
       });
 
-      if (colorSchemeResponse.data.success && logLevelResponse.data.success) {
+      // Save refreshing toggles enabled to DB
+      const refreshingTogglesResponse = await axios.post(
+        `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
+        {
+          enabled: localRefreshingTogglesEnabled,
+        }
+      );
+
+      if (
+        colorSchemeResponse.data.success &&
+        logLevelResponse.data.success &&
+        refreshingTogglesResponse.data.success
+      ) {
         if (onColorSchemeChange) {
           onColorSchemeChange(localColorScheme);
         }
         setLogLevel(localLogLevel);
+        setRefreshingTogglesEnabled(localRefreshingTogglesEnabled);
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
       } else {
@@ -123,10 +156,15 @@ export function useGeneralSettings({
     } finally {
       setGeneralSettingsSaving(false);
     }
-  }, [localColorScheme, localLogLevel, onColorSchemeChange]);
+  }, [localColorScheme, localLogLevel, localRefreshingTogglesEnabled, onColorSchemeChange]);
 
   const handleLogLevelChange = useCallback((newLevel) => {
     setLocalLogLevel(newLevel);
+    setGeneralSettingsChanged(true);
+  }, []);
+
+  const handleRefreshingTogglesChange = useCallback((enabled) => {
+    setLocalRefreshingTogglesEnabled(enabled === "on");
     setGeneralSettingsChanged(true);
   }, []);
 
@@ -252,12 +290,15 @@ export function useGeneralSettings({
     setLocalColorScheme,
     logLevel,
     localLogLevel,
+    refreshingTogglesEnabled,
+    localRefreshingTogglesEnabled,
     generalSettingsChanged,
     setGeneralSettingsChanged,
     generalSettingsSaving,
     generalSettingsSuccess,
     handleSaveGeneralSettings,
     handleLogLevelChange,
+    handleRefreshingTogglesChange,
     batchConfigs,
     setBatchConfigs,
     batchError,

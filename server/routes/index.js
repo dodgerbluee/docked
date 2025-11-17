@@ -122,6 +122,11 @@ router.get("/version", versionController.getVersion);
  *       400:
  *         description: Missing required fields
  */
+router.get(
+  "/auth/registration-code-required",
+  asyncHandler(authController.checkRegistrationCodeRequired)
+);
+router.post("/auth/register", asyncHandler(authController.register));
 router.post("/auth/login", asyncHandler(authController.login));
 
 /**
@@ -148,6 +153,8 @@ router.use(authenticate);
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
 router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
+router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
+router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
 // Docker Hub credentials routes (protected)
 router.get("/docker-hub/credentials", asyncHandler(authController.getDockerHubCreds));

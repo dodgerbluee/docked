@@ -1,14 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
-// API_BASE_URL is not currently used but kept for potential future use
+import { API_BASE_URL } from "../utils/api";
 
 /**
  * Custom hook for authentication state and operations
  */
 export const useAuth = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem("authToken");
-  });
+  // Start with false - we'll validate on mount
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isValidating, setIsValidating] = useState(true);
   const [authToken, setAuthToken] = useState(() => {
     const token = localStorage.getItem("authToken");
     if (token) {
@@ -33,13 +33,76 @@ export const useAuth = () => {
   const logoutInProgressRef = useRef(false);
   const handleLogoutRef = useRef(null);
 
+  // Handle logout - defined early so it can be used in validation
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("username");
+    localStorage.removeItem("passwordChanged");
+    localStorage.removeItem("userRole");
+    setAuthToken(null);
+    setUsername(null);
+    setUserRole("Administrator");
+    setPasswordChanged(false);
+    setIsAuthenticated(false);
+    delete axios.defaults.headers.common["Authorization"];
+  }, []);
+
+  // Validate token on mount
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = localStorage.getItem("authToken");
+
+      if (!token) {
+        setIsValidating(false);
+        return;
+      }
+
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/auth/verify`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.data.success) {
+          // Token is valid - user exists in database
+          setIsAuthenticated(true);
+          if (response.data.username) {
+            setUsername(response.data.username);
+            localStorage.setItem("username", response.data.username);
+          }
+          if (response.data.role) {
+            setUserRole(response.data.role);
+            localStorage.setItem("userRole", response.data.role);
+          }
+        } else {
+          // Token invalid - clear storage
+          handleLogout();
+        }
+      } catch (error) {
+        // Token invalid or user doesn't exist - clear storage
+        console.warn("Token validation failed:", error.response?.status);
+        handleLogout();
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [handleLogout]);
+
   // Handle login
-  const handleLogin = useCallback((token, user, pwdChanged) => {
+  const handleLogin = useCallback((token, user, pwdChanged, role) => {
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);
     setPasswordChanged(pwdChanged);
+    if (role) {
+      setUserRole(role);
+      localStorage.setItem("userRole", role);
+    }
     setIsAuthenticated(true);
+    setIsValidating(false);
   }, []);
 
   // Handle username update
@@ -64,19 +127,6 @@ export const useAuth = () => {
     localStorage.setItem("passwordChanged", "true");
   }, []);
 
-  // Handle logout
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("username");
-    localStorage.removeItem("passwordChanged");
-    setAuthToken(null);
-    setUsername(null);
-    setUserRole("Administrator");
-    setPasswordChanged(false);
-    setIsAuthenticated(false);
-    delete axios.defaults.headers.common["Authorization"];
-  }, []);
-
   // Keep ref updated with latest logout function
   useEffect(() => {
     handleLogoutRef.current = handleLogout;
@@ -99,6 +149,7 @@ export const useAuth = () => {
         if (
           error.response?.status === 401 &&
           !error.config?.url?.includes("/api/auth/login") &&
+          !error.config?.url?.includes("/api/auth/verify") &&
           !logoutInProgressRef.current &&
           handleLogoutRef.current
         ) {
@@ -124,6 +175,7 @@ export const useAuth = () => {
     username,
     userRole,
     passwordChanged,
+    isValidating,
     handleLogin,
     handleUsernameUpdate,
     handlePasswordUpdateSuccess,

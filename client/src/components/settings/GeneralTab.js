@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import { Monitor, Sun, Moon, Info, Search } from "lucide-react";
+import { Monitor, Sun, Moon, Info, Search, Power, PowerOff } from "lucide-react";
 import { COLOR_SCHEMES, LOG_LEVELS } from "../../constants/settings";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
@@ -18,6 +18,8 @@ const GeneralTab = React.memo(function GeneralTab({
   setLocalColorScheme,
   localLogLevel,
   handleLogLevelChange,
+  localRefreshingTogglesEnabled,
+  handleRefreshingTogglesChange,
   generalSettingsChanged,
   generalSettingsSaving,
   generalSettingsSuccess,
@@ -39,6 +41,11 @@ const GeneralTab = React.memo(function GeneralTab({
   const logLevelOptions = [
     { value: LOG_LEVELS.INFO, label: "Info", icon: Info },
     { value: LOG_LEVELS.DEBUG, label: "Debug", icon: Search },
+  ];
+
+  const refreshingTogglesOptions = [
+    { value: "on", label: "On", icon: Power },
+    { value: "off", label: "Off", icon: PowerOff },
   ];
 
   const handleClearPortainerData = async () => {
@@ -106,6 +113,22 @@ const GeneralTab = React.memo(function GeneralTab({
           <small className={styles.helperText}>
             Control the verbosity of batch job logs. "Info" shows core events (job starts,
             completions, errors). "Debug" includes detailed scheduling and comparison information.
+          </small>
+        </div>
+        {/* When enabled, allows stopping, removing, repulling, starting, and verifying that the new container is up */}
+        <div className={styles.formGroup}>
+          <label htmlFor="refreshingToggles" className={styles.label}>
+            Enable Rebuilding Containers
+          </label>
+          <ToggleButton
+            options={refreshingTogglesOptions}
+            value={localRefreshingTogglesEnabled ? "on" : "off"}
+            onChange={handleRefreshingTogglesChange}
+            className={styles.toggle}
+          />
+          <small className={styles.helperText}>
+            For up to date images. When enabled, allows stopping, removing, repulling, starting, and
+            verifying that the new container is up.
           </small>
         </div>
         <div className={styles.formActions}>
@@ -188,6 +211,8 @@ GeneralTab.propTypes = {
   setLocalColorScheme: PropTypes.func.isRequired,
   localLogLevel: PropTypes.string.isRequired,
   handleLogLevelChange: PropTypes.func.isRequired,
+  localRefreshingTogglesEnabled: PropTypes.bool.isRequired,
+  handleRefreshingTogglesChange: PropTypes.func.isRequired,
   generalSettingsChanged: PropTypes.bool.isRequired,
   generalSettingsSaving: PropTypes.bool.isRequired,
   generalSettingsSuccess: PropTypes.string,

@@ -99,6 +99,17 @@ body.dark-mode .form-group input:focus {
   text-align: center;
 }
 
+.success-message {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid var(--success-green);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--success-green);
+  font-size: 0.9rem;
+  text-align: center;
+  margin-top: 16px;
+}
+
 .login-button {
   padding: 12px 24px;
   background: linear-gradient(135deg, var(--dodger-blue) 0%, var(--dodger-blue-dark) 100%);
@@ -130,6 +141,52 @@ body.dark-mode .login-button:hover:not(:disabled) {
 }
 
 .login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.create-user-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.create-user-button {
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--dodger-blue);
+  border: 2px solid var(--dodger-blue);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+body.dark-mode .create-user-button {
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.create-user-button:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 90, 156, 0.2);
+}
+
+body.dark-mode .create-user-button:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15);
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
+.create-user-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.create-user-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
