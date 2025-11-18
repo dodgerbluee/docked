@@ -13,8 +13,9 @@ let registrationCode = null;
 function generateRegistrationCode() {
   // Custom alphabet: uppercase letters, numbers, and safe special characters
   // Excludes confusing characters: 0, O, I, 1, l
-  // Includes special characters: !@#$%&*+-=?
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*+-=?";
+  // Excludes dashes (-) as they are used for formatting only
+  // Includes special characters: !@#$%&*+=?
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*+=?";
   const generateId = customAlphabet(alphabet, 12);
 
   // Generate 12 characters and format with dashes
@@ -24,18 +25,20 @@ function generateRegistrationCode() {
 
 /**
  * Initialize and print the registration code
- * Should be called on server startup
+ * Should be called on-demand when user clicks "Create User" (if no users exist)
  */
 function initializeRegistrationCode() {
   registrationCode = generateRegistrationCode();
-  logger.info("═══════════════════════════════════════════════════════════");
-  logger.info("🔐 FIRST USER REGISTRATION CODE");
-  logger.info("═══════════════════════════════════════════════════════════");
-  logger.info(`   ${registrationCode}`);
-  logger.info("═══════════════════════════════════════════════════════════");
-  logger.info("⚠️  This code is required to create the first user account.");
-  logger.info("⚠️  The code will be invalidated after the first user is created.");
-  logger.info("═══════════════════════════════════════════════════════════");
+  logger.withContext({}, () => {
+    logger.info("═══════════════════════════════════════════════════════════");
+    logger.info("🔐 FIRST USER REGISTRATION CODE");
+    logger.info("═══════════════════════════════════════════════════════════");
+    logger.info(`   ${registrationCode}`);
+    logger.info("═══════════════════════════════════════════════════════════");
+    logger.info("⚠️  This code is required to create the first user account.");
+    logger.info("⚠️  The code will be invalidated after the first user is created.");
+    logger.info("═══════════════════════════════════════════════════════════");
+  });
 }
 
 /**

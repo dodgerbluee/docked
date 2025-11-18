@@ -73,6 +73,7 @@ async function getDiscordWebhook(req, res, next) {
         guildId: webhook.guild_id || null,
         channelId: webhook.channel_id || null,
         enabled: webhook.enabled === 1,
+        name: webhook.name || null,
         createdAt: webhook.created_at,
         updatedAt: webhook.updated_at,
         hasWebhook: !!webhook.webhook_url,

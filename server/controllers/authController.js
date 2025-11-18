@@ -4,14 +4,19 @@
  */
 
 const axios = require("axios");
+const logger = require("../utils/logger");
 const { validateRequiredFields, isValidEmail } = require("../utils/validation");
 const {
   getUserByUsername,
   verifyPassword,
   updatePassword,
   updateUsername,
+  updateLastLogin,
+  getAllUsers,
   hasAnyUsers,
   createUser,
+  updateVerificationToken,
+  verifyAndClearToken,
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
@@ -32,6 +37,13 @@ const {
   clearRegistrationCode,
   isRegistrationCodeActive,
 } = require("../utils/registrationCode");
+const {
+  generateVerificationToken,
+  logVerificationToken,
+  storePendingToken,
+  verifyAndClearPendingToken,
+  clearPendingToken,
+} = require("../utils/verificationToken");
 const { clearCache } = require("../utils/dockerHubCreds");
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
 const fs = require("fs");
@@ -162,9 +174,99 @@ async function checkRegistrationCodeRequired(req, res, next) {
 
     res.json({
       success: true,
-      requiresCode: !hasUsers && codeActive,
+      requiresCode: !hasUsers,
+      codeActive,
     });
   } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Generate registration code for first user
+ * Called when user clicks "Create User" and no users exist
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function generateRegistrationCodeEndpoint(req, res, next) {
+  try {
+    const hasUsers = await hasAnyUsers();
+    
+    if (hasUsers) {
+      return res.status(400).json({
+        success: false,
+        error: "Registration code can only be generated when no users exist",
+      });
+    }
+
+    // Generate and log the code (code is NOT returned to frontend)
+    const { initializeRegistrationCode } = require("../utils/registrationCode");
+    initializeRegistrationCode();
+
+    res.json({
+      success: true,
+      message: "Registration code generated and logged to container logs",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Verify registration code
+ * Called when user enters registration code to verify it matches
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function verifyRegistrationCode(req, res, next) {
+  try {
+    const { registrationCode } = req.body;
+
+    logger.info("[authController] verifyRegistrationCode called", {
+      hasCode: !!registrationCode,
+      codeLength: registrationCode?.length,
+    });
+
+    if (!registrationCode) {
+      logger.warn("[authController] No registration code provided");
+      return res.status(400).json({
+        success: false,
+        error: "Registration code is required",
+      });
+    }
+
+    const { isRegistrationCodeActive } = require("../utils/registrationCode");
+    const codeActive = isRegistrationCodeActive();
+    logger.info("[authController] Registration code status", { codeActive });
+
+    if (!codeActive) {
+      logger.warn("[authController] No registration code has been generated");
+      return res.status(400).json({
+        success: false,
+        error: "Registration code has not been generated. Please click 'Create User' first.",
+      });
+    }
+
+    const isValid = validateRegistrationCode(registrationCode);
+    logger.info("[authController] Code validation result", { isValid });
+
+    if (isValid) {
+      logger.info("[authController] Registration code verified successfully");
+      res.json({
+        success: true,
+        message: "Registration code is valid",
+      });
+    } else {
+      logger.warn("[authController] Invalid registration code provided");
+      res.status(401).json({
+        success: false,
+        error: "Invalid registration code",
+      });
+    }
+  } catch (error) {
+    logger.error("[authController] Error verifying registration code:", error);
     next(error);
   }
 }
@@ -220,6 +322,14 @@ async function login(req, res, next) {
       role: user.role,
     });
 
+    // Update last login timestamp (non-blocking - don't fail login if this fails)
+    try {
+      await updateLastLogin(username);
+    } catch (err) {
+      // Log but don't fail login if last_login update fails
+      logger.warn("Failed to update last login timestamp:", err.message);
+    }
+
     res.json({
       success: true,
       token,
@@ -227,6 +337,7 @@ async function login(req, res, next) {
       username: user.username,
       role: user.role,
       passwordChanged: user.password_changed === 1,
+      instanceAdmin: user.instance_admin === 1,
     });
   } catch (error) {
     next(error);
@@ -268,6 +379,7 @@ async function verifyToken(req, res, next) {
         success: true,
         username: user.username,
         role: user.role,
+        instanceAdmin: user.instance_admin === 1,
       });
     } catch (jwtError) {
       // Try legacy token format for backward compatibility
@@ -291,6 +403,7 @@ async function verifyToken(req, res, next) {
             success: true,
             username: userByUsername.username,
             role: userByUsername.role,
+            instanceAdmin: userByUsername.instance_admin === 1,
           });
         }
 
@@ -298,6 +411,7 @@ async function verifyToken(req, res, next) {
           success: true,
           username: user.username,
           role: user.role,
+          instanceAdmin: user.instance_admin === 1,
         });
       } catch (legacyError) {
         return res.status(401).json({
@@ -429,6 +543,7 @@ async function getCurrentUser(req, res, next) {
         username: user.username,
         role: user.role,
         passwordChanged: user.password_changed === 1,
+        instanceAdmin: user.instance_admin === 1,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -819,6 +934,7 @@ async function exportUserConfig(req, res, next) {
       user: {
         username: user.username,
         role: user.role,
+        instance_admin: user.instance_admin === 1,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -846,7 +962,8 @@ async function exportUserConfig(req, res, next) {
         avatar_url: webhook.avatar_url,
         guild_id: webhook.guild_id,
         channel_id: webhook.channel_id,
-        enabled: webhook.enabled === 1,
+        enabled: webhook.enabled,
+        name: webhook.name || null,
         created_at: webhook.created_at,
         updated_at: webhook.updated_at,
       })),
@@ -1013,7 +1130,8 @@ async function importUserConfig(req, res, next) {
             webhook.enabled !== undefined ? webhook.enabled : true,
             webhook.avatar_url,
             webhook.guild_id,
-            webhook.channel_id
+            webhook.channel_id,
+            webhook.name || "Docked"
           );
 
           results.discordWebhooks.push({ id, serverName: webhook.server_name });
@@ -1114,6 +1232,673 @@ async function importUserConfig(req, res, next) {
   }
 }
 
+/**
+ * Import users from JSON file
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function importUsers(req, res, next) {
+  try {
+    const { users } = req.body;
+
+    if (!users || !Array.isArray(users)) {
+      return res.status(400).json({
+        success: false,
+        error: "Users array is required",
+      });
+    }
+
+    const results = {
+      imported: [],
+      errors: [],
+      verificationTokens: [],
+    };
+
+    for (const userData of users) {
+      try {
+        // Support both camelCase (instanceAdmin) and snake_case (instance_admin) to match export format
+        const { username, password, email, role = "Administrator", instanceAdmin, instance_admin } = userData;
+        const isInstanceAdmin = instanceAdmin !== undefined ? instanceAdmin : (instance_admin === true || instance_admin === 1);
+
+        // Validate required fields
+        if (!username) {
+          results.errors.push(`User missing username: ${username || "unknown"}`);
+          continue;
+        }
+        if (!password) {
+          results.errors.push(`User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`);
+          continue;
+        }
+
+        // Validate username length
+        if (username.length < 3) {
+          results.errors.push(`Username "${username}" must be at least 3 characters long`);
+          continue;
+        }
+
+        // Validate password length
+        if (password.length < 8) {
+          results.errors.push(`Password for "${username}" must be at least 8 characters long`);
+          continue;
+        }
+
+        // Validate email format if provided
+        if (email && email.trim() !== "") {
+          if (!isValidEmail(email.trim())) {
+            results.errors.push(`Invalid email format for "${username}"`);
+            continue;
+          }
+        }
+
+        // Check if user already exists
+        const existingUser = await getUserByUsername(username);
+        if (existingUser) {
+          results.errors.push(`User "${username}" already exists`);
+          continue;
+        }
+
+        // Generate verification token if instance admin
+        let verificationToken = null;
+        if (isInstanceAdmin) {
+          verificationToken = generateVerificationToken();
+          logVerificationToken(username, verificationToken);
+          logger.info(`🔐 Generated verification token for instance admin: ${username}`);
+        } else {
+          logger.info(`ℹ️  User ${username} is not an instance admin, skipping token generation`);
+        }
+
+        // Create user
+        await createUser(
+          username,
+          password,
+          email || null,
+          role,
+          true, // passwordChanged = true for imported users
+          isInstanceAdmin,
+          verificationToken
+        );
+
+        results.imported.push({
+          username,
+          instanceAdmin: isInstanceAdmin,
+          requiresVerification: isInstanceAdmin,
+        });
+
+        if (isInstanceAdmin) {
+          results.verificationTokens.push({
+            username,
+            token: verificationToken,
+          });
+          logger.info(`✅ Added verification token to results for ${username}`);
+        }
+      } catch (error) {
+        results.errors.push(`Error importing user "${userData.username || "unknown"}": ${error.message}`);
+      }
+    }
+
+    logger.info(`📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`);
+    
+    res.json({
+      success: true,
+      message: `Imported ${results.imported.length} user(s)`,
+      results,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Generate a verification token for an instance admin user (without creating the user)
+ * Used during import flow to generate tokens before user creation
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function generateInstanceAdminToken(req, res, next) {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        error: "Username is required",
+      });
+    }
+
+    // Generate verification token
+    const verificationToken = generateVerificationToken();
+    
+    // Log the token
+    logVerificationToken(username, verificationToken);
+    
+    // Store token temporarily (for users that don't exist yet during import)
+    storePendingToken(username, verificationToken);
+
+    res.json({
+      success: true,
+      token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
+      message: "Verification token generated and logged to server logs",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Regenerate verification token for an instance admin user
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function regenerateInstanceAdminToken(req, res, next) {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        error: "Username is required",
+      });
+    }
+
+    // Check if user exists and is instance admin
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    if (user.instance_admin !== 1) {
+      return res.status(400).json({
+        success: false,
+        error: "User is not an instance admin",
+      });
+    }
+
+    // Generate new verification token
+    const verificationToken = generateVerificationToken();
+    
+    // Update token in database
+    await updateVerificationToken(username, verificationToken);
+    
+    // Clear any pending token (user exists now)
+    clearPendingToken(username);
+    
+    // Log the token
+    logVerificationToken(username, verificationToken);
+
+    res.json({
+      success: true,
+      token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
+      message: "Verification token regenerated and logged to server logs",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Verify instance admin token
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function verifyInstanceAdminToken(req, res, next) {
+  try {
+    const { username, token } = req.body;
+
+    if (!username || !token) {
+      return res.status(400).json({
+        success: false,
+        error: "Username and token are required",
+      });
+    }
+
+    // First check pending tokens (for users that don't exist yet during import)
+    const pendingValid = verifyAndClearPendingToken(username, token);
+    if (pendingValid) {
+      return res.json({
+        success: true,
+        message: "Token verified successfully",
+      });
+    }
+
+    // Then check database (for existing users)
+    const isValid = await verifyAndClearToken(username, token);
+
+    if (isValid) {
+      res.json({
+        success: true,
+        message: "Token verified successfully",
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        error: "Invalid token",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Create user with configuration in one operation
+ * Used for importing users one at a time with their full configuration
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function createUserWithConfig(req, res, next) {
+  try {
+    const { userData, configData, credentials, skippedSteps = [], verificationToken } = req.body;
+
+    if (!userData || !userData.username || !userData.password) {
+      return res.status(400).json({
+        success: false,
+        error: "User data with username and password is required",
+      });
+    }
+
+    const { username, password, email, role, instanceAdmin } = userData;
+
+    // Validate username length
+    if (username.length < 3) {
+      return res.status(400).json({
+        success: false,
+        error: `Username "${username}" must be at least 3 characters long`,
+      });
+    }
+
+    // Validate password length
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: `Password for "${username}" must be at least 8 characters long`,
+      });
+    }
+
+    // Validate email format if provided
+    if (email && email.trim() !== "") {
+      if (!isValidEmail(email.trim())) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid email format for "${username}"`,
+        });
+      }
+    }
+
+    // Check if user already exists
+    const existingUser = await getUserByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: `User "${username}" already exists`,
+      });
+    }
+
+    // Generate verification token if instance admin (unless one was provided)
+    let finalVerificationToken = verificationToken;
+    const tokenWasProvided = !!verificationToken;
+    if (instanceAdmin && !finalVerificationToken) {
+      finalVerificationToken = generateVerificationToken();
+    }
+
+    // Create user
+    await createUser(
+      username,
+      password,
+      email || null,
+      role || "Administrator",
+      true, // passwordChanged = true
+      instanceAdmin || false,
+      finalVerificationToken || null
+    );
+
+    // Clear pending token if it exists (user now exists in database)
+    clearPendingToken(username);
+
+    // If verification token was generated (not provided), log it
+    // If token was provided, it was already logged when generated upfront
+    if (instanceAdmin && finalVerificationToken && !tokenWasProvided) {
+      logVerificationToken(username, finalVerificationToken);
+    }
+
+    // Import configuration if provided
+    const results = {
+      portainerInstances: [],
+      dockerHubCredentials: null,
+      discordWebhooks: [],
+      trackedImages: [],
+      errors: [],
+    };
+
+    if (configData && credentials) {
+      // Import Portainer instances
+      if (
+        configData.portainerInstances &&
+        Array.isArray(configData.portainerInstances) &&
+        !skippedSteps.includes("portainer") &&
+        credentials.portainerInstances
+      ) {
+        for (let i = 0; i < configData.portainerInstances.length; i++) {
+          const instance = configData.portainerInstances[i];
+          const instanceCreds = credentials.portainerInstances[i];
+
+          if (!instanceCreds) {
+            results.errors.push(`Portainer instance "${instance.name}": Missing credentials`);
+            continue;
+          }
+
+          try {
+            const { resolveUrlToIp } = require("../utils/dnsResolver");
+            const ipAddress = await resolveUrlToIp(instance.url);
+
+            const id = await createPortainerInstance(
+              instance.name,
+              instance.url,
+              instance.auth_type === "password" ? instanceCreds.username || "" : "",
+              instance.auth_type === "password" ? instanceCreds.password || "" : "",
+              instance.auth_type === "apikey" ? instanceCreds.apiKey || null : null,
+              instance.auth_type || "apikey",
+              ipAddress
+            );
+
+            results.portainerInstances.push({ id, name: instance.name });
+          } catch (error) {
+            results.errors.push(`Portainer instance "${instance.name}": ${error.message || "Failed to import"}`);
+          }
+        }
+      }
+
+      // Import Docker Hub credentials
+      if (
+        configData.dockerHubCredentials &&
+        credentials.dockerHub &&
+        !skippedSteps.includes("dockerhub")
+      ) {
+        try {
+          await updateDockerHubCredentials(
+            credentials.dockerHub.username,
+            credentials.dockerHub.token
+          );
+          results.dockerHubCredentials = { username: credentials.dockerHub.username };
+        } catch (error) {
+          results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
+        }
+      }
+
+      // Import Discord webhooks
+      if (
+        configData.discordWebhooks &&
+        Array.isArray(configData.discordWebhooks) &&
+        !skippedSteps.includes("discord") &&
+        credentials.discordWebhooks
+      ) {
+        for (let i = 0; i < configData.discordWebhooks.length; i++) {
+          const webhook = configData.discordWebhooks[i];
+          const webhookCreds = credentials.discordWebhooks[i];
+
+          if (!webhookCreds || !webhookCreds.webhookUrl) {
+            results.errors.push(
+              `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`
+            );
+            continue;
+          }
+
+          try {
+            const id = await createDiscordWebhook(
+              webhookCreds.webhookUrl,
+              webhook.server_name,
+              webhook.channel_name,
+              webhook.enabled !== undefined ? webhook.enabled : true,
+              webhook.avatar_url,
+              webhook.guild_id,
+              webhook.channel_id,
+              webhook.name || "Docked"
+            );
+
+            results.discordWebhooks.push({ id, serverName: webhook.server_name });
+          } catch (error) {
+            results.errors.push(
+              `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`
+            );
+          }
+        }
+      }
+    }
+
+    // Import tracked images (no credentials needed, just config data)
+    // This can be done independently of credentials
+    if (configData && configData.trackedImages && Array.isArray(configData.trackedImages)) {
+      for (const image of configData.trackedImages) {
+        try {
+          const id = await createTrackedImage(
+            image.name,
+            image.image_name,
+            image.github_repo,
+            image.source_type || "docker",
+            image.gitlab_token || null
+          );
+
+          // Update with version-related fields if they exist
+          const updateData = {};
+          if (image.current_version !== undefined) {
+            updateData.current_version = image.current_version;
+          }
+          if (image.current_digest !== undefined) {
+            updateData.current_digest = image.current_digest;
+          }
+          if (image.latest_version !== undefined) {
+            updateData.latest_version = image.latest_version;
+          }
+          if (image.latest_digest !== undefined) {
+            updateData.latest_digest = image.latest_digest;
+          }
+          if (image.has_update !== undefined) {
+            updateData.has_update = image.has_update;
+          }
+          if (image.current_version_publish_date !== undefined) {
+            updateData.current_version_publish_date = image.current_version_publish_date;
+          }
+          if (image.last_checked !== undefined) {
+            updateData.last_checked = image.last_checked;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await updateTrackedImage(id, updateData);
+          }
+
+          results.trackedImages.push({ id, name: image.name });
+        } catch (error) {
+          results.errors.push(
+            `Tracked image "${image.name}": ${error.message || "Failed to import"}`
+          );
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `User "${username}" created successfully`,
+      results,
+      // Note: Verification token is NOT returned - it's only logged to server logs
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Check if a user exists
+ * Public endpoint to check if a username is already taken
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function checkUserExists(req, res, next) {
+  try {
+    const { username } = req.query;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        error: "Username is required",
+      });
+    }
+
+    const user = await getUserByUsername(username);
+    
+    res.json({
+      success: true,
+      exists: !!user,
+      username,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get all users (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getAllUsersEndpoint(req, res, next) {
+  try {
+    // Only instance admins can view all users
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+    
+    const users = await getAllUsers();
+    res.json({ success: true, users });
+  } catch (error) {
+    logger.error("Error getting all users:", error);
+    next(error);
+  }
+}
+
+/**
+ * Export all users (admin only)
+ * Exports all users in the same format as exportUserConfig but in a users array
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function exportUsersEndpoint(req, res, next) {
+  try {
+    // Only instance admins can export all users
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const allUsers = await getAllUsers();
+    
+    // Get shared configurations (these are global, not per-user)
+    const [
+      portainerInstances,
+      discordWebhooks,
+      trackedImages,
+      batchConfig,
+      colorScheme,
+      logLevel,
+      refreshingTogglesEnabled,
+    ] = await Promise.all([
+      getAllPortainerInstances(),
+      getAllDiscordWebhooks(),
+      getAllTrackedImages(),
+      getBatchConfig(),
+      getSetting("color_scheme"),
+      getSetting("log_level"),
+      getSetting("refreshing_toggles_enabled"),
+    ]);
+
+    // For each user, export their data in the same format as exportUserConfig
+    const usersExport = allUsers.map((user) => {
+      // Get user-specific Docker Hub credentials (if they exist)
+      // Note: Docker Hub credentials are per-user, but we'll need to fetch them separately
+      // For now, we'll export user data and note that credentials need to be re-entered
+      
+      return {
+        user: {
+          username: user.username,
+          email: user.email || null,
+          role: user.role || "Administrator",
+          instance_admin: user.instanceAdmin,
+          created_at: user.createdAt,
+          updated_at: user.updatedAt,
+        },
+        portainerInstances: portainerInstances.map((instance) => ({
+          id: instance.id,
+          name: instance.name,
+          url: instance.url,
+          auth_type: instance.auth_type,
+          display_order: instance.display_order,
+          ip_address: instance.ip_address,
+          created_at: instance.created_at,
+          updated_at: instance.updated_at,
+        })),
+        dockerHubCredentials: null, // Per-user, needs to be entered during import
+        discordWebhooks: discordWebhooks.map((webhook) => ({
+          id: webhook.id,
+          server_name: webhook.serverName || null,
+          channel_name: webhook.channelName || null,
+          avatar_url: webhook.avatarUrl || null,
+          guild_id: webhook.guildId || null,
+          channel_id: webhook.channelId || null,
+          enabled: webhook.enabled,
+          name: webhook.name || null,
+          created_at: webhook.createdAt,
+          updated_at: webhook.updatedAt,
+        })),
+        trackedImages: trackedImages.map((image) => ({
+          id: image.id,
+          name: image.name,
+          image_name: image.image_name,
+          github_repo: image.github_repo || null,
+          source_type: image.source_type || "docker",
+          gitlab_token: image.gitlab_token || null,
+          current_version: image.current_version || null,
+          current_digest: image.current_digest || null,
+          latest_version: image.latest_version || null,
+          latest_digest: image.latest_digest || null,
+          has_update: image.has_update === 1,
+          current_version_publish_date: image.current_version_publish_date || null,
+          last_checked: image.last_checked || null,
+          created_at: image.created_at,
+          updated_at: image.updated_at,
+        })),
+        generalSettings: {
+          colorScheme: colorScheme || "system",
+          logLevel: logLevel || "info",
+          refreshingTogglesEnabled:
+            refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
+          batchConfig: batchConfig,
+        },
+      };
+    });
+
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      users: usersExport,
+    };
+
+    res.json({
+      success: true,
+      data: exportData,
+    });
+  } catch (error) {
+    logger.error("Error exporting users:", error);
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1127,5 +1912,15 @@ module.exports = {
   deleteDockerHubCreds,
   exportUserConfig,
   importUserConfig,
+  importUsers,
+  createUserWithConfig,
+  generateInstanceAdminToken,
+  regenerateInstanceAdminToken,
+  verifyInstanceAdminToken,
   checkRegistrationCodeRequired,
+  generateRegistrationCodeEndpoint,
+  verifyRegistrationCode,
+  checkUserExists,
+  getAllUsersEndpoint,
+  exportUsersEndpoint,
 };

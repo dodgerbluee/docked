@@ -1,0 +1,249 @@
+.stepContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.icon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .icon {
+  color: var(--dodger-blue-light);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.userInfo {
+  background: var(--bg-secondary);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.userName {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.userName strong {
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+body.dark-mode .userName strong {
+  color: var(--dodger-blue-light);
+}
+
+.instruction {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tokenAlert {
+  margin: 0;
+}
+
+.tokenInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tokenHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.tokenInfo strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.regenerateSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.regenerateButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+
+.regenerateHint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.regenerateButton:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .regenerateButton:hover:not(:disabled) {
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+.regenerateButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.regenerating {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tokenCode {
+  display: block;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-align: center;
+  color: var(--dodger-blue);
+  word-break: break-all;
+}
+
+body.dark-mode .tokenCode {
+  color: var(--dodger-blue-light);
+}
+
+.tokenInfo small {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.statusAlert {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alert {
+  margin: 0;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tokenInput {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.verifyButton {
+  padding: 10px 20px;
+  background: var(--dodger-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+body.dark-mode .verifyButton {
+  background: var(--dodger-blue-light);
+}
+
+.verifyButton:hover:not(:disabled) {
+  background: var(--dodger-blue-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 90, 156, 0.3);
+}
+
+body.dark-mode .verifyButton:hover:not(:disabled) {
+  background: var(--dodger-blue);
+}
+
+.verifyButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.skipButton {
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.skipButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.skipButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

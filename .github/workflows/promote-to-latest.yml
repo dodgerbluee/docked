@@ -171,16 +171,13 @@ jobs:
       - name: Tag dev as latest (simple promotion without release)
         if: github.event.inputs.create_release != 'true'
         run: |
-          # Pull the dev image (this will work for multi-arch images)
-          docker pull ${{ env.REGISTRY }}/${{ github.repository }}:dev
+          # Use buildx imagetools to copy the multi-arch manifest from dev to latest
+          # This preserves all architectures (linux/amd64, linux/arm64) in the manifest list
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ github.repository }}:latest \
+            ${{ env.REGISTRY }}/${{ github.repository }}:dev
           
-          # Tag it as latest
-          docker tag ${{ env.REGISTRY }}/${{ github.repository }}:dev ${{ env.REGISTRY }}/${{ github.repository }}:latest
-          
-          # Push the latest tag
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}:latest
-          
-          echo "✓ Successfully promoted dev to latest"
+          echo "✓ Successfully promoted dev to latest (multi-arch manifest preserved)"
 
       - name: Get commits since previous release
         id: commits

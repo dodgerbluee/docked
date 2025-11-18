@@ -1,0 +1,212 @@
+/**
+ * ImportUsersModal Styles
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.uploadArea {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg-secondary);
+  transition: all 0.3s;
+  margin-bottom: 16px;
+}
+
+.uploadArea:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary);
+}
+
+body.dark-mode .uploadArea:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadButton {
+  margin-bottom: 12px;
+}
+
+.fileInfo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.fileInfo svg {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .fileInfo svg {
+  color: var(--dodger-blue-light);
+}
+
+.fileName {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.alert {
+  margin-bottom: 0;
+}
+
+.results {
+  margin-top: 12px;
+}
+
+.errorList {
+  margin-top: 12px;
+  padding-left: 20px;
+}
+
+.errorList ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.errorList li {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 4px 0;
+}
+
+.infoMessage {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border-left: 4px solid var(--dodger-blue);
+  border-top: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .infoMessage {
+  border-left-color: var(--dodger-blue-light);
+}
+
+.infoMessage p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.infoMessage p:not(:last-child) {
+  margin-bottom: 4px;
+}
+
+.infoMessage strong {
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+body.dark-mode .infoMessage strong {
+  color: var(--dodger-blue-light);
+}
+
+.stepIndicator {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+
+.actionSpacer {
+  flex: 1;
+}
+
+.skipButton {
+  color: var(--text-secondary) !important;
+}
+
+.skipButton:hover:not(:disabled) {
+  color: var(--text-primary) !important;
+  background: var(--bg-tertiary) !important;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Step content styles (reused from ImportCredentialsModal) */
+.stepContent {
+  min-height: 200px;
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stepIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .stepIcon {
+  color: var(--dodger-blue-light);
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stepDescription {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.helperText {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+

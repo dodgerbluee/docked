@@ -19,7 +19,14 @@ const DEFAULT_REFRESHING_TOGGLES_ENABLED = false;
  */
 async function getColorSchemeHandler(req, res, next) {
   try {
-    const colorScheme = await getSetting(COLOR_SCHEME_KEY);
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const colorScheme = await getSetting(userId, COLOR_SCHEME_KEY);
     res.json({
       success: true,
       colorScheme: colorScheme || DEFAULT_COLOR_SCHEME,
@@ -41,6 +48,13 @@ async function getColorSchemeHandler(req, res, next) {
  */
 async function setColorSchemeHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { colorScheme } = req.body;
 
     if (!colorScheme || !["system", "light", "dark"].includes(colorScheme)) {
@@ -50,7 +64,7 @@ async function setColorSchemeHandler(req, res, next) {
       });
     }
 
-    await setSetting(COLOR_SCHEME_KEY, colorScheme);
+    await setSetting(userId, COLOR_SCHEME_KEY, colorScheme);
 
     res.json({
       success: true,
@@ -74,7 +88,14 @@ async function setColorSchemeHandler(req, res, next) {
  */
 async function getRefreshingTogglesEnabledHandler(req, res, next) {
   try {
-    const value = await getSetting(REFRESHING_TOGGLES_ENABLED_KEY);
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const value = await getSetting(userId, REFRESHING_TOGGLES_ENABLED_KEY);
     // Convert string to boolean, default to false if not set
     const enabled =
       value === null || value === undefined
@@ -101,6 +122,13 @@ async function getRefreshingTogglesEnabledHandler(req, res, next) {
  */
 async function setRefreshingTogglesEnabledHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { enabled } = req.body;
 
     if (typeof enabled !== "boolean") {
@@ -110,7 +138,7 @@ async function setRefreshingTogglesEnabledHandler(req, res, next) {
       });
     }
 
-    await setSetting(REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString());
+    await setSetting(userId, REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString());
 
     res.json({
       success: true,

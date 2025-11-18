@@ -24,6 +24,7 @@ export const TAB_NAMES = {
   SETTINGS: "settings",
   CONFIGURATION: "configuration",
   BATCH_LOGS: "batch-logs",
+  ADMIN: "admin",
 };
 
 export const CONTENT_TABS = {

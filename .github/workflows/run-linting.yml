@@ -36,15 +36,16 @@ jobs:
           cd server && npm ci
           cd ../client && npm ci
 
-      # - name: Run ESLint (server)
-      #   run: |
-      #     cd server
-      #     if [ -f "node_modules/.bin/eslint" ]; then
-      #       npx eslint . --ext .js
-      #     else
-      #       npm install --save-dev eslint@^8.57.0
-      #       npx eslint . --ext .js
-      #     fi
+      - name: Run ESLint (server)
+        run: |
+          cd server
+          if [ -f "node_modules/.bin/eslint" ]; then
+            npx eslint . --ext .js
+          else
+            echo "ESLint not found in server, installing..."
+            npm install --save-dev eslint@^8.57.0
+            npx eslint . --ext .js
+          fi
 
       - name: Run ESLint (client)
         run: |

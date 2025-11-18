@@ -44,8 +44,8 @@ const GeneralTab = React.memo(function GeneralTab({
   ];
 
   const refreshingTogglesOptions = [
-    { value: "on", label: "On", icon: Power },
     { value: "off", label: "Off", icon: PowerOff },
+    { value: "on", label: "On", icon: Power },
   ];
 
   const handleClearPortainerData = async () => {
@@ -102,17 +102,17 @@ const GeneralTab = React.memo(function GeneralTab({
         </div>
         <div className={styles.formGroup}>
           <label htmlFor="logLevel" className={styles.label}>
-            Batch Logging Level
+            Log Level
           </label>
           <ToggleButton
             options={logLevelOptions}
-            value={localLogLevel}
+            value={localLogLevel || "info"}
             onChange={handleLogLevelChange}
             className={styles.toggle}
           />
           <small className={styles.helperText}>
-            Control the verbosity of batch job logs. "Info" shows core events (job starts,
-            completions, errors). "Debug" includes detailed scheduling and comparison information.
+            Control the verbosity of application logs. "Info" shows core events (job starts,
+            completions, errors). "Debug" includes detailed scheduling, comparison, and diagnostic information.
           </small>
         </div>
         {/* When enabled, allows stopping, removing, repulling, starting, and verifying that the new container is up */}
@@ -122,7 +122,7 @@ const GeneralTab = React.memo(function GeneralTab({
           </label>
           <ToggleButton
             options={refreshingTogglesOptions}
-            value={localRefreshingTogglesEnabled ? "on" : "off"}
+            value={localRefreshingTogglesEnabled === null ? "off" : localRefreshingTogglesEnabled ? "on" : "off"}
             onChange={handleRefreshingTogglesChange}
             className={styles.toggle}
           />
@@ -147,22 +147,6 @@ const GeneralTab = React.memo(function GeneralTab({
             <Button
               type="button"
               variant="danger"
-              onClick={() => setPortainerConfirm(true)}
-              disabled={clearingPortainerData}
-              className={styles.dangerButton}
-            >
-              {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
-            </Button>
-            <small className={styles.dataActionHelper}>
-              Removes all cached container information from Portainer instances. This will clear
-              container data, stacks, and unused images. Portainer instance configurations will be
-              preserved.
-            </small>
-          </div>
-          <div className={styles.dataActionItem}>
-            <Button
-              type="button"
-              variant="danger"
               onClick={() => setTrackedAppConfirm(true)}
               disabled={clearingTrackedAppData}
               className={styles.dangerButton}
@@ -177,17 +161,6 @@ const GeneralTab = React.memo(function GeneralTab({
           </div>
         </div>
       </div>
-
-      <ConfirmDialog
-        isOpen={portainerConfirm}
-        onClose={() => setPortainerConfirm(false)}
-        onConfirm={handleClearPortainerData}
-        title="Clear Portainer Data?"
-        message="This will remove all cached container information from Portainer instances. This action cannot be undone."
-        confirmText="Clear Data"
-        cancelText="Cancel"
-        variant="danger"
-      />
 
       <ConfirmDialog
         isOpen={trackedAppConfirm}

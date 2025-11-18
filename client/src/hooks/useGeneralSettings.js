@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { BATCH_JOB_TYPES, DEFAULT_BATCH_CONFIG } from "../constants/settings";
@@ -14,11 +14,13 @@ export function useGeneralSettings({
   onBatchConfigUpdate,
 }) {
   const [localColorScheme, setLocalColorScheme] = useState(initialColorScheme);
-  const [logLevel, setLogLevel] = useState("info");
-  const [localLogLevel, setLocalLogLevel] = useState("info");
-  const [refreshingTogglesEnabled, setRefreshingTogglesEnabled] = useState(false);
-  const [localRefreshingTogglesEnabled, setLocalRefreshingTogglesEnabled] = useState(false);
+  const [logLevel, setLogLevel] = useState(null); // Initialize as null, will be set from DB
+  const [localLogLevel, setLocalLogLevel] = useState(null); // Initialize as null, will be set from DB
+  const [refreshingTogglesEnabled, setRefreshingTogglesEnabled] = useState(null); // Initialize as null, will be set from DB
+  const [localRefreshingTogglesEnabled, setLocalRefreshingTogglesEnabled] = useState(null); // Initialize as null, will be set from DB
+  const [isInitialized, setIsInitialized] = useState(false);
   const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
+  const isSavingRef = useRef(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSuccess, setGeneralSettingsSuccess] = useState("");
 
@@ -34,10 +36,22 @@ export function useGeneralSettings({
     try {
       const response = await axios.get(`${API_BASE_URL}/api/batch/log-level`);
       if (response.data.success) {
-        setLogLevel(response.data.logLevel || "info");
+        const fetchedLevel = response.data.logLevel || "info";
+        setLogLevel(fetchedLevel);
+        // Set local state immediately with DB value to prevent flicker
+        setLocalLogLevel(fetchedLevel);
+      } else {
+        // If no value in DB, use default
+        const defaultLevel = "info";
+        setLogLevel(defaultLevel);
+        setLocalLogLevel(defaultLevel);
       }
     } catch (err) {
       console.error("Error fetching log level:", err);
+      // On error, use default
+      const defaultLevel = "info";
+      setLogLevel(defaultLevel);
+      setLocalLogLevel(defaultLevel);
     }
   }, []);
 
@@ -45,12 +59,22 @@ export function useGeneralSettings({
     try {
       const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
       if (response.data.success) {
-        setRefreshingTogglesEnabled(response.data.enabled || false);
+        const fetchedEnabled = response.data.enabled || false;
+        setRefreshingTogglesEnabled(fetchedEnabled);
+        // Set local state immediately with DB value to prevent flicker
+        setLocalRefreshingTogglesEnabled(fetchedEnabled);
+      } else {
+        // If no value in DB, use default
+        const defaultEnabled = false;
+        setRefreshingTogglesEnabled(defaultEnabled);
+        setLocalRefreshingTogglesEnabled(defaultEnabled);
       }
     } catch (err) {
       // If endpoint doesn't exist yet, default to false
       console.error("Error fetching refreshing toggles enabled:", err);
-      setRefreshingTogglesEnabled(false);
+      const defaultEnabled = false;
+      setRefreshingTogglesEnabled(defaultEnabled);
+      setLocalRefreshingTogglesEnabled(defaultEnabled);
     }
   }, []);
 
@@ -95,28 +119,54 @@ export function useGeneralSettings({
     }
   }, []);
 
+  // Fetch initial data on mount only
   useEffect(() => {
-    fetchLogLevel();
-    fetchBatchConfig();
-    fetchRefreshingTogglesEnabled();
-  }, [fetchLogLevel, fetchBatchConfig, fetchRefreshingTogglesEnabled]);
+    const initializeData = async () => {
+      await Promise.all([
+        fetchLogLevel(),
+        fetchBatchConfig(),
+        fetchRefreshingTogglesEnabled(),
+      ]);
+      setIsInitialized(true);
+    };
+    initializeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   useEffect(() => {
-    setLocalColorScheme(initialColorScheme);
+    // Only update if the value actually changed to prevent unnecessary re-renders
+    setLocalColorScheme((prev) => (prev !== initialColorScheme ? initialColorScheme : prev));
     setGeneralSettingsChanged(false);
   }, [initialColorScheme]);
 
+  // Sync logLevel to localLogLevel after initialization (only if logLevel changes externally)
+  // Skip sync during save operations and initial load to prevent flicker
   useEffect(() => {
-    setLocalLogLevel(logLevel);
-  }, [logLevel]);
+    if (isInitialized && !isSavingRef.current && logLevel !== null) {
+      // Only update if values differ to prevent unnecessary re-renders
+      setLocalLogLevel((prev) => {
+        if (prev === logLevel) return prev;
+        return logLevel;
+      });
+    }
+  }, [logLevel, isInitialized]);
 
+  // Sync refreshingTogglesEnabled to localRefreshingTogglesEnabled after initialization (only if it changes externally)
+  // Skip sync during save operations and initial load to prevent flicker
   useEffect(() => {
-    setLocalRefreshingTogglesEnabled(refreshingTogglesEnabled);
-  }, [refreshingTogglesEnabled]);
+    if (isInitialized && !isSavingRef.current && refreshingTogglesEnabled !== null) {
+      // Only update if values differ to prevent unnecessary re-renders
+      setLocalRefreshingTogglesEnabled((prev) => {
+        if (prev === refreshingTogglesEnabled) return prev;
+        return refreshingTogglesEnabled;
+      });
+    }
+  }, [refreshingTogglesEnabled, isInitialized]);
 
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
     setGeneralSettingsSuccess("");
+    isSavingRef.current = true; // Prevent sync useEffect hooks from running during save
     const errors = [];
 
     try {
@@ -144,7 +194,9 @@ export function useGeneralSettings({
         });
         logLevelSuccess = logLevelResponse.data.success;
         if (logLevelSuccess) {
+          // Update both server and local state together to keep them in sync
           setLogLevel(localLogLevel);
+          // Local state is already correct, no need to update
         }
       } catch (err) {
         console.error("Error saving log level:", err);
@@ -162,7 +214,9 @@ export function useGeneralSettings({
         );
         refreshingTogglesSuccess = refreshingTogglesResponse.data.success;
         if (refreshingTogglesSuccess) {
+          // Update both server and local state together to keep them in sync
           setRefreshingTogglesEnabled(localRefreshingTogglesEnabled);
+          // Local state is already correct, no need to update
         }
       } catch (err) {
         console.error("Error saving developer mode:", err);
@@ -193,6 +247,10 @@ export function useGeneralSettings({
       setGeneralSettingsSuccess(`Failed to save settings: ${err.message || "Unknown error"}`);
     } finally {
       setGeneralSettingsSaving(false);
+      // Use setTimeout to allow state updates to complete before re-enabling sync
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 0);
     }
   }, [localColorScheme, localLogLevel, localRefreshingTogglesEnabled, onColorSchemeChange]);
 
@@ -344,5 +402,6 @@ export function useGeneralSettings({
     batchLoading,
     handleBatchConfigSubmit,
     fetchBatchConfig,
+    isInitialized, // Expose initialization state
   };
 }

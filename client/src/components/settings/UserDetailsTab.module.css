@@ -10,7 +10,7 @@
 }
 
 .userInfoCard {
-  margin-top: 0;
+  margin-bottom: 24px;
 }
 
 .infoItem {
@@ -43,8 +43,179 @@
   text-align: center;
 }
 
+/* Collapsible Section Styles */
+.section {
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.section:hover {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .section:hover {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.sectionHeader {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-align: left;
+}
+
+.sectionHeader:hover {
+  background: var(--bg-secondary);
+}
+
+.sectionHeaderContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sectionIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .sectionIcon {
+  color: var(--dodger-blue-light);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.sectionContent {
+  padding: 0 20px 20px 20px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+.form {
+  max-width: 600px;
+  margin-top: 16px;
+}
+
+.formGroup {
+  margin-bottom: 24px;
+}
+
+.uploadLabel {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deleteSection {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.deleteLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deleteHelperText {
+  display: block;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  font-size: 0.875rem;
+}
+
+.deleteButton {
+  margin-top: 0;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.actions {
+  margin-top: 24px;
+}
+
+.submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .submitButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
 .exportContainer {
   max-width: 100%;
+  margin-top: 32px;
 }
 
 .exportButtonContainer {

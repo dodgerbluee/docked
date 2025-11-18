@@ -22,6 +22,14 @@ export const useAuth = () => {
   const [userRole, setUserRole] = useState(() => {
     return localStorage.getItem("userRole") || "Administrator";
   });
+  const [instanceAdmin, setInstanceAdmin] = useState(() => {
+    const stored = localStorage.getItem("instanceAdmin");
+    // Default to false if not set, but check localStorage first
+    if (stored === null) {
+      return false;
+    }
+    return stored === "true";
+  });
   const [passwordChanged, setPasswordChanged] = useState(() => {
     const stored = localStorage.getItem("passwordChanged");
     if (stored === null && localStorage.getItem("authToken")) {
@@ -39,9 +47,11 @@ export const useAuth = () => {
     localStorage.removeItem("username");
     localStorage.removeItem("passwordChanged");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("instanceAdmin");
     setAuthToken(null);
     setUsername(null);
     setUserRole("Administrator");
+    setInstanceAdmin(false);
     setPasswordChanged(false);
     setIsAuthenticated(false);
     delete axios.defaults.headers.common["Authorization"];
@@ -75,6 +85,10 @@ export const useAuth = () => {
             setUserRole(response.data.role);
             localStorage.setItem("userRole", response.data.role);
           }
+          if (response.data.instanceAdmin !== undefined) {
+            setInstanceAdmin(response.data.instanceAdmin);
+            localStorage.setItem("instanceAdmin", response.data.instanceAdmin ? "true" : "false");
+          }
         } else {
           // Token invalid - clear storage
           handleLogout();
@@ -92,7 +106,7 @@ export const useAuth = () => {
   }, [handleLogout]);
 
   // Handle login
-  const handleLogin = useCallback((token, user, pwdChanged, role) => {
+  const handleLogin = useCallback((token, user, pwdChanged, role, isInstanceAdmin = false) => {
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);
@@ -101,6 +115,8 @@ export const useAuth = () => {
       setUserRole(role);
       localStorage.setItem("userRole", role);
     }
+    setInstanceAdmin(isInstanceAdmin);
+    localStorage.setItem("instanceAdmin", isInstanceAdmin ? "true" : "false");
     setIsAuthenticated(true);
     setIsValidating(false);
   }, []);
@@ -150,6 +166,9 @@ export const useAuth = () => {
           error.response?.status === 401 &&
           !error.config?.url?.includes("/api/auth/login") &&
           !error.config?.url?.includes("/api/auth/verify") &&
+          !error.config?.url?.includes("/api/portainer/instances/validate") &&
+          !error.config?.url?.includes("/api/docker-hub/credentials/validate") &&
+          !error.config?.url?.includes("/api/discord/test") &&
           !logoutInProgressRef.current &&
           handleLogoutRef.current
         ) {
@@ -174,6 +193,7 @@ export const useAuth = () => {
     authToken,
     username,
     userRole,
+    instanceAdmin,
     passwordChanged,
     isValidating,
     handleLogin,

@@ -567,6 +567,15 @@ function clearDigestCache(imageRepo, tag) {
 }
 
 /**
+ * Clear all digest cache entries
+ * Used when force refreshing to ensure fresh Docker Hub data
+ */
+function clearAllDigestCache() {
+  digestCache.clear();
+  logger.debug("Cleared all Docker Hub digest cache entries");
+}
+
+/**
  * Check if an image exists in Docker Hub
  * @param {string} imageRepo - Image repository
  * @returns {Promise<boolean>} - True if image exists in Docker Hub, false otherwise
@@ -612,5 +621,6 @@ module.exports = {
   getTagFromDigest,
   getTagPublishDate,
   clearDigestCache,
+  clearAllDigestCache,
   checkImageExistsInDockerHub,
 };

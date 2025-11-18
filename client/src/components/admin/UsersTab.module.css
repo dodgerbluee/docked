@@ -1,0 +1,131 @@
+.usersTab {
+  width: 100%;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.tableContainer {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.usersTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.usersTable thead {
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.usersTable th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.usersTable tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s;
+}
+
+.usersTable tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.usersTable tbody tr:last-child {
+  border-bottom: none;
+}
+
+.usersTable td {
+  padding: 16px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.username {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.email {
+  color: var(--text-secondary);
+}
+
+.date {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.role {
+  text-align: center;
+}
+
+.roleBadge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.roleBadge.instanceAdmin {
+  background: var(--dodger-blue);
+  color: white;
+}
+
+.roleBadge.admin {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode .roleBadge.instanceAdmin {
+  background: var(--dodger-blue-light);
+}
+
+body.dark-mode .roleBadge.admin {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.userActions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.actionButtons {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.actionButton {
+  flex: 1;
+}
+
