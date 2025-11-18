@@ -38,11 +38,15 @@ function getDiscordService() {
  * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data
  * @returns {Promise<Object>} - Containers with update information
  */
-async function getAllContainersWithUpdates(forceRefresh = false, filterPortainerUrl = null) {
+async function getAllContainersWithUpdates(forceRefresh = false, filterPortainerUrl = null, userId = null) {
   // Get previous cache to compare for newly detected updates
   let previousCache = null;
   if (forceRefresh) {
     previousCache = await getContainerCache("containers");
+    // Clear Docker Hub digest cache to ensure fresh data when force refreshing
+    // This prevents stale cached digests from causing false positives when containers
+    // were updated outside the app (e.g., manually via Portainer or docker pull)
+    dockerRegistryService.clearAllDigestCache();
   }
 
   // Check cache first unless force refresh is requested
@@ -51,7 +55,24 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     if (cached) {
       // Reduced logging - only log in debug mode
       if (process.env.DEBUG) {
-        logger.debug("âœ… Using cached container data from database");
+        logger.debug("Using cached container data from database");
+      }
+      // Filter cached data by user's portainer instances if userId provided
+      if (userId && cached.portainerInstances) {
+        const userInstances = await getAllPortainerInstances(userId);
+        const userInstanceUrls = new Set(userInstances.map(inst => inst.url));
+        const filteredContainers = cached.containers?.filter(c => userInstanceUrls.has(c.portainerUrl)) || [];
+        const filteredInstances = cached.portainerInstances.filter(inst => userInstanceUrls.has(inst.url));
+        const filteredStacks = cached.stacks?.map(stack => ({
+          ...stack,
+          containers: stack.containers?.filter(c => userInstanceUrls.has(c.portainerUrl)) || []
+        })).filter(stack => stack.containers && stack.containers.length > 0) || [];
+        return {
+          ...cached,
+          containers: filteredContainers,
+          portainerInstances: filteredInstances,
+          stacks: filteredStacks,
+        };
       }
       return cached;
     }
@@ -59,7 +80,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     // User must explicitly click "Pull" or batch process must run to fetch fresh data
     if (process.env.DEBUG) {
       logger.debug(
-        'ðŸ“¦ No cached data found, returning empty result. User must click "Pull" to fetch data.'
+        'No cached data found, returning empty result. User must click "Pull" to fetch data.'
       );
     }
     // IMPORTANT: Do NOT call Docker Hub here - only return empty result
@@ -74,10 +95,10 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     // Only when forceRefresh=true (explicit pull request or batch process)
     if (filterPortainerUrl) {
       logger.info(
-        `ðŸ”„ Force refresh requested for instance ${filterPortainerUrl}, fetching fresh data from Docker Hub...`
+        `Force refresh requested for instance ${filterPortainerUrl}, fetching fresh data from Docker Hub...`
       );
     } else {
-      logger.info("ðŸ”„ Force refresh requested, fetching fresh data from Docker Hub...");
+      logger.info("Force refresh requested, fetching fresh data from Docker Hub...");
     }
     // Don't clear cache immediately - keep old data visible until new data is ready
     // Cache will be replaced when new data is saved
@@ -85,7 +106,19 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   const allContainers = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  // If userId is null (batch job), get instances for all users
+  let portainerInstances = [];
+  if (userId) {
+    portainerInstances = await getAllPortainerInstances(userId);
+  } else {
+    // For batch jobs, get all users and their instances
+    const { getAllUsers } = require("../db/database");
+    const users = await getAllUsers();
+    for (const user of users) {
+      const userInstances = await getAllPortainerInstances(user.id);
+      portainerInstances = portainerInstances.concat(userInstances);
+    }
+  }
 
   // Filter to specific instance if requested
   const instancesToProcess = filterPortainerUrl
@@ -95,7 +128,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   if (instancesToProcess.length === 0) {
     // Only log warning, not every time
     if (process.env.DEBUG) {
-      logger.debug("âš ï¸  No Portainer instances to process.");
+      logger.debug("No Portainer instances to process.");
     }
     // Return empty result and cache it so we don't keep trying to fetch
     const emptyResult = {
@@ -232,7 +265,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             // If a single container fails, log it but don't break the entire process
             if (process.env.DEBUG) {
               logger.error(
-                `   âŒ Error checking updates for container ${container.Names[0]?.replace("/", "") || container.Id.substring(0, 12)}:`,
+                `Error checking updates for container ${container.Names[0]?.replace("/", "") || container.Id.substring(0, 12)}:`,
                 error.message
               );
             }
@@ -453,14 +486,29 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Save to cache for future requests
   // This replaces the old cache with fresh data (or merges if filtering by instance)
+  // When forceRefresh=true, this includes both Portainer and Docker Hub data
   try {
-    await setContainerCache("containers", result);
+    // Check if result has Docker Hub data (containers with latestDigest or latestTag)
+    const hasDockerHubData = result.containers && result.containers.some(
+      (c) => c.latestDigest || c.latestTag || c.hasUpdate !== undefined
+    );
+    
+    const metadata = {
+      lastPortainerPull: new Date().toISOString(),
+    };
+    
+    // Only set Docker Hub pull timestamp if we actually have Docker Hub data
+    if (hasDockerHubData) {
+      metadata.lastDockerHubPull = new Date().toISOString();
+    }
+    
+    await setContainerCache("containers", result, metadata);
     if (filterPortainerUrl) {
       logger.info(
-        `ðŸ’¾ Container data cached in database (merged data for instance ${filterPortainerUrl})`
+        `Container data cached in database (merged data for instance ${filterPortainerUrl})`
       );
     } else {
-      logger.info("ðŸ’¾ Container data cached in database (replaced old cache)");
+      logger.info("Container data cached in database (replaced old cache)");
     }
   } catch (error) {
     logger.error("Error saving container cache:", error.message);
@@ -546,15 +594,26 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
  * This allows viewing current containers and unused images without Docker Hub data
  * @returns {Promise<Object>} - Containers with basic information (no update status)
  */
-async function getContainersFromPortainer() {
-  logger.info("â³ Fetching containers from Portainer");
+async function getContainersFromPortainer(userId = null) {
+  logger.info("Fetching containers from Portainer");
   const allContainers = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  // If userId is null, get instances for all users
+  let portainerInstances = [];
+  if (userId) {
+    portainerInstances = await getAllPortainerInstances(userId);
+  } else {
+    const { getAllUsers } = require("../db/database");
+    const users = await getAllUsers();
+    for (const user of users) {
+      const userInstances = await getAllPortainerInstances(user.id);
+      portainerInstances = portainerInstances.concat(userInstances);
+    }
+  }
 
   if (portainerInstances.length === 0) {
-    logger.warn("âš ï¸  No Portainer instances configured.");
+    logger.warn("No Portainer instances configured.");
     return {
       grouped: true,
       stacks: [],
@@ -751,11 +810,22 @@ async function getContainersFromPortainer() {
  * Get unused images from all Portainer instances
  * @returns {Promise<Array>} - Array of unused images
  */
-async function getUnusedImages() {
+async function getUnusedImages(userId = null) {
   const unusedImages = [];
 
   // Get Portainer instances from database
-  const portainerInstances = await getAllPortainerInstances();
+  // If userId is null, get instances for all users
+  let portainerInstances = [];
+  if (userId) {
+    portainerInstances = await getAllPortainerInstances(userId);
+  } else {
+    const { getAllUsers } = require("../db/database");
+    const users = await getAllUsers();
+    for (const user of users) {
+      const userInstances = await getAllPortainerInstances(user.id);
+      portainerInstances = portainerInstances.concat(userInstances);
+    }
+  }
 
   if (portainerInstances.length === 0) {
     return [];

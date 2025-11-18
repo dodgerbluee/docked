@@ -1,0 +1,54 @@
+name: Run Client Tests (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      run-coverage:
+        description: 'Run tests with coverage'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd client && npm ci
+
+      - name: Run client tests
+        run: |
+          cd client
+          if [ "${{ inputs.run-coverage }}" = "true" ]; then
+            CI=true npm test -- --coverage --watchAll=false
+          else
+            CI=true npm test -- --watchAll=false
+          fi
+
+      - name: Upload client test coverage
+        if: inputs.run-coverage == true
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./client/coverage/coverage-final.json
+          flags: client
+          name: client-test-coverage
+          fail_ci_if_error: false
+

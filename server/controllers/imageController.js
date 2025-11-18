@@ -17,7 +17,14 @@ const logger = require("../utils/logger");
  */
 async function getUnusedImages(req, res, next) {
   try {
-    const unusedImages = await containerService.getUnusedImages();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const unusedImages = await containerService.getUnusedImages(userId);
     res.json({ unusedImages });
   } catch (error) {
     next(error);

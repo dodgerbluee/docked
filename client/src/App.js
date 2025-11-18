@@ -12,6 +12,7 @@ import BatchLogs from "./components/BatchLogs";
 import TrackedAppsPage from "./pages/TrackedAppsPage";
 import SummaryPage from "./pages/SummaryPage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 import BatchPage from "./pages/BatchPage";
 import PortainerPage from "./pages/PortainerPage";
 import LogsPage from "./pages/LogsPage";
@@ -52,6 +53,7 @@ function App() {
     authToken,
     username,
     userRole,
+    instanceAdmin,
     passwordChanged,
     isValidating,
     handleLogin,
@@ -269,16 +271,20 @@ function App() {
     handleNavigateToBatch,
   } = navigation;
 
+  const handleNavigateToAdmin = useCallback(() => {
+    setActiveTab(TAB_NAMES.ADMIN);
+  }, [setActiveTab]);
+
   // handleBatchConfigUpdate is now provided by useBatchConfig hook
 
   // Enhanced handleLogin to include tab navigation
   const handleLoginWithNavigation = useCallback(
-    (token, user, pwdChanged, role) => {
-      handleLogin(token, user, pwdChanged, role);
+    (token, user, pwdChanged, role, isInstanceAdmin = false) => {
+      handleLogin(token, user, pwdChanged, role, isInstanceAdmin);
       // If password not changed, show settings immediately with password section
       if (!pwdChanged) {
         setActiveTab(TAB_NAMES.SETTINGS);
-        setSettingsTab(SETTINGS_TABS.PASSWORD);
+        setSettingsTab(SETTINGS_TABS.USER_DETAILS);
       }
     },
     [handleLogin]
@@ -309,11 +315,14 @@ function App() {
 
   // Theme, color scheme, and Docker Hub credentials are now managed by hooks
 
+  // Track if initial fetch has been done to prevent re-fetching on every render
+  const initialFetchDoneRef = useRef(false);
+  
   // Fetch cached data on page load/refresh (no Docker Hub calls)
   // This loads data from the database cache without triggering Docker Hub API calls
   // If no cache exists, backend will automatically fetch from Portainer (no Docker Hub)
   useEffect(() => {
-    if (isAuthenticated && authToken && passwordChanged) {
+    if (isAuthenticated && authToken && passwordChanged && !initialFetchDoneRef.current) {
       // Ensure axios header is set before fetching
       if (!axios.defaults.headers.common["Authorization"]) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
@@ -321,24 +330,24 @@ function App() {
       fetchColorScheme();
       fetchDockerHubCredentials();
       // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
-      // Only fetch if we haven't fetched yet (don't refetch after clearing)
-      if (!dataFetched) {
-        fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
-      }
+      // Only fetch once on initial mount
+      initialFetchDoneRef.current = true;
+      fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     authToken,
     passwordChanged,
-    fetchColorScheme,
-    fetchDockerHubCredentials,
-    dataFetched,
-    fetchContainers,
+    // Note: fetchContainers is intentionally excluded from deps to prevent re-fetching
+    // when it's recreated due to container state changes (e.g., after clearing cache)
+    // We use initialFetchDoneRef to ensure this only runs once on mount
   ]);
 
-  // Reset dataFetched and dockerHubDataPulled when logging out
+  // Reset initial fetch flag and dataFetched when logging out
   useEffect(() => {
     if (!isAuthenticated) {
+      initialFetchDoneRef.current = false;
       setDataFetched(false);
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
@@ -529,6 +538,7 @@ function App() {
       TAB_NAMES.SETTINGS,
       TAB_NAMES.CONFIGURATION,
       TAB_NAMES.BATCH_LOGS,
+      TAB_NAMES.ADMIN,
     ];
 
     if (
@@ -634,6 +644,12 @@ function App() {
     setConfigurationTab(CONFIGURATION_TABS.HISTORY);
     setShowAvatarMenu(false);
   }, [setActiveTab, setConfigurationTab, setShowAvatarMenu]);
+
+  // eslint-disable-next-line no-unused-vars
+  const handleNavigateToAdminWithMenu = useCallback(() => {
+    setShowAvatarMenu(false);
+    handleNavigateToAdmin();
+  }, [handleNavigateToAdmin]);
 
   // Summary statistics are now calculated in the useSummaryStats hook within SummaryPage component
 
@@ -833,6 +849,8 @@ function App() {
       );
     } else if (activeTab === "batch-logs") {
       return <BatchLogs />;
+    } else if (activeTab === "admin") {
+      return <AdminPage />;
     }
     return null;
   };
@@ -877,9 +895,11 @@ function App() {
               });
             }
           }}
+          instanceAdmin={instanceAdmin}
           onNavigateToSummary={handleNavigateToSummary}
           onNavigateToSettings={handleNavigateToSettings}
           onNavigateToBatch={handleNavigateToBatch}
+          onNavigateToAdmin={handleNavigateToAdminWithMenu}
           onNavigateToPortainer={handleNavigateToPortainer}
           onNavigateToTrackedApps={handleNavigateToTrackedApps}
           onDismissContainerNotification={handleDismissContainerNotification}
@@ -890,10 +910,11 @@ function App() {
         />
 
         <div className="container">
-          {/* Tabs - Show for all tabs except old settings page, configuration, and batch logs */}
+          {/* Tabs - Show for all tabs except old settings page, configuration, batch logs, and admin */}
           {activeTab !== TAB_NAMES.SETTINGS &&
             activeTab !== TAB_NAMES.CONFIGURATION &&
-            activeTab !== TAB_NAMES.BATCH_LOGS && (
+            activeTab !== TAB_NAMES.BATCH_LOGS &&
+            activeTab !== TAB_NAMES.ADMIN && (
               <TabNavigation
                 activeTab={activeTab}
                 onTabChange={(tab) => {
@@ -1028,6 +1049,7 @@ function App() {
                       />
                     )}
                     {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                    {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
                   </>
                 )}
               </>

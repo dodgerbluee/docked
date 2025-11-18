@@ -3,6 +3,22 @@
  * Sets up Express app and middleware
  */
 
+// Register error handlers IMMEDIATELY before anything else
+// This ensures we catch any errors during module loading
+process.on("uncaughtException", (error) => {
+  process.stderr.write(`[SERVER.JS] UNCAUGHT EXCEPTION (early): ${error.message}\n`);
+  process.stderr.write(`[SERVER.JS] Stack: ${error.stack}\n`);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  process.stderr.write(`[SERVER.JS] UNHANDLED REJECTION (early): ${reason}\n`);
+  if (reason instanceof Error) {
+    process.stderr.write(`[SERVER.JS] Stack: ${reason.stack}\n`);
+  }
+  process.exit(1);
+});
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -17,9 +33,23 @@ const requestLogger = require("./middleware/requestLogger");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
 const { initializeRegistrationCode } = require("./utils/registrationCode");
-const { hasAnyUsers, waitForDatabase } = require("./db/database");
+
+logger.debug("Starting server module load", { module: "server" });
+
+let databaseModule;
+try {
+  databaseModule = require("./db/database");
+  logger.debug("Database module loaded", { module: "server" });
+} catch (dbError) {
+  process.stderr.write(`[SERVER.JS] ERROR loading database: ${dbError}\n`);
+  process.stderr.write(`[SERVER.JS] Stack: ${dbError.stack}\n`);
+  logger.error("Failed to load database module:", dbError);
+  process.exit(1);
+}
+const { hasAnyUsers, waitForDatabase, waitForMigrations } = databaseModule;
 
 const app = express();
+logger.debug("Express app created", { module: "server" });
 
 // Trust proxy - required when running behind a reverse proxy (Docker, nginx, etc.)
 // This allows Express to correctly identify the client IP from X-Forwarded-For headers
@@ -152,7 +182,25 @@ if (shouldServeStatic) {
 app.use(errorHandler);
 
 // Import batch system
-const batchSystem = require("./services/batch");
+logger.debug("About to require batch system", { module: "server" });
+let batchSystem;
+try {
+  batchSystem = require("./services/batch");
+  logger.debug("Batch system loaded", { module: "server" });
+} catch (batchError) {
+  process.stderr.write(`[SERVER.JS] ERROR loading batch system: ${batchError}\n`);
+  process.stderr.write(`[SERVER.JS] Stack: ${batchError.stack}\n`);
+  logger.error("Failed to load batch system:", batchError);
+  // Create a dummy batch system to prevent crashes
+  batchSystem = {
+    start: () => Promise.resolve(),
+    stop: () => {},
+    executeJob: () => Promise.resolve(),
+    getStatus: () => ({ running: false }),
+    getRegisteredJobTypes: () => [],
+    getHandler: () => null,
+  };
+}
 
 // Handle unhandled promise rejections (Express 5 compatibility)
 // In Express 5, unhandled rejections can cause crashes
@@ -193,39 +241,37 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
+// Log when process is about to exit
+process.on("exit", (code) => {
+  logger.debug(`Process exiting with code ${code}`, { module: "server" });
+});
+
+// Log before exit
+const originalExit = process.exit;
+process.exit = function(code) {
+  logger.debug(`process.exit(${code}) called`, { module: "server" });
+  return originalExit.call(process, code);
+};
+
 // Only start the server if this file is being run directly (not required by tests)
 // require.main === module means this file was executed directly (e.g., node server.js)
 // We also skip if NODE_ENV is 'test' to prevent server startup during tests
 const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
+logger.debug(`shouldStartServer: ${shouldStartServer}, require.main === module: ${require.main === module}, NODE_ENV: ${process.env.NODE_ENV}`, { module: "server" });
 
 if (shouldStartServer) {
   // Start server
+  logger.debug("About to start server", { module: "server" });
   try {
+    logger.debug("Inside try block, about to log 'Server starting'", { module: "server" });
     logger.info("Server starting", {
       module: "server",
       environment: process.env.NODE_ENV || "development",
       port: config.port,
     });
 
-    // Initialize registration code on startup if no users exist
-    // Wait for database to be ready first, then check for users
-    waitForDatabase()
-      .then(() => {
-        return hasAnyUsers();
-      })
-      .then((hasUsers) => {
-        if (!hasUsers) {
-          initializeRegistrationCode();
-        }
-      })
-      .catch((err) => {
-        logger.error("Error checking for existing users:", {
-          module: "server",
-          error: err,
-        });
-        // Initialize code anyway as a safety measure
-        initializeRegistrationCode();
-      });
+    // Registration code is now generated on-demand when user clicks "Create User"
+    // No longer generated on server startup
 
     const server = app.listen(config.port, () => {
       logger.info("Server started successfully", {
@@ -246,24 +292,49 @@ if (shouldStartServer) {
       }
 
       // Start batch system (runs jobs in background even when browser is closed)
+      // Wait for migrations to complete before starting batch system
       // Use setImmediate to ensure server is fully started before starting batch system
-      setImmediate(() => {
-        batchSystem
-          .start()
-          .then(() => {
-            logger.info("Batch system started", {
-              module: "server",
-              service: "batch",
+      setImmediate(async () => {
+        try {
+          // Wait for migrations to complete before starting batch jobs
+          await waitForMigrations();
+          logger.debug("Migrations complete, starting batch system", { module: "server" });
+          
+          batchSystem
+            .start()
+            .then(() => {
+              logger.info("Batch system started", {
+                module: "server",
+                service: "batch",
+              });
+            })
+            .catch((err) => {
+              logger.error("Failed to start batch system", {
+                module: "server",
+                service: "batch",
+                error: err,
+              });
+              // Don't crash the server if batch system fails to start
             });
-          })
-          .catch((err) => {
-            logger.error("Failed to start batch system", {
-              module: "server",
-              service: "batch",
-              error: err,
+        } catch (migrationErr) {
+          logger.error("Error waiting for migrations:", migrationErr);
+          // Still try to start batch system - it might work anyway
+          batchSystem
+            .start()
+            .then(() => {
+              logger.info("Batch system started (migrations may not have completed)", {
+                module: "server",
+                service: "batch",
+              });
+            })
+            .catch((err) => {
+              logger.error("Failed to start batch system", {
+                module: "server",
+                service: "batch",
+                error: err,
+              });
             });
-            // Don't crash the server if batch system fails to start
-          });
+        }
       });
     });
 

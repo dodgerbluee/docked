@@ -5,7 +5,7 @@
 
 const JobHandler = require("../JobHandler");
 const trackedImageService = require("../../trackedImageService");
-const { getAllTrackedImages } = require("../../../db/database");
+const { getAllTrackedImages, getAllUsers } = require("../../../db/database");
 
 class TrackedAppsCheckHandler extends JobHandler {
   getJobType() {
@@ -35,15 +35,24 @@ class TrackedAppsCheckHandler extends JobHandler {
     try {
       logger.info("Starting tracked apps check batch job");
 
-      // Get all tracked images
-      const images = await getAllTrackedImages();
-      logger.debug(`Found ${images.length} tracked images to check`);
+      // Get all users and check tracked images for each user
+      const users = await getAllUsers();
+      logger.debug(`Found ${users.length} users to check tracked apps for`);
+
+      let allImages = [];
+      for (const user of users) {
+        const images = await getAllTrackedImages(user.id);
+        logger.debug(`Found ${images.length} tracked images for user ${user.username}`);
+        allImages = allImages.concat(images);
+      }
+
+      logger.debug(`Total tracked images to check: ${allImages.length}`);
 
       // Check for updates
-      const results = await trackedImageService.checkAllTrackedImages(images);
+      const results = await trackedImageService.checkAllTrackedImages(allImages);
 
       // Extract metrics
-      result.itemsChecked = images.length;
+      result.itemsChecked = allImages.length;
       result.itemsUpdated = results.filter((r) => r.hasUpdate).length;
 
       logger.info("Tracked apps check completed successfully", {

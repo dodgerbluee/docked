@@ -21,12 +21,15 @@ function logError(message, error) {
 
 /**
  * Get current log level
+ * Log level is system-wide, so we get it from the first user (or use default)
  * @returns {Promise<string>} - 'info' or 'debug'
  */
 async function getLogLevel() {
   try {
-    const level = await getSetting(LOG_LEVEL_KEY);
-    return level || DEFAULT_LOG_LEVEL;
+    // Log level is system-wide - get it from the first user
+    // For now, since this is a breaking change, just return default
+    // TODO: In the future, we could store system settings separately or use user ID 1
+    return DEFAULT_LOG_LEVEL;
   } catch (err) {
     // Don't use logger to avoid circular dependency
     logError("Error getting log level", err);
@@ -36,15 +39,28 @@ async function getLogLevel() {
 
 /**
  * Set log level
+ * Log level is system-wide, so we set it for the first user
  * @param {string} level - 'info' or 'debug'
+ * @param {number} userId - User ID (optional, will use first user if not provided)
  * @returns {Promise<void>}
  */
-async function setLogLevel(level) {
+async function setLogLevel(level, userId = null) {
   if (level !== "info" && level !== "debug") {
     throw new Error('Log level must be "info" or "debug"');
   }
   try {
-    await setSetting(LOG_LEVEL_KEY, level);
+    // If no userId provided, get the first user
+    if (!userId) {
+      const { getAllUsers } = require("../db/database");
+      const users = await getAllUsers();
+      if (users.length === 0) {
+        // No users yet, can't set log level
+        return;
+      }
+      userId = users[0].id;
+    }
+    await setSetting(LOG_LEVEL_KEY, level, userId);
+    updateCachedLogLevel(level);
   } catch (err) {
     // Don't use logger to avoid circular dependency
     logError("Error setting log level", err);

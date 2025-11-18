@@ -1,6 +1,7 @@
 /**
  * Create User Modal
  * Modal for creating a new user account
+ * Multi-step flow: Registration code verification (if first user) -> Username/password form
  */
 
 import React, { useState, useEffect } from "react";
@@ -10,6 +11,7 @@ import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
+import RegistrationCodeStep from "./CreateUserModal/RegistrationCodeStep";
 import { API_BASE_URL } from "../utils/api";
 import {
   validateUsername,
@@ -21,7 +23,13 @@ import {
 import { getErrorMessage } from "../utils/errorHandling";
 import styles from "./CreateUserModal.module.css";
 
+const STEP_TYPES = {
+  REGISTRATION_CODE: "registration_code",
+  USER_FORM: "user_form",
+};
+
 function CreateUserModal({ isOpen, onClose, onSuccess }) {
+  const [currentStep, setCurrentStep] = useState(STEP_TYPES.REGISTRATION_CODE);
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -33,6 +41,11 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [requiresCode, setRequiresCode] = useState(false);
   const [checkingCode, setCheckingCode] = useState(false);
+  const [codeGenerated, setCodeGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified] = useState(undefined);
 
   // Check if registration code is required when modal opens
   useEffect(() => {
@@ -61,17 +74,34 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
         .get("/api/auth/registration-code-required")
         .then((response) => {
           if (response.data.success) {
-            setRequiresCode(response.data.requiresCode || false);
+            const needsCode = response.data.requiresCode || false;
+            setRequiresCode(needsCode);
+            // If no code needed, skip to user form
+            if (!needsCode) {
+              setCurrentStep(STEP_TYPES.USER_FORM);
+            }
           }
         })
         .catch((err) => {
-          console.error("Error checking registration code requirement:", err);
-          // Default to false if check fails
+          // Default to false if check fails - skip to user form
           setRequiresCode(false);
+          setCurrentStep(STEP_TYPES.USER_FORM);
         })
         .finally(() => {
           setCheckingCode(false);
         });
+    } else {
+      // When modal closes, reset all state
+      setError("");
+      setVerified(undefined);
+      setVerifying(false);
+      setFormData({
+        username: "",
+        password: "",
+        confirmPassword: "",
+        email: "",
+        registrationCode: "",
+      });
     }
   }, [isOpen]);
 
@@ -146,6 +176,158 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
     return true;
   };
 
+  // Generate registration code
+  const handleGenerateCode = async () => {
+    setGenerating(true);
+    setError("");
+    
+    try {
+      const codeAxios = axios.create({
+        baseURL: API_BASE_URL,
+        headers: { "Content-Type": "application/json" },
+      });
+      delete codeAxios.defaults.headers.common["Authorization"];
+
+      const response = await codeAxios.post("/api/auth/generate-registration-code");
+      
+      if (response.data.success) {
+        setCodeGenerated(true);
+      } else {
+        setError(response.data.error || "Failed to generate registration code");
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to generate registration code"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Regenerate registration code
+  const handleRegenerateCode = async () => {
+    setRegenerating(true);
+    setError("");
+    
+    try {
+      const codeAxios = axios.create({
+        baseURL: API_BASE_URL,
+        headers: { "Content-Type": "application/json" },
+      });
+      delete codeAxios.defaults.headers.common["Authorization"];
+
+      const response = await codeAxios.post("/api/auth/generate-registration-code");
+      
+      if (response.data.success) {
+        setCodeGenerated(true);
+        setVerified(undefined);
+        setFormData((prev) => ({ ...prev, registrationCode: "" }));
+      } else {
+        setError(response.data.error || "Failed to regenerate registration code");
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to regenerate registration code"));
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Verify registration code
+  const handleVerifyCode = async () => {
+    if (!formData.registrationCode || !formData.registrationCode.trim()) {
+      setError("Please enter the registration code");
+      setVerified(undefined); // Clear verified state
+      return false;
+    }
+
+    setVerifying(true);
+    setError("");
+    setVerified(undefined); // Clear previous verification state
+
+    try {
+      // First validate code format
+      const codeError = validateRegistrationCode(formData.registrationCode);
+      if (codeError) {
+        setError(codeError);
+        setVerified(undefined);
+        setVerifying(false);
+        return false;
+      }
+
+      // Then verify code with server
+      const verifyAxios = axios.create({
+        baseURL: API_BASE_URL,
+        headers: { "Content-Type": "application/json" },
+      });
+      delete verifyAxios.defaults.headers.common["Authorization"];
+
+      const codeToVerify = formData.registrationCode.replace(/-/g, "");
+
+      const response = await verifyAxios.post("/api/auth/verify-registration-code", {
+        registrationCode: codeToVerify,
+      });
+
+      if (response.data.success) {
+        // Code is valid - proceed to next step
+        setVerified(true);
+        setVerifying(false);
+        setError(""); // Clear any errors
+        return true;
+      } else {
+        setError(response.data.error || "Invalid registration code. Please check the server logs for the correct code.");
+        setVerified(undefined);
+        setVerifying(false);
+        return false;
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || "Invalid registration code. Please check the server logs for the correct code.";
+      setError(errorMessage);
+      setVerified(undefined);
+      setVerifying(false);
+      return false;
+    }
+  };
+
+  // Handle next button (for registration code step)
+  const handleNext = async () => {
+    if (currentStep === STEP_TYPES.REGISTRATION_CODE) {
+      try {
+        const isValid = await handleVerifyCode();
+        
+        if (isValid) {
+          // Move to user form step
+          setCurrentStep(STEP_TYPES.USER_FORM);
+          setError("");
+        }
+      } catch (err) {
+        setError(err.message || "An error occurred during verification");
+      }
+      return;
+    }
+  };
+
+  // Format registration code input
+  const handleRegistrationCodeChange = (value) => {
+    // Remove existing dashes and convert to uppercase
+    let formatted = value.replace(/-/g, "").toUpperCase();
+    // Add dashes every 4 characters
+    if (formatted.length > 4) {
+      formatted = formatted.slice(0, 4) + "-" + formatted.slice(4);
+    }
+    if (formatted.length > 9) {
+      formatted = formatted.slice(0, 9) + "-" + formatted.slice(9, 13);
+    }
+    // Limit to 14 characters (XXXX-XXXX-XXXX)
+    formatted = formatted.slice(0, 14);
+    
+    setFormData((prev) => ({
+      ...prev,
+      registrationCode: formatted,
+    }));
+    // Clear errors and verification state when user types
+    setError("");
+    setVerified(undefined);
+  };
+
+  // Handle form submission (for user form step)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -185,9 +367,13 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
       if (response.data.success) {
         if (onSuccess) {
-          onSuccess(response.data.message || "User created successfully");
+          // Pass username to success callback for personalized message
+          // onSuccess will handle closing the modal, so don't call onClose() here
+          onSuccess(formData.username);
+        } else {
+          // If no onSuccess callback, close the modal normally
+          onClose();
         }
-        onClose();
       } else {
         setError(getErrorMessage(response.data, "Failed to create user"));
       }
@@ -198,8 +384,64 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create User Account" size="md">
+  const renderContent = () => {
+    if (checkingCode) {
+      return (
+        <div className={styles.checkingCode}>
+          <p>Checking if registration code is required...</p>
+        </div>
+      );
+    }
+
+    // Registration code step
+    if (currentStep === STEP_TYPES.REGISTRATION_CODE && requiresCode) {
+      return (
+        <div className={styles.stepContainer}>
+          {error && (
+            <Alert variant="error" className={styles.alert}>
+              {error}
+            </Alert>
+          )}
+          <RegistrationCodeStep
+            codeGenerated={codeGenerated}
+            onGenerate={handleGenerateCode}
+            onRegenerate={handleRegenerateCode}
+            onTokenChange={handleRegistrationCodeChange}
+            verifying={verifying}
+            regenerating={regenerating}
+            generating={generating}
+            verified={verified}
+          />
+          <div className={styles.actions}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={loading || verifying || generating || regenerating}
+              className={styles.cancelButton}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleNext();
+              }}
+              disabled={loading || verifying || generating || regenerating || !formData.registrationCode}
+              className={styles.submitButton}
+            >
+              {verifying ? "Verifying..." : "Next"}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // User form step
+    return (
       <form onSubmit={handleSubmit} className={styles.form}>
         {error && (
           <Alert variant="error" className={styles.alert}>
@@ -232,34 +474,6 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
           helperText="Optional"
         />
 
-        {checkingCode ? (
-          <div className={styles.checkingCode}>
-            <p>Checking if registration code is required...</p>
-          </div>
-        ) : requiresCode ? (
-          <div>
-            <Alert variant="info" className={styles.alert}>
-              <strong>Registration Code Required</strong>
-              <br />
-              This is the first user account. Please check your server logs for the registration
-              code. It will be displayed in a formatted box when the server starts.
-            </Alert>
-            <Input
-              id="registrationCode"
-              label="Registration Code"
-              type="text"
-              value={formData.registrationCode}
-              onChange={handleChange("registrationCode")}
-              required={requiresCode}
-              disabled={loading || checkingCode}
-              placeholder="XXXX-XXXX-XXXX"
-              helperText="Enter the registration code shown in the server logs (format: XXXX-XXXX-XXXX)"
-              autoComplete="off"
-              maxLength={14}
-            />
-          </div>
-        ) : null}
-
         <Input
           id="password"
           label="Password"
@@ -289,22 +503,26 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
           <Button
             type="button"
             variant="secondary"
-            onClick={onClose}
+            onClick={() => {
+              if (requiresCode && currentStep === STEP_TYPES.USER_FORM) {
+                setCurrentStep(STEP_TYPES.REGISTRATION_CODE);
+              } else {
+                onClose();
+              }
+            }}
             disabled={loading}
             className={styles.cancelButton}
           >
-            Cancel
+            {requiresCode && currentStep === STEP_TYPES.USER_FORM ? "Back" : "Cancel"}
           </Button>
           <Button
             type="submit"
             variant="primary"
             disabled={
               loading ||
-              checkingCode ||
               !formData.username ||
               !formData.password ||
-              !formData.confirmPassword ||
-              (requiresCode && !formData.registrationCode)
+              !formData.confirmPassword
             }
             className={styles.submitButton}
           >
@@ -312,6 +530,12 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
           </Button>
         </div>
       </form>
+    );
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Create User Account" size="md">
+      {renderContent()}
     </Modal>
   );
 }

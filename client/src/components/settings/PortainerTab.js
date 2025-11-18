@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import PropTypes from "prop-types";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import Button from "../ui/Button";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -15,8 +16,11 @@ const PortainerTab = React.memo(function PortainerTab({
   onEditInstance,
   handleEditInstance,
   handleDeleteInstance,
+  onClearPortainerData,
+  clearingPortainerData,
 }) {
-  const [deleteConfirm, setDeleteConfirm] = React.useState({ isOpen: false, instanceId: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
+  const [portainerConfirm, setPortainerConfirm] = useState(false);
 
   const handleDeleteClick = (instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -27,6 +31,20 @@ const PortainerTab = React.memo(function PortainerTab({
       handleDeleteInstance(deleteConfirm.instanceId);
     }
     setDeleteConfirm({ isOpen: false, instanceId: null });
+  };
+
+  const handleClearPortainerData = async () => {
+    if (!onClearPortainerData) {
+      alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
+      return;
+    }
+    try {
+      await onClearPortainerData();
+      setPortainerConfirm(false);
+    } catch (error) {
+      console.error("Error clearing Portainer data:", error);
+      alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
+    }
   };
 
   return (
@@ -107,6 +125,39 @@ const PortainerTab = React.memo(function PortainerTab({
         cancelText="Cancel"
         variant="danger"
       />
+
+      <div className={styles.dataManagement}>
+        <h4 className={styles.sectionTitle}>Data Management</h4>
+        <div className={styles.dataActions}>
+          <div className={styles.dataActionItem}>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => setPortainerConfirm(true)}
+              disabled={clearingPortainerData}
+              className={styles.dangerButton}
+            >
+              {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
+            </Button>
+            <small className={styles.dataActionHelper}>
+              Removes all cached container information from Portainer instances. This will clear
+              container data, stacks, and unused images. Portainer instance configurations will be
+              preserved.
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={portainerConfirm}
+        onClose={() => setPortainerConfirm(false)}
+        onConfirm={handleClearPortainerData}
+        title="Clear Portainer Data?"
+        message="This will remove all cached container information from Portainer instances. This action cannot be undone."
+        confirmText="Clear Data"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 });
@@ -116,6 +167,8 @@ PortainerTab.propTypes = {
   onEditInstance: PropTypes.func,
   handleEditInstance: PropTypes.func.isRequired,
   handleDeleteInstance: PropTypes.func.isRequired,
+  onClearPortainerData: PropTypes.func,
+  clearingPortainerData: PropTypes.bool,
 };
 
 export default PortainerTab;

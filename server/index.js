@@ -1,10 +1,19 @@
+// Log that we're starting to load the module
+console.log("[MODULE] Starting server/index.js module load");
+
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 require("dotenv").config({ quiet: true });
 const logger = require("./utils/logger");
+
+console.log("[MODULE] Logger loaded, about to require other modules");
+
 const { initializeRegistrationCode } = require("./utils/registrationCode");
+console.log("[MODULE] initializeRegistrationCode loaded");
+
 const { hasAnyUsers } = require("./db/database");
+console.log("[MODULE] Database module loaded");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1221,24 +1230,33 @@ app.post("/api/containers/batch-upgrade", async (req, res) => {
 });
 
 // Import batch scheduler
+console.log("[MODULE] About to require batch system");
 const batchSystem = require("./services/batch");
+console.log("[MODULE] Batch system loaded");
 
+// Handle unhandled promise rejections to prevent crashes
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("[SERVER] Unhandled Rejection at:", promise, "reason:", reason);
+  console.error("[SERVER] Unhandled Rejection:", reason);
+  // Don't exit - log and continue
+});
+
+// Handle uncaught exceptions to prevent crashes
+process.on("uncaughtException", (error) => {
+  logger.error("[SERVER] Uncaught Exception:", error);
+  logger.error("[SERVER] Stack:", error.stack);
+  console.error("[SERVER] Uncaught Exception:", error);
+  console.error("[SERVER] Stack:", error.stack);
+  // Don't exit - log and continue (server should keep running)
+});
+
+console.log("[MODULE] About to call app.listen()");
 logger.info("[SERVER] About to call app.listen() on port", PORT);
 
-// Initialize registration code on startup if no users exist
-hasAnyUsers()
-  .then((hasUsers) => {
-    if (!hasUsers) {
-      initializeRegistrationCode();
-    }
-  })
-  .catch((err) => {
-    logger.error("[SERVER] Error checking for existing users:", err);
-    // Initialize code anyway as a safety measure
-    initializeRegistrationCode();
-  });
+// Registration code is now generated on-demand when user clicks "Create User"
+// No longer generated on server startup
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`[SERVER] ✅ Server running on port ${PORT}`);
   logger.info(`Portainer URLs: ${PORTAINER_URLS.join(", ")}`);
   logger.info(`Portainer Username: ${PORTAINER_USERNAME}`);
@@ -1260,15 +1278,28 @@ app.listen(PORT, () => {
   logger.info(`Cache TTL: 24 hours`);
 
   // Start batch system (runs jobs in background even when browser is closed)
-  logger.info("[SERVER] Attempting to start batch system...");
-  batchSystem
-    .start()
-    .then(() => {
-      logger.info("[SERVER] ✅ Batch system started successfully");
-    })
-    .catch((err) => {
-      logger.error("[SERVER] ❌ ERROR starting batch system:", err.message);
-      logger.error("[SERVER] Stack:", err.stack);
-      logger.error("Error starting batch system:", err);
-    });
+  // Use setImmediate to ensure server is fully started before starting batch system
+  setImmediate(() => {
+    logger.info("[SERVER] Attempting to start batch system...");
+    batchSystem
+      .start()
+      .then(() => {
+        logger.info("[SERVER] ✅ Batch system started successfully");
+      })
+      .catch((err) => {
+        logger.error("[SERVER] ❌ ERROR starting batch system:", err.message);
+        logger.error("[SERVER] Stack:", err.stack);
+        logger.error("Error starting batch system:", err);
+        // Don't crash the server if batch system fails to start
+      });
+  });
+});
+
+// Handle server errors
+server.on("error", (err) => {
+  logger.error(`[SERVER] ❌ Server error on port ${PORT}:`, err);
+  if (err.code === "EADDRINUSE") {
+    logger.error(`[SERVER] Port ${PORT} is already in use`);
+  }
+  process.exit(1);
 });

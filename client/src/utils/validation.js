@@ -103,15 +103,32 @@ export function validateRegistrationCode(code) {
   }
 
   // Remove dashes for validation
-  const codeWithoutDashes = code.replace(/-/g, "");
+  const codeWithoutDashes = code.replace(/-/g, "").trim();
+  
+  // Check length without dashes (should be 12 characters)
   if (codeWithoutDashes.length !== 12) {
     return "Registration code must be 12 characters";
   }
 
-  // Check format: XXXX-XXXX-XXXX
-  const codePattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-  if (!codePattern.test(code)) {
-    return "Invalid registration code format";
+  // Only check format pattern if code is complete (14 characters with dashes)
+  // This prevents validation errors while user is still typing
+  // Pattern allows: A-Z, 0-9, and special characters: !@#$%&*+=?
+  // Excludes dashes (-) as they are formatting only
+  if (code.includes("-") && code.trim().length === 14) {
+    const codePattern = /^[A-Z0-9!@#$%&*+=?]{4}-[A-Z0-9!@#$%&*+=?]{4}-[A-Z0-9!@#$%&*+=?]{4}$/;
+    if (!codePattern.test(code.trim())) {
+      return "Invalid registration code format";
+    }
+  } else if (!code.includes("-")) {
+    // If no dashes, check that it's valid characters and 12 characters
+    // Allows same characters as generation: A-Z, 0-9, !@#$%&*+=?
+    const validPattern = /^[A-Z0-9!@#$%&*+=?]{12}$/;
+    if (!validPattern.test(codeWithoutDashes)) {
+      return "Registration code contains invalid characters";
+    }
   }
+  // If code has dashes but isn't complete (14 chars), don't validate format yet
+  // This allows partial input like "ABCD-EFGH" without showing errors
+  
   return null;
 }

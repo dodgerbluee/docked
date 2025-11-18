@@ -98,7 +98,14 @@ async function validateInstance(req, res, next) {
  */
 async function getInstances(req, res, next) {
   try {
-    const instances = await getAllPortainerInstances();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const instances = await getAllPortainerInstances(userId);
     // Don't return passwords or API keys in the response
     const safeInstances = instances.map(({ password, api_key, ...rest }) => rest);
     res.json({
@@ -118,8 +125,15 @@ async function getInstances(req, res, next) {
  */
 async function getInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
-    const instance = await getPortainerInstanceById(parseInt(id));
+    const instance = await getPortainerInstanceById(parseInt(id), userId);
 
     if (!instance) {
       return res.status(404).json({
@@ -211,9 +225,18 @@ async function createInstance(req, res, next) {
       });
     }
 
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     // Create instance
     // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
     const id = await createPortainerInstance(
+      userId,
       instanceName,
       url.trim(),
       authType === "apikey" ? "" : username ? username.trim() : "",
@@ -248,11 +271,18 @@ async function createInstance(req, res, next) {
  */
 async function updateInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
     const { name, url, username, password, apiKey, authType } = req.body;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await getPortainerInstanceById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -354,6 +384,7 @@ async function updateInstance(req, res, next) {
     // For password auth, use null for API key to clear it
     await updatePortainerInstance(
       parseInt(id),
+      userId,
       instanceName,
       url.trim(),
       finalAuthType === "apikey" ? "" : username ? username.trim() : "",
@@ -387,10 +418,17 @@ async function updateInstance(req, res, next) {
  */
 async function deleteInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await getPortainerInstanceById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -411,7 +449,7 @@ async function deleteInstance(req, res, next) {
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
     // Delete instance
-    await deletePortainerInstance(parseInt(id));
+    await deletePortainerInstance(parseInt(id), userId);
 
     // Remove containers from cache that belong to the deleted instance
     try {
@@ -544,6 +582,13 @@ async function deleteInstance(req, res, next) {
  */
 async function updateInstanceOrder(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { orders } = req.body;
 
     if (!Array.isArray(orders)) {
@@ -563,7 +608,7 @@ async function updateInstanceOrder(req, res, next) {
       }
     }
 
-    await updatePortainerInstanceOrder(orders);
+    await updatePortainerInstanceOrder(userId, orders);
 
     res.json({
       success: true,

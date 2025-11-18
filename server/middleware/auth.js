@@ -44,6 +44,7 @@ async function authenticate(req, res, next) {
           id: user.id,
           username: user.username,
           role: user.role,
+          instanceAdmin: user.instance_admin === 1,
         };
 
         return next();
@@ -75,6 +76,7 @@ async function authenticate(req, res, next) {
                   id: userByUsername.id,
                   username: userByUsername.username,
                   role: userByUsername.role,
+                  instanceAdmin: userByUsername.instance_admin === 1,
                 };
                 return next();
               }
@@ -83,6 +85,7 @@ async function authenticate(req, res, next) {
                 id: user.id,
                 username: user.username,
                 role: user.role,
+                instanceAdmin: user.instance_admin === 1,
               };
               return next();
             }

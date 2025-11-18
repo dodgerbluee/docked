@@ -8,6 +8,8 @@ import axios from "axios";
 import "./Login.css";
 import { API_BASE_URL } from "../constants/api";
 import CreateUserModal from "./CreateUserModal";
+import ImportUsersModal from "./ImportUsersModal";
+import { Upload } from "lucide-react";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -15,6 +17,7 @@ function Login({ onLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showImportUsersModal, setShowImportUsersModal] = useState(false);
   const [createUserSuccess, setCreateUserSuccess] = useState("");
 
   // Clear any stale auth data when component mounts
@@ -50,6 +53,8 @@ function Login({ onLogin }) {
       });
 
       if (response.data.success) {
+        // Clear success message on successful login
+        setCreateUserSuccess("");
         // Store token in localStorage
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("username", username);
@@ -58,11 +63,16 @@ function Login({ onLogin }) {
         if (response.data.role) {
           localStorage.setItem("userRole", response.data.role);
         }
+        // Store instance admin status
+        if (response.data.instanceAdmin !== undefined) {
+          localStorage.setItem("instanceAdmin", response.data.instanceAdmin ? "true" : "false");
+        }
         onLogin(
           response.data.token,
           username,
           response.data.passwordChanged,
-          response.data.role || "Administrator"
+          response.data.role || "Administrator",
+          response.data.instanceAdmin || false
         );
       } else {
         setError(response.data.error || "Login failed");
@@ -94,6 +104,11 @@ function Login({ onLogin }) {
           <p>Portainer Container Manager</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
+          {createUserSuccess && (
+            <div className="success-message" role="alert" aria-live="assertive">
+              {createUserSuccess}
+            </div>
+          )}
           <div className="form-group">
             <label htmlFor="username">Username</label>
             <input
@@ -138,11 +153,6 @@ function Login({ onLogin }) {
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
-        {createUserSuccess && (
-          <div className="success-message" role="alert" aria-live="assertive">
-            {createUserSuccess}
-          </div>
-        )}
         <div className="create-user-section">
           <button
             type="button"
@@ -153,6 +163,16 @@ function Login({ onLogin }) {
           >
             Create User
           </button>
+          <button
+            type="button"
+            className="import-users-button"
+            onClick={() => setShowImportUsersModal(true)}
+            disabled={loading}
+            aria-label="Import users from JSON file"
+            title="Import Users"
+          >
+            <Upload size={16} />
+          </button>
         </div>
       </div>
       <CreateUserModal
@@ -161,13 +181,20 @@ function Login({ onLogin }) {
           setShowCreateUserModal(false);
           setCreateUserSuccess("");
         }}
+        onSuccess={(username) => {
+          setCreateUserSuccess(`Successfully created ${username}, please login!`);
+          setShowCreateUserModal(false);
+        }}
+      />
+      <ImportUsersModal
+        isOpen={showImportUsersModal}
+        onClose={() => {
+          setShowImportUsersModal(false);
+          setCreateUserSuccess("");
+        }}
         onSuccess={(message) => {
           setCreateUserSuccess(message);
-          setShowCreateUserModal(false);
-          // Clear success message after 5 seconds
-          setTimeout(() => {
-            setCreateUserSuccess("");
-          }, 5000);
+          setShowImportUsersModal(false);
         }}
       />
     </div>
