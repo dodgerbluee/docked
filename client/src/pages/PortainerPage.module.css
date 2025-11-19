@@ -172,11 +172,20 @@ body.dark-mode .pullSpinner svg {
 
 .emptyState {
   text-align: center;
-  padding: 40px;
+  padding: 40px 20px;
   color: var(--text-secondary);
 }
 
+.emptyState .message {
+  white-space: nowrap;
+  max-width: none;
+}
+
 @media (max-width: 768px) {
+  .emptyState .message {
+    white-space: normal;
+  }
+
   .portainerSidebarLayout {
     flex-direction: column;
   }

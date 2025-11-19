@@ -19,7 +19,7 @@ body.dark-mode .login-container {
   padding: 40px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
   border: 1px solid var(--border-color);
 }
 
@@ -150,7 +150,9 @@ body.dark-mode .login-button:hover:not(:disabled) {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid var(--border-color);
-  text-align: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 
 .create-user-button {
@@ -163,30 +165,57 @@ body.dark-mode .login-button:hover:not(:disabled) {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
-  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-body.dark-mode .create-user-button {
+.import-users-button {
+  padding: 10px;
+  background: transparent;
+  color: var(--dodger-blue);
+  border: 2px solid var(--dodger-blue);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+}
+
+body.dark-mode .create-user-button,
+body.dark-mode .import-users-button {
   color: var(--dodger-blue-light);
   border-color: var(--dodger-blue-light);
 }
 
-.create-user-button:hover:not(:disabled) {
+.create-user-button:hover:not(:disabled),
+.import-users-button:hover:not(:disabled) {
   background: rgba(30, 144, 255, 0.1);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 90, 156, 0.2);
 }
 
-body.dark-mode .create-user-button:hover:not(:disabled) {
+body.dark-mode .create-user-button:hover:not(:disabled),
+body.dark-mode .import-users-button:hover:not(:disabled) {
   background: rgba(30, 136, 229, 0.15);
   box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
 }
 
-.create-user-button:active:not(:disabled) {
+.create-user-button:active:not(:disabled),
+.import-users-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.create-user-button:disabled {
+.create-user-button:disabled,
+.import-users-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;

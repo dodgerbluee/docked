@@ -12,6 +12,7 @@ export const SETTINGS_TABS = {
   DISCORD: "discord",
   USER_DETAILS: "userdetails",
   LOGS: "logs",
+  DATA: "data",
 };
 
 export const SETTINGS_TAB_LABELS = {
@@ -19,11 +20,12 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.USERNAME]: "Username",
   [SETTINGS_TABS.PASSWORD]: "Password",
   [SETTINGS_TABS.AVATAR]: "Avatar",
-  [SETTINGS_TABS.PORTAINER]: "Portainer Instances",
+  [SETTINGS_TABS.PORTAINER]: "Portainer",
   [SETTINGS_TABS.DOCKERHUB]: "Docker Hub",
   [SETTINGS_TABS.DISCORD]: "Notifications",
-  [SETTINGS_TABS.USER_DETAILS]: "User Details",
+  [SETTINGS_TABS.USER_DETAILS]: "User",
   [SETTINGS_TABS.LOGS]: "Logs",
+  [SETTINGS_TABS.DATA]: "Data",
 };
 
 export const COLOR_SCHEMES = {

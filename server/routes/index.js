@@ -126,8 +126,29 @@ router.get(
   "/auth/registration-code-required",
   asyncHandler(authController.checkRegistrationCodeRequired)
 );
+// Auth routes (public - no authentication required)
+router.get("/auth/check-user-exists", asyncHandler(authController.checkUserExists));
+router.post(
+  "/auth/generate-registration-code",
+  asyncHandler(authController.generateRegistrationCodeEndpoint)
+);
+router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
 router.post("/auth/register", asyncHandler(authController.register));
 router.post("/auth/login", asyncHandler(authController.login));
+router.post("/auth/import-users", asyncHandler(authController.importUsers));
+router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
+router.post(
+  "/auth/generate-instance-admin-token",
+  asyncHandler(authController.generateInstanceAdminToken)
+);
+router.post(
+  "/auth/regenerate-instance-admin-token",
+  asyncHandler(authController.regenerateInstanceAdminToken)
+);
+router.post(
+  "/auth/verify-instance-admin-token",
+  asyncHandler(authController.verifyInstanceAdminToken)
+);
 
 /**
  * @swagger
@@ -145,12 +166,22 @@ router.post("/auth/login", asyncHandler(authController.login));
  */
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
+// Validation endpoints (public - used during import process)
+router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
+router.post(
+  "/docker-hub/credentials/validate",
+  asyncHandler(authController.validateDockerHubCreds)
+);
+router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
+
 // Protected routes - require authentication
 // All routes below this line require authentication
 router.use(authenticate);
 
 // User management routes (protected)
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
+router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
+router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
 router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
 router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
@@ -158,10 +189,6 @@ router.post("/user/import-config", asyncHandler(authController.importUserConfig)
 
 // Docker Hub credentials routes (protected)
 router.get("/docker-hub/credentials", asyncHandler(authController.getDockerHubCreds));
-router.post(
-  "/docker-hub/credentials/validate",
-  asyncHandler(authController.validateDockerHubCreds)
-);
 router.post("/docker-hub/credentials", asyncHandler(authController.updateDockerHubCreds));
 router.delete("/docker-hub/credentials", asyncHandler(authController.deleteDockerHubCreds));
 
@@ -170,7 +197,8 @@ router.get("/containers", asyncHandler(containerController.getContainers));
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
 router.post("/containers/pull", asyncHandler(containerController.pullContainers));
-router.delete("/containers/cache", asyncHandler(containerController.clearCache));
+router.get("/containers/data", asyncHandler(containerController.getContainerData));
+router.delete("/containers/data", asyncHandler(containerController.clearContainerData));
 router.post("/containers/batch-upgrade", asyncHandler(containerController.batchUpgradeContainers));
 router.post("/containers/:containerId/upgrade", asyncHandler(containerController.upgradeContainer));
 
@@ -179,7 +207,6 @@ router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", asyncHandler(imageController.deleteImages));
 
 // Portainer instance routes
-router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
 router.get("/portainer/instances", asyncHandler(portainerController.getInstances));
 router.get("/portainer/instances/:id", asyncHandler(portainerController.getInstance));
 router.post("/portainer/instances", asyncHandler(portainerController.createInstance));
@@ -232,7 +259,6 @@ router.post("/discord/webhooks", asyncHandler(discordController.createDiscordWeb
 router.put("/discord/webhooks/:id", asyncHandler(discordController.updateDiscordWebhook));
 router.delete("/discord/webhooks/:id", asyncHandler(discordController.deleteDiscordWebhook));
 router.post("/discord/webhooks/:id/test", asyncHandler(discordController.testDiscordWebhookById));
-router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 

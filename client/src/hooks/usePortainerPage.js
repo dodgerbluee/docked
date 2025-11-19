@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { formatBytes as formatBytesUtil } from "../utils/formatters";
-import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
-import { toast } from "../utils/toast";
+import { usePortainerTabs } from "./usePortainerPage/hooks/usePortainerTabs";
+import { usePortainerInstanceSelection } from "./usePortainerPage/hooks/usePortainerInstanceSelection";
+import { usePortainerContainerSelection } from "./usePortainerPage/hooks/usePortainerContainerSelection";
+import { usePortainerImageSelection } from "./usePortainerPage/hooks/usePortainerImageSelection";
+import { usePortainerUpgrade } from "./usePortainerPage/hooks/usePortainerUpgrade";
+import { usePortainerImageDeletion } from "./usePortainerPage/hooks/usePortainerImageDeletion";
 
 /**
  * usePortainerPage Hook
@@ -37,114 +39,53 @@ export function usePortainerPage({
     containerName: null,
     details: null,
   });
-  // Content tab state - use controlled if setter is provided, otherwise use internal state
-  const [internalContentTab, setInternalContentTab] = useState(PORTAINER_CONTENT_TABS.UPDATES);
-  const isContentTabControlled = onSetContentTab !== undefined;
-  const contentTab = isContentTabControlled
-    ? controlledContentTab !== undefined
-      ? controlledContentTab
-      : PORTAINER_CONTENT_TABS.UPDATES
-    : internalContentTab;
 
-  const setContentTab = useCallback(
-    (value) => {
-      if (isContentTabControlled) {
-        // If controlled, call the parent's setter
-        onSetContentTab(value);
-      } else {
-        // If uncontrolled, use internal state
-        if (typeof value === "function") {
-          setInternalContentTab(value);
-        } else {
-          setInternalContentTab(value);
-        }
-      }
-    },
-    [isContentTabControlled, onSetContentTab]
-  );
+  // Use extracted hooks
+  const { contentTab, setContentTab } = usePortainerTabs({
+    controlledContentTab,
+    onSetContentTab,
+  });
 
-  // Instance filter state - use controlled if setter is provided, otherwise use internal state
-  const [internalSelectedPortainerInstances, setInternalSelectedPortainerInstances] = useState(
-    new Set()
-  );
-  const isSelectedInstancesControlled = onSetSelectedPortainerInstances !== undefined;
-  const selectedPortainerInstances = useMemo(
-    () =>
-      isSelectedInstancesControlled
-        ? controlledSelectedPortainerInstances !== undefined
-          ? controlledSelectedPortainerInstances
-          : new Set()
-        : internalSelectedPortainerInstances,
-    [
-      isSelectedInstancesControlled,
-      controlledSelectedPortainerInstances,
-      internalSelectedPortainerInstances,
-    ]
-  );
-
-  const setSelectedPortainerInstances = useCallback(
-    (value) => {
-      if (isSelectedInstancesControlled) {
-        // If controlled, call the parent's setter
-        onSetSelectedPortainerInstances(value);
-      } else {
-        // If uncontrolled, use internal state
-        if (typeof value === "function") {
-          setInternalSelectedPortainerInstances(value);
-        } else {
-          setInternalSelectedPortainerInstances(value);
-        }
-      }
-    },
-    [isSelectedInstancesControlled, onSetSelectedPortainerInstances]
-  );
+  const {
+    selectedPortainerInstances,
+    setSelectedPortainerInstances,
+    sortedPortainerInstances,
+    instancesToShow,
+  } = usePortainerInstanceSelection({
+    controlledSelectedPortainerInstances,
+    onSetSelectedPortainerInstances,
+    portainerInstances,
+  });
 
   // Collapsed stacks state
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
   const [collapsedUnusedImages, setCollapsedUnusedImages] = useState(false);
 
-  // Selection state
-  const [selectedContainers, setSelectedContainers] = useState(new Set());
-  const [selectedImages, setSelectedImages] = useState(new Set());
+  // Use extracted selection hooks
+  const {
+    selectedContainers,
+    setSelectedContainers,
+    handleToggleSelect,
+    handleSelectAll: handleSelectAllContainers,
+  } = usePortainerContainerSelection();
 
-  // Action states
-  const [upgrading, setUpgrading] = useState({});
-  const [batchUpgrading, setBatchUpgrading] = useState(false);
-  const [deletingImages, setDeletingImages] = useState(false);
+  const { selectedImages, setSelectedImages, handleToggleImageSelect } =
+    usePortainerImageSelection();
 
-  // Upgrade modal state
-  const [upgradeModal, setUpgradeModal] = useState({
-    isOpen: false,
-    container: null,
+  // Use extracted upgrade hook
+  const upgradeOperations = usePortainerUpgrade({
+    successfullyUpdatedContainersRef,
+    onContainersUpdate,
+    fetchContainers,
   });
 
-  // Batch upgrade modal state
-  const [batchUpgradeModal, setBatchUpgradeModal] = useState({
-    isOpen: false,
-    containers: [],
+  // Use extracted image deletion hook
+  const imageDeletion = usePortainerImageDeletion({
+    onUnusedImagesUpdate,
+    onUnusedImagesCountUpdate,
+    fetchUnusedImages,
+    setSelectedImages,
   });
-
-  // Sort Portainer instances alphabetically
-  const sortedPortainerInstances = useMemo(() => {
-    return [...portainerInstances].sort((a, b) => {
-      const nameA = (a.name || "").toLowerCase();
-      const nameB = (b.name || "").toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-  }, [portainerInstances]);
-
-  // Memoize selectedPortainerInstances to avoid dependency issues
-  const memoizedSelectedInstances = useMemo(
-    () => selectedPortainerInstances,
-    [selectedPortainerInstances]
-  );
-
-  // Get selected instances to show
-  const instancesToShow = useMemo(() => {
-    return memoizedSelectedInstances.size > 0
-      ? sortedPortainerInstances.filter((inst) => memoizedSelectedInstances.has(inst.name))
-      : sortedPortainerInstances;
-  }, [memoizedSelectedInstances, sortedPortainerInstances]);
 
   // Aggregate containers from selected instances
   const aggregatedContainers = useMemo(() => {
@@ -225,413 +166,28 @@ export function usePortainerPage({
     });
   }, []);
 
-  // Toggle container selection
-  const handleToggleSelect = useCallback((containerId) => {
-    setSelectedContainers((prev) => {
-      const next = new Set(prev);
-      if (next.has(containerId)) {
-        next.delete(containerId);
-      } else {
-        next.add(containerId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Select all containers
+  // Wrapper for handleSelectAll that includes isPortainerContainer
   const handleSelectAll = useCallback(
     (containersToSelect) => {
-      const selectableContainers = containersToSelect.filter((c) => !isPortainerContainer(c));
-      const allSelected = selectableContainers.every((c) => selectedContainers.has(c.id));
-      if (allSelected) {
-        setSelectedContainers(new Set());
-      } else {
-        setSelectedContainers(new Set(selectableContainers.map((c) => c.id)));
-      }
+      handleSelectAllContainers(containersToSelect, isPortainerContainer);
     },
-    [isPortainerContainer, selectedContainers]
+    [handleSelectAllContainers, isPortainerContainer]
   );
 
-  // Open upgrade modal
-  const handleUpgrade = useCallback((container) => {
-    // Always reopen modal, even if it was just closed (allows clicking card again)
-    setUpgradeModal({
-      isOpen: true,
-      container,
-    });
-  }, []);
-
-  // Close upgrade modal (but keep container reference so it can be reopened)
-  const closeUpgradeModal = useCallback(() => {
-    setUpgradeModal((prev) => ({
-      isOpen: false,
-      container: prev.container, // Keep container reference so clicking card again works
-    }));
-  }, []);
-
-  // Execute the actual upgrade (called by the modal)
-  const executeUpgrade = useCallback(async () => {
-    const container = upgradeModal.container;
-    if (!container) return;
-
-    try {
-      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
-      const response = await axios.post(`${API_BASE_URL}/api/containers/${container.id}/upgrade`, {
-        endpointId: container.endpointId,
-        imageName: container.image,
-        portainerUrl: container.portainerUrl,
-      });
-
-      if (response.data.success) {
-        // Add both old and new container IDs to the ref
-        // After upgrade, container gets a new ID, so we need to track both
-        successfullyUpdatedContainersRef.current.add(container.id);
-        if (response.data.newContainerId) {
-          successfullyUpdatedContainersRef.current.add(response.data.newContainerId);
-        }
-
-        // Update local state immediately so UI reflects the change right away
-        if (onContainersUpdate) {
-          onContainersUpdate((prevContainers) =>
-            prevContainers.map((c) => {
-              // Match by old ID or new ID
-              const matchesId =
-                c.id === container.id ||
-                c.id === response.data.newContainerId ||
-                c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
-                (response.data.newContainerId &&
-                  c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
-              // Also match by name as fallback
-              const matchesName = c.name === container.name;
-              if (matchesId || matchesName) {
-                return { ...c, hasUpdate: false };
-              }
-              return c;
-            })
-          );
-        }
-
-        setSelectedContainers((prev) => {
-          const next = new Set(prev);
-          next.delete(container.id);
-          if (response.data.newContainerId) {
-            next.delete(response.data.newContainerId);
-          }
-          return next;
-        });
-
-        // Refresh from server to get updated data (cache is already updated on backend)
-        if (fetchContainers) {
-          fetchContainers();
-        }
-      }
-    } catch (err) {
-      // Error will be handled by the modal
-      throw err;
-    } finally {
-      setUpgrading((prev) => ({ ...prev, [container.id]: false }));
-    }
-  }, [
-    upgradeModal.container,
-    successfullyUpdatedContainersRef,
-    onContainersUpdate,
-    fetchContainers,
-  ]);
-
-  // Handle upgrade success callback
-  const handleUpgradeSuccess = useCallback(() => {
-    const container = upgradeModal.container;
-    if (container) {
-      // Show success toast notification (stays longer for better visibility)
-      toast.success(`Container ${container.name} upgraded successfully!`, 8000);
-
-      // Refresh containers to get updated data (especially important after reconnection)
-      if (fetchContainers) {
-        fetchContainers();
-      }
-    }
-  }, [upgradeModal.container, fetchContainers]);
-
-  // Open batch upgrade modal
+  // Wrapper for handleBatchUpgrade that includes aggregatedContainers
   const handleBatchUpgrade = useCallback(() => {
-    if (selectedContainers.size === 0) {
-      toast.warning("Please select at least one container to upgrade");
-      return null;
-    }
+    return upgradeOperations.handleBatchUpgrade(selectedContainers, aggregatedContainers);
+  }, [upgradeOperations, selectedContainers, aggregatedContainers]);
 
-    const containersToUpgrade = aggregatedContainers.all.filter((c) =>
-      selectedContainers.has(c.id)
-    );
-
-    setBatchUpgradeModal({
-      isOpen: true,
-      containers: containersToUpgrade,
-    });
-
-    return {
-      containerCount: containersToUpgrade.length,
-      containers: containersToUpgrade,
-    };
-  }, [selectedContainers, aggregatedContainers.all]);
-
-  // Close batch upgrade modal
-  const closeBatchUpgradeModal = useCallback(() => {
-    setBatchUpgradeModal({
-      isOpen: false,
-      containers: [],
-    });
-  }, []);
-
-  // Execute batch upgrade (called by the modal)
+  // Wrapper for executeBatchUpgrade that includes setSelectedContainers
   const executeBatchUpgrade = useCallback(async () => {
-    const containersToUpgrade = batchUpgradeModal.containers;
-    if (!containersToUpgrade || containersToUpgrade.length === 0) {
-      throw new Error("No containers to upgrade");
-    }
+    return upgradeOperations.executeBatchUpgrade(setSelectedContainers);
+  }, [upgradeOperations, setSelectedContainers]);
 
-    const upgradingState = {};
-    containersToUpgrade.forEach((c) => {
-      upgradingState[c.id] = true;
-    });
-    setUpgrading((prev) => ({ ...prev, ...upgradingState }));
-
-    try {
-      setBatchUpgrading(true);
-
-      const response = await axios.post(`${API_BASE_URL}/api/containers/batch-upgrade`, {
-        containers: containersToUpgrade.map((c) => ({
-          containerId: c.id,
-          endpointId: c.endpointId,
-          imageName: c.image,
-          containerName: c.name,
-          portainerUrl: c.portainerUrl,
-        })),
-      });
-
-      // Extract both old and new container IDs from results
-      // After upgrade, containers get new IDs, so we need to track both
-      const successfulIds = new Set();
-      const successfulNewIds = new Set();
-      const successfulNames = new Set();
-      response.data.results?.forEach((r) => {
-        if (r.containerId) {
-          successfulIds.add(r.containerId);
-          successfullyUpdatedContainersRef.current.add(r.containerId);
-        }
-        if (r.newContainerId) {
-          successfulNewIds.add(r.newContainerId);
-          successfullyUpdatedContainersRef.current.add(r.newContainerId);
-        }
-        if (r.containerName) {
-          successfulNames.add(r.containerName);
-        }
-      });
-
-      // Update local state immediately so UI reflects the change right away
-      if (onContainersUpdate) {
-        onContainersUpdate((prevContainers) =>
-          prevContainers.map((c) => {
-            // Match by old ID, new ID, or name
-            const matchesId =
-              successfulIds.has(c.id) ||
-              successfulNewIds.has(c.id) ||
-              Array.from(successfulIds).some(
-                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
-              ) ||
-              Array.from(successfulNewIds).some(
-                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
-              );
-            const matchesName = successfulNames.has(c.name);
-            if (matchesId || matchesName) {
-              return { ...c, hasUpdate: false };
-            }
-            return c;
-          })
-        );
-      }
-
-      setSelectedContainers((prev) => {
-        const next = new Set(prev);
-        successfulIds.forEach((id) => next.delete(id));
-        successfulNewIds.forEach((id) => next.delete(id));
-        return next;
-      });
-
-      // Refresh from server to get updated data (cache is already updated on backend)
-      if (fetchContainers) {
-        fetchContainers();
-      }
-
-      // Return response for the modal to process
-      return response;
-    } catch (err) {
-      // Error will be handled by the modal
-      throw err;
-    } finally {
-      setBatchUpgrading(false);
-      const clearedState = {};
-      containersToUpgrade.forEach((c) => {
-        clearedState[c.id] = false;
-      });
-      setUpgrading((prev) => ({ ...prev, ...clearedState }));
-    }
-  }, [
-    batchUpgradeModal.containers,
-    successfullyUpdatedContainersRef,
-    onContainersUpdate,
-    fetchContainers,
-  ]);
-
-  // Handle batch upgrade success callback
-  const handleBatchUpgradeSuccess = useCallback((response) => {
-    const successCount = response.data?.results?.length || 0;
-    const errorCount = response.data?.errors?.length || 0;
-
-    if (errorCount === 0) {
-      toast.success(`Batch upgrade completed! Successfully upgraded ${successCount} container(s).`);
-    } else if (successCount > 0) {
-      toast.success(`Successfully upgraded ${successCount} container(s).`);
-    }
-  }, []);
-
-  // Toggle image selection
-  const handleToggleImageSelect = useCallback((imageId) => {
-    setSelectedImages((prev) => {
-      const next = new Set(prev);
-      if (next.has(imageId)) {
-        next.delete(imageId);
-      } else {
-        next.add(imageId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Delete single image
-  // Returns image data for confirmation dialog
-  const handleDeleteImage = useCallback((image) => {
-    return {
-      image,
-      imageName: image.repoTags?.[0] || image.id,
-    };
-  }, []);
-
-  // Execute delete after confirmation
-  const executeDeleteImage = useCallback(
-    async (image) => {
-      try {
-        setDeletingImages(true);
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: [
-            {
-              id: image.id,
-              portainerUrl: image.portainerUrl,
-              endpointId: image.endpointId,
-            },
-          ],
-        });
-
-        if (response.data.success) {
-          if (onUnusedImagesUpdate) {
-            onUnusedImagesUpdate((prev) => prev.filter((img) => img.id !== image.id));
-          }
-          if (onUnusedImagesCountUpdate) {
-            onUnusedImagesCountUpdate((prev) => Math.max(0, prev - 1));
-          }
-          setSelectedImages((prev) => {
-            const next = new Set(prev);
-            next.delete(image.id);
-            return next;
-          });
-          toast.info(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
-          if (fetchContainers) {
-            fetchContainers().catch(() => {});
-          }
-        } else {
-          toast.error("Failed to delete image. Check console for details.");
-          console.error("Delete errors:", response.data.errors);
-        }
-      } catch (err) {
-        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-        toast.error(`Failed to delete image: ${errorMessage}`);
-        console.error("Error deleting image:", err);
-      } finally {
-        setDeletingImages(false);
-      }
-    },
-    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]
-  );
-
-  // Delete multiple images
-  // Returns data for confirmation dialog
+  // Wrapper for handleDeleteImages that includes portainerUnusedImages
   const handleDeleteImages = useCallback(() => {
-    if (selectedImages.size === 0) {
-      toast.warning("Please select at least one image to delete");
-      return null;
-    }
-    return {
-      count: selectedImages.size,
-      images: portainerUnusedImages.filter((img) => selectedImages.has(img.id)),
-    };
-  }, [selectedImages, portainerUnusedImages]);
-
-  // Execute batch delete after confirmation
-  const executeDeleteImages = useCallback(
-    async (imagesToDelete) => {
-      try {
-        setDeletingImages(true);
-
-        const uniqueImages = [];
-        const seenKeys = new Set();
-        for (const img of imagesToDelete) {
-          const key = `${img.id}-${img.portainerUrl}-${img.endpointId}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            uniqueImages.push(img);
-          }
-        }
-
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: uniqueImages.map((img) => ({
-            id: img.id,
-            portainerUrl: img.portainerUrl,
-            endpointId: img.endpointId,
-          })),
-        });
-
-        if (response.data.success) {
-          const deletedCount = response.data.deleted || uniqueImages.length;
-          const deletedIds = new Set(uniqueImages.map((img) => img.id));
-
-          if (onUnusedImagesUpdate) {
-            onUnusedImagesUpdate((prev) => prev.filter((img) => !deletedIds.has(img.id)));
-          }
-          if (onUnusedImagesCountUpdate) {
-            onUnusedImagesCountUpdate((prev) => Math.max(0, prev - deletedCount));
-          }
-          setSelectedImages((prev) => {
-            const next = new Set(prev);
-            deletedIds.forEach((id) => next.delete(id));
-            return next;
-          });
-          toast.info(`Successfully deleted ${deletedCount} image(s).`);
-          if (fetchContainers) {
-            fetchContainers().catch(() => {});
-          }
-        } else {
-          toast.error("Failed to delete images. Check console for details.");
-          console.error("Delete errors:", response.data.errors);
-        }
-      } catch (err) {
-        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
-        toast.error(`Failed to delete images: ${errorMessage}`);
-        console.error("Error deleting images:", err);
-      } finally {
-        setDeletingImages(false);
-      }
-    },
-    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]
-  );
+    return imageDeletion.handleDeleteImages(selectedImages, portainerUnusedImages);
+  }, [imageDeletion, selectedImages, portainerUnusedImages]);
 
   const closeErrorModal = () => {
     setErrorModal({
@@ -654,25 +210,25 @@ export function usePortainerPage({
     setCollapsedUnusedImages,
     selectedContainers,
     selectedImages,
-    upgrading,
-    batchUpgrading,
-    deletingImages,
+    upgrading: upgradeOperations.upgrading,
+    batchUpgrading: upgradeOperations.batchUpgrading,
+    deletingImages: imageDeletion.deletingImages,
 
     // Error modal
     errorModal,
     closeErrorModal,
 
     // Upgrade modal
-    upgradeModal,
-    closeUpgradeModal,
-    executeUpgrade,
-    handleUpgradeSuccess,
+    upgradeModal: upgradeOperations.upgradeModal,
+    closeUpgradeModal: upgradeOperations.closeUpgradeModal,
+    executeUpgrade: upgradeOperations.executeUpgrade,
+    handleUpgradeSuccess: upgradeOperations.handleUpgradeSuccess,
 
     // Batch upgrade modal
-    batchUpgradeModal,
-    closeBatchUpgradeModal,
+    batchUpgradeModal: upgradeOperations.batchUpgradeModal,
+    closeBatchUpgradeModal: upgradeOperations.closeBatchUpgradeModal,
     executeBatchUpgrade,
-    handleBatchUpgradeSuccess,
+    handleBatchUpgradeSuccess: upgradeOperations.handleBatchUpgradeSuccess,
 
     // Computed data
     sortedPortainerInstances,
@@ -689,13 +245,13 @@ export function usePortainerPage({
     toggleStack,
     handleToggleSelect,
     handleSelectAll,
-    handleUpgrade,
+    handleUpgrade: upgradeOperations.handleUpgrade,
     handleBatchUpgrade,
     handleToggleImageSelect,
-    handleDeleteImage,
-    executeDeleteImage,
+    handleDeleteImage: imageDeletion.handleDeleteImage,
+    executeDeleteImage: imageDeletion.executeDeleteImage,
     handleDeleteImages,
-    executeDeleteImages,
+    executeDeleteImages: imageDeletion.executeDeleteImages,
 
     // Props pass-through
     dockerHubDataPulled,

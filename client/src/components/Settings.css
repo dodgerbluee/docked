@@ -428,7 +428,7 @@ body.dark-mode .color-scheme-option.active {
   line-height: 1;
 }
 
-/* Batch Logging Level - match button size to Color Scheme Preference */
+/* Log Level - match button size to Color Scheme Preference */
 .batch-logging-toggle {
   width: 214px;
 }

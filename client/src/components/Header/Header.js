@@ -20,11 +20,13 @@ const Header = ({
   activeTrackedAppsBehind = [],
   showNotificationMenu,
   showAvatarMenu,
+  instanceAdmin,
   onToggleNotificationMenu,
   onToggleAvatarMenu,
   onNavigateToSummary,
   onNavigateToSettings,
   onNavigateToBatch,
+  onNavigateToAdmin,
   onNavigateToPortainer,
   onNavigateToTrackedApps,
   onDismissContainerNotification,
@@ -37,9 +39,16 @@ const Header = ({
     onNavigateToSummary();
   };
 
-  const handleNotificationToggle = () => {
+  const handleNotificationToggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling to click-outside handler
     if (typeof onToggleNotificationMenu === "function") {
-      onToggleNotificationMenu(!showNotificationMenu);
+      // If menu is open, close it; otherwise open it
+      if (showNotificationMenu) {
+        onToggleNotificationMenu(false);
+      } else {
+        onToggleNotificationMenu(true);
+      }
     }
   };
 
@@ -74,7 +83,7 @@ const Header = ({
           <div className={styles.actionsContainer}>
             <div className={styles.notificationWrapper}>
               <button
-                className={styles.notificationButton}
+                className={`${styles.notificationButton} notification-button`}
                 onClick={handleNotificationToggle}
                 aria-label="Notifications"
                 title="Notifications"
@@ -106,10 +115,12 @@ const Header = ({
               avatar={avatar}
               darkMode={darkMode}
               showAvatarMenu={showAvatarMenu}
+              instanceAdmin={instanceAdmin}
               onToggleAvatarMenu={onToggleAvatarMenu}
               onNavigateToSummary={onNavigateToSummary}
               onNavigateToSettings={onNavigateToSettings}
               onNavigateToBatch={onNavigateToBatch}
+              onNavigateToAdmin={onNavigateToAdmin}
               onTemporaryThemeToggle={onTemporaryThemeToggle}
               onLogout={onLogout}
               API_BASE_URL={API_BASE_URL}
@@ -131,11 +142,13 @@ Header.propTypes = {
   activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
   showNotificationMenu: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
+  instanceAdmin: PropTypes.bool,
   onToggleNotificationMenu: PropTypes.func.isRequired,
   onToggleAvatarMenu: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
   onNavigateToSettings: PropTypes.func.isRequired,
   onNavigateToBatch: PropTypes.func.isRequired,
+  onNavigateToAdmin: PropTypes.func,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onDismissContainerNotification: PropTypes.func.isRequired,

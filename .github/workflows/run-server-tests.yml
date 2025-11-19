@@ -1,0 +1,57 @@
+name: Run Server Tests (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      run-coverage:
+        description: 'Run tests with coverage'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+
+      - name: Run server tests
+        env:
+          NODE_ENV: test
+          DATA_DIR: /tmp/docked-test-data
+        run: |
+          cd server
+          if [ "${{ inputs.run-coverage }}" = "true" ]; then
+            npm test -- --coverage --watchAll=false
+          else
+            npm test -- --watchAll=false
+          fi
+
+      - name: Upload server test coverage
+        if: inputs.run-coverage == true
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./server/coverage/coverage-final.json
+          flags: server
+          name: server-test-coverage
+          fail_ci_if_error: false
+

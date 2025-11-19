@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { Home, FileText, Settings, Sun, Moon, LogOut } from "lucide-react";
+import { Home, FileText, Settings, Sun, Moon, LogOut, Shield } from "lucide-react";
 import "./AvatarMenu.css";
 
 /**
@@ -13,10 +13,12 @@ const AvatarMenu = ({
   avatar,
   darkMode,
   showAvatarMenu,
+  instanceAdmin,
   onToggleAvatarMenu,
   onNavigateToSummary,
   onNavigateToSettings,
   onNavigateToBatch,
+  onNavigateToAdmin,
   onTemporaryThemeToggle,
   onLogout,
   API_BASE_URL,
@@ -108,6 +110,18 @@ const AvatarMenu = ({
               {darkMode ? <Sun size={16} /> : <Moon size={16} />}
               {darkMode ? "Light Mode" : "Dark Mode"}
             </button>
+            {instanceAdmin && (
+              <button
+                className="avatar-menu-item"
+                onClick={() => {
+                  onNavigateToAdmin();
+                  onToggleAvatarMenu(false);
+                }}
+              >
+                <Shield size={16} />
+                Admin
+              </button>
+            )}
             <div className="avatar-menu-divider"></div>
             <button
               className="avatar-menu-item"
@@ -132,10 +146,12 @@ AvatarMenu.propTypes = {
   avatar: PropTypes.string, // Can be null while loading
   darkMode: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
+  instanceAdmin: PropTypes.bool,
   onToggleAvatarMenu: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
   onNavigateToSettings: PropTypes.func.isRequired,
   onNavigateToBatch: PropTypes.func.isRequired,
+  onNavigateToAdmin: PropTypes.func,
   onTemporaryThemeToggle: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,

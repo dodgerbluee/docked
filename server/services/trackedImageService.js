@@ -48,10 +48,11 @@ async function checkTrackedImage(trackedImage) {
   const repo = imageParts[0];
   const currentTag = imageParts[1];
 
-  // Get the latest image digest from registry
+  // Get the latest image digest from registry (use tracked image's user_id for Docker Hub credentials)
+  const userId = trackedImage.user_id;
   let latestImageInfo;
   try {
-    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag);
+    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag, userId);
   } catch (error) {
     // If rate limit exceeded, propagate the error
     if (error.isRateLimitExceeded) {
@@ -73,7 +74,7 @@ async function checkTrackedImage(trackedImage) {
     // If the tag is "latest", try to find the actual version tag it points to
     if (latestTag === "latest" && latestDigest) {
       try {
-        const actualTag = await dockerRegistryService.getTagFromDigest(repo, latestDigest);
+        const actualTag = await dockerRegistryService.getTagFromDigest(repo, latestDigest, userId);
         if (actualTag && actualTag !== "latest" && actualTag.trim() !== "") {
           latestVersion = actualTag.trim();
           latestTag = actualTag.trim(); // Use the actual tag for display
@@ -121,7 +122,11 @@ async function checkTrackedImage(trackedImage) {
   const tagForPublishDate = latestVersion !== "latest" ? latestVersion : latestTag;
   if (tagForPublishDate && hasUpdate) {
     try {
-      latestPublishDate = await dockerRegistryService.getTagPublishDate(repo, tagForPublishDate);
+      latestPublishDate = await dockerRegistryService.getTagPublishDate(
+        repo,
+        tagForPublishDate,
+        userId
+      );
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       latestPublishDate = null;
@@ -176,7 +181,7 @@ async function checkTrackedImage(trackedImage) {
     updateData.current_digest = currentDigestToStore;
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
 
   // Use the resolved current version (or fallback to stored/currentTag)
   // Ensure we always return a string, never null/undefined
@@ -212,6 +217,7 @@ async function checkTrackedImage(trackedImage) {
           latestVersion: displayLatestVersion,
           latestVersionPublishDate: latestPublishDate,
           notificationType: "tracked-app",
+          userId: trackedImage.user_id,
         });
       }
     } catch (error) {
@@ -344,7 +350,7 @@ async function checkGitHubTrackedImage(trackedImage) {
       throw new Error(error.message);
     }
     // For other errors, log and continue (will show no update)
-    logger.error(`Error checking GitHub repo ${githubRepo}:`, error.message);
+    logger.error(`Error checking GitHub repo ${githubRepo}:`, { error });
     latestVersion = null;
     latestRelease = null;
   }
@@ -431,7 +437,7 @@ async function checkGitHubTrackedImage(trackedImage) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore
@@ -465,6 +471,7 @@ async function checkGitHubTrackedImage(trackedImage) {
             latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
           releaseUrl: latestRelease?.html_url || null,
           notificationType: "tracked-app",
+          userId: trackedImage.user_id,
         });
       }
     } catch (error) {
@@ -509,7 +516,7 @@ async function checkAllTrackedImages(trackedImages) {
         throw error;
       }
       // For other errors, log and continue with other images
-      logger.error(`Error checking tracked image ${image.name}:`, error.message);
+      logger.error(`Error checking tracked image ${image.name}:`, { error });
       results.push({
         id: image.id,
         name: image.name,
@@ -646,7 +653,7 @@ async function checkGitLabTrackedImage(trackedImage) {
       throw new Error(error.message);
     }
     // For other errors, log and continue (will show no update)
-    logger.error(`Error checking GitLab repo ${gitlabRepo}:`, error.message);
+    logger.error(`Error checking GitLab repo ${gitlabRepo}:`, { error });
     latestVersion = null;
     latestRelease = null;
   }
@@ -733,7 +740,7 @@ async function checkGitLabTrackedImage(trackedImage) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, updateData);
+  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore
@@ -767,6 +774,7 @@ async function checkGitLabTrackedImage(trackedImage) {
             latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
           releaseUrl: latestRelease?.html_url || null,
           notificationType: "tracked-app",
+          userId: trackedImage.user_id,
         });
       }
     } catch (error) {

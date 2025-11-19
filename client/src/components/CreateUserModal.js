@@ -1,103 +1,60 @@
 /**
  * Create User Modal
  * Modal for creating a new user account
+ * Multi-step flow: Registration code verification (if first user) -> Username/password form
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import Modal from "./ui/Modal";
-import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
+import RegistrationCodeStep from "./CreateUserModal/RegistrationCodeStep";
+import UserFormStep from "./CreateUserModal/components/UserFormStep";
 import { API_BASE_URL } from "../utils/api";
 import {
   validateUsername,
   validatePassword,
   validatePasswordMatch,
   validateEmail,
-  validateRegistrationCode,
 } from "../utils/validation";
 import { getErrorMessage } from "../utils/errorHandling";
+import { useRegistrationCode } from "./CreateUserModal/hooks/useRegistrationCode";
+import { useCreateUserFlow } from "./CreateUserModal/hooks/useCreateUserFlow";
 import styles from "./CreateUserModal.module.css";
 
 function CreateUserModal({ isOpen, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-    email: "",
-    registrationCode: "",
-  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [requiresCode, setRequiresCode] = useState(false);
-  const [checkingCode, setCheckingCode] = useState(false);
 
-  // Check if registration code is required when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        username: "",
-        password: "",
-        confirmPassword: "",
-        email: "",
-        registrationCode: "",
-      });
-      setError("");
-      setCheckingCode(true);
+  // Use extracted hooks
+  const {
+    requiresCode,
+    checkingCode,
+    codeGenerated,
+    generating,
+    regenerating,
+    verifying,
+    verified,
+    handleGenerateCode,
+    handleRegenerateCode,
+    handleVerifyCode,
+  } = useRegistrationCode(isOpen);
 
-      // Check if registration code is required
-      const checkAxios = axios.create({
-        baseURL: API_BASE_URL,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      delete checkAxios.defaults.headers.common["Authorization"];
-      delete checkAxios.defaults.headers.Authorization;
+  const {
+    currentStep,
+    formData,
+    handleChange,
+    handleRegistrationCodeChange,
+    goToNextStep,
+    goToPreviousStep,
+    STEP_TYPES,
+  } = useCreateUserFlow(isOpen, requiresCode);
 
-      checkAxios
-        .get("/api/auth/registration-code-required")
-        .then((response) => {
-          if (response.data.success) {
-            setRequiresCode(response.data.requiresCode || false);
-          }
-        })
-        .catch((err) => {
-          console.error("Error checking registration code requirement:", err);
-          // Default to false if check fails
-          setRequiresCode(false);
-        })
-        .finally(() => {
-          setCheckingCode(false);
-        });
-    }
-  }, [isOpen]);
-
-  const handleChange = (field) => (e) => {
-    let value = e.target.value;
-
-    // Format registration code: uppercase and add dashes
-    if (field === "registrationCode") {
-      // Remove existing dashes and convert to uppercase
-      value = value.replace(/-/g, "").toUpperCase();
-      // Add dashes every 4 characters
-      if (value.length > 4) {
-        value = value.slice(0, 4) + "-" + value.slice(4);
-      }
-      if (value.length > 9) {
-        value = value.slice(0, 9) + "-" + value.slice(9, 13);
-      }
-      // Limit to 14 characters (XXXX-XXXX-XXXX)
-      value = value.slice(0, 14);
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    // Clear error when user starts typing
+  // Clear error when user starts typing
+  const handleFieldChange = (field) => (e) => {
+    handleChange(field)(e);
     if (error) {
       setError("");
     }
@@ -134,18 +91,52 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
       }
     }
 
-    // Validate registration code if required
-    if (requiresCode) {
-      const codeError = validateRegistrationCode(formData.registrationCode);
-      if (codeError) {
-        setError(codeError);
-        return false;
-      }
-    }
-
     return true;
   };
 
+  // Handle generate code with error handling
+  const handleGenerate = async () => {
+    setError("");
+    const result = await handleGenerateCode();
+    if (!result.success) {
+      setError(result.error);
+    }
+  };
+
+  // Handle regenerate code with error handling
+  const handleRegenerate = async () => {
+    setError("");
+    const result = await handleRegenerateCode();
+    if (!result.success) {
+      setError(result.error);
+    } else {
+      // Clear registration code field when regenerating
+      handleRegistrationCodeChange("");
+    }
+  };
+
+  // Handle next button (for registration code step)
+  const handleNext = async () => {
+    if (currentStep === STEP_TYPES.REGISTRATION_CODE) {
+      setError("");
+      const result = await handleVerifyCode(formData.registrationCode);
+
+      if (result.success) {
+        goToNextStep();
+        setError("");
+      } else {
+        setError(result.error);
+      }
+    }
+  };
+
+  // Handle registration code change with error clearing
+  const handleCodeChange = (value) => {
+    handleRegistrationCodeChange(value);
+    setError("");
+  };
+
+  // Handle form submission (for user form step)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -185,9 +176,13 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
       if (response.data.success) {
         if (onSuccess) {
-          onSuccess(response.data.message || "User created successfully");
+          // Pass username to success callback for personalized message
+          // onSuccess will handle closing the modal, so don't call onClose() here
+          onSuccess(formData.username);
+        } else {
+          // If no onSuccess callback, close the modal normally
+          onClose();
         }
-        onClose();
       } else {
         setError(getErrorMessage(response.data, "Failed to create user"));
       }
@@ -198,120 +193,83 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
+  const renderContent = () => {
+    if (checkingCode) {
+      return (
+        <div className={styles.checkingCode}>
+          <p>Checking if registration code is required...</p>
+        </div>
+      );
+    }
+
+    // Registration code step
+    if (currentStep === STEP_TYPES.REGISTRATION_CODE && requiresCode) {
+      return (
+        <div className={styles.stepContainer}>
+          {error && (
+            <Alert variant="error" className={styles.alert}>
+              {error}
+            </Alert>
+          )}
+          <RegistrationCodeStep
+            codeGenerated={codeGenerated}
+            onGenerate={handleGenerate}
+            onRegenerate={handleRegenerate}
+            onTokenChange={handleCodeChange}
+            verifying={verifying}
+            regenerating={regenerating}
+            generating={generating}
+            verified={verified}
+          />
+          <div className={styles.actions}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={loading || verifying || generating || regenerating}
+              className={styles.cancelButton}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleNext();
+              }}
+              disabled={
+                loading || verifying || generating || regenerating || !formData.registrationCode
+              }
+              className={styles.submitButton}
+            >
+              {verifying ? "Verifying..." : "Next"}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // User form step
+    return (
+      <UserFormStep
+        formData={formData}
+        onChange={handleFieldChange}
+        onSubmit={handleSubmit}
+        onBack={goToPreviousStep}
+        onCancel={onClose}
+        loading={loading}
+        error={error}
+        requiresCode={requiresCode}
+        currentStep={currentStep}
+      />
+    );
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create User Account" size="md">
-      <form onSubmit={handleSubmit} className={styles.form}>
-        {error && (
-          <Alert variant="error" className={styles.alert}>
-            {error}
-          </Alert>
-        )}
-
-        <Input
-          id="username"
-          label="Username"
-          type="text"
-          value={formData.username}
-          onChange={handleChange("username")}
-          required
-          autoComplete="username"
-          disabled={loading}
-          minLength={3}
-          helperText="Must be at least 3 characters long"
-          autoFocus
-        />
-
-        <Input
-          id="email"
-          label="Email"
-          type="email"
-          value={formData.email}
-          onChange={handleChange("email")}
-          autoComplete="email"
-          disabled={loading}
-          helperText="Optional"
-        />
-
-        {checkingCode ? (
-          <div className={styles.checkingCode}>
-            <p>Checking if registration code is required...</p>
-          </div>
-        ) : requiresCode ? (
-          <div>
-            <Alert variant="info" className={styles.alert}>
-              <strong>Registration Code Required</strong>
-              <br />
-              This is the first user account. Please check your server logs for the registration
-              code. It will be displayed in a formatted box when the server starts.
-            </Alert>
-            <Input
-              id="registrationCode"
-              label="Registration Code"
-              type="text"
-              value={formData.registrationCode}
-              onChange={handleChange("registrationCode")}
-              required={requiresCode}
-              disabled={loading || checkingCode}
-              placeholder="XXXX-XXXX-XXXX"
-              helperText="Enter the registration code shown in the server logs (format: XXXX-XXXX-XXXX)"
-              autoComplete="off"
-              maxLength={14}
-            />
-          </div>
-        ) : null}
-
-        <Input
-          id="password"
-          label="Password"
-          type="password"
-          value={formData.password}
-          onChange={handleChange("password")}
-          required
-          autoComplete="new-password"
-          disabled={loading}
-          minLength={8}
-          helperText="Must be at least 8 characters long"
-        />
-
-        <Input
-          id="confirmPassword"
-          label="Confirm Password"
-          type="password"
-          value={formData.confirmPassword}
-          onChange={handleChange("confirmPassword")}
-          required
-          autoComplete="new-password"
-          disabled={loading}
-          helperText="Must match password"
-        />
-
-        <div className={styles.actions}>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            disabled={loading}
-            className={styles.cancelButton}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={
-              loading ||
-              checkingCode ||
-              !formData.username ||
-              !formData.password ||
-              !formData.confirmPassword ||
-              (requiresCode && !formData.registrationCode)
-            }
-            className={styles.submitButton}
-          >
-            {loading ? "Creating..." : "Create User"}
-          </Button>
-        </div>
-      </form>
+      {renderContent()}
     </Modal>
   );
 }

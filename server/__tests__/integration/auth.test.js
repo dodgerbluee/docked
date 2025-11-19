@@ -26,6 +26,18 @@ describe("Authentication API", () => {
         throw error;
       }
     }
+
+    // Get auth token for tests that need it
+    const loginResponse = await request(app).post("/api/auth/login").send({
+      username: testUsername,
+      password: testPassword,
+    });
+
+    if (loginResponse.status === 200) {
+      authToken = loginResponse.body.token;
+    } else {
+      throw new Error(`Failed to get auth token: ${JSON.stringify(loginResponse.body)}`);
+    }
   });
 
   afterAll(async () => {
