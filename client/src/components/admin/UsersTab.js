@@ -8,20 +8,21 @@ import { CardSkeleton } from "../ui/LoadingSkeleton";
 import { formatDate } from "../../utils/batchFormatters";
 import ImportUsersModal from "../ImportUsersModal";
 import { Upload, Download } from "lucide-react";
+import { useExport } from "../../hooks/useExport";
 import styles from "./UsersTab.module.css";
 
 /**
  * UsersTab Component
  * Displays a list of all users with their information
  */
-function UsersTab() {
+const UsersTab = React.memo(function UsersTab() {
   const [users, setUsers] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState("");
-  const [exportSuccess, setExportSuccess] = useState("");
+  
+  // Use reusable export hook
+  const { exporting, exportError, exportSuccess, handleExport } = useExport();
 
   useEffect(() => {
     fetchUsers();
@@ -51,41 +52,8 @@ function UsersTab() {
     return user.role || "Administrator";
   };
 
-  const handleExportUsers = async () => {
-    setExporting(true);
-    setExportError("");
-    setExportSuccess("");
-
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/auth/export-users`);
-
-      if (response.data.success) {
-        const jsonString = JSON.stringify(response.data.data, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `docked-users-export-${new Date().toISOString().split("T")[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        setExportSuccess("Users exported successfully!");
-        setTimeout(() => setExportSuccess(""), 3000);
-      } else {
-        setExportError(response.data.error || "Failed to export users");
-      }
-    } catch (err) {
-      console.error("Error exporting users:", err);
-      setExportError(
-        err.response?.data?.error || "Failed to export users. Please try again."
-      );
-    } finally {
-      setExporting(false);
-    }
+  const handleExportUsers = () => {
+    handleExport("/api/auth/export-users", "docked-users-export", "Users exported successfully!");
   };
 
   const handleImportSuccess = () => {
@@ -191,7 +159,12 @@ function UsersTab() {
       />
     </div>
   );
-}
+});
+
+UsersTab.propTypes = {
+  // UsersTab is a self-contained component with no props
+  // All data is fetched via hooks internally
+};
 
 export default UsersTab;
 

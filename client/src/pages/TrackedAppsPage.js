@@ -3,21 +3,20 @@
  * Main page component for the Tracked Apps view
  */
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import { RefreshCw, Check } from "lucide-react";
 import { useTrackedApps } from "../hooks/useTrackedApps";
-import TrackedAppCard from "../components/TrackedAppCard";
-import AddTrackedImageModal from "../components/AddTrackedImageModal";
+import AddTrackedAppModal from "../components/AddTrackedAppModal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Button from "../components/ui/Button";
-import SearchInput from "../components/ui/SearchInput";
 import TrackedAppsSidebar from "../components/trackedApps/TrackedAppsSidebar";
-import {
-  TRACKED_APPS_CONTENT_TABS,
-  TRACKED_APPS_SOURCE_FILTERS,
-} from "../constants/trackedAppsPage";
+import { TRACKED_APPS_CONTENT_TABS } from "../constants/trackedAppsPage";
 import styles from "./TrackedAppsPage.module.css";
+import TrackedAppsHeader from "./TrackedAppsPage/components/TrackedAppsHeader";
+import TrackedAppsToolbar from "./TrackedAppsPage/components/TrackedAppsToolbar";
+import TrackedAppsContentArea from "./TrackedAppsPage/components/TrackedAppsContentArea";
+import { useTrackedAppsFiltering } from "./TrackedAppsPage/hooks/useTrackedAppsFiltering";
+import { useTrackedAppsSelection } from "./TrackedAppsPage/hooks/useTrackedAppsSelection";
+import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsCheckmark";
 
 /**
  * TrackedAppsPage component
@@ -46,105 +45,49 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     setConfirmDialog,
   } = useTrackedApps();
 
-  const [showCheckmark, setShowCheckmark] = useState(false);
-  const [selectedApps, setSelectedApps] = useState(new Set());
   const [contentTab, setContentTab] = useState(TRACKED_APPS_CONTENT_TABS.ALL);
   const [selectedSourceFilters, setSelectedSourceFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [markingUpgraded, setMarkingUpgraded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleToggleSelect = (appId) => {
-    setSelectedApps((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(appId)) {
-        newSet.delete(appId);
-      } else {
-        newSet.add(appId);
-      }
-      return newSet;
-    });
-  };
-
-  // Show checkmark when check completes successfully
+  // Check if modal should open after navigation from welcome page
   useEffect(() => {
-    if (trackedImageSuccess && !checkingUpdates) {
-      setShowCheckmark(true);
-      // Hide checkmark after 3 seconds
-      const timer = setTimeout(() => setShowCheckmark(false), 3000);
-      return () => clearTimeout(timer);
+    const shouldOpenModal = sessionStorage.getItem("openTrackedAppModal") === "true";
+    if (shouldOpenModal) {
+      sessionStorage.removeItem("openTrackedAppModal");
+      setEditingTrackedImageData(null);
+      // Small delay to ensure page is fully rendered
+      setTimeout(() => {
+        setShowAddTrackedImageModal(true);
+      }, 100);
     }
-  }, [trackedImageSuccess, checkingUpdates]);
+  }, [setEditingTrackedImageData, setShowAddTrackedImageModal]);
 
-  // Hide checkmark when checking starts
-  useEffect(() => {
-    if (checkingUpdates) {
-      setShowCheckmark(false);
-    }
-  }, [checkingUpdates]);
+  // Use extracted hooks
+  const showCheckmark = useTrackedAppsCheckmark({
+    trackedImageSuccess,
+    checkingUpdates,
+  });
 
-  // Filter by source type
-  const filteredBySource = useMemo(() => {
-    if (selectedSourceFilters.size === 0) {
-      return trackedImages;
-    }
-    return trackedImages.filter((img) => {
-      const sourceType = img.source_type || "docker";
-      if (sourceType === "docker") {
-        return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.DOCKERHUB);
-      } else if (sourceType === "github") {
-        return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.GITHUB);
-      } else if (sourceType === "gitlab") {
-        return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.GITLAB);
-      }
-      return false;
-    });
-  }, [trackedImages, selectedSourceFilters]);
+  const {
+    selectedApps,
+    setSelectedApps,
+    handleToggleSelect,
+    handleSelectAll: handleSelectAllApps,
+    allAppsWithUpdatesSelected,
+  } = useTrackedAppsSelection();
 
-  // Filter by search query
-  const filteredBySearch = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return filteredBySource;
-    }
+  const {
+    appsWithUpdates,
+    appsWithoutUpdates,
+    displayedApps,
+  } = useTrackedAppsFiltering(trackedImages, selectedSourceFilters, searchQuery, contentTab);
 
-    const query = searchQuery.toLowerCase().trim();
-    return filteredBySource.filter((img) => {
-      const name = img.name?.toLowerCase() || "";
-      const imageName = img.image_name?.toLowerCase() || "";
-      const githubRepo = img.github_repo?.toLowerCase() || "";
-      const currentVersion = img.current_version?.toLowerCase() || "";
-      const latestVersion = img.latest_version?.toLowerCase() || "";
-      return (
-        name.includes(query) ||
-        imageName.includes(query) ||
-        githubRepo.includes(query) ||
-        currentVersion.includes(query) ||
-        latestVersion.includes(query)
-      );
-    });
-  }, [filteredBySource, searchQuery]);
-
-  // Memoize filtered arrays based on content tab
-  const appsWithUpdates = useMemo(
-    () => filteredBySearch.filter((img) => img.has_update),
-    [filteredBySearch]
-  );
-  const appsWithoutUpdates = useMemo(
-    () => filteredBySearch.filter((img) => !img.has_update),
-    [filteredBySearch]
-  );
-
-  // Get apps to display based on content tab
-  const displayedApps = useMemo(() => {
-    if (contentTab === TRACKED_APPS_CONTENT_TABS.UPDATES) {
-      return appsWithUpdates;
-    } else if (contentTab === TRACKED_APPS_CONTENT_TABS.UP_TO_DATE) {
-      return appsWithoutUpdates;
-    } else {
-      // ALL tab - combine both, with updates first
-      return [...appsWithUpdates, ...appsWithoutUpdates];
-    }
-  }, [contentTab, appsWithUpdates, appsWithoutUpdates]);
+  // Wrapper for handleSelectAll that includes appsWithUpdates
+  const handleSelectAll = useCallback(() => {
+    handleSelectAllApps(appsWithUpdates);
+  }, [handleSelectAllApps, appsWithUpdates]);
 
   // Handle delete with callback
   const handleDelete = async (id) => {
@@ -171,21 +114,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     }
   };
 
-  // Render add new app card
-  const renderAddNewCard = () => (
-    <div
-      className={styles.addCard}
-      onClick={() => {
-        setEditingTrackedImageData(null); // Clear any editing state
-        setShowAddTrackedImageModal(true);
-      }}
-      title="Track updates for Docker images or GitHub repositories. Docker examples: homeassistant/home-assistant, authentik/authentik, jellyfin/jellyfin, plexinc/pms-docker. GitHub examples: home-assistant/core, goauthentik/authentik, jellyfin/jellyfin"
-    >
-      <div className={styles.addCardIcon}>+</div>
-    </div>
-  );
-
-  const handleToggleSection = (sectionKey) => {
+  const handleToggleSection = useCallback((sectionKey) => {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
       if (next.has(sectionKey)) {
@@ -195,24 +124,15 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       }
       return next;
     });
-  };
+  }, []);
 
-  // Handle select all apps with updates
-  const handleSelectAll = () => {
-    const allAppIds = appsWithUpdates.map((app) => app.id);
-    const allSelected = allAppIds.length > 0 && allAppIds.every((id) => selectedApps.has(id));
-
-    if (allSelected) {
-      // Deselect all
-      setSelectedApps(new Set());
-    } else {
-      // Select all
-      setSelectedApps(new Set(allAppIds));
-    }
-  };
+  const handleAddNew = useCallback(() => {
+    setEditingTrackedImageData(null); // Clear any editing state
+    setShowAddTrackedImageModal(true);
+  }, [setEditingTrackedImageData, setShowAddTrackedImageModal]);
 
   // Handle batch mark upgraded
-  const handleBatchMarkUpgraded = async () => {
+  const handleBatchMarkUpgraded = useCallback(async () => {
     if (selectedApps.size === 0) return;
 
     setMarkingUpgraded(true);
@@ -234,64 +154,32 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     } finally {
       setMarkingUpgraded(false);
     }
-  };
+  }, [selectedApps, appsWithUpdates, handleUpgrade, setSelectedApps]);
 
-  // Check if all apps with updates are selected
-  const allAppsWithUpdatesSelected = useMemo(() => {
-    if (appsWithUpdates.length === 0) return false;
-    return appsWithUpdates.every((app) => selectedApps.has(app.id));
-  }, [appsWithUpdates, selectedApps]);
+  // Toolbar actions
+  const toolbarActions = (
+    <TrackedAppsToolbar
+      appsWithUpdates={appsWithUpdates}
+      selectedApps={selectedApps}
+      allAppsWithUpdatesSelected={allAppsWithUpdatesSelected(appsWithUpdates)}
+      markingUpgraded={markingUpgraded}
+      onSelectAll={handleSelectAll}
+      onBatchMarkUpgraded={handleBatchMarkUpgraded}
+    />
+  );
 
   return (
     <div className={styles.trackedAppsPage}>
-      <div className={styles.summaryHeader}>
-        <div className={styles.headerContent}>
-          <h2 className={styles.summaryHeaderTitle}>Tracked Apps</h2>
-          <div className={styles.headerActions}>
-            <SearchInput
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search apps..."
-              className={styles.searchInput}
-            />
-            <div className={styles.buttonContainer}>
-              {appsWithUpdates.length > 0 && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSelectAll}
-                    disabled={markingUpgraded}
-                  >
-                    {allAppsWithUpdatesSelected ? "Deselect All" : "Select All"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBatchMarkUpgraded}
-                    disabled={selectedApps.size === 0 || markingUpgraded}
-                  >
-                    {markingUpgraded
-                      ? `Marking Upgraded (${selectedApps.size})...`
-                      : `Mark Upgraded (${selectedApps.size})`}
-                  </Button>
-                </>
-              )}
-              <Button
-                onClick={handleCheckTrackedImagesUpdates}
-                disabled={checkingUpdates || trackedImages.length === 0 || markingUpgraded}
-                title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
-                variant="outline"
-                icon={RefreshCw}
-                size="sm"
-              >
-                {checkingUpdates ? "Checking for Updates..." : "Check for Updates"}
-              </Button>
-              {showCheckmark && <Check className={styles.checkmark} size={20} />}
-            </div>
-          </div>
-        </div>
-      </div>
+      <TrackedAppsHeader
+        searchQuery={searchQuery}
+        onSearchChange={(e) => setSearchQuery(e.target.value)}
+        onCheckUpdates={handleCheckTrackedImagesUpdates}
+        checkingUpdates={checkingUpdates}
+        showCheckmark={showCheckmark}
+        trackedImagesCount={trackedImages.length}
+        markingUpgraded={markingUpgraded}
+        toolbarActions={toolbarActions}
+      />
 
       <div className={styles.trackedAppsSidebarLayout}>
         <TrackedAppsSidebar
@@ -301,261 +189,39 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
           onSelectedSourceFiltersChange={setSelectedSourceFilters}
         />
         <div className={styles.trackedAppsContentArea}>
-          <div className={styles.contentTabPanel}>
-            {trackedImageError && <div className={styles.errorMessage}>{trackedImageError}</div>}
+          {trackedImageError && <div className={styles.errorMessage}>{trackedImageError}</div>}
 
-            {/* Always show appsContainer for UP_TO_DATE and UPDATES tabs, or when there are apps to display */}
-            {contentTab === TRACKED_APPS_CONTENT_TABS.UP_TO_DATE ||
-            contentTab === TRACKED_APPS_CONTENT_TABS.UPDATES ||
-            displayedApps.length > 0 ? (
-              <div className={styles.appsContainer}>
-                {contentTab === TRACKED_APPS_CONTENT_TABS.ALL && (
-                  <>
-                    {/* Apps with updates - shown at the top */}
-                    {appsWithUpdates.length > 0 && (
-                      <div className={styles.section}>
-                        <div
-                          className={styles.stackHeader}
-                          onClick={() => handleToggleSection("apps-with-updates")}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              handleToggleSection("apps-with-updates");
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
-                          aria-expanded={!collapsedSections.has("apps-with-updates")}
-                          aria-label={`Apps with Updates - ${collapsedSections.has("apps-with-updates") ? "Expand" : "Collapse"}`}
-                        >
-                          <div className={styles.stackHeaderLeft}>
-                            <button
-                              className={styles.stackToggle}
-                              aria-label={
-                                collapsedSections.has("apps-with-updates")
-                                  ? "Expand section"
-                                  : "Collapse section"
-                              }
-                              aria-hidden="true"
-                              tabIndex={-1}
-                            >
-                              {collapsedSections.has("apps-with-updates") ? "▶" : "▼"}
-                            </button>
-                            <h3 className={styles.stackName}>Apps with Updates</h3>
-                          </div>
-                          <span className={styles.stackCount}>
-                            {appsWithUpdates.length} app{appsWithUpdates.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        {!collapsedSections.has("apps-with-updates") && (
-                          <div className={styles.gridWithUpdates}>
-                            {appsWithUpdates.map((image) => (
-                              <TrackedAppCard
-                                key={image.id}
-                                image={image}
-                                onEdit={handleEditTrackedImage}
-                                onUpgrade={handleUpgrade}
-                                selected={selectedApps.has(image.id)}
-                                onToggleSelect={handleToggleSelect}
-                              />
-                            ))}
-                            {/* Add new app card - only show if Up to Date section doesn't exist */}
-                            {appsWithoutUpdates.length === 0 && renderAddNewCard()}
-                          </div>
-                        )}
-                      </div>
-                    )}
+          <TrackedAppsContentArea
+            contentTab={contentTab}
+            appsWithUpdates={appsWithUpdates}
+            appsWithoutUpdates={appsWithoutUpdates}
+            displayedApps={displayedApps}
+            selectedApps={selectedApps}
+            collapsedSections={collapsedSections}
+            onToggleSection={handleToggleSection}
+            onToggleSelect={handleToggleSelect}
+            onEdit={handleEditTrackedImage}
+            onUpgrade={handleUpgrade}
+            onAddNew={handleAddNew}
+          />
 
-                    {/* Apps without updates - shown below */}
-                    {(appsWithoutUpdates.length > 0 || appsWithUpdates.length === 0) && (
-                      <div className={styles.section}>
-                        {appsWithUpdates.length > 0 && appsWithoutUpdates.length > 0 && (
-                          <div
-                            className={styles.stackHeader}
-                            onClick={() => handleToggleSection("all-other-apps")}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                handleToggleSection("all-other-apps");
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            aria-expanded={!collapsedSections.has("all-other-apps")}
-                            aria-label={`All Other Apps - ${collapsedSections.has("all-other-apps") ? "Expand" : "Collapse"}`}
-                          >
-                            <div className={styles.stackHeaderLeft}>
-                              <button
-                                className={styles.stackToggle}
-                                aria-label={
-                                  collapsedSections.has("all-other-apps")
-                                    ? "Expand section"
-                                    : "Collapse section"
-                                }
-                                aria-hidden="true"
-                                tabIndex={-1}
-                              >
-                                {collapsedSections.has("all-other-apps") ? "▶" : "▼"}
-                              </button>
-                              <h3 className={styles.stackName}>All Other Apps</h3>
-                            </div>
-                            <span className={styles.stackCount}>
-                              {appsWithoutUpdates.length} app
-                              {appsWithoutUpdates.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                        )}
-                        {!collapsedSections.has("all-other-apps") && (
-                          <div className={styles.gridWithoutUpdates}>
-                            {appsWithoutUpdates.map((image) => (
-                              <TrackedAppCard
-                                key={image.id}
-                                image={image}
-                                onEdit={handleEditTrackedImage}
-                                onUpgrade={handleUpgrade}
-                              />
-                            ))}
-                            {/* Add new app card - always at the end when Up to Date section exists */}
-                            {appsWithoutUpdates.length > 0 && renderAddNewCard()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {contentTab === TRACKED_APPS_CONTENT_TABS.UPDATES && (
-                  <div className={styles.section}>
-                    <div
-                      className={styles.stackHeader}
-                      onClick={() => handleToggleSection("updates-tab")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleToggleSection("updates-tab");
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={!collapsedSections.has("updates-tab")}
-                      aria-label={`Apps with Updates - ${collapsedSections.has("updates-tab") ? "Expand" : "Collapse"}`}
-                    >
-                      <div className={styles.stackHeaderLeft}>
-                        <button
-                          className={styles.stackToggle}
-                          aria-label={
-                            collapsedSections.has("updates-tab")
-                              ? "Expand section"
-                              : "Collapse section"
-                          }
-                          aria-hidden="true"
-                          tabIndex={-1}
-                        >
-                          {collapsedSections.has("updates-tab") ? "▶" : "▼"}
-                        </button>
-                        <h3 className={styles.stackName}>Apps with Updates</h3>
-                      </div>
-                      <span className={styles.stackCount}>
-                        {displayedApps.length} app{displayedApps.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    {!collapsedSections.has("updates-tab") && (
-                      <div className={styles.gridWithUpdates}>
-                        {displayedApps.map((image) => (
-                          <TrackedAppCard
-                            key={image.id}
-                            image={image}
-                            onEdit={handleEditTrackedImage}
-                            onUpgrade={handleUpgrade}
-                            selected={selectedApps.has(image.id)}
-                            onToggleSelect={handleToggleSelect}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {contentTab === TRACKED_APPS_CONTENT_TABS.UP_TO_DATE && (
-                  <div className={styles.section}>
-                    <div
-                      className={styles.stackHeader}
-                      onClick={() => handleToggleSection("up-to-date-tab")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleToggleSection("up-to-date-tab");
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={!collapsedSections.has("up-to-date-tab")}
-                      aria-label={`Up to Date - ${collapsedSections.has("up-to-date-tab") ? "Expand" : "Collapse"}`}
-                    >
-                      <div className={styles.stackHeaderLeft}>
-                        <button
-                          className={styles.stackToggle}
-                          aria-label={
-                            collapsedSections.has("up-to-date-tab")
-                              ? "Expand section"
-                              : "Collapse section"
-                          }
-                          aria-hidden="true"
-                          tabIndex={-1}
-                        >
-                          {collapsedSections.has("up-to-date-tab") ? "▶" : "▼"}
-                        </button>
-                        <h3 className={styles.stackName}>Up to Date</h3>
-                      </div>
-                      <span className={styles.stackCount}>
-                        {displayedApps.length} app{displayedApps.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    {!collapsedSections.has("up-to-date-tab") && (
-                      <div className={styles.gridWithoutUpdates}>
-                        {displayedApps.length > 0
-                          ? displayedApps.map((image) => (
-                              <TrackedAppCard
-                                key={image.id}
-                                image={image}
-                                onEdit={handleEditTrackedImage}
-                                onUpgrade={handleUpgrade}
-                              />
-                            ))
-                          : null}
-                        {/* Add new app button - always visible, even when no apps */}
-                        {renderAddNewCard()}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : // Only show empty state if we're on ALL tab and have no apps
-            // UP_TO_DATE and UPDATES tabs should always show their sections
-            contentTab === TRACKED_APPS_CONTENT_TABS.ALL ? (
-              <div className={styles.emptyState}>
-                <div className={styles.grid}>{renderAddNewCard()}</div>
-              </div>
-            ) : null}
-
-            {lastScanTime && (
-              <div className={styles.lastScanTime}>
-                Last scanned:{" "}
-                {lastScanTime.toLocaleString(undefined, {
-                  year: "numeric",
-                  month: "numeric",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "numeric",
-                  hour12: true,
-                })}
-              </div>
-            )}
-          </div>
+          {lastScanTime && (
+            <div className={styles.lastScanTime}>
+              Last scanned:{" "}
+              {lastScanTime.toLocaleString(undefined, {
+                year: "numeric",
+                month: "numeric",
+                day: "numeric",
+                hour: "numeric",
+                minute: "numeric",
+                hour12: true,
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      <AddTrackedImageModal
+      <AddTrackedAppModal
         isOpen={showAddTrackedImageModal}
         onClose={() => {
           setEditingTrackedImageData(null); // Clear editing state when modal closes

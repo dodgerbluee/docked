@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import StatCard from "../components/StatCard";
 import PortainerInstanceCard from "../components/PortainerInstanceCard";
@@ -12,6 +12,7 @@ import {
   unusedImageShape,
   trackedImageShape,
 } from "../utils/propTypes";
+import WelcomeModal from "./SummaryPage/components/WelcomeModal";
 import styles from "./SummaryPage.module.css";
 
 /**
@@ -28,6 +29,7 @@ import styles from "./SummaryPage.module.css";
  * @param {Function} props.onSetSelectedPortainerInstances - Handler for setting selected Portainer instances
  * @param {Function} props.onSetContentTab - Handler for setting content tab
  * @param {boolean} props.isLoading - Whether data is currently loading
+ * @param {Function} props.onAddInstance - Handler to open Add Portainer Instance modal
  */
 const SummaryPage = ({
   portainerInstances = [],
@@ -41,7 +43,36 @@ const SummaryPage = ({
   onSetSelectedPortainerInstances,
   onSetContentTab,
   isLoading = false,
+  onAddInstance,
 }) => {
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const hasNoInstances = portainerInstances.length === 0;
+  const hasNoTrackedApps = trackedImages.length === 0;
+  const shouldShowWelcome = hasNoInstances && hasNoTrackedApps;
+
+  // Show welcome modal when there are no instances and no tracked apps
+  // Add a delay to ensure data has been fetched from the API
+  // Only show once per login session (using sessionStorage)
+  useEffect(() => {
+    // Check if modal has already been shown in this session
+    const welcomeModalShown = sessionStorage.getItem("welcomeModalShown") === "true";
+
+    if (shouldShowWelcome && !welcomeModalShown) {
+      // Reduced delay for faster appearance
+      const timer = setTimeout(() => {
+        // Show modal if instances and tracked apps are still empty
+        if (portainerInstances.length === 0 && trackedImages.length === 0) {
+          setShowWelcomeModal(true);
+          sessionStorage.setItem("welcomeModalShown", "true");
+        }
+      }, 500); // 0.5 second delay for faster appearance
+
+      return () => clearTimeout(timer);
+    } else {
+      // If instances or tracked apps are added, close the modal
+      setShowWelcomeModal(false);
+    }
+  }, [shouldShowWelcome, portainerInstances.length, trackedImages.length]);
   const summaryStats = useSummaryStats({
     portainerInstances,
     containers,
@@ -63,23 +94,8 @@ const SummaryPage = ({
     onSetContentTab,
   });
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className={styles.summaryPage}>
-        <div className={styles.summaryHeader}>
-          <div className={styles.headerContent}>
-            <h2 className={styles.summaryHeaderTitle}>Summary</h2>
-          </div>
-        </div>
-        <div className={styles.contentTabPanel}>
-          <div className={styles.loadingState}>
-            <p>Loading summary statistics...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Show zeroed-out dashboard when no instances (instead of loading state)
+  const shouldShowEmptyState = !isLoading && portainerInstances.length === 0;
 
   return (
     <div className={styles.summaryPage}>
@@ -93,13 +109,12 @@ const SummaryPage = ({
         <h3 className={styles.sectionTitle}>Portainer Summary</h3>
         <div className={styles.summaryStats}>
           <StatCard
-            value={summaryStats.totalContainers}
+            value={shouldShowEmptyState ? 0 : summaryStats.totalContainers}
             label="Total Containers"
-            clickable
+            clickable={!shouldShowEmptyState}
             onClick={() => {
-              if (onNavigateToPortainer) {
-                onNavigateToPortainer();
-              }
+              if (shouldShowEmptyState || !onNavigateToPortainer) return;
+              onNavigateToPortainer();
               if (onSetSelectedPortainerInstances) {
                 onSetSelectedPortainerInstances(new Set());
               }
@@ -109,36 +124,45 @@ const SummaryPage = ({
             }}
           />
           <StatCard
-            value={summaryStats.containersWithUpdates}
+            value={shouldShowEmptyState ? 0 : summaryStats.containersWithUpdates}
             label="Updates Available"
             variant={
-              summaryStats.containersWithUpdates > 0
-                ? STAT_CARD_VARIANTS.UPDATE_AVAILABLE
-                : STAT_CARD_VARIANTS.DEFAULT
+              shouldShowEmptyState || summaryStats.containersWithUpdates === 0
+                ? STAT_CARD_VARIANTS.DEFAULT
+                : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
             }
-            clickable
-            onClick={() => handlePortainerStatClick(CONTENT_TABS.UPDATES)}
+            clickable={!shouldShowEmptyState}
+            onClick={() => {
+              if (shouldShowEmptyState) return;
+              handlePortainerStatClick(CONTENT_TABS.UPDATES);
+            }}
           />
           <StatCard
-            value={summaryStats.containersUpToDate}
+            value={shouldShowEmptyState ? 0 : summaryStats.containersUpToDate}
             label="Up to Date"
             variant={STAT_CARD_VARIANTS.CURRENT}
-            clickable
-            onClick={() => handlePortainerStatClick(CONTENT_TABS.CURRENT)}
+            clickable={!shouldShowEmptyState}
+            onClick={() => {
+              if (shouldShowEmptyState) return;
+              handlePortainerStatClick(CONTENT_TABS.CURRENT);
+            }}
           />
           <StatCard
-            value={summaryStats.unusedImages}
+            value={shouldShowEmptyState ? 0 : summaryStats.unusedImages}
             label="Unused Images"
             variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
-            clickable
-            onClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
+            clickable={!shouldShowEmptyState}
+            onClick={() => {
+              if (shouldShowEmptyState) return;
+              handlePortainerStatClick(CONTENT_TABS.UNUSED);
+            }}
           />
         </div>
         <div className={styles.summaryDivider}></div>
 
         <div className={styles.portainerInstancesList}>
           <h3 className={styles.sectionTitle}>Portainer Instances</h3>
-          {summaryStats.portainerStats.length === 0 ? (
+          {shouldShowEmptyState || summaryStats.portainerStats.length === 0 ? (
             <div className={styles.emptyState}>
               <p>No Portainer instances configured.</p>
             </div>
@@ -162,37 +186,62 @@ const SummaryPage = ({
             <StatCard
               value={summaryStats.totalTrackedApps}
               label="Tracked Apps"
-              clickable
-              onClick={handleTrackedAppsClick}
+              clickable={true}
+              onClick={() => {
+                handleTrackedAppsClick();
+              }}
             />
             <StatCard
               value={summaryStats.trackedAppsBehind}
               label="Updates Available"
               variant={
-                summaryStats.trackedAppsBehind > 0
-                  ? STAT_CARD_VARIANTS.UPDATE_AVAILABLE
-                  : STAT_CARD_VARIANTS.DEFAULT
+                summaryStats.trackedAppsBehind === 0
+                  ? STAT_CARD_VARIANTS.DEFAULT
+                  : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
               }
-              clickable
-              onClick={handleTrackedAppsClick}
+              clickable={true}
+              onClick={() => {
+                handleTrackedAppsClick();
+              }}
             />
             <StatCard
               value={summaryStats.trackedAppsUpToDate}
               label="Up to Date"
               variant={STAT_CARD_VARIANTS.CURRENT}
-              clickable
-              onClick={handleTrackedAppsClick}
+              clickable={true}
+              onClick={() => {
+                handleTrackedAppsClick();
+              }}
             />
             <StatCard
               value={summaryStats.trackedAppsUnknown}
               label="Unknown"
               variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
-              clickable
-              onClick={handleTrackedAppsClick}
+              clickable={true}
+              onClick={() => {
+                handleTrackedAppsClick();
+              }}
             />
           </div>
         </div>
       </div>
+
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={() => {
+          setShowWelcomeModal(false);
+          sessionStorage.setItem("welcomeModalShown", "true"); // Mark as shown/dismissed in session
+        }}
+        onAddInstance={onAddInstance}
+        onAddTrackedApp={() => {
+          setShowWelcomeModal(false);
+          sessionStorage.setItem("welcomeModalShown", "true");
+          if (onNavigateToTrackedApps) {
+            onNavigateToTrackedApps();
+          }
+        }}
+        onNavigateToPortainer={onNavigateToPortainer}
+      />
     </div>
   );
 };
@@ -209,6 +258,7 @@ SummaryPage.propTypes = {
   onSetSelectedPortainerInstances: PropTypes.func,
   onSetContentTab: PropTypes.func,
   isLoading: PropTypes.bool,
+  onAddInstance: PropTypes.func,
 };
 
 export default SummaryPage;

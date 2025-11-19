@@ -51,6 +51,35 @@ let dbConnectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 1; // Only allow one connection attempt
 let dbConnectionEstablished = false;
 
+// Database operation queue to prevent concurrent transactions
+let dbOperationQueue = [];
+let isProcessingQueue = false;
+
+async function queueDatabaseOperation(operation) {
+  return new Promise((resolve, reject) => {
+    dbOperationQueue.push({ operation, resolve, reject });
+    processDatabaseQueue();
+  });
+}
+
+async function processDatabaseQueue() {
+  if (isProcessingQueue || dbOperationQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+  while (dbOperationQueue.length > 0) {
+    const { operation, resolve, reject } = dbOperationQueue.shift();
+    try {
+      const result = await operation();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+  }
+  isProcessingQueue = false;
+}
+
 // Create database connection synchronously but handle errors gracefully
 let db;
 try {
@@ -729,25 +758,26 @@ function updateLastLogin(username) {
  * @returns {Promise<Array>} - Array of user objects
  */
 function getAllUsers() {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error("Database not initialized"));
-      return;
-    }
-    // Use SELECT * to handle missing columns gracefully (for migration compatibility)
-    db.all(
-      "SELECT * FROM users ORDER BY created_at ASC",
-      [],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          const users = rows.map((row) => ({
-            id: row.id,
-            username: row.username,
-            email: row.email || null,
-            role: row.role || "Administrator",
-            instanceAdmin: row.instance_admin === 1,
+  return queueDatabaseOperation(() => {
+    return new Promise((resolve, reject) => {
+      if (!db) {
+        reject(new Error("Database not initialized"));
+        return;
+      }
+      // Use SELECT * to handle missing columns gracefully (for migration compatibility)
+      db.all(
+        "SELECT * FROM users ORDER BY created_at ASC",
+        [],
+        (err, rows) => {
+          if (err) {
+            reject(err);
+          } else {
+            const users = rows.map((row) => ({
+              id: row.id,
+              username: row.username,
+              email: row.email || null,
+              role: row.role || "Administrator",
+              instanceAdmin: row.instance_admin === 1,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             lastLogin: row.last_login || null,
@@ -756,6 +786,7 @@ function getAllUsers() {
         }
       }
     );
+    });
   });
 }
 
@@ -1547,14 +1578,15 @@ function upsertPortainerContainer(userId, portainerInstanceId, containerData) {
  * @returns {Promise<{containerId: number, versionId: number|null}>} - IDs of created/updated records
  */
 function upsertContainerWithVersion(userId, portainerInstanceId, containerData, versionData = null) {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error("Database not initialized"));
-      return;
-    }
+  return queueDatabaseOperation(() => {
+    return new Promise((resolve, reject) => {
+      if (!db) {
+        reject(new Error("Database not initialized"));
+        return;
+      }
 
-    db.serialize(() => {
-      db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
+      db.serialize(() => {
+        db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
         if (beginErr) {
           db.run("ROLLBACK");
           reject(beginErr);
@@ -1690,6 +1722,7 @@ function upsertContainerWithVersion(userId, portainerInstanceId, containerData, 
           }
         );
       });
+    });
     });
   });
 }
