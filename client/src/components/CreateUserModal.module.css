@@ -5,10 +5,27 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0;
 }
 
 .alert {
+  margin-bottom: 12px;
+}
+
+.formFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Override Input component's margin-bottom when used in this form */
+/* The Input component applies className to its formGroup div */
+.formField {
+  margin-bottom: 0;
+}
+
+/* Target any direct child divs (formGroup from Input component) */
+.formFields > div {
   margin-bottom: 0;
 }
 
@@ -29,8 +46,8 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 20px;
+  margin-top: 4px;
+  padding-top: 16px;
   border-top: 1px solid var(--border-color);
 }
 

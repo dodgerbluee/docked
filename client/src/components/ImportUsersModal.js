@@ -217,12 +217,31 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       const jsonData = JSON.parse(fileContent);
       
       // Support both formats:
-      // 1. { users: [...] } - array of users
+      // 1. { users: [...] } - array of users (may have nested user object)
       // 2. Export format with user object (convert to array)
       let usersArray = null;
       
       if (jsonData.users && Array.isArray(jsonData.users)) {
-        usersArray = jsonData.users;
+        // Normalize the users array - handle both flat and nested user structures
+        usersArray = jsonData.users.map((userItem) => {
+          // If the item has a nested 'user' property (export format), extract and merge it
+          if (userItem.user && typeof userItem.user === 'object') {
+            return {
+              ...userItem.user, // Spread user properties (username, email, role, etc.)
+              ...userItem, // Spread top-level properties (portainerInstances, etc.)
+              // Override with nested user properties to ensure they take precedence
+              username: userItem.user.username,
+              email: userItem.user.email,
+              role: userItem.user.role,
+              instanceAdmin: userItem.user.instance_admin !== undefined 
+                ? userItem.user.instance_admin 
+                : (userItem.user.instanceAdmin !== undefined ? userItem.user.instanceAdmin : false),
+              instance_admin: userItem.user.instance_admin,
+            };
+          }
+          // Otherwise, use the item as-is (flat structure)
+          return userItem;
+        });
       } else if (jsonData.user && typeof jsonData.user === 'object') {
         // Convert single user export format to array
         // Merge top-level properties (portainerInstances, dockerHubCredentials, discordWebhooks, trackedImages) into user object
@@ -848,6 +867,8 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
           setLoading(false);
           return;
         }
+        // Clear error on successful validation
+        setError("");
       } catch (err) {
         setError(err.response?.data?.error || "Validation failed");
         setLoading(false);
@@ -862,6 +883,11 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       const updated = { ...prev };
       if (updated[username]) {
         delete updated[username][currentStepType];
+        // For Docker Hub step, also clear field-specific errors
+        if (currentStepType === STEP_TYPES.DOCKERHUB) {
+          delete updated[username].dockerhub_username;
+          delete updated[username].dockerhub_token;
+        }
       }
       return updated;
     });
@@ -921,6 +947,11 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               delete updated[username][key];
             }
           });
+        }
+        // For Docker Hub step, also clear field-specific errors
+        if (currentStepType === STEP_TYPES.DOCKERHUB) {
+          delete updated[username].dockerhub_username;
+          delete updated[username].dockerhub_token;
         }
       }
       return updated;
@@ -1282,6 +1313,18 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               ...prev,
               dockerHub: { ...prev.dockerHub, [field]: value },
             }));
+            // Clear errors when user starts typing
+            const username = currentUser.username;
+            setUserStepErrors((prev) => {
+              const updated = { ...prev };
+              if (updated[username]) {
+                delete updated[username].dockerhub_username;
+                delete updated[username].dockerhub_token;
+              }
+              return updated;
+            });
+            // Clear general error message
+            setError("");
           }}
         />
       );

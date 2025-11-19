@@ -45,10 +45,17 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  // Clear error when modal opens or closes
+  // Clear error and reset states when modal opens or closes
   useEffect(() => {
-    setError("");
+    if (!isOpen) {
+      setError("");
+      setCreating(false);
+      setLoading(false);
+    } else {
+      setError("");
+    }
   }, [isOpen]);
 
   // Update form data when initialData changes (for edit mode)
@@ -171,13 +178,25 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
               id: response.data.id,
             };
 
-            // Wait for onSuccess to complete (it handles data fetching)
-            await onSuccess(instanceData);
+            // Set creating state to show "Creating..." button
+            setCreating(true);
+            setLoading(false); // Stop the initial loading state
 
-            // Reset form and close modal only after onSuccess completes
-            setFormData({ name: "", url: "", username: "", password: "", apiKey: "" });
-            setAuthType("apikey");
-            onClose();
+            try {
+              // Wait for onSuccess to complete (it handles data fetching and navigation)
+              await onSuccess(instanceData);
+
+              // Reset form and close modal only after onSuccess completes
+              setFormData({ name: "", url: "", username: "", password: "", apiKey: "" });
+              setAuthType("apikey");
+              setCreating(false);
+              onClose();
+            } catch (err) {
+              // If onSuccess fails, reset creating state and show error
+              setCreating(false);
+              setLoading(false);
+              setError(err.message || "Failed to prepare instance. Please try again.");
+            }
           } else {
             setError(response.data.error || "Failed to add Portainer instance");
           }
@@ -232,9 +251,9 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
     return true;
   };
 
-  // Prevent closing modal while loading
+  // Prevent closing modal while loading or creating
   const handleClose = () => {
-    if (!loading) {
+    if (!loading && !creating) {
       onClose();
     }
   };
@@ -340,22 +359,24 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         {error && <Alert variant="error">{error}</Alert>}
 
         <div className={styles.actions}>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading || creating}>
             Cancel
           </Button>
           <Button
             type="submit"
             variant="outline"
-            disabled={loading || !isFormValid()}
+            disabled={loading || creating || !isFormValid()}
             className={styles.submitButton}
           >
-            {loading
-              ? instanceId
-                ? "Updating..."
-                : "Adding..."
-              : instanceId
-                ? "Update Instance"
-                : "Add Instance"}
+            {creating
+              ? "Creating..."
+              : loading
+                ? instanceId
+                  ? "Updating..."
+                  : "Adding..."
+                : instanceId
+                  ? "Update Instance"
+                  : "Add Instance"}
           </Button>
         </div>
       </form>

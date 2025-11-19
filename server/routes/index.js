@@ -185,8 +185,8 @@ router.get("/containers", asyncHandler(containerController.getContainers));
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
 router.post("/containers/pull", asyncHandler(containerController.pullContainers));
-router.get("/containers/cache/data", asyncHandler(containerController.getCacheData));
-router.delete("/containers/cache", asyncHandler(containerController.clearCache));
+router.get("/containers/data", asyncHandler(containerController.getContainerData));
+router.delete("/containers/data", asyncHandler(containerController.clearContainerData));
 router.post("/containers/batch-upgrade", asyncHandler(containerController.batchUpgradeContainers));
 router.post("/containers/:containerId/upgrade", asyncHandler(containerController.upgradeContainer));
 

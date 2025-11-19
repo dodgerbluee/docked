@@ -25,7 +25,14 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" {...props}>
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title={title} 
+      size="sm" 
+      zIndex={20000}
+      {...props}
+    >
       <div className={styles.content}>
         <p className={styles.message}>{message}</p>
         <div className={styles.actions}>

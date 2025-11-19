@@ -14,7 +14,7 @@ import PortainerTab from "./settings/PortainerTab";
 import DockerHubTab from "./settings/DockerHubTab";
 import DiscordTab from "./settings/DiscordTab";
 import UserDetailsTab from "./settings/UserDetailsTab";
-import CacheTab from "./settings/CacheTab";
+import DataTab from "./settings/DataTab";
 
 const Settings = React.memo(function Settings({
   username,
@@ -260,8 +260,6 @@ const Settings = React.memo(function Settings({
                     settings.setLocalColorScheme(scheme);
                     settings.setGeneralSettingsChanged(true);
                   }}
-                  localLogLevel={settings.localLogLevel}
-                  handleLogLevelChange={settings.handleLogLevelChange}
                   localRefreshingTogglesEnabled={settings.localRefreshingTogglesEnabled}
                   handleRefreshingTogglesChange={settings.handleRefreshingTogglesChange}
                   generalSettingsChanged={settings.generalSettingsChanged}
@@ -340,8 +338,8 @@ const Settings = React.memo(function Settings({
             />
           )}
 
-          {currentActiveSection === SETTINGS_TABS.CACHE &&
-            settings.localRefreshingTogglesEnabled && <CacheTab />}
+          {currentActiveSection === SETTINGS_TABS.DATA &&
+            settings.localRefreshingTogglesEnabled && <DataTab />}
         </>
       )}
     </>

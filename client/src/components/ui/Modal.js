@@ -18,6 +18,7 @@ const Modal = React.memo(function Modal({
   showCloseButton = true,
   className = "",
   nonBlocking = false,
+  zIndex,
   ...props
 }) {
   const mouseDownTargetRef = useRef(null);
@@ -120,9 +121,12 @@ const Modal = React.memo(function Modal({
 
   const overlayClass = nonBlocking ? `${styles.overlay} ${styles.nonBlocking}` : styles.overlay;
 
+  const overlayStyle = zIndex ? { zIndex } : {};
+
   const modalContent = (
     <div
       className={overlayClass}
+      style={overlayStyle}
       onClick={handleOverlayClick}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
@@ -165,6 +169,7 @@ Modal.propTypes = {
   showCloseButton: PropTypes.bool,
   className: PropTypes.string,
   nonBlocking: PropTypes.bool,
+  zIndex: PropTypes.number,
 };
 
 export default Modal;

@@ -4,11 +4,13 @@
  */
 
 export const ADMIN_TABS = {
+  GENERAL: "general",
   USERS: "users",
   LOGS: "logs",
 };
 
 export const ADMIN_TAB_LABELS = {
+  [ADMIN_TABS.GENERAL]: "General",
   [ADMIN_TABS.USERS]: "Users",
   [ADMIN_TABS.LOGS]: "Logs",
 };

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { RefreshCw, Check } from "lucide-react";
+import { RefreshCw, Check, RotateCw } from "lucide-react";
 import axios from "axios";
 import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -82,6 +82,9 @@ function PortainerPage({
     if (pullError) {
       setLocalPullError(pullError);
       setShowCheckmark(false);
+    } else {
+      // Clear local error when pullError is cleared
+      setLocalPullError("");
     }
   }, [pullError]);
 
@@ -351,11 +354,16 @@ function PortainerPage({
                       : "Update Portainer data only (no Docker Hub)"
                   }
                   variant="outline"
-                  icon={RefreshCw}
+                  icon={RotateCw}
                   size="sm"
-                  style={{ backgroundColor: "var(--warning-light)", borderColor: "var(--warning)" }}
+                  style={{ 
+                    backgroundColor: "var(--warning-light)", 
+                    borderColor: "var(--warning)",
+                    minHeight: "32px",
+                    padding: "6px 10px"
+                  }}
                 >
-                  {pullingPortainerOnly ? "Updating..." : "Update Portainer Only"}
+                  {""}
                 </Button>
               )}
               <Button
@@ -426,7 +434,24 @@ function PortainerPage({
           )}
           {!pullingDockerHub && !pullingPortainerOnly && localPullError && (
             <Alert variant="error" className={styles.alert}>
-              {localPullError}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                <span>{localPullError}</span>
+                <button
+                  onClick={() => setLocalPullError("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                    padding: "0 8px",
+                    marginLeft: "12px",
+                  }}
+                  aria-label="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
             </Alert>
           )}
         </div>

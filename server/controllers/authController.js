@@ -25,12 +25,14 @@ const {
   getAllTrackedImages,
   getBatchConfig,
   getSetting,
+  getSystemSetting,
   createPortainerInstance,
   createDiscordWebhook,
   createTrackedImage,
   updateTrackedImage,
   updateBatchConfig,
   setSetting,
+  setSystemSetting,
 } = require("../db/database");
 const {
   validateRegistrationCode,
@@ -327,7 +329,7 @@ async function login(req, res, next) {
       await updateLastLogin(username);
     } catch (err) {
       // Log but don't fail login if last_login update fails
-      logger.warn("Failed to update last login timestamp:", err.message);
+      logger.warn("Failed to update last login timestamp:", { error: err });
     }
 
     res.json({
@@ -662,7 +664,14 @@ async function updateUserUsername(req, res, next) {
  */
 async function getDockerHubCreds(req, res, next) {
   try {
-    const credentials = await getDockerHubCredentials();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const credentials = await getDockerHubCredentials(userId);
 
     if (!credentials) {
       return res.json({
@@ -759,6 +768,13 @@ async function validateDockerHubCreds(req, res, next) {
  */
 async function updateDockerHubCreds(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { username, token } = req.body;
 
     // Validate input
@@ -773,7 +789,7 @@ async function updateDockerHubCreds(req, res, next) {
     let tokenToUse = token && token.trim().length > 0 ? token.trim() : null;
 
     if (!tokenToUse) {
-      const existingCreds = await getDockerHubCredentials();
+      const existingCreds = await getDockerHubCredentials(userId);
       if (!existingCreds || !existingCreds.token) {
         return res.status(400).json({
           success: false,
@@ -785,7 +801,7 @@ async function updateDockerHubCreds(req, res, next) {
     }
 
     // Update credentials
-    await updateDockerHubCredentials(username.trim(), tokenToUse);
+    await updateDockerHubCredentials(userId, username.trim(), tokenToUse);
 
     // Clear cache so new credentials are used immediately
     clearCache();
@@ -807,7 +823,14 @@ async function updateDockerHubCreds(req, res, next) {
  */
 async function deleteDockerHubCreds(req, res, next) {
   try {
-    await deleteDockerHubCredentials();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    await deleteDockerHubCredentials(userId);
 
     // Clear cache so credentials are removed immediately
     clearCache();
@@ -918,14 +941,14 @@ async function exportUserConfig(req, res, next) {
       logLevel,
       refreshingTogglesEnabled,
     ] = await Promise.all([
-      getAllPortainerInstances(),
-      getDockerHubCredentials(),
-      getAllDiscordWebhooks(),
-      getAllTrackedImages(),
-      getBatchConfig(),
-      getSetting("color_scheme"),
-      getSetting("log_level"),
-      getSetting("refreshing_toggles_enabled"),
+      getAllPortainerInstances(user.id),
+      getDockerHubCredentials(user.id),
+      getAllDiscordWebhooks(user.id),
+      getAllTrackedImages(user.id),
+      getBatchConfig(user.id),
+      getSetting("color_scheme", user.id),
+      getSystemSetting("log_level"),
+      getSetting("refreshing_toggles_enabled", user.id),
     ]);
 
     // Build export object
@@ -1096,6 +1119,7 @@ async function importUserConfig(req, res, next) {
     ) {
       try {
         await updateDockerHubCredentials(
+          user.id,
           credentials.dockerHub.username,
           credentials.dockerHub.token
         );
@@ -1103,6 +1127,14 @@ async function importUserConfig(req, res, next) {
       } catch (error) {
         results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
       }
+    }
+
+    // Get the current user for importing webhooks (already have user from earlier)
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
     }
 
     // Import Discord webhooks (skip if in skippedSteps)
@@ -1124,6 +1156,7 @@ async function importUserConfig(req, res, next) {
           }
 
           const id = await createDiscordWebhook(
+            user.id,
             webhookCreds.webhookUrl,
             webhook.server_name,
             webhook.channel_name,
@@ -1148,6 +1181,7 @@ async function importUserConfig(req, res, next) {
       for (const image of configData.trackedImages) {
         try {
           const id = await createTrackedImage(
+            user.id,
             image.name,
             image.image_name,
             image.github_repo,
@@ -1180,7 +1214,7 @@ async function importUserConfig(req, res, next) {
           }
 
           if (Object.keys(updateData).length > 0) {
-            await updateTrackedImage(id, updateData);
+            await updateTrackedImage(id, user.id, updateData);
           }
 
           results.trackedImages.push({ id, name: image.name });
@@ -1203,7 +1237,7 @@ async function importUserConfig(req, res, next) {
         }
 
         if (logLevel) {
-          await setSetting("log_level", logLevel);
+          await setSystemSetting("log_level", logLevel);
         }
 
         if (refreshingTogglesEnabled !== undefined) {
@@ -1212,7 +1246,7 @@ async function importUserConfig(req, res, next) {
 
         if (batchConfig) {
           for (const [jobType, config] of Object.entries(batchConfig)) {
-            await updateBatchConfig(jobType, config.enabled, config.intervalMinutes);
+            await updateBatchConfig(user.id, jobType, config.enabled, config.intervalMinutes);
           }
         }
 
@@ -1559,6 +1593,15 @@ async function createUserWithConfig(req, res, next) {
       finalVerificationToken || null
     );
 
+    // Get the created user for importing webhooks
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to retrieve created user",
+      });
+    }
+
     // Clear pending token if it exists (user now exists in database)
     clearPendingToken(username);
 
@@ -1599,6 +1642,7 @@ async function createUserWithConfig(req, res, next) {
             const ipAddress = await resolveUrlToIp(instance.url);
 
             const id = await createPortainerInstance(
+              user.id,
               instance.name,
               instance.url,
               instance.auth_type === "password" ? instanceCreds.username || "" : "",
@@ -1623,6 +1667,7 @@ async function createUserWithConfig(req, res, next) {
       ) {
         try {
           await updateDockerHubCredentials(
+            user.id,
             credentials.dockerHub.username,
             credentials.dockerHub.token
           );
@@ -1652,6 +1697,7 @@ async function createUserWithConfig(req, res, next) {
 
           try {
             const id = await createDiscordWebhook(
+              user.id,
               webhookCreds.webhookUrl,
               webhook.server_name,
               webhook.channel_name,
@@ -1678,6 +1724,7 @@ async function createUserWithConfig(req, res, next) {
       for (const image of configData.trackedImages) {
         try {
           const id = await createTrackedImage(
+            user.id,
             image.name,
             image.image_name,
             image.github_repo,
@@ -1710,7 +1757,7 @@ async function createUserWithConfig(req, res, next) {
           }
 
           if (Object.keys(updateData).length > 0) {
-            await updateTrackedImage(id, updateData);
+            await updateTrackedImage(id, user.id, updateData);
           }
 
           results.trackedImages.push({ id, name: image.name });
@@ -1800,89 +1847,95 @@ async function exportUsersEndpoint(req, res, next) {
 
     const allUsers = await getAllUsers();
     
-    // Get shared configurations (these are global, not per-user)
-    const [
-      portainerInstances,
-      discordWebhooks,
-      trackedImages,
-      batchConfig,
-      colorScheme,
-      logLevel,
-      refreshingTogglesEnabled,
-    ] = await Promise.all([
-      getAllPortainerInstances(),
-      getAllDiscordWebhooks(),
-      getAllTrackedImages(),
-      getBatchConfig(),
-      getSetting("color_scheme"),
-      getSetting("log_level"),
-      getSetting("refreshing_toggles_enabled"),
-    ]);
-
     // For each user, export their data in the same format as exportUserConfig
-    const usersExport = allUsers.map((user) => {
-      // Get user-specific Docker Hub credentials (if they exist)
-      // Note: Docker Hub credentials are per-user, but we'll need to fetch them separately
-      // For now, we'll export user data and note that credentials need to be re-entered
-      
-      return {
-        user: {
-          username: user.username,
-          email: user.email || null,
-          role: user.role || "Administrator",
-          instance_admin: user.instanceAdmin,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-        },
-        portainerInstances: portainerInstances.map((instance) => ({
-          id: instance.id,
-          name: instance.name,
-          url: instance.url,
-          auth_type: instance.auth_type,
-          display_order: instance.display_order,
-          ip_address: instance.ip_address,
-          created_at: instance.created_at,
-          updated_at: instance.updated_at,
-        })),
-        dockerHubCredentials: null, // Per-user, needs to be entered during import
-        discordWebhooks: discordWebhooks.map((webhook) => ({
-          id: webhook.id,
-          server_name: webhook.serverName || null,
-          channel_name: webhook.channelName || null,
-          avatar_url: webhook.avatarUrl || null,
-          guild_id: webhook.guildId || null,
-          channel_id: webhook.channelId || null,
-          enabled: webhook.enabled,
-          name: webhook.name || null,
-          created_at: webhook.createdAt,
-          updated_at: webhook.updatedAt,
-        })),
-        trackedImages: trackedImages.map((image) => ({
-          id: image.id,
-          name: image.name,
-          image_name: image.image_name,
-          github_repo: image.github_repo || null,
-          source_type: image.source_type || "docker",
-          gitlab_token: image.gitlab_token || null,
-          current_version: image.current_version || null,
-          current_digest: image.current_digest || null,
-          latest_version: image.latest_version || null,
-          latest_digest: image.latest_digest || null,
-          has_update: image.has_update === 1,
-          current_version_publish_date: image.current_version_publish_date || null,
-          last_checked: image.last_checked || null,
-          created_at: image.created_at,
-          updated_at: image.updated_at,
-        })),
-        generalSettings: {
-          colorScheme: colorScheme || "system",
-          logLevel: logLevel || "info",
-          refreshingTogglesEnabled:
-            refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
-          batchConfig: batchConfig,
-        },
-      };
-    });
+    // Since data is now per-user, we need to fetch it for each user
+    const usersExport = await Promise.all(
+      allUsers.map(async (user) => {
+        // Fetch user-specific data
+        const [
+          portainerInstances,
+          dockerHubCredentials,
+          discordWebhooks,
+          trackedImages,
+          batchConfig,
+          colorScheme,
+          logLevel,
+          refreshingTogglesEnabled,
+        ] = await Promise.all([
+          getAllPortainerInstances(user.id),
+          getDockerHubCredentials(user.id),
+          getAllDiscordWebhooks(user.id),
+          getAllTrackedImages(user.id),
+          getBatchConfig(user.id),
+          getSetting("color_scheme", user.id),
+          getSystemSetting("log_level"), // Log level is system-wide
+          getSetting("refreshing_toggles_enabled", user.id),
+        ]);
+
+        return {
+          user: {
+            username: user.username,
+            email: user.email || null,
+            role: user.role || "Administrator",
+            instance_admin: user.instanceAdmin,
+            created_at: user.createdAt,
+            updated_at: user.updatedAt,
+          },
+          portainerInstances: portainerInstances.map((instance) => ({
+            id: instance.id,
+            name: instance.name,
+            url: instance.url,
+            auth_type: instance.auth_type,
+            display_order: instance.display_order,
+            ip_address: instance.ip_address,
+            created_at: instance.created_at,
+            updated_at: instance.updated_at,
+          })),
+          dockerHubCredentials: dockerHubCredentials
+            ? {
+                username: dockerHubCredentials.username || null,
+                token: dockerHubCredentials.token ? "***configured***" : null,
+              }
+            : null,
+          discordWebhooks: discordWebhooks.map((webhook) => ({
+            id: webhook.id,
+            server_name: webhook.serverName || null,
+            channel_name: webhook.channelName || null,
+            avatar_url: webhook.avatarUrl || null,
+            guild_id: webhook.guildId || null,
+            channel_id: webhook.channelId || null,
+            enabled: webhook.enabled,
+            name: webhook.name || null,
+            created_at: webhook.createdAt,
+            updated_at: webhook.updatedAt,
+          })),
+          trackedImages: trackedImages.map((image) => ({
+            id: image.id,
+            name: image.name,
+            image_name: image.image_name,
+            github_repo: image.github_repo || null,
+            source_type: image.source_type || "docker",
+            gitlab_token: image.gitlab_token || null,
+            current_version: image.current_version || null,
+            current_digest: image.current_digest || null,
+            latest_version: image.latest_version || null,
+            latest_digest: image.latest_digest || null,
+            has_update: image.has_update === 1,
+            current_version_publish_date: image.current_version_publish_date || null,
+            last_checked: image.last_checked || null,
+            created_at: image.created_at,
+            updated_at: image.updated_at,
+          })),
+          generalSettings: {
+            colorScheme: colorScheme || "system",
+            logLevel: logLevel || "info",
+            refreshingTogglesEnabled:
+              refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
+            batchConfig: batchConfig,
+          },
+        };
+      })
+    );
 
     const exportData = {
       exportDate: new Date().toISOString(),

@@ -31,7 +31,7 @@ async function resolveUrlToIp(urlString) {
 
     return null;
   } catch (error) {
-    logger.error(`Failed to resolve ${urlString} to IP:`, error.message);
+    logger.error(`Failed to resolve ${urlString} to IP:`, { error });
     return null;
   }
 }
@@ -62,7 +62,7 @@ function urlWithIp(originalUrl, ipAddress) {
 
     return url.toString();
   } catch (error) {
-    logger.error(`Failed to convert URL ${originalUrl} with IP ${ipAddress}:`, error.message);
+    logger.error(`Failed to convert URL ${originalUrl} with IP ${ipAddress}:`, { error });
     return originalUrl;
   }
 }
@@ -260,7 +260,7 @@ async function detectBackendIp(
 
     return null; // Could not detect backend IP
   } catch (error) {
-    logger.error(`Error detecting backend IP:`, error.message);
+    logger.error(`Error detecting backend IP:`, { error });
     return null;
   }
 }

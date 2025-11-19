@@ -1,4 +1,4 @@
-.cacheTab {
+.dataTab {
   width: 100%;
 }
 
@@ -71,7 +71,7 @@ body.dark-mode .content {
   background: var(--bg-primary);
 }
 
-.cacheContent {
+.dataWrapper {
   margin: 0;
   color: var(--text-primary);
   font-family: monospace;
@@ -79,33 +79,14 @@ body.dark-mode .content {
   line-height: 1.6;
 }
 
-.cacheEntry {
+.dataEntry {
   margin-bottom: 8px;
   padding: 4px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
-.cacheEntry:last-child {
+.dataEntry:last-child {
   border-bottom: none;
-}
-
-.cacheLine {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.cacheLineClickable {
-  cursor: pointer;
-  padding: 4px 8px;
-  margin: -4px -8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.cacheLineClickable:hover {
-  background-color: var(--bg-tertiary);
 }
 
 .expandIcon {
@@ -119,18 +100,6 @@ body.dark-mode .content {
   min-width: 18px;
 }
 
-.cacheKey {
-  color: var(--text-primary);
-  font-weight: 600;
-  flex: 1;
-  min-width: 0;
-}
-
-.errorBadge {
-  color: var(--dodger-red);
-  font-size: 0.9em;
-}
-
 .expandHint {
   color: var(--text-secondary);
   font-size: 0.75em;
@@ -138,13 +107,7 @@ body.dark-mode .content {
   margin-left: 8px;
 }
 
-.cacheTimestamp {
-  color: var(--text-secondary);
-  font-size: 0.8em;
-  margin-left: auto;
-}
-
-.cacheData {
+.dataSection {
   margin-top: 8px;
   margin-left: 20px;
   padding: 12px;
@@ -163,7 +126,7 @@ body.dark-mode .content {
   margin-bottom: 8px;
 }
 
-.cacheDataContent {
+.dataContent {
   margin: 0;
   font-size: 0.8em;
   color: var(--text-secondary);

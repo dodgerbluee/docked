@@ -39,7 +39,8 @@ const PortainerTab = React.memo(function PortainerTab({
       return;
     }
     try {
-      await onClearPortainerData();
+      // Skip confirmation since ConfirmDialog already handled it
+      await onClearPortainerData(true);
       setPortainerConfirm(false);
     } catch (error) {
       console.error("Error clearing Portainer data:", error);

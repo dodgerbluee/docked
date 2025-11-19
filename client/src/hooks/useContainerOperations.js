@@ -270,21 +270,23 @@ export const useContainerOperations = ({
     ]
   );
 
-  const handleClear = useCallback(async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to clear all cached data? This will remove all container information until you pull again."
-      )
-    ) {
-      return;
+  const handleClear = useCallback(async (skipConfirmation = false) => {
+    if (!skipConfirmation) {
+      if (
+        !window.confirm(
+          "Are you sure you want to clear all container data? This will remove all container information until you pull again."
+        )
+      ) {
+        return;
+      }
     }
 
     try {
       setClearingState(true);
       setError(null);
-      console.log("🗑️ Clearing all cached data...");
+      console.log("🗑️ Clearing all container data...");
 
-      const response = await axios.delete(`${API_BASE_URL}/api/containers/cache`);
+      const response = await axios.delete(`${API_BASE_URL}/api/containers/data`);
 
       const clearFrontendState = () => {
         setContainers([]);
@@ -377,6 +379,7 @@ export const useContainerOperations = ({
       } = additionalParams;
       try {
         setPulling(true);
+        // Clear any previous errors when starting a new pull
         setError(null);
         setPullError(null);
         setPullSuccess(null);
@@ -466,7 +469,9 @@ export const useContainerOperations = ({
           setUnusedImagesCount(0);
         }
 
+        // Clear any errors on successful pull
         setError(null);
+        setPullError(null);
         setDataFetched(true);
         await fetchUnusedImages();
         setPullSuccess("Data pulled successfully!");

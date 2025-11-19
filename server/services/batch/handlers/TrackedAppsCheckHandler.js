@@ -24,7 +24,7 @@ class TrackedAppsCheckHandler extends JobHandler {
   }
 
   async execute(context) {
-    const { logger } = context;
+    const { logger, userId } = context;
     const result = {
       itemsChecked: 0,
       itemsUpdated: 0,
@@ -32,32 +32,35 @@ class TrackedAppsCheckHandler extends JobHandler {
       error: null,
     };
 
+    if (!userId) {
+      const error = new Error("userId is required for tracked apps check batch job");
+      logger.error("Tracked apps check failed", { error: error.message });
+      throw error;
+    }
+
     try {
-      logger.info("Starting tracked apps check batch job");
+      logger.info("Starting tracked apps check batch job", { userId });
 
-      // Get all users and check tracked images for each user
-      const users = await getAllUsers();
-      logger.debug(`Found ${users.length} users to check tracked apps for`);
+      // Get tracked images for this specific user
+      const images = await getAllTrackedImages(userId);
+      logger.debug(`Found ${images.length} tracked images for user ${userId}`);
 
-      let allImages = [];
-      for (const user of users) {
-        const images = await getAllTrackedImages(user.id);
-        logger.debug(`Found ${images.length} tracked images for user ${user.username}`);
-        allImages = allImages.concat(images);
+      if (images.length === 0) {
+        logger.info("No tracked images found for user", { userId });
+        return result;
       }
 
-      logger.debug(`Total tracked images to check: ${allImages.length}`);
-
-      // Check for updates
-      const results = await trackedImageService.checkAllTrackedImages(allImages);
+      // Check for updates (checkAllTrackedImages will use each image's user_id for Docker Hub credentials)
+      const results = await trackedImageService.checkAllTrackedImages(images);
 
       // Extract metrics
-      result.itemsChecked = allImages.length;
+      result.itemsChecked = images.length;
       result.itemsUpdated = results.filter((r) => r.hasUpdate).length;
 
       logger.info("Tracked apps check completed successfully", {
         appsChecked: result.itemsChecked,
         appsWithUpdates: result.itemsUpdated,
+        userId,
       });
 
       return result;
@@ -67,6 +70,7 @@ class TrackedAppsCheckHandler extends JobHandler {
       logger.error("Tracked apps check failed", {
         error: errorMessage,
         stack: err.stack,
+        userId,
       });
 
       result.error = new Error(errorMessage);

@@ -64,8 +64,8 @@ try {
   }
   
   if (err) {
-    logger.error("Error opening database:", err.message);
-    logger.error("Stack:", err.stack);
+    logger.error("Error opening database:", { error: err });
+    logger.error("Stack:", { error: err });
     // Don't throw - let the server continue even if database connection fails initially
     // The database will be retried on next access
   } else {
@@ -77,7 +77,7 @@ try {
         initializeDatabase();
       } catch (initError) {
         logger.error("Error initializing database:", initError);
-        logger.error("Stack:", initError.stack);
+        logger.error("Stack:", { error: initError });
         // Don't throw - log the error but don't crash the server
         // Database operations will fail gracefully if needed
       }
@@ -88,14 +88,14 @@ try {
   // Handle database errors to prevent crashes
   if (db) {
     db.on("error", (err) => {
-      logger.error("Database error:", err.message);
-      logger.error("Stack:", err.stack);
+      logger.error("Database error:", { error: err });
+      logger.error("Stack:", { error: err });
       // Don't throw - just log the error
     });
   }
 } catch (dbInitError) {
   logger.error("Failed to create database connection:", dbInitError);
-  logger.error("Stack:", dbInitError.stack);
+  logger.error("Stack:", { error: dbInitError });
   // Create a dummy db object to prevent crashes when functions try to use it
   // Functions will check for db existence and handle errors gracefully
   db = {
@@ -146,13 +146,13 @@ function initializeDatabase() {
           )`,
           (err) => {
             if (err) {
-              logger.error("Error creating users table:", err.message);
+              logger.error("Error creating users table:", { error: err });
             } else {
           logger.info("Users table ready");
           // Create indexes for users table
           db.run("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating username index:", idxErr.message);
+              logger.error("Error creating username index:", { error: idxErr });
             }
           });
         }
@@ -178,7 +178,7 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating portainer_instances table:", err.message);
+          logger.error("Error creating portainer_instances table:", { error: err });
         } else {
           logger.info("Portainer instances table ready");
           // Create indexes for portainer_instances table
@@ -187,7 +187,7 @@ function initializeDatabase() {
                 "CREATE INDEX IF NOT EXISTS idx_portainer_user_id ON portainer_instances(user_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists") && !idxErr.message.includes("no such column")) {
-                    logger.error("Error creating user_id index:", idxErr.message);
+                    logger.error("Error creating user_id index:", { error: idxErr });
                   } else if (idxErr && idxErr.message.includes("no such column")) {
                     logger.debug("user_id column doesn't exist yet - index will be created after migration");
                   }
@@ -197,7 +197,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating portainer URL index:", idxErr.message);
+                logger.error("Error creating portainer URL index:", { error: idxErr });
               }
             }
           );
@@ -205,7 +205,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating display_order index:", idxErr.message);
+                logger.error("Error creating display_order index:", { error: idxErr });
               }
             }
           );
@@ -213,18 +213,20 @@ function initializeDatabase() {
       }
     );
 
-    // Create docker_hub_credentials table (singleton - only one row)
+    // Create docker_hub_credentials table (per user)
     db.run(
       `CREATE TABLE IF NOT EXISTS docker_hub_credentials (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         username TEXT,
         token TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating docker_hub_credentials table:", err.message);
+          logger.error("Error creating docker_hub_credentials table:", { error: err });
         } else {
           logger.info("Docker Hub credentials table ready");
         }
@@ -255,26 +257,23 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating tracked_images table:", err.message);
+          logger.error("Error creating tracked_images table:", { error: err });
         } else {
           logger.info("Tracked images table ready");
               // Create indexes
-          // Note: user_id index may fail if table exists without user_id column (migration will fix this)
           db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_images_user_id ON tracked_images(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists") && !idxErr.message.includes("no such column")) {
-                    logger.error("Error creating user_id index:", idxErr.message);
-                  } else if (idxErr && idxErr.message.includes("no such column")) {
-                    logger.debug("user_id column doesn't exist yet - index will be created after migration");
-                  }
-                }
-              );
+            "CREATE INDEX IF NOT EXISTS idx_tracked_images_user_id ON tracked_images(user_id)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating tracked_images user_id index:", { error: idxErr });
+              }
+            }
+          );
           db.run(
             "CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating tracked_images name index:", idxErr.message);
+                logger.error("Error creating tracked_images name index:", { error: idxErr });
               }
             }
           );
@@ -282,7 +281,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating tracked_images image_name index:", idxErr.message);
+                logger.error("Error creating tracked_images image_name index:", { error: idxErr });
               }
             }
           );
@@ -290,7 +289,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating tracked_images github_repo index:", idxErr.message);
+                logger.error("Error creating tracked_images github_repo index:", { error: idxErr });
               }
             }
           );
@@ -298,34 +297,67 @@ function initializeDatabase() {
       }
     );
 
-    // Create container_cache table to store cached container update information
+    // Create docker_hub_image_versions table to track Docker Hub image version information per user
     db.run(
-      `CREATE TABLE IF NOT EXISTS container_cache (
+      `CREATE TABLE IF NOT EXISTS docker_hub_image_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cache_key TEXT UNIQUE NOT NULL,
-        cache_data TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        image_name TEXT NOT NULL,
+        image_repo TEXT NOT NULL,
+        registry TEXT DEFAULT 'docker.io',
+        namespace TEXT,
+        repository TEXT NOT NULL,
+        current_tag TEXT,
+        current_version TEXT,
+        current_digest TEXT,
+        latest_tag TEXT,
+        latest_version TEXT,
+        latest_digest TEXT,
+        has_update INTEGER DEFAULT 0,
+        latest_publish_date TEXT,
+        current_version_publish_date TEXT,
+        exists_in_docker_hub INTEGER DEFAULT 0,
+        last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, image_repo),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating container_cache table:", err.message);
+          logger.error("Error creating docker_hub_image_versions table:", { error: err });
         } else {
-          logger.info("Container cache table ready");
-          // Create indexes for container_cache table
+          logger.info("Docker Hub image versions table ready");
+          // Create indexes for docker_hub_image_versions table
           db.run(
-            "CREATE INDEX IF NOT EXISTS idx_cache_key ON container_cache(cache_key)",
+            "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_user_id ON docker_hub_image_versions(user_id)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating cache_key index:", idxErr.message);
+                logger.error("Error creating docker_hub_image_versions user_id index:", { error: idxErr });
               }
             }
           );
           db.run(
-            "CREATE INDEX IF NOT EXISTS idx_cache_updated_at ON container_cache(updated_at)",
+            "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_user_has_update ON docker_hub_image_versions(user_id, has_update)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating cache updated_at index:", idxErr.message);
+                logger.error("Error creating docker_hub_image_versions user_has_update index:", { error: idxErr });
+              }
+            }
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_image_repo ON docker_hub_image_versions(image_repo)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating docker_hub_image_versions image_repo index:", { error: idxErr });
+              }
+            }
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_last_checked ON docker_hub_image_versions(last_checked)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating docker_hub_image_versions last_checked index:", { error: idxErr });
               }
             }
           );
@@ -333,30 +365,90 @@ function initializeDatabase() {
       }
     );
 
-    // Create batch_config table (one row per job type)
+    // Create portainer_containers table to store Portainer container state per user
+    db.run(
+      `CREATE TABLE IF NOT EXISTS portainer_containers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        portainer_instance_id INTEGER NOT NULL,
+        container_id TEXT NOT NULL,
+        container_name TEXT NOT NULL,
+        endpoint_id TEXT NOT NULL,
+        image_name TEXT NOT NULL,
+        image_repo TEXT NOT NULL,
+        status TEXT,
+        state TEXT,
+        stack_name TEXT,
+        current_digest TEXT,
+        image_created_date TEXT,
+        uses_network_mode INTEGER DEFAULT 0,
+        provides_network INTEGER DEFAULT 0,
+        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, container_id, portainer_instance_id, endpoint_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE CASCADE
+      )`,
+      (err) => {
+        if (err) {
+          logger.error("Error creating portainer_containers table:", { error: err });
+        } else {
+          logger.info("Portainer containers table ready");
+          // Create indexes for portainer_containers table
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_containers_user_id ON portainer_containers(user_id)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating portainer_containers user_id index:", { error: idxErr });
+              }
+            }
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_containers_instance ON portainer_containers(portainer_instance_id)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating portainer_containers instance index:", { error: idxErr });
+              }
+            }
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_containers_image_repo ON portainer_containers(image_repo)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating portainer_containers image_repo index:", { error: idxErr });
+              }
+            }
+          );
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_portainer_containers_last_seen ON portainer_containers(last_seen)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating portainer_containers last_seen index:", { error: idxErr });
+              }
+            }
+          );
+        }
+      }
+    );
+
+    // Create batch_config table (per user, per job type)
     db.run(
       `CREATE TABLE IF NOT EXISTS batch_config (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        job_type TEXT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL,
+        job_type TEXT NOT NULL,
         enabled INTEGER DEFAULT 0,
         interval_minutes INTEGER DEFAULT 60,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, job_type)
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating batch_config table:", err.message);
+          logger.error("Error creating batch_config table:", { error: err });
         } else {
           logger.info("Batch config table ready");
-              // Initialize default job types if they don't exist
-                        db.run(
-                "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('docker-hub-pull', 0, 60)",
-                () => {}
-              );
-                                  db.run(
-                                    "INSERT OR IGNORE INTO batch_config (job_type, enabled, interval_minutes) VALUES ('tracked-apps-check', 0, 60)",
-                () => {}
-              );
             }
       }
     );
@@ -374,24 +466,21 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating settings table:", err.message);
+          logger.error("Error creating settings table:", { error: err });
         } else {
           logger.info("Settings table ready");
-              // Create indexes for settings table
-              // Note: user_id index may fail if table exists without user_id column (migration will fix this)
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists") && !idxErr.message.includes("no such column")) {
-                    logger.error("Error creating user_id index:", idxErr.message);
-                  } else if (idxErr && idxErr.message.includes("no such column")) {
-                    logger.debug("user_id column doesn't exist yet - index will be created after migration");
-                  }
-                }
-              );
+          // Create indexes for settings table
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)",
+            (idxErr) => {
+              if (idxErr && !idxErr.message.includes("already exists")) {
+                logger.error("Error creating settings user_id index:", { error: idxErr });
+              }
+            }
+          );
           db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
             if (idxErr && !idxErr.message.includes("already exists")) {
-              logger.error("Error creating settings key index:", idxErr.message);
+              logger.error("Error creating settings key index:", { error: idxErr });
             }
           });
         }
@@ -402,28 +491,41 @@ function initializeDatabase() {
     db.run(
       `CREATE TABLE IF NOT EXISTS discord_webhooks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         webhook_url TEXT NOT NULL,
         server_name TEXT,
         channel_name TEXT,
-            name TEXT,
-            avatar_url TEXT,
-            guild_id TEXT,
-            channel_id TEXT,
+        name TEXT,
+        avatar_url TEXT,
+        guild_id TEXT,
+        channel_id TEXT,
         enabled INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating discord_webhooks table:", err.message);
+          logger.error("Error creating discord_webhooks table:", { error: err });
         } else {
           logger.info("Discord webhooks table ready");
-          // Create index for discord_webhooks table
+          // Create indexes for discord_webhooks table
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_user_id ON discord_webhooks(user_id)",
+            (idxErr) => {
+              // Ignore "no such column" errors - these are expected if table exists from old schema
+              // Migration will handle adding the column and recreating the index
+              if (idxErr && !idxErr.message.includes("already exists") && !idxErr.message.includes("no such column")) {
+                logger.error("Error creating discord_webhooks user_id index:", { error: idxErr });
+              } else if (idxErr && idxErr.message.includes("no such column")) {
+                logger.debug("Discord webhooks table exists without user_id column - migration will handle this");
+              }
+            }
+          );
           db.run(
             "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating discord_webhooks enabled index:", idxErr.message);
+                logger.error("Error creating discord_webhooks enabled index:", { error: idxErr });
               }
             }
           );
@@ -431,10 +533,11 @@ function initializeDatabase() {
       }
     );
 
-    // Create batch_runs table to track batch execution history
+    // Create batch_runs table to track batch execution history (per user)
     db.run(
       `CREATE TABLE IF NOT EXISTS batch_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         job_type TEXT DEFAULT 'docker-hub-pull',
             status TEXT NOT NULL,
             is_manual INTEGER DEFAULT 0,
@@ -448,7 +551,7 @@ function initializeDatabase() {
       )`,
       (err) => {
         if (err) {
-          logger.error("Error creating batch_runs table:", err.message);
+          logger.error("Error creating batch_runs table:", { error: err });
         } else {
           logger.info("Batch runs table ready");
           // Create indexes for batch_runs table
@@ -456,7 +559,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating batch_runs started_at index:", idxErr.message);
+                logger.error("Error creating batch_runs started_at index:", { error: idxErr });
               }
             }
           );
@@ -464,16 +567,7 @@ function initializeDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)",
             (idxErr) => {
               if (idxErr && !idxErr.message.includes("already exists")) {
-                logger.error("Error creating batch_runs status index:", idxErr.message);
-              } else {
-                // All tables created - now run migrations
-                // Use setImmediate to ensure all callbacks complete first
-                setImmediate(() => {
-                  migrationPromise = runMigrations().catch((migrationErr) => {
-                    logger.error("Migration error:", migrationErr);
-                    throw migrationErr;
-                  });
-                });
+                logger.error("Error creating batch_runs status index:", { error: idxErr });
               }
             }
           );
@@ -483,467 +577,15 @@ function initializeDatabase() {
 
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
-        logger.error("Stack:", serializeError.stack);
+        logger.error("Stack:", { error: serializeError });
       }
     });
     
     logger.info("Database initialization completed");
   } catch (initError) {
     logger.error("Error in initializeDatabase:", initError);
-    logger.error("Stack:", initError.stack);
+    logger.error("Stack:", { error: initError });
     initializationStarted = false; // Allow retry on next call
-  }
-}
-
-/**
- * Check if a column exists in a table
- * @param {string} tableName - Table name
- * @param {string} columnName - Column name
- * @returns {Promise<boolean>} - True if column exists
- */
-function columnExists(tableName, columnName) {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error("Database not initialized"));
-      return;
-    }
-    db.all(`PRAGMA table_info(${tableName})`, (err, rows) => {
-      if (err) {
-        // Table doesn't exist or error
-        resolve(false);
-        return;
-      }
-      const exists = rows.some((row) => row.name === columnName);
-      resolve(exists);
-    });
-  });
-}
-
-// Track migration promise for external waiting
-let migrationPromise = null;
-
-/**
- * Wait for migrations to complete
- * @returns {Promise<void>}
- */
-function waitForMigrations() {
-  if (!migrationPromise) {
-    // If migration hasn't started yet, wait a bit and check again
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (migrationPromise) {
-          migrationPromise.then(resolve).catch(resolve);
-        } else {
-          resolve(); // No migration needed
-        }
-      }, 200);
-    });
-  }
-  return migrationPromise;
-}
-
-/**
- * Run database migrations for backward compatibility
- * Migrates existing data to be user-specific
- */
-async function runMigrations() {
-  try {
-    // Wait a bit to ensure all table creation callbacks have completed
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    
-    logger.info("Checking for database migrations...");
-    
-    // First check if tables exist
-    const portainerTableExists = await new Promise((resolve) => {
-      db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='portainer_instances'", (err, row) => {
-        resolve(!err && row);
-      });
-    });
-    
-    const trackedImagesTableExists = await new Promise((resolve) => {
-      db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='tracked_images'", (err, row) => {
-        resolve(!err && row);
-      });
-    });
-    
-    const settingsTableExists = await new Promise((resolve) => {
-      db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'", (err, row) => {
-        resolve(!err && row);
-      });
-    });
-    
-    // If tables don't exist yet, skip migration (they'll be created with user_id)
-    if (!portainerTableExists && !trackedImagesTableExists && !settingsTableExists) {
-      logger.debug("No existing tables found - new database, no migration needed");
-      return;
-    }
-    
-    // Check if portainer_instances table exists without user_id
-    const portainerHasUserId = portainerTableExists ? await columnExists("portainer_instances", "user_id") : true;
-    const trackedImagesHasUserId = trackedImagesTableExists ? await columnExists("tracked_images", "user_id") : true;
-    const settingsHasUserId = settingsTableExists ? await columnExists("settings", "user_id") : true;
-    
-    // If all tables already have user_id, no migration needed
-    if (portainerHasUserId && trackedImagesHasUserId && settingsHasUserId) {
-      logger.debug("No migrations needed - all tables have user_id columns");
-      return;
-    }
-    
-    logger.info("Migration needed: Adding user_id columns and migrating data");
-    
-    // Get or create first user for migration
-    let firstUser;
-    try {
-      // Check if users table exists first
-      const usersTableExists = await new Promise((resolve) => {
-        db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
-          resolve(!err && row);
-        });
-      });
-      
-      if (!usersTableExists) {
-        logger.warn("Users table doesn't exist yet - skipping migration");
-        return;
-      }
-      
-      const users = await getAllUsers();
-      if (users.length > 0) {
-        firstUser = users[0];
-        logger.info(`Using existing user '${firstUser.username}' (ID: ${firstUser.id}) for migration`);
-      } else {
-        // Create a default admin user for migration
-        // This should rarely happen, but handle it gracefully
-        logger.warn("No users found - migration will create a default admin user");
-        // We can't create a user here without a password, so we'll skip migration
-        // The user will need to create a user first, then the migration will run on next startup
-        logger.warn("Skipping migration - please create a user first, then restart the server");
-        return;
-      }
-    } catch (userError) {
-      logger.error("Error getting users for migration:", userError);
-      // If it's a column error, the table might be old schema - skip migration for now
-      if (userError.message && userError.message.includes("no such column")) {
-        logger.warn("Users table has old schema - skipping migration until user is created");
-        return;
-      }
-      return;
-    }
-    
-    const userId = firstUser.id;
-    
-    // Migrate portainer_instances table
-    if (!portainerHasUserId) {
-      logger.info("Migrating portainer_instances table...");
-      try {
-        // Check if table exists
-        const tableExists = await new Promise((resolve) => {
-          db.get(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='portainer_instances'",
-            (err, row) => {
-              resolve(!err && row);
-            }
-          );
-        });
-        
-        if (tableExists) {
-          // Drop old unique constraint if it exists (SQLite doesn't support DROP CONSTRAINT directly)
-          // We'll recreate the table with the new constraint
-          // First, get all data
-          const instances = await new Promise((resolve, reject) => {
-            db.all("SELECT * FROM portainer_instances", (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows || []);
-            });
-          });
-          
-          // Create new table with user_id
-          await new Promise((resolve, reject) => {
-            db.run(
-              `CREATE TABLE portainer_instances_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                url TEXT NOT NULL,
-                username TEXT,
-                password TEXT,
-                api_key TEXT,
-                auth_type TEXT DEFAULT 'password',
-                ip_address TEXT,
-                display_order INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, url)
-              )`,
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
-          
-          // Copy data with user_id
-          for (const instance of instances) {
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT INTO portainer_instances_new (id, user_id, name, url, username, password, api_key, auth_type, ip_address, display_order, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  instance.id,
-                  userId,
-                  instance.name,
-                  instance.url,
-                  instance.username,
-                  instance.password,
-                  instance.api_key || null,
-                  instance.auth_type || "password",
-                  instance.ip_address || null,
-                  instance.display_order || 0,
-                  instance.created_at || new Date().toISOString(),
-                  instance.updated_at || new Date().toISOString(),
-                ],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-          }
-          
-          // Drop old table and rename new one
-          await new Promise((resolve, reject) => {
-            db.run("DROP TABLE portainer_instances", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          await new Promise((resolve, reject) => {
-            db.run("ALTER TABLE portainer_instances_new RENAME TO portainer_instances", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          // Recreate indexes
-          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_user_id ON portainer_instances(user_id)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)");
-          
-          logger.info(`Migrated ${instances.length} portainer instances to user ${userId}`);
-        } else {
-          // Table doesn't exist yet, it will be created with user_id by CREATE TABLE IF NOT EXISTS
-          logger.debug("portainer_instances table doesn't exist yet, will be created with user_id");
-        }
-      } catch (err) {
-        logger.error("Error migrating portainer_instances:", err);
-        // Continue with other migrations
-      }
-    }
-    
-    // Migrate tracked_images table
-    if (!trackedImagesHasUserId) {
-      logger.info("Migrating tracked_images table...");
-      try {
-        const tableExists = await new Promise((resolve) => {
-          db.get(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='tracked_images'",
-            (err, row) => {
-              resolve(!err && row);
-            }
-          );
-        });
-        
-        if (tableExists) {
-          const images = await new Promise((resolve, reject) => {
-            db.all("SELECT * FROM tracked_images", (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows || []);
-            });
-          });
-          
-          await new Promise((resolve, reject) => {
-            db.run(
-              `CREATE TABLE tracked_images_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                image_name TEXT,
-                github_repo TEXT,
-                source_type TEXT DEFAULT 'docker',
-                gitlab_token TEXT,
-                current_version TEXT,
-                current_digest TEXT,
-                latest_version TEXT,
-                latest_digest TEXT,
-                has_update INTEGER DEFAULT 0,
-                current_version_publish_date TEXT,
-                latest_version_publish_date TEXT,
-                last_checked DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, image_name, github_repo)
-              )`,
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
-          
-          for (const image of images) {
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT INTO tracked_images_new (id, user_id, name, image_name, github_repo, source_type, gitlab_token, current_version, current_digest, latest_version, latest_digest, has_update, current_version_publish_date, latest_version_publish_date, last_checked, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  image.id,
-                  userId,
-                  image.name,
-                  image.image_name || null,
-                  image.github_repo || null,
-                  image.source_type || "docker",
-                  image.gitlab_token || null,
-                  image.current_version || null,
-                  image.current_digest || null,
-                  image.latest_version || null,
-                  image.latest_digest || null,
-                  image.has_update || 0,
-                  image.current_version_publish_date || null,
-                  image.latest_version_publish_date || null,
-                  image.last_checked || null,
-                  image.created_at || new Date().toISOString(),
-                  image.updated_at || new Date().toISOString(),
-                ],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-          }
-          
-          await new Promise((resolve, reject) => {
-            db.run("DROP TABLE tracked_images", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          await new Promise((resolve, reject) => {
-            db.run("ALTER TABLE tracked_images_new RENAME TO tracked_images", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          // Recreate indexes
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_user_id ON tracked_images(user_id)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)");
-          
-          logger.info(`Migrated ${images.length} tracked images to user ${userId}`);
-        } else {
-          logger.debug("tracked_images table doesn't exist yet, will be created with user_id");
-        }
-      } catch (err) {
-        logger.error("Error migrating tracked_images:", err);
-      }
-    }
-    
-    // Migrate settings table
-    if (!settingsHasUserId) {
-      logger.info("Migrating settings table...");
-      try {
-        const tableExists = await new Promise((resolve) => {
-          db.get(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
-            (err, row) => {
-              resolve(!err && row);
-            }
-          );
-        });
-        
-        if (tableExists) {
-          const settings = await new Promise((resolve, reject) => {
-            db.all("SELECT * FROM settings", (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows || []);
-            });
-          });
-          
-          await new Promise((resolve, reject) => {
-            db.run(
-              `CREATE TABLE settings_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                key TEXT NOT NULL,
-                value TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, key)
-              )`,
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
-          
-          for (const setting of settings) {
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT INTO settings_new (id, user_id, key, value, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                  setting.id,
-                  userId,
-                  setting.key,
-                  setting.value || null,
-                  setting.created_at || new Date().toISOString(),
-                  setting.updated_at || new Date().toISOString(),
-                ],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-          }
-          
-          await new Promise((resolve, reject) => {
-            db.run("DROP TABLE settings", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          await new Promise((resolve, reject) => {
-            db.run("ALTER TABLE settings_new RENAME TO settings", (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-          
-          // Recreate indexes
-          db.run("CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)");
-          db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)");
-          
-          logger.info(`Migrated ${settings.length} settings to user ${userId}`);
-        } else {
-          logger.debug("settings table doesn't exist yet, will be created with user_id");
-        }
-      } catch (err) {
-        logger.error("Error migrating settings:", err);
-      }
-    }
-    
-    logger.info("Database migration completed successfully");
-  } catch (migrationError) {
-    logger.error("Error running migrations:", migrationError);
-    logger.error("Stack:", migrationError.stack);
-    // Don't throw - allow server to continue even if migration fails
-    // The migration will be retried on next startup
   }
 }
 
@@ -1505,18 +1147,19 @@ function updatePortainerInstanceOrder(userId, orders) {
 }
 
 /**
- * Get Docker Hub credentials
+ * Get Docker Hub credentials for a user
+ * @param {number} userId - User ID
  * @returns {Promise<Object|null>} - Docker Hub credentials or null
  */
-function getDockerHubCredentials() {
+function getDockerHubCredentials(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.get(
-      "SELECT username, token, updated_at FROM docker_hub_credentials WHERE id = 1",
-      [],
+      "SELECT username, token, updated_at FROM docker_hub_credentials WHERE user_id = ?",
+      [userId],
       (err, row) => {
         if (err) {
           reject(err);
@@ -1529,21 +1172,22 @@ function getDockerHubCredentials() {
 }
 
 /**
- * Update Docker Hub credentials
+ * Update Docker Hub credentials for a user
+ * @param {number} userId - User ID
  * @param {string} username - Docker Hub username
  * @param {string} token - Docker Hub personal access token
  * @returns {Promise<void>}
  */
-function updateDockerHubCredentials(username, token) {
+function updateDockerHubCredentials(userId, username, token) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.run(
-      `INSERT OR REPLACE INTO docker_hub_credentials (id, username, token, updated_at) 
-       VALUES (1, ?, ?, CURRENT_TIMESTAMP)`,
-      [username, token],
+      `INSERT OR REPLACE INTO docker_hub_credentials (user_id, username, token, updated_at) 
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+      [userId, username, token],
       function (err) {
         if (err) {
           reject(err);
@@ -1556,16 +1200,17 @@ function updateDockerHubCredentials(username, token) {
 }
 
 /**
- * Delete Docker Hub credentials
+ * Delete Docker Hub credentials for a user
+ * @param {number} userId - User ID
  * @returns {Promise<void>}
  */
-function deleteDockerHubCredentials() {
+function deleteDockerHubCredentials(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.run("DELETE FROM docker_hub_credentials WHERE id = 1", [], function (err) {
+    db.run("DELETE FROM docker_hub_credentials WHERE user_id = ?", [userId], function (err) {
       if (err) {
         reject(err);
       } else {
@@ -1576,30 +1221,115 @@ function deleteDockerHubCredentials() {
 }
 
 /**
- * Get cached container data
- * @param {string} cacheKey - Cache key (e.g., 'containers')
- * @returns {Promise<Object|null>} - Cached data or null
+ * Upsert Docker Hub image version information
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository (without tag, e.g., "nginx")
+ * @param {Object} versionData - Version data to store
+ * @returns {Promise<number>} - ID of the record
  */
-function getContainerCache(cacheKey) {
+function upsertDockerHubImageVersion(userId, imageRepo, versionData) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const {
+      imageName = null,
+      registry = "docker.io",
+      namespace = null,
+      repository = null,
+      currentTag = null,
+      currentVersion = null,
+      currentDigest = null,
+      latestTag = null,
+      latestVersion = null,
+      latestDigest = null,
+      hasUpdate = false,
+      latestPublishDate = null,
+      currentVersionPublishDate = null,
+      existsInDockerHub = true,
+    } = versionData;
+
+    db.run(
+      `INSERT OR REPLACE INTO docker_hub_image_versions (
+        user_id, image_name, image_repo, registry, namespace, repository,
+        current_tag, current_version, current_digest,
+        latest_tag, latest_version, latest_digest,
+        has_update, latest_publish_date, current_version_publish_date,
+        exists_in_docker_hub, last_checked, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        userId,
+        imageName || imageRepo,
+        imageRepo,
+        registry,
+        namespace,
+        repository || imageRepo,
+        currentTag,
+        currentVersion,
+        currentDigest,
+        latestTag,
+        latestVersion,
+        latestDigest,
+        hasUpdate ? 1 : 0,
+        latestPublishDate,
+        currentVersionPublishDate,
+        existsInDockerHub ? 1 : 0,
+      ],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get Docker Hub version info for a specific image repo
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @returns {Promise<Object|null>} - Version info or null
+ */
+function getDockerHubImageVersion(userId, imageRepo) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.get(
-      "SELECT cache_data, updated_at FROM container_cache WHERE cache_key = ?",
-      [cacheKey],
+      `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ?`,
+      [userId, imageRepo],
       (err, row) => {
         if (err) {
           reject(err);
         } else {
           if (row) {
-            try {
-              resolve(JSON.parse(row.cache_data));
-            } catch (parseErr) {
-              logger.error("Error parsing cached data:", parseErr);
-              resolve(null);
-            }
+            resolve({
+              id: row.id,
+              userId: row.user_id,
+              imageName: row.image_name,
+              imageRepo: row.image_repo,
+              registry: row.registry,
+              namespace: row.namespace,
+              repository: row.repository,
+              currentTag: row.current_tag,
+              currentVersion: row.current_version,
+              currentDigest: row.current_digest,
+              latestTag: row.latest_tag,
+              latestVersion: row.latest_version,
+              latestDigest: row.latest_digest,
+              hasUpdate: row.has_update === 1,
+              latestPublishDate: row.latest_publish_date,
+              currentVersionPublishDate: row.current_version_publish_date,
+              existsInDockerHub: row.exists_in_docker_hub === 1,
+              lastChecked: row.last_checked,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+            });
           } else {
             resolve(null);
           }
@@ -1610,58 +1340,129 @@ function getContainerCache(cacheKey) {
 }
 
 /**
- * Get all container cache entries
- * @returns {Promise<Array>} - Array of cache entries
+ * Get Docker Hub versions for multiple image repos (batch)
+ * @param {number} userId - User ID
+ * @param {Array<string>} imageRepos - Array of image repositories
+ * @returns {Promise<Map>} - Map of imageRepo -> version info
  */
-function getAllContainerCacheEntries() {
+function getDockerHubImageVersionsBatch(userId, imageRepos) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.all("SELECT cache_key, cache_data, updated_at FROM container_cache", [], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        const entries = rows.map((row) => {
-          try {
-            return {
-              cache_key: row.cache_key,
-              cache_data: JSON.parse(row.cache_data),
-              updated_at: row.updated_at,
-            };
-          } catch (parseErr) {
-            logger.error(`Error parsing cache data for key ${row.cache_key}:`, parseErr);
-            return {
-              cache_key: row.cache_key,
-              cache_data: null,
-              updated_at: row.updated_at,
-            };
-          }
-        });
-        resolve(entries);
+    if (!imageRepos || imageRepos.length === 0) {
+      resolve(new Map());
+      return;
+    }
+
+    const placeholders = imageRepos.map(() => "?").join(",");
+    db.all(
+      `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo IN (${placeholders})`,
+      [userId, ...imageRepos],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const versionMap = new Map();
+          rows.forEach((row) => {
+            versionMap.set(row.image_repo, {
+              id: row.id,
+              userId: row.user_id,
+              imageName: row.image_name,
+              imageRepo: row.image_repo,
+              registry: row.registry,
+              namespace: row.namespace,
+              repository: row.repository,
+              currentTag: row.current_tag,
+              currentVersion: row.current_version,
+              currentDigest: row.current_digest,
+              latestTag: row.latest_tag,
+              latestVersion: row.latest_version,
+              latestDigest: row.latest_digest,
+              hasUpdate: row.has_update === 1,
+              latestPublishDate: row.latest_publish_date,
+              currentVersionPublishDate: row.current_version_publish_date,
+              existsInDockerHub: row.exists_in_docker_hub === 1,
+              lastChecked: row.last_checked,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+            });
+          });
+          resolve(versionMap);
+        }
       }
-    });
+    );
   });
 }
 
 /**
- * Store container data in cache
- * @param {string} cacheKey - Cache key (e.g., 'containers')
- * @param {Object} data - Data to cache
- * @returns {Promise<void>}
+ * Get all images with updates for a user
+ * @param {number} userId - User ID
+ * @returns {Promise<Array>} - Array of images with updates
  */
-function setContainerCache(cacheKey, data) {
+function getDockerHubImagesWithUpdates(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    const cacheData = JSON.stringify(data);
+    db.all(
+      `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND has_update = 1 ORDER BY updated_at DESC`,
+      [userId],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const versions = rows.map((row) => ({
+            id: row.id,
+            userId: row.user_id,
+            imageName: row.image_name,
+            imageRepo: row.image_repo,
+            registry: row.registry,
+            namespace: row.namespace,
+            repository: row.repository,
+            currentTag: row.current_tag,
+            currentVersion: row.current_version,
+            currentDigest: row.current_digest,
+            latestTag: row.latest_tag,
+            latestVersion: row.latest_version,
+            latestDigest: row.latest_digest,
+            hasUpdate: true,
+            latestPublishDate: row.latest_publish_date,
+            currentVersionPublishDate: row.current_version_publish_date,
+            existsInDockerHub: row.exists_in_docker_hub === 1,
+            lastChecked: row.last_checked,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          }));
+          resolve(versions);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update Docker Hub version after container upgrade
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} newDigest - New digest after upgrade
+ * @param {string} newVersion - New version after upgrade
+ * @returns {Promise<void>}
+ */
+function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
     db.run(
-      `INSERT OR REPLACE INTO container_cache (cache_key, cache_data, updated_at) 
-       VALUES (?, ?, CURRENT_TIMESTAMP)`,
-      [cacheKey, cacheData],
+      `UPDATE docker_hub_image_versions 
+       SET current_digest = ?, current_version = ?, latest_digest = ?, 
+           latest_version = ?, has_update = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ? AND image_repo = ?`,
+      [newDigest, newVersion, newDigest, newVersion, userId, imageRepo],
       function (err) {
         if (err) {
           reject(err);
@@ -1674,31 +1475,519 @@ function setContainerCache(cacheKey, data) {
 }
 
 /**
- * Clear all container cache
- * @returns {Promise<void>}
+ * Upsert Portainer container data
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {Object} containerData - Container data
+ * @returns {Promise<number>} - ID of the record
  */
-function clearContainerCache() {
+function upsertPortainerContainer(userId, portainerInstanceId, containerData) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.run("DELETE FROM container_cache", [], function (err) {
+
+    const {
+      containerId,
+      containerName,
+      endpointId,
+      imageName,
+      imageRepo,
+      status = null,
+      state = null,
+      stackName = null,
+      currentDigest = null,
+      imageCreatedDate = null,
+      usesNetworkMode = false,
+      providesNetwork = false,
+    } = containerData;
+
+    db.run(
+      `INSERT OR REPLACE INTO portainer_containers (
+        user_id, portainer_instance_id, container_id, container_name, endpoint_id,
+        image_name, image_repo, status, state, stack_name,
+        current_digest, image_created_date, uses_network_mode, provides_network,
+        last_seen, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        userId,
+        portainerInstanceId,
+        containerId,
+        containerName,
+        endpointId,
+        imageName,
+        imageRepo,
+        status,
+        state,
+        stackName,
+        currentDigest,
+        imageCreatedDate,
+        usesNetworkMode ? 1 : 0,
+        providesNetwork ? 1 : 0,
+      ],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Upsert Portainer container and Docker Hub version data in a single transaction
+ * Ensures atomicity - both succeed or both fail
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {Object} containerData - Container data
+ * @param {Object} versionData - Docker Hub version data (optional)
+ * @returns {Promise<{containerId: number, versionId: number|null}>} - IDs of created/updated records
+ */
+function upsertContainerWithVersion(userId, portainerInstanceId, containerData, versionData = null) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    db.serialize(() => {
+      db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
+        if (beginErr) {
+          db.run("ROLLBACK");
+          reject(beginErr);
+          return;
+        }
+
+        // Upsert container
+        const {
+          containerId,
+          containerName,
+          endpointId,
+          imageName,
+          imageRepo,
+          status = null,
+          state = null,
+          stackName = null,
+          currentDigest = null,
+          imageCreatedDate = null,
+          usesNetworkMode = false,
+          providesNetwork = false,
+        } = containerData;
+
+        db.run(
+          `INSERT OR REPLACE INTO portainer_containers (
+            user_id, portainer_instance_id, container_id, container_name, endpoint_id,
+            image_name, image_repo, status, state, stack_name,
+            current_digest, image_created_date, uses_network_mode, provides_network,
+            last_seen, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            userId,
+            portainerInstanceId,
+            containerId,
+            containerName,
+            endpointId,
+            imageName,
+            imageRepo,
+            status,
+            state,
+            stackName,
+            currentDigest,
+            imageCreatedDate,
+            usesNetworkMode ? 1 : 0,
+            providesNetwork ? 1 : 0,
+          ],
+          function (containerErr) {
+            if (containerErr) {
+              db.run("ROLLBACK");
+              reject(containerErr);
+              return;
+            }
+
+            const containerRecordId = this.lastID;
+
+            // If version data is provided, upsert it
+            if (versionData && imageRepo) {
+              const {
+                imageName: vImageName = imageName,
+                registry = "docker.io",
+                namespace = null,
+                repository = null,
+                currentTag = null,
+                currentVersion = null,
+                currentDigest: vCurrentDigest = currentDigest,
+                latestTag = null,
+                latestVersion = null,
+                latestDigest = null,
+                hasUpdate = false,
+                latestPublishDate = null,
+                currentVersionPublishDate = null,
+                existsInDockerHub = true,
+              } = versionData;
+
+              db.run(
+                `INSERT OR REPLACE INTO docker_hub_image_versions (
+                  user_id, image_name, image_repo, registry, namespace, repository,
+                  current_tag, current_version, current_digest,
+                  latest_tag, latest_version, latest_digest,
+                  has_update, latest_publish_date, current_version_publish_date,
+                  exists_in_docker_hub, last_checked, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [
+                  userId,
+                  vImageName || imageRepo,
+                  imageRepo,
+                  registry,
+                  namespace,
+                  repository || imageRepo,
+                  currentTag,
+                  currentVersion,
+                  vCurrentDigest,
+                  latestTag,
+                  latestVersion,
+                  latestDigest,
+                  hasUpdate ? 1 : 0,
+                  latestPublishDate,
+                  currentVersionPublishDate,
+                  existsInDockerHub ? 1 : 0,
+                ],
+                function (versionErr) {
+                  if (versionErr) {
+                    db.run("ROLLBACK");
+                    reject(versionErr);
+                    return;
+                  }
+
+                  // Both succeeded - commit transaction
+                  db.run("COMMIT", (commitErr) => {
+                    if (commitErr) {
+                      reject(commitErr);
+                    } else {
+                      resolve({
+                        containerId: containerRecordId,
+                        versionId: this.lastID,
+                      });
+                    }
+                  });
+                }
+              );
+            } else {
+              // No version data - just commit container update
+              db.run("COMMIT", (commitErr) => {
+                if (commitErr) {
+                  reject(commitErr);
+                } else {
+                  resolve({
+                    containerId: containerRecordId,
+                    versionId: null,
+                  });
+                }
+              });
+            }
+          }
+        );
+      });
+    });
+  });
+}
+
+/**
+ * Get all Portainer containers for a user
+ * @param {number} userId - User ID
+ * @param {string|null} portainerUrl - Optional filter by Portainer URL
+ * @returns {Promise<Array>} - Array of containers
+ */
+function getPortainerContainers(userId, portainerUrl = null) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    let query = `SELECT pc.* FROM portainer_containers pc`;
+    const params = [userId];
+
+    if (portainerUrl) {
+      query += ` JOIN portainer_instances pi ON pc.portainer_instance_id = pi.id 
+                 WHERE pc.user_id = ? AND pi.url = ?`;
+      params.push(portainerUrl);
+    } else {
+      query += ` WHERE pc.user_id = ?`;
+    }
+
+    query += ` ORDER BY pc.last_seen DESC`;
+
+    db.all(query, params, (err, rows) => {
       if (err) {
         reject(err);
       } else {
-        resolve();
+        const containers = rows.map((row) => ({
+          id: row.id,
+          userId: row.user_id,
+          portainerInstanceId: row.portainer_instance_id,
+          containerId: row.container_id,
+          containerName: row.container_name,
+          endpointId: row.endpoint_id,
+          imageName: row.image_name,
+          imageRepo: row.image_repo,
+          status: row.status,
+          state: row.state,
+          stackName: row.stack_name,
+          currentDigest: row.current_digest,
+          imageCreatedDate: row.image_created_date,
+          usesNetworkMode: row.uses_network_mode === 1,
+          providesNetwork: row.provides_network === 1,
+          lastSeen: row.last_seen,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }));
+        resolve(containers);
       }
     });
   });
 }
 
 /**
- * Get batch configuration for a specific job type or all job types
+ * Get Portainer containers with Docker Hub update info (JOIN query)
+ * @param {number} userId - User ID
+ * @param {string|null} portainerUrl - Optional filter
+ * @returns {Promise<Array>} - Containers with update info
+ */
+function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    let query = `SELECT 
+      pc.*,
+      dh.latest_digest as dh_latest_digest,
+      dh.latest_version as dh_latest_version,
+      dh.latest_tag as dh_latest_tag,
+      dh.has_update as dh_has_update,
+      dh.latest_publish_date as dh_latest_publish_date
+    FROM portainer_containers pc
+    LEFT JOIN docker_hub_image_versions dh 
+      ON pc.user_id = dh.user_id AND pc.image_repo = dh.image_repo`;
+
+    const params = [userId];
+
+    if (portainerUrl) {
+      query += ` JOIN portainer_instances pi ON pc.portainer_instance_id = pi.id 
+                 WHERE pc.user_id = ? AND pi.url = ?`;
+      params.push(portainerUrl);
+    } else {
+      query += ` WHERE pc.user_id = ?`;
+    }
+
+    query += ` ORDER BY pc.last_seen DESC`;
+
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
+        const normalizeDigest = (digest) => {
+          if (!digest) {
+            return null;
+          }
+          // Ensure digest starts with sha256: for consistent comparison
+          return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
+        };
+
+        const containers = rows.map((row) => {
+          // Compute hasUpdate per-container by comparing this container's currentDigest
+          // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
+          let hasUpdate = false;
+          if (row.current_digest && row.dh_latest_digest) {
+            const normalizedCurrent = normalizeDigest(row.current_digest);
+            const normalizedLatest = normalizeDigest(row.dh_latest_digest);
+            hasUpdate = normalizedCurrent !== normalizedLatest;
+          }
+
+          return {
+            id: row.id,
+            userId: row.user_id,
+            portainerInstanceId: row.portainer_instance_id,
+            containerId: row.container_id,
+            containerName: row.container_name,
+            endpointId: row.endpoint_id,
+            imageName: row.image_name,
+            imageRepo: row.image_repo,
+            status: row.status,
+            state: row.state,
+            stackName: row.stack_name,
+            currentDigest: row.current_digest,
+            imageCreatedDate: row.image_created_date,
+            usesNetworkMode: row.uses_network_mode === 1,
+            providesNetwork: row.provides_network === 1,
+            latestDigest: row.dh_latest_digest,
+            latestVersion: row.dh_latest_version,
+            latestTag: row.dh_latest_tag,
+            hasUpdate: hasUpdate, // Computed per-container, not from shared table
+            latestPublishDate: row.dh_latest_publish_date,
+            lastSeen: row.last_seen,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          };
+        });
+        resolve(containers);
+      }
+    });
+  });
+}
+
+/**
+ * Delete Portainer containers for a specific instance
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @returns {Promise<void>}
+ */
+function deletePortainerContainersForInstance(userId, portainerInstanceId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      `DELETE FROM portainer_containers WHERE user_id = ? AND portainer_instance_id = ?`,
+      [userId, portainerInstanceId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Delete containers that are not in the provided list (for a specific instance and endpoint)
+ * Used to clean up containers that were deleted from Portainer
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {string} endpointId - Endpoint ID
+ * @param {Array<string>} currentContainerIds - Array of container IDs that currently exist
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function deletePortainerContainersNotInList(userId, portainerInstanceId, endpointId, currentContainerIds) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    if (!currentContainerIds || currentContainerIds.length === 0) {
+      // If no current containers, delete all for this instance/endpoint
+      db.run(
+        `DELETE FROM portainer_containers WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ?`,
+        [userId, portainerInstanceId, endpointId],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes);
+          }
+        }
+      );
+      return;
+    }
+    
+    // Create placeholders for the IN clause
+    const placeholders = currentContainerIds.map(() => "?").join(",");
+    const params = [userId, portainerInstanceId, endpointId, ...currentContainerIds];
+    
+    db.run(
+      `DELETE FROM portainer_containers 
+       WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? 
+       AND container_id NOT IN (${placeholders})`,
+      params,
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Clean up stale containers (not seen in last N days)
+ * @param {number} daysOld - Number of days old to consider stale
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function cleanupStalePortainerContainers(daysOld = 7) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      `DELETE FROM portainer_containers WHERE last_seen < datetime('now', '-' || ? || ' days')`,
+      [daysOld],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Clear all Portainer containers and Docker Hub versions for a user
+ * @param {number} userId - User ID
+ * @returns {Promise<void>}
+ */
+function clearUserContainerData(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.serialize(() => {
+      db.run("BEGIN TRANSACTION");
+      db.run(`DELETE FROM portainer_containers WHERE user_id = ?`, [userId], (err1) => {
+        if (err1) {
+          db.run("ROLLBACK");
+          reject(err1);
+        } else {
+          db.run(`DELETE FROM docker_hub_image_versions WHERE user_id = ?`, [userId], (err2) => {
+            if (err2) {
+              db.run("ROLLBACK");
+              reject(err2);
+            } else {
+              db.run("COMMIT", (commitErr) => {
+                if (commitErr) {
+                  reject(commitErr);
+                } else {
+                  resolve();
+                }
+              });
+            }
+          });
+        }
+      });
+    });
+  });
+}
+
+/**
+ * Get batch configuration for a specific job type or all job types for a user
+ * @param {number} userId - User ID
  * @param {string} jobType - Optional job type. If null, returns all configs.
  * @returns {Promise<Object|null>} - Batch configuration(s) or null
  */
-function getBatchConfig(jobType = null) {
+function getBatchConfig(userId, jobType = null) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
@@ -1706,8 +1995,8 @@ function getBatchConfig(jobType = null) {
     }
     if (jobType) {
       db.get(
-        "SELECT enabled, interval_minutes, updated_at FROM batch_config WHERE job_type = ?",
-        [jobType],
+        "SELECT enabled, interval_minutes, updated_at FROM batch_config WHERE user_id = ? AND job_type = ?",
+        [userId, jobType],
         (err, row) => {
           if (err) {
             reject(err);
@@ -1730,8 +2019,8 @@ function getBatchConfig(jobType = null) {
       );
     } else {
       db.all(
-        "SELECT job_type, enabled, interval_minutes, updated_at FROM batch_config",
-        [],
+        "SELECT job_type, enabled, interval_minutes, updated_at FROM batch_config WHERE user_id = ?",
+        [userId],
         (err, rows) => {
           if (err) {
             reject(err);
@@ -1744,6 +2033,7 @@ function getBatchConfig(jobType = null) {
                 updatedAt: row.updated_at,
               };
             });
+            // Default values if not configured
             if (!configs["docker-hub-pull"]) {
               configs["docker-hub-pull"] = { enabled: false, intervalMinutes: 60, updatedAt: null };
             }
@@ -1759,13 +2049,14 @@ function getBatchConfig(jobType = null) {
 }
 
 /**
- * Update batch configuration for a specific job type
+ * Update batch configuration for a specific job type for a user
+ * @param {number} userId - User ID
  * @param {string} jobType - Job type
  * @param {boolean} enabled - Whether batch processing is enabled
  * @param {number} intervalMinutes - Interval in minutes between batch runs
  * @returns {Promise<void>}
  */
-function updateBatchConfig(jobType, enabled, intervalMinutes) {
+function updateBatchConfig(userId, jobType, enabled, intervalMinutes) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
@@ -1781,9 +2072,9 @@ function updateBatchConfig(jobType, enabled, intervalMinutes) {
     }
 
     db.run(
-      `INSERT OR REPLACE INTO batch_config (job_type, enabled, interval_minutes, updated_at) 
-       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-      [jobType, enabled ? 1 : 0, intervalMinutes],
+      `INSERT OR REPLACE INTO batch_config (user_id, job_type, enabled, interval_minutes, updated_at) 
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [userId, jobType, enabled ? 1 : 0, intervalMinutes],
       function (err) {
         if (err) {
           reject(err);
@@ -1796,21 +2087,84 @@ function updateBatchConfig(jobType, enabled, intervalMinutes) {
 }
 
 /**
- * Create a new batch run record
+ * Check if a batch job is currently running and acquire lock atomically
+ * Uses database transaction to ensure atomicity
+ * @param {number} userId - User ID
+ * @param {string} jobType - Job type
+ * @returns {Promise<{isRunning: boolean, runId: number|null}>} - Object with isRunning flag and runId if running
+ */
+function checkAndAcquireBatchJobLock(userId, jobType) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    // Use IMMEDIATE transaction to acquire write lock immediately
+    // This ensures atomicity - only one process can check and set at a time
+    db.serialize(() => {
+      db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
+        if (beginErr) {
+          db.run("ROLLBACK");
+          reject(beginErr);
+          return;
+        }
+
+        // Check for running job (status = 'running' and no completed_at)
+        db.get(
+          "SELECT id FROM batch_runs WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL ORDER BY started_at DESC LIMIT 1",
+          [userId, jobType],
+          (err, row) => {
+            if (err) {
+              db.run("ROLLBACK");
+              reject(err);
+              return;
+            }
+
+            if (row) {
+              // Job is already running
+              db.run("COMMIT", (commitErr) => {
+                if (commitErr) {
+                  reject(commitErr);
+                } else {
+                  resolve({ isRunning: true, runId: row.id });
+                }
+              });
+            } else {
+              // No running job - lock acquired, commit will release it
+              // The actual job record will be created by createBatchRun
+              db.run("COMMIT", (commitErr) => {
+                if (commitErr) {
+                  reject(commitErr);
+                } else {
+                  resolve({ isRunning: false, runId: null });
+                }
+              });
+            }
+          }
+        );
+      });
+    });
+  });
+}
+
+/**
+ * Create a new batch run record for a user
+ * @param {number} userId - User ID
  * @param {string} status - Run status
  * @param {string} jobType - Job type
  * @param {boolean} isManual - Whether this run was manually triggered
  * @returns {Promise<number>} - ID of created batch run
  */
-function createBatchRun(status = "running", jobType = "docker-hub-pull", isManual = false) {
+function createBatchRun(userId, status = "running", jobType = "docker-hub-pull", isManual = false) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.run(
-      "INSERT INTO batch_runs (status, job_type, is_manual, started_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-      [status, jobType, isManual ? 1 : 0],
+      "INSERT INTO batch_runs (user_id, status, job_type, is_manual, started_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+      [userId, status, jobType, isManual ? 1 : 0],
       function (err) {
         if (err) {
           reject(err);
@@ -1825,6 +2179,7 @@ function createBatchRun(status = "running", jobType = "docker-hub-pull", isManua
 /**
  * Update batch run with completion information
  * @param {number} runId - Batch run ID
+ * @param {number} userId - User ID
  * @param {string} status - Final status
  * @param {number} containersChecked - Number of containers checked
  * @param {number} containersUpdated - Number of containers with updates found
@@ -1834,6 +2189,7 @@ function createBatchRun(status = "running", jobType = "docker-hub-pull", isManua
  */
 function updateBatchRun(
   runId,
+  userId,
   status,
   containersChecked = 0,
   containersUpdated = 0,
@@ -1845,7 +2201,7 @@ function updateBatchRun(
       reject(new Error("Database not initialized"));
       return;
     }
-    db.get("SELECT started_at FROM batch_runs WHERE id = ?", [runId], (err, row) => {
+    db.get("SELECT started_at FROM batch_runs WHERE id = ? AND user_id = ?", [runId, userId], (err, row) => {
       if (err) {
         reject(err);
         return;
@@ -1873,8 +2229,8 @@ function updateBatchRun(
         `UPDATE batch_runs 
            SET status = ?, completed_at = CURRENT_TIMESTAMP, duration_ms = ?, 
                containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
-           WHERE id = ?`,
-        [status, durationMs, containersChecked, containersUpdated, errorMessage, logs, runId],
+         WHERE id = ? AND user_id = ?`,
+        [status, durationMs, containersChecked, containersUpdated, errorMessage, logs, runId, userId],
         function (updateErr) {
           if (updateErr) {
             reject(updateErr);
@@ -1892,13 +2248,13 @@ function updateBatchRun(
  * @param {number} runId - Batch run ID
  * @returns {Promise<Object|null>} - Batch run or null
  */
-function getBatchRunById(runId) {
+function getBatchRunById(runId, userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.get("SELECT * FROM batch_runs WHERE id = ?", [runId], (err, row) => {
+    db.get("SELECT * FROM batch_runs WHERE id = ? AND user_id = ?", [runId, userId], (err, row) => {
       if (err) {
         reject(err);
       } else {
@@ -1909,17 +2265,18 @@ function getBatchRunById(runId) {
 }
 
 /**
- * Get recent batch runs
+ * Get recent batch runs for a user
+ * @param {number} userId - User ID
  * @param {number} limit - Maximum number of runs to return (default: 50)
  * @returns {Promise<Array>} - Array of batch runs
  */
-function getRecentBatchRuns(limit = 50) {
+function getRecentBatchRuns(userId, limit = 50) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.all("SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT ?", [limit], (err, rows) => {
+    db.all("SELECT * FROM batch_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?", [userId, limit], (err, rows) => {
       if (err) {
         reject(err);
       } else {
@@ -1930,16 +2287,17 @@ function getRecentBatchRuns(limit = 50) {
 }
 
 /**
- * Get the most recent batch run
+ * Get the most recent batch run for a user
+ * @param {number} userId - User ID
  * @returns {Promise<Object|null>} - Most recent batch run or null
  */
-function getLatestBatchRun() {
+function getLatestBatchRun(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.get("SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT 1", [], (err, row) => {
+    db.get("SELECT * FROM batch_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT 1", [userId], (err, row) => {
       if (err) {
         reject(err);
       } else {
@@ -1950,19 +2308,20 @@ function getLatestBatchRun() {
 }
 
 /**
- * Get the most recent batch run for a specific job type
+ * Get the most recent batch run for a specific job type for a user
+ * @param {number} userId - User ID
  * @param {string} jobType - Job type to filter by
  * @returns {Promise<Object|null>} - Most recent batch run for the job type or null
  */
-function getLatestBatchRunByJobType(jobType) {
+function getLatestBatchRunByJobType(userId, jobType) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.get(
-      "SELECT * FROM batch_runs WHERE job_type = ? ORDER BY started_at DESC LIMIT 1",
-      [jobType],
+      "SELECT * FROM batch_runs WHERE user_id = ? AND job_type = ? ORDER BY started_at DESC LIMIT 1",
+      [userId, jobType],
       (err, row) => {
         if (err) {
           reject(err);
@@ -1975,14 +2334,15 @@ function getLatestBatchRunByJobType(jobType) {
 }
 
 /**
- * Get the most recent batch run for each job type
+ * Get the most recent batch run for each job type for a user
+ * @param {number} userId - User ID
  * @returns {Promise<Object>} - Object with job types as keys and latest runs as values
  */
-function getLatestBatchRunsByJobType() {
+function getLatestBatchRunsByJobType(userId) {
   return new Promise((resolve, reject) => {
     const jobTypes = ["docker-hub-pull", "tracked-apps-check"];
     const promises = jobTypes.map((jobType) =>
-      getLatestBatchRunByJobType(jobType).then((run) => ({ jobType, run }))
+      getLatestBatchRunByJobType(userId, jobType).then((run) => ({ jobType, run }))
     );
 
     Promise.all(promises)
@@ -2298,19 +2658,78 @@ function setSetting(key, value, userId) {
 }
 
 /**
- * Get all Discord webhooks
- * @returns {Promise<Array>} - Array of webhook objects
+ * Get a system-wide setting value by key (user_id = 0)
+ * @param {string} key - Setting key
+ * @returns {Promise<string|null>} - Setting value or null if not found
  */
-function getAllDiscordWebhooks() {
+function getSystemSetting(key) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.all(
-      "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks ORDER BY created_at ASC",
-      [],
-      (err, rows) => {
+    db.get("SELECT value FROM settings WHERE key = ? AND user_id = 0", [key], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row ? row.value : null);
+      }
+    });
+  });
+}
+
+/**
+ * Set a system-wide setting value by key (user_id = 0)
+ * @param {string} key - Setting key
+ * @param {string} value - Setting value
+ * @returns {Promise<void>}
+ */
+function setSystemSetting(key, value) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      `INSERT INTO settings (user_id, key, value, updated_at) 
+       VALUES (0, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id, key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
+      [key, value, value],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get all Discord webhooks for a user
+ * @param {number} userId - User ID (optional for backward compatibility)
+ * @returns {Promise<Array>} - Array of webhook objects
+ */
+function getAllDiscordWebhooks(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    // Check if user_id column exists, if not, query without it
+    db.get("SELECT name FROM pragma_table_info('discord_webhooks') WHERE name = 'user_id'", [], (colErr, colRow) => {
+      if (colErr) {
+        reject(colErr);
+        return;
+      }
+      const hasUserId = !!colRow;
+      const query = hasUserId && userId
+        ? "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks WHERE user_id = ? ORDER BY created_at ASC"
+        : "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks ORDER BY created_at ASC";
+      const params = hasUserId && userId ? [userId] : [];
+      
+      db.all(query, params, (err, rows) => {
         if (err) {
           reject(err);
         } else {
@@ -2330,8 +2749,8 @@ function getAllDiscordWebhooks() {
           }));
           resolve(sanitized);
         }
-      }
-    );
+      });
+    });
   });
 }
 
@@ -2362,6 +2781,7 @@ function getDiscordWebhookById(id) {
 
 /**
  * Create a new Discord webhook
+ * @param {number} userId - User ID
  * @param {string} webhookUrl - Webhook URL
  * @param {string} serverName - Server name (optional)
  * @param {string} channelName - Channel name (optional)
@@ -2373,6 +2793,7 @@ function getDiscordWebhookById(id) {
  * @returns {Promise<number>} - ID of created webhook
  */
 function createDiscordWebhook(
+  userId,
   webhookUrl,
   serverName = null,
   channelName = null,
@@ -2387,17 +2808,28 @@ function createDiscordWebhook(
       reject(new Error("Database not initialized"));
       return;
     }
-    db.run(
-      "INSERT INTO discord_webhooks (webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-      [webhookUrl, serverName, channelName, name, avatarUrl, guildId, channelId, enabled ? 1 : 0],
-      function (err) {
+    // Check if user_id column exists
+    db.get("SELECT name FROM pragma_table_info('discord_webhooks') WHERE name = 'user_id'", [], (colErr, colRow) => {
+      if (colErr) {
+        reject(colErr);
+        return;
+      }
+      const hasUserId = !!colRow;
+      const insertQuery = hasUserId && userId
+        ? "INSERT INTO discord_webhooks (user_id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        : "INSERT INTO discord_webhooks (webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)";
+      const insertParams = hasUserId && userId
+        ? [userId, webhookUrl, serverName, channelName, name, avatarUrl, guildId, channelId, enabled ? 1 : 0]
+        : [webhookUrl, serverName, channelName, name, avatarUrl, guildId, channelId, enabled ? 1 : 0];
+      
+      db.run(insertQuery, insertParams, function (err) {
         if (err) {
           reject(err);
         } else {
           resolve(this.lastID);
         }
-      }
-    );
+      });
+    });
   });
 }
 
@@ -2491,26 +2923,36 @@ function deleteDiscordWebhook(id) {
 }
 
 /**
- * Get all enabled Discord webhooks
+ * Get all enabled Discord webhooks for a user
+ * @param {number} userId - User ID
  * @returns {Promise<Array>} - Array of enabled webhook objects with full URLs
  */
-function getEnabledDiscordWebhooks() {
+function getEnabledDiscordWebhooks(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.all(
-      "SELECT id, webhook_url, server_name, channel_name, name FROM discord_webhooks WHERE enabled = 1",
-      [],
-      (err, rows) => {
+    // Check if user_id column exists, if not, query without it
+    db.get("SELECT name FROM pragma_table_info('discord_webhooks') WHERE name = 'user_id'", [], (colErr, colRow) => {
+      if (colErr) {
+        reject(colErr);
+        return;
+      }
+      const hasUserId = !!colRow;
+      const query = hasUserId && userId
+        ? "SELECT id, webhook_url, server_name, channel_name, name FROM discord_webhooks WHERE enabled = 1 AND user_id = ?"
+        : "SELECT id, webhook_url, server_name, channel_name, name FROM discord_webhooks WHERE enabled = 1";
+      const params = hasUserId && userId ? [userId] : [];
+      
+      db.all(query, params, (err, rows) => {
         if (err) {
           reject(err);
         } else {
           resolve(rows || []);
         }
-      }
-    );
+      });
+    });
   });
 }
 
@@ -2543,7 +2985,6 @@ module.exports = {
   updateUsername,
   updateLastLogin,
   waitForDatabase,
-  waitForMigrations,
   hasAnyUsers,
   createUser,
   updateVerificationToken,
@@ -2565,12 +3006,24 @@ module.exports = {
   updateTrackedImage,
   deleteTrackedImage,
   clearLatestVersionsForAllTrackedImages,
-  getContainerCache,
-  getAllContainerCacheEntries,
-  setContainerCache,
-  clearContainerCache,
+  // Docker Hub image versions
+  upsertDockerHubImageVersion,
+  getDockerHubImageVersion,
+  getDockerHubImageVersionsBatch,
+  getDockerHubImagesWithUpdates,
+  markDockerHubImageUpToDate,
+  // Portainer containers
+  upsertPortainerContainer,
+  upsertContainerWithVersion,
+  getPortainerContainers,
+  getPortainerContainersWithUpdates,
+  deletePortainerContainersForInstance,
+  deletePortainerContainersNotInList,
+  cleanupStalePortainerContainers,
+  clearUserContainerData,
   getBatchConfig,
   updateBatchConfig,
+  checkAndAcquireBatchJobLock,
   createBatchRun,
   updateBatchRun,
   getBatchRunById,
@@ -2580,6 +3033,8 @@ module.exports = {
   getLatestBatchRunsByJobType,
   getSetting,
   setSetting,
+  getSystemSetting,
+  setSystemSetting,
   getAllDiscordWebhooks,
   getDiscordWebhookById,
   createDiscordWebhook,
