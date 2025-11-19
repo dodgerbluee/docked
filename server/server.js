@@ -173,7 +173,12 @@ app.use("/api", routes);
 
 // Serve React app for all non-API routes
 if (shouldServeStatic) {
-  app.get("*", (req, res) => {
+  app.use((req, res, next) => {
+    // Skip if this is an API route
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    // Serve index.html for all other routes (SPA routing)
     res.sendFile(path.join(publicPath, "index.html"));
   });
 }
