@@ -94,4 +94,3 @@ PredefinedOptionsSelector.propTypes = {
 };
 
 export default PredefinedOptionsSelector;
-

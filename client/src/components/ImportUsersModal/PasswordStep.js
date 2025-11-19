@@ -26,7 +26,8 @@ function PasswordStep({ username, password, onPasswordChange, errors }) {
         <h3 className={styles.stepTitle}>Set Password</h3>
       </div>
       <p className={styles.stepDescription}>
-        Set a password for user <strong>{username}</strong>. This password is required for user creation.
+        Set a password for user <strong>{username}</strong>. This password is required for user
+        creation.
       </p>
 
       <div className={styles.formGroup}>
@@ -38,9 +39,7 @@ function PasswordStep({ username, password, onPasswordChange, errors }) {
           placeholder="Enter password (minimum 8 characters)"
           error={errors.password}
         />
-        <small className={styles.helperText}>
-          Password must be at least 8 characters long.
-        </small>
+        <small className={styles.helperText}>Password must be at least 8 characters long.</small>
       </div>
 
       <div className={styles.formGroup}>
@@ -69,4 +68,3 @@ PasswordStep.propTypes = {
 };
 
 export default PasswordStep;
-

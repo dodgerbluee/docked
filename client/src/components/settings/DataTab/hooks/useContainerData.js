@@ -34,7 +34,8 @@ export const useContainerData = () => {
       }
     } catch (err) {
       console.error("Error fetching container data:", err);
-      const errorMessage = err.response?.data?.error || err.message || "Failed to fetch container data";
+      const errorMessage =
+        err.response?.data?.error || err.message || "Failed to fetch container data";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -52,4 +53,3 @@ export const useContainerData = () => {
     fetchContainerData,
   };
 };
-

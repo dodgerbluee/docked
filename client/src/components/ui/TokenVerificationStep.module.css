@@ -147,7 +147,7 @@ body.dark-mode .regenerateButton:hover:not(:disabled) {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: 2px;
@@ -246,4 +246,3 @@ body.dark-mode .verifyButton:hover:not(:disabled) {
   opacity: 0.6;
   cursor: not-allowed;
 }
-

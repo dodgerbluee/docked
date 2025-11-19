@@ -134,4 +134,3 @@ PasswordSection.propTypes = {
 };
 
 export default PasswordSection;
-

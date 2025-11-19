@@ -15,22 +15,13 @@ import styles from "../../PortainerContainerCard.module.css";
  * @param {Function} props.onVersionClick - Version click handler
  * @param {boolean} props.showUpdates - Whether to show updates
  */
-const ContainerVersionDisplay = ({
-  container,
-  imageVersion,
-  onVersionClick,
-  showUpdates,
-}) => {
+const ContainerVersionDisplay = ({ container, imageVersion, onVersionClick, showUpdates }) => {
   if (!showUpdates) {
     return (
       <>
         <p className={styles.metaItem}>
           <strong>Version:</strong>{" "}
-          <span
-            className={styles.versionText}
-            title={imageVersion}
-            onClick={onVersionClick}
-          >
+          <span className={styles.versionText} title={imageVersion} onClick={onVersionClick}>
             {imageVersion}
           </span>
         </p>
@@ -99,4 +90,3 @@ ContainerVersionDisplay.propTypes = {
 };
 
 export default ContainerVersionDisplay;
-

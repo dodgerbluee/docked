@@ -92,4 +92,3 @@ module.exports = {
   getPendingToken,
   clearPendingToken,
 };
-

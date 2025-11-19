@@ -117,10 +117,7 @@ const UserFormStep = ({
           type="submit"
           variant="primary"
           disabled={
-            loading ||
-            !formData.username ||
-            !formData.password ||
-            !formData.confirmPassword
+            loading || !formData.username || !formData.password || !formData.confirmPassword
           }
           className={styles.submitButton}
         >
@@ -144,4 +141,3 @@ UserFormStep.propTypes = {
 };
 
 export default UserFormStep;
-

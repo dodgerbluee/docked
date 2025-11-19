@@ -194,7 +194,7 @@ async function checkRegistrationCodeRequired(req, res, next) {
 async function generateRegistrationCodeEndpoint(req, res, next) {
   try {
     const hasUsers = await hasAnyUsers();
-    
+
     if (hasUsers) {
       return res.status(400).json({
         success: false,
@@ -1111,6 +1111,15 @@ async function importUserConfig(req, res, next) {
       }
     }
 
+    // Get the current user for importing webhooks and other user-specific data
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
     // Import Docker Hub credentials (skip if in skippedSteps)
     if (
       configData.dockerHubCredentials &&
@@ -1127,14 +1136,6 @@ async function importUserConfig(req, res, next) {
       } catch (error) {
         results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
       }
-    }
-
-    // Get the current user for importing webhooks (already have user from earlier)
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
     }
 
     // Import Discord webhooks (skip if in skippedSteps)
@@ -1292,8 +1293,18 @@ async function importUsers(req, res, next) {
     for (const userData of users) {
       try {
         // Support both camelCase (instanceAdmin) and snake_case (instance_admin) to match export format
-        const { username, password, email, role = "Administrator", instanceAdmin, instance_admin } = userData;
-        const isInstanceAdmin = instanceAdmin !== undefined ? instanceAdmin : (instance_admin === true || instance_admin === 1);
+        const {
+          username,
+          password,
+          email,
+          role = "Administrator",
+          instanceAdmin,
+          instance_admin,
+        } = userData;
+        const isInstanceAdmin =
+          instanceAdmin !== undefined
+            ? instanceAdmin
+            : instance_admin === true || instance_admin === 1;
 
         // Validate required fields
         if (!username) {
@@ -1301,7 +1312,9 @@ async function importUsers(req, res, next) {
           continue;
         }
         if (!password) {
-          results.errors.push(`User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`);
+          results.errors.push(
+            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`
+          );
           continue;
         }
 
@@ -1367,12 +1380,16 @@ async function importUsers(req, res, next) {
           logger.info(`✅ Added verification token to results for ${username}`);
         }
       } catch (error) {
-        results.errors.push(`Error importing user "${userData.username || "unknown"}": ${error.message}`);
+        results.errors.push(
+          `Error importing user "${userData.username || "unknown"}": ${error.message}`
+        );
       }
     }
 
-    logger.info(`📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`);
-    
+    logger.info(
+      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`
+    );
+
     res.json({
       success: true,
       message: `Imported ${results.imported.length} user(s)`,
@@ -1403,10 +1420,10 @@ async function generateInstanceAdminToken(req, res, next) {
 
     // Generate verification token
     const verificationToken = generateVerificationToken();
-    
+
     // Log the token
     logVerificationToken(username, verificationToken);
-    
+
     // Store token temporarily (for users that don't exist yet during import)
     storePendingToken(username, verificationToken);
 
@@ -1455,13 +1472,13 @@ async function regenerateInstanceAdminToken(req, res, next) {
 
     // Generate new verification token
     const verificationToken = generateVerificationToken();
-    
+
     // Update token in database
     await updateVerificationToken(username, verificationToken);
-    
+
     // Clear any pending token (user exists now)
     clearPendingToken(username);
-    
+
     // Log the token
     logVerificationToken(username, verificationToken);
 
@@ -1656,7 +1673,9 @@ async function createUserWithConfig(req, res, next) {
 
             results.portainerInstances.push({ id, name: instance.name });
           } catch (error) {
-            results.errors.push(`Portainer instance "${instance.name}": ${error.message || "Failed to import"}`);
+            results.errors.push(
+              `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`
+            );
           }
         }
       }
@@ -1801,7 +1820,7 @@ async function checkUserExists(req, res, next) {
     }
 
     const user = await getUserByUsername(username);
-    
+
     res.json({
       success: true,
       exists: !!user,
@@ -1824,7 +1843,7 @@ async function getAllUsersEndpoint(req, res, next) {
     if (!req.user?.instanceAdmin) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
-    
+
     const users = await getAllUsers();
     res.json({ success: true, users });
   } catch (error) {
@@ -1848,7 +1867,7 @@ async function exportUsersEndpoint(req, res, next) {
     }
 
     const allUsers = await getAllUsers();
-    
+
     // For each user, export their data in the same format as exportUserConfig
     // Since data is now per-user, we need to fetch it for each user
     const usersExport = await Promise.all(

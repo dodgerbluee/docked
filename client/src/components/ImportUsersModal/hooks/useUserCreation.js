@@ -31,38 +31,40 @@ export function useUserCreation({
 }) {
   const createUserWithConfig = useCallback(async () => {
     if (!currentUser) return { success: false, imported: false, username: null };
-    
+
     setImporting(true);
     setError("");
-    
+
     try {
       const createAxios = axios.create({
         baseURL: API_BASE_URL,
         headers: { "Content-Type": "application/json" },
       });
       delete createAxios.defaults.headers.common["Authorization"];
-      
+
       const username = currentUser.username;
       const password = userPasswords[username];
-      
+
       // Check if user was marked as instance admin in JSON
-      const wasMarkedAsInstanceAdmin = currentUser.instanceAdmin !== undefined 
-        ? currentUser.instanceAdmin 
-        : (currentUser.instance_admin === true || currentUser.instance_admin === 1);
-      
+      const wasMarkedAsInstanceAdmin =
+        currentUser.instanceAdmin !== undefined
+          ? currentUser.instanceAdmin
+          : currentUser.instance_admin === true || currentUser.instance_admin === 1;
+
       // Check if instance admin verification step was skipped
       const skippedSteps = userSkippedSteps[username] || new Set();
       const verificationSkipped = skippedSteps.has(STEP_TYPES.INSTANCE_ADMIN_VERIFICATION);
-      
+
       // Check if verification was successful
       const verificationSuccessful = verificationStatus[username] === true;
-      
+
       // User should only be marked as instance admin if:
       // 1. They were marked as instance admin in JSON, AND
       // 2. Verification step was NOT skipped, AND
       // 3. Verification was successful
-      const isInstanceAdmin = wasMarkedAsInstanceAdmin && !verificationSkipped && verificationSuccessful;
-      
+      const isInstanceAdmin =
+        wasMarkedAsInstanceAdmin && !verificationSkipped && verificationSuccessful;
+
       // Build user data
       const userData = {
         username,
@@ -71,26 +73,44 @@ export function useUserCreation({
         role: currentUser.role || "Administrator",
         instanceAdmin: isInstanceAdmin,
       };
-      
+
       // Build config data (only include if user has it)
       const configData = {};
-      if (currentUser.portainerInstances && Array.isArray(currentUser.portainerInstances) && currentUser.portainerInstances.length > 0) {
+      if (
+        currentUser.portainerInstances &&
+        Array.isArray(currentUser.portainerInstances) &&
+        currentUser.portainerInstances.length > 0
+      ) {
         configData.portainerInstances = currentUser.portainerInstances;
       }
-      if (currentUser.dockerHubCredentials !== null && currentUser.dockerHubCredentials !== undefined) {
+      if (
+        currentUser.dockerHubCredentials !== null &&
+        currentUser.dockerHubCredentials !== undefined
+      ) {
         configData.dockerHubCredentials = currentUser.dockerHubCredentials;
       }
-      if (currentUser.discordWebhooks && Array.isArray(currentUser.discordWebhooks) && currentUser.discordWebhooks.length > 0) {
+      if (
+        currentUser.discordWebhooks &&
+        Array.isArray(currentUser.discordWebhooks) &&
+        currentUser.discordWebhooks.length > 0
+      ) {
         configData.discordWebhooks = currentUser.discordWebhooks;
       }
-      if (currentUser.trackedImages && Array.isArray(currentUser.trackedImages) && currentUser.trackedImages.length > 0) {
+      if (
+        currentUser.trackedImages &&
+        Array.isArray(currentUser.trackedImages) &&
+        currentUser.trackedImages.length > 0
+      ) {
         configData.trackedImages = currentUser.trackedImages;
       }
-      
+
       // Build credentials (only include non-skipped steps)
       const credentials = {};
-      
-      if (!skippedSteps.has(STEP_TYPES.PORTAINER) && userCredentials[username]?.portainerInstances) {
+
+      if (
+        !skippedSteps.has(STEP_TYPES.PORTAINER) &&
+        userCredentials[username]?.portainerInstances
+      ) {
         credentials.portainerInstances = userCredentials[username].portainerInstances;
       }
       if (!skippedSteps.has(STEP_TYPES.DOCKERHUB) && userCredentials[username]?.dockerHub) {
@@ -99,10 +119,10 @@ export function useUserCreation({
       if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
         credentials.discordWebhooks = userCredentials[username].discordWebhooks;
       }
-      
+
       // Use pre-generated token if available
       const preGeneratedToken = verificationTokens[username];
-      
+
       // Call endpoint to create user with config
       const response = await createAxios.post("/api/auth/create-user-with-config", {
         userData,
@@ -111,12 +131,15 @@ export function useUserCreation({
         skippedSteps: Array.from(skippedSteps),
         verificationToken: preGeneratedToken || null,
       });
-      
+
       if (response.data.success) {
         // Check if user was skipped (already exists)
         if (response.data.skipped) {
           // User already exists - add to errors but continue with other users
-          setImportErrors((prev) => [...prev, response.data.message || `User "${username}" already exists`]);
+          setImportErrors((prev) => [
+            ...prev,
+            response.data.message || `User "${username}" already exists`,
+          ]);
           // Clear token from temporary storage
           setVerificationTokens((prev) => {
             const updated = { ...prev };
@@ -126,7 +149,7 @@ export function useUserCreation({
           // Return success but not imported
           return { success: true, imported: false, username };
         }
-        
+
         // Clear token from temporary storage after user is created
         setVerificationTokens((prev) => {
           const updated = { ...prev };
@@ -136,7 +159,10 @@ export function useUserCreation({
         setImportedUsers((prev) => [...prev, username]);
         return { success: true, imported: true, username };
       } else {
-        setImportErrors((prev) => [...prev, `User "${username}": ${response.data.error || "Failed to create user"}`]);
+        setImportErrors((prev) => [
+          ...prev,
+          `User "${username}": ${response.data.error || "Failed to create user"}`,
+        ]);
         return { success: false, imported: false, username };
       }
     } catch (err) {
@@ -165,4 +191,3 @@ export function useUserCreation({
     createUserWithConfig,
   };
 }
-

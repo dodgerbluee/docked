@@ -79,29 +79,21 @@ export const usePortainerImageDeletion = ({
         setDeletingImages(false);
       }
     },
-    [
-      onUnusedImagesUpdate,
-      onUnusedImagesCountUpdate,
-      fetchUnusedImages,
-      setSelectedImages,
-    ]
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchUnusedImages, setSelectedImages]
   );
 
   // Delete multiple images
   // Returns data for confirmation dialog
-  const handleDeleteImages = useCallback(
-    (selectedImages, portainerUnusedImages) => {
-      if (selectedImages.size === 0) {
-        toast.warning("Please select at least one image to delete");
-        return null;
-      }
-      return {
-        count: selectedImages.size,
-        images: portainerUnusedImages.filter((img) => selectedImages.has(img.id)),
-      };
-    },
-    []
-  );
+  const handleDeleteImages = useCallback((selectedImages, portainerUnusedImages) => {
+    if (selectedImages.size === 0) {
+      toast.warning("Please select at least one image to delete");
+      return null;
+    }
+    return {
+      count: selectedImages.size,
+      images: portainerUnusedImages.filter((img) => selectedImages.has(img.id)),
+    };
+  }, []);
 
   // Execute batch delete after confirmation
   const executeDeleteImages = useCallback(
@@ -172,4 +164,3 @@ export const usePortainerImageDeletion = ({
     executeDeleteImages,
   };
 };
-

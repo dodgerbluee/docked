@@ -451,11 +451,14 @@ async function deleteInstance(req, res, next) {
 
     // Containers are automatically deleted from normalized tables via CASCADE
     // when the portainer instance is deleted, so no manual cleanup needed
-    logger.info("Portainer instance deleted, containers will be removed from normalized tables via CASCADE", {
-      module: "portainerController",
-      operation: "deleteInstance",
-      instanceUrl: deletedInstanceUrl,
-    });
+    logger.info(
+      "Portainer instance deleted, containers will be removed from normalized tables via CASCADE",
+      {
+        module: "portainerController",
+        operation: "deleteInstance",
+        instanceUrl: deletedInstanceUrl,
+      }
+    );
 
     res.json({
       success: true,

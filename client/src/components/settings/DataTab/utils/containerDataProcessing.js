@@ -83,49 +83,66 @@ export const buildStructuredData = (categorized, containerData) => {
   const structuredData = {};
 
   // Always include Portainer Data section if we have container data
-  const hasPortainerInstance = Object.keys(categorized.portainerInstance).some(key => categorized.portainerInstance[key] != null);
-  const hasContainerDetails = Object.keys(categorized.containerDetails).some(key => categorized.containerDetails[key] != null);
-  const hasPortainerImageDetails = Object.keys(categorized.portainerImageDetails).some(key => categorized.portainerImageDetails[key] != null);
-  const hasPortainerVersionDetails = Object.keys(categorized.portainerVersionDetails).some(key => categorized.portainerVersionDetails[key] != null);
-  
-  const hasPortainerData = hasPortainerInstance || hasContainerDetails || hasPortainerImageDetails || hasPortainerVersionDetails;
+  const hasPortainerInstance = Object.keys(categorized.portainerInstance).some(
+    (key) => categorized.portainerInstance[key] != null
+  );
+  const hasContainerDetails = Object.keys(categorized.containerDetails).some(
+    (key) => categorized.containerDetails[key] != null
+  );
+  const hasPortainerImageDetails = Object.keys(categorized.portainerImageDetails).some(
+    (key) => categorized.portainerImageDetails[key] != null
+  );
+  const hasPortainerVersionDetails = Object.keys(categorized.portainerVersionDetails).some(
+    (key) => categorized.portainerVersionDetails[key] != null
+  );
+
+  const hasPortainerData =
+    hasPortainerInstance ||
+    hasContainerDetails ||
+    hasPortainerImageDetails ||
+    hasPortainerVersionDetails;
 
   if (hasPortainerData) {
     structuredData.portainerData = {};
-    
+
     if (hasPortainerInstance) {
       structuredData.portainerData.portainerInstance = categorized.portainerInstance;
     }
-    
+
     if (hasContainerDetails) {
       structuredData.portainerData.containerDetails = categorized.containerDetails;
     }
-    
+
     if (hasPortainerImageDetails || hasPortainerVersionDetails) {
       structuredData.portainerData.imageDetails = {};
-      
+
       if (hasPortainerImageDetails) {
         Object.assign(structuredData.portainerData.imageDetails, categorized.portainerImageDetails);
       }
-      
+
       if (hasPortainerVersionDetails) {
-        structuredData.portainerData.imageDetails.versionDetails = categorized.portainerVersionDetails;
+        structuredData.portainerData.imageDetails.versionDetails =
+          categorized.portainerVersionDetails;
       }
     }
   }
 
   // Docker Hub Data section (optional - only if data exists)
-  const hasDockerHubImageDetails = Object.keys(categorized.dockerHubImageDetails).some(key => categorized.dockerHubImageDetails[key] != null);
-  const hasDockerHubVersionDetails = Object.keys(categorized.dockerHubVersionDetails).some(key => categorized.dockerHubVersionDetails[key] != null);
+  const hasDockerHubImageDetails = Object.keys(categorized.dockerHubImageDetails).some(
+    (key) => categorized.dockerHubImageDetails[key] != null
+  );
+  const hasDockerHubVersionDetails = Object.keys(categorized.dockerHubVersionDetails).some(
+    (key) => categorized.dockerHubVersionDetails[key] != null
+  );
   const hasDockerHubData = hasDockerHubImageDetails || hasDockerHubVersionDetails;
 
   if (hasDockerHubData) {
     structuredData.dockerHubData = {};
-    
+
     if (hasDockerHubImageDetails) {
       structuredData.dockerHubData.imageDetails = categorized.dockerHubImageDetails;
     }
-    
+
     if (hasDockerHubVersionDetails) {
       structuredData.dockerHubData.versionDetails = categorized.dockerHubVersionDetails;
     }
@@ -151,4 +168,3 @@ export const formatDate = (dateString) => {
     return dateString;
   }
 };
-

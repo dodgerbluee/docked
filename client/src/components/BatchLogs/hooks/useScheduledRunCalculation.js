@@ -44,4 +44,3 @@ export const useScheduledRunCalculation = (config, recentRuns, jobType) => {
 
   return nextScheduledRun;
 };
-

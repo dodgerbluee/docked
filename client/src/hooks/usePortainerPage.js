@@ -69,11 +69,8 @@ export function usePortainerPage({
     handleSelectAll: handleSelectAllContainers,
   } = usePortainerContainerSelection();
 
-  const {
-    selectedImages,
-    setSelectedImages,
-    handleToggleImageSelect,
-  } = usePortainerImageSelection();
+  const { selectedImages, setSelectedImages, handleToggleImageSelect } =
+    usePortainerImageSelection();
 
   // Use extracted upgrade hook
   const upgradeOperations = usePortainerUpgrade({
@@ -180,17 +177,17 @@ export function usePortainerPage({
   // Wrapper for handleBatchUpgrade that includes aggregatedContainers
   const handleBatchUpgrade = useCallback(() => {
     return upgradeOperations.handleBatchUpgrade(selectedContainers, aggregatedContainers);
-  }, [upgradeOperations.handleBatchUpgrade, selectedContainers, aggregatedContainers]);
+  }, [upgradeOperations, selectedContainers, aggregatedContainers]);
 
   // Wrapper for executeBatchUpgrade that includes setSelectedContainers
   const executeBatchUpgrade = useCallback(async () => {
     return upgradeOperations.executeBatchUpgrade(setSelectedContainers);
-  }, [upgradeOperations.executeBatchUpgrade, setSelectedContainers]);
+  }, [upgradeOperations, setSelectedContainers]);
 
   // Wrapper for handleDeleteImages that includes portainerUnusedImages
   const handleDeleteImages = useCallback(() => {
     return imageDeletion.handleDeleteImages(selectedImages, portainerUnusedImages);
-  }, [imageDeletion.handleDeleteImages, selectedImages, portainerUnusedImages]);
+  }, [imageDeletion, selectedImages, portainerUnusedImages]);
 
   const closeErrorModal = () => {
     setErrorModal({

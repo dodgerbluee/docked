@@ -65,7 +65,8 @@ async function getContainers(req, res, next) {
     // If not, it's old cached data and we need to refresh from Portainer to add these flags
     const hasNetworkModeFlags = cached.containers.some(
       (container) =>
-        container.hasOwnProperty("providesNetwork") || container.hasOwnProperty("usesNetworkMode")
+        Object.prototype.hasOwnProperty.call(container, "providesNetwork") ||
+        Object.prototype.hasOwnProperty.call(container, "usesNetworkMode")
     );
 
     if (!hasNetworkModeFlags && cached.containers.length > 0) {
@@ -192,10 +193,11 @@ async function pullContainers(req, res, next) {
         error: error,
         portainerUrl: req.body?.portainerUrl || "all-instances",
       });
-      
+
       // Check if credentials exist to customize message
       const userId = req.user?.id;
-      let message = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+      let message =
+        "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
       if (userId) {
         const { getDockerHubCreds } = require("../utils/dockerHubCreds");
         const creds = await getDockerHubCreds(userId);
@@ -205,7 +207,7 @@ async function pullContainers(req, res, next) {
       } else {
         message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
       }
-      
+
       return res.status(429).json({
         success: false,
         error: error.message || "Docker Hub rate limit exceeded",
@@ -464,15 +466,15 @@ async function getContainerData(req, res, next) {
         error: "Authentication required",
       });
     }
-    
+
     // Get ALL containers from portainer_containers table (even without Docker Hub data)
     const { getPortainerContainers, getDockerHubImageVersion } = require("../db/database");
     const allContainers = await getPortainerContainers(userId);
     const userInstances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
-    
+    const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+
     // Get Docker Hub data for containers that have imageRepo
-    const imageRepos = [...new Set(allContainers.map(c => c.imageRepo).filter(Boolean))];
+    const imageRepos = [...new Set(allContainers.map((c) => c.imageRepo).filter(Boolean))];
     const dockerHubDataMap = new Map();
     for (const imageRepo of imageRepos) {
       try {
@@ -485,7 +487,7 @@ async function getContainerData(req, res, next) {
         logger.debug(`Could not get Docker Hub data for ${imageRepo}:`, { error: err });
       }
     }
-    
+
     // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
     const normalizeDigest = (digest) => {
       if (!digest) {
@@ -500,7 +502,7 @@ async function getContainerData(req, res, next) {
     const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
       const dhData = c.imageRepo ? dockerHubDataMap.get(c.imageRepo) : null;
-      
+
       // Compute hasUpdate per-container by comparing this container's currentDigest
       // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
       let hasUpdate = false;
@@ -509,7 +511,7 @@ async function getContainerData(req, res, next) {
         const normalizedLatest = normalizeDigest(dhData.latestDigest);
         hasUpdate = normalizedCurrent !== normalizedLatest;
       }
-      
+
       return {
         id: c.containerId,
         name: c.containerName,
@@ -535,12 +537,12 @@ async function getContainerData(req, res, next) {
         latestVersion: dhData ? dhData.latestVersion : null,
         latestTag: dhData ? dhData.latestTag : null,
         latestPublishDate: dhData ? dhData.latestPublishDate : null,
-        existsInDockerHub: dhData ? (dhData.existsInDockerHub || false) : false,
+        existsInDockerHub: dhData ? dhData.existsInDockerHub || false : false,
         lastSeen: c.lastSeen,
         updatedAt: c.updatedAt,
       };
     });
-    
+
     // Group by portainer instance for display
     // Filter by portainerInstanceId directly (more reliable than URL matching)
     const containersByInstanceId = new Map();
@@ -552,7 +554,7 @@ async function getContainerData(req, res, next) {
         containersByInstanceId.get(c.portainerInstanceId).push(c);
       }
     });
-    
+
     // Show ALL instances, even if they have no containers (so user knows the instance exists)
     const entries = userInstances.map((instance) => {
       const instanceContainers = containersByInstanceId.get(instance.id) || [];
@@ -566,9 +568,7 @@ async function getContainerData(req, res, next) {
           containers: instanceContainers,
         },
         createdAt: null, // Not stored in normalized tables
-        updatedAt: instanceContainers.length > 0 
-          ? instanceContainers[0].updatedAt || null 
-          : null,
+        updatedAt: instanceContainers.length > 0 ? instanceContainers[0].updatedAt || null : null,
       };
     });
     // Don't filter out entries with 0 containers - show all instances
@@ -579,10 +579,12 @@ async function getContainerData(req, res, next) {
       entryCount: entries.length,
       totalContainers: allContainers.length,
       formattedContainers: formattedContainers.length,
-      containersByInstanceId: Array.from(containersByInstanceId.entries()).map(([id, containers]) => ({
-        instanceId: id,
-        containerCount: containers.length,
-      })),
+      containersByInstanceId: Array.from(containersByInstanceId.entries()).map(
+        ([id, containers]) => ({
+          instanceId: id,
+          containerCount: containers.length,
+        })
+      ),
     });
 
     res.json({

@@ -11,8 +11,10 @@ export const isValidGitHubRepo = (repo) => {
   if (!repo || !repo.trim()) return false;
   const trimmed = repo.trim();
   // Match owner/repo format or GitHub URL
-  return /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^\/]+\/[^\/]+(?:\/|$)/i.test(trimmed) ||
-    /^[^\/]+\/[^\/]+$/.test(trimmed);
+  return (
+    /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/[^/]+(?:\/|$)/i.test(trimmed) ||
+    /^[^/]+\/[^/]+$/.test(trimmed)
+  );
 };
 
 /**
@@ -24,8 +26,10 @@ export const isValidGitLabRepo = (repo) => {
   if (!repo || !repo.trim()) return false;
   const trimmed = repo.trim();
   // Match owner/repo format or GitLab URL
-  return /^(?:https?:\/\/)?(?:www\.)?gitlab\.com\/[^\/]+\/[^\/]+(?:\/|$)/i.test(trimmed) ||
-    /^[^\/]+\/[^\/]+$/.test(trimmed);
+  return (
+    /^(?:https?:\/\/)?(?:www\.)?gitlab\.com\/[^/]+\/[^/]+(?:\/|$)/i.test(trimmed) ||
+    /^[^/]+\/[^/]+$/.test(trimmed)
+  );
 };
 
 /**
@@ -38,7 +42,9 @@ export const isValidDockerImage = (imageName) => {
   const trimmed = imageName.trim();
   // Basic Docker image format validation
   // Matches: image, repo/image, repo/image:tag, registry.com/repo/image:tag
-  return /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(\/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?$/i.test(trimmed);
+  return /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(\/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?$/i.test(
+    trimmed
+  );
 };
 
 /**
@@ -126,4 +132,3 @@ export const validateForm = (
     errors,
   };
 };
-

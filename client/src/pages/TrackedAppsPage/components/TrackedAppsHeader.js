@@ -74,4 +74,3 @@ TrackedAppsHeader.propTypes = {
 };
 
 export default TrackedAppsHeader;
-

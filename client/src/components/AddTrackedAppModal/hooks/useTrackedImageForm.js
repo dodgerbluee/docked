@@ -194,4 +194,3 @@ export const useTrackedImageForm = ({ trackedImages = [], initialData = null, is
     dockerImageOptions,
   };
 };
-

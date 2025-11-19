@@ -106,4 +106,3 @@ export const formatInterval = (intervalMinutes) => {
     return hours % 1 === 0 ? `${hours} hours` : `${hours.toFixed(1)} hours`;
   }
 };
-

@@ -52,16 +52,20 @@ async function checkImageUpdates(
       endpointId
     );
     if (process.env.DEBUG && currentDigest) {
-      logger.debug(`Got current digest from container for ${repo}: ${currentDigest.substring(0, 12)}...`);
+      logger.debug(
+        `Got current digest from container for ${repo}: ${currentDigest.substring(0, 12)}...`
+      );
     }
   }
-  
+
   // If we couldn't get digest from container, try stored digest as fallback
   // But only if we don't have container details (shouldn't happen in normal flow)
   if (!currentDigest && storedVersionInfo && storedVersionInfo.currentDigest) {
     currentDigest = storedVersionInfo.currentDigest;
     if (process.env.DEBUG) {
-      logger.debug(`Using stored current digest from database as fallback for ${repo}: ${currentDigest.substring(0, 12)}...`);
+      logger.debug(
+        `Using stored current digest from database as fallback for ${repo}: ${currentDigest.substring(0, 12)}...`
+      );
     }
   }
 
@@ -103,11 +107,18 @@ async function checkImageUpdates(
 
       // If digests are different, there's an update available
       hasUpdate = normalizedCurrent !== normalizedLatest;
-      
+
       if (process.env.DEBUG) {
-        logger.debug(`Comparing digests for ${repo}: current=${normalizedCurrent.substring(0, 12)}..., latest=${normalizedLatest.substring(0, 12)}..., hasUpdate=${hasUpdate}`);
+        logger.debug(
+          `Comparing digests for ${repo}: current=${normalizedCurrent.substring(0, 12)}..., latest=${normalizedLatest.substring(0, 12)}..., hasUpdate=${hasUpdate}`
+        );
       }
-    } else if (storedVersionInfo && storedVersionInfo.hasUpdate === false && latestDigest && !currentDigest) {
+    } else if (
+      storedVersionInfo &&
+      storedVersionInfo.hasUpdate === false &&
+      latestDigest &&
+      !currentDigest
+    ) {
       // If we have stored info saying no update (container was recently upgraded),
       // and we can't get current digest from container, trust the stored info
       // But verify against the latest digest from Docker Hub

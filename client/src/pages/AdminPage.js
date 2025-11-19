@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import PropTypes from "prop-types";
 import LogsTab from "../components/settings/LogsTab";
 import UsersTab from "../components/admin/UsersTab";
 import AdminGeneralTab from "../components/admin/AdminGeneralTab";
@@ -53,9 +52,7 @@ function AdminPage() {
       <AdminTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Tab Content */}
-      <div className={styles.contentTabPanel}>
-        {renderTabContent()}
-      </div>
+      <div className={styles.contentTabPanel}>{renderTabContent()}</div>
     </div>
   );
 }
@@ -66,4 +63,3 @@ AdminPage.propTypes = {
 };
 
 export default AdminPage;
-

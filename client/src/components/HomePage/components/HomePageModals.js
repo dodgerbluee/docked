@@ -42,4 +42,3 @@ HomePageModals.propTypes = {
 };
 
 export default HomePageModals;
-

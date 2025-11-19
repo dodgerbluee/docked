@@ -128,4 +128,3 @@ export const useBatchPolling = ({
     return () => clearInterval(interval);
   }, [isAuthenticated, authToken, passwordChanged, setLastPullTime, batchConfig]);
 };
-

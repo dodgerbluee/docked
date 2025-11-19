@@ -35,10 +35,7 @@ export const useContainerImageInfo = (container) => {
     [container.existsInDockerHub, isGitHub]
   );
 
-  const githubUrl = useMemo(
-    () => getGitHubContainerUrl(container.image),
-    [container.image]
-  );
+  const githubUrl = useMemo(() => getGitHubContainerUrl(container.image), [container.image]);
 
   const dockerHubUrl = useMemo(
     () => (container.image ? getDockerHubRepoUrl(container.image) : null),
@@ -86,4 +83,3 @@ export const useContainerImageInfo = (container) => {
     handleImageNameClick,
   };
 };
-

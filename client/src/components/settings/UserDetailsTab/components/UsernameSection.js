@@ -108,4 +108,3 @@ UsernameSection.propTypes = {
 };
 
 export default UsernameSection;
-

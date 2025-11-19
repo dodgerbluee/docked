@@ -41,9 +41,7 @@ export function useExport() {
       }
     } catch (err) {
       console.error("Error exporting data:", err);
-      setExportError(
-        err.response?.data?.error || "Failed to export data. Please try again."
-      );
+      setExportError(err.response?.data?.error || "Failed to export data. Please try again.");
     } finally {
       setExporting(false);
     }
@@ -58,4 +56,3 @@ export function useExport() {
     setExportSuccess,
   };
 }
-

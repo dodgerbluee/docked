@@ -37,11 +37,7 @@ export const extractImageName = (imageName) => {
  * @returns {boolean} True if image is from GitHub Container Registry
  */
 export const isGitHubContainer = (imageName, existsInDockerHub) => {
-  return (
-    imageName &&
-    imageName.startsWith("ghcr.io/") &&
-    existsInDockerHub === false
-  );
+  return imageName && imageName.startsWith("ghcr.io/") && existsInDockerHub === false;
 };
 
 /**
@@ -66,4 +62,3 @@ export const getGitHubContainerUrl = (imageName) => {
   const imageWithoutVersion = extractImageName(imageName);
   return `https://${imageWithoutVersion}`;
 };
-

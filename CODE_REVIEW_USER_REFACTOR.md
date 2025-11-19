@@ -12,6 +12,7 @@
 This refactor introduces significant improvements to user management and settings organization. The code demonstrates solid React patterns, good component structure, and thoughtful UX design. **After implementing recommended improvements, the codebase now achieves 9.0/10.**
 
 **Key Strengths:**
+
 - ✅ Well-organized tab-based navigation structure
 - ✅ Good separation of concerns with custom hooks
 - ✅ Reusable UI components and consistent patterns
@@ -22,6 +23,7 @@ This refactor introduces significant improvements to user management and setting
 - ✅ **Complete PropTypes** (better developer experience)
 
 **Remaining Areas for Improvement:**
+
 - ⚠️ `ImportUsersModal` is too large (1540 lines) - could be split for better maintainability (not blocking)
 
 ---
@@ -31,29 +33,26 @@ This refactor introduces significant improvements to user management and setting
 ### ✅ Strengths
 
 #### 1.1 Component Organization
+
 - **Excellent directory structure**: Clear separation between `admin/`, `settings/`, and `ui/` components
 - **Logical grouping**: Related components are co-located (e.g., `ImportUsersModal/` subdirectory)
 - **Consistent naming**: Components follow clear naming conventions
 
 ```javascript
 // Good: Clear component hierarchy
-client/src/
-  components/
-    admin/
-      AdminGeneralTab.js
-      AdminTabNavigation.js
-      UsersTab.js
-    settings/
-      UserDetailsTab.js
-      DataTab.js
-      SettingsTabNavigation.js
-    ui/
-      TokenVerificationStep.js
-      Modal.js
-      Button.js
+client / src / components / admin / AdminGeneralTab.js;
+AdminTabNavigation.js;
+UsersTab.js;
+settings / UserDetailsTab.js;
+DataTab.js;
+SettingsTabNavigation.js;
+ui / TokenVerificationStep.js;
+Modal.js;
+Button.js;
 ```
 
 #### 1.2 Custom Hooks Pattern
+
 - **Good abstraction**: `useAdminGeneralSettings` properly encapsulates admin settings logic
 - **Clean API**: Hooks return well-structured objects with clear responsibilities
 
@@ -64,6 +63,7 @@ const adminSettings = useAdminGeneralSettings();
 ```
 
 #### 1.3 Constants Management
+
 - **Centralized constants**: `ADMIN_TABS`, `SETTINGS_TABS` are well-defined
 - **Type safety**: Constants prevent magic strings
 
@@ -85,6 +85,7 @@ export const ADMIN_TABS = {
 **Status**: ✅ **RESOLVED** - Successfully refactored into focused modules:
 
 **New Structure:**
+
 ```
 ImportUsersModal/
   ├── ImportUsersModal.js (803 lines - orchestrator)
@@ -102,6 +103,7 @@ ImportUsersModal/
 ```
 
 **Results:**
+
 - **48% reduction** in main file size (1540 → 803 lines)
 - Each module has single responsibility
 - Better testability and maintainability
@@ -134,14 +136,16 @@ ImportUsersModal/
 const SettingsContext = createContext();
 
 // In SettingsPage
-<SettingsContext.Provider value={{
-  username,
-  avatar,
-  recentAvatars,
-  // ... shared settings
-}}>
+<SettingsContext.Provider
+  value={{
+    username,
+    avatar,
+    recentAvatars,
+    // ... shared settings
+  }}
+>
   <Settings />
-</SettingsContext.Provider>
+</SettingsContext.Provider>;
 ```
 
 **Priority**: 🟡 **MEDIUM** - Works but could be cleaner
@@ -161,6 +165,7 @@ AdminPage.propTypes = {
 ```
 
 **Files needing attention:**
+
 - `AdminPage.js` - Empty PropTypes object
 - `UsersTab.js` - Missing PropTypes entirely
 - Some sub-components in `ImportUsersModal/`
@@ -176,6 +181,7 @@ AdminPage.propTypes = {
 ### ✅ Strengths
 
 #### 2.1 Reusable UI Components
+
 - **Excellent component library**: `Button`, `Input`, `Modal`, `Alert`, `Card` are well-designed
 - **Consistent API**: Components follow similar prop patterns
 - **Good abstraction**: `TokenVerificationStep` is a great reusable component
@@ -193,10 +199,12 @@ AdminPage.propTypes = {
 ```
 
 #### 2.2 Shared Step Components
+
 - **Good reuse**: `PasswordStep`, `InstanceAdminVerificationStep` are extracted
 - **Consistent patterns**: Step components follow similar structure
 
 #### 2.3 Constants Reuse
+
 - **DRY constants**: Tab constants are reused across navigation components
 - **Centralized labels**: `ADMIN_TAB_LABELS` prevents duplication
 
@@ -207,6 +215,7 @@ AdminPage.propTypes = {
 **Issue**: `AdminTabNavigation` and `SettingsTabNavigation` had similar structure but weren't shared.
 
 **Status**: ✅ **RESOLVED** - Created reusable `TabNavigation` component:
+
 - Single component handles all tab navigation
 - Used by both `AdminTabNavigation` and `SettingsTabNavigation`
 - Consistent styling and behavior
@@ -219,6 +228,7 @@ AdminPage.propTypes = {
 **Issue**: Export functionality was duplicated in `UsersTab` and `UserDetailsTab`.
 
 **Status**: ✅ **RESOLVED** - Created `useExport` hook:
+
 - Single hook handles all export logic
 - Used by both `UsersTab` and `UserDetailsTab`
 - Consistent error handling and success messages
@@ -235,11 +245,13 @@ AdminPage.propTypes = {
 ### ✅ Strengths
 
 #### 3.1 Consistent Design Language
+
 - **CSS Modules**: Consistent use of CSS modules for scoping
 - **Design tokens**: Good use of design token system (colors, spacing)
 - **Icon system**: Consistent use of `lucide-react` icons
 
 #### 3.2 User Experience
+
 - **Progressive disclosure**: Collapsible sections in `UserDetailsTab`
 - **Loading states**: Good loading indicators throughout
 - **Error handling**: Clear error messages and validation feedback
@@ -253,6 +265,7 @@ AdminPage.propTypes = {
 ```
 
 #### 3.3 Accessibility Considerations
+
 - **Semantic HTML**: Good use of semantic elements
 - **Form labels**: Proper label associations
 - **Disabled states**: Appropriate disabled states for buttons
@@ -287,7 +300,11 @@ AdminPage.propTypes = {
 ```javascript
 // Standard pattern:
 <div className={styles.form}>
-  {error && <Alert variant="error" className={styles.alert}>{error}</Alert>}
+  {error && (
+    <Alert variant="error" className={styles.alert}>
+      {error}
+    </Alert>
+  )}
   {/* Form fields with inline errors */}
 </div>
 ```
@@ -302,8 +319,8 @@ AdminPage.propTypes = {
 
 ```javascript
 // Standard pattern:
-loading={isLoading}
-saving={isSaving}
+loading = { isLoading };
+saving = { isSaving };
 ```
 
 **Priority**: 🟢 **LOW** - Minor consistency issue
@@ -317,6 +334,7 @@ saving={isSaving}
 ### ✅ Strengths
 
 #### 4.1 Memoization Usage
+
 - **Good use of React.memo**: `AdminGeneralTab`, `UserDetailsTab` are memoized
 - **Prevents unnecessary re-renders**: Memoized components won't re-render unless props change
 
@@ -328,6 +346,7 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({ ... }) {
 ```
 
 #### 4.2 useMemo for Computed Values
+
 - **Efficient calculations**: `currentUserSteps` uses `useMemo` in `ImportUsersModal`
 
 ```javascript
@@ -338,6 +357,7 @@ const currentUserSteps = useMemo(() => {
 ```
 
 #### 4.3 Custom Hooks for State Management
+
 - **Reduced re-renders**: Hooks encapsulate state logic efficiently
 
 ### ⚠️ Areas for Improvement
@@ -347,6 +367,7 @@ const currentUserSteps = useMemo(() => {
 **Issue**: `ImportUsersModal` doesn't use `React.memo` and has many state updates.
 
 **Status**: ✅ **PARTIALLY RESOLVED** - Added memoization to:
+
 - `TabNavigation` component
 - `AdminTabNavigation` component
 - `SettingsTabNavigation` component
@@ -380,7 +401,7 @@ export default React.memo(SettingsPage);
 const [state, dispatch] = useReducer(importReducer, initialState);
 
 // Cleaner state management
-dispatch({ type: 'SET_CURRENT_USER', payload: user });
+dispatch({ type: "SET_CURRENT_USER", payload: user });
 ```
 
 **Priority**: 🟡 **MEDIUM** - Would improve state management
@@ -394,10 +415,12 @@ dispatch({ type: 'SET_CURRENT_USER', payload: user });
 ### ✅ Strengths
 
 #### 5.1 Functional Components
+
 - **Modern React**: All components use functional style
 - **Hooks usage**: Proper use of hooks (useState, useEffect, useCallback, useMemo)
 
 #### 5.2 Effect Management
+
 - **Cleanup**: Proper cleanup in useEffect hooks
 - **Dependencies**: Generally correct dependency arrays
 
@@ -412,6 +435,7 @@ useEffect(() => {
 ```
 
 #### 5.3 Error Handling
+
 - **Try-catch blocks**: Proper error handling in async functions
 - **User-friendly messages**: Good error message formatting
 
@@ -446,7 +470,7 @@ useEffect(() => {
 // ✅ Good pattern:
 useEffect(() => {
   let cancelled = false;
-  
+
   async function fetchData() {
     try {
       const data = await fetchUsers();
@@ -459,9 +483,11 @@ useEffect(() => {
       }
     }
   }
-  
+
   fetchData();
-  return () => { cancelled = true; };
+  return () => {
+    cancelled = true;
+  };
 }, []);
 ```
 
@@ -472,6 +498,7 @@ useEffect(() => {
 **Issue**: Some components lacked complete PropTypes.
 
 **Status**: ✅ **RESOLVED** - Added PropTypes to:
+
 - `AdminPage` - Documented why no props
 - `UsersTab` - Documented why no props
 - All navigation components have complete PropTypes
@@ -487,10 +514,12 @@ useEffect(() => {
 ### ✅ Strengths
 
 #### 6.1 Code Organization
+
 - **Clear structure**: Well-organized file structure
 - **Separation of concerns**: Good separation between UI, logic, and data
 
 #### 6.2 Documentation
+
 - **JSDoc comments**: Good component documentation
 - **Clear naming**: Self-documenting code with clear variable names
 
@@ -503,6 +532,7 @@ useEffect(() => {
 ```
 
 #### 6.3 Constants Management
+
 - **Centralized constants**: Good use of constants files
 - **Type safety**: Constants prevent magic strings
 
@@ -513,6 +543,7 @@ useEffect(() => {
 **Issue**: `ImportUsersModal.js` (1540 lines) is difficult to maintain.
 
 **Impact:**
+
 - Hard to understand full component logic
 - Difficult to test
 - High risk of introducing bugs
@@ -538,9 +569,9 @@ const initialState = {
 
 function importReducer(state, action) {
   switch (action.type) {
-    case 'SET_FILE':
+    case "SET_FILE":
       return { ...state, file: action.payload };
-    case 'NEXT_STEP':
+    case "NEXT_STEP":
       return { ...state, currentStepIndex: state.currentStepIndex + 1 };
     // ... other actions
   }
@@ -559,12 +590,12 @@ function importReducer(state, action) {
 // Create error handling utility
 export function useAsyncError() {
   const [error, setError] = useState(null);
-  
+
   const handleError = useCallback((err) => {
     const message = err.response?.data?.error || err.message || "An error occurred";
     setError(message);
   }, []);
-  
+
   return { error, setError, handleError };
 }
 ```
@@ -580,14 +611,17 @@ export function useAsyncError() {
 ### ✅ Strengths
 
 #### 7.1 Component Library
+
 - **Consistent components**: Good use of shared UI components
 - **Reusable patterns**: Components follow consistent patterns
 
 #### 7.2 CSS Modules
+
 - **Scoped styles**: Consistent use of CSS modules
 - **No style conflicts**: Proper style isolation
 
 #### 7.3 Icon System
+
 - **Consistent icons**: `lucide-react` used throughout
 - **Semantic icons**: Icons match their purpose
 
@@ -759,12 +793,14 @@ To reach 9.5/10, focus on these improvements:
 This refactor demonstrates solid engineering practices and thoughtful design. The code is well-organized, uses modern React patterns, and provides a good user experience.
 
 **Improvements Implemented:**
+
 1. ✅ **Reusable Components**: Created `TabNavigation` component eliminating duplication
 2. ✅ **DRY Principles**: Extracted `useExport` hook to remove duplicate export logic
 3. ✅ **Code Quality**: Added complete PropTypes to all components
 4. ✅ **Performance**: Added React.memo optimizations to key components
 
 **All Improvements Completed:**
+
 - ✅ **Component Size**: `ImportUsersModal` successfully refactored (1540 → 803 lines, 48% reduction)
 
 **Current Status: 9.5/10** ✅ **TARGET ACHIEVED** - Excellent code quality. The codebase is production-ready with high maintainability. All major improvements have been completed, including the refactoring of `ImportUsersModal` from 1540 lines to 803 lines with extracted hooks and components.
@@ -774,18 +810,21 @@ This refactor demonstrates solid engineering practices and thoughtful design. Th
 ## Action Items
 
 ### ✅ Completed (This PR)
+
 - [x] ✅ Created reusable `TabNavigation` component
 - [x] ✅ Extracted `useExport` hook
 - [x] ✅ Added complete PropTypes to all components
 - [x] ✅ Added `React.memo` to key components
 
 ### ✅ Completed (This PR)
+
 - [x] ✅ Split `ImportUsersModal` into smaller components (1540 lines → 803 lines, 48% reduction)
   - Extracted 4 custom hooks
   - Created 2 focused components
   - Created 3 utility modules
 
 ### Future
+
 - [ ] Standardize design token usage
 - [ ] Add unit tests for hooks
 - [ ] Add Error Boundaries
@@ -797,6 +836,7 @@ This refactor demonstrates solid engineering practices and thoughtful design. Th
 The code is production-ready and has been significantly improved. The main remaining recommendation is to split `ImportUsersModal` for better maintainability, but this is not blocking for production use.
 
 **Summary of Improvements Made:**
+
 - ✅ Created reusable `TabNavigation` component
 - ✅ Extracted `useExport` hook to eliminate duplication
 - ✅ Added complete PropTypes to all components
@@ -807,4 +847,3 @@ The code is production-ready and has been significantly improved. The main remai
   - Created 3 utility modules
 
 **Current Grade: 9.5/10** ✅ **TARGET ACHIEVED** - Excellent code quality with all major improvements completed.
-

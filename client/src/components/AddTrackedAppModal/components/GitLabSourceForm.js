@@ -50,4 +50,3 @@ GitLabSourceForm.propTypes = {
 };
 
 export default GitLabSourceForm;
-

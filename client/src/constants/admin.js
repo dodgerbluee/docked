@@ -14,4 +14,3 @@ export const ADMIN_TAB_LABELS = {
   [ADMIN_TABS.USERS]: "Users",
   [ADMIN_TABS.LOGS]: "Logs",
 };
-

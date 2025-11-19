@@ -6,7 +6,6 @@ import React from "react";
 import PropTypes from "prop-types";
 import Input from "../../ui/Input";
 import PredefinedOptionsSelector from "./PredefinedOptionsSelector";
-import styles from "../../AddTrackedAppModal.module.css";
 
 /**
  * Docker source form component
@@ -93,4 +92,3 @@ DockerSourceForm.propTypes = {
 };
 
 export default DockerSourceForm;
-

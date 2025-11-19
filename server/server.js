@@ -248,7 +248,7 @@ process.on("exit", (code) => {
 
 // Log before exit
 const originalExit = process.exit;
-process.exit = function(code) {
+process.exit = function (code) {
   logger.debug(`process.exit(${code}) called`, { module: "server" });
   return originalExit.call(process, code);
 };
@@ -257,7 +257,10 @@ process.exit = function(code) {
 // require.main === module means this file was executed directly (e.g., node server.js)
 // We also skip if NODE_ENV is 'test' to prevent server startup during tests
 const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
-logger.debug(`shouldStartServer: ${shouldStartServer}, require.main === module: ${require.main === module}, NODE_ENV: ${process.env.NODE_ENV}`, { module: "server" });
+logger.debug(
+  `shouldStartServer: ${shouldStartServer}, require.main === module: ${require.main === module}, NODE_ENV: ${process.env.NODE_ENV}`,
+  { module: "server" }
+);
 
 if (shouldStartServer) {
   // Start server
@@ -298,8 +301,10 @@ if (shouldStartServer) {
         try {
           // Wait for database tables to be created before starting batch system
           await waitForDatabase(20, 200); // Wait up to 4 seconds (20 retries * 200ms)
-          logger.debug("Database ready, initializing log level and starting batch system", { module: "server" });
-          
+          logger.debug("Database ready, initializing log level and starting batch system", {
+            module: "server",
+          });
+
           // Initialize log level from database (loads debug mode setting)
           try {
             const { initializeLogLevel } = require("./utils/logLevel");

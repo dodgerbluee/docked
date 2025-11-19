@@ -29,8 +29,7 @@ const SettingsHeader = ({ isFirstLogin, userInfo, showUserInfoAboveTabs }) => {
         </div>
         {userInfo.created_at && (
           <div className="info-item">
-            <strong>Account Created:</strong>{" "}
-            {new Date(userInfo.created_at).toLocaleDateString()}
+            <strong>Account Created:</strong> {new Date(userInfo.created_at).toLocaleDateString()}
           </div>
         )}
       </div>

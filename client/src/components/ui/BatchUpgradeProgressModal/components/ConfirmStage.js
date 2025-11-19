@@ -33,8 +33,8 @@ const ConfirmStage = ({ totalCount, containers, onConfirm, onCancel }) => {
         ?
       </p>
       <p className={styles.warning}>
-        Each container will be stopped, removed, and recreated with the latest image. This may
-        cause brief service interruptions. Containers will be upgraded concurrently.
+        Each container will be stopped, removed, and recreated with the latest image. This may cause
+        brief service interruptions. Containers will be upgraded concurrently.
       </p>
       <div className={styles.containerList}>
         <div className={styles.containerGrid}>
@@ -70,4 +70,3 @@ ConfirmStage.propTypes = {
 };
 
 export default ConfirmStage;
-

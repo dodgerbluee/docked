@@ -28,9 +28,7 @@ const UserInfoCard = ({ userInfo }) => {
       {userInfo.created_at && (
         <div className={styles.infoItem}>
           <strong className={styles.label}>Account Created:</strong>
-          <span className={styles.value}>
-            {new Date(userInfo.created_at).toLocaleDateString()}
-          </span>
+          <span className={styles.value}>{new Date(userInfo.created_at).toLocaleDateString()}</span>
         </div>
       )}
     </Card>
@@ -42,4 +40,3 @@ UserInfoCard.propTypes = {
 };
 
 export default UserInfoCard;
-

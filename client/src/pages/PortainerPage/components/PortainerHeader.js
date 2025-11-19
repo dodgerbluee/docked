@@ -104,4 +104,3 @@ PortainerHeader.propTypes = {
 };
 
 export default PortainerHeader;
-

@@ -4,7 +4,11 @@
  * Handles job registration, execution, and coordination
  */
 
-const { createBatchRun, updateBatchRun, checkAndAcquireBatchJobLock } = require("../../db/database");
+const {
+  createBatchRun,
+  updateBatchRun,
+  checkAndAcquireBatchJobLock,
+} = require("../../db/database");
 const BatchLogger = require("./Logger");
 const Scheduler = require("./Scheduler");
 const logger = require("../../utils/logger");
@@ -67,7 +71,9 @@ class BatchManager {
     // This prevents race conditions where two requests could both pass the check
     const lockCheck = await checkAndAcquireBatchJobLock(userId, jobType);
     if (lockCheck.isRunning) {
-      throw new Error(`Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`);
+      throw new Error(
+        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`
+      );
     }
 
     // Also check in-memory map as a fast-path check (but database is source of truth)
@@ -132,7 +138,15 @@ class BatchManager {
       // Update batch run as failed
       if (runId) {
         try {
-          await updateBatchRun(runId, userId, "failed", 0, 0, errorMessage, logger.getFormattedLogs());
+          await updateBatchRun(
+            runId,
+            userId,
+            "failed",
+            0,
+            0,
+            errorMessage,
+            logger.getFormattedLogs()
+          );
           logger.info("Batch run marked as failed", { runId, userId });
         } catch (updateErr) {
           logger.error("Failed to update batch run status", {

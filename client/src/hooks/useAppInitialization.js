@@ -132,4 +132,3 @@ export function useAppInitialization({
     };
   }, [showAvatarMenu, showNotificationMenu, setShowAvatarMenu, setShowNotificationMenu]);
 }
-

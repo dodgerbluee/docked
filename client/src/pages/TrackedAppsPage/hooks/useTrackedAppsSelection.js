@@ -23,18 +23,21 @@ export const useTrackedAppsSelection = () => {
     });
   }, []);
 
-  const handleSelectAll = useCallback((appsWithUpdates) => {
-    const allAppIds = appsWithUpdates.map((app) => app.id);
-    const allSelected = allAppIds.length > 0 && allAppIds.every((id) => selectedApps.has(id));
+  const handleSelectAll = useCallback(
+    (appsWithUpdates) => {
+      const allAppIds = appsWithUpdates.map((app) => app.id);
+      const allSelected = allAppIds.length > 0 && allAppIds.every((id) => selectedApps.has(id));
 
-    if (allSelected) {
-      // Deselect all
-      setSelectedApps(new Set());
-    } else {
-      // Select all
-      setSelectedApps(new Set(allAppIds));
-    }
-  }, [selectedApps]);
+      if (allSelected) {
+        // Deselect all
+        setSelectedApps(new Set());
+      } else {
+        // Select all
+        setSelectedApps(new Set(allAppIds));
+      }
+    },
+    [selectedApps]
+  );
 
   const allAppsWithUpdatesSelected = useCallback(
     (appsWithUpdates) => {
@@ -52,4 +55,3 @@ export const useTrackedAppsSelection = () => {
     allAppsWithUpdatesSelected,
   };
 };
-

@@ -120,7 +120,7 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
     if (currentStep === STEP_TYPES.REGISTRATION_CODE) {
       setError("");
       const result = await handleVerifyCode(formData.registrationCode);
-      
+
       if (result.success) {
         goToNextStep();
         setError("");
@@ -239,7 +239,9 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
                 e.stopPropagation();
                 handleNext();
               }}
-              disabled={loading || verifying || generating || regenerating || !formData.registrationCode}
+              disabled={
+                loading || verifying || generating || regenerating || !formData.registrationCode
+              }
               className={styles.submitButton}
             >
               {verifying ? "Verifying..." : "Next"}

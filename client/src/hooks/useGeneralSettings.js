@@ -14,8 +14,6 @@ export function useGeneralSettings({
   onBatchConfigUpdate,
 }) {
   const [localColorScheme, setLocalColorScheme] = useState(initialColorScheme);
-  const [logLevel, setLogLevel] = useState(null); // Initialize as null, will be set from DB
-  const [localLogLevel, setLocalLogLevel] = useState(null); // Initialize as null, will be set from DB
   const [refreshingTogglesEnabled, setRefreshingTogglesEnabled] = useState(null); // Initialize as null, will be set from DB
   const [localRefreshingTogglesEnabled, setLocalRefreshingTogglesEnabled] = useState(null); // Initialize as null, will be set from DB
   const [isInitialized, setIsInitialized] = useState(false);
@@ -31,7 +29,6 @@ export function useGeneralSettings({
   const [batchError, setBatchError] = useState("");
   const [batchSuccess, setBatchSuccess] = useState("");
   const [batchLoading, setBatchLoading] = useState({});
-
 
   const fetchRefreshingTogglesEnabled = useCallback(async () => {
     try {
@@ -103,12 +100,9 @@ export function useGeneralSettings({
   useEffect(() => {
     // Reset initialization state when user changes
     setIsInitialized(false);
-    
+
     const initializeData = async () => {
-      await Promise.all([
-        fetchBatchConfig(),
-        fetchRefreshingTogglesEnabled(),
-      ]);
+      await Promise.all([fetchBatchConfig(), fetchRefreshingTogglesEnabled()]);
       setIsInitialized(true);
     };
     initializeData();
@@ -161,7 +155,8 @@ export function useGeneralSettings({
       let refreshingTogglesSuccess = false;
       try {
         // Ensure we always send a boolean value (default to false if null)
-        const enabledValue = localRefreshingTogglesEnabled === null ? false : Boolean(localRefreshingTogglesEnabled);
+        const enabledValue =
+          localRefreshingTogglesEnabled === null ? false : Boolean(localRefreshingTogglesEnabled);
         const refreshingTogglesResponse = await axios.post(
           `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
           {
@@ -210,7 +205,6 @@ export function useGeneralSettings({
       }, 0);
     }
   }, [localColorScheme, localRefreshingTogglesEnabled, onColorSchemeChange]);
-
 
   const handleRefreshingTogglesChange = useCallback((enabled) => {
     setLocalRefreshingTogglesEnabled(enabled === "on");

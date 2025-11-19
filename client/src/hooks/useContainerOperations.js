@@ -33,17 +33,11 @@ export const useContainerOperations = ({
   // Use local state if prop setters are not provided
   // eslint-disable-next-line no-unused-vars
   const [clearing, setClearing] = useState(false);
-  const [deletingImagesLocal, setDeletingImagesLocal] = useState(false);
   const setClearingState = setClearingProp || setClearing;
-  const setDeletingImagesState = setDeletingImagesProp || setDeletingImagesLocal;
+  const setDeletingImagesState = setDeletingImagesProp || (() => {});
 
   // Use extracted hooks
-  const {
-    upgrading,
-    batchUpgrading,
-    handleUpgrade,
-    handleBatchUpgrade,
-  } = useContainerUpgrade({
+  const { upgrading, batchUpgrading, handleUpgrade, handleBatchUpgrade } = useContainerUpgrade({
     containers,
     setContainers,
     setSelectedContainers,

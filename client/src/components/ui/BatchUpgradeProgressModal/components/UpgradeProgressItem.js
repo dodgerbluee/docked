@@ -61,4 +61,3 @@ UpgradeProgressItem.propTypes = {
 };
 
 export default UpgradeProgressItem;
-

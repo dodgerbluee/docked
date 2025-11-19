@@ -42,8 +42,7 @@ const SuccessStage = ({
         {errorCount > 0 && (
           <>
             <br />
-            <strong>{errorCount}</strong> container{errorCount !== 1 ? "s" : ""} failed to
-            upgrade.
+            <strong>{errorCount}</strong> container{errorCount !== 1 ? "s" : ""} failed to upgrade.
           </>
         )}
       </p>
@@ -92,4 +91,3 @@ SuccessStage.propTypes = {
 };
 
 export default SuccessStage;
-

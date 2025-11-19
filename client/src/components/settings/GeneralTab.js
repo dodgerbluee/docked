@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import { Monitor, Sun, Moon, Info, Search, Power, PowerOff } from "lucide-react";
-import { COLOR_SCHEMES, LOG_LEVELS } from "../../constants/settings";
+import { Monitor, Sun, Moon, Power, PowerOff } from "lucide-react";
+import { COLOR_SCHEMES } from "../../constants/settings";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
 // Card is not currently used but kept for potential future use
@@ -29,7 +29,6 @@ const GeneralTab = React.memo(function GeneralTab({
   clearingPortainerData,
   clearingTrackedAppData,
 }) {
-  const [portainerConfirm, setPortainerConfirm] = useState(false);
   const [trackedAppConfirm, setTrackedAppConfirm] = useState(false);
 
   const colorSchemeOptions = [
@@ -38,28 +37,11 @@ const GeneralTab = React.memo(function GeneralTab({
     { value: COLOR_SCHEMES.DARK, label: "Dark", icon: Moon },
   ];
 
-  const logLevelOptions = [
-    { value: LOG_LEVELS.INFO, label: "Info", icon: Info },
-    { value: LOG_LEVELS.DEBUG, label: "Debug", icon: Search },
-  ];
-
   const refreshingTogglesOptions = [
     { value: "off", label: "Off", icon: PowerOff },
     { value: "on", label: "On", icon: Power },
   ];
 
-  const handleClearPortainerData = async () => {
-    if (!onClearPortainerData) {
-      alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
-      return;
-    }
-    try {
-      await onClearPortainerData();
-    } catch (error) {
-      console.error("Error clearing Portainer data:", error);
-      alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
-    }
-  };
 
   const handleClearTrackedAppData = async () => {
     if (!onClearTrackedAppData) {
@@ -106,7 +88,13 @@ const GeneralTab = React.memo(function GeneralTab({
           </label>
           <ToggleButton
             options={refreshingTogglesOptions}
-            value={localRefreshingTogglesEnabled === null ? "off" : localRefreshingTogglesEnabled ? "on" : "off"}
+            value={
+              localRefreshingTogglesEnabled === null
+                ? "off"
+                : localRefreshingTogglesEnabled
+                  ? "on"
+                  : "off"
+            }
             onChange={handleRefreshingTogglesChange}
             className={styles.toggle}
           />

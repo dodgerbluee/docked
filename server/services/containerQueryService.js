@@ -8,9 +8,7 @@ const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
 const networkModeService = require("./networkModeService");
 const imageUpdateService = require("./imageUpdateService");
-const {
-  getAllPortainerInstances,
-} = require("../db/database");
+const { getAllPortainerInstances } = require("../db/database");
 const logger = require("../utils/logger");
 
 // Lazy load discordService to avoid loading issues during module initialization
@@ -36,7 +34,11 @@ function getDiscordService() {
  * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data
  * @returns {Promise<Object>} - Containers with update information
  */
-async function getAllContainersWithUpdates(forceRefresh = false, filterPortainerUrl = null, userId = null) {
+async function getAllContainersWithUpdates(
+  forceRefresh = false,
+  filterPortainerUrl = null,
+  userId = null
+) {
   // Get previous data from normalized tables to compare for newly detected updates
   let previousContainers = null;
   if (forceRefresh && userId) {
@@ -54,23 +56,25 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     if (userId) {
       const { getPortainerContainersWithUpdates } = require("../db/database");
       const normalizedContainers = await getPortainerContainersWithUpdates(userId);
-      
+
       if (normalizedContainers && normalizedContainers.length > 0) {
         // We have data in normalized tables - format it for the frontend
         const userInstances = await getAllPortainerInstances(userId);
-        
+
         // Create instance map for quick lookup
-        const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
-        
+        const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+
         // Format containers to match expected structure
         const formattedContainers = normalizedContainers.map((c) => {
           // Extract tag from imageName (format: repo:tag)
-          const imageParts = c.imageName.includes(":") ? c.imageName.split(":") : [c.imageName, "latest"];
+          const imageParts = c.imageName.includes(":")
+            ? c.imageName.split(":")
+            : [c.imageName, "latest"];
           const currentTag = imageParts[1];
-          
+
           // Get instance info
           const instance = instanceMap.get(c.portainerInstanceId);
-          
+
           return {
             id: c.containerId,
             name: c.containerName,
@@ -98,7 +102,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             providesNetwork: c.providesNetwork || false,
           };
         });
-        
+
         // Group containers by stack
         const stacksMap = new Map();
         const unstackedContainers = [];
@@ -122,10 +126,12 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             containers: unstackedContainers,
           });
         }
-        
+
         // Build portainerInstances array
         const portainerInstancesArray = userInstances.map((instance) => {
-          const instanceContainers = formattedContainers.filter((c) => c.portainerUrl === instance.url);
+          const instanceContainers = formattedContainers.filter(
+            (c) => c.portainerUrl === instance.url
+          );
           const withUpdates = instanceContainers.filter((c) => c.hasUpdate);
           const upToDate = instanceContainers.filter((c) => !c.hasUpdate);
           return {
@@ -138,11 +144,11 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             totalContainers: instanceContainers.length,
           };
         });
-        
+
         // Get unused images count
         const unusedImages = await getUnusedImages();
         const unusedImagesCount = unusedImages.length;
-        
+
         return {
           grouped: true,
           stacks: stacks,
@@ -152,7 +158,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         };
       }
     }
-    
+
     // No normalized data found - return empty result instead of fetching from Docker Hub
     // User must explicitly click "Pull" or batch process must run to fetch fresh data
     if (process.env.DEBUG) {
@@ -244,9 +250,9 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       // Use first endpoint for each Portainer instance
       const endpointId = endpoints[0].Id;
       const containers = await portainerService.getContainers(portainerUrl, endpointId);
-      
+
       // Track current container IDs for this instance to clean up deleted containers later
-      const currentContainerIds = new Set(containers.map(c => c.Id));
+      const currentContainerIds = new Set(containers.map((c) => c.Id));
 
       // Detect network mode relationships
       const { containerNetworkModes, containerByIdentifier } =
@@ -338,7 +344,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             if (userId && instance.id) {
               try {
                 const { upsertContainerWithVersion } = require("../db/database");
-                
+
                 // Prepare version data if available
                 const versionData = updateInfo.imageRepo
                   ? {
@@ -407,7 +413,10 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
                 ? imageName.split(":")
                 : [imageName, "latest"];
               const repo = imageParts[0];
-              existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo, userId);
+              existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(
+                repo,
+                userId
+              );
             } catch (error) {
               // Silently continue - assume false if check fails
               existsInDockerHub = false;
@@ -441,7 +450,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       );
 
       allContainers.push(...containersWithUpdates);
-      
+
       // Clean up containers that no longer exist (were deleted from Portainer)
       // This ensures the database only contains containers that actually exist
       if (userId && instance.id && currentContainerIds.size > 0) {
@@ -454,12 +463,15 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             Array.from(currentContainerIds)
           );
           if (deletedCount > 0) {
-            logger.debug(`Cleaned up ${deletedCount} deleted container(s) from database for ${instanceName}`, {
-              module: "containerQueryService",
-              operation: "getAllContainersWithUpdates",
-              portainerUrl,
-              instanceId: instance.id,
-            });
+            logger.debug(
+              `Cleaned up ${deletedCount} deleted container(s) from database for ${instanceName}`,
+              {
+                module: "containerQueryService",
+                operation: "getAllContainersWithUpdates",
+                portainerUrl,
+                instanceId: instance.id,
+              }
+            );
           }
         } catch (cleanupError) {
           // Don't fail the entire fetch if cleanup fails
@@ -510,17 +522,19 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   if (filterPortainerUrl && existingContainers) {
     // Get user instances to map portainerInstanceId to URL
     const userInstances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
-    const instanceUrlMap = new Map(userInstances.map(inst => [inst.url, inst.id]));
+    const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+    const instanceUrlMap = new Map(userInstances.map((inst) => [inst.url, inst.id]));
     const filteredInstanceId = instanceUrlMap.get(filterPortainerUrl);
-    
+
     // Remove containers from the filtered instance from existing data
     // Format existing containers to match allContainers structure
     const otherContainers = existingContainers
       .filter((c) => c.portainerInstanceId !== filteredInstanceId)
       .map((c) => {
         const instance = instanceMap.get(c.portainerInstanceId);
-        const imageParts = c.imageName.includes(":") ? c.imageName.split(":") : [c.imageName, "latest"];
+        const imageParts = c.imageName.includes(":")
+          ? c.imageName.split(":")
+          : [c.imageName, "latest"];
         const currentTag = imageParts[1];
         return {
           id: c.containerId,
@@ -549,7 +563,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
           providesNetwork: c.providesNetwork || false,
         };
       });
-    
+
     // Combine with new containers from the filtered instance
     allContainers.push(...otherContainers);
 
@@ -689,8 +703,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         // (Name is more stable than ID, which changes after upgrades)
         const previousContainersMap = new Map();
         const userInstances = await getAllPortainerInstances(userId);
-        const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
-        
+        const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+
         previousContainers.forEach((container) => {
           // Get portainerUrl from instance
           const instance = instanceMap.get(container.portainerInstanceId);
@@ -737,12 +751,21 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               const previousLatestDigest = previousContainer.latestDigest;
               const currentLatestDigest = container.latestDigest || container.latestDigestFull;
               const previousLatestVersion = previousContainer.latestVersion;
-              const currentLatestVersion = container.latestVersion || container.newVersion || container.latestTag;
+              const currentLatestVersion =
+                container.latestVersion || container.newVersion || container.latestTag;
 
               // Notify if digest or version changed (newer update available)
-              if (currentLatestDigest && previousLatestDigest && currentLatestDigest !== previousLatestDigest) {
+              if (
+                currentLatestDigest &&
+                previousLatestDigest &&
+                currentLatestDigest !== previousLatestDigest
+              ) {
                 shouldNotify = true;
-              } else if (currentLatestVersion && previousLatestVersion && currentLatestVersion !== previousLatestVersion) {
+              } else if (
+                currentLatestVersion &&
+                previousLatestVersion &&
+                currentLatestVersion !== previousLatestVersion
+              ) {
                 shouldNotify = true;
               }
               // If neither changed, don't notify (same update still available)
@@ -875,7 +898,9 @@ async function getContainersFromPortainer(userId = null) {
               } else if (imageId) {
                 currentDigest = `sha256:${imageId}`; // Assume it's a digest without prefix
               }
-              logger.debug(`Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`);
+              logger.debug(
+                `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`
+              );
             }
 
             // Extract tag from image name
@@ -953,18 +978,18 @@ async function getContainersFromPortainer(userId = null) {
 
       // Filter out null results
       const validContainers = containersBasic.filter((c) => c !== null);
-      
+
       // Save containers to database if userId is provided
       if (userId && validContainers.length > 0) {
         const { upsertPortainerContainer } = require("../db/database");
         const imageRepoParser = require("../utils/imageRepoParser");
-        
+
         for (const container of validContainers) {
           try {
             // Parse image repo from image name
             const parsed = imageRepoParser.parseImageName(container.image || "");
             const imageRepo = parsed.repository || container.image?.split(":")[0] || "";
-            
+
             // Save container to database (without Docker Hub data)
             await upsertPortainerContainer(userId, instance.id, {
               containerId: container.id,
@@ -989,13 +1014,16 @@ async function getContainersFromPortainer(userId = null) {
             // Continue with other containers
           }
         }
-        
-        logger.debug(`Saved ${validContainers.length} containers to database for instance ${instanceName}`, {
-          instanceId: instance.id,
-          portainerUrl: portainerUrl,
-        });
+
+        logger.debug(
+          `Saved ${validContainers.length} containers to database for instance ${instanceName}`,
+          {
+            instanceId: instance.id,
+            portainerUrl: portainerUrl,
+          }
+        );
       }
-      
+
       allContainers.push(...validContainers);
     } catch (error) {
       logger.error(`Error fetching containers from ${portainerUrl}:`, { error });

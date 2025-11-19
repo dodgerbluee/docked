@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react";
-import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS, CONFIGURATION_TABS } from "../constants/apiConstants";
+import {
+  TAB_NAMES,
+  CONTENT_TABS,
+  SETTINGS_TABS,
+  CONFIGURATION_TABS,
+} from "../constants/apiConstants";
 
 /**
  * useTabState Hook
@@ -30,4 +35,3 @@ export function useTabState() {
     navigateToTab,
   };
 }
-

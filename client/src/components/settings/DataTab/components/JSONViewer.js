@@ -15,9 +15,7 @@ import styles from "../../DataTab.module.css";
 const JSONViewer = ({ data, className = "" }) => {
   return (
     <div className={`${styles.containerData} ${className}`}>
-      <pre className={styles.dataContent}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
+      <pre className={styles.dataContent}>{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
 };
@@ -28,4 +26,3 @@ JSONViewer.propTypes = {
 };
 
 export default JSONViewer;
-

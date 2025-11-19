@@ -104,7 +104,7 @@ export function validateRegistrationCode(code) {
 
   // Remove dashes for validation
   const codeWithoutDashes = code.replace(/-/g, "").trim();
-  
+
   // Check length without dashes (should be 12 characters)
   if (codeWithoutDashes.length !== 12) {
     return "Registration code must be 12 characters";
@@ -129,6 +129,6 @@ export function validateRegistrationCode(code) {
   }
   // If code has dashes but isn't complete (14 chars), don't validate format yet
   // This allows partial input like "ABCD-EFGH" without showing errors
-  
+
   return null;
 }

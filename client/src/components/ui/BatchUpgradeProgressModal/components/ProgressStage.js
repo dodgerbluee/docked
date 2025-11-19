@@ -63,4 +63,3 @@ ProgressStage.propTypes = {
 };
 
 export default ProgressStage;
-

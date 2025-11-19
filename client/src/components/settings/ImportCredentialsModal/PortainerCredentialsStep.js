@@ -22,7 +22,13 @@ const AUTH_TYPE_OPTIONS = [
  * PortainerCredentialsStep Component
  * Step component for collecting Portainer instance credentials
  */
-function PortainerCredentialsStep({ instances, credentials, errors, onUpdateCredential, onRemoveInstance }) {
+function PortainerCredentialsStep({
+  instances,
+  credentials,
+  errors,
+  onUpdateCredential,
+  onRemoveInstance,
+}) {
   return (
     <div className={styles.stepContent}>
       <h3 className={styles.stepTitle}>Portainer Instances</h3>

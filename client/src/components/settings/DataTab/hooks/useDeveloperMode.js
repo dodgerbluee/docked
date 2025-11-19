@@ -33,4 +33,3 @@ export const useDeveloperMode = () => {
 
   return { developerModeEnabled, checkingDeveloperMode };
 };
-

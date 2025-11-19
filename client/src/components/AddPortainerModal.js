@@ -359,7 +359,12 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         {error && <Alert variant="error">{error}</Alert>}
 
         <div className={styles.actions}>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading || creating}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleClose}
+            disabled={loading || creating}
+          >
             Cancel
           </Button>
           <Button

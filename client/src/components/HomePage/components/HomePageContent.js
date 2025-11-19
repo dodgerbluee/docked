@@ -2,7 +2,7 @@
  * HomePage content component
  */
 
-import React, { useMemo, useCallback } from "react";
+import React, { useCallback } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
 import RateLimitError from "../../ErrorDisplay/RateLimitError";
@@ -319,4 +319,3 @@ HomePageContent.propTypes = {
 };
 
 export default HomePageContent;
-

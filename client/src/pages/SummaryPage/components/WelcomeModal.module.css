@@ -65,7 +65,6 @@
   animation: fadeInUp 0.8s ease-out 0.3s both;
 }
 
-
 .titleWrapper {
   display: flex;
   align-items: center;
@@ -115,7 +114,9 @@
   border-radius: 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   opacity: 0;
   animation: slideInLeft 0.5s ease-out forwards;
 }
@@ -369,4 +370,3 @@ body.dark-mode .getStartedButton:hover:not(:disabled) {
     margin: 0 auto;
   }
 }
-

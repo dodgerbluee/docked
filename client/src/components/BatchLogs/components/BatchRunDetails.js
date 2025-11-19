@@ -35,9 +35,7 @@ const BatchRunDetails = ({ selectedRun }) => {
           {selectedRun.logs}
         </pre>
       ) : selectedRun ? (
-        <div style={{ color: "var(--text-secondary)" }}>
-          No logs available for this run
-        </div>
+        <div style={{ color: "var(--text-secondary)" }}>No logs available for this run</div>
       ) : (
         <div style={{ color: "var(--text-secondary)" }}>
           Select a run from the history to view its logs
@@ -48,4 +46,3 @@ const BatchRunDetails = ({ selectedRun }) => {
 };
 
 export default BatchRunDetails;
-

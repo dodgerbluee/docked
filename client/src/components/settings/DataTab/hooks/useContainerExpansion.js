@@ -30,9 +30,10 @@ export const useContainerExpansion = (dataEntries) => {
     dataEntries.forEach((entry) => {
       const containerNames = entry.containerNames || [];
       const containers = entry.data?.containers || [];
-      const containersToDisplay = containerNames.length > 0 
-        ? containerNames
-        : containers.map((c) => c.name || c.id || `Container`);
+      const containersToDisplay =
+        containerNames.length > 0
+          ? containerNames
+          : containers.map((c) => c.name || c.id || `Container`);
       containersToDisplay.forEach((name) => {
         const containerKey = `${entry.key}:${name}`;
         allContainerKeys.add(containerKey);
@@ -52,9 +53,10 @@ export const useContainerExpansion = (dataEntries) => {
     dataEntries.forEach((entry) => {
       const containerNames = entry.containerNames || [];
       const containers = entry.data?.containers || [];
-      const containersToDisplay = containerNames.length > 0 
-        ? containerNames
-        : containers.map((c) => c.name || c.id || `Container`);
+      const containersToDisplay =
+        containerNames.length > 0
+          ? containerNames
+          : containers.map((c) => c.name || c.id || `Container`);
       containersToDisplay.forEach((name) => {
         totalContainers++;
         const containerKey = `${entry.key}:${name}`;
@@ -74,4 +76,3 @@ export const useContainerExpansion = (dataEntries) => {
     areAllExpanded,
   };
 };
-

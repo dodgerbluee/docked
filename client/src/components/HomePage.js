@@ -3,7 +3,6 @@ import PropTypes from "prop-types";
 import Header from "./Header/Header";
 import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
-import { TAB_NAMES } from "../constants/apiConstants";
 import HomePageContent from "./HomePage/components/HomePageContent";
 import HomePageModals from "./HomePage/components/HomePageModals";
 
@@ -354,4 +353,3 @@ HomePage.propTypes = {
 };
 
 export default HomePage;
-

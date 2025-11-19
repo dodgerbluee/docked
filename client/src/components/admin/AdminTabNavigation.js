@@ -9,11 +9,7 @@ import { ADMIN_TABS, ADMIN_TAB_LABELS } from "../../constants/admin";
  * Uses the reusable TabNavigation component for consistency
  */
 const AdminTabNavigation = React.memo(function AdminTabNavigation({ activeTab, onTabChange }) {
-  const tabs = [
-    ADMIN_TABS.GENERAL,
-    ADMIN_TABS.USERS,
-    ADMIN_TABS.LOGS,
-  ];
+  const tabs = [ADMIN_TABS.GENERAL, ADMIN_TABS.USERS, ADMIN_TABS.LOGS];
 
   return (
     <TabNavigation
@@ -31,4 +27,3 @@ AdminTabNavigation.propTypes = {
 };
 
 export default AdminTabNavigation;
-

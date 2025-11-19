@@ -14,7 +14,10 @@ import FileUploadStep from "./ImportUsersModal/FileUploadStep";
 import StepRenderer from "./ImportUsersModal/StepRenderer";
 import { API_BASE_URL } from "../utils/api";
 import { parseUserImportFile, isInstanceAdmin } from "./ImportUsersModal/utils/userImportParsers";
-import { initializeUserCredentials, calculateUserSteps } from "./ImportUsersModal/utils/credentialInitializers";
+import {
+  initializeUserCredentials,
+  calculateUserSteps,
+} from "./ImportUsersModal/utils/credentialInitializers";
 import { useUserImportState } from "./ImportUsersModal/hooks/useUserImportState";
 import { useInstanceAdminToken } from "./ImportUsersModal/hooks/useInstanceAdminToken";
 import { useCredentialValidation } from "./ImportUsersModal/hooks/useCredentialValidation";
@@ -34,7 +37,7 @@ const STEP_TYPES = {
 function ImportUsersModal({ isOpen, onClose, onSuccess }) {
   // Use custom hook for all state management
   const state = useUserImportState(isOpen);
-  
+
   const {
     file,
     setFile,
@@ -94,10 +97,10 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
   // Calculate steps needed for current user (must be before currentStepType)
   const currentUserSteps = useMemo(() => {
     if (!usersData || currentUserIndex >= usersData.users.length) return [];
-    
+
     const user = usersData.users[currentUserIndex];
     const isInstanceAdminUser = isInstanceAdmin(user);
-    
+
     // Use calculateUserSteps to filter out steps that don't have data
     return calculateUserSteps(user, isInstanceAdminUser);
   }, [usersData, currentUserIndex]);
@@ -169,13 +172,18 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
   // Auto-advance if current step has no data (shouldn't happen if calculateUserSteps works correctly, but safety check)
   useEffect(() => {
     if (!importStarted || importing || loading || !currentStepType || !currentUser) return;
-    
+
     // Check if current step should be skipped (no data) - this is a safety check
-    const shouldSkipStep = 
-      (currentStepType === STEP_TYPES.PORTAINER && (!currentUser.portainerInstances || currentUser.portainerInstances.length === 0)) ||
-      (currentStepType === STEP_TYPES.DOCKERHUB && (!currentUser.dockerHubCredentials || (!currentUser.dockerHubCredentials.username && !currentUser.dockerHubCredentials.token))) ||
-      (currentStepType === STEP_TYPES.DISCORD && (!currentUser.discordWebhooks || currentUser.discordWebhooks.length === 0));
-    
+    const shouldSkipStep =
+      (currentStepType === STEP_TYPES.PORTAINER &&
+        (!currentUser.portainerInstances || currentUser.portainerInstances.length === 0)) ||
+      (currentStepType === STEP_TYPES.DOCKERHUB &&
+        (!currentUser.dockerHubCredentials ||
+          (!currentUser.dockerHubCredentials.username &&
+            !currentUser.dockerHubCredentials.token))) ||
+      (currentStepType === STEP_TYPES.DISCORD &&
+        (!currentUser.discordWebhooks || currentUser.discordWebhooks.length === 0));
+
     if (shouldSkipStep) {
       // Auto-advance to next step
       if (currentStepIndex < totalStepsForCurrentUser - 1) {
@@ -185,92 +193,105 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
         handleNext();
       }
     }
-  }, [currentStepType, currentUser, currentStepIndex, totalStepsForCurrentUser, importStarted, importing, loading, setCurrentStepIndex, handleNext]);
+  }, [
+    currentStepType,
+    currentUser,
+    currentStepIndex,
+    totalStepsForCurrentUser,
+    importStarted,
+    importing,
+    loading,
+    setCurrentStepIndex,
+    handleNext,
+  ]);
 
   // Handle file change
-  const handleFileChange = useCallback(async (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      if (selectedFile.type !== "application/json" && !selectedFile.name.endsWith(".json")) {
-        setError("Please select a JSON file");
-        return;
-      }
-      setFile(selectedFile);
-      setError("");
-      setLoading(true);
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const result = parseUserImportFile(e.target.result);
-          if (result.success) {
-            // Check for existing users
-            const checkAxios = axios.create({
-              baseURL: API_BASE_URL,
-              headers: { "Content-Type": "application/json" },
-            });
-            delete checkAxios.defaults.headers.common["Authorization"];
+  const handleFileChange = useCallback(
+    async (e) => {
+      const selectedFile = e.target.files[0];
+      if (selectedFile) {
+        if (selectedFile.type !== "application/json" && !selectedFile.name.endsWith(".json")) {
+          setError("Please select a JSON file");
+          return;
+        }
+        setFile(selectedFile);
+        setError("");
+        setLoading(true);
 
-            const existingUsers = [];
-            const validUsers = [];
-            const preImportErrors = [];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const result = parseUserImportFile(e.target.result);
+            if (result.success) {
+              // Check for existing users
+              const checkAxios = axios.create({
+                baseURL: API_BASE_URL,
+                headers: { "Content-Type": "application/json" },
+              });
+              delete checkAxios.defaults.headers.common["Authorization"];
 
-            for (const user of result.data.users) {
-              if (!user || !user.username) continue;
-              
-              try {
-                const response = await checkAxios.get(`/api/auth/check-user-exists`, {
-                  params: { username: user.username },
-                });
-                
-                if (response.data.success && response.data.exists) {
-                  existingUsers.push(user.username);
-                  preImportErrors.push(`User "${user.username}" already exists`);
-                } else {
+              const existingUsers = [];
+              const validUsers = [];
+              const preImportErrors = [];
+
+              for (const user of result.data.users) {
+                if (!user || !user.username) continue;
+
+                try {
+                  const response = await checkAxios.get(`/api/auth/check-user-exists`, {
+                    params: { username: user.username },
+                  });
+
+                  if (response.data.success && response.data.exists) {
+                    existingUsers.push(user.username);
+                    preImportErrors.push(`User "${user.username}" already exists`);
+                  } else {
+                    validUsers.push(user);
+                  }
+                } catch (err) {
+                  console.warn(`Error checking if user ${user.username} exists:`, err);
+                  // If check fails, include the user
                   validUsers.push(user);
                 }
-              } catch (err) {
-                console.warn(`Error checking if user ${user.username} exists:`, err);
-                // If check fails, include the user
-                validUsers.push(user);
               }
+
+              // Update usersData with only valid users
+              const filteredUsersData = {
+                ...result.data,
+                users: validUsers,
+              };
+
+              // Recalculate instanceAdminUsers for filtered list
+              filteredUsersData.instanceAdminUsers = validUsers.filter((user) => {
+                return user.instanceAdmin !== undefined
+                  ? user.instanceAdmin
+                  : user.instance_admin === true || user.instance_admin === 1;
+              });
+
+              setUsersData(filteredUsersData);
+              setImportErrors(preImportErrors);
+            } else {
+              setError(result.error);
             }
-
-            // Update usersData with only valid users
-            const filteredUsersData = {
-              ...result.data,
-              users: validUsers,
-            };
-
-            // Recalculate instanceAdminUsers for filtered list
-            filteredUsersData.instanceAdminUsers = validUsers.filter((user) => {
-              return user.instanceAdmin !== undefined 
-                ? user.instanceAdmin 
-                : (user.instance_admin === true || user.instance_admin === 1);
-            });
-
-            setUsersData(filteredUsersData);
-            setImportErrors(preImportErrors);
-          } else {
-            setError(result.error);
+          } catch (err) {
+            console.error("Error processing file:", err);
+            setError("Failed to process file");
+          } finally {
+            setLoading(false);
           }
-        } catch (err) {
-          console.error("Error processing file:", err);
-          setError("Failed to process file");
-        } finally {
+        };
+        reader.onerror = () => {
+          setError("Failed to read file");
           setLoading(false);
-        }
-      };
-      reader.onerror = () => {
-        setError("Failed to read file");
-        setLoading(false);
-      };
-      reader.readAsText(selectedFile);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  }, [setFile, setError, setUsersData, setImportErrors, setLoading, fileInputRef]);
+        };
+        reader.readAsText(selectedFile);
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [setFile, setError, setUsersData, setImportErrors, setLoading, fileInputRef]
+  );
 
   const handleFileButtonClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -285,18 +306,19 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
 
     // If no users remain (all were skipped), just show success message
     if (usersData.users.length === 0) {
-      const message = importErrors.length > 0
-        ? `No users were imported. ${importErrors.length} user(s) already exist.`
-        : "No users to import.";
+      const message =
+        importErrors.length > 0
+          ? `No users were imported. ${importErrors.length} user(s) already exist.`
+          : "No users to import.";
       onSuccess(message);
       return;
     }
-    
+
     setImportStarted(true);
     setError("");
     // Clear pre-import errors (they're already shown in the file upload step)
     setImportErrors([]);
-    
+
     // Set the first user (users have already been filtered)
     setCurrentUserIndex(0);
     setCurrentStepIndex(0);
@@ -306,198 +328,236 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       ...prev,
       [firstUser.username]: credentials,
     }));
-  }, [usersData, setImportStarted, setCurrentUserIndex, setCurrentStepIndex, setError, setUserCredentials, setImportErrors, importErrors, onSuccess]);
-
+  }, [
+    usersData,
+    setImportStarted,
+    setCurrentUserIndex,
+    setCurrentStepIndex,
+    setError,
+    setUserCredentials,
+    setImportErrors,
+    importErrors,
+    onSuccess,
+  ]);
 
   // Update password for current user
-  const handlePasswordChange = useCallback((password) => {
-    if (!currentUser) return;
-    setUserPasswords((prev) => ({ ...prev, [currentUser.username]: password }));
-    setUserStepErrors((prev) => {
-      const updated = { ...prev };
-      if (updated[currentUser.username]) {
-        delete updated[currentUser.username].password;
-      }
-      return updated;
-    });
-  }, [currentUser, setUserPasswords, setUserStepErrors]);
+  const handlePasswordChange = useCallback(
+    (password) => {
+      if (!currentUser) return;
+      setUserPasswords((prev) => ({ ...prev, [currentUser.username]: password }));
+      setUserStepErrors((prev) => {
+        const updated = { ...prev };
+        if (updated[currentUser.username]) {
+          delete updated[currentUser.username].password;
+        }
+        return updated;
+      });
+    },
+    [currentUser, setUserPasswords, setUserStepErrors]
+  );
 
   // Update credential for current user (generic)
-  const handleCredentialUpdate = useCallback((updateFn) => {
-    if (!currentUser) return;
-    const username = currentUser.username;
-    setUserCredentials((prev) => {
-      const userCreds = prev[username] || {};
-      const updated = updateFn(userCreds);
-      return { ...prev, [username]: updated };
-    });
-    setUserStepErrors((prev) => {
-      const updated = { ...prev };
-      if (updated[username]) {
-        Object.keys(updated[username]).forEach((key) => {
-          if (key.startsWith(currentStepType)) {
-            delete updated[username][key];
-          }
-        });
-      }
-      return updated;
-    });
-  }, [currentUser, currentStepType, setUserCredentials, setUserStepErrors]);
-
-  // Update credential for current user (wrapper for Portainer step)
-  const handlePortainerCredentialUpdate = useCallback((index, field, value) => {
-    if (!currentUser) return;
-    const instances = currentUser.portainerInstances || [];
-    handleCredentialUpdate((prev) => {
-      const portainer = prev.portainerInstances || [];
-      const updated = [...portainer];
-      if (!updated[index]) {
-        const instance = instances[index];
-        updated[index] = {
-          url: instance?.url || "",
-          name: instance?.name || "",
-          auth_type: "apikey",
-          username: "",
-          password: "",
-          apiKey: "",
-        };
-      }
-      const instance = instances[index];
-      updated[index] = {
-        ...updated[index],
-        url: instance?.url || updated[index].url || "",
-        name: instance?.name || updated[index].name || "",
-        [field]: value,
-      };
-      return { ...prev, portainerInstances: updated };
-    });
-  }, [currentUser, handleCredentialUpdate]);
-
-  // Update credential for current user (wrapper for DockerHub step)
-  const handleDockerHubCredentialUpdate = useCallback((field, value) => {
-    handleCredentialUpdate((prev) => ({
-      ...prev,
-      dockerHub: { ...prev.dockerHub, [field]: value },
-    }));
-    if (currentUser) {
+  const handleCredentialUpdate = useCallback(
+    (updateFn) => {
+      if (!currentUser) return;
       const username = currentUser.username;
-      setUserStepErrors((prev) => {
-        const updated = { ...prev };
-        if (updated[username]) {
-          delete updated[username].dockerhub_username;
-          delete updated[username].dockerhub_token;
-        }
-        return updated;
+      setUserCredentials((prev) => {
+        const userCreds = prev[username] || {};
+        const updated = updateFn(userCreds);
+        return { ...prev, [username]: updated };
       });
-      setError("");
-    }
-  }, [currentUser, handleCredentialUpdate, setUserStepErrors, setError]);
-
-  // Update credential for current user (wrapper for Discord step)
-  const handleDiscordCredentialUpdate = useCallback((index, field, value) => {
-    handleCredentialUpdate((prev) => {
-      const discord = prev.discordWebhooks || [];
-      const updated = [...discord];
-      if (!updated[index]) {
-        updated[index] = { webhookUrl: "" };
-      }
-      updated[index][field] = value;
-      return { ...prev, discordWebhooks: updated };
-    });
-  }, [handleCredentialUpdate]);
-
-  // Handle token change
-  const handleTokenChange = useCallback((username, token) => {
-    setVerificationInputTokens((prev) => ({ ...prev, [username]: token }));
-  }, [setVerificationInputTokens]);
-
-  // Handle remove instance (for Portainer step)
-  const handleRemoveInstance = useCallback((index) => {
-    if (!currentUser) return;
-    const username = currentUser.username;
-    const instances = currentUser.portainerInstances || [];
-    const updatedInstances = instances.filter((_, i) => i !== index);
-    
-    // Update usersData to reflect the removal
-    setUsersData((prev) => {
-      if (!prev) return prev;
-      const updatedUsers = [...prev.users];
-      updatedUsers[currentUserIndex] = {
-        ...updatedUsers[currentUserIndex],
-        portainerInstances: updatedInstances,
-      };
-      return { ...prev, users: updatedUsers };
-    });
-    
-    // Remove corresponding credentials
-    handleCredentialUpdate((prev) => {
-      const portainer = prev.portainerInstances || [];
-      const updated = portainer.filter((_, i) => i !== index);
-      return { ...prev, portainerInstances: updated };
-    });
-    
-    // Clear Portainer step errors when instance is deleted
-    if (updatedInstances.length === 0) {
-      setUserStepErrors((prev) => {
-        const updated = { ...prev };
-        if (updated[username]) {
-          delete updated[username][STEP_TYPES.PORTAINER];
-        }
-        return updated;
-      });
-      setError("");
-    } else {
-      // Clear all portainer-related field errors
       setUserStepErrors((prev) => {
         const updated = { ...prev };
         if (updated[username]) {
           Object.keys(updated[username]).forEach((key) => {
-            if (key.startsWith("portainer_")) {
+            if (key.startsWith(currentStepType)) {
               delete updated[username][key];
             }
           });
-          delete updated[username][STEP_TYPES.PORTAINER];
         }
         return updated;
       });
-      setError("");
-    }
-    
-    // Re-index credentials to match remaining instances
-    if (updatedInstances.length > 0) {
+    },
+    [currentUser, currentStepType, setUserCredentials, setUserStepErrors]
+  );
+
+  // Update credential for current user (wrapper for Portainer step)
+  const handlePortainerCredentialUpdate = useCallback(
+    (index, field, value) => {
+      if (!currentUser) return;
+      const instances = currentUser.portainerInstances || [];
       handleCredentialUpdate((prev) => {
         const portainer = prev.portainerInstances || [];
-        const reindexed = updatedInstances.map((instance) => {
-          const matchingCred = portainer.find((cred) => cred.url === instance.url);
-          if (matchingCred) {
-            return {
-              ...matchingCred,
-              url: instance.url,
-              name: instance.name,
-            };
-          }
-          return {
-            url: instance.url,
-            name: instance.name,
-            auth_type: instance.auth_type || "apikey",
+        const updated = [...portainer];
+        if (!updated[index]) {
+          const instance = instances[index];
+          updated[index] = {
+            url: instance?.url || "",
+            name: instance?.name || "",
+            auth_type: "apikey",
             username: "",
             password: "",
             apiKey: "",
           };
+        }
+        const instance = instances[index];
+        updated[index] = {
+          ...updated[index],
+          url: instance?.url || updated[index].url || "",
+          name: instance?.name || updated[index].name || "",
+          [field]: value,
+        };
+        return { ...prev, portainerInstances: updated };
+      });
+    },
+    [currentUser, handleCredentialUpdate]
+  );
+
+  // Update credential for current user (wrapper for DockerHub step)
+  const handleDockerHubCredentialUpdate = useCallback(
+    (field, value) => {
+      handleCredentialUpdate((prev) => ({
+        ...prev,
+        dockerHub: { ...prev.dockerHub, [field]: value },
+      }));
+      if (currentUser) {
+        const username = currentUser.username;
+        setUserStepErrors((prev) => {
+          const updated = { ...prev };
+          if (updated[username]) {
+            delete updated[username].dockerhub_username;
+            delete updated[username].dockerhub_token;
+          }
+          return updated;
         });
-        return { ...prev, portainerInstances: reindexed };
+        setError("");
+      }
+    },
+    [currentUser, handleCredentialUpdate, setUserStepErrors, setError]
+  );
+
+  // Update credential for current user (wrapper for Discord step)
+  const handleDiscordCredentialUpdate = useCallback(
+    (index, field, value) => {
+      handleCredentialUpdate((prev) => {
+        const discord = prev.discordWebhooks || [];
+        const updated = [...discord];
+        if (!updated[index]) {
+          updated[index] = { webhookUrl: "" };
+        }
+        updated[index][field] = value;
+        return { ...prev, discordWebhooks: updated };
       });
-    }
-    
-    // If no instances left, skip the step
-    if (updatedInstances.length === 0) {
-      setUserSkippedSteps((prev) => {
-        const skipped = new Set(prev[username] || []);
-        skipped.add(STEP_TYPES.PORTAINER);
-        return { ...prev, [username]: skipped };
+    },
+    [handleCredentialUpdate]
+  );
+
+  // Handle token change
+  const handleTokenChange = useCallback(
+    (username, token) => {
+      setVerificationInputTokens((prev) => ({ ...prev, [username]: token }));
+    },
+    [setVerificationInputTokens]
+  );
+
+  // Handle remove instance (for Portainer step)
+  const handleRemoveInstance = useCallback(
+    (index) => {
+      if (!currentUser) return;
+      const username = currentUser.username;
+      const instances = currentUser.portainerInstances || [];
+      const updatedInstances = instances.filter((_, i) => i !== index);
+
+      // Update usersData to reflect the removal
+      setUsersData((prev) => {
+        if (!prev) return prev;
+        const updatedUsers = [...prev.users];
+        updatedUsers[currentUserIndex] = {
+          ...updatedUsers[currentUserIndex],
+          portainerInstances: updatedInstances,
+        };
+        return { ...prev, users: updatedUsers };
       });
-    }
-  }, [currentUser, currentUserIndex, setUsersData, handleCredentialUpdate, setUserSkippedSteps, setUserStepErrors, setError]);
+
+      // Remove corresponding credentials
+      handleCredentialUpdate((prev) => {
+        const portainer = prev.portainerInstances || [];
+        const updated = portainer.filter((_, i) => i !== index);
+        return { ...prev, portainerInstances: updated };
+      });
+
+      // Clear Portainer step errors when instance is deleted
+      if (updatedInstances.length === 0) {
+        setUserStepErrors((prev) => {
+          const updated = { ...prev };
+          if (updated[username]) {
+            delete updated[username][STEP_TYPES.PORTAINER];
+          }
+          return updated;
+        });
+        setError("");
+      } else {
+        // Clear all portainer-related field errors
+        setUserStepErrors((prev) => {
+          const updated = { ...prev };
+          if (updated[username]) {
+            Object.keys(updated[username]).forEach((key) => {
+              if (key.startsWith("portainer_")) {
+                delete updated[username][key];
+              }
+            });
+            delete updated[username][STEP_TYPES.PORTAINER];
+          }
+          return updated;
+        });
+        setError("");
+      }
+
+      // Re-index credentials to match remaining instances
+      if (updatedInstances.length > 0) {
+        handleCredentialUpdate((prev) => {
+          const portainer = prev.portainerInstances || [];
+          const reindexed = updatedInstances.map((instance) => {
+            const matchingCred = portainer.find((cred) => cred.url === instance.url);
+            if (matchingCred) {
+              return {
+                ...matchingCred,
+                url: instance.url,
+                name: instance.name,
+              };
+            }
+            return {
+              url: instance.url,
+              name: instance.name,
+              auth_type: instance.auth_type || "apikey",
+              username: "",
+              password: "",
+              apiKey: "",
+            };
+          });
+          return { ...prev, portainerInstances: reindexed };
+        });
+      }
+
+      // If no instances left, skip the step
+      if (updatedInstances.length === 0) {
+        setUserSkippedSteps((prev) => {
+          const skipped = new Set(prev[username] || []);
+          skipped.add(STEP_TYPES.PORTAINER);
+          return { ...prev, [username]: skipped };
+        });
+      }
+    },
+    [
+      currentUser,
+      currentUserIndex,
+      setUsersData,
+      handleCredentialUpdate,
+      setUserSkippedSteps,
+      setUserStepErrors,
+      setError,
+    ]
+  );
 
   const handleClose = useCallback(() => {
     // If users were imported, show success message before closing
@@ -531,7 +591,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
   // Import flow - show current user's current step
   const getStepTitle = () => {
     if (!currentUser) return "Import Users";
-    
+
     const stepNames = {
       [STEP_TYPES.INSTANCE_ADMIN_VERIFICATION]: "Instance Admin Verification",
       [STEP_TYPES.PASSWORD]: "Set Password",
@@ -539,7 +599,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       [STEP_TYPES.DOCKERHUB]: "Docker Hub Credentials",
       [STEP_TYPES.DISCORD]: "Discord Webhooks",
     };
-    
+
     return `Import User ${currentUserIndex + 1} of ${totalUsers}: ${stepNames[currentStepType] || "Unknown"}`;
   };
 
@@ -549,12 +609,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={getStepTitle()}
-      size="lg"
-    >
+    <Modal isOpen={isOpen} onClose={handleClose} title={getStepTitle()} size="lg">
       <div className={styles.form}>
         <div className={styles.stepIndicator}>
           <span>{getStepIndicator()}</span>
@@ -562,7 +617,11 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             variant="secondary"
             onClick={handleSkipUser}
             disabled={importing || loading}
-            title={totalUsers > 1 ? "Skip this entire user and move to the next user" : "Skip this entire user and complete import"}
+            title={
+              totalUsers > 1
+                ? "Skip this entire user and move to the next user"
+                : "Skip this entire user and complete import"
+            }
             size="sm"
           >
             Skip User
@@ -628,9 +687,14 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               </Button>
             )}
           </div>
-          
+
           <div className={styles.actionsRight}>
-            {[STEP_TYPES.PORTAINER, STEP_TYPES.DOCKERHUB, STEP_TYPES.DISCORD, STEP_TYPES.INSTANCE_ADMIN_VERIFICATION].includes(currentStepType) && (
+            {[
+              STEP_TYPES.PORTAINER,
+              STEP_TYPES.DOCKERHUB,
+              STEP_TYPES.DISCORD,
+              STEP_TYPES.INSTANCE_ADMIN_VERIFICATION,
+            ].includes(currentStepType) && (
               <Button
                 variant="outline"
                 onClick={handleSkip}
@@ -649,13 +713,13 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               disabled={importing || loading}
               loading={importing || loading}
             >
-            {importing
-              ? "Creating User..."
-              : currentStepIndex < totalStepsForCurrentUser - 1
-                ? "Next"
-                : currentUserIndex < totalUsers - 1
-                  ? "Next User"
-                  : "Finish"}
+              {importing
+                ? "Creating User..."
+                : currentStepIndex < totalStepsForCurrentUser - 1
+                  ? "Next"
+                  : currentUserIndex < totalUsers - 1
+                    ? "Next User"
+                    : "Finish"}
             </Button>
           </div>
         </div>
@@ -671,4 +735,3 @@ ImportUsersModal.propTypes = {
 };
 
 export default ImportUsersModal;
-

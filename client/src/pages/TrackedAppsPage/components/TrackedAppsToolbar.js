@@ -57,4 +57,3 @@ TrackedAppsToolbar.propTypes = {
 };
 
 export default TrackedAppsToolbar;
-

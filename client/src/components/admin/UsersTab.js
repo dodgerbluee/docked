@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
-import Card from "../ui/Card";
 import Alert from "../ui/Alert";
 import Button from "../ui/Button";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
@@ -20,7 +19,7 @@ const UsersTab = React.memo(function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  
+
   // Use reusable export hook
   const { exporting, exportError, exportSuccess, handleExport } = useExport();
 
@@ -127,7 +126,7 @@ const UsersTab = React.memo(function UsersTab() {
       <div className={styles.userActions}>
         {exportSuccess && <Alert variant="info">{exportSuccess}</Alert>}
         {exportError && <Alert variant="error">{exportError}</Alert>}
-        
+
         <div className={styles.actionButtons}>
           <Button
             type="button"
@@ -138,7 +137,7 @@ const UsersTab = React.memo(function UsersTab() {
           >
             Import Users
           </Button>
-          
+
           <Button
             type="button"
             variant="primary"
@@ -167,4 +166,3 @@ UsersTab.propTypes = {
 };
 
 export default UsersTab;
-

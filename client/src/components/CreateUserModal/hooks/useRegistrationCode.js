@@ -63,7 +63,7 @@ export const useRegistrationCode = (isOpen) => {
   // Generate registration code
   const handleGenerateCode = async () => {
     setGenerating(true);
-    
+
     try {
       const codeAxios = axios.create({
         baseURL: API_BASE_URL,
@@ -72,15 +72,21 @@ export const useRegistrationCode = (isOpen) => {
       delete codeAxios.defaults.headers.common["Authorization"];
 
       const response = await codeAxios.post("/api/auth/generate-registration-code");
-      
+
       if (response.data.success) {
         setCodeGenerated(true);
         return { success: true };
       } else {
-        return { success: false, error: response.data.error || "Failed to generate registration code" };
+        return {
+          success: false,
+          error: response.data.error || "Failed to generate registration code",
+        };
       }
     } catch (err) {
-      return { success: false, error: getErrorMessage(err, "Failed to generate registration code") };
+      return {
+        success: false,
+        error: getErrorMessage(err, "Failed to generate registration code"),
+      };
     } finally {
       setGenerating(false);
     }
@@ -89,7 +95,7 @@ export const useRegistrationCode = (isOpen) => {
   // Regenerate registration code
   const handleRegenerateCode = async () => {
     setRegenerating(true);
-    
+
     try {
       const codeAxios = axios.create({
         baseURL: API_BASE_URL,
@@ -98,16 +104,22 @@ export const useRegistrationCode = (isOpen) => {
       delete codeAxios.defaults.headers.common["Authorization"];
 
       const response = await codeAxios.post("/api/auth/generate-registration-code");
-      
+
       if (response.data.success) {
         setCodeGenerated(true);
         setVerified(undefined);
         return { success: true };
       } else {
-        return { success: false, error: response.data.error || "Failed to regenerate registration code" };
+        return {
+          success: false,
+          error: response.data.error || "Failed to regenerate registration code",
+        };
       }
     } catch (err) {
-      return { success: false, error: getErrorMessage(err, "Failed to regenerate registration code") };
+      return {
+        success: false,
+        error: getErrorMessage(err, "Failed to regenerate registration code"),
+      };
     } finally {
       setRegenerating(false);
     }
@@ -150,13 +162,18 @@ export const useRegistrationCode = (isOpen) => {
         setVerifying(false);
         return { success: true };
       } else {
-        const errorMessage = response.data.error || "Invalid registration code. Please check the server logs for the correct code.";
+        const errorMessage =
+          response.data.error ||
+          "Invalid registration code. Please check the server logs for the correct code.";
         setVerified(undefined);
         setVerifying(false);
         return { success: false, error: errorMessage };
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Invalid registration code. Please check the server logs for the correct code.";
+      const errorMessage =
+        err.response?.data?.error ||
+        err.message ||
+        "Invalid registration code. Please check the server logs for the correct code.";
       setVerified(undefined);
       setVerifying(false);
       return { success: false, error: errorMessage };
@@ -176,4 +193,3 @@ export const useRegistrationCode = (isOpen) => {
     handleVerifyCode,
   };
 };
-

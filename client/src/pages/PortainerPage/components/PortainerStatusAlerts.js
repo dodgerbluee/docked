@@ -116,4 +116,3 @@ PortainerStatusAlerts.propTypes = {
 };
 
 export default PortainerStatusAlerts;
-

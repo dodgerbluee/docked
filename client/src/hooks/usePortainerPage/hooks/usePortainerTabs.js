@@ -43,4 +43,3 @@ export const usePortainerTabs = ({ controlledContentTab, onSetContentTab }) => {
     setContentTab,
   };
 };
-
