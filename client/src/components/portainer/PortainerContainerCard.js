@@ -52,7 +52,6 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     [container.name]
   );
 
-
   // Handle card click to open upgrade/rebuild modal
   const handleCardClick = useCallback(
     (e) => {

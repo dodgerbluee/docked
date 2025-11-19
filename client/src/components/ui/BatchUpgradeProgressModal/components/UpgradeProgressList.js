@@ -43,4 +43,3 @@ UpgradeProgressList.propTypes = {
 };
 
 export default UpgradeProgressList;
-

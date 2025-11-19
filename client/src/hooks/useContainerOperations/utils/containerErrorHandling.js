@@ -56,4 +56,3 @@ export const formatBatchUpgradeMessage = (successCount, errorCount, errors) => {
   }
   return message;
 };
-

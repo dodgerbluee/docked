@@ -9,9 +9,20 @@ import { Shield } from "lucide-react";
  * Tokens are NOT displayed in UI - they are only logged to server logs
  * Automatically generates token when component loads
  */
-function InstanceAdminVerificationStep({ user, token, onRegenerate, onGenerate, onTokenChange, verifying, regenerating, generating, verified, error }) {
-  const username = typeof user === "string" ? user : (user?.username || "");
-  
+function InstanceAdminVerificationStep({
+  user,
+  token,
+  onRegenerate,
+  onGenerate,
+  onTokenChange,
+  verifying,
+  regenerating,
+  generating,
+  verified,
+  error,
+}) {
+  const username = typeof user === "string" ? user : user?.username || "";
+
   // Generate token when component loads (if not already generated)
   useEffect(() => {
     if (username && onGenerate && !token && !generating) {
@@ -56,4 +67,3 @@ InstanceAdminVerificationStep.propTypes = {
 };
 
 export default InstanceAdminVerificationStep;
-

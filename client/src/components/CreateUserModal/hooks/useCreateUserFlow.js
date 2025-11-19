@@ -89,7 +89,7 @@ export const useCreateUserFlow = (isOpen, requiresCode) => {
     }
     // Limit to 14 characters (XXXX-XXXX-XXXX)
     formatted = formatted.slice(0, 14);
-    
+
     setFormData((prev) => ({
       ...prev,
       registrationCode: formatted,
@@ -119,4 +119,3 @@ export const useCreateUserFlow = (isOpen, requiresCode) => {
     STEP_TYPES,
   };
 };
-

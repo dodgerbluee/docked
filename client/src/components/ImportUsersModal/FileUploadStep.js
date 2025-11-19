@@ -70,11 +70,7 @@ function FileUploadStep({
         <Button variant="secondary" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button
-          variant="primary"
-          onClick={onStartImport}
-          disabled={!file || !usersData || loading}
-        >
+        <Button variant="primary" onClick={onStartImport} disabled={!file || !usersData || loading}>
           {usersData && usersData.users.length === 0 ? "Finish" : "Start Import"}
         </Button>
       </div>
@@ -96,4 +92,3 @@ FileUploadStep.propTypes = {
 };
 
 export default FileUploadStep;
-

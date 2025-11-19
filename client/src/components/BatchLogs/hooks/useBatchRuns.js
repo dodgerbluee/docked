@@ -79,4 +79,3 @@ export const useBatchRuns = (loading = true) => {
     fetchRecentRuns,
   };
 };
-

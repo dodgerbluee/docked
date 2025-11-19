@@ -40,7 +40,8 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000, userId = n
         if (thresholdExceeded) {
           // Threshold exceeded - stop retrying and throw special error
           // Check if credentials exist to customize message
-          let message = "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again.";
+          let message =
+            "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again.";
           if (userId) {
             const { getDockerHubCreds } = require("./dockerHubCreds");
             const creds = await getDockerHubCreds(userId);

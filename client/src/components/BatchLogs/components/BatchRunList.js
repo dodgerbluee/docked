@@ -38,8 +38,7 @@ const BatchRunList = ({ recentRuns, selectedRun, onSelectRun }) => {
             padding: "12px 15px",
             borderBottom: "1px solid var(--border-color)",
             cursor: "pointer",
-            background:
-              selectedRun?.id === run.id ? "var(--bg-tertiary)" : "transparent",
+            background: selectedRun?.id === run.id ? "var(--bg-tertiary)" : "transparent",
             transition: "background 0.2s",
           }}
           onMouseEnter={(e) => {
@@ -112,4 +111,3 @@ const BatchRunList = ({ recentRuns, selectedRun, onSelectRun }) => {
 };
 
 export default BatchRunList;
-

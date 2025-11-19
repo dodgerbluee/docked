@@ -304,4 +304,3 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
     setStage,
   };
 };
-

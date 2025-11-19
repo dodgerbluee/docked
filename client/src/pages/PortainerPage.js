@@ -127,11 +127,6 @@ function PortainerPage({
     );
   }, [portainerPage]);
 
-  const selectableContainersCount = containersWithUpdates.length;
-  const allSelectableSelected =
-    selectableContainersCount > 0 &&
-    containersWithUpdates.every((c) => portainerPage.selectedContainers.has(c.id));
-
   // Handle batch upgrade click - now opens modal directly
   const handleBatchUpgradeClick = useCallback(() => {
     portainerPage.handleBatchUpgrade();

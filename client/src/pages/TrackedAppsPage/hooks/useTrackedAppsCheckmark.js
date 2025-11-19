@@ -33,4 +33,3 @@ export const useTrackedAppsCheckmark = ({ trackedImageSuccess, checkingUpdates }
 
   return showCheckmark;
 };
-

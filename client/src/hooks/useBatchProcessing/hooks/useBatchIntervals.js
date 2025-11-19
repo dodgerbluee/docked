@@ -41,13 +41,7 @@ export const useBatchIntervals = ({
     }
 
     // Only set up interval if batch is enabled
-    if (
-      batchEnabled &&
-      isAuthenticated &&
-      authToken &&
-      passwordChanged &&
-      intervalMinutes > 0
-    ) {
+    if (batchEnabled && isAuthenticated && authToken && passwordChanged && intervalMinutes > 0) {
       const intervalMs = intervalMinutes * 60 * 1000;
       const intervalId = setInterval(() => {
         if (batchIntervalRef.current === intervalId) {
@@ -124,4 +118,3 @@ export const useBatchIntervals = ({
     hasRunInitialPullRef,
   };
 };
-

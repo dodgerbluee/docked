@@ -5,7 +5,11 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
-import { showUpgradeSuccess, showContainerError, formatBatchUpgradeMessage } from "../utils/containerErrorHandling";
+import {
+  showUpgradeSuccess,
+  showContainerError,
+  formatBatchUpgradeMessage,
+} from "../utils/containerErrorHandling";
 
 /**
  * Hook for container upgrade operations
@@ -119,7 +123,11 @@ export const useContainerUpgrade = ({
         const successCount = response.data.results?.length || 0;
         const errorCount = response.data.errors?.length || 0;
 
-        const message = formatBatchUpgradeMessage(successCount, errorCount, response.data.errors || []);
+        const message = formatBatchUpgradeMessage(
+          successCount,
+          errorCount,
+          response.data.errors || []
+        );
         alert(message);
         setSelectedContainers(new Set());
         fetchContainers();
@@ -151,4 +159,3 @@ export const useContainerUpgrade = ({
     handleBatchUpgrade,
   };
 };
-

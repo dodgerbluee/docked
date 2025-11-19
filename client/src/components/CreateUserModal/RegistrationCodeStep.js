@@ -9,7 +9,16 @@ import { Key } from "lucide-react";
  * Code is NOT displayed in UI - it is only logged to server logs
  * Automatically generates code when component loads
  */
-function RegistrationCodeStep({ codeGenerated, onGenerate, onRegenerate, onTokenChange, verifying, regenerating, generating, verified }) {
+function RegistrationCodeStep({
+  codeGenerated,
+  onGenerate,
+  onRegenerate,
+  onTokenChange,
+  verifying,
+  regenerating,
+  generating,
+  verified,
+}) {
   // Generate code when component loads (if not already generated)
   useEffect(() => {
     if (onGenerate && !codeGenerated && !generating && !regenerating) {
@@ -48,4 +57,3 @@ RegistrationCodeStep.propTypes = {
 };
 
 export default RegistrationCodeStep;
-

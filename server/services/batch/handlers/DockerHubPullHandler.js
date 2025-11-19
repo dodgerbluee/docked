@@ -77,10 +77,12 @@ class DockerHubPullHandler extends JobHandler {
           const { getDockerHubCreds } = require("../../../utils/dockerHubCreds");
           const creds = await getDockerHubCreds(userId);
           if (!creds.username || !creds.token) {
-            defaultMessage += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+            defaultMessage +=
+              " Or configure Docker Hub credentials in Settings for higher rate limits.";
           }
         } else {
-          defaultMessage += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+          defaultMessage +=
+            " Or configure Docker Hub credentials in Settings for higher rate limits.";
         }
 
         result.error = new Error(defaultMessage);
@@ -92,17 +94,20 @@ class DockerHubPullHandler extends JobHandler {
       }
 
       // Check if credentials exist to customize message
-      let defaultMessage = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+      let defaultMessage =
+        "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
       if (userId) {
         const { getDockerHubCreds } = require("../../../utils/dockerHubCreds");
         const creds = await getDockerHubCreds(userId);
         if (!creds.username || !creds.token) {
-          defaultMessage += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+          defaultMessage +=
+            " Or configure Docker Hub credentials in Settings for higher rate limits.";
         }
       } else {
-        defaultMessage += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+        defaultMessage +=
+          " Or configure Docker Hub credentials in Settings for higher rate limits.";
       }
-      
+
       const errorMessage =
         err.isRateLimitExceeded || err.message?.includes("rate limit")
           ? err.message || defaultMessage

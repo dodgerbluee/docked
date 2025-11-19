@@ -73,7 +73,7 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
   useEffect(() => {
     // Initial load
     fetchBatchRuns(true);
-    
+
     // Set up refresh interval (only refresh data, don't show loading state)
     const interval = setInterval(() => {
       fetchBatchRuns(false);

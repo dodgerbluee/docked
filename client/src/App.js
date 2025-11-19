@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import axios from "axios";
 import "./App.css";
 import Login from "./components/Login";
-import ErrorBoundary from "./components/ErrorBoundary";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
 import LogsPage from "./pages/LogsPage";
 // buildContainersByPortainer is now imported in usePortainerInstances hook
 import { API_BASE_URL } from "./constants/api";
-import { BatchConfigContext } from "./contexts/BatchConfigContext";
 import { useAuth } from "./hooks/useAuth";
 import { useNotifications } from "./hooks/useNotifications";
 import { useContainersData } from "./hooks/useContainersData";
@@ -36,14 +33,7 @@ import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAddPortainerModal } from "./hooks/useAddPortainerModal";
 import HomePage from "./components/HomePage";
 import FirstLoginPage from "./components/FirstLoginPage";
-import VersionFooter from "./components/Footer/VersionFooter";
-import {
-  TAB_NAMES,
-  CONTENT_TABS,
-  SETTINGS_TABS,
-  CONFIGURATION_TABS,
-} from "./constants/apiConstants";
-import { PORTAINER_CONTENT_TABS } from "./constants/portainerPage";
+import { TAB_NAMES } from "./constants/apiConstants";
 
 function App() {
   // Authentication state - using custom hook
@@ -66,11 +56,27 @@ function App() {
 
   // Menu state - using custom hook
   const menuState = useMenuState();
-  const { showAvatarMenu, showNotificationMenu, toggleAvatarMenu, toggleNotificationMenu, setShowAvatarMenu, setShowNotificationMenu } = menuState;
+  const {
+    showAvatarMenu,
+    showNotificationMenu,
+    toggleAvatarMenu,
+    toggleNotificationMenu,
+    setShowAvatarMenu,
+    setShowNotificationMenu,
+  } = menuState;
 
   // Tab state - using custom hook
   const tabState = useTabState();
-  const { activeTab, contentTab, settingsTab, configurationTab, setActiveTab, setContentTab, setSettingsTab, setConfigurationTab } = tabState;
+  const {
+    activeTab,
+    contentTab,
+    settingsTab,
+    configurationTab,
+    setActiveTab,
+    setContentTab,
+    setSettingsTab,
+    setConfigurationTab,
+  } = tabState;
 
   // Selection state
   const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(new Set());
@@ -102,8 +108,10 @@ function App() {
   } = useTheme(isAuthenticated, authToken);
 
   // Docker Hub credentials - using custom hook
-  const { dockerHubCredentials, setDockerHubCredentials, fetchDockerHubCredentials } =
-    useDockerHubCredentials(isAuthenticated, authToken);
+  const { dockerHubCredentials, fetchDockerHubCredentials } = useDockerHubCredentials(
+    isAuthenticated,
+    authToken
+  );
 
   // Tracked images - using custom hook
   const { trackedImages, setTrackedImages, fetchTrackedImages } = useTrackedImages();
@@ -145,7 +153,6 @@ function App() {
     portainerInstancesFromAPI,
     portainerInstancesLoading,
     loadingInstances,
-    dataFetched,
     dockerHubDataPulled,
     setContainers,
     setStacks,
@@ -163,10 +170,11 @@ function App() {
   } = containersData;
 
   // GitHub cache management - using custom hook (moved after fetchTrackedImages is available)
-  const { clearingGitHubCache, handleClearGitHubCache } = useGitHubCache(fetchTrackedImages);
+  const { handleClearGitHubCache } = useGitHubCache(fetchTrackedImages);
 
   // Tab reordering - using custom hook (moved after fetchContainers is available)
-  const { draggedTabIndex, setDraggedTabIndex, handleReorderTabs } = useTabReordering(fetchContainers);
+  const { draggedTabIndex, setDraggedTabIndex, handleReorderTabs } =
+    useTabReordering(fetchContainers);
 
   // Batch processing - using custom hook
   const batchProcessing = useBatchProcessing({
@@ -230,15 +238,12 @@ function App() {
     updateLastImageDeleteTime,
   });
   const {
-    upgrading,
-    batchUpgrading,
     handleUpgrade,
     handleBatchUpgrade,
     handleDeleteImage,
     handleDeleteImages,
     handleClear,
     handlePull,
-    deletingImages,
   } = containerOperations;
 
   // Selection handlers - using custom hook
@@ -353,9 +358,6 @@ function App() {
 
   const { trackedAppsBehind } = trackedAppsStats;
 
-  // Memoize filtered containers to avoid recalculating on every render
-  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
-
   // Portainer instances management - using custom hook
   const { portainerInstances, containersByPortainer } = usePortainerInstances({
     portainerInstancesFromAPI,
@@ -386,7 +388,13 @@ function App() {
       console.warn(`Active tab "${activeTab}" no longer exists, switching to summary`);
       setActiveTab(TAB_NAMES.SUMMARY);
     }
-  }, [activeTab, portainerInstances, portainerInstancesFromAPI, portainerInstancesLoading]);
+  }, [
+    activeTab,
+    portainerInstances,
+    portainerInstancesFromAPI,
+    portainerInstancesLoading,
+    setActiveTab,
+  ]);
 
   // Initialize selectedPortainerInstances to empty (show all) when Portainer tab is first opened
   // Empty set means show all instances
@@ -432,15 +440,6 @@ function App() {
       return next;
     });
   };
-
-  // Memoize context value
-  const batchConfigContextValue = useMemo(
-    () => ({
-      batchConfig,
-      setBatchConfig,
-    }),
-    [batchConfig, setBatchConfig]
-  );
 
   // Show login page if not authenticated
   // Show loading spinner while validating token

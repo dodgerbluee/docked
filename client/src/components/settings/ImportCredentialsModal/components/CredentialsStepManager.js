@@ -77,4 +77,3 @@ CredentialsStepManager.propTypes = {
 };
 
 export default CredentialsStepManager;
-

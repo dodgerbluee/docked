@@ -179,7 +179,11 @@ function AddTrackedAppModal({
     } catch (err) {
       // Only show error if it's not a cancellation
       if (err.message !== "Deletion cancelled") {
-        setError(err.response?.data?.error || err.message || "Failed to delete tracked item. Please try again.");
+        setError(
+          err.response?.data?.error ||
+            err.message ||
+            "Failed to delete tracked item. Please try again."
+        );
       }
     } finally {
       setLoading(false);

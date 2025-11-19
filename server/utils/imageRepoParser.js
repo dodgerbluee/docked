@@ -89,15 +89,15 @@ function extractImageRepo(imageName) {
 function normalizeImageName(imageName) {
   const parsed = parseImageName(imageName);
   let normalized = parsed.repository;
-  
+
   if (parsed.namespace) {
     normalized = `${parsed.namespace}/${normalized}`;
   }
-  
+
   if (parsed.registry !== "docker.io") {
     normalized = `${parsed.registry}/${normalized}`;
   }
-  
+
   return `${normalized}:${parsed.tag}`;
 }
 
@@ -106,4 +106,3 @@ module.exports = {
   extractImageRepo,
   normalizeImageName,
 };
-

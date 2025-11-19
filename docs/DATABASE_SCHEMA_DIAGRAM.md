@@ -15,10 +15,10 @@ erDiagram
     users ||--o{ settings : "has"
     users ||--o{ batch_config : "configures"
     users ||--o{ batch_runs : "executes"
-    
+
     portainer_instances ||--o{ portainer_containers : "contains"
     portainer_containers }o--o{ docker_hub_image_versions : "joins by image_repo (logical)"
-    
+
     users {
         INTEGER id PK
         TEXT username UK "UNIQUE"
@@ -32,7 +32,7 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-    
+
     portainer_instances {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -47,7 +47,7 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-    
+
     portainer_containers {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -69,7 +69,7 @@ erDiagram
         DATETIME updated_at
         UNIQUE "user_id, container_id, portainer_instance_id, endpoint_id"
     }
-    
+
     docker_hub_image_versions {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -92,7 +92,7 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-    
+
     docker_hub_credentials {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL, UNIQUE"
@@ -101,7 +101,7 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-    
+
     tracked_images {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -122,7 +122,7 @@ erDiagram
         DATETIME updated_at
         UNIQUE "user_id, image_name, github_repo"
     }
-    
+
     discord_webhooks {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -137,7 +137,7 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-    
+
     settings {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL, UNIQUE(user_id, key)"
@@ -147,7 +147,7 @@ erDiagram
         DATETIME updated_at
         NOTE "user_id = 0 for system-wide settings"
     }
-    
+
     batch_config {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -158,7 +158,7 @@ erDiagram
         DATETIME updated_at
         UNIQUE "user_id, job_type"
     }
-    
+
     batch_runs {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
@@ -178,17 +178,21 @@ erDiagram
 ## Key Relationships
 
 ### User-Centric Design
+
 All major tables are scoped to individual users via `user_id` foreign keys:
+
 - **One-to-Many**: One user can have many Portainer instances, containers, tracked images, webhooks, etc.
 - **Cascade Delete**: When a user is deleted, all related data is automatically removed (ON DELETE CASCADE)
 
 ### Normalized Container Data
+
 - **`portainer_containers`** stores container state from Portainer instances
 - **`docker_hub_image_versions`** stores Docker Hub version information
 - **Relationship**: Containers reference Docker Hub versions by `image_repo` (logical join, not a foreign key)
 - This design allows multiple containers using the same image to share version information
 
 ### Special Relationships
+
 - **`portainer_instances` → `portainer_containers`**: One instance contains many containers
 - **`settings`**: Uses `user_id = 0` for system-wide settings
 - **`docker_hub_credentials`**: One credential set per user (UNIQUE constraint)
@@ -217,4 +221,3 @@ The following indexes are created for performance:
 6. **Batch Jobs** run periodically to refresh Docker Hub data
 7. **Discord Webhooks** send notifications when updates are detected
 8. **Tracked Images** (GitHub/GitLab repos) are checked separately and stored independently
-

@@ -9,10 +9,12 @@ import styles from "./ImportSummaryCard.module.css";
  */
 function ImportSummaryCard({ users, instanceAdminUsers, skippedUsers }) {
   // Extract usernames from skipped error messages
-  const skippedUsernames = skippedUsers.map((error) => {
-    const match = error.match(/User "([^"]+)" already exists/);
-    return match ? match[1] : null;
-  }).filter(Boolean);
+  const skippedUsernames = skippedUsers
+    .map((error) => {
+      const match = error.match(/User "([^"]+)" already exists/);
+      return match ? match[1] : null;
+    })
+    .filter(Boolean);
 
   const userCount = users?.length || 0;
   const instanceAdminCount = instanceAdminUsers?.length || 0;
@@ -24,7 +26,7 @@ function ImportSummaryCard({ users, instanceAdminUsers, skippedUsers }) {
         <CheckCircle2 className={styles.icon} size={20} />
         <h3 className={styles.summaryTitle}>Import Summary</h3>
       </div>
-      
+
       <div className={styles.summaryContent}>
         {userCount > 0 && (
           <div className={styles.summaryItem}>
@@ -46,7 +48,9 @@ function ImportSummaryCard({ users, instanceAdminUsers, skippedUsers }) {
               <Shield className={styles.icon} size={24} />
             </div>
             <div className={styles.summaryItemContent}>
-              <div className={styles.summaryItemLabel}>Requires Verification ({instanceAdminCount})</div>
+              <div className={styles.summaryItemLabel}>
+                Requires Verification ({instanceAdminCount})
+              </div>
               <div className={styles.summaryItemList}>
                 {instanceAdminUsers.map((user) => user.username).join(", ")}
               </div>
@@ -61,9 +65,7 @@ function ImportSummaryCard({ users, instanceAdminUsers, skippedUsers }) {
             </div>
             <div className={styles.summaryItemContent}>
               <div className={styles.summaryItemLabel}>Skipped ({skippedCount})</div>
-              <div className={styles.summaryItemList}>
-                {skippedUsernames.join(", ")}
-              </div>
+              <div className={styles.summaryItemList}>{skippedUsernames.join(", ")}</div>
             </div>
           </div>
         )}
@@ -85,4 +87,3 @@ ImportSummaryCard.defaultProps = {
 };
 
 export default ImportSummaryCard;
-

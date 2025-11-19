@@ -1,12 +1,10 @@
 import React from "react";
 import PropTypes from "prop-types";
-import Alert from "../ui/Alert";
 import InstanceAdminVerificationStep from "./InstanceAdminVerificationStep";
 import PasswordStep from "./PasswordStep";
 import PortainerCredentialsStep from "../settings/ImportCredentialsModal/PortainerCredentialsStep";
 import DockerHubCredentialsStep from "../settings/ImportCredentialsModal/DockerHubCredentialsStep";
 import DiscordCredentialsStep from "../settings/ImportCredentialsModal/DiscordCredentialsStep";
-import styles from "../ImportUsersModal.module.css";
 
 // Step types
 const STEP_TYPES = {
@@ -50,11 +48,11 @@ function StepRenderer({
   setUserStepErrors,
 }) {
   if (!currentUser) return null;
-  
+
   const username = currentUser.username;
   const creds = userCredentials[username] || {};
   const errors = userStepErrors[username] || {};
-  
+
   if (stepType === STEP_TYPES.INSTANCE_ADMIN_VERIFICATION) {
     const verified = verificationStatus[username];
     const isVerifying = verifying[username];
@@ -63,30 +61,30 @@ function StepRenderer({
     const token = verificationTokens[username];
     const verificationError = errors[STEP_TYPES.INSTANCE_ADMIN_VERIFICATION];
     const currentInputToken = verificationInputTokens[username] || "";
-    
+
     return (
       <InstanceAdminVerificationStep
         user={{ username }}
         token={token}
         onRegenerate={() => onRegenerateToken(username)}
         onGenerate={() => onGenerateToken(username)}
-          onTokenChange={(inputToken) => {
-            const previousInput = currentInputToken;
-            const newInput = inputToken || "";
-            
-            onTokenChange(username, inputToken);
-            
-            if (verificationError && newInput !== previousInput && newInput.length > 0) {
-              setUserStepErrors((prev) => {
-                const updated = { ...prev };
-                if (updated[username]) {
-                  delete updated[username][STEP_TYPES.INSTANCE_ADMIN_VERIFICATION];
-                }
-                return updated;
-              });
-              setVerificationStatus((prev) => ({ ...prev, [username]: undefined }));
-            }
-          }}
+        onTokenChange={(inputToken) => {
+          const previousInput = currentInputToken;
+          const newInput = inputToken || "";
+
+          onTokenChange(username, inputToken);
+
+          if (verificationError && newInput !== previousInput && newInput.length > 0) {
+            setUserStepErrors((prev) => {
+              const updated = { ...prev };
+              if (updated[username]) {
+                delete updated[username][STEP_TYPES.INSTANCE_ADMIN_VERIFICATION];
+              }
+              return updated;
+            });
+            setVerificationStatus((prev) => ({ ...prev, [username]: undefined }));
+          }
+        }}
         verifying={isVerifying}
         regenerating={isRegenerating}
         generating={isGenerating}
@@ -95,7 +93,7 @@ function StepRenderer({
       />
     );
   }
-  
+
   if (stepType === STEP_TYPES.PASSWORD) {
     return (
       <PasswordStep
@@ -106,7 +104,7 @@ function StepRenderer({
       />
     );
   }
-  
+
   if (stepType === STEP_TYPES.PORTAINER) {
     const instances = currentUser?.portainerInstances || [];
     // This step should only appear if instances exist (auto-skipped if not)
@@ -114,7 +112,7 @@ function StepRenderer({
     if (instances.length === 0) {
       return null; // Step should have been auto-skipped
     }
-    
+
     return (
       <PortainerCredentialsStep
         instances={instances}
@@ -125,15 +123,16 @@ function StepRenderer({
       />
     );
   }
-  
+
   if (stepType === STEP_TYPES.DOCKERHUB) {
     // Only show Docker Hub step if credentials exist in import file
-    const hasDockerHubData = currentUser?.dockerHubCredentials && 
+    const hasDockerHubData =
+      currentUser?.dockerHubCredentials &&
       (currentUser.dockerHubCredentials.username || currentUser.dockerHubCredentials.token);
     if (!hasDockerHubData) {
       return null; // Step should have been auto-skipped
     }
-    
+
     return (
       <DockerHubCredentialsStep
         credentials={creds}
@@ -142,7 +141,7 @@ function StepRenderer({
       />
     );
   }
-  
+
   if (stepType === STEP_TYPES.DISCORD) {
     const webhooks = currentUser?.discordWebhooks || [];
     // This step should only appear if webhooks exist (auto-skipped if not)
@@ -150,7 +149,7 @@ function StepRenderer({
     if (webhooks.length === 0) {
       return null; // Step should have been auto-skipped
     }
-    
+
     return (
       <DiscordCredentialsStep
         webhooks={webhooks}
@@ -160,7 +159,7 @@ function StepRenderer({
       />
     );
   }
-  
+
   return null;
 }
 
@@ -194,4 +193,3 @@ StepRenderer.propTypes = {
 };
 
 export default StepRenderer;
-

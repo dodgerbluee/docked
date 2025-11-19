@@ -95,10 +95,11 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
         setAvatar(newAvatar);
       } else {
         // If it's an API URL, fetch it as a blob to include authentication
-        const avatarUrl = newAvatar.startsWith("/api/") || newAvatar.startsWith("api/")
-          ? `${API_BASE_URL}${newAvatar.startsWith("/") ? newAvatar : `/${newAvatar}`}`
-          : `${API_BASE_URL}${newAvatar}`;
-        
+        const avatarUrl =
+          newAvatar.startsWith("/api/") || newAvatar.startsWith("api/")
+            ? `${API_BASE_URL}${newAvatar.startsWith("/") ? newAvatar : `/${newAvatar}`}`
+            : `${API_BASE_URL}${newAvatar}`;
+
         try {
           const response = await axios.get(avatarUrl, {
             responseType: "blob",

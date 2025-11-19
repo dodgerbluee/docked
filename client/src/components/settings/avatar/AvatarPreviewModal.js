@@ -49,7 +49,7 @@ const AvatarPreviewModal = React.memo(function AvatarPreviewModal({
     // Image position: offsetX = (PREVIEW_SIZE - zoomedWidth) / 2 + pan.x
     // We need: imageLeft <= cropLeft AND imageRight >= cropRight
     //         imageTop <= cropTop AND imageBottom >= cropBottom
-    
+
     const centerOffsetX = (PREVIEW_SIZE - zoomedWidth) / 2;
     const centerOffsetY = (PREVIEW_SIZE - zoomedHeight) / 2;
 

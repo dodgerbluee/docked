@@ -122,7 +122,11 @@ async function checkTrackedImage(trackedImage) {
   const tagForPublishDate = latestVersion !== "latest" ? latestVersion : latestTag;
   if (tagForPublishDate && hasUpdate) {
     try {
-      latestPublishDate = await dockerRegistryService.getTagPublishDate(repo, tagForPublishDate, userId);
+      latestPublishDate = await dockerRegistryService.getTagPublishDate(
+        repo,
+        tagForPublishDate,
+        userId
+      );
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       latestPublishDate = null;

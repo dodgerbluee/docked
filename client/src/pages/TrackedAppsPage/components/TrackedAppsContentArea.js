@@ -249,4 +249,3 @@ TrackedAppsContentArea.propTypes = {
 };
 
 export default TrackedAppsContentArea;
-

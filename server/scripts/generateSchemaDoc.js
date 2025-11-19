@@ -2,9 +2,9 @@
 
 /**
  * Database Schema Documentation Generator
- * 
+ *
  * Generates markdown documentation for the SQLite database schema.
- * 
+ *
  * Usage:
  *   node server/scripts/generateSchemaDoc.js
  *   npm run docs:schema
@@ -110,7 +110,7 @@ function getForeignKeys(db, tableName) {
 function formatColumn(col) {
   let result = `**${col.name}**`;
   result += ` \`${col.type}\``;
-  
+
   if (col.notnull === 1) {
     result += " NOT NULL";
   }
@@ -121,7 +121,7 @@ function formatColumn(col) {
   if (col.pk === 1) {
     result += " (PRIMARY KEY)";
   }
-  
+
   return result;
 }
 
@@ -172,7 +172,7 @@ async function generateDocumentation() {
             // Table header
             doc.push(`### \`${tableName}\``);
             doc.push("");
-            
+
             // Table description (extract from SQL if available)
             if (table.sql) {
               doc.push("**SQL Definition:**");
@@ -187,7 +187,7 @@ async function generateDocumentation() {
             doc.push("");
             doc.push("| Column | Type | Constraints | Description |");
             doc.push("|--------|------|-------------|-------------|");
-            
+
             for (const col of columns) {
               const constraints = [];
               if (col.pk === 1) constraints.push("PRIMARY KEY");
@@ -196,7 +196,7 @@ async function generateDocumentation() {
                 const defaultValue = col.dflt_value.replace(/^'|'$/g, "");
                 constraints.push(`DEFAULT ${defaultValue}`);
               }
-              
+
               doc.push(`| ${col.name} | ${col.type} | ${constraints.join(", ") || "-"} | - |`);
             }
             doc.push("");
@@ -234,20 +234,26 @@ async function generateDocumentation() {
           doc.push("");
           doc.push("### User-Centric Design");
           doc.push("");
-          doc.push("The database follows a user-centric design where most tables are scoped to individual users:");
+          doc.push(
+            "The database follows a user-centric design where most tables are scoped to individual users:"
+          );
           doc.push("");
           doc.push("- `users` - Core user accounts");
           doc.push("- `portainer_instances` - Portainer instances per user (via `user_id`)");
           doc.push("- `tracked_images` - Tracked Docker images per user (via `user_id`)");
           doc.push("- `settings` - User-specific settings (via `user_id`)");
-          doc.push("- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)");
+          doc.push(
+            "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)"
+          );
           doc.push("- `docker_hub_credentials` - Docker Hub credentials per user (via `user_id`)");
           doc.push("- `batch_config` - Batch job configurations per user (via `user_id`)");
           doc.push("- `batch_runs` - Batch job execution history per user (via `user_id`)");
           doc.push("");
           doc.push("### Special Cases");
           doc.push("");
-          doc.push("- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)");
+          doc.push(
+            "- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)"
+          );
           doc.push("");
 
           // Write to file
@@ -289,4 +295,3 @@ if (require.main === module) {
 }
 
 module.exports = { generateDocumentation };
-

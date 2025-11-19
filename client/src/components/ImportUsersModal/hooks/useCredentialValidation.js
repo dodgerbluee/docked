@@ -29,21 +29,15 @@ export function useCredentialValidation({
   // Validate current step (client-side)
   const validateCurrentStep = useCallback(() => {
     if (!currentUser) return false;
-    
+
     const username = currentUser.username;
     const password = userPasswords[username];
     const creds = userCredentials[username] || {};
     const instances = currentUser?.portainerInstances || [];
     const webhooks = currentUser?.discordWebhooks || [];
-    
-    const validation = validateStep(
-      currentStepType,
-      creds,
-      password,
-      instances,
-      webhooks
-    );
-    
+
+    const validation = validateStep(currentStepType, creds, password, instances, webhooks);
+
     if (!validation.valid) {
       setUserStepErrors((prev) => ({
         ...prev,
@@ -51,24 +45,18 @@ export function useCredentialValidation({
       }));
       return false;
     }
-    
+
     return true;
-  }, [
-    currentUser,
-    currentStepType,
-    userPasswords,
-    userCredentials,
-    setUserStepErrors,
-  ]);
+  }, [currentUser, currentStepType, userPasswords, userCredentials, setUserStepErrors]);
 
   // Validate credentials with backend (for portainer, dockerhub, discord)
   const validateCredentialsStep = useCallback(async () => {
     if (!currentUser) return { success: true };
-    
+
     const username = currentUser.username;
     const creds = userCredentials[username] || {};
     const skippedSteps = userSkippedSteps[username] || new Set();
-    
+
     // Create a separate axios instance for validation requests without auth headers
     const validationAxios = axios.create({
       baseURL: API_BASE_URL,
@@ -77,9 +65,13 @@ export function useCredentialValidation({
       },
     });
     delete validationAxios.defaults.headers.common["Authorization"];
-    
+
     try {
-      if (currentStepType === STEP_TYPES.PORTAINER && creds.portainerInstances && creds.portainerInstances.length > 0) {
+      if (
+        currentStepType === STEP_TYPES.PORTAINER &&
+        creds.portainerInstances &&
+        creds.portainerInstances.length > 0
+      ) {
         const instances = currentUser.portainerInstances || [];
         if (instances.length > 0) {
           const validationPromises = creds.portainerInstances.map(async (cred, index) => {
@@ -88,21 +80,24 @@ export function useCredentialValidation({
               console.error(`[ImportUsersModal] Validation failed: No instance at index ${index}`);
               return { success: false, index, error: "Instance not found" };
             }
-            
+
             const validateData = {
               url: instance.url,
               authType: cred.auth_type,
             };
-            
+
             if (cred.auth_type === "apikey") {
               validateData.apiKey = cred.apiKey;
             } else {
               validateData.username = cred.username;
               validateData.password = cred.password;
             }
-            
+
             try {
-              const response = await validationAxios.post(`/api/portainer/instances/validate`, validateData);
+              const response = await validationAxios.post(
+                `/api/portainer/instances/validate`,
+                validateData
+              );
               if (!response.data.success) {
                 console.error(`[ImportUsersModal] Validation failed for instance:`, {
                   index,
@@ -125,7 +120,7 @@ export function useCredentialValidation({
               return { success: false, index, error: err.response?.data?.error || err.message };
             }
           });
-          
+
           const results = await Promise.all(validationPromises);
           const failed = results.find((r) => !r.success);
           if (failed) {
@@ -138,7 +133,7 @@ export function useCredentialValidation({
             });
             return {
               success: false,
-              error: `Portainer instance "${failedInstance?.name || 'Unknown'}" (${failedInstance?.url || 'no URL'}): ${failed.error || 'Authentication failed'}`,
+              error: `Portainer instance "${failedInstance?.name || "Unknown"}" (${failedInstance?.url || "no URL"}): ${failed.error || "Authentication failed"}`,
             };
           }
         }
@@ -147,7 +142,7 @@ export function useCredentialValidation({
         if (skippedSteps.has(STEP_TYPES.DOCKERHUB)) {
           return { success: true };
         }
-        
+
         // Only validate if credentials are provided
         if (creds.dockerHub && creds.dockerHub.username && creds.dockerHub.token) {
           const response = await validationAxios.post(`/api/docker-hub/credentials/validate`, {
@@ -161,13 +156,17 @@ export function useCredentialValidation({
             };
           }
         }
-      } else if (currentStepType === STEP_TYPES.DISCORD && creds.discordWebhooks && creds.discordWebhooks.length > 0) {
+      } else if (
+        currentStepType === STEP_TYPES.DISCORD &&
+        creds.discordWebhooks &&
+        creds.discordWebhooks.length > 0
+      ) {
         const webhooks = currentUser.discordWebhooks || [];
         if (webhooks.length > 0) {
           for (let i = 0; i < creds.discordWebhooks.length; i++) {
             const cred = creds.discordWebhooks[i];
             const webhook = webhooks[i];
-            
+
             // Only validate if webhook URL is provided
             if (cred.webhookUrl) {
               try {
@@ -190,7 +189,7 @@ export function useCredentialValidation({
           }
         }
       }
-      
+
       return { success: true };
     } catch (error) {
       return {
@@ -198,16 +197,10 @@ export function useCredentialValidation({
         error: error.response?.data?.error || "Validation failed",
       };
     }
-  }, [
-    currentUser,
-    currentStepType,
-    userCredentials,
-    userSkippedSteps,
-  ]);
+  }, [currentUser, currentStepType, userCredentials, userSkippedSteps]);
 
   return {
     validateCurrentStep,
     validateCredentialsStep,
   };
 }
-

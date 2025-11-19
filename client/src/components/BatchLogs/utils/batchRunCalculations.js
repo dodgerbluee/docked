@@ -25,12 +25,7 @@ const parseDateString = (dateString) => {
  * @param {Object} refs - Refs for caching calculations
  * @returns {Date|null} Next scheduled run time or null
  */
-export const calculateNextScheduledRun = (
-  config,
-  recentRuns,
-  jobType,
-  refs
-) => {
+export const calculateNextScheduledRun = (config, recentRuns, jobType, refs) => {
   if (!config || !config.enabled || !config.intervalMinutes) {
     return null;
   }
@@ -96,4 +91,3 @@ export const calculateNextScheduledRun = (
 
   return null;
 };
-

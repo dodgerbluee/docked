@@ -99,38 +99,62 @@ export function useTrackedApps() {
     (id) => {
       return new Promise((resolve, reject) => {
         let isResolved = false;
-        
+
         const handleConfirm = async () => {
           if (isResolved) return;
           isResolved = true;
-          
+
           try {
             const response = await axios.delete(`${API_BASE_URL}/api/tracked-images/${id}`);
             if (response.data.success) {
               await fetchTrackedImages();
-              setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+              });
               resolve();
             } else {
               const error = response.data.error || "Failed to delete tracked image";
               setTrackedImageError(error);
-              setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+              });
               reject(new Error(error));
             }
           } catch (err) {
             const error = err.response?.data?.error || "Failed to delete tracked image";
             setTrackedImageError(error);
-            setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+            setConfirmDialog({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: null,
+              onClose: null,
+            });
             reject(new Error(error));
           }
         };
-        
+
         const handleCancel = () => {
           if (isResolved) return;
           isResolved = true;
-          setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+          setConfirmDialog({
+            isOpen: false,
+            title: "",
+            message: "",
+            onConfirm: null,
+            onClose: null,
+          });
           reject(new Error("Deletion cancelled"));
         };
-        
+
         setConfirmDialog({
           isOpen: true,
           title: "Delete Tracked App",

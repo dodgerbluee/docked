@@ -55,7 +55,6 @@ const AvatarSection = ({
     avatarError,
     avatarSuccess,
     setAvatarError,
-    setAvatarSuccess,
     handleAvatarUpload,
     handleDeleteAvatar,
   } = useAvatarUpload({
@@ -167,4 +166,3 @@ AvatarSection.propTypes = {
 };
 
 export default AvatarSection;
-

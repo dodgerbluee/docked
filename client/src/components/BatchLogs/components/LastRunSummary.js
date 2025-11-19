@@ -13,8 +13,7 @@ import { formatDate, formatDuration } from "../utils/batchRunFormatters";
  */
 const LastRunSummary = ({ latestRunsByJobType }) => {
   const hasRuns =
-    latestRunsByJobType["docker-hub-pull"] ||
-    latestRunsByJobType["tracked-apps-check"];
+    latestRunsByJobType["docker-hub-pull"] || latestRunsByJobType["tracked-apps-check"];
 
   if (!hasRuns) {
     return null;
@@ -302,4 +301,3 @@ const LastRunSummary = ({ latestRunsByJobType }) => {
 };
 
 export default LastRunSummary;
-

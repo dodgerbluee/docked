@@ -168,4 +168,3 @@ SettingsTabs.propTypes = {
 };
 
 export default SettingsTabs;
-

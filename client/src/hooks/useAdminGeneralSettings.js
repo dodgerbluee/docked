@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
-import { getErrorMessage, SUCCESS_MESSAGES } from "../utils/errorMessages";
 
 /**
  * useAdminGeneralSettings Hook
@@ -91,9 +90,7 @@ export function useAdminGeneralSettings() {
       } else {
         // Settings failed - show which ones
         const errorMessage =
-          errors.length > 0
-            ? `Failed to save: ${errors.join(", ")}`
-            : "Failed to save log level";
+          errors.length > 0 ? `Failed to save: ${errors.join(", ")}` : "Failed to save log level";
         setGeneralSettingsSuccess(errorMessage);
         console.error("Log level failed to save:", {
           logLevelSuccess,
@@ -129,4 +126,3 @@ export function useAdminGeneralSettings() {
     handleSaveGeneralSettings,
   };
 }
-

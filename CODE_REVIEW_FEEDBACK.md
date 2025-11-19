@@ -11,11 +11,13 @@ This is a comprehensive review of the Docker container update management applica
 ### 1.1 Notification System
 
 **Current Implementation:**
+
 - Notifications are stored in localStorage with version-based dismissal
 - Notifications reappear if the version changes after dismissal
 - UI shows container and tracked app updates separately
 
 **Issues:**
+
 1. **Notification Persistence**: Dismissed notifications are stored in localStorage, which means:
    - They're lost if the user clears browser data
    - They don't sync across devices
@@ -26,12 +28,13 @@ This is a comprehensive review of the Docker container update management applica
    - The batch process runs while they're not actively using the app
    - Multiple updates occur in quick succession
 
-3. **Notification Clarity**: 
+3. **Notification Clarity**:
    - No indication of when the update was detected
    - No way to see update history
    - Limited context about what changed (changelog, release notes)
 
 **Recommendations:**
+
 - Add server-side notification tracking with `dismissed_notifications` table
 - Include timestamps in notifications ("Update detected 2 hours ago")
 - Add notification preferences (email, Discord only, etc.)
@@ -41,17 +44,19 @@ This is a comprehensive review of the Docker container update management applica
 ### 1.2 Batch Process Visibility
 
 **Current Implementation:**
+
 - Batch runs are tracked in `batch_runs` table
 - UI polls for latest batch run status
 - Manual triggers available
 
 **Issues:**
+
 1. **Progress Indication**: No real-time progress during batch execution
    - Users don't know how many containers have been checked
    - No ETA for completion
    - No indication of which container is currently being processed
 
-2. **Error Visibility**: 
+2. **Error Visibility**:
    - Errors are logged but may not be immediately visible to users
    - No clear distinction between transient errors and permanent failures
    - Rate limit errors could be more user-friendly
@@ -61,6 +66,7 @@ This is a comprehensive review of the Docker container update management applica
    - No comparison between runs
 
 **Recommendations:**
+
 - Add WebSocket or Server-Sent Events for real-time progress updates
 - Show progress bar: "Checking container 15 of 50..."
 - Add batch run history page with charts/graphs
@@ -70,10 +76,12 @@ This is a comprehensive review of the Docker container update management applica
 ### 1.3 Data Freshness Indicators
 
 **Current Implementation:**
+
 - `last_checked` timestamp stored in database
 - UI shows `lastPullTime` from localStorage
 
 **Issues:**
+
 1. **Stale Data Warning**: No clear indication when data is stale
    - Users might not realize they're viewing outdated information
    - No warning if data is older than X hours
@@ -83,6 +91,7 @@ This is a comprehensive review of the Docker container update management applica
    - No visual distinction between cached and fresh data
 
 **Recommendations:**
+
 - Add visual indicators (badges, colors) for data freshness
 - Show "Last updated: 2 hours ago" prominently
 - Auto-refresh stale data when user navigates to page
@@ -91,10 +100,12 @@ This is a comprehensive review of the Docker container update management applica
 ### 1.4 Error Messages and User Guidance
 
 **Current Implementation:**
+
 - Error messages are logged but may not be user-friendly
 - Rate limit errors have some context but could be better
 
 **Issues:**
+
 1. **Rate Limit Messages**: While improved, could be more actionable
    - Don't clearly explain the difference between authenticated and unauthenticated limits
    - No link to settings page to configure credentials
@@ -104,6 +115,7 @@ This is a comprehensive review of the Docker container update management applica
    - No validation of Portainer credentials before saving
 
 **Recommendations:**
+
 - Add inline help text and tooltips
 - Provide direct links to relevant settings pages
 - Add "Test Connection" button for Portainer instances
@@ -116,6 +128,7 @@ This is a comprehensive review of the Docker container update management applica
 ### 2.1 Database Design
 
 **Strengths:**
+
 - Well-normalized schema with proper user isolation
 - Good use of indexes
 - Proper foreign key constraints with CASCADE deletes
@@ -123,6 +136,7 @@ This is a comprehensive review of the Docker container update management applica
 **Areas for Improvement:**
 
 1. **Missing Indexes:**
+
    ```sql
    -- Consider adding:
    CREATE INDEX idx_batch_runs_user_job_type ON batch_runs(user_id, job_type, started_at DESC);
@@ -132,6 +146,7 @@ This is a comprehensive review of the Docker container update management applica
 
 2. **Notification Tracking:**
    - Add `dismissed_notifications` table for server-side tracking:
+
    ```sql
    CREATE TABLE dismissed_notifications (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,6 +163,7 @@ This is a comprehensive review of the Docker container update management applica
 3. **Batch Run Logs:**
    - Current `logs TEXT` field may become unwieldy for large runs
    - Consider separate `batch_run_logs` table for better querying:
+
    ```sql
    CREATE TABLE batch_run_logs (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,6 +182,7 @@ This is a comprehensive review of the Docker container update management applica
 ### 2.2 Rate Limiting and Error Handling
 
 **Current Implementation:**
+
 - Good rate limit detection and handling
 - Retry logic with exponential backoff
 - Proper error propagation
@@ -173,6 +190,7 @@ This is a comprehensive review of the Docker container update management applica
 **Enhancements:**
 
 1. **Rate Limit Tracking:**
+
    ```javascript
    // Add rate limit tracking to database for analytics
    CREATE TABLE rate_limit_events (
@@ -198,6 +216,7 @@ This is a comprehensive review of the Docker container update management applica
 ### 2.3 Caching Strategy
 
 **Current Implementation:**
+
 - In-memory cache for Docker Hub digests
 - Database cache for container data
 - Normalized tables for persistence
@@ -222,6 +241,7 @@ This is a comprehensive review of the Docker container update management applica
 ### 2.4 Batch Processing
 
 **Current Implementation:**
+
 - Good job handler pattern
 - Proper concurrency prevention
 - Scheduler with configurable intervals
@@ -251,6 +271,7 @@ This is a comprehensive review of the Docker container update management applica
 ### 2.5 Notification System
 
 **Current Implementation:**
+
 - Queue-based notification system
 - Deduplication with 5-minute window
 - Rate limit handling for Discord
@@ -284,15 +305,18 @@ This is a comprehensive review of the Docker container update management applica
 ### 3.1 Race Conditions ✅ FIXED
 
 **Issue 1: Concurrent Batch Runs**
+
 ```javascript
 // In BatchManager.js, line 67
 if (this.runningJobs.get(key)) {
   throw new Error(`Job ${jobType} is already running for user ${userId}`);
 }
 ```
+
 **Problem:** This check was not atomic. Two requests could both pass the check before either sets the flag.
 
 **Fix Implemented:** Added database-level atomic lock checking:
+
 - Created `checkAndAcquireBatchJobLock()` function that uses `BEGIN IMMEDIATE TRANSACTION` to acquire write lock
 - Atomically checks for running jobs in database before allowing new job to start
 - Database transaction ensures only one process can check and acquire lock at a time
@@ -302,21 +326,25 @@ if (this.runningJobs.get(key)) {
 **Status:** ✅ Fixed in `server/db/database.js` and `server/services/batch/BatchManager.js`
 
 **Issue 2: Container Update Detection**
+
 ```javascript
 // In containerQueryService.js, line 726
 const shouldNotify = !previousContainer;
 ```
+
 **Problem:** If a container is upgraded between the previous fetch and current fetch, the notification logic might miss the update or send duplicate notifications.
 
 **Fix:** Compare by digest, not just existence:
+
 ```javascript
-const shouldNotify = !previousContainer || 
-  (previousContainer.currentDigest !== container.currentDigest);
+const shouldNotify =
+  !previousContainer || previousContainer.currentDigest !== container.currentDigest;
 ```
 
 ### 3.2 Notification Deduplication
 
 **Issue:** 5-minute deduplication window might be too short for rapid updates
+
 ```javascript
 // In discordService.js, line 33
 const DEDUPLICATION_WINDOW = 5 * 60 * 1000; // 5 minutes
@@ -325,6 +353,7 @@ const DEDUPLICATION_WINDOW = 5 * 60 * 1000; // 5 minutes
 **Problem:** If a container is updated, then updated again within 5 minutes, the second notification is suppressed.
 
 **Fix:** Make deduplication window configurable and version-aware:
+
 ```javascript
 // Deduplicate by (resource_id, version), not just resource_id
 const dedupKey = `${imageData.id}-${imageData.latestVersion}`;
@@ -333,6 +362,7 @@ const dedupKey = `${imageData.id}-${imageData.latestVersion}`;
 ### 3.3 Database Transaction Safety ✅ FIXED
 
 **Issue:** Some operations lacked proper transaction handling
+
 ```javascript
 // In containerQueryService.js, multiple separate database calls
 await upsertPortainerContainer(...);
@@ -342,6 +372,7 @@ await upsertDockerHubImageVersion(...);
 **Problem:** If the second call failed, the first was already committed, leading to inconsistent state.
 
 **Fix Implemented:** Added atomic transaction wrapper:
+
 - Created `upsertContainerWithVersion()` function that wraps both operations in a single transaction
 - Uses `BEGIN IMMEDIATE TRANSACTION` to ensure atomicity
 - Both container and version data are saved together - all succeed or all fail
@@ -353,6 +384,7 @@ await upsertDockerHubImageVersion(...);
 ### 3.4 Rate Limit Error Handling ✅ FIXED
 
 **Issue:** Rate limit errors were propagated but not handled gracefully everywhere
+
 ```javascript
 // In dockerRegistryService.js, line 170
 if (resp.status === 429) {
@@ -365,6 +397,7 @@ if (resp.status === 429) {
 **Problem:** The error was thrown but the batch process didn't handle it gracefully, leaving partial data unsaved.
 
 **Fix Implemented:** Added graceful partial result handling:
+
 - Changed container processing from `Promise.all()` to sequential `for` loop to catch rate limits mid-process
 - Collects partial results when rate limit is hit
 - Saves all processed containers to database before throwing error
@@ -378,6 +411,7 @@ if (resp.status === 429) {
 ### 3.5 Memory Leaks ✅ FIXED
 
 **Issue:** In-memory caches and maps may grow unbounded
+
 ```javascript
 // In discordService.js
 const recentNotifications = new Map(); // Never cleaned up
@@ -387,6 +421,7 @@ const rateLimitTracker = new Map(); // Grows indefinitely
 **Problem:** Over time, these maps will consume increasing memory.
 
 **Fix Implemented:** Added periodic cleanup with TTL-based expiration:
+
 - Added `cleanupExpiredEntries()` function that removes expired entries from both `recentNotifications` and `rateLimitTracker` maps
 - Implemented `startCleanupInterval()` that runs cleanup every 5 minutes automatically
 - Cleanup runs on module load and periodically removes entries older than their respective TTL windows
@@ -398,16 +433,19 @@ const rateLimitTracker = new Map(); // Grows indefinitely
 ### 3.6 Container ID Changes After Upgrade ✅ FIXED
 
 **Issue:** Container IDs change after upgrades, causing notification matching issues
+
 ```javascript
 // In containerQueryService.js, line 705
 const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
 ```
 
 **Problem:** The code attempted to match by name, but the logic only checked existence, not version changes. It would not notify when:
+
 - A container that was previously up-to-date now has an update
 - A container with an existing update gets a newer update (digest/version changes)
 
 **Fix Implemented:** Improved matching logic to properly detect update state changes:
+
 - Store `latestDigest`, `latestVersion`, and `currentDigest` in previous container map for comparison
 - Notify if: (1) container is new, (2) container previously had no update and now has update, or (3) container had update but digest/version changed (newer update available)
 - Compare both digest and version to catch all update scenarios
@@ -418,6 +456,7 @@ const key = `${container.name}-${container.portainerUrl}-${container.endpointId}
 ### 3.7 SQL Injection (Low Risk)
 
 **Issue:** While using parameterized queries, some dynamic SQL construction exists
+
 ```javascript
 // In database.js, line 2538
 const sql = `UPDATE tracked_images SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`;
@@ -426,6 +465,7 @@ const sql = `UPDATE tracked_images SET ${fields.join(", ")} WHERE id = ? AND use
 **Problem:** While fields are controlled, it's still dynamic SQL construction.
 
 **Fix:** Use a query builder or ensure all field names are whitelisted:
+
 ```javascript
 const allowedFields = ['name', 'current_version', ...];
 fields = fields.filter(f => allowedFields.includes(f.split('=')[0].trim()));
@@ -440,6 +480,7 @@ fields = fields.filter(f => allowedFields.includes(f.split('=')[0].trim()));
 **Current:** Passwords and tokens stored in database (encrypted at rest assumed)
 
 **Recommendations:**
+
 - Ensure database file has proper permissions (600)
 - Consider encrypting sensitive fields at application level
 - Add credential rotation reminders
@@ -450,6 +491,7 @@ fields = fields.filter(f => allowedFields.includes(f.split('=')[0].trim()));
 **Current:** Rate limiting for external APIs, but no rate limiting for internal API
 
 **Recommendations:**
+
 - Add rate limiting middleware for API endpoints
 - Prevent abuse of manual batch triggers
 - Implement request throttling per user
@@ -459,6 +501,7 @@ fields = fields.filter(f => allowedFields.includes(f.split('=')[0].trim()));
 **Current:** Some validation exists but could be more comprehensive
 
 **Recommendations:**
+
 - Validate all user inputs (URLs, image names, etc.)
 - Sanitize data before database insertion
 - Add schema validation for API requests
@@ -614,4 +657,3 @@ The application demonstrates solid architecture and thoughtful design. The main 
 4. **Observability**: Add metrics, alerting, and health checks
 
 The codebase is well-structured and maintainable, making these improvements feasible to implement incrementally.
-

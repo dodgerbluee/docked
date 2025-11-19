@@ -74,23 +74,29 @@ async function getDockerRegistryToken(namespace, repository, userId = null) {
         username: creds.username,
         password: creds.token,
       };
-      logger.debug(`🔑 Docker Hub: Using API key authentication (username: ${creds.username}) for ${namespace}/${repository}`, {
-        module: "dockerRegistryService",
-        operation: "getDockerRegistryToken",
-        namespace,
-        repository,
-        userId,
-        hasCredentials: true,
-      });
+      logger.debug(
+        `🔑 Docker Hub: Using API key authentication (username: ${creds.username}) for ${namespace}/${repository}`,
+        {
+          module: "dockerRegistryService",
+          operation: "getDockerRegistryToken",
+          namespace,
+          repository,
+          userId,
+          hasCredentials: true,
+        }
+      );
     } else {
-      logger.debug(`🌐 Docker Hub: Using IP-based anonymous request (no credentials) for ${namespace}/${repository}`, {
-        module: "dockerRegistryService",
-        operation: "getDockerRegistryToken",
-        namespace,
-        repository,
-        userId,
-        hasCredentials: false,
-      });
+      logger.debug(
+        `🌐 Docker Hub: Using IP-based anonymous request (no credentials) for ${namespace}/${repository}`,
+        {
+          module: "dockerRegistryService",
+          operation: "getDockerRegistryToken",
+          namespace,
+          repository,
+          userId,
+          hasCredentials: false,
+        }
+      );
     }
 
     const response = await axios.get(authUrl, requestConfig);

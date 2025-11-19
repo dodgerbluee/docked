@@ -154,4 +154,3 @@ PortainerToolbarActions.propTypes = {
 };
 
 export default PortainerToolbarActions;
-

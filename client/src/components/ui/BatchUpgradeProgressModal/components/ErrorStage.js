@@ -58,4 +58,3 @@ ErrorStage.propTypes = {
 };
 
 export default ErrorStage;
-

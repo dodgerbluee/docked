@@ -63,12 +63,17 @@ class Scheduler {
                 timestampDate: new Date(timestamp).toISOString(),
               });
             } else {
-              this.logger.warn(`⚠️ Failed to parse last run time for user ${user.id}, job ${jobType}`, {
-                completedAt: lastRun.completed_at,
-              });
+              this.logger.warn(
+                `⚠️ Failed to parse last run time for user ${user.id}, job ${jobType}`,
+                {
+                  completedAt: lastRun.completed_at,
+                }
+              );
             }
           } else {
-            this.logger.info(`ℹ️ No completed runs found for user ${user.id}, job ${jobType} - will run on first check`);
+            this.logger.info(
+              `ℹ️ No completed runs found for user ${user.id}, job ${jobType} - will run on first check`
+            );
           }
         } catch (err) {
           this.logger.warn(`Failed to load last run time for user ${user.id}, job ${jobType}`, {
@@ -203,10 +208,13 @@ class Scheduler {
       const now = Date.now();
       const jobTypes = this.batchManager.getRegisteredJobTypes();
 
-      this.logger.debug(`Checking ${jobTypes.length} job type(s) for ${users.length} user(s): ${jobTypes.join(", ")}`, {
-        currentTime: new Date(now).toISOString(),
-        currentTimeMs: now,
-      });
+      this.logger.debug(
+        `Checking ${jobTypes.length} job type(s) for ${users.length} user(s): ${jobTypes.join(", ")}`,
+        {
+          currentTime: new Date(now).toISOString(),
+          currentTimeMs: now,
+        }
+      );
 
       // Check each user's batch configs
       for (const user of users) {
@@ -231,7 +239,9 @@ class Scheduler {
           });
 
           if (!config.enabled || config.intervalMinutes < 1) {
-            this.logger.debug(`User ${user.id}, ${jobType}: Skipped - disabled or invalid interval`);
+            this.logger.debug(
+              `User ${user.id}, ${jobType}: Skipped - disabled or invalid interval`
+            );
             // Job is disabled or invalid interval - clear any existing timer
             if (this.jobTimers.has(key)) {
               clearTimeout(this.jobTimers.get(key));
@@ -241,8 +251,7 @@ class Scheduler {
           }
 
           // Check if job is already running (prevent duplicate runs)
-          const isRunning =
-            this.batchManager.runningJobs && this.batchManager.runningJobs.get(key);
+          const isRunning = this.batchManager.runningJobs && this.batchManager.runningJobs.get(key);
           if (isRunning) {
             this.logger.debug(`User ${user.id}, ${jobType}: Skipped - already running`);
             continue;
@@ -275,12 +284,15 @@ class Scheduler {
 
           if (shouldRun) {
             // Job is due - run it (don't await, let it run in background)
-            this.logger.info(`⏰ User ${user.id}, Job ${jobType} is due to run - triggering execution`, {
-              timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
-              intervalMinutes: config.intervalMinutes,
-              lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
-              now: new Date(now).toISOString(),
-            });
+            this.logger.info(
+              `⏰ User ${user.id}, Job ${jobType} is due to run - triggering execution`,
+              {
+                timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
+                intervalMinutes: config.intervalMinutes,
+                lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
+                now: new Date(now).toISOString(),
+              }
+            );
 
             this.runJob(user.id, jobType)
               .then(() => {
@@ -295,7 +307,9 @@ class Scheduler {
           } else {
             const minutesUntilNext =
               Math.round(((intervalMs - timeSinceLastRun) / 1000 / 60) * 10) / 10;
-            this.logger.debug(`User ${user.id}, ${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`);
+            this.logger.debug(
+              `User ${user.id}, ${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`
+            );
           }
         }
       }

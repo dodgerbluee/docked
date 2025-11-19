@@ -41,7 +41,8 @@ function DataTab() {
       <div className={styles.dataTab}>
         <Card>
           <Alert variant="warning">
-            Data viewer is only available when Developer Mode is enabled. Enable it in General Settings.
+            Data viewer is only available when Developer Mode is enabled. Enable it in General
+            Settings.
           </Alert>
         </Card>
       </div>
@@ -120,4 +121,3 @@ function DataTab() {
 DataTab.propTypes = {};
 
 export default DataTab;
-

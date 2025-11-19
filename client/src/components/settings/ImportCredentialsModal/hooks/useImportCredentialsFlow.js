@@ -2,7 +2,7 @@
  * Hook for managing import credentials flow
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../utils/api";
 import { validateStep } from "../utils/credentialsValidation";
@@ -29,10 +29,13 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
   const needsDockerHubCreds = configData?.dockerHubCredentials !== null;
   const needsDiscordCreds = configData?.discordWebhooks && configData.discordWebhooks.length > 0;
 
-  const steps = [];
-  if (needsPortainerCreds) steps.push("portainer");
-  if (needsDockerHubCreds) steps.push("dockerhub");
-  if (needsDiscordCreds) steps.push("discord");
+  const steps = useMemo(() => {
+    const stepArray = [];
+    if (needsPortainerCreds) stepArray.push("portainer");
+    if (needsDockerHubCreds) stepArray.push("dockerhub");
+    if (needsDiscordCreds) stepArray.push("discord");
+    return stepArray;
+  }, [needsPortainerCreds, needsDockerHubCreds, needsDiscordCreds]);
 
   useEffect(() => {
     if (isOpen) {
@@ -397,4 +400,3 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     handleUpdateDiscordCred,
   };
 };
-

@@ -10,6 +10,7 @@ The database uses SQLite and contains user-specific configurations for Portainer
 Most data is isolated per user via a `user_id` foreign key.
 
 The database uses a normalized schema with separate tables for:
+
 - **Portainer container state** (`portainer_containers`) - Stores container information from Portainer instances
 - **Docker Hub image versions** (`docker_hub_image_versions`) - Tracks Docker Hub image version information per user
 
@@ -20,6 +21,7 @@ This normalized design ensures data persistence across logouts and reduces Docke
 ### `batch_config`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE batch_config (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,20 +35,21 @@ CREATE TABLE batch_config (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| job_type | TEXT | NOT NULL | - |
-| enabled | INTEGER | DEFAULT 0 | - |
-| interval_minutes | INTEGER | DEFAULT 60 | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column           | Type     | Constraints               | Description |
+| ---------------- | -------- | ------------------------- | ----------- |
+| id               | INTEGER  | PRIMARY KEY               | -           |
+| job_type         | TEXT     | NOT NULL                  | -           |
+| enabled          | INTEGER  | DEFAULT 0                 | -           |
+| interval_minutes | INTEGER  | DEFAULT 60                | -           |
+| created_at       | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at       | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
 
 ---
 
 ### `batch_runs`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE batch_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,19 +67,19 @@ CREATE TABLE batch_runs (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| status | TEXT | NOT NULL | - |
-| job_type | TEXT | DEFAULT docker-hub-pull | - |
-| started_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| completed_at | DATETIME | - | - |
-| duration_ms | INTEGER | - | - |
-| containers_checked | INTEGER | DEFAULT 0 | - |
-| containers_updated | INTEGER | DEFAULT 0 | - |
-| error_message | TEXT | - | - |
-| logs | TEXT | - | - |
-| is_manual | INTEGER | DEFAULT 0 | - |
+| Column             | Type     | Constraints               | Description |
+| ------------------ | -------- | ------------------------- | ----------- |
+| id                 | INTEGER  | PRIMARY KEY               | -           |
+| status             | TEXT     | NOT NULL                  | -           |
+| job_type           | TEXT     | DEFAULT docker-hub-pull   | -           |
+| started_at         | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| completed_at       | DATETIME | -                         | -           |
+| duration_ms        | INTEGER  | -                         | -           |
+| containers_checked | INTEGER  | DEFAULT 0                 | -           |
+| containers_updated | INTEGER  | DEFAULT 0                 | -           |
+| error_message      | TEXT     | -                         | -           |
+| logs               | TEXT     | -                         | -           |
+| is_manual          | INTEGER  | DEFAULT 0                 | -           |
 
 #### Indexes
 
@@ -88,6 +91,7 @@ CREATE TABLE batch_runs (
 ### `docker_hub_image_versions`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE IF NOT EXISTS docker_hub_image_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,28 +121,28 @@ CREATE TABLE IF NOT EXISTS docker_hub_image_versions (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| user_id | INTEGER | NOT NULL | Foreign key to users table |
-| image_name | TEXT | NOT NULL | Full image name (e.g., "nginx:latest") |
-| image_repo | TEXT | NOT NULL | Image repository without tag (e.g., "nginx") |
-| registry | TEXT | DEFAULT 'docker.io' | Registry (docker.io, ghcr.io, etc.) |
-| namespace | TEXT | - | Namespace (e.g., "library" for official images) |
-| repository | TEXT | NOT NULL | Repository name |
-| current_tag | TEXT | - | Current tag being used |
-| current_version | TEXT | - | Current version |
-| current_digest | TEXT | - | Current image digest |
-| latest_tag | TEXT | - | Latest available tag |
-| latest_version | TEXT | - | Latest available version |
-| latest_digest | TEXT | - | Latest image digest |
-| has_update | INTEGER | DEFAULT 0 | Whether an update is available (0 or 1) |
-| latest_publish_date | TEXT | - | Publish date of latest version |
-| current_version_publish_date | TEXT | - | Publish date of current version |
-| exists_in_docker_hub | INTEGER | DEFAULT 0 | Whether image exists in Docker Hub (0 or 1) |
-| last_checked | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last time Docker Hub was checked |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column                       | Type     | Constraints               | Description                                     |
+| ---------------------------- | -------- | ------------------------- | ----------------------------------------------- |
+| id                           | INTEGER  | PRIMARY KEY               | -                                               |
+| user_id                      | INTEGER  | NOT NULL                  | Foreign key to users table                      |
+| image_name                   | TEXT     | NOT NULL                  | Full image name (e.g., "nginx:latest")          |
+| image_repo                   | TEXT     | NOT NULL                  | Image repository without tag (e.g., "nginx")    |
+| registry                     | TEXT     | DEFAULT 'docker.io'       | Registry (docker.io, ghcr.io, etc.)             |
+| namespace                    | TEXT     | -                         | Namespace (e.g., "library" for official images) |
+| repository                   | TEXT     | NOT NULL                  | Repository name                                 |
+| current_tag                  | TEXT     | -                         | Current tag being used                          |
+| current_version              | TEXT     | -                         | Current version                                 |
+| current_digest               | TEXT     | -                         | Current image digest                            |
+| latest_tag                   | TEXT     | -                         | Latest available tag                            |
+| latest_version               | TEXT     | -                         | Latest available version                        |
+| latest_digest                | TEXT     | -                         | Latest image digest                             |
+| has_update                   | INTEGER  | DEFAULT 0                 | Whether an update is available (0 or 1)         |
+| latest_publish_date          | TEXT     | -                         | Publish date of latest version                  |
+| current_version_publish_date | TEXT     | -                         | Publish date of current version                 |
+| exists_in_docker_hub         | INTEGER  | DEFAULT 0                 | Whether image exists in Docker Hub (0 or 1)     |
+| last_checked                 | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last time Docker Hub was checked                |
+| created_at                   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -                                               |
+| updated_at                   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -                                               |
 
 #### Indexes
 
@@ -156,6 +160,7 @@ CREATE TABLE IF NOT EXISTS docker_hub_image_versions (
 ### `portainer_containers`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE IF NOT EXISTS portainer_containers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,26 +189,26 @@ CREATE TABLE IF NOT EXISTS portainer_containers (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| user_id | INTEGER | NOT NULL | Foreign key to users table |
-| portainer_instance_id | INTEGER | NOT NULL | Foreign key to portainer_instances table |
-| container_id | TEXT | NOT NULL | Docker container ID |
-| container_name | TEXT | NOT NULL | Container name |
-| endpoint_id | TEXT | NOT NULL | Portainer endpoint ID |
-| image_name | TEXT | NOT NULL | Full image name (e.g., "nginx:latest") |
-| image_repo | TEXT | NOT NULL | Image repository without tag |
-| status | TEXT | - | Container status |
-| state | TEXT | - | Container state |
-| stack_name | TEXT | - | Docker stack name (if part of a stack) |
-| current_digest | TEXT | - | Current image digest |
-| image_created_date | TEXT | - | Image creation date |
-| uses_network_mode | INTEGER | DEFAULT 0 | Whether container uses network_mode (0 or 1) |
-| provides_network | INTEGER | DEFAULT 0 | Whether container provides network for others (0 or 1) |
-| last_seen | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last time container was seen |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column                | Type     | Constraints               | Description                                            |
+| --------------------- | -------- | ------------------------- | ------------------------------------------------------ |
+| id                    | INTEGER  | PRIMARY KEY               | -                                                      |
+| user_id               | INTEGER  | NOT NULL                  | Foreign key to users table                             |
+| portainer_instance_id | INTEGER  | NOT NULL                  | Foreign key to portainer_instances table               |
+| container_id          | TEXT     | NOT NULL                  | Docker container ID                                    |
+| container_name        | TEXT     | NOT NULL                  | Container name                                         |
+| endpoint_id           | TEXT     | NOT NULL                  | Portainer endpoint ID                                  |
+| image_name            | TEXT     | NOT NULL                  | Full image name (e.g., "nginx:latest")                 |
+| image_repo            | TEXT     | NOT NULL                  | Image repository without tag                           |
+| status                | TEXT     | -                         | Container status                                       |
+| state                 | TEXT     | -                         | Container state                                        |
+| stack_name            | TEXT     | -                         | Docker stack name (if part of a stack)                 |
+| current_digest        | TEXT     | -                         | Current image digest                                   |
+| image_created_date    | TEXT     | -                         | Image creation date                                    |
+| uses_network_mode     | INTEGER  | DEFAULT 0                 | Whether container uses network_mode (0 or 1)           |
+| provides_network      | INTEGER  | DEFAULT 0                 | Whether container provides network for others (0 or 1) |
+| last_seen             | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last time container was seen                           |
+| created_at            | DATETIME | DEFAULT CURRENT_TIMESTAMP | -                                                      |
+| updated_at            | DATETIME | DEFAULT CURRENT_TIMESTAMP | -                                                      |
 
 #### Indexes
 
@@ -222,6 +227,7 @@ CREATE TABLE IF NOT EXISTS portainer_containers (
 ### `discord_webhooks`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE discord_webhooks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,18 +242,18 @@ CREATE TABLE discord_webhooks (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| webhook_url | TEXT | NOT NULL | - |
-| server_name | TEXT | - | - |
-| channel_name | TEXT | - | - |
-| enabled | INTEGER | DEFAULT 1 | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| avatar_url | TEXT | - | - |
-| guild_id | TEXT | - | - |
-| channel_id | TEXT | - | - |
+| Column       | Type     | Constraints               | Description |
+| ------------ | -------- | ------------------------- | ----------- |
+| id           | INTEGER  | PRIMARY KEY               | -           |
+| webhook_url  | TEXT     | NOT NULL                  | -           |
+| server_name  | TEXT     | -                         | -           |
+| channel_name | TEXT     | -                         | -           |
+| enabled      | INTEGER  | DEFAULT 1                 | -           |
+| created_at   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| avatar_url   | TEXT     | -                         | -           |
+| guild_id     | TEXT     | -                         | -           |
+| channel_id   | TEXT     | -                         | -           |
 
 #### Indexes
 
@@ -258,6 +264,7 @@ CREATE TABLE discord_webhooks (
 ### `docker_hub_credentials`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE docker_hub_credentials (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -270,19 +277,20 @@ CREATE TABLE docker_hub_credentials (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| username | TEXT | - | - |
-| token | TEXT | - | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column     | Type     | Constraints               | Description |
+| ---------- | -------- | ------------------------- | ----------- |
+| id         | INTEGER  | PRIMARY KEY               | -           |
+| username   | TEXT     | -                         | -           |
+| token      | TEXT     | -                         | -           |
+| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
 
 ---
 
 ### `portainer_instances`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE portainer_instances (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -298,19 +306,19 @@ CREATE TABLE portainer_instances (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| name | TEXT | NOT NULL | - |
-| url | TEXT | NOT NULL | - |
-| username | TEXT | NOT NULL | - |
-| password | TEXT | NOT NULL | - |
-| display_order | INTEGER | DEFAULT 0 | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| auth_type | TEXT | DEFAULT password | - |
-| api_key | TEXT | - | - |
-| ip_address | TEXT | - | - |
+| Column        | Type     | Constraints               | Description |
+| ------------- | -------- | ------------------------- | ----------- |
+| id            | INTEGER  | PRIMARY KEY               | -           |
+| name          | TEXT     | NOT NULL                  | -           |
+| url           | TEXT     | NOT NULL                  | -           |
+| username      | TEXT     | NOT NULL                  | -           |
+| password      | TEXT     | NOT NULL                  | -           |
+| display_order | INTEGER  | DEFAULT 0                 | -           |
+| created_at    | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at    | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| auth_type     | TEXT     | DEFAULT password          | -           |
+| api_key       | TEXT     | -                         | -           |
+| ip_address    | TEXT     | -                         | -           |
 
 #### Indexes
 
@@ -322,6 +330,7 @@ CREATE TABLE portainer_instances (
 ### `settings`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,13 +343,13 @@ CREATE TABLE settings (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| key | TEXT | NOT NULL | - |
-| value | TEXT | - | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column     | Type     | Constraints               | Description |
+| ---------- | -------- | ------------------------- | ----------- |
+| id         | INTEGER  | PRIMARY KEY               | -           |
+| key        | TEXT     | NOT NULL                  | -           |
+| value      | TEXT     | -                         | -           |
+| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
 
 #### Indexes
 
@@ -351,6 +360,7 @@ CREATE TABLE settings (
 ### `tracked_images`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE tracked_images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -373,24 +383,24 @@ CREATE TABLE tracked_images (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| name | TEXT | NOT NULL | - |
-| image_name | TEXT | - | - |
-| github_repo | TEXT | - | - |
-| source_type | TEXT | DEFAULT docker | - |
-| current_version | TEXT | - | - |
-| current_digest | TEXT | - | - |
-| latest_version | TEXT | - | - |
-| latest_digest | TEXT | - | - |
-| has_update | INTEGER | DEFAULT 0 | - |
-| current_version_publish_date | TEXT | - | - |
-| last_checked | DATETIME | - | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| gitlab_token | TEXT | - | - |
-| latest_version_publish_date | TEXT | - | - |
+| Column                       | Type     | Constraints               | Description |
+| ---------------------------- | -------- | ------------------------- | ----------- |
+| id                           | INTEGER  | PRIMARY KEY               | -           |
+| name                         | TEXT     | NOT NULL                  | -           |
+| image_name                   | TEXT     | -                         | -           |
+| github_repo                  | TEXT     | -                         | -           |
+| source_type                  | TEXT     | DEFAULT docker            | -           |
+| current_version              | TEXT     | -                         | -           |
+| current_digest               | TEXT     | -                         | -           |
+| latest_version               | TEXT     | -                         | -           |
+| latest_digest                | TEXT     | -                         | -           |
+| has_update                   | INTEGER  | DEFAULT 0                 | -           |
+| current_version_publish_date | TEXT     | -                         | -           |
+| last_checked                 | DATETIME | -                         | -           |
+| created_at                   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at                   | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| gitlab_token                 | TEXT     | -                         | -           |
+| latest_version_publish_date  | TEXT     | -                         | -           |
 
 #### Indexes
 
@@ -403,6 +413,7 @@ CREATE TABLE tracked_images (
 ### `users`
 
 **SQL Definition:**
+
 ```sql
 CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -417,15 +428,15 @@ CREATE TABLE users (
 
 #### Columns
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | - |
-| username | TEXT | NOT NULL | - |
-| password_hash | TEXT | NOT NULL | - |
-| role | TEXT | DEFAULT Administrator | - |
-| password_changed | INTEGER | DEFAULT 0 | - |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | - |
+| Column           | Type     | Constraints               | Description |
+| ---------------- | -------- | ------------------------- | ----------- |
+| id               | INTEGER  | PRIMARY KEY               | -           |
+| username         | TEXT     | NOT NULL                  | -           |
+| password_hash    | TEXT     | NOT NULL                  | -           |
+| role             | TEXT     | DEFAULT Administrator     | -           |
+| password_changed | INTEGER  | DEFAULT 0                 | -           |
+| created_at       | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
+| updated_at       | DATETIME | DEFAULT CURRENT_TIMESTAMP | -           |
 
 #### Indexes
 

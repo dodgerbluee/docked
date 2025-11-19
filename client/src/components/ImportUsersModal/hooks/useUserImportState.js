@@ -11,18 +11,18 @@ export function useUserImportState(isOpen) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
-  
+
   // User iteration state
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [importStarted, setImportStarted] = useState(false);
-  
+
   // Per-user data storage
   const [userPasswords, setUserPasswords] = useState({}); // { username: password }
   const [userCredentials, setUserCredentials] = useState({}); // { username: { portainerInstances, dockerHub, discordWebhooks } }
   const [userSkippedSteps, setUserSkippedSteps] = useState({}); // { username: Set<stepType> }
   const [userStepErrors, setUserStepErrors] = useState({}); // { username: { stepType: error } }
-  
+
   // Instance admin verification state
   const [verificationStatus, setVerificationStatus] = useState({}); // { username: true/false/undefined }
   const [verifying, setVerifying] = useState({}); // { username: boolean }
@@ -30,11 +30,11 @@ export function useUserImportState(isOpen) {
   const [generating, setGenerating] = useState({}); // { username: boolean }
   const [verificationTokens, setVerificationTokens] = useState({}); // { username: token }
   const [verificationInputTokens, setVerificationInputTokens] = useState({}); // { username: inputToken }
-  
+
   // Results tracking
   const [importedUsers, setImportedUsers] = useState([]); // Array of successfully imported usernames
   const [importErrors, setImportErrors] = useState([]); // Array of error messages
-  
+
   const fileInputRef = useRef(null);
 
   // Reset all state when modal opens/closes
@@ -77,7 +77,7 @@ export function useUserImportState(isOpen) {
     setLoading,
     importing,
     setImporting,
-    
+
     // User iteration
     currentUserIndex,
     setCurrentUserIndex,
@@ -85,7 +85,7 @@ export function useUserImportState(isOpen) {
     setCurrentStepIndex,
     importStarted,
     setImportStarted,
-    
+
     // Per-user data
     userPasswords,
     setUserPasswords,
@@ -95,7 +95,7 @@ export function useUserImportState(isOpen) {
     setUserSkippedSteps,
     userStepErrors,
     setUserStepErrors,
-    
+
     // Verification
     verificationStatus,
     setVerificationStatus,
@@ -109,15 +109,14 @@ export function useUserImportState(isOpen) {
     setVerificationTokens,
     verificationInputTokens,
     setVerificationInputTokens,
-    
+
     // Results
     importedUsers,
     setImportedUsers,
     importErrors,
     setImportErrors,
-    
+
     // Refs
     fileInputRef,
   };
 }
-

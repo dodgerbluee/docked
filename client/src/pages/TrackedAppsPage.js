@@ -78,11 +78,12 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     allAppsWithUpdatesSelected,
   } = useTrackedAppsSelection();
 
-  const {
-    appsWithUpdates,
-    appsWithoutUpdates,
-    displayedApps,
-  } = useTrackedAppsFiltering(trackedImages, selectedSourceFilters, searchQuery, contentTab);
+  const { appsWithUpdates, appsWithoutUpdates, displayedApps } = useTrackedAppsFiltering(
+    trackedImages,
+    selectedSourceFilters,
+    searchQuery,
+    contentTab
+  );
 
   // Wrapper for handleSelectAll that includes appsWithUpdates
   const handleSelectAll = useCallback(() => {
@@ -98,12 +99,15 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   };
 
   // Handle upgrade with callback to refresh App.js state
-  const handleUpgrade = async (id, latestVersion) => {
-    await handleUpgradeTrackedImage(id, latestVersion);
-    if (onUpgradeTrackedImage) {
-      await onUpgradeTrackedImage();
-    }
-  };
+  const handleUpgrade = useCallback(
+    async (id, latestVersion) => {
+      await handleUpgradeTrackedImage(id, latestVersion);
+      if (onUpgradeTrackedImage) {
+        await onUpgradeTrackedImage();
+      }
+    },
+    [handleUpgradeTrackedImage, onUpgradeTrackedImage]
+  );
 
   // Handle modal success with callback to refresh App.js state
   const handleModalSuccess = async (imageId) => {
@@ -246,7 +250,13 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
           if (confirmDialog.onClose) {
             confirmDialog.onClose();
           } else {
-            setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+            setConfirmDialog({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: null,
+              onClose: null,
+            });
           }
         }}
       />

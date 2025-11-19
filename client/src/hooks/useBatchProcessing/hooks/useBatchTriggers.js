@@ -318,4 +318,3 @@ export const useBatchTriggers = ({
     handleBatchTrackedAppsCheck,
   };
 };
-

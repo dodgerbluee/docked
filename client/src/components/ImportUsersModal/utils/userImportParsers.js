@@ -13,17 +13,17 @@
 export function parseUserImportFile(fileContent) {
   try {
     const jsonData = JSON.parse(fileContent);
-    
+
     // Support both formats:
     // 1. { users: [...] } - array of users (may have nested user object)
     // 2. Export format with user object (convert to array)
     let usersArray = null;
-    
+
     if (jsonData.users && Array.isArray(jsonData.users)) {
       // Normalize the users array - handle both flat and nested user structures
       usersArray = jsonData.users.map((userItem) => {
         // If the item has a nested 'user' property (export format), extract and merge it
-        if (userItem.user && typeof userItem.user === 'object') {
+        if (userItem.user && typeof userItem.user === "object") {
           return {
             ...userItem.user, // Spread user properties (username, email, role, etc.)
             ...userItem, // Spread top-level properties (portainerInstances, etc.)
@@ -31,16 +31,19 @@ export function parseUserImportFile(fileContent) {
             username: userItem.user.username,
             email: userItem.user.email,
             role: userItem.user.role,
-            instanceAdmin: userItem.user.instance_admin !== undefined 
-              ? userItem.user.instance_admin 
-              : (userItem.user.instanceAdmin !== undefined ? userItem.user.instanceAdmin : false),
+            instanceAdmin:
+              userItem.user.instance_admin !== undefined
+                ? userItem.user.instance_admin
+                : userItem.user.instanceAdmin !== undefined
+                  ? userItem.user.instanceAdmin
+                  : false,
             instance_admin: userItem.user.instance_admin,
           };
         }
         // Otherwise, use the item as-is (flat structure)
         return userItem;
       });
-    } else if (jsonData.user && typeof jsonData.user === 'object') {
+    } else if (jsonData.user && typeof jsonData.user === "object") {
       // Convert single user export format to array
       // Merge top-level properties (portainerInstances, dockerHubCredentials, discordWebhooks, trackedImages) into user object
       const userWithConfig = {
@@ -74,9 +77,10 @@ export function parseUserImportFile(fileContent) {
 
     // Identify instance admin users for summary display
     const instanceAdminUsers = usersArray.filter((user) => {
-      const instanceAdmin = user.instanceAdmin !== undefined 
-        ? user.instanceAdmin 
-        : (user.instance_admin === true || user.instance_admin === 1);
+      const instanceAdmin =
+        user.instanceAdmin !== undefined
+          ? user.instanceAdmin
+          : user.instance_admin === true || user.instance_admin === 1;
       return instanceAdmin;
     });
 
@@ -84,7 +88,7 @@ export function parseUserImportFile(fileContent) {
       success: true,
       data: {
         users: usersArray,
-        instanceAdminUsers: instanceAdminUsers.map(u => ({ username: u.username })),
+        instanceAdminUsers: instanceAdminUsers.map((u) => ({ username: u.username })),
       },
     };
   } catch (parseError) {
@@ -100,8 +104,7 @@ export function parseUserImportFile(fileContent) {
  * Check if a user is an instance admin
  */
 export function isInstanceAdmin(user) {
-  return user.instanceAdmin !== undefined 
-    ? user.instanceAdmin 
-    : (user.instance_admin === true || user.instance_admin === 1);
+  return user.instanceAdmin !== undefined
+    ? user.instanceAdmin
+    : user.instance_admin === true || user.instance_admin === 1;
 }
-

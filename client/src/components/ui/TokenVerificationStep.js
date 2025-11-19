@@ -29,7 +29,7 @@ function TokenVerificationStep({
   const [inputToken, setInputToken] = useState("");
   const [error, setError] = useState("");
   const [currentToken, setCurrentToken] = useState(token || "");
-  
+
   // Use error prop if provided, otherwise use local error state
   // Prioritize errorProp since it comes from parent and is the source of truth
   const displayError = errorProp !== undefined && errorProp !== null ? errorProp : error;
@@ -42,7 +42,7 @@ function TokenVerificationStep({
       setError("");
     }
   }, [verified, errorProp]);
-  
+
   // Don't clear local error when error prop changes - let parent manage it
   // Only clear local error if error prop is explicitly cleared (empty string or null)
   useEffect(() => {
@@ -87,11 +87,11 @@ function TokenVerificationStep({
           <h3 className={styles.title}>{title}</h3>
         </div>
       )}
-      
+
       {user && (
         <div className={styles.userInfo}>
           <p className={styles.userName}>
-            User: <strong>{typeof user === "string" ? user : (user.username || user)}</strong>
+            User: <strong>{typeof user === "string" ? user : user.username || user}</strong>
           </p>
           {instruction && <p className={styles.instruction}>{instruction}</p>}
         </div>
@@ -122,7 +122,7 @@ function TokenVerificationStep({
             <div className={styles.tokenHeader}>
               <strong>{tokenLabel}:</strong>
             </div>
-            {(currentToken || token) ? (
+            {currentToken || token ? (
               <>
                 <code className={styles.tokenCode}>{currentToken || token}</code>
                 <small>This token is also available in the server logs.</small>
@@ -144,7 +144,9 @@ function TokenVerificationStep({
       {verified === false && (
         <Alert variant="error" className={styles.statusAlert}>
           <XCircle size={16} />
-          {errorProp || error || "Invalid token. Please check the server logs for the correct token."}
+          {errorProp ||
+            error ||
+            "Invalid token. Please check the server logs for the correct token."}
         </Alert>
       )}
 
@@ -197,4 +199,3 @@ TokenVerificationStep.propTypes = {
 };
 
 export default TokenVerificationStep;
-

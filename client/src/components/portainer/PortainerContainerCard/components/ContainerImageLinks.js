@@ -38,11 +38,7 @@ const ContainerImageLinks = ({ isDocker, isGitHub, dockerHubUrl, githubUrl, imag
             }
           }}
         >
-          <img
-            src="/img/docker-mark-white.svg"
-            alt="Docker"
-            className={styles.dockerIconSmall}
-          />
+          <img src="/img/docker-mark-white.svg" alt="Docker" className={styles.dockerIconSmall} />
         </a>
       ) : isGitHub ? (
         <a
@@ -75,4 +71,3 @@ ContainerImageLinks.propTypes = {
 };
 
 export default ContainerImageLinks;
-

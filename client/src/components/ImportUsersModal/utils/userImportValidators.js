@@ -20,7 +20,7 @@ export function validatePasswordStep(password) {
  */
 export function validatePortainerStep(credentials, instances) {
   const errors = {};
-  
+
   if (instances.length > 0) {
     credentials.forEach((cred, index) => {
       if (cred.auth_type === "apikey") {
@@ -37,7 +37,7 @@ export function validatePortainerStep(credentials, instances) {
       }
     });
   }
-  
+
   return {
     valid: Object.keys(errors).length === 0,
     errors,
@@ -50,7 +50,7 @@ export function validatePortainerStep(credentials, instances) {
 export function validateDockerHubStep(credentials) {
   const errors = {};
   const dockerHub = credentials?.dockerHub;
-  
+
   if (dockerHub && (dockerHub.username || dockerHub.token)) {
     // If any field is filled, both are required
     if (!dockerHub.username) {
@@ -60,7 +60,7 @@ export function validateDockerHubStep(credentials) {
       errors.dockerhub_token = "Token is required";
     }
   }
-  
+
   return {
     valid: Object.keys(errors).length === 0,
     errors,
@@ -72,7 +72,7 @@ export function validateDockerHubStep(credentials) {
  */
 export function validateDiscordStep(credentials, webhooks) {
   const errors = {};
-  
+
   if (webhooks.length > 0) {
     const discordWebhooks = credentials?.discordWebhooks || [];
     discordWebhooks.forEach((cred, index) => {
@@ -82,7 +82,7 @@ export function validateDiscordStep(credentials, webhooks) {
       }
     });
   }
-  
+
   return {
     valid: Object.keys(errors).length === 0,
     errors,
@@ -106,4 +106,3 @@ export function validateStep(stepType, credentials, password, instances, webhook
       return { valid: true };
   }
 }
-

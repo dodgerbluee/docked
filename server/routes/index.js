@@ -128,15 +128,27 @@ router.get(
 );
 // Auth routes (public - no authentication required)
 router.get("/auth/check-user-exists", asyncHandler(authController.checkUserExists));
-router.post("/auth/generate-registration-code", asyncHandler(authController.generateRegistrationCodeEndpoint));
+router.post(
+  "/auth/generate-registration-code",
+  asyncHandler(authController.generateRegistrationCodeEndpoint)
+);
 router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
 router.post("/auth/register", asyncHandler(authController.register));
 router.post("/auth/login", asyncHandler(authController.login));
 router.post("/auth/import-users", asyncHandler(authController.importUsers));
 router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
-router.post("/auth/generate-instance-admin-token", asyncHandler(authController.generateInstanceAdminToken));
-router.post("/auth/regenerate-instance-admin-token", asyncHandler(authController.regenerateInstanceAdminToken));
-router.post("/auth/verify-instance-admin-token", asyncHandler(authController.verifyInstanceAdminToken));
+router.post(
+  "/auth/generate-instance-admin-token",
+  asyncHandler(authController.generateInstanceAdminToken)
+);
+router.post(
+  "/auth/regenerate-instance-admin-token",
+  asyncHandler(authController.regenerateInstanceAdminToken)
+);
+router.post(
+  "/auth/verify-instance-admin-token",
+  asyncHandler(authController.verifyInstanceAdminToken)
+);
 
 /**
  * @swagger

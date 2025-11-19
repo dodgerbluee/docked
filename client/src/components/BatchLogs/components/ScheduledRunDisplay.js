@@ -99,14 +99,10 @@ const ScheduledRunDisplay = ({
             fontSize: "0.9rem",
             fontWeight: "600",
             background:
-              jobType === "docker-hub-pull"
-                ? "rgba(30, 144, 255, 0.2)"
-                : "rgba(139, 92, 246, 0.2)",
+              jobType === "docker-hub-pull" ? "rgba(30, 144, 255, 0.2)" : "rgba(139, 92, 246, 0.2)",
             color: jobType === "docker-hub-pull" ? "var(--dodger-blue)" : "#8b5cf6",
             border:
-              jobType === "docker-hub-pull"
-                ? "1px solid var(--dodger-blue)"
-                : "1px solid #8b5cf6",
+              jobType === "docker-hub-pull" ? "1px solid var(--dodger-blue)" : "1px solid #8b5cf6",
             borderRadius: "8px",
             cursor: triggering ? "not-allowed" : "pointer",
             transition: "all 0.3s",
@@ -137,4 +133,3 @@ const ScheduledRunDisplay = ({
 };
 
 export default ScheduledRunDisplay;
-

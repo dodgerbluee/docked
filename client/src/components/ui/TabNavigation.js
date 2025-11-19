@@ -6,7 +6,14 @@ import styles from "./TabNavigation.module.css";
  * TabNavigation Component
  * Reusable tab navigation component for consistent tab UI across the application
  */
-const TabNavigation = React.memo(function TabNavigation({ tabs, activeTab, onTabChange, labels, disabledTabs = [], className = "" }) {
+const TabNavigation = React.memo(function TabNavigation({
+  tabs,
+  activeTab,
+  onTabChange,
+  labels,
+  disabledTabs = [],
+  className = "",
+}) {
   return (
     <div className={`${styles.tabsContainer} ${className}`}>
       <div className={styles.tabsLeft}>
@@ -42,4 +49,3 @@ TabNavigation.propTypes = {
 };
 
 export default TabNavigation;
-

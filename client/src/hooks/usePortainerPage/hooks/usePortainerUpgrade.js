@@ -123,29 +123,26 @@ export const usePortainerUpgrade = ({
   }, [upgradeModal.container, fetchContainers]);
 
   // Open batch upgrade modal
-  const handleBatchUpgrade = useCallback(
-    (selectedContainers, aggregatedContainers) => {
-      if (selectedContainers.size === 0) {
-        toast.warning("Please select at least one container to upgrade");
-        return null;
-      }
+  const handleBatchUpgrade = useCallback((selectedContainers, aggregatedContainers) => {
+    if (selectedContainers.size === 0) {
+      toast.warning("Please select at least one container to upgrade");
+      return null;
+    }
 
-      const containersToUpgrade = aggregatedContainers.all.filter((c) =>
-        selectedContainers.has(c.id)
-      );
+    const containersToUpgrade = aggregatedContainers.all.filter((c) =>
+      selectedContainers.has(c.id)
+    );
 
-      setBatchUpgradeModal({
-        isOpen: true,
-        containers: containersToUpgrade,
-      });
+    setBatchUpgradeModal({
+      isOpen: true,
+      containers: containersToUpgrade,
+    });
 
-      return {
-        containerCount: containersToUpgrade.length,
-        containers: containersToUpgrade,
-      };
-    },
-    []
-  );
+    return {
+      containerCount: containersToUpgrade.length,
+      containers: containersToUpgrade,
+    };
+  }, []);
 
   // Close batch upgrade modal
   const closeBatchUpgradeModal = useCallback(() => {
@@ -287,4 +284,3 @@ export const usePortainerUpgrade = ({
     handleBatchUpgrade,
   };
 };
-

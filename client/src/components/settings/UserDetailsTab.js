@@ -64,7 +64,11 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
   };
 
   const handleExportConfig = () => {
-    handleExport("/api/user/export-config", "docked-config-export", "Configuration exported successfully!");
+    handleExport(
+      "/api/user/export-config",
+      "docked-config-export",
+      "Configuration exported successfully!"
+    );
   };
 
   return (

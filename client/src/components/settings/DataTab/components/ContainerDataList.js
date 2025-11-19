@@ -40,4 +40,3 @@ ContainerDataList.propTypes = {
 };
 
 export default ContainerDataList;
-

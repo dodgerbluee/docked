@@ -114,4 +114,3 @@ export const getManualBadge = () => {
     </span>
   );
 };
-

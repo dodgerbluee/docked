@@ -8,7 +8,12 @@ import { SETTINGS_TABS, SETTINGS_TAB_LABELS } from "../../constants/settings";
  * Renders the tab navigation buttons for the Settings page
  * Uses the reusable TabNavigation component for consistency
  */
-const SettingsTabNavigation = React.memo(function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged, developerModeEnabled = false }) {
+const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
+  activeTab,
+  onTabChange,
+  passwordChanged,
+  developerModeEnabled = false,
+}) {
   const tabs = [
     SETTINGS_TABS.GENERAL,
     SETTINGS_TABS.USER_DETAILS,
