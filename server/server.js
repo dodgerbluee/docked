@@ -292,8 +292,35 @@ if (shouldStartServer) {
       }
 
       // Start batch system (runs jobs in background even when browser is closed)
+      // Wait for database to be ready before starting batch system
       // Use setImmediate to ensure server is fully started before starting batch system
-      setImmediate(() => {
+      setImmediate(async () => {
+        try {
+          // Wait for database tables to be created before starting batch system
+          await waitForDatabase(20, 200); // Wait up to 4 seconds (20 retries * 200ms)
+          logger.debug("Database ready, initializing log level and starting batch system", { module: "server" });
+          
+          // Initialize log level from database (loads debug mode setting)
+          try {
+            const { initializeLogLevel } = require("./utils/logLevel");
+            await initializeLogLevel();
+            logger.debug("Log level initialized from database", { module: "server" });
+          } catch (logLevelError) {
+            logger.error("Failed to initialize log level from database", {
+              module: "server",
+              error: logLevelError,
+            });
+            // Don't crash if log level initialization fails
+          }
+        } catch (dbError) {
+          logger.error("Database not ready, batch system will not start", {
+            module: "server",
+            error: dbError,
+          });
+          // Don't crash the server if database isn't ready
+          return;
+        }
+
         batchSystem
           .start()
           .then(() => {

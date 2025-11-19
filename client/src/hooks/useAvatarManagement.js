@@ -94,7 +94,22 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
       } else if (newAvatar.startsWith("http") || newAvatar.startsWith("/img/")) {
         setAvatar(newAvatar);
       } else {
-        setAvatar(`${API_BASE_URL}${newAvatar}`);
+        // If it's an API URL, fetch it as a blob to include authentication
+        const avatarUrl = newAvatar.startsWith("/api/") || newAvatar.startsWith("api/")
+          ? `${API_BASE_URL}${newAvatar.startsWith("/") ? newAvatar : `/${newAvatar}`}`
+          : `${API_BASE_URL}${newAvatar}`;
+        
+        try {
+          const response = await axios.get(avatarUrl, {
+            responseType: "blob",
+          });
+          const blobUrl = URL.createObjectURL(response.data);
+          setAvatar(blobUrl);
+        } catch (err) {
+          // If fetch fails, fall back to default avatar
+          console.error("Error fetching avatar:", err);
+          setAvatar("/img/default-avatar.jpg");
+        }
       }
     } else if (newAvatar instanceof File) {
       const blobUrl = URL.createObjectURL(newAvatar);

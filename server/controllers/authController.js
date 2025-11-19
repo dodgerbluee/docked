@@ -1569,9 +1569,11 @@ async function createUserWithConfig(req, res, next) {
     // Check if user already exists
     const existingUser = await getUserByUsername(username);
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: `User "${username}" already exists`,
+      // Return success with skipped flag to allow import to continue with other users
+      return res.json({
+        success: true,
+        skipped: true,
+        message: `User "${username}" already exists`,
       });
     }
 

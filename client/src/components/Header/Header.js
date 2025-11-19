@@ -39,9 +39,16 @@ const Header = ({
     onNavigateToSummary();
   };
 
-  const handleNotificationToggle = () => {
+  const handleNotificationToggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling to click-outside handler
     if (typeof onToggleNotificationMenu === "function") {
-      onToggleNotificationMenu(!showNotificationMenu);
+      // If menu is open, close it; otherwise open it
+      if (showNotificationMenu) {
+        onToggleNotificationMenu(false);
+      } else {
+        onToggleNotificationMenu(true);
+      }
     }
   };
 
@@ -76,7 +83,7 @@ const Header = ({
           <div className={styles.actionsContainer}>
             <div className={styles.notificationWrapper}>
               <button
-                className={styles.notificationButton}
+                className={`${styles.notificationButton} notification-button`}
                 onClick={handleNotificationToggle}
                 aria-label="Notifications"
                 title="Notifications"

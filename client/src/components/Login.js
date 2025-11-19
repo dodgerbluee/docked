@@ -9,7 +9,7 @@ import "./Login.css";
 import { API_BASE_URL } from "../constants/api";
 import CreateUserModal from "./CreateUserModal";
 import ImportUsersModal from "./ImportUsersModal";
-import { Upload } from "lucide-react";
+import { Upload, UserPlus } from "lucide-react";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -55,6 +55,8 @@ function Login({ onLogin }) {
       if (response.data.success) {
         // Clear success message on successful login
         setCreateUserSuccess("");
+        // Clear welcome modal session flag on new login
+        sessionStorage.removeItem("welcomeModalShown");
         // Store token in localStorage
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("username", username);
@@ -95,11 +97,20 @@ function Login({ onLogin }) {
               style={{
                 height: "2em",
                 verticalAlign: "middle",
-                marginRight: "8px",
+                marginRight: "12px",
                 display: "inline-block",
               }}
             />
-            <span style={{ display: "inline-block", transform: "translateY(3px)" }}>Docked</span>
+            <img
+              src="/img/text-header.png"
+              alt="docked"
+              style={{
+                height: "1.25em",
+                verticalAlign: "middle",
+                display: "inline-block",
+                maxWidth: "50%",
+              }}
+            />
           </h1>
           <p>Portainer Container Manager</p>
         </div>
@@ -161,6 +172,7 @@ function Login({ onLogin }) {
             disabled={loading}
             aria-label="Create a new user account"
           >
+            <UserPlus size={18} style={{ marginRight: "8px" }} />
             Create User
           </button>
           <button
@@ -182,7 +194,7 @@ function Login({ onLogin }) {
           setCreateUserSuccess("");
         }}
         onSuccess={(username) => {
-          setCreateUserSuccess(`Successfully created ${username}, please login!`);
+          setCreateUserSuccess(`Successfully created ${username}!`);
           setShowCreateUserModal(false);
         }}
       />
@@ -202,3 +214,4 @@ function Login({ onLogin }) {
 }
 
 export default Login;
+

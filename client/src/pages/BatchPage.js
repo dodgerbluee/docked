@@ -1,4 +1,4 @@
-import React, { useState, useCallback, lazy, Suspense, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Home } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -8,9 +8,10 @@ import { CardSkeleton } from "../components/ui/LoadingSkeleton";
 import { BATCH_TABS } from "../constants/batch";
 import styles from "./BatchPage.module.css";
 
-// Lazy load tab components for better performance
-const HistoryTab = lazy(() => import("../components/batch/HistoryTab"));
-const BatchTab = lazy(() => import("../components/batch/BatchTab"));
+// Import components directly for faster initial load
+// Lazy loading was causing delays and odd behavior on page open
+import HistoryTab from "../components/batch/HistoryTab";
+import BatchTab from "../components/batch/BatchTab";
 
 /**
  * BatchPage Component
@@ -76,30 +77,20 @@ function BatchPage({
       {/* Tab Content */}
       <div className={styles.contentTabPanel}>
         <ErrorBoundary>
-          <Suspense
-            fallback={
-              <div className={styles.loadingContainer}>
-                <CardSkeleton />
-                <CardSkeleton />
-                <CardSkeleton />
-              </div>
-            }
-          >
-            {batchTab === BATCH_TABS.HISTORY || batchTab === "history" ? (
-              <HistoryTab
-                key="history-tab"
-                onTriggerBatch={onTriggerBatch}
-                onTriggerTrackedAppsBatch={onTriggerTrackedAppsBatch}
-              />
-            ) : (
-              <BatchTab
-                key="settings-tab"
-                onBatchConfigUpdate={onBatchConfigUpdate}
-                colorScheme={colorScheme}
-                onColorSchemeChange={onColorSchemeChange}
-              />
-            )}
-          </Suspense>
+          {batchTab === BATCH_TABS.HISTORY || batchTab === "history" ? (
+            <HistoryTab
+              key="history-tab"
+              onTriggerBatch={onTriggerBatch}
+              onTriggerTrackedAppsBatch={onTriggerTrackedAppsBatch}
+            />
+          ) : (
+            <BatchTab
+              key="settings-tab"
+              onBatchConfigUpdate={onBatchConfigUpdate}
+              colorScheme={colorScheme}
+              onColorSchemeChange={onColorSchemeChange}
+            />
+          )}
         </ErrorBoundary>
       </div>
     </div>

@@ -60,7 +60,10 @@ function AdminPage() {
   );
 }
 
-AdminPage.propTypes = {};
+AdminPage.propTypes = {
+  // AdminPage is a top-level page component with no props
+  // All data is fetched via hooks internally
+};
 
 export default AdminPage;
 

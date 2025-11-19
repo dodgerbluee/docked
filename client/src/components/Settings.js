@@ -4,17 +4,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { AlertTriangle } from "lucide-react";
 import "./Settings.css";
 import { useSettings } from "../hooks/useSettings";
 import { SETTINGS_TABS } from "../constants/settings";
-import LoadingSpinner from "./ui/LoadingSpinner";
-import GeneralTab from "./settings/GeneralTab";
-import PortainerTab from "./settings/PortainerTab";
-import DockerHubTab from "./settings/DockerHubTab";
-import DiscordTab from "./settings/DiscordTab";
-import UserDetailsTab from "./settings/UserDetailsTab";
-import DataTab from "./settings/DataTab";
+import SettingsHeader from "./settings/components/SettingsHeader";
+import SettingsTabs from "./settings/components/SettingsTabs";
 
 const Settings = React.memo(function Settings({
   username,
@@ -203,144 +197,30 @@ const Settings = React.memo(function Settings({
            }
          }, [isFirstLogin, activeSection, onSectionChange]);
 
-  // Render user info section
-  const renderUserInfo = () => {
-    if (!settings.userInfo) return null;
-
-    return (
-      <div className="user-info-section">
-        <h3>User Information</h3>
-        <div className="info-item">
-          <strong>Username:</strong> {settings.userInfo.username}
-        </div>
-        <div className="info-item">
-          <strong>Role:</strong> {settings.userInfo.role}
-        </div>
-        {settings.userInfo.created_at && (
-          <div className="info-item">
-            <strong>Account Created:</strong>{" "}
-            {new Date(settings.userInfo.created_at).toLocaleDateString()}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <>
-      {isFirstLogin && (
-        <div className="first-login-warning">
-          <h2>
-            <AlertTriangle
-              size={20}
-              style={{
-                display: "inline-block",
-                verticalAlign: "middle",
-                marginRight: "8px",
-              }}
-            />
-            First Time Login
-          </h2>
-          <p>You must change your password before accessing the application.</p>
-        </div>
-      )}
-
-      {showUserInfoAboveTabs && renderUserInfo()}
+      <SettingsHeader
+        isFirstLogin={isFirstLogin}
+        userInfo={settings.userInfo}
+        showUserInfoAboveTabs={showUserInfoAboveTabs}
+      />
 
       {!showUserInfoAboveTabs && (
-        <>
-          {currentActiveSection === SETTINGS_TABS.GENERAL && (
-            <>
-              {!settings.isInitialized ? (
-                <LoadingSpinner size="md" message="Loading settings..." />
-              ) : (
-                <GeneralTab
-                  localColorScheme={settings.localColorScheme}
-                  setLocalColorScheme={(scheme) => {
-                    settings.setLocalColorScheme(scheme);
-                    settings.setGeneralSettingsChanged(true);
-                  }}
-                  localRefreshingTogglesEnabled={settings.localRefreshingTogglesEnabled}
-                  handleRefreshingTogglesChange={settings.handleRefreshingTogglesChange}
-                  generalSettingsChanged={settings.generalSettingsChanged}
-                  generalSettingsSaving={settings.generalSettingsSaving}
-                  generalSettingsSuccess={settings.generalSettingsSuccess}
-                  handleSaveGeneralSettings={settings.handleSaveGeneralSettings}
-                  onClearTrackedAppData={handleClearTrackedAppData}
-                  clearingTrackedAppData={clearingTrackedAppData}
-                />
-              )}
-            </>
-          )}
-
-          {currentActiveSection === SETTINGS_TABS.PORTAINER && (
-            <PortainerTab
-              portainerInstances={settings.portainerInstances}
-              onEditInstance={onEditInstance}
-              handleEditInstance={settings.handleEditInstance}
-              handleDeleteInstance={settings.handleDeleteInstance}
-              onClearPortainerData={handleClearPortainerData}
-              clearingPortainerData={clearingPortainerData}
-            />
-          )}
-
-          {currentActiveSection === SETTINGS_TABS.DOCKERHUB && (
-            <DockerHubTab
-              dockerHubCredentials={settings.dockerHubCredentials}
-              showDockerHubModal={settings.showDockerHubModal}
-              setShowDockerHubModal={settings.setShowDockerHubModal}
-              dockerHubSuccess={settings.dockerHubSuccess}
-              handleDockerHubModalSuccess={settings.handleDockerHubModalSuccess}
-              handleDeleteDockerHubCreds={settings.handleDeleteDockerHubCreds}
-            />
-          )}
-
-          {currentActiveSection === SETTINGS_TABS.DISCORD && (
-            <DiscordTab
-              discordWebhooks={settings.discordWebhooks}
-              showDiscordModal={settings.showDiscordModal}
-              setShowDiscordModal={settings.setShowDiscordModal}
-              editingDiscordWebhook={settings.editingDiscordWebhook}
-              setEditingDiscordWebhook={settings.setEditingDiscordWebhook}
-              discordSuccess={settings.discordSuccess}
-              handleDiscordModalSuccess={settings.handleDiscordModalSuccess}
-              handleDeleteDiscordWebhook={settings.handleDeleteDiscordWebhook}
-            />
-          )}
-
-          {currentActiveSection === SETTINGS_TABS.USER_DETAILS && (
-            <UserDetailsTab
-              userInfo={settings.userInfo}
-              newUsername={settings.newUsername}
-              setNewUsername={settings.setNewUsername}
-              usernamePassword={settings.usernamePassword}
-              setUsernamePassword={settings.setUsernamePassword}
-              usernameError={settings.usernameError}
-              usernameSuccess={settings.usernameSuccess}
-              usernameLoading={settings.usernameLoading}
-              handleUsernameSubmit={settings.handleUsernameSubmit}
-              isFirstLogin={isFirstLogin}
-              currentPassword={settings.currentPassword}
-              setCurrentPassword={settings.setCurrentPassword}
-              newPassword={settings.newPassword}
-              setNewPassword={settings.setNewPassword}
-              confirmPassword={settings.confirmPassword}
-              setConfirmPassword={settings.setConfirmPassword}
-              passwordError={settings.passwordError}
-              passwordSuccess={settings.passwordSuccess}
-              passwordLoading={settings.passwordLoading}
-              handlePasswordSubmit={settings.handlePasswordSubmit}
-              avatar={avatar}
-              recentAvatars={recentAvatars}
-              onAvatarChange={onAvatarChange}
-              onRecentAvatarsChange={onRecentAvatarsChange}
-              onAvatarUploaded={onAvatarUploaded}
-            />
-          )}
-
-          {currentActiveSection === SETTINGS_TABS.DATA &&
-            settings.localRefreshingTogglesEnabled && <DataTab />}
-        </>
+        <SettingsTabs
+          currentActiveSection={currentActiveSection}
+          settings={settings}
+          isFirstLogin={isFirstLogin}
+          avatar={avatar}
+          recentAvatars={recentAvatars}
+          onAvatarChange={onAvatarChange}
+          onRecentAvatarsChange={onRecentAvatarsChange}
+          onAvatarUploaded={onAvatarUploaded}
+          onEditInstance={onEditInstance}
+          handleClearPortainerData={handleClearPortainerData}
+          handleClearTrackedAppData={handleClearTrackedAppData}
+          clearingPortainerData={clearingPortainerData}
+          clearingTrackedAppData={clearingTrackedAppData}
+        />
       )}
     </>
   );
