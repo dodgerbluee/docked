@@ -4,7 +4,7 @@
  * retries, error handling, and concurrent execution support
  */
 
-const { getBatchConfig, getLatestBatchRunByJobType } = require("../../db/database");
+const { getBatchConfig, getLatestBatchRunByJobType, getAllUsers } = require("../../db/database");
 const BatchLogger = require("./Logger");
 const { setLogLevel: setBatchLogLevel } = require("./Logger");
 
@@ -13,8 +13,8 @@ class Scheduler {
     this.batchManager = batchManager;
     this.checkInterval = null;
     this.checkIntervalMs = 30 * 1000; // Check every 30 seconds
-    this.jobTimers = new Map(); // Map of jobType -> NodeJS.Timeout
-    this.lastRunTimes = new Map(); // Map of jobType -> timestamp
+    this.jobTimers = new Map(); // Map of `${userId}:${jobType}` -> NodeJS.Timeout
+    this.lastRunTimes = new Map(); // Map of `${userId}:${jobType}` -> timestamp
     this.isInitialized = false;
     this.logger = new BatchLogger("scheduler");
   }
@@ -32,50 +32,55 @@ class Scheduler {
 
     this.logger.info("Initializing scheduler");
 
-    // Load last run times for all registered job types
+    // Get all users and load last run times for each user
+    const users = await getAllUsers();
     const jobTypes = this.batchManager.getRegisteredJobTypes();
-    this.logger.debug(`Registered job types: ${jobTypes.join(", ")}`);
+    this.logger.debug(`Registered job types: ${jobTypes.join(", ")}, Users: ${users.length}`);
 
-    for (const jobType of jobTypes) {
-      this.logger.debug(`Loading last run time for ${jobType}...`);
-      try {
-        const lastRun = await getLatestBatchRunByJobType(jobType);
-        this.logger.debug(`Last run query result for ${jobType}:`, {
-          found: !!lastRun,
-        });
-
-        if (lastRun && lastRun.completed_at && lastRun.status === "completed") {
-          const completedAt = this.parseTimestamp(lastRun.completed_at);
-          this.logger.debug(`Parsed completed_at for ${jobType}:`, {
-            parsed: completedAt ? completedAt.toISOString() : "failed to parse",
+    for (const user of users) {
+      for (const jobType of jobTypes) {
+        const key = `${user.id}:${jobType}`;
+        this.logger.debug(`Loading last run time for user ${user.id}, job ${jobType}...`);
+        try {
+          const lastRun = await getLatestBatchRunByJobType(user.id, jobType);
+          this.logger.debug(`Last run query result for user ${user.id}, job ${jobType}:`, {
+            found: !!lastRun,
           });
 
-          if (completedAt && !isNaN(completedAt.getTime())) {
-            const timestamp = completedAt.getTime();
-            this.lastRunTimes.set(jobType, timestamp);
-            this.logger.info(`✅ Loaded last run time for ${jobType}`, {
-              completedAtRaw: lastRun.completed_at,
-              completedAtParsed: completedAt.toISOString(),
-              timestamp: timestamp,
-              timestampDate: new Date(timestamp).toISOString(),
+          if (lastRun && lastRun.completed_at && lastRun.status === "completed") {
+            const completedAt = this.parseTimestamp(lastRun.completed_at);
+            this.logger.debug(`Parsed completed_at for user ${user.id}, job ${jobType}:`, {
+              parsed: completedAt ? completedAt.toISOString() : "failed to parse",
             });
+
+            if (completedAt && !isNaN(completedAt.getTime())) {
+              const timestamp = completedAt.getTime();
+              this.lastRunTimes.set(key, timestamp);
+              this.logger.info(`✅ Loaded last run time for user ${user.id}, job ${jobType}`, {
+                completedAtRaw: lastRun.completed_at,
+                completedAtParsed: completedAt.toISOString(),
+                timestamp: timestamp,
+                timestampDate: new Date(timestamp).toISOString(),
+              });
+            } else {
+              this.logger.warn(`⚠️ Failed to parse last run time for user ${user.id}, job ${jobType}`, {
+                completedAt: lastRun.completed_at,
+              });
+            }
           } else {
-            this.logger.warn(`⚠️ Failed to parse last run time for ${jobType}`, {
-              completedAt: lastRun.completed_at,
-            });
+            this.logger.info(`ℹ️ No completed runs found for user ${user.id}, job ${jobType} - will run on first check`);
           }
-        } else {
-          this.logger.info(`ℹ️ No completed runs found for ${jobType} - will run on first check`);
+        } catch (err) {
+          this.logger.warn(`Failed to load last run time for user ${user.id}, job ${jobType}`, {
+            error: err.message,
+          });
         }
-      } catch (err) {
-        this.logger.warn(`Failed to load last run time for ${jobType}`, {
-          error: err.message,
-        });
       }
     }
 
     this.isInitialized = true;
     this.logger.info("Scheduler initialized", {
+      users: users.length,
       jobTypes: jobTypes.length,
       lastRunTimes: this.lastRunTimes.size,
     });
@@ -188,98 +193,110 @@ class Scheduler {
       const timestamp = new Date().toISOString();
       this.logger.debug(`\n========== BATCH SCHEDULER CHECK [${timestamp}] ==========`);
 
-      const allConfigs = await getBatchConfig();
-      if (!allConfigs) {
-        this.logger.warn("No batch configs found");
+      // Get all users
+      const users = await getAllUsers();
+      if (!users || users.length === 0) {
+        this.logger.warn("No users found");
         return;
       }
 
       const now = Date.now();
       const jobTypes = this.batchManager.getRegisteredJobTypes();
 
-      this.logger.debug(`Checking ${jobTypes.length} job type(s): ${jobTypes.join(", ")}`, {
+      this.logger.debug(`Checking ${jobTypes.length} job type(s) for ${users.length} user(s): ${jobTypes.join(", ")}`, {
         currentTime: new Date(now).toISOString(),
         currentTimeMs: now,
       });
 
-      for (const jobType of jobTypes) {
-        const config = allConfigs[jobType] || {
-          enabled: false,
-          intervalMinutes: 60,
-        };
-
-        this.logger.debug(`Checking job: ${jobType}`, {
-          configExists: !!allConfigs[jobType],
-          enabled: config.enabled,
-          intervalMinutes: config.intervalMinutes,
-        });
-
-        if (!config.enabled || config.intervalMinutes < 1) {
-          this.logger.debug(`${jobType}: Skipped - disabled or invalid interval`);
-          // Job is disabled or invalid interval - clear any existing timer
-          if (this.jobTimers.has(jobType)) {
-            clearTimeout(this.jobTimers.get(jobType));
-            this.jobTimers.delete(jobType);
-          }
+      // Check each user's batch configs
+      for (const user of users) {
+        const userConfigs = await getBatchConfig(user.id);
+        if (!userConfigs) {
+          this.logger.debug(`No batch configs found for user ${user.id}`);
           continue;
         }
 
-        // Check if job is already running (prevent duplicate runs)
-        const isRunning =
-          this.batchManager.runningJobs && this.batchManager.runningJobs.get(jobType);
-        if (isRunning) {
-          this.logger.debug(`${jobType}: Skipped - already running`);
-          continue;
-        }
+        for (const jobType of jobTypes) {
+          const config = userConfigs[jobType] || {
+            enabled: false,
+            intervalMinutes: 60,
+          };
 
-        // Check if job is due to run
-        const lastRunTime = this.lastRunTimes.get(jobType) || 0;
-        const intervalMs = config.intervalMinutes * 60 * 1000;
-        const timeSinceLastRun = now - lastRunTime;
-        const minutesSinceLastRun = timeSinceLastRun / 1000 / 60;
+          const key = `${user.id}:${jobType}`;
 
-        // The comparison
-        const condition1 = timeSinceLastRun >= intervalMs;
-        const condition2 = lastRunTime === 0;
-        const shouldRun = condition1 || condition2;
-
-        this.logger.debug(`${jobType}: Scheduling check`, {
-          lastRunTime: lastRunTime === 0 ? "NEVER" : new Date(lastRunTime).toISOString(),
-          lastRunTimeMs: lastRunTime,
-          currentTime: new Date(now).toISOString(),
-          currentTimeMs: now,
-          timeSinceLastRunMs: timeSinceLastRun,
-          timeSinceLastRunMinutes: Math.round(minutesSinceLastRun * 100) / 100,
-          requiredIntervalMs: intervalMs,
-          requiredIntervalMinutes: config.intervalMinutes,
-          condition1: `${timeSinceLastRun} >= ${intervalMs} = ${condition1}`,
-          condition2: `${lastRunTime} === 0 = ${condition2}`,
-          shouldRun: shouldRun,
-        });
-
-        if (shouldRun) {
-          // Job is due - run it (don't await, let it run in background)
-          this.logger.info(`⏰ Job ${jobType} is due to run - triggering execution`, {
-            timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
+          this.logger.debug(`Checking user ${user.id}, job: ${jobType}`, {
+            configExists: !!userConfigs[jobType],
+            enabled: config.enabled,
             intervalMinutes: config.intervalMinutes,
-            lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
-            now: new Date(now).toISOString(),
           });
 
-          this.runJob(jobType)
-            .then(() => {
-              this.logger.info(`✅ Job ${jobType} completed successfully`);
-            })
-            .catch((err) => {
-              this.logger.error(`❌ Error running job ${jobType}`, {
-                error: err.message,
-                stack: err.stack,
-              });
+          if (!config.enabled || config.intervalMinutes < 1) {
+            this.logger.debug(`User ${user.id}, ${jobType}: Skipped - disabled or invalid interval`);
+            // Job is disabled or invalid interval - clear any existing timer
+            if (this.jobTimers.has(key)) {
+              clearTimeout(this.jobTimers.get(key));
+              this.jobTimers.delete(key);
+            }
+            continue;
+          }
+
+          // Check if job is already running (prevent duplicate runs)
+          const isRunning =
+            this.batchManager.runningJobs && this.batchManager.runningJobs.get(key);
+          if (isRunning) {
+            this.logger.debug(`User ${user.id}, ${jobType}: Skipped - already running`);
+            continue;
+          }
+
+          // Check if job is due to run
+          const lastRunTime = this.lastRunTimes.get(key) || 0;
+          const intervalMs = config.intervalMinutes * 60 * 1000;
+          const timeSinceLastRun = now - lastRunTime;
+          const minutesSinceLastRun = timeSinceLastRun / 1000 / 60;
+
+          // The comparison
+          const condition1 = timeSinceLastRun >= intervalMs;
+          const condition2 = lastRunTime === 0;
+          const shouldRun = condition1 || condition2;
+
+          this.logger.debug(`User ${user.id}, ${jobType}: Scheduling check`, {
+            lastRunTime: lastRunTime === 0 ? "NEVER" : new Date(lastRunTime).toISOString(),
+            lastRunTimeMs: lastRunTime,
+            currentTime: new Date(now).toISOString(),
+            currentTimeMs: now,
+            timeSinceLastRunMs: timeSinceLastRun,
+            timeSinceLastRunMinutes: Math.round(minutesSinceLastRun * 100) / 100,
+            requiredIntervalMs: intervalMs,
+            requiredIntervalMinutes: config.intervalMinutes,
+            condition1: `${timeSinceLastRun} >= ${intervalMs} = ${condition1}`,
+            condition2: `${lastRunTime} === 0 = ${condition2}`,
+            shouldRun: shouldRun,
+          });
+
+          if (shouldRun) {
+            // Job is due - run it (don't await, let it run in background)
+            this.logger.info(`⏰ User ${user.id}, Job ${jobType} is due to run - triggering execution`, {
+              timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
+              intervalMinutes: config.intervalMinutes,
+              lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
+              now: new Date(now).toISOString(),
             });
-        } else {
-          const minutesUntilNext =
-            Math.round(((intervalMs - timeSinceLastRun) / 1000 / 60) * 10) / 10;
-          this.logger.debug(`${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`);
+
+            this.runJob(user.id, jobType)
+              .then(() => {
+                this.logger.info(`✅ User ${user.id}, Job ${jobType} completed successfully`);
+              })
+              .catch((err) => {
+                this.logger.error(`❌ Error running user ${user.id}, job ${jobType}`, {
+                  error: err.message,
+                  stack: err.stack,
+                });
+              });
+          } else {
+            const minutesUntilNext =
+              Math.round(((intervalMs - timeSinceLastRun) / 1000 / 60) * 10) / 10;
+            this.logger.debug(`User ${user.id}, ${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`);
+          }
         }
       }
 
@@ -293,30 +310,31 @@ class Scheduler {
   }
 
   /**
-   * Run a specific job
+   * Run a specific job for a user
    */
-  async runJob(jobType) {
+  async runJob(userId, jobType) {
     const now = Date.now();
-    const lastRunTime = this.lastRunTimes.get(jobType) || 0;
+    const key = `${userId}:${jobType}`;
+    const lastRunTime = this.lastRunTimes.get(key) || 0;
 
     // Don't update last run time here - let BatchManager.updateLastRunTime() do it after successful completion
     // This prevents the scheduler from thinking the job already ran if it fails or takes a long time
 
-    this.logger.info(`Executing job: ${jobType}`, {
+    this.logger.info(`Executing user ${userId}, job: ${jobType}`, {
       lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
     });
 
     try {
-      await this.batchManager.executeJob(jobType);
+      await this.batchManager.executeJob(userId, jobType);
       // BatchManager.executeJob() will call updateLastRunTime() on successful completion
       // So we don't need to update it here
     } catch (err) {
       // On error, reset last run time to allow retry after 1 minute
-      const config = await getBatchConfig();
-      const jobConfig = config?.[jobType] || { intervalMinutes: 60 };
+      const userConfigs = await getBatchConfig(userId);
+      const jobConfig = userConfigs?.[jobType] || { intervalMinutes: 60 };
       const intervalMs = jobConfig.intervalMinutes * 60 * 1000;
-      this.lastRunTimes.set(jobType, now - intervalMs + 60000);
-      this.logger.warn(`Job ${jobType} failed, will retry in 1 minute`, {
+      this.lastRunTimes.set(key, now - intervalMs + 60000);
+      this.logger.warn(`User ${userId}, Job ${jobType} failed, will retry in 1 minute`, {
         error: err.message,
       });
       throw err;
@@ -326,9 +344,10 @@ class Scheduler {
   /**
    * Update last run time for a job (called after successful completion)
    */
-  updateLastRunTime(jobType, timestamp) {
-    this.lastRunTimes.set(jobType, timestamp);
-    this.logger.info(`Updated last run time for ${jobType}`, {
+  updateLastRunTime(userId, jobType, timestamp) {
+    const key = `${userId}:${jobType}`;
+    this.lastRunTimes.set(key, timestamp);
+    this.logger.info(`Updated last run time for user ${userId}, job ${jobType}`, {
       timestamp: new Date(timestamp).toISOString(),
     });
   }

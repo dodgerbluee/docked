@@ -32,6 +32,66 @@ const rateLimitTracker = new Map(); // webhookUrl -> { count, resetAt }
 const recentNotifications = new Map(); // key -> timestamp
 const DEDUPLICATION_WINDOW = 5 * 60 * 1000; // 5 minutes
 
+// Cleanup interval for memory management (every 5 minutes)
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let cleanupIntervalId = null;
+
+/**
+ * Clean up expired entries from in-memory maps to prevent memory leaks
+ */
+function cleanupExpiredEntries() {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  // Clean up expired notification deduplication entries
+  for (const [key, timestamp] of recentNotifications.entries()) {
+    if (now - timestamp > DEDUPLICATION_WINDOW) {
+      recentNotifications.delete(key);
+      cleanedCount++;
+    }
+  }
+
+  // Clean up expired rate limit trackers
+  for (const [webhookUrl, tracker] of rateLimitTracker.entries()) {
+    if (now > tracker.resetAt) {
+      rateLimitTracker.delete(webhookUrl);
+      cleanedCount++;
+    }
+  }
+
+  if (cleanedCount > 0) {
+    logger.debug(`Cleaned up ${cleanedCount} expired entries from notification maps`);
+  }
+}
+
+/**
+ * Start periodic cleanup of expired entries
+ */
+function startCleanupInterval() {
+  if (cleanupIntervalId) {
+    return; // Already started
+  }
+
+  // Run cleanup immediately, then periodically
+  cleanupExpiredEntries();
+  cleanupIntervalId = setInterval(cleanupExpiredEntries, CLEANUP_INTERVAL);
+  logger.debug("Started periodic cleanup of notification maps");
+}
+
+/**
+ * Stop periodic cleanup (useful for testing or graceful shutdown)
+ */
+function stopCleanupInterval() {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+    logger.debug("Stopped periodic cleanup of notification maps");
+  }
+}
+
+// Start cleanup interval on module load
+startCleanupInterval();
+
 /**
  * Sleep utility for delays
  * @param {number} ms - Milliseconds to sleep
@@ -198,14 +258,9 @@ function isDuplicate(key) {
 function recordNotification(key) {
   recentNotifications.set(key, Date.now());
 
-  // Clean up old entries periodically
+  // Trigger cleanup if map grows too large (safety check in addition to periodic cleanup)
   if (recentNotifications.size > 1000) {
-    const now = Date.now();
-    for (const [k, timestamp] of recentNotifications.entries()) {
-      if (now - timestamp > DEDUPLICATION_WINDOW) {
-        recentNotifications.delete(k);
-      }
-    }
+    cleanupExpiredEntries();
   }
 }
 
@@ -472,15 +527,20 @@ function formatVersionUpdateNotification(imageData) {
 
 /**
  * Queue a notification for sending
- * @param {Object} imageData - Tracked image data
+ * @param {Object} imageData - Tracked image data (must include userId)
  * @returns {Promise<void>}
  */
 async function queueNotification(imageData) {
-  // Get all enabled webhooks
+  // Get enabled webhooks for this user only
   const { getEnabledDiscordWebhooks } = getDatabase();
-  const webhooks = await getEnabledDiscordWebhooks();
+  const userId = imageData.userId || imageData.user_id;
+  if (!userId) {
+    logger.warn("Discord notification skipped: no userId provided in imageData");
+    return;
+  }
+  const webhooks = await getEnabledDiscordWebhooks(userId);
   if (!webhooks || webhooks.length === 0) {
-    logger.debug("No enabled Discord webhooks configured");
+    logger.debug(`No enabled Discord webhooks configured for user ${userId}`);
     return;
   }
 
@@ -566,15 +626,19 @@ async function processNotificationQueue() {
 
 /**
  * Send notification immediately (bypasses queue, use with caution)
- * @param {Object} imageData - Tracked image data
+ * @param {Object} imageData - Tracked image data (must include userId)
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 async function sendNotificationImmediate(imageData) {
-  // Get all enabled webhooks
+  // Get enabled webhooks for this user only
   const { getEnabledDiscordWebhooks } = getDatabase();
-  const webhooks = await getEnabledDiscordWebhooks();
+  const userId = imageData.userId || imageData.user_id;
+  if (!userId) {
+    return { success: false, error: "No userId provided in imageData" };
+  }
+  const webhooks = await getEnabledDiscordWebhooks(userId);
   if (!webhooks || webhooks.length === 0) {
-    return { success: false, error: "No enabled Discord webhooks configured" };
+    return { success: false, error: `No enabled Discord webhooks configured for user ${userId}` };
   }
 
   // Check for duplicates
@@ -678,4 +742,7 @@ module.exports = {
   queueNotification,
   sendNotificationImmediate,
   formatVersionUpdateNotification,
+  startCleanupInterval,
+  stopCleanupInterval,
+  cleanupExpiredEntries, // Exported for testing
 };

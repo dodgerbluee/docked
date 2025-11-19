@@ -39,6 +39,14 @@ async function getUnusedImages(req, res, next) {
  */
 async function deleteImages(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     const { images } = req.body;
 
     // Validate input
@@ -65,8 +73,8 @@ async function deleteImages(req, res, next) {
       `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
-    // Get all instances once to avoid repeated DB queries
-    const instances = await getAllPortainerInstances();
+    // Get user's instances once to avoid repeated DB queries
+    const instances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Delete images
@@ -92,8 +100,9 @@ async function deleteImages(req, res, next) {
         logger.info(`Deleting image ${id.substring(0, 12)} from ${portainerUrl}`);
         await portainerService.deleteImage(portainerUrl, endpointId, id, true);
         results.push({ id, success: true });
+        logger.info(`Successfully deleted image ${id.substring(0, 12)} from ${portainerUrl}`);
       } catch (error) {
-        logger.error(`Failed to delete image ${id.substring(0, 12)}:`, error.message);
+        logger.error(`Failed to delete image ${id.substring(0, 12)}:`, { error });
         errors.push({ id, error: error.message });
       }
     }

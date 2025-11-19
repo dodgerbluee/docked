@@ -6,14 +6,14 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Alert from "../ui/Alert";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
-import styles from "./CacheTab.module.css";
+import styles from "./DataTab.module.css";
 
 /**
- * CacheTab Component
- * Displays container cache data with expandable JSON view (developer mode only)
+ * DataTab Component
+ * Displays container data from database with expandable JSON view (developer mode only)
  */
-function CacheTab() {
-  const [cacheEntries, setCacheEntries] = useState([]);
+function DataTab() {
+  const [dataEntries, setDataEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedContainers, setExpandedContainers] = useState(new Set());
@@ -38,12 +38,12 @@ function CacheTab() {
     checkDeveloperMode();
   }, []);
 
-  const fetchCacheData = useCallback(async () => {
+  const fetchContainerData = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
 
-      const response = await axios.get(`${API_BASE_URL}/api/containers/cache/data`, {
+      const response = await axios.get(`${API_BASE_URL}/api/containers/data`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
@@ -51,7 +51,7 @@ function CacheTab() {
 
       if (response.data.success) {
         const entries = response.data.entries || [];
-        console.log("Cache entries received:", entries);
+        console.log("Container data entries received:", entries);
         console.log("Entry count:", entries.length);
         entries.forEach((entry, idx) => {
           console.log(`Entry ${idx}:`, {
@@ -62,13 +62,13 @@ function CacheTab() {
             containersLength: entry.data?.containers?.length || 0,
           });
         });
-        setCacheEntries(entries);
+        setDataEntries(entries);
       } else {
-        setError(response.data.error || "Failed to fetch cache data");
+        setError(response.data.error || "Failed to fetch container data");
       }
     } catch (err) {
-      console.error("Error fetching cache data:", err);
-      const errorMessage = err.response?.data?.error || err.message || "Failed to fetch cache data";
+      console.error("Error fetching container data:", err);
+      const errorMessage = err.response?.data?.error || err.message || "Failed to fetch container data";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -76,8 +76,8 @@ function CacheTab() {
   }, []);
 
   useEffect(() => {
-    fetchCacheData();
-  }, [fetchCacheData]);
+    fetchContainerData();
+  }, [fetchContainerData]);
 
   const toggleContainerExpansion = (entryKey, containerName) => {
     const containerKey = `${entryKey}:${containerName}`;
@@ -92,12 +92,54 @@ function CacheTab() {
     });
   };
 
+  const expandAllContainers = useCallback(() => {
+    const allContainerKeys = new Set();
+    dataEntries.forEach((entry) => {
+      const containerNames = entry.containerNames || [];
+      const containers = entry.data?.containers || [];
+      const containersToDisplay = containerNames.length > 0 
+        ? containerNames
+        : containers.map((c) => c.name || c.id || `Container`);
+      containersToDisplay.forEach((name) => {
+        const containerKey = `${entry.key}:${name}`;
+        allContainerKeys.add(containerKey);
+      });
+    });
+    setExpandedContainers(allContainerKeys);
+  }, [dataEntries]);
+
+  const collapseAllContainers = useCallback(() => {
+    setExpandedContainers(new Set());
+  }, []);
+
+  // Check if all containers are expanded
+  const areAllExpanded = useCallback(() => {
+    if (dataEntries.length === 0) return false;
+    let totalContainers = 0;
+    let expandedCount = 0;
+    dataEntries.forEach((entry) => {
+      const containerNames = entry.containerNames || [];
+      const containers = entry.data?.containers || [];
+      const containersToDisplay = containerNames.length > 0 
+        ? containerNames
+        : containers.map((c) => c.name || c.id || `Container`);
+      containersToDisplay.forEach((name) => {
+        totalContainers++;
+        const containerKey = `${entry.key}:${name}`;
+        if (expandedContainers.has(containerKey)) {
+          expandedCount++;
+        }
+      });
+    });
+    return totalContainers > 0 && expandedCount === totalContainers;
+  }, [dataEntries, expandedContainers]);
+
   const renderStructuredData = (categorized, containerData) => {
     if (!categorized) {
       return (
         <div className={styles.containerData}>
           <div className={styles.dataHeader}>Container Data (JSON)</div>
-          <pre className={styles.cacheDataContent}>
+          <pre className={styles.dataContent}>
             {JSON.stringify(containerData, null, 2)}
           </pre>
         </div>
@@ -163,7 +205,7 @@ function CacheTab() {
 
     return (
       <div className={styles.containerData}>
-        <pre className={styles.cacheDataContent}>
+        <pre className={styles.dataContent}>
           {hasAnyData 
             ? JSON.stringify(structuredData, null, 2)
             : JSON.stringify(containerData, null, 2)}
@@ -245,7 +287,7 @@ function CacheTab() {
 
   if (checkingDeveloperMode || loading) {
     return (
-      <div className={styles.cacheTab}>
+      <div className={styles.dataTab}>
         <CardSkeleton />
       </div>
     );
@@ -254,10 +296,10 @@ function CacheTab() {
   // If developer mode is not enabled, show message
   if (!developerModeEnabled) {
     return (
-      <div className={styles.cacheTab}>
+      <div className={styles.dataTab}>
         <Card>
           <Alert variant="warning">
-            Cache viewer is only available when Developer Mode is enabled. Enable it in General Settings.
+            Data viewer is only available when Developer Mode is enabled. Enable it in General Settings.
           </Alert>
         </Card>
       </div>
@@ -265,31 +307,46 @@ function CacheTab() {
   }
 
   return (
-    <div className={styles.cacheTab}>
+    <div className={styles.dataTab}>
       <Card>
         <div className={styles.headerWrapper}>
           <div className={styles.header}>
             <div className={styles.headerTitle}>
-              <h3 className={styles.title}>Container Cache Data</h3>
-              {cacheEntries.length > 0 && cacheEntries[0] && (
+              <h3 className={styles.title}>Portainer Data</h3>
+              {dataEntries.length > 0 && dataEntries[0] && (
                 <div className={styles.lastPulledInfo}>
-                  {cacheEntries[0].lastPortainerPull && (
+                  {dataEntries[0].lastPortainerPull && (
                     <span className={styles.lastPulled}>
-                      Last Portainer pull: {formatDate(cacheEntries[0].lastPortainerPull)}
+                      Last Portainer pull: {formatDate(dataEntries[0].lastPortainerPull)}
                     </span>
                   )}
-                  {cacheEntries[0].lastDockerHubPull && (
+                  {dataEntries[0].lastDockerHubPull && (
                     <span className={styles.lastPulled}>
-                      Last Docker Hub pull: {formatDate(cacheEntries[0].lastDockerHubPull)}
+                      Last Docker Hub pull: {formatDate(dataEntries[0].lastDockerHubPull)}
                     </span>
                   )}
                 </div>
               )}
             </div>
             <div className={styles.actions}>
+              {dataEntries.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (areAllExpanded()) {
+                      collapseAllContainers();
+                    } else {
+                      expandAllContainers();
+                    }
+                  }}
+                  size="sm"
+                >
+                  {areAllExpanded() ? "Collapse All" : "Expand All"}
+                </Button>
+              )}
               <Button
                 variant="outline"
-                onClick={fetchCacheData}
+                onClick={fetchContainerData}
                 icon={RefreshCw}
                 iconPosition="left"
                 size="sm"
@@ -307,9 +364,9 @@ function CacheTab() {
         )}
 
         <div className={styles.content}>
-          {cacheEntries.length > 0 ? (
-            <div className={styles.cacheContent}>
-              {cacheEntries.map((entry, entryIdx) => {
+          {dataEntries.length > 0 ? (
+            <div className={styles.dataWrapper}>
+              {dataEntries.map((entry, entryIdx) => {
                 const hasData = entry.data && !entry.error;
                 const containerNames = entry.containerNames || [];
                 const containers = entry.data?.containers || [];
@@ -321,21 +378,73 @@ function CacheTab() {
                   containersLength: containers.length,
                   containerNames,
                   containers: containers.map(c => ({ name: c.name, id: c.id })),
+                  instanceName: entry.data?.instanceName,
+                  instanceUrl: entry.data?.instanceUrl,
                 });
 
                 // Display containers if we have container names OR if we have containers in the data
                 const hasContainers = containerNames.length > 0 || containers.length > 0;
                 
-                // If we have data but no containers, show the raw entry data
+                // Check if we have Portainer instance data (instanceName, instanceUrl) even without containers
+                const hasPortainerInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
+                
+                // If we have data but no containers, show all available data in a structured format
                 if (hasData && !hasContainers) {
+                  // Build complete data structure showing all available information
+                  const completeData = {
+                    dataEntry: {
+                      key: entry.key,
+                      containerCount: entry.containerCount || 0,
+                      updatedAt: entry.updatedAt || null,
+                      createdAt: entry.createdAt || null,
+                    },
+                    portainerData: {},
+                  };
+                  
+                  // Add Portainer instance data if available
+                  if (hasPortainerInstanceData) {
+                    completeData.portainerData.portainerInstance = {
+                      name: entry.data.instanceName || null,
+                      url: entry.data.instanceUrl || null,
+                    };
+                  }
+                  
+                  // Include any other data from entry.data that might be useful
+                  const otherData = { ...entry.data };
+                  delete otherData.instanceName;
+                  delete otherData.instanceUrl;
+                  delete otherData.containers;
+                  
+                  if (Object.keys(otherData).length > 0) {
+                    completeData.portainerData.other = otherData;
+                  }
+                  
+                  // If we have Portainer instance data, show structured format
+                  if (hasPortainerInstanceData) {
+                    return (
+                      <div key={entry.key} className={styles.dataEntry}>
+                        <div className={styles.dataSection}>
+                          <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
+                          <Alert variant="info" style={{ marginBottom: "12px" }}>
+                            No containers found in this data entry. Showing all available Portainer instance data.
+                          </Alert>
+                          <pre className={styles.dataContent}>
+                            {JSON.stringify(completeData, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Fallback: show raw data if no structured Portainer data
                   return (
-                    <div key={entry.key} className={styles.cacheEntry}>
-                      <div className={styles.cacheData}>
-                        <div className={styles.dataHeader}>Cache Entry: {entry.key}</div>
+                    <div key={entry.key} className={styles.dataEntry}>
+                      <div className={styles.dataSection}>
+                        <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
                         <Alert variant="info" style={{ marginBottom: "12px" }}>
-                          No containers found in this cache entry. Showing raw data.
+                          No containers found in this data entry. Showing raw data.
                         </Alert>
-                        <pre className={styles.cacheDataContent}>
+                        <pre className={styles.dataContent}>
                           {JSON.stringify(entry.data, null, 2)}
                         </pre>
                       </div>
@@ -406,9 +515,9 @@ function CacheTab() {
                             return (
                               <div className={styles.containerData}>
                                 <Alert variant="warning">
-                                  Container data not found for "{name}". Showing raw cache entry.
+                                  Container data not found for "{name}". Showing raw data entry.
                                 </Alert>
-                                <pre className={styles.cacheDataContent}>
+                                <pre className={styles.dataContent}>
                                   {JSON.stringify(entry.data, null, 2)}
                                 </pre>
                               </div>
@@ -423,13 +532,62 @@ function CacheTab() {
                   });
                 }
 
-                // Fallback for entries without containers
-                if (hasData && (!entry.data.containers || entry.data.containers.length === 0)) {
+                // Final fallback: if we have any data at all, show it
+                // This ensures we always display something if data exists
+                if (hasData) {
+                  // Build complete data structure
+                  const completeData = {
+                    dataEntry: {
+                      key: entry.key,
+                      containerCount: entry.containerCount || 0,
+                      updatedAt: entry.updatedAt || null,
+                      createdAt: entry.createdAt || null,
+                    },
+                    portainerData: {},
+                  };
+                  
+                  // Check if we have Portainer instance data
+                  const hasPortainerInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
+                  
+                  if (hasPortainerInstanceData) {
+                    completeData.portainerData.portainerInstance = {
+                      name: entry.data.instanceName || null,
+                      url: entry.data.instanceUrl || null,
+                    };
+                  }
+                  
+                  // Include any other data from entry.data
+                  const otherData = { ...entry.data };
+                  delete otherData.instanceName;
+                  delete otherData.instanceUrl;
+                  delete otherData.containers;
+                  
+                  if (Object.keys(otherData).length > 0) {
+                    completeData.portainerData.other = otherData;
+                  }
+                  
+                  if (hasPortainerInstanceData || Object.keys(completeData.portainerData).length > 0) {
+                    return (
+                      <div key={entry.key} className={styles.dataEntry}>
+                        <div className={styles.dataSection}>
+                          <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
+                          <Alert variant="info" style={{ marginBottom: "12px" }}>
+                            Showing all available data for this data entry.
+                          </Alert>
+                          <pre className={styles.dataContent}>
+                            {JSON.stringify(completeData, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Last resort: show raw data
                   return (
-                    <div key={entry.key} className={styles.cacheEntry}>
-                      <div className={styles.cacheData}>
-                        <div className={styles.dataHeader}>Cache Data (JSON)</div>
-                        <pre className={styles.cacheDataContent}>
+                    <div key={entry.key} className={styles.dataEntry}>
+                      <div className={styles.dataSection}>
+                        <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
+                        <pre className={styles.dataContent}>
                           {JSON.stringify(entry.data, null, 2)}
                         </pre>
                       </div>
@@ -437,11 +595,12 @@ function CacheTab() {
                   );
                 }
 
+                // Only return null if we truly have no data
                 return null;
               })}
             </div>
           ) : (
-            <div className={styles.empty}>No cache entries found</div>
+            <div className={styles.empty}>No data entries found</div>
           )}
         </div>
       </Card>
@@ -449,7 +608,7 @@ function CacheTab() {
   );
 }
 
-CacheTab.propTypes = {};
+DataTab.propTypes = {};
 
-export default CacheTab;
+export default DataTab;
 

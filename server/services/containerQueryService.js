@@ -10,8 +10,6 @@ const networkModeService = require("./networkModeService");
 const imageUpdateService = require("./imageUpdateService");
 const {
   getAllPortainerInstances,
-  getContainerCache,
-  setContainerCache,
 } = require("../db/database");
 const logger = require("../utils/logger");
 
@@ -39,10 +37,11 @@ function getDiscordService() {
  * @returns {Promise<Object>} - Containers with update information
  */
 async function getAllContainersWithUpdates(forceRefresh = false, filterPortainerUrl = null, userId = null) {
-  // Get previous cache to compare for newly detected updates
-  let previousCache = null;
-  if (forceRefresh) {
-    previousCache = await getContainerCache("containers");
+  // Get previous data from normalized tables to compare for newly detected updates
+  let previousContainers = null;
+  if (forceRefresh && userId) {
+    const { getPortainerContainersWithUpdates } = require("../db/database");
+    previousContainers = await getPortainerContainersWithUpdates(userId);
     // Clear Docker Hub digest cache to ensure fresh data when force refreshing
     // This prevents stale cached digests from causing false positives when containers
     // were updated outside the app (e.g., manually via Portainer or docker pull)
@@ -51,36 +50,114 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
 
   // Check cache first unless force refresh is requested
   if (!forceRefresh) {
-    const cached = await getContainerCache("containers");
-    if (cached) {
-      // Reduced logging - only log in debug mode
-      if (process.env.DEBUG) {
-        logger.debug("Using cached container data from database");
-      }
-      // Filter cached data by user's portainer instances if userId provided
-      if (userId && cached.portainerInstances) {
+    // If userId is provided, try to use normalized tables first (per-user data)
+    if (userId) {
+      const { getPortainerContainersWithUpdates } = require("../db/database");
+      const normalizedContainers = await getPortainerContainersWithUpdates(userId);
+      
+      if (normalizedContainers && normalizedContainers.length > 0) {
+        // We have data in normalized tables - format it for the frontend
         const userInstances = await getAllPortainerInstances(userId);
-        const userInstanceUrls = new Set(userInstances.map(inst => inst.url));
-        const filteredContainers = cached.containers?.filter(c => userInstanceUrls.has(c.portainerUrl)) || [];
-        const filteredInstances = cached.portainerInstances.filter(inst => userInstanceUrls.has(inst.url));
-        const filteredStacks = cached.stacks?.map(stack => ({
-          ...stack,
-          containers: stack.containers?.filter(c => userInstanceUrls.has(c.portainerUrl)) || []
-        })).filter(stack => stack.containers && stack.containers.length > 0) || [];
+        
+        // Create instance map for quick lookup
+        const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+        
+        // Format containers to match expected structure
+        const formattedContainers = normalizedContainers.map((c) => {
+          // Extract tag from imageName (format: repo:tag)
+          const imageParts = c.imageName.includes(":") ? c.imageName.split(":") : [c.imageName, "latest"];
+          const currentTag = imageParts[1];
+          
+          // Get instance info
+          const instance = instanceMap.get(c.portainerInstanceId);
+          
+          return {
+            id: c.containerId,
+            name: c.containerName,
+            image: c.imageName,
+            status: c.status,
+            state: c.state,
+            endpointId: c.endpointId,
+            portainerUrl: instance ? instance.url : null,
+            portainerName: instance ? instance.name : null,
+            hasUpdate: c.hasUpdate || false,
+            currentTag: currentTag,
+            currentVersion: currentTag,
+            currentDigest: c.currentDigest,
+            latestTag: c.latestTag || currentTag,
+            newVersion: c.latestVersion || c.latestTag || currentTag,
+            latestDigest: c.latestDigest,
+            latestDigestFull: c.latestDigest,
+            latestPublishDate: c.latestPublishDate,
+            currentVersionPublishDate: null,
+            currentImageCreated: c.imageCreatedDate,
+            imageRepo: c.imageRepo,
+            stackName: c.stackName,
+            existsInDockerHub: c.latestDigest ? true : false,
+            usesNetworkMode: c.usesNetworkMode || false,
+            providesNetwork: c.providesNetwork || false,
+          };
+        });
+        
+        // Group containers by stack
+        const stacksMap = new Map();
+        const unstackedContainers = [];
+        for (const container of formattedContainers) {
+          if (container.stackName) {
+            if (!stacksMap.has(container.stackName)) {
+              stacksMap.set(container.stackName, []);
+            }
+            stacksMap.get(container.stackName).push(container);
+          } else {
+            unstackedContainers.push(container);
+          }
+        }
+        const stacks = Array.from(stacksMap.entries()).map(([name, containers]) => ({
+          name,
+          containers,
+        }));
+        if (unstackedContainers.length > 0) {
+          stacks.push({
+            name: "Unstacked",
+            containers: unstackedContainers,
+          });
+        }
+        
+        // Build portainerInstances array
+        const portainerInstancesArray = userInstances.map((instance) => {
+          const instanceContainers = formattedContainers.filter((c) => c.portainerUrl === instance.url);
+          const withUpdates = instanceContainers.filter((c) => c.hasUpdate);
+          const upToDate = instanceContainers.filter((c) => !c.hasUpdate);
+          return {
+            id: instance.id,
+            name: instance.name,
+            url: instance.url,
+            containers: instanceContainers,
+            withUpdates: withUpdates,
+            upToDate: upToDate,
+            totalContainers: instanceContainers.length,
+          };
+        });
+        
+        // Get unused images count
+        const unusedImages = await getUnusedImages();
+        const unusedImagesCount = unusedImages.length;
+        
         return {
-          ...cached,
-          containers: filteredContainers,
-          portainerInstances: filteredInstances,
-          stacks: filteredStacks,
+          grouped: true,
+          stacks: stacks,
+          containers: formattedContainers,
+          portainerInstances: portainerInstancesArray,
+          unusedImagesCount: unusedImagesCount,
         };
       }
-      return cached;
     }
-    // No cached data found - return empty result instead of fetching from Docker Hub
+    
+    // No normalized data found - return empty result instead of fetching from Docker Hub
     // User must explicitly click "Pull" or batch process must run to fetch fresh data
     if (process.env.DEBUG) {
       logger.debug(
-        'No cached data found, returning empty result. User must click "Pull" to fetch data.'
+        'No normalized data found, returning empty result. User must click "Pull" to fetch data.'
       );
     }
     // IMPORTANT: Do NOT call Docker Hub here - only return empty result
@@ -130,27 +207,20 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     if (process.env.DEBUG) {
       logger.debug("No Portainer instances to process.");
     }
-    // Return empty result and cache it so we don't keep trying to fetch
-    const emptyResult = {
+    // Return empty result
+    return {
       grouped: true,
       stacks: [],
       containers: [],
       portainerInstances: [],
       unusedImagesCount: 0,
     };
-    // Cache empty result to prevent repeated attempts
-    try {
-      await setContainerCache("containers", emptyResult);
-    } catch (error) {
-      logger.error("Error caching empty result:", error.message);
-    }
-    return emptyResult;
   }
 
-  // If filtering by specific instance, get existing cache to merge with
-  let existingCache = null;
-  if (filterPortainerUrl && previousCache) {
-    existingCache = previousCache;
+  // If filtering by specific instance, get existing data from normalized tables to merge with
+  let existingContainers = null;
+  if (filterPortainerUrl && previousContainers) {
+    existingContainers = previousContainers;
   }
 
   // Fetch containers from Portainer instances (filtered if specified)
@@ -174,11 +244,15 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       // Use first endpoint for each Portainer instance
       const endpointId = endpoints[0].Id;
       const containers = await portainerService.getContainers(portainerUrl, endpointId);
+      
+      // Track current container IDs for this instance to clean up deleted containers later
+      const currentContainerIds = new Set(containers.map(c => c.Id));
 
       // Detect network mode relationships
       const { containerNetworkModes, containerByIdentifier } =
         await networkModeService.detectNetworkModes(containers, portainerUrl, endpointId);
 
+      // Process containers in parallel for speed
       const containersWithUpdates = await Promise.all(
         containers.map(async (container) => {
           try {
@@ -194,7 +268,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               imageName,
               details,
               portainerUrl,
-              endpointId
+              endpointId,
+              userId
             );
 
             // Extract stack name from labels
@@ -230,7 +305,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               }
             }
 
-            return {
+            const containerData = {
               id: container.Id,
               name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
               image: imageName,
@@ -257,12 +332,66 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
               usesNetworkMode: usesNetworkMode || false,
               providesNetwork: providesNetwork || false,
             };
+
+            // Save to normalized tables for persistence across restarts
+            // Use transaction to ensure atomicity - both container and version data saved together
+            if (userId && instance.id) {
+              try {
+                const { upsertContainerWithVersion } = require("../db/database");
+                
+                // Prepare version data if available
+                const versionData = updateInfo.imageRepo
+                  ? {
+                      imageName: imageName,
+                      registry: "docker.io",
+                      namespace: null,
+                      repository: updateInfo.imageRepo,
+                      currentTag: updateInfo.currentTag,
+                      currentVersion: updateInfo.currentVersion,
+                      currentDigest: updateInfo.currentDigestFull,
+                      latestTag: updateInfo.latestTag,
+                      latestVersion: updateInfo.newVersion,
+                      latestDigest: updateInfo.latestDigestFull,
+                      hasUpdate: updateInfo.hasUpdate,
+                      latestPublishDate: updateInfo.latestPublishDate,
+                      currentVersionPublishDate: updateInfo.currentVersionPublishDate,
+                      existsInDockerHub: updateInfo.existsInDockerHub,
+                    }
+                  : null;
+
+                // Save container and version data atomically in a single transaction
+                await upsertContainerWithVersion(
+                  userId,
+                  instance.id,
+                  {
+                    containerId: container.Id,
+                    containerName: containerData.name,
+                    endpointId: endpointId,
+                    imageName: imageName,
+                    imageRepo: updateInfo.imageRepo,
+                    status: container.Status,
+                    state: container.State,
+                    stackName: stackName,
+                    currentDigest: updateInfo.currentDigestFull,
+                    imageCreatedDate: currentImageCreated,
+                    usesNetworkMode: usesNetworkMode || false,
+                    providesNetwork: providesNetwork || false,
+                  },
+                  versionData
+                );
+              } catch (dbError) {
+                // Don't fail the entire fetch if database save fails
+                logger.error("Error saving container to normalized tables:", { error: dbError });
+              }
+            }
+
+            return containerData;
           } catch (error) {
-            // If rate limit exceeded, propagate the error to stop the entire process
+            // If rate limit exceeded, propagate the error immediately
             if (error.isRateLimitExceeded) {
               throw error;
             }
-            // If a single container fails, log it but don't break the entire process
+            // If a single container fails, log it but return a basic container object
             if (process.env.DEBUG) {
               logger.error(
                 `Error checking updates for container ${container.Names[0]?.replace("/", "") || container.Id.substring(0, 12)}:`,
@@ -278,7 +407,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
                 ? imageName.split(":")
                 : [imageName, "latest"];
               const repo = imageParts[0];
-              existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo);
+              existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo, userId);
             } catch (error) {
               // Silently continue - assume false if check fails
               existsInDockerHub = false;
@@ -312,12 +441,37 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
       );
 
       allContainers.push(...containersWithUpdates);
+      
+      // Clean up containers that no longer exist (were deleted from Portainer)
+      // This ensures the database only contains containers that actually exist
+      if (userId && instance.id && currentContainerIds.size > 0) {
+        try {
+          const { deletePortainerContainersNotInList } = require("../db/database");
+          const deletedCount = await deletePortainerContainersNotInList(
+            userId,
+            instance.id,
+            endpointId,
+            Array.from(currentContainerIds)
+          );
+          if (deletedCount > 0) {
+            logger.debug(`Cleaned up ${deletedCount} deleted container(s) from database for ${instanceName}`, {
+              module: "containerQueryService",
+              operation: "getAllContainersWithUpdates",
+              portainerUrl,
+              instanceId: instance.id,
+            });
+          }
+        } catch (cleanupError) {
+          // Don't fail the entire fetch if cleanup fails
+          logger.warn("Error cleaning up deleted containers:", { error: cleanupError });
+        }
+      }
     } catch (error) {
       // If rate limit exceeded, propagate the error immediately
       if (error.isRateLimitExceeded) {
         throw error;
       }
-      logger.error(`Error fetching containers from ${portainerUrl}:`, error.message);
+      logger.error(`Error fetching containers from ${portainerUrl}:`, { error });
       // Continue with other Portainer instances even if one fails
     }
   }
@@ -352,12 +506,50 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
   // Declare unusedImagesCount variable
   let unusedImagesCount = 0;
 
-  // If filtering by specific instance, merge with existing cache
-  if (filterPortainerUrl && existingCache) {
-    // Remove containers from the filtered instance from existing cache
-    const otherContainers = existingCache.containers.filter(
-      (c) => c.portainerUrl !== filterPortainerUrl
-    );
+  // If filtering by specific instance, merge with existing data from normalized tables
+  if (filterPortainerUrl && existingContainers) {
+    // Get user instances to map portainerInstanceId to URL
+    const userInstances = await getAllPortainerInstances(userId);
+    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+    const instanceUrlMap = new Map(userInstances.map(inst => [inst.url, inst.id]));
+    const filteredInstanceId = instanceUrlMap.get(filterPortainerUrl);
+    
+    // Remove containers from the filtered instance from existing data
+    // Format existing containers to match allContainers structure
+    const otherContainers = existingContainers
+      .filter((c) => c.portainerInstanceId !== filteredInstanceId)
+      .map((c) => {
+        const instance = instanceMap.get(c.portainerInstanceId);
+        const imageParts = c.imageName.includes(":") ? c.imageName.split(":") : [c.imageName, "latest"];
+        const currentTag = imageParts[1];
+        return {
+          id: c.containerId,
+          name: c.containerName,
+          image: c.imageName,
+          status: c.status,
+          state: c.state,
+          endpointId: c.endpointId,
+          portainerUrl: instance ? instance.url : null,
+          portainerName: instance ? instance.name : null,
+          hasUpdate: c.hasUpdate || false,
+          currentTag: currentTag,
+          currentVersion: currentTag,
+          currentDigest: c.currentDigest,
+          latestTag: c.latestTag || currentTag,
+          newVersion: c.latestVersion || c.latestTag || currentTag,
+          latestDigest: c.latestDigest,
+          latestDigestFull: c.latestDigest,
+          latestPublishDate: c.latestPublishDate,
+          currentVersionPublishDate: null,
+          currentImageCreated: c.imageCreatedDate,
+          imageRepo: c.imageRepo,
+          stackName: c.stackName,
+          existsInDockerHub: c.latestDigest ? true : false,
+          usesNetworkMode: c.usesNetworkMode || false,
+          providesNetwork: c.providesNetwork || false,
+        };
+      });
+    
     // Combine with new containers from the filtered instance
     allContainers.push(...otherContainers);
 
@@ -392,8 +584,8 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     groupedContainers.length = 0;
     groupedContainers.push(...mergedGroupedContainers);
 
-    // Use existing unused images count (or recalculate if needed)
-    unusedImagesCount = existingCache.unusedImagesCount || 0;
+    // Recalculate unused images count (we don't store this in normalized tables)
+    unusedImagesCount = 0;
   } else {
     // Get unused images count for all instances
     for (const instance of portainerInstances) {
@@ -448,7 +640,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
           }
         }
       } catch (error) {
-        logger.error(`Error counting unused images from ${portainerUrl}:`, error.message);
+        logger.error(`Error counting unused images from ${portainerUrl}:`, { error });
       }
     }
   }
@@ -484,39 +676,11 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
     unusedImagesCount: unusedImagesCount,
   };
 
-  // Save to cache for future requests
-  // This replaces the old cache with fresh data (or merges if filtering by instance)
-  // When forceRefresh=true, this includes both Portainer and Docker Hub data
-  try {
-    // Check if result has Docker Hub data (containers with latestDigest or latestTag)
-    const hasDockerHubData = result.containers && result.containers.some(
-      (c) => c.latestDigest || c.latestTag || c.hasUpdate !== undefined
-    );
-    
-    const metadata = {
-      lastPortainerPull: new Date().toISOString(),
-    };
-    
-    // Only set Docker Hub pull timestamp if we actually have Docker Hub data
-    if (hasDockerHubData) {
-      metadata.lastDockerHubPull = new Date().toISOString();
-    }
-    
-    await setContainerCache("containers", result, metadata);
-    if (filterPortainerUrl) {
-      logger.info(
-        `Container data cached in database (merged data for instance ${filterPortainerUrl})`
-      );
-    } else {
-      logger.info("Container data cached in database (replaced old cache)");
-    }
-  } catch (error) {
-    logger.error("Error saving container cache:", error.message);
-    // Continue even if cache save fails
-  }
+  // Data is already saved to normalized tables during container processing
+  // No need to save to cache anymore
 
   // Send Discord notifications for newly detected container updates
-  if (previousCache && previousCache.containers) {
+  if (previousContainers && previousContainers.length > 0) {
     try {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
@@ -524,10 +688,24 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
         // Use combination of name, portainerUrl, and endpointId for uniqueness
         // (Name is more stable than ID, which changes after upgrades)
         const previousContainersMap = new Map();
-        previousCache.containers.forEach((container) => {
+        const userInstances = await getAllPortainerInstances(userId);
+        const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+        
+        previousContainers.forEach((container) => {
+          // Get portainerUrl from instance
+          const instance = instanceMap.get(container.portainerInstanceId);
+          const portainerUrl = instance ? instance.url : null;
           // Use name as primary key since container IDs change after upgrades
-          const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
-          previousContainersMap.set(key, container);
+          const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
+          previousContainersMap.set(key, {
+            name: container.containerName,
+            portainerUrl: portainerUrl,
+            endpointId: container.endpointId,
+            hasUpdate: container.hasUpdate || false,
+            latestDigest: container.latestDigest || null,
+            latestVersion: container.latestVersion || container.latestTag || null,
+            currentDigest: container.currentDigest || null,
+          });
         });
 
         // Check each new container for newly detected updates
@@ -537,25 +715,38 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
             const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
             const previousContainer = previousContainersMap.get(key);
 
-            // Only notify if this is a newly detected update (didn't have update before)
-            // Match by name instead of ID since container IDs change after upgrades.
-            // This is the key fix: by matching by name, we can track the same container across upgrades,
-            // preventing false notifications when the container ID changes but name stays the same.
-            //
-            // Key fix: If previous container (matched by name) had hasUpdate: false, we skip notification
-            // even if new one shows hasUpdate: true. This prevents false notifications after upgrades
-            // when the cache shows hasUpdate: false but a fresh fetch shows hasUpdate: true again.
-            //
+            // Determine if we should notify based on update state changes
             // We notify if:
             // 1. No previous container exists (truly new container)
+            // 2. Previous container had hasUpdate: false and now has hasUpdate: true (new update detected)
+            // 3. Previous container had hasUpdate: true but the latest digest/version changed (newer update available)
             //
             // We do NOT notify if:
-            // - Previous container had hasUpdate: false (was up-to-date or just upgraded - prevents false notifications)
-            // - Previous container had hasUpdate: true (already had update - don't notify again)
-            //
-            // Note: This means we won't notify for containers that were truly up-to-date and now have a new update,
-            // but that's acceptable to prevent false notifications after upgrades.
-            const shouldNotify = !previousContainer;
+            // - Previous container had hasUpdate: true with the same latest digest/version (already notified)
+            // - Container was just upgraded (current digest matches latest digest - handled by upgrade process)
+            let shouldNotify = false;
+
+            if (!previousContainer) {
+              // New container with update - always notify
+              shouldNotify = true;
+            } else if (!previousContainer.hasUpdate && container.hasUpdate) {
+              // Container previously had no update, now has update - new update detected
+              shouldNotify = true;
+            } else if (previousContainer.hasUpdate && container.hasUpdate) {
+              // Both had updates - check if the latest version/digest changed
+              const previousLatestDigest = previousContainer.latestDigest;
+              const currentLatestDigest = container.latestDigest || container.latestDigestFull;
+              const previousLatestVersion = previousContainer.latestVersion;
+              const currentLatestVersion = container.latestVersion || container.newVersion || container.latestTag;
+
+              // Notify if digest or version changed (newer update available)
+              if (currentLatestDigest && previousLatestDigest && currentLatestDigest !== previousLatestDigest) {
+                shouldNotify = true;
+              } else if (currentLatestVersion && previousLatestVersion && currentLatestVersion !== previousLatestVersion) {
+                shouldNotify = true;
+              }
+              // If neither changed, don't notify (same update still available)
+            }
 
             if (shouldNotify) {
               // Format container data for notification
@@ -575,6 +766,7 @@ async function getAllContainersWithUpdates(forceRefresh = false, filterPortainer
                 latestVersionPublishDate: container.latestPublishDate || null,
                 releaseUrl: null, // Containers don't have release URLs
                 notificationType: "portainer-container",
+                userId: userId,
               });
             }
           }
@@ -663,12 +855,28 @@ async function getContainersFromPortainer(userId = null) {
               container.Id
             );
             const imageName = details.Config.Image;
+            const imageId = details.Image || ""; // Get imageId for use in digest extraction and image details
 
             // Extract image digest from Image field (format: sha256:...)
-            const imageId = details.Image || "";
-            const currentDigest = imageId.startsWith("sha256:")
-              ? imageId.split(":")[1].substring(0, 12)
-              : imageId.substring(0, 12);
+            // Use getCurrentImageDigest to get the full digest from RepoDigests (more reliable)
+            let currentDigest = null;
+            try {
+              const dockerRegistryService = require("./dockerRegistryService");
+              currentDigest = await dockerRegistryService.getCurrentImageDigest(
+                details,
+                imageName,
+                portainerUrl,
+                endpointId
+              );
+            } catch (digestError) {
+              // Fallback to extracting from Image field if getCurrentImageDigest fails
+              if (imageId.startsWith("sha256:")) {
+                currentDigest = imageId; // Use full digest
+              } else if (imageId) {
+                currentDigest = `sha256:${imageId}`; // Assume it's a digest without prefix
+              }
+              logger.debug(`Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`);
+            }
 
             // Extract tag from image name
             const imageParts = imageName.includes(":")
@@ -722,7 +930,7 @@ async function getContainersFromPortainer(userId = null) {
               portainerUrl: portainerUrl,
               portainerName: instanceName,
               hasUpdate: false, // No Docker Hub check
-              currentDigest: currentDigest,
+              currentDigest: currentDigest, // Full digest (sha256:...)
               currentTag: currentTag,
               currentVersion: currentTag,
               latestDigest: null,
@@ -737,7 +945,7 @@ async function getContainersFromPortainer(userId = null) {
               providesNetwork: providesNetwork || false,
             };
           } catch (error) {
-            logger.error(`Error processing container ${container.Id}:`, error.message);
+            logger.error(`Error processing container ${container.Id}:`, { error });
             return null;
           }
         })
@@ -745,9 +953,52 @@ async function getContainersFromPortainer(userId = null) {
 
       // Filter out null results
       const validContainers = containersBasic.filter((c) => c !== null);
+      
+      // Save containers to database if userId is provided
+      if (userId && validContainers.length > 0) {
+        const { upsertPortainerContainer } = require("../db/database");
+        const imageRepoParser = require("../utils/imageRepoParser");
+        
+        for (const container of validContainers) {
+          try {
+            // Parse image repo from image name
+            const parsed = imageRepoParser.parseImageName(container.image || "");
+            const imageRepo = parsed.repository || container.image?.split(":")[0] || "";
+            
+            // Save container to database (without Docker Hub data)
+            await upsertPortainerContainer(userId, instance.id, {
+              containerId: container.id,
+              containerName: container.name,
+              endpointId: container.endpointId,
+              imageName: container.image,
+              imageRepo: imageRepo,
+              status: container.status,
+              state: container.state,
+              stackName: container.stackName,
+              currentDigest: container.currentDigest || null,
+              imageCreatedDate: container.currentImageCreated || null,
+              usesNetworkMode: container.usesNetworkMode || false,
+              providesNetwork: container.providesNetwork || false,
+            });
+          } catch (saveError) {
+            logger.warn(`Failed to save container ${container.name} to database`, {
+              error: saveError,
+              containerId: container.id,
+              instanceId: instance.id,
+            });
+            // Continue with other containers
+          }
+        }
+        
+        logger.debug(`Saved ${validContainers.length} containers to database for instance ${instanceName}`, {
+          instanceId: instance.id,
+          portainerUrl: portainerUrl,
+        });
+      }
+      
       allContainers.push(...validContainers);
     } catch (error) {
-      logger.error(`Error fetching containers from ${portainerUrl}:`, error.message);
+      logger.error(`Error fetching containers from ${portainerUrl}:`, { error });
     }
   }
 
@@ -933,7 +1184,7 @@ async function getUnusedImages(userId = null) {
         }
       }
     } catch (error) {
-      logger.error(`Error fetching unused images from ${portainerUrl}:`, error.message);
+      logger.error(`Error fetching unused images from ${portainerUrl}:`, { error });
     }
   }
 

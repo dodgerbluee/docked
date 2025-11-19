@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
@@ -37,6 +37,15 @@ const AvatarTab = React.memo(function AvatarTab({
   const [avatarSuccess, setAvatarSuccess] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+
+  // Open modal when image is ready
+  useEffect(() => {
+    if (avatarImage && avatarPreview && imageReady) {
+      setShowPreviewModal(true);
+      setImageReady(false); // Reset flag
+    }
+  }, [avatarImage, avatarPreview, imageReady]);
 
   const handleFileSelect = (file) => {
     if (!file.type.startsWith("image/")) {
@@ -51,12 +60,19 @@ const AvatarTab = React.memo(function AvatarTab({
 
     setAvatarFile(file);
     setAvatarError("");
+    setShowPreviewModal(false); // Reset modal state
+    setImageReady(false); // Reset ready flag
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      setAvatarError("Failed to read file");
+    };
     reader.onload = (e) => {
       const img = new Image();
+      img.onerror = () => {
+        setAvatarError("Failed to load image");
+      };
       img.onload = () => {
-        setAvatarImage(img);
         const previewSize = 400;
         const imageAspect = img.width / img.height;
         let displayedWidth, displayedHeight;
@@ -72,16 +88,19 @@ const AvatarTab = React.memo(function AvatarTab({
         const cropX = (previewSize - cropSize) / 2;
         const cropY = (previewSize - cropSize) / 2;
 
+        // Set all state at once, then trigger modal open via useEffect
+        setAvatarImage(img);
+        setAvatarPreview(e.target.result);
         setAvatarCrop({
           x: cropX,
           y: cropY,
           width: cropSize,
           height: cropSize,
         });
-        setAvatarPreview(e.target.result);
         setAvatarZoom(1);
         setAvatarPan({ x: 0, y: 0 });
-        setShowPreviewModal(true);
+        // Mark image as ready - useEffect will open modal
+        setImageReady(true);
       };
       img.src = e.target.result;
     };
@@ -182,6 +201,7 @@ const AvatarTab = React.memo(function AvatarTab({
 
   const resetAvatarState = () => {
     setShowPreviewModal(false);
+    setImageReady(false);
     setAvatarPreview(null);
     setAvatarFile(null);
     setAvatarImage(null);

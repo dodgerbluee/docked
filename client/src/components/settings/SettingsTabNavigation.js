@@ -14,8 +14,8 @@ function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged, develo
     SETTINGS_TABS.PORTAINER,
     SETTINGS_TABS.DOCKERHUB,
     SETTINGS_TABS.DISCORD,
-    // Only show Cache tab if developer mode is enabled
-    ...(developerModeEnabled ? [SETTINGS_TABS.CACHE] : []),
+    // Only show Data tab if developer mode is enabled
+    ...(developerModeEnabled ? [SETTINGS_TABS.DATA] : []),
   ];
 
   return (

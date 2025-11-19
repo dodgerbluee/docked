@@ -544,8 +544,9 @@ export function usePortainerPage({
             return next;
           });
           toast.info(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
-          if (fetchContainers) {
-            fetchContainers().catch(() => {});
+          // Refetch unused images to get updated list (don't refetch containers as it's not needed)
+          if (fetchUnusedImages) {
+            fetchUnusedImages().catch(() => {});
           }
         } else {
           toast.error("Failed to delete image. Check console for details.");
@@ -615,8 +616,9 @@ export function usePortainerPage({
             return next;
           });
           toast.info(`Successfully deleted ${deletedCount} image(s).`);
-          if (fetchContainers) {
-            fetchContainers().catch(() => {});
+          // Refetch unused images to get updated list (don't refetch containers as it's not needed)
+          if (fetchUnusedImages) {
+            fetchUnusedImages().catch(() => {});
           }
         } else {
           toast.error("Failed to delete images. Check console for details.");
@@ -630,7 +632,7 @@ export function usePortainerPage({
         setDeletingImages(false);
       }
     },
-    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchContainers]
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchUnusedImages]
   );
 
   const closeErrorModal = () => {

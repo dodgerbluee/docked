@@ -93,26 +93,10 @@ const GeneralTab = React.memo(function GeneralTab({
             options={colorSchemeOptions}
             value={localColorScheme}
             onChange={setLocalColorScheme}
-            className={styles.toggle}
           />
           <small className={styles.helperText}>
             Choose how the application theme is determined. "System" will follow your browser or
             operating system preference.
-          </small>
-        </div>
-        <div className={styles.formGroup}>
-          <label htmlFor="logLevel" className={styles.label}>
-            Log Level
-          </label>
-          <ToggleButton
-            options={logLevelOptions}
-            value={localLogLevel || "info"}
-            onChange={handleLogLevelChange}
-            className={styles.toggle}
-          />
-          <small className={styles.helperText}>
-            Control the verbosity of application logs. "Info" shows core events (job starts,
-            completions, errors). "Debug" includes detailed scheduling, comparison, and diagnostic information.
           </small>
         </div>
         {/* When enabled, allows stopping, removing, repulling, starting, and verifying that the new container is up */}

@@ -26,7 +26,7 @@ async function getColorSchemeHandler(req, res, next) {
         error: "Authentication required",
       });
     }
-    const colorScheme = await getSetting(userId, COLOR_SCHEME_KEY);
+    const colorScheme = await getSetting(COLOR_SCHEME_KEY, userId);
     res.json({
       success: true,
       colorScheme: colorScheme || DEFAULT_COLOR_SCHEME,
@@ -64,7 +64,7 @@ async function setColorSchemeHandler(req, res, next) {
       });
     }
 
-    await setSetting(userId, COLOR_SCHEME_KEY, colorScheme);
+    await setSetting(COLOR_SCHEME_KEY, colorScheme, userId);
 
     res.json({
       success: true,
@@ -95,7 +95,7 @@ async function getRefreshingTogglesEnabledHandler(req, res, next) {
         error: "Authentication required",
       });
     }
-    const value = await getSetting(userId, REFRESHING_TOGGLES_ENABLED_KEY);
+    const value = await getSetting(REFRESHING_TOGGLES_ENABLED_KEY, userId);
     // Convert string to boolean, default to false if not set
     const enabled =
       value === null || value === undefined
@@ -138,7 +138,7 @@ async function setRefreshingTogglesEnabledHandler(req, res, next) {
       });
     }
 
-    await setSetting(userId, REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString());
+    await setSetting(REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString(), userId);
 
     res.json({
       success: true,

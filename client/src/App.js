@@ -45,6 +45,7 @@ import {
   SETTINGS_TABS,
   CONFIGURATION_TABS,
 } from "./constants/apiConstants";
+import { PORTAINER_CONTENT_TABS } from "./constants/portainerPage";
 
 function App() {
   // Authentication state - using custom hook
@@ -106,7 +107,7 @@ function App() {
     useDockerHubCredentials(isAuthenticated, authToken);
 
   // Tracked images - using custom hook
-  const { trackedImages, fetchTrackedImages } = useTrackedImages();
+  const { trackedImages, setTrackedImages, fetchTrackedImages } = useTrackedImages();
   // Avatar management - using custom hook
   const avatarManagement = useAvatarManagement(isAuthenticated, authToken);
   const {
@@ -298,6 +299,9 @@ function App() {
 
   // Enhanced handleLogout to include cleanup
   const handleLogoutWithCleanup = useCallback(() => {
+    // Clear all error states on logout to prevent them from showing for the next user
+    setError(null);
+    setPullError(null);
     handleLogout();
     setActiveTab(TAB_NAMES.SUMMARY);
     // Reset initial pull flag on logout
@@ -312,6 +316,16 @@ function App() {
       batchInitialTimeoutRef.current = null;
     }
   }, [handleLogout, batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef]);
+
+  // Clear error states when authentication state changes (user logs out/in)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // User logged out - clear all error states
+      setError(null);
+      setPullError(null);
+      setPullSuccess(null);
+    }
+  }, [isAuthenticated]);
 
   // Theme, color scheme, and Docker Hub credentials are now managed by hooks
 
@@ -352,6 +366,12 @@ function App() {
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
       setPortainerInstancesFromAPI([]);
+      // Clear all container and tracked image data to prevent showing previous user's data
+      setContainers([]);
+      setStacks([]);
+      setUnusedImages([]);
+      setUnusedImagesCount(0);
+      setTrackedImages([]);
       // Clear batch interval on logout
       if (batchIntervalRef.current) {
         clearInterval(batchIntervalRef.current);
@@ -363,6 +383,11 @@ function App() {
     setDataFetched,
     setDockerHubDataPulled,
     setPortainerInstancesFromAPI,
+    setContainers,
+    setStacks,
+    setUnusedImages,
+    setUnusedImagesCount,
+    setTrackedImages,
     batchIntervalRef,
   ]);
 
@@ -672,6 +697,9 @@ function App() {
 
   // Render summary page - now using SummaryPage component
   const renderSummary = useCallback(() => {
+    // Show loading state if data is being fetched for a new user
+    const isLoading = loading || (!dataFetched && isAuthenticated && passwordChanged);
+    
     return (
       <SummaryPage
         portainerInstances={portainerInstances}
@@ -684,6 +712,7 @@ function App() {
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
         onSetSelectedPortainerInstances={setSelectedPortainerInstances}
         onSetContentTab={setContentTab}
+        isLoading={isLoading}
       />
     );
   }, [
@@ -693,6 +722,10 @@ function App() {
     unusedImagesCount,
     trackedImages,
     dismissedTrackedAppNotifications,
+    loading,
+    dataFetched,
+    isAuthenticated,
+    passwordChanged,
     setActiveTab,
     setSelectedPortainerInstances,
     setContentTab,
@@ -933,6 +966,7 @@ function App() {
           <div className="tab-content">
             {activeTab === TAB_NAMES.SETTINGS ? (
               <SettingsPage
+                key={username || authToken || "settings"} // Force remount when user changes
                 username={username}
                 passwordChanged={passwordChanged}
                 avatar={avatar}
@@ -1072,6 +1106,12 @@ function App() {
               // Refresh Portainer instances list and get the updated instances
               const updatedInstances = await fetchPortainerInstances();
 
+              // Check if we're on the settings page - if so, stay there and don't navigate
+              const isOnSettingsPage = activeTab === TAB_NAMES.SETTINGS && settingsTab === SETTINGS_TABS.PORTAINER;
+              
+              // Check if we're on the Portainer page
+              const isOnPortainerPage = activeTab === TAB_NAMES.PORTAINER;
+
               // If this is a new instance (not editing), fetch data for it
               if (!editingPortainerInstance && newInstanceData) {
                 // Find the new instance in the updated list to get the correct name
@@ -1087,7 +1127,37 @@ function App() {
 
                 // Use the found instance or fallback to newInstanceData
                 const instanceToUse = newInstance || newInstanceData;
-                await handleNewInstanceDataFetch(instanceToUse);
+
+                if (isOnSettingsPage) {
+                  // Just refresh containers in the background without navigating
+                  fetchContainers(false);
+                } else if (isOnPortainerPage) {
+                  // We're on the Portainer page - fetch containers for the new instance
+                  // and then filter to show only this instance
+                  try {
+                    // Fetch containers for the new instance
+                    await fetchContainers(true, instanceToUse.url);
+                    
+                    // Wait a moment for state to update
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Navigate to Portainer page (if not already there) and filter to this instance
+                    setActiveTab(TAB_NAMES.PORTAINER);
+                    setSelectedPortainerInstances(new Set([instanceToUse.name]));
+                    
+                    // Set content tab to "All" to show all containers for this instance
+                    setContentTab(PORTAINER_CONTENT_TABS.ALL);
+                  } catch (err) {
+                    console.error("Error fetching containers for new instance:", err);
+                    // Still navigate even if fetch fails
+                    setActiveTab(TAB_NAMES.PORTAINER);
+                    setSelectedPortainerInstances(new Set([instanceToUse.name]));
+                    setContentTab(PORTAINER_CONTENT_TABS.ALL);
+                  }
+                } else {
+                  // Use the found instance or fallback to newInstanceData
+                  await handleNewInstanceDataFetch(instanceToUse);
+                }
               } else {
                 // For edits, just refresh all data
                 fetchContainers();
@@ -1097,7 +1167,7 @@ function App() {
 
               // Trigger refresh in Settings component to update the auth method badges
               // If we're on the settings page, trigger a refresh
-              if (activeTab === TAB_NAMES.SETTINGS && settingsTab === SETTINGS_TABS.PORTAINER) {
+              if (isOnSettingsPage) {
                 // The Settings component will refresh when the portainer section is active
                 // But we can also force a refresh by calling fetchPortainerInstances
                 // which will update App's state, and Settings will pick it up

@@ -145,7 +145,7 @@ async function getLatestRelease(repoInput, token = null) {
       });
       logger.info(`[GitLab] API response status: ${response.status}`);
     } catch (err) {
-      logger.error(`[GitLab] API request error:`, err.message);
+      logger.error(`[GitLab] API request error:`, { error: err });
       if (err.response) {
         logger.error(`[GitLab] Response status: ${err.response.status}`);
         logger.error(`[GitLab] Response headers:`, JSON.stringify(err.response.headers));
@@ -222,7 +222,7 @@ async function getLatestRelease(repoInput, token = null) {
 
     return null;
   } catch (error) {
-    logger.error(`[GitLab] Error in getLatestRelease for ${owner}/${repo}:`, error.message);
+    logger.error(`[GitLab] Error in getLatestRelease for ${owner}/${repo}:`, { error });
     if (error.response) {
       logger.error(`[GitLab] Error response status: ${error.response.status}`);
       logger.error(`[GitLab] Error response data:`, JSON.stringify(error.response.data));

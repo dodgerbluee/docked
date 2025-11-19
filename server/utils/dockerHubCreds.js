@@ -15,34 +15,42 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /**
  * Get Docker Hub credentials from database
  * Uses in-memory cache to minimize database queries
+ * @param {number} userId - User ID (required for per-user credentials)
  * @returns {Promise<{username: string|null, token: string|null}>}
  */
-async function getDockerHubCreds() {
-  // Check cache first
+async function getDockerHubCreds(userId) {
+  if (!userId) {
+    logger.warn("getDockerHubCreds called without userId - returning null credentials");
+    return { username: null, token: null };
+  }
+
+  // Check cache first (cache key includes userId)
+  const cacheKey = `dockerhub_creds_${userId}`;
   const now = Date.now();
-  if (cachedCreds && now - cacheTimestamp < CACHE_TTL) {
-    return cachedCreds;
+  if (cachedCreds && cachedCreds.userId === userId && now - cacheTimestamp < CACHE_TTL) {
+    return { username: cachedCreds.username, token: cachedCreds.token };
   }
 
   try {
     // Get credentials from database
-    const dbCreds = await getDockerHubCredentials();
+    const dbCreds = await getDockerHubCredentials(userId);
     if (dbCreds && dbCreds.username && dbCreds.token) {
       cachedCreds = {
+        userId: userId,
         username: dbCreds.username,
         token: dbCreds.token,
       };
       cacheTimestamp = now;
-      return cachedCreds;
+      return { username: dbCreds.username, token: dbCreds.token };
     }
   } catch (error) {
-    logger.error("Error fetching Docker Hub credentials from database:", error.message);
+    logger.error("Error fetching Docker Hub credentials from database:", { error });
   }
 
   // No credentials available
-  cachedCreds = { username: null, token: null };
+  cachedCreds = { userId: userId, username: null, token: null };
   cacheTimestamp = now;
-  return cachedCreds;
+  return { username: null, token: null };
 }
 
 /**

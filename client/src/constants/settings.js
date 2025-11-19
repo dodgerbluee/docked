@@ -12,7 +12,7 @@ export const SETTINGS_TABS = {
   DISCORD: "discord",
   USER_DETAILS: "userdetails",
   LOGS: "logs",
-  CACHE: "cache",
+  DATA: "data",
 };
 
 export const SETTINGS_TAB_LABELS = {
@@ -25,7 +25,7 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.DISCORD]: "Notifications",
   [SETTINGS_TABS.USER_DETAILS]: "User",
   [SETTINGS_TABS.LOGS]: "Logs",
-  [SETTINGS_TABS.CACHE]: "Cache",
+  [SETTINGS_TABS.DATA]: "Data",
 };
 
 export const COLOR_SCHEMES = {

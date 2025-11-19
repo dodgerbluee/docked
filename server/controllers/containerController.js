@@ -11,7 +11,7 @@ const {
   validateContainerArray,
 } = require("../utils/validation");
 const { RateLimitExceededError } = require("../utils/retry");
-const { getAllPortainerInstances, setContainerCache, getAllContainerCacheEntries } = require("../db/database");
+const { getAllPortainerInstances, getPortainerContainersWithUpdates } = require("../db/database");
 const logger = require("../utils/logger");
 
 /**
@@ -35,18 +35,6 @@ async function getContainers(req, res, next) {
     if (portainerOnly) {
       // Fetch from Portainer without Docker Hub checks
       const result = await containerService.getContainersFromPortainer(userId);
-      // Cache Portainer-only data so we don't have to refetch on every request
-      try {
-        await setContainerCache("containers", result, { lastPortainerPull: new Date().toISOString() });
-        logger.info("Cached Portainer-only container data (portainerOnly=true)", {
-          module: "containerController",
-          operation: "getContainers",
-          containerCount: result.containers?.length || 0,
-        });
-      } catch (cacheError) {
-        logger.warn("Failed to cache Portainer-only data (portainerOnly=true):", cacheError.message);
-        // Continue even if cache fails
-      }
       res.json(result);
       return;
     }
@@ -63,19 +51,12 @@ async function getContainers(req, res, next) {
         source: "portainer-only",
       });
       const portainerResult = await containerService.getContainersFromPortainer(userId);
-      // Cache Portainer-only data so we don't have to refetch on every request
       // Docker Hub data can be added later via "Pull" button or batch process
-      try {
-        await setContainerCache("containers", portainerResult, { lastPortainerPull: new Date().toISOString() });
-        logger.info("Cached Portainer-only container data", {
-          module: "containerController",
-          operation: "getContainers",
-          containerCount: portainerResult.containers?.length || 0,
-        });
-      } catch (cacheError) {
-        logger.warn("Failed to cache Portainer-only data:", cacheError.message);
-        // Continue even if cache fails
-      }
+      logger.info("Fetched Portainer-only container data", {
+        module: "containerController",
+        operation: "getContainers",
+        containerCount: portainerResult.containers?.length || 0,
+      });
       res.json(portainerResult);
       return;
     }
@@ -125,18 +106,6 @@ async function getContainers(req, res, next) {
         containers: updatedContainers,
       };
 
-      // Update cache with network mode flags
-      // Preserve existing metadata and update Portainer pull timestamp
-      const existingMetadata = cached._metadata || {};
-      try {
-        await setContainerCache("containers", updatedCache, { 
-          ...existingMetadata,
-          lastPortainerPull: new Date().toISOString() 
-        });
-      } catch (cacheError) {
-        logger.warn("Failed to update cache with network mode flags:", cacheError.message);
-      }
-
       res.json(updatedCache);
       return;
     }
@@ -156,18 +125,6 @@ async function getContainers(req, res, next) {
         module: "containerController",
         operation: "getContainers",
       });
-      // Cache Portainer-only data so we don't have to refetch on every request
-      try {
-        await setContainerCache("containers", portainerResult, { lastPortainerPull: new Date().toISOString() });
-        logger.info("Cached Portainer-only container data (fallback)", {
-          module: "containerController",
-          operation: "getContainers",
-          containerCount: portainerResult.containers?.length || 0,
-        });
-      } catch (cacheError) {
-        logger.warn("Failed to cache Portainer-only data (fallback):", cacheError.message);
-        // Continue even if cache fails
-      }
       res.json(portainerResult);
     } catch (portainerError) {
       logger.error("Fallback to Portainer-only fetch failed", {
@@ -188,7 +145,7 @@ async function getContainers(req, res, next) {
 
 /**
  * Pull fresh container data from Docker Hub
- * Clears cache and fetches fresh data
+ * Fetches fresh data from Portainer and Docker Hub
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -235,12 +192,25 @@ async function pullContainers(req, res, next) {
         error: error,
         portainerUrl: req.body?.portainerUrl || "all-instances",
       });
+      
+      // Check if credentials exist to customize message
+      const userId = req.user?.id;
+      let message = "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+      if (userId) {
+        const { getDockerHubCreds } = require("../utils/dockerHubCreds");
+        const creds = await getDockerHubCreds(userId);
+        if (!creds.username || !creds.token) {
+          message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+        }
+      } else {
+        message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+      }
+      
       return res.status(429).json({
         success: false,
         error: error.message || "Docker Hub rate limit exceeded",
         rateLimitExceeded: true,
-        message:
-          "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.",
+        message: message,
       });
     }
 
@@ -268,6 +238,14 @@ async function pullContainers(req, res, next) {
  */
 async function upgradeContainer(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     const { containerId } = req.params;
     const { endpointId, imageName, portainerUrl } = req.body;
 
@@ -285,8 +263,8 @@ async function upgradeContainer(req, res, next) {
       return res.status(400).json(validationError);
     }
 
-    // Get instance credentials from database
-    const instances = await getAllPortainerInstances();
+    // Get instance credentials from database for this user
+    const instances = await getAllPortainerInstances(userId);
     const instance = instances.find((inst) => inst.url === portainerUrl);
     if (!instance) {
       return res.status(404).json({ error: "Portainer instance not found" });
@@ -303,7 +281,8 @@ async function upgradeContainer(req, res, next) {
       portainerUrl,
       endpointId,
       containerId,
-      imageName
+      imageName,
+      userId
     );
 
     res.json({
@@ -324,6 +303,14 @@ async function upgradeContainer(req, res, next) {
  */
 async function batchUpgradeContainers(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     const { containers } = req.body;
 
     // Validate input
@@ -332,8 +319,8 @@ async function batchUpgradeContainers(req, res, next) {
       return res.status(400).json(validationError);
     }
 
-    // Get all instances once to avoid repeated DB queries
-    const instances = await getAllPortainerInstances();
+    // Get all instances once to avoid repeated DB queries (for this user)
+    const instances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Group containers by Portainer instance for efficient authentication
@@ -399,7 +386,8 @@ async function batchUpgradeContainers(req, res, next) {
           container.portainerUrl,
           container.endpointId,
           container.containerId,
-          container.imageName
+          container.imageName,
+          userId
         );
         return { success: true, result, containerId: container.containerId };
       } catch (error) {
@@ -461,97 +449,194 @@ async function batchUpgradeContainers(req, res, next) {
 }
 
 /**
- * Get all container cache entries (developer mode only)
+ * Get all container data from normalized tables (developer mode only)
+ * Shows data from normalized tables: portainer_containers and docker_hub_image_versions
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getCacheData(req, res, next) {
+async function getContainerData(req, res, next) {
   try {
-    const entries = await getAllContainerCacheEntries();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     
-    // Process entries to extract container information
-    const processedEntries = entries.map((entry) => {
-      if (!entry.data || entry.error) {
-        return {
-          key: entry.key,
-          error: entry.error || "No data",
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-        };
+    // Get ALL containers from portainer_containers table (even without Docker Hub data)
+    const { getPortainerContainers, getDockerHubImageVersion } = require("../db/database");
+    const allContainers = await getPortainerContainers(userId);
+    const userInstances = await getAllPortainerInstances(userId);
+    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+    
+    // Get Docker Hub data for containers that have imageRepo
+    const imageRepos = [...new Set(allContainers.map(c => c.imageRepo).filter(Boolean))];
+    const dockerHubDataMap = new Map();
+    for (const imageRepo of imageRepos) {
+      try {
+        const dhData = await getDockerHubImageVersion(userId, imageRepo);
+        if (dhData) {
+          dockerHubDataMap.set(imageRepo, dhData);
+        }
+      } catch (err) {
+        // If we can't get Docker Hub data, continue without it
+        logger.debug(`Could not get Docker Hub data for ${imageRepo}:`, { error: err });
       }
+    }
+    
+    // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
+    const normalizeDigest = (digest) => {
+      if (!digest) {
+        return null;
+      }
+      // Ensure digest starts with sha256: for consistent comparison
+      return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
+    };
 
-      // Extract container names from cache data
-      const containers = entry.data.containers || [];
-      const containerNames = containers.map((c) => c.name || c.id || "Unknown");
+    // Format containers for display (include Portainer data even if no Docker Hub data)
+    // Also preserve portainerInstanceId for grouping
+    const formattedContainers = allContainers.map((c) => {
+      const instance = instanceMap.get(c.portainerInstanceId);
+      const dhData = c.imageRepo ? dockerHubDataMap.get(c.imageRepo) : null;
       
-      // Extract metadata (remove _metadata from data to avoid duplication)
-      const metadata = entry.data._metadata || {};
-      const dataWithoutMetadata = { ...entry.data };
-      delete dataWithoutMetadata._metadata;
-
+      // Compute hasUpdate per-container by comparing this container's currentDigest
+      // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
+      let hasUpdate = false;
+      if (dhData && c.currentDigest && dhData.latestDigest) {
+        const normalizedCurrent = normalizeDigest(c.currentDigest);
+        const normalizedLatest = normalizeDigest(dhData.latestDigest);
+        hasUpdate = normalizedCurrent !== normalizedLatest;
+      }
+      
       return {
-        key: entry.key,
-        containerCount: containers.length,
-        containerNames: containerNames,
-        data: dataWithoutMetadata,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-        lastPortainerPull: metadata.lastPortainerPull || null,
-        lastDockerHubPull: metadata.lastDockerHubPull || null,
+        id: c.containerId,
+        name: c.containerName,
+        image: c.imageName,
+        imageRepo: c.imageRepo,
+        status: c.status,
+        state: c.state,
+        portainerUrl: instance ? instance.url : null,
+        portainerName: instance ? instance.name : null,
+        portainerInstanceId: c.portainerInstanceId, // Preserve for grouping
+        endpointId: c.endpointId,
+        stackName: c.stackName,
+        currentDigest: c.currentDigest,
+        currentTag: c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest",
+        currentVersion: c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest",
+        currentImageCreated: c.imageCreatedDate,
+        usesNetworkMode: c.usesNetworkMode || false,
+        providesNetwork: c.providesNetwork || false,
+        // Docker Hub data (may be null if not available)
+        // hasUpdate is computed per-container, not from shared table
+        hasUpdate: hasUpdate,
+        latestDigest: dhData ? dhData.latestDigest : null,
+        latestVersion: dhData ? dhData.latestVersion : null,
+        latestTag: dhData ? dhData.latestTag : null,
+        latestPublishDate: dhData ? dhData.latestPublishDate : null,
+        existsInDockerHub: dhData ? (dhData.existsInDockerHub || false) : false,
+        lastSeen: c.lastSeen,
+        updatedAt: c.updatedAt,
       };
     });
+    
+    // Group by portainer instance for display
+    // Filter by portainerInstanceId directly (more reliable than URL matching)
+    const containersByInstanceId = new Map();
+    formattedContainers.forEach((c) => {
+      if (c.portainerInstanceId) {
+        if (!containersByInstanceId.has(c.portainerInstanceId)) {
+          containersByInstanceId.set(c.portainerInstanceId, []);
+        }
+        containersByInstanceId.get(c.portainerInstanceId).push(c);
+      }
+    });
+    
+    // Show ALL instances, even if they have no containers (so user knows the instance exists)
+    const entries = userInstances.map((instance) => {
+      const instanceContainers = containersByInstanceId.get(instance.id) || [];
+      return {
+        key: `portainer-${instance.id}`,
+        containerCount: instanceContainers.length,
+        containerNames: instanceContainers.map((c) => c.name || c.id || "Unknown"),
+        data: {
+          instanceName: instance.name,
+          instanceUrl: instance.url,
+          containers: instanceContainers,
+        },
+        createdAt: null, // Not stored in normalized tables
+        updatedAt: instanceContainers.length > 0 
+          ? instanceContainers[0].updatedAt || null 
+          : null,
+      };
+    });
+    // Don't filter out entries with 0 containers - show all instances
 
-    logger.info("Cache data retrieved", {
+    logger.info("Container data retrieved from normalized tables", {
       module: "containerController",
-      operation: "getCacheData",
-      entryCount: processedEntries.length,
+      operation: "getContainerData",
+      entryCount: entries.length,
+      totalContainers: allContainers.length,
+      formattedContainers: formattedContainers.length,
+      containersByInstanceId: Array.from(containersByInstanceId.entries()).map(([id, containers]) => ({
+        instanceId: id,
+        containerCount: containers.length,
+      })),
     });
 
     res.json({
       success: true,
-      entries: processedEntries,
+      entries: entries,
     });
   } catch (error) {
-    logger.error("Error getting cache data", {
+    logger.error("Error getting container data", {
       module: "containerController",
-      operation: "getCacheData",
+      operation: "getContainerData",
       error: error,
     });
     res.status(500).json({
       success: false,
-      error: error.message || "Failed to get cache data",
+      error: error.message || "Failed to get container data",
     });
   }
 }
 
 /**
- * Clear container cache
+ * Clear container data from database
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function clearCache(req, res, next) {
+async function clearContainerData(req, res, next) {
   try {
-    const { clearContainerCache } = require("../db/database");
-    await clearContainerCache();
-    logger.info("Container cache cleared", {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const { clearUserContainerData } = require("../db/database");
+    await clearUserContainerData(userId);
+    logger.info("User container data cleared", {
       module: "containerController",
-      operation: "clearCache",
+      operation: "clearContainerData",
+      userId: userId,
     });
     res.json({
       success: true,
-      message: "Cache cleared successfully",
+      message: "Container data cleared successfully",
     });
   } catch (error) {
-    logger.error("Error clearing container cache", {
+    logger.error("Error clearing container data", {
       module: "containerController",
-      operation: "clearCache",
+      operation: "clearContainerData",
       error: error,
     });
     res.status(500).json({
       success: false,
-      error: error.message || "Failed to clear cache",
+      error: error.message || "Failed to clear container data",
     });
   }
 }
@@ -559,8 +644,8 @@ async function clearCache(req, res, next) {
 module.exports = {
   getContainers,
   pullContainers,
-  getCacheData,
-  clearCache,
+  getContainerData,
+  clearContainerData,
   upgradeContainer,
   batchUpgradeContainers,
 };

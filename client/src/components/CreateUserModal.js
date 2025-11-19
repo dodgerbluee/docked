@@ -442,62 +442,68 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
     // User form step
     return (
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         {error && (
           <Alert variant="error" className={styles.alert}>
             {error}
           </Alert>
         )}
 
-        <Input
-          id="username"
-          label="Username"
-          type="text"
-          value={formData.username}
-          onChange={handleChange("username")}
-          required
-          autoComplete="username"
-          disabled={loading}
-          minLength={3}
-          helperText="Must be at least 3 characters long"
-          autoFocus
-        />
+        <div className={styles.formFields}>
+          <Input
+            id="username"
+            label="Username"
+            type="text"
+            value={formData.username}
+            onChange={handleChange("username")}
+            required
+            autoComplete="username"
+            disabled={loading}
+            minLength={3}
+            helperText="Must be at least 3 characters long"
+            autoFocus
+            className={styles.formField}
+          />
 
-        <Input
-          id="email"
-          label="Email"
-          type="email"
-          value={formData.email}
-          onChange={handleChange("email")}
-          autoComplete="email"
-          disabled={loading}
-          helperText="Optional"
-        />
+          <Input
+            id="email"
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange("email")}
+            autoComplete="email"
+            disabled={loading}
+            helperText="Optional"
+            className={styles.formField}
+          />
 
-        <Input
-          id="password"
-          label="Password"
-          type="password"
-          value={formData.password}
-          onChange={handleChange("password")}
-          required
-          autoComplete="new-password"
-          disabled={loading}
-          minLength={8}
-          helperText="Must be at least 8 characters long"
-        />
+          <Input
+            id="password"
+            label="Password"
+            type="password"
+            value={formData.password}
+            onChange={handleChange("password")}
+            required
+            autoComplete="new-password"
+            disabled={loading}
+            minLength={8}
+            helperText="Must be at least 8 characters long"
+            className={styles.formField}
+          />
 
-        <Input
-          id="confirmPassword"
-          label="Confirm Password"
-          type="password"
-          value={formData.confirmPassword}
-          onChange={handleChange("confirmPassword")}
-          required
-          autoComplete="new-password"
-          disabled={loading}
-          helperText="Must match password"
-        />
+          <Input
+            id="confirmPassword"
+            label="Confirm Password"
+            type="password"
+            value={formData.confirmPassword}
+            onChange={handleChange("confirmPassword")}
+            required
+            autoComplete="new-password"
+            disabled={loading}
+            helperText="Must match password"
+            className={styles.formField}
+          />
+        </div>
 
         <div className={styles.actions}>
           <Button

@@ -4,7 +4,7 @@
  * Handles job registration, execution, and coordination
  */
 
-const { createBatchRun, updateBatchRun } = require("../../db/database");
+const { createBatchRun, updateBatchRun, checkAndAcquireBatchJobLock } = require("../../db/database");
 const BatchLogger = require("./Logger");
 const Scheduler = require("./Scheduler");
 const logger = require("../../utils/logger");
@@ -12,7 +12,7 @@ const logger = require("../../utils/logger");
 class BatchManager {
   constructor() {
     this.handlers = new Map(); // Map of jobType -> JobHandler instance
-    this.runningJobs = new Map(); // Map of jobType -> boolean (to prevent concurrent runs)
+    this.runningJobs = new Map(); // Map of `${userId}:${jobType}` -> boolean (to prevent concurrent runs)
     this.scheduler = new Scheduler(this);
   }
 
@@ -50,43 +50,57 @@ class BatchManager {
 
   /**
    * Execute a batch job
+   * @param {number} userId - User ID
    * @param {string} jobType - Job type identifier
+   * @param {boolean} isManual - Whether this is a manual run
    * @returns {Promise<Object>} - Execution result
    */
-  async executeJob(jobType, isManual = false) {
+  async executeJob(userId, jobType, isManual = false) {
     const handler = this.getHandler(jobType);
     if (!handler) {
       throw new Error(`No handler registered for job type: ${jobType}`);
     }
 
-    // Prevent concurrent runs of the same job type
-    if (this.runningJobs.get(jobType)) {
-      throw new Error(`Job ${jobType} is already running`);
+    const key = `${userId}:${jobType}`;
+
+    // Atomically check and acquire lock using database transaction
+    // This prevents race conditions where two requests could both pass the check
+    const lockCheck = await checkAndAcquireBatchJobLock(userId, jobType);
+    if (lockCheck.isRunning) {
+      throw new Error(`Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`);
+    }
+
+    // Also check in-memory map as a fast-path check (but database is source of truth)
+    if (this.runningJobs.get(key)) {
+      throw new Error(`Job ${jobType} is already running for user ${userId}`);
     }
 
     const logger = new BatchLogger(jobType);
     let runId = null;
 
     try {
-      this.runningJobs.set(jobType, true);
+      // Set in-memory flag after database lock is acquired
+      this.runningJobs.set(key, true);
 
       // Create batch run record
-      logger.info("Creating batch run record");
-      runId = await createBatchRun("running", jobType, isManual);
-      logger.info("Batch run record created", { runId });
+      logger.info("Creating batch run record", { userId });
+      runId = await createBatchRun(userId, "running", jobType, isManual);
+      logger.info("Batch run record created", { runId, userId });
 
       // Execute the job
-      logger.info("Starting job execution");
-      const result = await handler.execute({ logger });
+      logger.info("Starting job execution", { userId });
+      const result = await handler.execute({ logger, userId });
 
       // Update batch run as completed
       logger.info("Job execution completed successfully", {
         itemsChecked: result.itemsChecked,
         itemsUpdated: result.itemsUpdated,
+        userId,
       });
 
       await updateBatchRun(
         runId,
+        userId,
         "completed",
         result.itemsChecked || 0,
         result.itemsUpdated || 0,
@@ -95,9 +109,9 @@ class BatchManager {
       );
 
       // Update scheduler's last run time
-      this.scheduler.updateLastRunTime(jobType, Date.now());
+      this.scheduler.updateLastRunTime(userId, jobType, Date.now());
 
-      logger.info("Batch run marked as completed", { runId });
+      logger.info("Batch run marked as completed", { runId, userId });
 
       return {
         runId,
@@ -112,24 +126,26 @@ class BatchManager {
       logger.error("Job execution failed", {
         error: errorMessage,
         stack: err.stack,
+        userId,
       });
 
       // Update batch run as failed
       if (runId) {
         try {
-          await updateBatchRun(runId, "failed", 0, 0, errorMessage, logger.getFormattedLogs());
-          logger.info("Batch run marked as failed", { runId });
+          await updateBatchRun(runId, userId, "failed", 0, 0, errorMessage, logger.getFormattedLogs());
+          logger.info("Batch run marked as failed", { runId, userId });
         } catch (updateErr) {
           logger.error("Failed to update batch run status", {
             error: updateErr.message,
+            userId,
           });
         }
       }
 
       throw err;
     } finally {
-      this.runningJobs.set(jobType, false);
-      logger.info("Job execution finished");
+      this.runningJobs.set(key, false);
+      logger.info("Job execution finished", { userId });
     }
   }
 

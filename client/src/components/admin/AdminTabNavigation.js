@@ -9,6 +9,7 @@ import { ADMIN_TABS, ADMIN_TAB_LABELS } from "../../constants/admin";
  */
 function AdminTabNavigation({ activeTab, onTabChange }) {
   const tabs = [
+    ADMIN_TABS.GENERAL,
     ADMIN_TABS.USERS,
     ADMIN_TABS.LOGS,
   ];

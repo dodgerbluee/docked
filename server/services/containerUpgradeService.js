@@ -7,16 +7,13 @@ const axios = require("axios");
 const { URL } = require("url");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
-const containerCacheService = require("./containerCacheService");
 const {
   getAllPortainerInstances,
-  getContainerCache,
-  setContainerCache,
 } = require("../db/database");
 const logger = require("../utils/logger");
 const { validateUrlForSSRF, validatePathComponent } = require("../utils/validation");
 
-async function upgradeSingleContainer(portainerUrl, endpointId, containerId, imageName) {
+async function upgradeSingleContainer(portainerUrl, endpointId, containerId, imageName, userId = null) {
   // Normalize container ID - Docker API accepts both full and shortened IDs
   // Try with the provided ID first, then fall back to shortened version if needed
   const normalizeContainerId = (id) => {
@@ -96,7 +93,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         );
       }
     } catch (error) {
-      logger.error("Error getting IP address for Portainer instance:", error.message);
+      logger.error("Error getting IP address for Portainer instance:", { error });
       // Continue with original URL - fallback will handle it
     }
   }
@@ -489,7 +486,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           await portainerService.removeContainer(portainerUrl, endpointId, container.id);
           logger.info(`   âœ… ${container.name} removed`);
         } catch (err) {
-          logger.warn(`   âš ï¸  Failed to remove ${container.name}:`, err.message);
+          logger.warn(`   âš ï¸  Failed to remove ${container.name}:`, { error: err });
           // Continue anyway - we'll try to recreate them later
         }
       }
@@ -1113,7 +1110,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
       } catch (err) {
-        logger.warn("Could not check upgraded container health, proceeding anyway:", err.message);
+        logger.warn("Could not check upgraded container health, proceeding anyway:", { error: err });
         // Wait a brief moment anyway
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
@@ -1636,8 +1633,8 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           await portainerService.startContainer(portainerUrl, endpointId, newDependentContainer.Id);
           logger.info(`   âœ… ${container.name} recreated and started successfully`);
         } catch (err) {
-          logger.error(`   âš ï¸  Failed to recreate ${container.name}:`, err.message);
-          logger.error(`   âš ï¸  Error stack:`, err.stack);
+          logger.error(`   âš ï¸  Failed to recreate ${container.name}:`, { error: err });
+          logger.error(`   âš ï¸  Error stack:`, { error: err });
           if (err.response) {
             logger.error(`   âš ï¸  HTTP Status: ${err.response.status}`);
             logger.error(
@@ -1689,7 +1686,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             }
           }
         } catch (err) {
-          logger.error(`   âš ï¸  Failed to restart ${container.name}:`, err.message);
+          logger.error(`   âš ï¸  Failed to restart ${container.name}:`, { error: err });
           // Continue with other containers
         }
       }
@@ -1698,7 +1695,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       logger.info(`â„¹ï¸  No dependent containers found`);
     }
   } catch (err) {
-    logger.error("âš ï¸  Error restarting dependent containers:", err.message);
+    logger.error("âš ï¸  Error restarting dependent containers:", { error: err });
     // Don't fail the upgrade if dependent restart fails
   }
 
@@ -1790,20 +1787,8 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         }
         logger.info(`âœ… All network-dependent containers started`);
 
-        // Refetch container information and update cache
-        if (startedContainerIds.length > 0) {
-          logger.info(`   Refetching container information from Portainer and updating cache...`);
-          try {
-            await containerCacheService.refetchAndUpdateContainerCache(
-              portainerUrl,
-              endpointId,
-              startedContainerIds
-            );
-            logger.info(`   âœ… Cache updated for ${startedContainerIds.length} container(s)`);
-          } catch (err) {
-            logger.warn(`   âš ï¸  Failed to update cache for containers: ${err.message}`);
-          }
-        }
+        // Container information will be updated on next pull from Portainer
+        // Normalized tables are already updated via markDockerHubImageUpToDate
       } else {
         // Even if no other containers found, start the upgraded container itself
         logger.info(
@@ -1813,11 +1798,8 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
           logger.info(`   âœ… ${originalContainerName} started successfully`);
 
-          // Update cache
-          await containerCacheService.refetchAndUpdateContainerCache(portainerUrl, endpointId, [
-            newContainer.Id,
-          ]);
-          logger.info(`   âœ… Cache updated for started container`);
+          // Container information will be updated on next pull from Portainer
+          // Normalized tables are already updated via markDockerHubImageUpToDate
         } catch (err) {
           logger.error(`   âš ï¸  Failed to start ${originalContainerName}: ${err.message}`);
         }
@@ -1831,49 +1813,72 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   // Invalidate cache for this image so next check gets fresh data
   dockerRegistryService.clearDigestCache(imageRepo, currentTag);
 
-  // Update the container cache to mark this container as no longer having an update
-  // This ensures the cache persists across app restarts
+  // Update normalized tables to mark this container as no longer having an update
+  // This ensures the update status persists across app restarts
   try {
-    const cached = await getContainerCache("containers");
-    if (cached && cached.containers && Array.isArray(cached.containers)) {
-      let cacheUpdated = false;
-      const updatedContainers = cached.containers.map((cachedContainer) => {
-        // Match by containerId (can be full or shortened)
-        const matchesId =
-          cachedContainer.id === containerId ||
-          cachedContainer.id === workingContainerId ||
-          cachedContainer.id === newContainer.Id ||
-          cachedContainer.id?.substring(0, 12) === containerId.substring(0, 12) ||
-          cachedContainer.id?.substring(0, 12) === workingContainerId.substring(0, 12);
-
-        // Also match by name as fallback
-        const matchesName = cachedContainer.name === originalContainerName.replace("/", "");
-
-        if (matchesId || matchesName) {
-          cacheUpdated = true;
-          return { ...cachedContainer, hasUpdate: false };
+    if (userId && imageRepo) {
+      const { markDockerHubImageUpToDate, getDockerHubImageVersion, getAllPortainerInstances, upsertPortainerContainer } = require("../db/database");
+      // Get the latest digest/version from database (which was the target of the upgrade)
+      const versionInfo = await getDockerHubImageVersion(userId, imageRepo);
+      if (versionInfo && versionInfo.latestDigest && versionInfo.latestVersion) {
+        // Container now has the latest image, so current = latest
+        await markDockerHubImageUpToDate(userId, imageRepo, versionInfo.latestDigest, versionInfo.latestVersion);
+        
+        // Also update portainer_containers table with the new current digest
+        // Find the Portainer instance ID for this URL
+        const instances = await getAllPortainerInstances(userId);
+        const instance = instances.find(inst => inst.url === portainerUrl);
+        if (instance && instance.id) {
+          // Get the new container's digest (from the newly created container)
+          let newContainerDigest = versionInfo.latestDigest;
+          try {
+            // Try to get the actual digest from the new container
+            const newContainerDetails = await portainerService.getContainerDetails(portainerUrl, endpointId, newContainer.Id);
+            const imageId = newContainerDetails.Image || "";
+            if (imageId && imageId.startsWith("sha256:")) {
+              newContainerDigest = imageId;
+            }
+          } catch (digestError) {
+            // If we can't get the digest from container, use the one from versionInfo
+            logger.debug("Could not get digest from new container, using versionInfo digest:", { error: digestError });
+          }
+          
+          await upsertPortainerContainer(userId, instance.id, {
+            containerId: newContainer.Id,
+            containerName: originalContainerName.replace("/", ""),
+            endpointId: endpointId,
+            imageName: newImageName,
+            imageRepo: imageRepo,
+            status: newContainer.State?.Status || containerDetails.State?.Status || null,
+            state: newContainer.State?.Status || containerDetails.State?.Status || null,
+            stackName: containerDetails.Config?.Labels?.["com.docker.compose.project"] || 
+                      containerDetails.Config?.Labels?.["com.docker.stack.namespace"] || null,
+            currentDigest: newContainerDigest,
+            imageCreatedDate: null, // Will be updated on next pull
+            usesNetworkMode: false, // Will be updated on next pull
+            providesNetwork: false, // Will be updated on next pull
+          });
         }
-        return cachedContainer;
-      });
-
-      if (cacheUpdated) {
-        // Update the cache with the modified container
-        const updatedCache = {
-          ...cached,
-          containers: updatedContainers,
-        };
-        await setContainerCache("containers", updatedCache);
-        logger.info("Updated container cache to mark upgraded container as up-to-date", {
+        
+        logger.info("Updated normalized tables to mark upgraded container as up-to-date", {
           module: "containerService",
           operation: "upgradeSingleContainer",
           containerName: originalContainerName,
           containerId: containerId.substring(0, 12),
+          newContainerId: newContainer.Id.substring(0, 12),
+          imageRepo: imageRepo,
+          newDigest: versionInfo.latestDigest.substring(0, 12),
+          newVersion: versionInfo.latestVersion,
+        });
+      } else {
+        logger.warn("Could not find latest version info in database to update normalized tables", {
+          imageRepo: imageRepo,
         });
       }
     }
-  } catch (cacheError) {
-    // Don't fail the upgrade if cache update fails
-    logger.warn("Failed to update container cache after upgrade:", cacheError.message);
+  } catch (dbError) {
+    // Don't fail the upgrade if database update fails
+    logger.warn("Failed to update normalized tables after upgrade:", { error: dbError });
   }
 
   logger.info(`âœ… Upgrade completed successfully for ${originalContainerName}`);

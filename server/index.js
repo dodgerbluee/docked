@@ -187,7 +187,7 @@ async function authenticatePortainer(portainerUrl) {
         }
       }
     } else {
-      logger.error(`Portainer authentication failed for ${portainerUrl}:`, error.message);
+      logger.error(`Portainer authentication failed for ${portainerUrl}:`, { error });
     }
     throw new Error(
       `Failed to authenticate with Portainer at ${portainerUrl}: ${
@@ -413,7 +413,7 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
   } catch (error) {
     // Only log non-404 errors and non-429 errors (429s are handled by retry)
     if (error.response?.status !== 404 && error.response?.status !== 429) {
-      logger.error(`Error fetching index digest for ${imageRepo}:${tag}:`, error.message);
+      logger.error(`Error fetching index digest for ${imageRepo}:${tag}:`, { error });
     }
     return null;
   }
@@ -818,7 +818,7 @@ app.get("/api/containers", async (req, res) => {
 
         allContainers.push(...containersWithUpdates);
       } catch (error) {
-        logger.error(`Error fetching containers from ${portainerUrl}:`, error.message);
+        logger.error(`Error fetching containers from ${portainerUrl}:`, { error });
         // Continue with other Portainer instances even if one fails
       }
     }
@@ -891,7 +891,7 @@ app.get("/api/containers", async (req, res) => {
           }
         }
       } catch (error) {
-        logger.error(`Error counting unused images from ${portainerUrl}:`, error.message);
+        logger.error(`Error counting unused images from ${portainerUrl}:`, { error });
       }
     }
 
@@ -1103,7 +1103,7 @@ app.get("/api/images/unused", async (req, res) => {
           }
         }
       } catch (error) {
-        logger.error(`Error fetching unused images from ${portainerUrl}:`, error.message);
+        logger.error(`Error fetching unused images from ${portainerUrl}:`, { error });
       }
     }
 
@@ -1244,7 +1244,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // Handle uncaught exceptions to prevent crashes
 process.on("uncaughtException", (error) => {
   logger.error("[SERVER] Uncaught Exception:", error);
-  logger.error("[SERVER] Stack:", error.stack);
+  logger.error("[SERVER] Stack:", { error });
   console.error("[SERVER] Uncaught Exception:", error);
   console.error("[SERVER] Stack:", error.stack);
   // Don't exit - log and continue (server should keep running)
@@ -1287,9 +1287,9 @@ const server = app.listen(PORT, () => {
         logger.info("[SERVER] ✅ Batch system started successfully");
       })
       .catch((err) => {
-        logger.error("[SERVER] ❌ ERROR starting batch system:", err.message);
-        logger.error("[SERVER] Stack:", err.stack);
-        logger.error("Error starting batch system:", err);
+        logger.error("[SERVER] ❌ ERROR starting batch system:", { error: err });
+        logger.error("[SERVER] Stack:", { error: err });
+        logger.error("Error starting batch system:", { error: err });
         // Don't crash the server if batch system fails to start
       });
   });

@@ -25,6 +25,7 @@ This directory contains comprehensive documentation for the Docked project.
 - **[SECURITY.md](../SECURITY.md)** - Security policy and vulnerability reporting
 - **[UPGRADE.md](../UPGRADE.md)** - Upgrade instructions
 - **[DATABASE_SETUP.md](../DATABASE_SETUP.md)** - Database setup guide
+- **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** - Database schema documentation (auto-generated)
 
 ### Evaluation and Improvement
 

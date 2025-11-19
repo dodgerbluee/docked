@@ -46,7 +46,7 @@ try {
   logger.error("Failed to load database module:", dbError);
   process.exit(1);
 }
-const { hasAnyUsers, waitForDatabase, waitForMigrations } = databaseModule;
+const { hasAnyUsers, waitForDatabase } = databaseModule;
 
 const app = express();
 logger.debug("Express app created", { module: "server" });
@@ -292,49 +292,24 @@ if (shouldStartServer) {
       }
 
       // Start batch system (runs jobs in background even when browser is closed)
-      // Wait for migrations to complete before starting batch system
       // Use setImmediate to ensure server is fully started before starting batch system
-      setImmediate(async () => {
-        try {
-          // Wait for migrations to complete before starting batch jobs
-          await waitForMigrations();
-          logger.debug("Migrations complete, starting batch system", { module: "server" });
-          
-          batchSystem
-            .start()
-            .then(() => {
-              logger.info("Batch system started", {
-                module: "server",
-                service: "batch",
-              });
-            })
-            .catch((err) => {
-              logger.error("Failed to start batch system", {
-                module: "server",
-                service: "batch",
-                error: err,
-              });
-              // Don't crash the server if batch system fails to start
+      setImmediate(() => {
+        batchSystem
+          .start()
+          .then(() => {
+            logger.info("Batch system started", {
+              module: "server",
+              service: "batch",
             });
-        } catch (migrationErr) {
-          logger.error("Error waiting for migrations:", migrationErr);
-          // Still try to start batch system - it might work anyway
-          batchSystem
-            .start()
-            .then(() => {
-              logger.info("Batch system started (migrations may not have completed)", {
-                module: "server",
-                service: "batch",
-              });
-            })
-            .catch((err) => {
-              logger.error("Failed to start batch system", {
-                module: "server",
-                service: "batch",
-                error: err,
-              });
+          })
+          .catch((err) => {
+            logger.error("Failed to start batch system", {
+              module: "server",
+              service: "batch",
+              error: err,
             });
-        }
+            // Don't crash the server if batch system fails to start
+          });
       });
     });
 

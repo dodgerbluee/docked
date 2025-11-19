@@ -30,8 +30,15 @@ const logger = require("../utils/logger");
  */
 async function getDiscordWebhooks(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { getAllDiscordWebhooks } = getDatabase();
-    const webhooks = await getAllDiscordWebhooks();
+    const webhooks = await getAllDiscordWebhooks(userId);
     res.json({
       success: true,
       webhooks: webhooks,
@@ -93,11 +100,19 @@ async function getDiscordWebhook(req, res, next) {
  */
 async function createDiscordWebhookEndpoint(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     let { webhookUrl, serverName, channelName, enabled } = req.body;
 
     // Check webhook limit (max 3)
     const { getAllDiscordWebhooks, createDiscordWebhook } = getDatabase();
-    const existingWebhooks = await getAllDiscordWebhooks();
+    const existingWebhooks = await getAllDiscordWebhooks(userId);
     if (existingWebhooks.length >= 3) {
       return res.status(400).json({
         success: false,
@@ -146,6 +161,7 @@ async function createDiscordWebhookEndpoint(req, res, next) {
     }
 
     const id = await createDiscordWebhook(
+      userId,
       webhookUrl,
       serverName || null,
       channelName || null,

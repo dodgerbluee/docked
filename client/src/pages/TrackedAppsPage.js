@@ -576,9 +576,13 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
             confirmDialog.onConfirm();
           }
         }}
-        onCancel={() =>
-          setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null })
-        }
+        onCancel={() => {
+          if (confirmDialog.onClose) {
+            confirmDialog.onClose();
+          } else {
+            setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null, onClose: null });
+          }
+        }}
       />
     </div>
   );

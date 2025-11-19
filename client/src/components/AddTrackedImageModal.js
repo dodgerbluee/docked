@@ -350,10 +350,14 @@ function AddTrackedImageModal({
 
     try {
       await onDelete(initialData.id);
+      // Only close modal and call onSuccess if deletion was successful (not cancelled)
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete tracked item. Please try again.");
+      // Only show error if it's not a cancellation
+      if (err.message !== "Deletion cancelled") {
+        setError(err.response?.data?.error || err.message || "Failed to delete tracked item. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -21,9 +21,10 @@ class RateLimitExceededError extends Error {
  * @param {Function} fn - Function to retry (should return a Promise)
  * @param {number} maxRetries - Maximum number of retries
  * @param {number} baseDelay - Base delay in milliseconds
+ * @param {number} userId - Optional user ID to check for Docker Hub credentials
  * @returns {Promise} - Result of the function
  */
-async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000, userId = null) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const result = await fn();
@@ -38,10 +39,18 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
 
         if (thresholdExceeded) {
           // Threshold exceeded - stop retrying and throw special error
-          throw new RateLimitExceededError(
-            "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. " +
-              "Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits."
-          );
+          // Check if credentials exist to customize message
+          let message = "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again.";
+          if (userId) {
+            const { getDockerHubCreds } = require("./dockerHubCreds");
+            const creds = await getDockerHubCreds(userId);
+            if (!creds.username || !creds.token) {
+              message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+            }
+          } else {
+            message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+          }
+          throw new RateLimitExceededError(message);
         }
 
         // If we have retries left, wait and retry
