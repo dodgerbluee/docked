@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Home } from "lucide-react";
+import axios from "axios";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Settings from "../components/Settings";
 import SettingsTabNavigation from "../components/settings/SettingsTabNavigation";
 import Button from "../components/ui/Button";
 import { SETTINGS_TABS } from "../constants/settings";
+import { API_BASE_URL } from "../utils/api";
 import styles from "./SettingsPage.module.css";
 
 /**
@@ -38,6 +40,36 @@ function SettingsPage({
   hideTabNavigation = false,
 }) {
   const [internalTab, setInternalTab] = useState(controlledActiveTab || SETTINGS_TABS.GENERAL);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+
+  // Fetch developer mode state
+  const fetchDeveloperMode = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
+      if (response.data.success) {
+        setDeveloperModeEnabled(response.data.enabled || false);
+      }
+    } catch (err) {
+      console.error("Error fetching developer mode:", err);
+      setDeveloperModeEnabled(false);
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchDeveloperMode();
+  }, [fetchDeveloperMode]);
+
+  // Listen for settings save events to refetch developer mode
+  useEffect(() => {
+    const handleSettingsSaved = () => {
+      fetchDeveloperMode();
+    };
+    window.addEventListener("generalSettingsSaved", handleSettingsSaved);
+    return () => {
+      window.removeEventListener("generalSettingsSaved", handleSettingsSaved);
+    };
+  }, [fetchDeveloperMode]);
 
   // Sync internal tab when controlled tab changes
   useEffect(() => {
@@ -49,11 +81,11 @@ function SettingsPage({
   // Use controlled tab if provided, otherwise use internal state
   const settingsTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
 
-  // If first login, force password tab
+  // If first login, force user details tab (password section is now in User tab)
   // BUT: if controlledActiveTab is explicitly set to LOGS, respect it (for URL routing)
   const activeTab =
     !passwordChanged && controlledActiveTab !== SETTINGS_TABS.LOGS
-      ? SETTINGS_TABS.PASSWORD
+      ? SETTINGS_TABS.USER_DETAILS
       : settingsTab;
 
   const handleTabChange = useCallback(
@@ -107,6 +139,7 @@ function SettingsPage({
           activeTab={activeTab}
           onTabChange={handleTabChange}
           passwordChanged={passwordChanged}
+          developerModeEnabled={developerModeEnabled}
         />
       )}
 

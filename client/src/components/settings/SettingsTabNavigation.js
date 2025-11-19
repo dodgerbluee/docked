@@ -1,50 +1,48 @@
 import React from "react";
 import PropTypes from "prop-types";
-import styles from "./SettingsTabNavigation.module.css";
+import TabNavigation from "../ui/TabNavigation";
 import { SETTINGS_TABS, SETTINGS_TAB_LABELS } from "../../constants/settings";
 
 /**
  * SettingsTabNavigation Component
  * Renders the tab navigation buttons for the Settings page
+ * Uses the reusable TabNavigation component for consistency
  */
-function SettingsTabNavigation({ activeTab, onTabChange, passwordChanged }) {
+const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
+  activeTab,
+  onTabChange,
+  passwordChanged,
+  developerModeEnabled = false,
+}) {
   const tabs = [
     SETTINGS_TABS.GENERAL,
-    SETTINGS_TABS.USERNAME,
-    SETTINGS_TABS.PASSWORD,
-    SETTINGS_TABS.AVATAR,
+    SETTINGS_TABS.USER_DETAILS,
     SETTINGS_TABS.PORTAINER,
     SETTINGS_TABS.DOCKERHUB,
     SETTINGS_TABS.DISCORD,
-    SETTINGS_TABS.USER_DETAILS,
-    SETTINGS_TABS.LOGS,
+    // Only show Data tab if developer mode is enabled
+    ...(developerModeEnabled ? [SETTINGS_TABS.DATA] : []),
   ];
 
+  // Determine which tabs should be disabled
+  const disabledTabs = tabs.filter((tab) => tab !== SETTINGS_TABS.USER_DETAILS && !passwordChanged);
+
   return (
-    <div className={styles.tabsContainer}>
-      <div className={styles.tabsLeft}>
-        {tabs.map((tab) => {
-          const isDisabled = tab !== SETTINGS_TABS.PASSWORD && !passwordChanged;
-          return (
-            <button
-              key={tab}
-              className={`${styles.tab} ${activeTab === tab ? styles.active : ""}`}
-              onClick={() => onTabChange(tab)}
-              disabled={isDisabled}
-            >
-              {SETTINGS_TAB_LABELS[tab]}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <TabNavigation
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={onTabChange}
+      labels={SETTINGS_TAB_LABELS}
+      disabledTabs={disabledTabs}
+    />
   );
-}
+});
 
 SettingsTabNavigation.propTypes = {
   activeTab: PropTypes.string.isRequired,
   onTabChange: PropTypes.func.isRequired,
   passwordChanged: PropTypes.bool.isRequired,
+  developerModeEnabled: PropTypes.bool,
 };
 
 export default SettingsTabNavigation;

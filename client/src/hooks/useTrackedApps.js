@@ -97,24 +97,71 @@ export function useTrackedApps() {
 
   const handleDeleteTrackedImage = useCallback(
     (id) => {
-      setConfirmDialog({
-        isOpen: true,
-        title: "Delete Tracked App",
-        message: "Are you sure you want to remove this tracked image?",
-        onConfirm: async () => {
+      return new Promise((resolve, reject) => {
+        let isResolved = false;
+
+        const handleConfirm = async () => {
+          if (isResolved) return;
+          isResolved = true;
+
           try {
             const response = await axios.delete(`${API_BASE_URL}/api/tracked-images/${id}`);
             if (response.data.success) {
               await fetchTrackedImages();
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+              });
+              resolve();
             } else {
-              setTrackedImageError(response.data.error || "Failed to delete tracked image");
+              const error = response.data.error || "Failed to delete tracked image";
+              setTrackedImageError(error);
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+              });
+              reject(new Error(error));
             }
           } catch (err) {
-            setTrackedImageError(err.response?.data?.error || "Failed to delete tracked image");
-          } finally {
-            setConfirmDialog({ isOpen: false, title: "", message: "", onConfirm: null });
+            const error = err.response?.data?.error || "Failed to delete tracked image";
+            setTrackedImageError(error);
+            setConfirmDialog({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: null,
+              onClose: null,
+            });
+            reject(new Error(error));
           }
-        },
+        };
+
+        const handleCancel = () => {
+          if (isResolved) return;
+          isResolved = true;
+          setConfirmDialog({
+            isOpen: false,
+            title: "",
+            message: "",
+            onConfirm: null,
+            onClose: null,
+          });
+          reject(new Error("Deletion cancelled"));
+        };
+
+        setConfirmDialog({
+          isOpen: true,
+          title: "Delete Tracked App",
+          message: "Are you sure you want to remove this tracked image?",
+          onConfirm: handleConfirm,
+          onClose: handleCancel,
+        });
       });
     },
     [fetchTrackedImages]

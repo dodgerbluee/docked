@@ -25,7 +25,14 @@ const { clearLatestVersionsForAllTrackedImages } = require("../db/database");
  */
 async function getTrackedImages(req, res, next) {
   try {
-    const images = await getAllTrackedImages();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const images = await getAllTrackedImages(userId);
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
     const formattedImages = images.map((image) => {
@@ -80,8 +87,15 @@ async function getTrackedImages(req, res, next) {
  */
 async function getTrackedImage(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id));
+    const image = await getTrackedImageById(parseInt(id), userId);
 
     if (!image) {
       return res.status(404).json({
@@ -107,6 +121,13 @@ async function getTrackedImage(req, res, next) {
  */
 async function createTrackedImageEndpoint(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { name, imageName, githubRepo, sourceType, current_version, gitlabToken } = req.body;
 
     // Validate name is required
@@ -130,7 +151,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(null, githubRepo.trim());
+      const existing = await getTrackedImageByImageName(userId, null, githubRepo.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -139,11 +160,11 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Create tracked GitHub repo
-      const id = await createTrackedImage(name.trim(), null, githubRepo.trim(), "github");
+      const id = await createTrackedImage(userId, name.trim(), null, githubRepo.trim(), "github");
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
@@ -161,7 +182,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(null, githubRepo.trim());
+      const existing = await getTrackedImageByImageName(userId, null, githubRepo.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -171,6 +192,7 @@ async function createTrackedImageEndpoint(req, res, next) {
 
       // Create tracked GitLab repo
       const id = await createTrackedImage(
+        userId,
         name.trim(),
         null,
         githubRepo.trim(),
@@ -180,7 +202,7 @@ async function createTrackedImageEndpoint(req, res, next) {
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
@@ -198,7 +220,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if image name already exists
-      const existing = await getTrackedImageByImageName(imageName.trim());
+      const existing = await getTrackedImageByImageName(userId, imageName.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -207,11 +229,11 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Create tracked image
-      const id = await createTrackedImage(name.trim(), imageName.trim(), null, "docker");
+      const id = await createTrackedImage(userId, name.trim(), imageName.trim(), null, "docker");
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, { current_version: current_version.trim() });
+        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
@@ -240,11 +262,18 @@ async function createTrackedImageEndpoint(req, res, next) {
  */
 async function updateTrackedImageEndpoint(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
     const { name, imageName, current_version, gitlabToken } = req.body;
 
     // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id));
+    const existing = await getTrackedImageById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -264,7 +293,7 @@ async function updateTrackedImageEndpoint(req, res, next) {
     if (imageName && imageName !== null) {
       const trimmedImageName = String(imageName).trim();
       if (trimmedImageName !== existing.image_name) {
-        const conflict = await getTrackedImageByImageName(trimmedImageName);
+        const conflict = await getTrackedImageByImageName(userId, trimmedImageName);
         if (conflict && conflict.id !== parseInt(id)) {
           return res.status(400).json({
             success: false,
@@ -331,10 +360,10 @@ async function updateTrackedImageEndpoint(req, res, next) {
       }
     }
 
-    await updateTrackedImage(parseInt(id), updateData);
+    await updateTrackedImage(parseInt(id), userId, updateData);
 
     // Fetch the updated image to return current state
-    const updatedImage = await getTrackedImageById(parseInt(id));
+    const updatedImage = await getTrackedImageById(parseInt(id), userId);
 
     res.json({
       success: true,
@@ -366,10 +395,17 @@ async function updateTrackedImageEndpoint(req, res, next) {
  */
 async function deleteTrackedImageEndpoint(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
 
     // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id));
+    const existing = await getTrackedImageById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -378,7 +414,7 @@ async function deleteTrackedImageEndpoint(req, res, next) {
     }
 
     // Delete tracked image
-    await deleteTrackedImage(parseInt(id));
+    await deleteTrackedImage(parseInt(id), userId);
 
     res.json({
       success: true,
@@ -397,7 +433,14 @@ async function deleteTrackedImageEndpoint(req, res, next) {
  */
 async function checkTrackedImagesUpdates(req, res, next) {
   try {
-    const images = await getAllTrackedImages();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const images = await getAllTrackedImages(userId);
     const results = await trackedImageService.checkAllTrackedImages(images);
 
     res.json({
@@ -417,8 +460,15 @@ async function checkTrackedImagesUpdates(req, res, next) {
  */
 async function checkTrackedImageUpdate(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id));
+    const image = await getTrackedImageById(parseInt(id), userId);
 
     if (!image) {
       return res.status(404).json({
@@ -448,8 +498,15 @@ async function checkTrackedImageUpdate(req, res, next) {
  */
 async function clearGitHubCache(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     // Clear latest version data for all tracked images
-    const rowsUpdated = await clearLatestVersionsForAllTrackedImages();
+    const rowsUpdated = await clearLatestVersionsForAllTrackedImages(userId);
 
     // Also clear the GitHub and GitLab release caches
     githubService.clearReleaseCache();

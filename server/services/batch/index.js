@@ -60,12 +60,13 @@ function stop() {
 
 /**
  * Execute a specific job manually (for API endpoints)
+ * @param {number} userId - User ID
  * @param {string} jobType - The type of the job to execute.
  * @param {boolean} isManual - Whether this run was manually triggered (default: false)
  */
-async function executeJob(jobType, isManual = false) {
+async function executeJob(userId, jobType, isManual = false) {
   const manager = getBatchManager();
-  return await manager.executeJob(jobType, isManual);
+  return await manager.executeJob(userId, jobType, isManual);
 }
 
 /**

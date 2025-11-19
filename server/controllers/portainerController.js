@@ -10,8 +10,6 @@ const {
   updatePortainerInstance,
   deletePortainerInstance,
   updatePortainerInstanceOrder,
-  getContainerCache,
-  setContainerCache,
 } = require("../db/database");
 const { validateRequiredFields } = require("../utils/validation");
 const portainerService = require("../services/portainerService");
@@ -98,7 +96,14 @@ async function validateInstance(req, res, next) {
  */
 async function getInstances(req, res, next) {
   try {
-    const instances = await getAllPortainerInstances();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const instances = await getAllPortainerInstances(userId);
     // Don't return passwords or API keys in the response
     const safeInstances = instances.map(({ password, api_key, ...rest }) => rest);
     res.json({
@@ -118,8 +123,15 @@ async function getInstances(req, res, next) {
  */
 async function getInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
-    const instance = await getPortainerInstanceById(parseInt(id));
+    const instance = await getPortainerInstanceById(parseInt(id), userId);
 
     if (!instance) {
       return res.status(404).json({
@@ -211,9 +223,18 @@ async function createInstance(req, res, next) {
       });
     }
 
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     // Create instance
     // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
     const id = await createPortainerInstance(
+      userId,
       instanceName,
       url.trim(),
       authType === "apikey" ? "" : username ? username.trim() : "",
@@ -248,11 +269,18 @@ async function createInstance(req, res, next) {
  */
 async function updateInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
     const { name, url, username, password, apiKey, authType } = req.body;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await getPortainerInstanceById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -354,6 +382,7 @@ async function updateInstance(req, res, next) {
     // For password auth, use null for API key to clear it
     await updatePortainerInstance(
       parseInt(id),
+      userId,
       instanceName,
       url.trim(),
       finalAuthType === "apikey" ? "" : username ? username.trim() : "",
@@ -387,10 +416,17 @@ async function updateInstance(req, res, next) {
  */
 async function deleteInstance(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { id } = req.params;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id));
+    const existing = await getPortainerInstanceById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -411,121 +447,18 @@ async function deleteInstance(req, res, next) {
     const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
     // Delete instance
-    await deletePortainerInstance(parseInt(id));
+    await deletePortainerInstance(parseInt(id), userId);
 
-    // Remove containers from cache that belong to the deleted instance
-    try {
-      const cached = await getContainerCache("containers");
-      if (cached && cached.containers && Array.isArray(cached.containers)) {
-        // Log for debugging
-        const totalContainersBefore = cached.containers.length;
-        const containersWithUpdatesBefore = cached.containers.filter((c) => c.hasUpdate).length;
-
-        // Filter out containers from the deleted instance using normalized URL comparison
-        // IMPORTANT: Preserve all container properties including hasUpdate flag
-        const filteredContainers = cached.containers.filter((container) => {
-          const containerUrl = normalizeUrl(container.portainerUrl);
-          const shouldKeep = containerUrl !== normalizedDeletedUrl;
-          return shouldKeep;
-        });
-
-        // Log for debugging
-        const totalContainersAfter = filteredContainers.length;
-        const containersWithUpdatesAfter = filteredContainers.filter((c) => c.hasUpdate).length;
-        logger.info("Filtering containers from cache after instance deletion", {
-          module: "portainerController",
-          operation: "deleteInstance",
-          instanceUrl: deletedInstanceUrl,
-          containersBefore: totalContainersBefore,
-          containersAfter: totalContainersAfter,
-          withUpdatesBefore: containersWithUpdatesBefore,
-          withUpdatesAfter: containersWithUpdatesAfter,
-        });
-
-        // Filter out the instance from portainerInstances array using normalized URL comparison
-        const filteredInstances = cached.portainerInstances
-          ? cached.portainerInstances.filter(
-              (instance) => normalizeUrl(instance.url) !== normalizedDeletedUrl
-            )
-          : [];
-
-        // Update stacks to remove containers from deleted instance using normalized URL comparison
-        const filteredStacks = cached.stacks
-          ? cached.stacks
-              .map((stack) => ({
-                ...stack,
-                containers: stack.containers
-                  ? stack.containers.filter(
-                      (container) => normalizeUrl(container.portainerUrl) !== normalizedDeletedUrl
-                    )
-                  : [],
-              }))
-              .filter((stack) => stack.containers && stack.containers.length > 0)
-          : [];
-
-        // Recalculate portainerInstances stats based on filtered containers
-        // IMPORTANT: Use the filtered containers array which preserves hasUpdate flags
-        const recalculatedInstances = filteredInstances.map((instance) => {
-          const instanceUrl = normalizeUrl(instance.url);
-          const instanceContainers = filteredContainers.filter(
-            (c) => normalizeUrl(c.portainerUrl) === instanceUrl
-          );
-
-          // Preserve hasUpdate flag from filtered containers
-          const withUpdates = instanceContainers.filter((c) => c.hasUpdate === true);
-          const upToDate = instanceContainers.filter((c) => c.hasUpdate !== true);
-
-          logger.debug("Recalculated instance stats after filtering", {
-            module: "portainerController",
-            operation: "deleteInstance",
-            instanceName: instance.name,
-            instanceUrl: instance.url,
-            totalContainers: instanceContainers.length,
-            withUpdates: withUpdates.length,
-            upToDate: upToDate.length,
-          });
-
-          return {
-            ...instance,
-            containers: instanceContainers,
-            withUpdates: withUpdates,
-            upToDate: upToDate,
-            totalContainers: instanceContainers.length,
-          };
-        });
-
-        // Recalculate unused images count based on remaining containers
-        // Since we don't have the unused images list in cache, we'll recalculate
-        // by counting containers that are not in use. For now, we'll keep the existing
-        // count but it will be recalculated on the next fetch.
-        // The count will be updated correctly when containers are next fetched.
-
-        // Update cache with filtered data
-        const updatedCache = {
-          ...cached,
-          containers: filteredContainers,
-          portainerInstances: recalculatedInstances,
-          stacks: filteredStacks,
-          // unusedImagesCount will be recalculated on next fetch based on remaining instances
-        };
-
-        await setContainerCache("containers", updatedCache);
-        logger.info("Removed containers from cache for deleted instance", {
-          module: "portainerController",
-          operation: "deleteInstance",
-          instanceUrl: deletedInstanceUrl,
-          containersRemoved: totalContainersBefore - totalContainersAfter,
-        });
-      }
-    } catch (cacheError) {
-      // Log error but don't fail the delete operation
-      logger.error("Error updating container cache after instance deletion", {
+    // Containers are automatically deleted from normalized tables via CASCADE
+    // when the portainer instance is deleted, so no manual cleanup needed
+    logger.info(
+      "Portainer instance deleted, containers will be removed from normalized tables via CASCADE",
+      {
         module: "portainerController",
         operation: "deleteInstance",
         instanceUrl: deletedInstanceUrl,
-        error: cacheError,
-      });
-    }
+      }
+    );
 
     res.json({
       success: true,
@@ -544,6 +477,13 @@ async function deleteInstance(req, res, next) {
  */
 async function updateInstanceOrder(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { orders } = req.body;
 
     if (!Array.isArray(orders)) {
@@ -563,7 +503,7 @@ async function updateInstanceOrder(req, res, next) {
       }
     }
 
-    await updatePortainerInstanceOrder(orders);
+    await updatePortainerInstanceOrder(userId, orders);
 
     res.json({
       success: true,

@@ -225,7 +225,7 @@ async function requestWithIpFallback(requestFn, portainerUrl) {
           }
         }
       } catch (ipError) {
-        logger.error(`IP fallback failed for ${portainerUrl}:`, ipError.message);
+        logger.error(`IP fallback failed for ${portainerUrl}:`, { error: ipError });
       }
     }
 
@@ -541,7 +541,7 @@ async function authenticatePortainer(
         }
       }
     } else {
-      logger.error(`Portainer authentication failed for ${portainerUrl}:`, error.message);
+      logger.error(`Portainer authentication failed for ${portainerUrl}:`, { error });
     }
     throw new Error(
       `Failed to authenticate with Portainer at ${portainerUrl}: ${

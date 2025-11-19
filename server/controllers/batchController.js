@@ -29,7 +29,14 @@ const logger = require("../utils/logger");
  */
 async function getBatchConfigHandler(req, res, next) {
   try {
-    const configs = await getBatchConfig(); // Returns all configs
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+    const configs = await getBatchConfig(userId); // Returns all configs for this user
     res.json({
       success: true,
       config: configs, // Return all configs as an object
@@ -51,6 +58,14 @@ async function getBatchConfigHandler(req, res, next) {
  */
 async function updateBatchConfigHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     const { jobType, enabled, intervalMinutes } = req.body;
 
     // Validate required fields
@@ -96,9 +111,9 @@ async function updateBatchConfigHandler(req, res, next) {
       });
     }
 
-    await updateBatchConfig(jobType, enabled, intervalMinutes);
+    await updateBatchConfig(userId, jobType, enabled, intervalMinutes);
 
-    const updatedConfigs = await getBatchConfig(); // Get all configs
+    const updatedConfigs = await getBatchConfig(userId); // Get all configs for this user
 
     res.json({
       success: true,
@@ -122,8 +137,15 @@ async function updateBatchConfigHandler(req, res, next) {
  */
 async function createBatchRunHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const { status, jobType } = req.body;
-    const runId = await createBatchRun(status || "running", jobType || "docker-hub-pull");
+    const runId = await createBatchRun(userId, status || "running", jobType || "docker-hub-pull");
     res.json({
       success: true,
       runId,
@@ -145,6 +167,13 @@ async function createBatchRunHandler(req, res, next) {
  */
 async function updateBatchRunHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const runId = parseInt(req.params.id);
     if (isNaN(runId)) {
       return res.status(400).json({
@@ -157,6 +186,7 @@ async function updateBatchRunHandler(req, res, next) {
 
     await updateBatchRun(
       runId,
+      userId,
       status,
       containersChecked || 0,
       containersUpdated || 0,
@@ -185,6 +215,14 @@ async function updateBatchRunHandler(req, res, next) {
  */
 async function getLatestBatchRunHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     // Check if we want latest runs by job type
     const byJobType = req.query.byJobType === "true";
 
@@ -198,7 +236,7 @@ async function getLatestBatchRunHandler(req, res, next) {
     });
 
     if (byJobType) {
-      const latestRuns = await getLatestBatchRunsByJobType();
+      const latestRuns = await getLatestBatchRunsByJobType(userId);
 
       logger.debug("Latest batch runs by job type retrieved", {
         module: "batchController",
@@ -212,7 +250,7 @@ async function getLatestBatchRunHandler(req, res, next) {
         runs: latestRuns,
       });
     } else {
-      const latestRun = await getLatestBatchRun();
+      const latestRun = await getLatestBatchRun(userId);
 
       logger.debug("Latest batch run retrieved", {
         module: "batchController",
@@ -249,8 +287,15 @@ async function getLatestBatchRunHandler(req, res, next) {
  */
 async function getRecentBatchRunsHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const limit = parseInt(req.query.limit) || 50;
-    const runs = await getRecentBatchRuns(limit);
+    const runs = await getRecentBatchRuns(userId, limit);
     res.json({
       success: true,
       runs,
@@ -272,6 +317,13 @@ async function getRecentBatchRunsHandler(req, res, next) {
  */
 async function getBatchRunByIdHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
     const runId = parseInt(req.params.id);
     if (isNaN(runId)) {
       return res.status(400).json({
@@ -280,7 +332,7 @@ async function getBatchRunByIdHandler(req, res, next) {
       });
     }
 
-    const run = await getBatchRunById(runId);
+    const run = await getBatchRunById(runId, userId);
     if (!run) {
       return res.status(404).json({
         success: false,
@@ -327,15 +379,24 @@ async function triggerBatchJobHandler(req, res, next) {
       });
     }
 
+    // Get userId from request (should be set by auth middleware)
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "User not authenticated",
+      });
+    }
+
     // Execute the job (don't await - let it run in background)
     // Pass isManual=true to mark this as a manually triggered run
     batchSystem
-      .executeJob(jobType, true)
+      .executeJob(userId, jobType, true)
       .then((result) => {
-        logger.info(`✅ Manually triggered job ${jobType} completed:`, result);
+        logger.info(`✅ Manually triggered job ${jobType} completed for user ${userId}:`, result);
       })
       .catch((err) => {
-        logger.error(`❌ Manually triggered job ${jobType} failed:`, err);
+        logger.error(`❌ Manually triggered job ${jobType} failed for user ${userId}:`, err);
       });
 
     res.json({
@@ -381,7 +442,15 @@ async function getBatchStatusHandler(req, res, next) {
  */
 async function getLogLevelHandler(req, res, next) {
   try {
-    // Use DB-backed log level (persists across restarts)
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    // Use DB-backed log level (persists across restarts) - system-wide
     const level = await getLogLevel();
     res.json({
       success: true,
@@ -404,6 +473,14 @@ async function getLogLevelHandler(req, res, next) {
  */
 async function setLogLevelHandler(req, res, next) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
     const { logLevel } = req.body;
 
     if (!logLevel || (logLevel !== "info" && logLevel !== "debug")) {
@@ -413,7 +490,7 @@ async function setLogLevelHandler(req, res, next) {
       });
     }
 
-    // Use DB-backed log level (persists across restarts)
+    // Use DB-backed log level (persists across restarts) - system-wide
     await setLogLevel(logLevel);
 
     // Also update the logger's cached level

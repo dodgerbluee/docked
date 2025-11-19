@@ -3,25 +3,23 @@
  * Popup form to add a new tracked image or GitHub repository
  */
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useRef } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
-import Select from "react-select";
 import { Trash2, Github } from "lucide-react";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
-import ToggleButton from "./ui/ToggleButton";
 import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
-import { PREDEFINED_GITHUB_REPOS, PREDEFINED_DOCKER_IMAGES } from "../constants/trackedApps";
-import {
-  getTrackedGitHubRepos,
-  getTrackedDockerImages,
-  filterTrackedItems,
-} from "../utils/trackedAppsFilters";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedImageModal.module.css";
+import { useTrackedImageForm } from "./AddTrackedImageModal/hooks/useTrackedImageForm";
+import { validateForm } from "./AddTrackedImageModal/utils/trackedImageValidation";
+import { selectStyles } from "./AddTrackedImageModal/utils/selectStyles";
+import GitHubSourceForm from "./AddTrackedImageModal/components/GitHubSourceForm";
+import GitLabSourceForm from "./AddTrackedImageModal/components/GitLabSourceForm";
+import DockerSourceForm from "./AddTrackedImageModal/components/DockerSourceForm";
 
 const SOURCE_TYPE_OPTIONS = [
   {
@@ -49,225 +47,41 @@ function AddTrackedImageModal({
   initialData = null,
   onDelete = null,
 }) {
-  const [sourceType, setSourceType] = useState("github");
-  const [usePredefined, setUsePredefined] = useState(true);
-  const [usePredefinedDocker, setUsePredefinedDocker] = useState(true);
-  const [selectedPredefinedRepo, setSelectedPredefinedRepo] = useState(null);
-  const [selectedPredefinedImage, setSelectedPredefinedImage] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    imageName: "",
-    githubRepo: "",
-    currentVersion: "",
-    gitlabToken: "",
-  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const lastAutoPopulatedName = useRef("");
+  const lastAutoPopulatedNameRef = useRef("");
 
-  // Get available options for react-select (filter out already tracked)
-  const githubRepoOptions = useMemo(() => {
-    const tracked = getTrackedGitHubRepos(trackedImages);
-    return filterTrackedItems(PREDEFINED_GITHUB_REPOS, tracked).map((repo) => ({
-      value: repo,
-      label: repo,
-    }));
-  }, [trackedImages]);
-
-  const dockerImageOptions = useMemo(() => {
-    const tracked = getTrackedDockerImages(trackedImages);
-    return filterTrackedItems(PREDEFINED_DOCKER_IMAGES, tracked).map((image) => ({
-      value: image,
-      label: image,
-    }));
-  }, [trackedImages]);
-
-  // Custom styles for react-select to match existing design
-  const selectStyles = {
-    control: (base, state) => ({
-      ...base,
-      border: `2px solid ${state.isFocused ? "var(--dodger-blue)" : "var(--border-color)"}`,
-      borderRadius: "8px",
-      backgroundColor: "var(--bg-primary)",
-      color: "var(--text-primary)",
-      boxShadow: "none",
-      "&:hover": {
-        borderColor: "var(--dodger-blue)",
-      },
-      outline: "none",
-      "&:focus-within": {
-        boxShadow: "none",
-      },
-    }),
-    menu: (base) => ({
-      ...base,
-      backgroundColor: "var(--bg-primary)",
-      border: "2px solid var(--border-color)",
-      borderRadius: "8px",
-      zIndex: 9999,
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isFocused
-        ? "var(--bg-secondary)"
-        : state.isSelected
-          ? "var(--dodger-blue)"
-          : "var(--bg-primary)",
-      color: state.isSelected ? "white" : "var(--text-primary)",
-      "&:active": {
-        backgroundColor: "var(--dodger-blue)",
-      },
-    }),
-    input: (base, state) => ({
-      ...base,
-      color: "var(--text-primary)",
-      margin: 0,
-      padding: 0,
-      "&:focus": {
-        outline: "none",
-        boxShadow: "none",
-        border: "none",
-      },
-      "& input": {
-        outline: "none !important",
-        boxShadow: "none !important",
-        border: "none !important",
-      },
-    }),
-    valueContainer: (base, state) => ({
-      ...base,
-      padding: "2px 8px",
-    }),
-    singleValue: (base) => ({
-      ...base,
-      color: "var(--text-primary)",
-    }),
-    placeholder: (base, state) => ({
-      ...base,
-      color: "var(--text-tertiary)",
-      opacity: state.isFocused ? 0 : 1,
-      transition: "opacity 0.2s",
-    }),
-  };
-
-  // Auto-populate display name from selected repository/image
-  // Skip auto-population when editing (initialData exists)
-  useEffect(() => {
-    // Don't auto-populate if we're editing an existing item
-    if (initialData) {
-      return;
-    }
-
-    const currentName = (formData.name || "").trim();
-    const shouldUpdate = currentName === "" || currentName === lastAutoPopulatedName.current;
-
-    if (shouldUpdate) {
-      let nameToSet = "";
-
-      if (
-        (sourceType === "github" || sourceType === "gitlab") &&
-        usePredefined &&
-        selectedPredefinedRepo
-      ) {
-        const repo = selectedPredefinedRepo.value || selectedPredefinedRepo;
-        const parts = repo.split("/");
-        nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
-      } else if (
-        (sourceType === "github" || sourceType === "gitlab") &&
-        !usePredefined &&
-        formData.githubRepo
-      ) {
-        const repo = (formData.githubRepo || "").trim();
-        // Match both GitHub and GitLab URLs
-        const match = repo.match(/(?:github\.com|gitlab\.com)\/([^/]+\/([^/]+))(?:\/|$)/i);
-        if (match) {
-          nameToSet = match[2] || match[1].split("/")[1];
-        } else {
-          const parts = repo.split("/");
-          nameToSet = parts.length > 1 ? parts[parts.length - 1] : repo;
-        }
-      } else if (sourceType === "docker" && usePredefinedDocker && selectedPredefinedImage) {
-        const image = selectedPredefinedImage.value || selectedPredefinedImage;
-        const parts = image.split("/");
-        nameToSet = parts.length > 1 ? parts[parts.length - 1] : image;
-      } else if (sourceType === "docker" && !usePredefinedDocker && formData.imageName) {
-        const image = (formData.imageName || "").trim();
-        const imageWithoutTag = image.split(":")[0];
-        const parts = imageWithoutTag.split("/");
-        nameToSet = parts.length > 1 ? parts[parts.length - 1] : imageWithoutTag;
-      }
-
-      if (nameToSet) {
-        // Replace dashes with spaces and capitalize each word
-        const capitalizedName = nameToSet
-          .split("-")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-        lastAutoPopulatedName.current = capitalizedName;
-        setFormData((prev) => ({ ...prev, name: capitalizedName }));
-      }
-    }
-  }, [
+  // Use extracted form hook
+  const formState = useTrackedImageForm({
+    trackedImages,
     initialData,
-    selectedPredefinedRepo,
-    selectedPredefinedImage,
-    formData.githubRepo,
-    formData.imageName,
-    formData.name,
-    sourceType,
-    usePredefined,
-    usePredefinedDocker,
-  ]);
+    isOpen,
+  });
 
-  // Clear error and reset form when modal opens or closes, or populate with initialData for editing
-  useEffect(() => {
+  const {
+    sourceType,
+    setSourceType,
+    usePredefined,
+    setUsePredefined,
+    usePredefinedDocker,
+    setUsePredefinedDocker,
+    selectedPredefinedRepo,
+    setSelectedPredefinedRepo,
+    selectedPredefinedImage,
+    setSelectedPredefinedImage,
+    formData,
+    handleChange,
+    resetForm,
+    githubRepoOptions,
+    dockerImageOptions,
+  } = formState;
+
+  // Clear error when modal opens
+  React.useEffect(() => {
     if (isOpen) {
       setError("");
-      if (initialData) {
-        setFormData({
-          name: initialData.name || "",
-          imageName: initialData.image_name || "",
-          githubRepo: initialData.github_repo || "",
-          currentVersion: initialData.current_version || "",
-          gitlabToken: initialData.gitlab_token || "",
-        });
-        setSourceType(initialData.source_type || "github");
-        const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(initialData.github_repo);
-        const isPredefinedImage = PREDEFINED_DOCKER_IMAGES.some(
-          (img) => initialData.image_name && initialData.image_name.split(":")[0] === img
-        );
-        setUsePredefined(isPredefinedRepo && initialData.source_type === "github");
-        setUsePredefinedDocker(isPredefinedImage);
-        if (isPredefinedRepo && initialData.source_type === "github") {
-          setSelectedPredefinedRepo({
-            value: initialData.github_repo,
-            label: initialData.github_repo,
-          });
-        }
-        if (isPredefinedImage && initialData.image_name) {
-          const imageWithoutTag = initialData.image_name.split(":")[0];
-          setSelectedPredefinedImage({
-            value: imageWithoutTag,
-            label: imageWithoutTag,
-          });
-        }
-        lastAutoPopulatedName.current = initialData.name || "";
-      } else {
-        setFormData({
-          name: "",
-          imageName: "",
-          githubRepo: "",
-          currentVersion: "",
-        });
-        setSourceType("github");
-        setUsePredefined(true);
-        setUsePredefinedDocker(true);
-        setSelectedPredefinedRepo(null);
-        setSelectedPredefinedImage(null);
-        lastAutoPopulatedName.current = "";
-      }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -275,6 +89,22 @@ function AddTrackedImageModal({
     setLoading(true);
 
     try {
+      // Validate form
+      const validation = validateForm(
+        formData,
+        sourceType,
+        usePredefined,
+        usePredefinedDocker,
+        selectedPredefinedRepo,
+        selectedPredefinedImage
+      );
+
+      if (!validation.isValid) {
+        setError(Object.values(validation.errors)[0] || "Please fill in all required fields");
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         name: (formData.name || "").trim(),
         sourceType: sourceType,
@@ -311,14 +141,7 @@ function AddTrackedImageModal({
       }
 
       if (response.data.success) {
-        setFormData({
-          name: "",
-          imageName: "",
-          githubRepo: "",
-          currentVersion: "",
-          gitlabToken: "",
-        });
-        setSourceType("github");
+        resetForm();
         // Pass the image ID to onSuccess so it can check the version
         // For create: response.data.id, for update: response.data.image.id
         const imageId = response.data.image?.id || response.data.id || initialData?.id;
@@ -350,34 +173,27 @@ function AddTrackedImageModal({
 
     try {
       await onDelete(initialData.id);
+      // Only close modal and call onSuccess if deletion was successful (not cancelled)
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete tracked item. Please try again.");
+      // Only show error if it's not a cancellation
+      if (err.message !== "Deletion cancelled") {
+        setError(
+          err.response?.data?.error ||
+            err.message ||
+            "Failed to delete tracked item. Please try again."
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  // Handler to clear auto-populated name
+  const handleClearName = () => {
+    lastAutoPopulatedNameRef.current = "";
   };
-
-  // Custom source type options with Docker icon handling
-  // Note: sourceTypeOptions is defined but not currently used - kept for potential future use
-  // eslint-disable-next-line no-unused-vars
-  const sourceTypeOptions = SOURCE_TYPE_OPTIONS.map((option) => {
-    if (option.value === "docker") {
-      return {
-        ...option,
-        icon: null, // Will render custom icon in JSX
-      };
-    }
-    return option;
-  });
 
   return (
     <Modal
@@ -437,151 +253,38 @@ function AddTrackedImageModal({
         </div>
 
         {sourceType === "docker" ? (
-          <>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Image Selection</label>
-              <ToggleButton
-                options={[
-                  { value: "predefined", label: "Predefined" },
-                  { value: "manual", label: "Manual Entry" },
-                ]}
-                value={usePredefinedDocker ? "predefined" : "manual"}
-                onChange={(value) => {
-                  if (!loading) {
-                    const isPredefined = value === "predefined";
-                    setUsePredefinedDocker(isPredefined);
-                    if (isPredefined) {
-                      setFormData({ ...formData, imageName: "", name: "" });
-                    } else {
-                      setSelectedPredefinedImage(null);
-                      setFormData({ ...formData, name: "" });
-                    }
-                    lastAutoPopulatedName.current = "";
-                  }
-                }}
-                className={styles.selectionToggle}
-              />
-            </div>
-
-            {usePredefinedDocker ? (
-              <div className={styles.formGroup}>
-                <label htmlFor="predefinedImage" className={styles.label}>
-                  Select Docker Image
-                </label>
-                <Select
-                  id="predefinedImage"
-                  value={selectedPredefinedImage}
-                  onChange={setSelectedPredefinedImage}
-                  options={dockerImageOptions}
-                  placeholder="Select a Docker image..."
-                  isSearchable
-                  isDisabled={loading}
-                  styles={selectStyles}
-                  openMenuOnFocus={true}
-                  classNamePrefix="react-select"
-                />
-                <small className={styles.helperText}>Choose from predefined Docker images</small>
-              </div>
-            ) : (
-              <Input
-                label="Image Name"
-                name="imageName"
-                type="text"
-                value={formData.imageName}
-                onChange={handleChange}
-                required={true}
-                placeholder="e.g., homeassistant/home-assistant:latest"
-                disabled={loading}
-                helperText="Docker image name with optional tag (e.g., username/repo:tag)"
-              />
-            )}
-          </>
+          <DockerSourceForm
+            usePredefinedDocker={usePredefinedDocker}
+            setUsePredefinedDocker={setUsePredefinedDocker}
+            selectedPredefinedImage={selectedPredefinedImage}
+            setSelectedPredefinedImage={setSelectedPredefinedImage}
+            imageName={formData.imageName}
+            onChange={handleChange}
+            dockerImageOptions={dockerImageOptions}
+            selectStyles={selectStyles}
+            loading={loading}
+            onClearName={handleClearName}
+          />
         ) : sourceType === "github" ? (
-          <>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Repository Selection</label>
-              <ToggleButton
-                options={[
-                  { value: "predefined", label: "Predefined" },
-                  { value: "manual", label: "Manual Entry" },
-                ]}
-                value={usePredefined ? "predefined" : "manual"}
-                onChange={(value) => {
-                  if (!loading) {
-                    const isPredefined = value === "predefined";
-                    setUsePredefined(isPredefined);
-                    if (isPredefined) {
-                      setFormData({ ...formData, githubRepo: "", name: "" });
-                    } else {
-                      setSelectedPredefinedRepo(null);
-                      setFormData({ ...formData, name: "" });
-                    }
-                    lastAutoPopulatedName.current = "";
-                  }
-                }}
-                className={styles.selectionToggle}
-              />
-            </div>
-
-            {usePredefined ? (
-              <div className={styles.formGroup}>
-                <label htmlFor="predefinedRepo" className={styles.label}>
-                  Select Repository
-                </label>
-                <Select
-                  id="predefinedRepo"
-                  value={selectedPredefinedRepo}
-                  onChange={setSelectedPredefinedRepo}
-                  options={githubRepoOptions}
-                  placeholder="Select a repository..."
-                  isSearchable
-                  isDisabled={loading}
-                  styles={selectStyles}
-                  openMenuOnFocus={true}
-                  classNamePrefix="react-select"
-                />
-                <small className={styles.helperText}>
-                  Choose from predefined GitHub repositories
-                </small>
-              </div>
-            ) : (
-              <Input
-                label="GitHub Repository"
-                name="githubRepo"
-                type="text"
-                value={formData.githubRepo}
-                onChange={handleChange}
-                required={true}
-                placeholder="e.g., home-assistant/core or https://github.com/home-assistant/core"
-                disabled={loading}
-                helperText="GitHub repository in owner/repo format or full GitHub URL"
-              />
-            )}
-          </>
+          <GitHubSourceForm
+            usePredefined={usePredefined}
+            setUsePredefined={setUsePredefined}
+            selectedPredefinedRepo={selectedPredefinedRepo}
+            setSelectedPredefinedRepo={setSelectedPredefinedRepo}
+            githubRepo={formData.githubRepo}
+            onChange={handleChange}
+            githubRepoOptions={githubRepoOptions}
+            selectStyles={selectStyles}
+            loading={loading}
+            onClearName={handleClearName}
+          />
         ) : (
-          <>
-            <Input
-              label="GitLab Repository"
-              name="githubRepo"
-              type="text"
-              value={formData.githubRepo}
-              onChange={handleChange}
-              required={true}
-              placeholder="e.g., owner/repo or https://gitlab.com/owner/repo"
-              disabled={loading}
-              helperText="GitLab repository in owner/repo format or full GitLab URL"
-            />
-            <Input
-              label="GitLab Token (Optional)"
-              name="gitlabToken"
-              type="password"
-              value={formData.gitlabToken}
-              onChange={handleChange}
-              placeholder="Enter GitLab personal access token"
-              disabled={loading}
-              helperText="Required for private repositories. Leave empty to use GITLAB_TOKEN environment variable or for public repos."
-            />
-          </>
+          <GitLabSourceForm
+            githubRepo={formData.githubRepo}
+            gitlabToken={formData.gitlabToken}
+            onChange={handleChange}
+            loading={loading}
+          />
         )}
 
         <Input

@@ -61,7 +61,7 @@ jobs:
             core.info(`User ${actor} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -160,7 +160,7 @@ jobs:
     if: github.event.inputs.confirm == 'promote'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -200,7 +200,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -246,7 +246,7 @@ jobs:
           sha256sum docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz > docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz.sha256
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-artifacts
           path: release-artifacts/
@@ -285,7 +285,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -337,7 +337,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -389,7 +389,7 @@ jobs:
       packages: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -442,7 +442,7 @@ jobs:
           echo "✓ Created and pushed tag ${{ needs.prepare-promotion.outputs.tag_name }}"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: release-artifacts
           path: release-artifacts/

@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { X } from "lucide-react";
+import { X, Bell } from "lucide-react";
 import { containerShape, trackedImageShape } from "../../utils/propTypes";
 import "./NotificationMenu.css";
 
@@ -122,7 +122,12 @@ const NotificationMenu = ({
             )}
           </>
         )}
-        {notificationCount === 0 && <div className="notification-empty">No new notifications</div>}
+        {notificationCount === 0 && (
+          <div className="notification-empty">
+            <Bell size={24} className="notification-empty-icon" />
+            <span>No new notifications</span>
+          </div>
+        )}
       </div>
     </div>
   );

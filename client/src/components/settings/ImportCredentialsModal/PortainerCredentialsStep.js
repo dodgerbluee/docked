@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Package, Lock } from "lucide-react";
+import { Package, Lock, Trash2 } from "lucide-react";
 import Input from "../../ui/Input";
 import ToggleButton from "../../ui/ToggleButton";
 import styles from "../ImportCredentialsModal.module.css";
@@ -22,7 +22,13 @@ const AUTH_TYPE_OPTIONS = [
  * PortainerCredentialsStep Component
  * Step component for collecting Portainer instance credentials
  */
-function PortainerCredentialsStep({ instances, credentials, errors, onUpdateCredential }) {
+function PortainerCredentialsStep({
+  instances,
+  credentials,
+  errors,
+  onUpdateCredential,
+  onRemoveInstance,
+}) {
   return (
     <div className={styles.stepContent}>
       <h3 className={styles.stepTitle}>Portainer Instances</h3>
@@ -38,12 +44,25 @@ function PortainerCredentialsStep({ instances, credentials, errors, onUpdateCred
           <div key={index} className={styles.instanceCard}>
             <div className={styles.instanceHeader}>
               <h4 className={styles.instanceName}>{instance.name || instance.url}</h4>
-              <ToggleButton
-                options={AUTH_TYPE_OPTIONS}
-                value={authType}
-                onChange={(value) => onUpdateCredential(index, "auth_type", value)}
-                size="sm"
-              />
+              <div className={styles.instanceHeaderActions}>
+                <ToggleButton
+                  options={AUTH_TYPE_OPTIONS}
+                  value={authType}
+                  onChange={(value) => onUpdateCredential(index, "auth_type", value)}
+                  size="sm"
+                />
+                {onRemoveInstance && (
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    onClick={() => onRemoveInstance(index)}
+                    title="Remove this instance from import"
+                    aria-label={`Remove ${instance.name || instance.url}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {authType === "apikey" ? (
@@ -93,6 +112,7 @@ PortainerCredentialsStep.propTypes = {
   credentials: PropTypes.object.isRequired,
   errors: PropTypes.object.isRequired,
   onUpdateCredential: PropTypes.func.isRequired,
+  onRemoveInstance: PropTypes.func,
 };
 
 export default PortainerCredentialsStep;

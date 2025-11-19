@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Container Upgrade Service
  * Handles container upgrade operations
  */
@@ -7,16 +7,17 @@ const axios = require("axios");
 const { URL } = require("url");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
-const containerCacheService = require("./containerCacheService");
-const {
-  getAllPortainerInstances,
-  getContainerCache,
-  setContainerCache,
-} = require("../db/database");
+const { getAllPortainerInstances } = require("../db/database");
 const logger = require("../utils/logger");
 const { validateUrlForSSRF, validatePathComponent } = require("../utils/validation");
 
-async function upgradeSingleContainer(portainerUrl, endpointId, containerId, imageName) {
+async function upgradeSingleContainer(
+  portainerUrl,
+  endpointId,
+  containerId,
+  imageName,
+  userId = null
+) {
   // Normalize container ID - Docker API accepts both full and shortened IDs
   // Try with the provided ID first, then fall back to shortened version if needed
   const normalizeContainerId = (id) => {
@@ -60,7 +61,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             instanceName: instance.name || "unknown",
             instanceId: instance.id,
             warning:
-              "âš ï¸  If upgrade fails, verify the IP address in Settings > Portainer Instances matches the actual Portainer server IP",
+              "  If upgrade fails, verify the IP address in Settings > Portainer Instances matches the actual Portainer server IP",
           }
         );
 
@@ -96,7 +97,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         );
       }
     } catch (error) {
-      logger.error("Error getting IP address for Portainer instance:", error.message);
+      logger.error("Error getting IP address for Portainer instance:", { error });
       // Continue with original URL - fallback will handle it
     }
   }
@@ -418,7 +419,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   const dependentContainersToStop = [];
 
   try {
-    logger.info("ðŸ” Checking for containers that depend on this container via network_mode...");
+    logger.info(" Checking for containers that depend on this container via network_mode...");
     const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
     for (const container of allContainers) {
       if (container.Id === workingContainerId) {
@@ -465,10 +466,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     // Docker Compose will try to recreate stopped containers, but won't recreate removed ones
     if (dependentContainersToStop.length > 0) {
       logger.info(
-        `ðŸ›‘ Removing ${dependentContainersToStop.length} dependent container(s) before upgrading main container...`
+        `Removing ${dependentContainersToStop.length} dependent container(s) before upgrading main container...`
       );
       logger.info(
-        `   âš ï¸  Removing (not just stopping) to prevent Docker Compose auto-recreation with old config`
+        `     Removing (not just stopping) to prevent Docker Compose auto-recreation with old config`
       );
       for (const container of dependentContainersToStop) {
         try {
@@ -478,7 +479,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           // Stop first, then remove
           try {
             await portainerService.stopContainer(portainerUrl, endpointId, container.id);
-            logger.info(`   âœ… ${container.name} stopped`);
+            logger.info(`    ${container.name} stopped`);
           } catch (stopErr) {
             logger.debug(
               `   Container ${container.name} may already be stopped: ${stopErr.message}`
@@ -487,9 +488,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
 
           // Now remove it completely
           await portainerService.removeContainer(portainerUrl, endpointId, container.id);
-          logger.info(`   âœ… ${container.name} removed`);
+          logger.info(`    ${container.name} removed`);
         } catch (err) {
-          logger.warn(`   âš ï¸  Failed to remove ${container.name}:`, err.message);
+          logger.warn(`     Failed to remove ${container.name}:`, { error: err });
           // Continue anyway - we'll try to recreate them later
         }
       }
@@ -966,7 +967,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   // This handles containers that depend on the upgraded container via:
   // 1. network_mode: service:containerName
   // 2. depends_on relationships (containers in the same stack)
-  logger.info(`ðŸ”„ Checking for dependent containers...`);
+  logger.info(` Checking for dependent containers...`);
   let dependentContainers = []; // Declare outside try block so it's accessible later
   try {
     const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
@@ -1021,12 +1022,12 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             dependsOnUpgraded = true;
             dependencyReason = "network_mode";
             logger.info(
-              `   âœ… Found network_mode dependency: ${container.Names[0]?.replace("/", "")} -> ${cleanContainerName} (NetworkMode: ${networkMode.substring(0, 50)}..., matched by ${matchesByName ? "name" : "ID"})`
+              `    Found network_mode dependency: ${container.Names[0]?.replace("/", "")} -> ${cleanContainerName} (NetworkMode: ${networkMode.substring(0, 50)}..., matched by ${matchesByName ? "name" : "ID"})`
             );
           } else if (targetContainerRef && targetContainerRef.length === 64) {
             // Log when we find a container ID but it doesn't match (for debugging)
             logger.debug(
-              `   âš ï¸  Container ${container.Names[0]?.replace("/", "")} has NetworkMode with container ID ${targetContainerRef.substring(0, 12)}... but it doesn't match ${cleanContainerName} (tunnel ID: ${tunnelContainerId.substring(0, 12)}...)`
+              `     Container ${container.Names[0]?.replace("/", "")} has NetworkMode with container ID ${targetContainerRef.substring(0, 12)}... but it doesn't match ${cleanContainerName} (tunnel ID: ${tunnelContainerId.substring(0, 12)}...)`
             );
           }
         }
@@ -1066,7 +1067,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
     // Restart dependent containers to reconnect to the upgraded service
     if (dependentContainers.length > 0) {
       logger.info(
-        `ðŸ”„ Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter((c) => c.isRunning).length} running, ${dependentContainers.filter((c) => c.isStopped).length} stopped)`
+        ` Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter((c) => c.isRunning).length} running, ${dependentContainers.filter((c) => c.isStopped).length} stopped)`
       );
 
       // Wait a bit more for the upgraded container to be fully ready
@@ -1113,7 +1114,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
       } catch (err) {
-        logger.warn("Could not check upgraded container health, proceeding anyway:", err.message);
+        logger.warn("Could not check upgraded container health, proceeding anyway:", {
+          error: err,
+        });
         // Wait a brief moment anyway
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
@@ -1150,13 +1153,13 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         tunnelIsRunning = containerState === "running";
 
         logger.info(
-          `   âœ… Verified network container: name=${verifiedNetworkContainerName}, ID=${newContainer.Id.substring(0, 12)}..., running=${tunnelIsRunning}`
+          `    Verified network container: name=${verifiedNetworkContainerName}, ID=${newContainer.Id.substring(0, 12)}..., running=${tunnelIsRunning}`
         );
 
         // If not running, wait a bit and check again
         if (!tunnelIsRunning) {
           logger.warn(
-            `   âš ï¸  Network container ${verifiedNetworkContainerName} is not running, waiting...`
+            `     Network container ${verifiedNetworkContainerName} is not running, waiting...`
           );
           await new Promise((resolve) => setTimeout(resolve, 3000));
 
@@ -1170,15 +1173,15 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           tunnelIsRunning = recheckState === "running";
 
           if (tunnelIsRunning) {
-            logger.info(`   âœ… Network container ${verifiedNetworkContainerName} is now running`);
+            logger.info(`    Network container ${verifiedNetworkContainerName} is now running`);
           } else {
             logger.error(
-              `   âŒ Network container ${verifiedNetworkContainerName} is still not running!`
+              `    Network container ${verifiedNetworkContainerName} is still not running!`
             );
           }
         }
       } catch (verifyErr) {
-        logger.error(`   âŒ Could not verify new container: ${verifyErr.message}`);
+        logger.error(`    Could not verify new container: ${verifyErr.message}`);
         throw new Error(
           `Failed to verify network container ${cleanContainerName}: ${verifyErr.message}`
         );
@@ -1193,7 +1196,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       // STEP 1: Get container details for ALL dependent containers BEFORE removing them
       // We need these details to recreate the containers later
       logger.info(
-        `   ðŸ“‹ Getting container details for ${networkModeContainers.length} dependent container(s)...`
+        `    Getting container details for ${networkModeContainers.length} dependent container(s)...`
       );
       const containerDetailsMap = new Map();
       for (const container of networkModeContainers) {
@@ -1204,9 +1207,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             container.id
           );
           containerDetailsMap.set(container.id, details);
-          logger.info(`   âœ… Got details for ${container.name}`);
+          logger.info(`    Got details for ${container.name}`);
         } catch (err) {
-          logger.error(`   âŒ Failed to get details for ${container.name}: ${err.message}`);
+          logger.error(`    Failed to get details for ${container.name}: ${err.message}`);
           // Continue - we'll skip this container
         }
       }
@@ -1214,12 +1217,12 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       // STEP 2: Remove ALL dependent containers (they're already stopped)
       // This ensures Docker fully cleans up all references before we recreate
       logger.info(
-        `   ðŸ—‘ï¸  Removing ${networkModeContainers.length} dependent container(s) to clear Docker references...`
+        `     Removing ${networkModeContainers.length} dependent container(s) to clear Docker references...`
       );
       for (const container of networkModeContainers) {
         try {
           await portainerService.removeContainer(portainerUrl, endpointId, container.id);
-          logger.info(`   âœ… Removed ${container.name}`);
+          logger.info(`    Removed ${container.name}`);
         } catch (removeErr) {
           // Container might already be removed, continue anyway
           logger.debug(
@@ -1229,25 +1232,25 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       }
 
       // Wait for Docker to fully clean up all container references
-      logger.info(`   â³ Waiting for Docker to clean up removed containers...`);
+      logger.info(`    Waiting for Docker to clean up removed containers...`);
       await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second wait
 
       // STEP 3: Now recreate all containers with fresh configs pointing to the new tunnel
       logger.info(
-        `   ðŸ”¨ Recreating ${networkModeContainers.length} dependent container(s) with new network reference...`
+        `    Recreating ${networkModeContainers.length} dependent container(s) with new network reference...`
       );
       for (const container of networkModeContainers) {
         try {
           // Get the stored container details (we got these before removal)
           const containerDetails = containerDetailsMap.get(container.id);
           if (!containerDetails) {
-            logger.warn(`   âš ï¸  No details stored for ${container.name}, skipping recreation`);
+            logger.warn(`     No details stored for ${container.name}, skipping recreation`);
             continue;
           }
 
           const containerNetworkMode = containerDetails.HostConfig?.NetworkMode || "";
           logger.info(
-            `   ðŸ“‹ Recreating ${container.name} (original network_mode: ${containerNetworkMode})`
+            `    Recreating ${container.name} (original network_mode: ${containerNetworkMode})`
           );
 
           const networkModeType = containerNetworkMode.startsWith("service:")
@@ -1338,11 +1341,11 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           });
 
           logger.info(
-            `   ðŸ”„ Rebuilt HostConfig from scratch. NetworkMode set to: "${cleanHostConfig.NetworkMode}"`
+            `    Rebuilt HostConfig from scratch. NetworkMode set to: "${cleanHostConfig.NetworkMode}"`
           );
-          logger.info(`   ðŸ“‹ Original NetworkMode was: "${originalNetworkMode}"`);
+          logger.info(`    Original NetworkMode was: "${originalNetworkMode}"`);
           logger.info(
-            `   ðŸ†” Using new container ID: ${newContainer.Id.substring(0, 12)}... (full: ${newContainer.Id})`
+            `    Using new container ID: ${newContainer.Id.substring(0, 12)}... (full: ${newContainer.Id})`
           );
 
           // CRITICAL: When using shared network mode (service:* or container:*), DO NOT include PortBindings
@@ -1433,9 +1436,9 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
           const finalNetworkMode =
             containerConfig.HostConfig?.NetworkMode || cleanHostConfig.NetworkMode || "";
           logger.info(
-            `   ðŸ” PRE-CREATE CHECK: containerConfig.HostConfig.NetworkMode = "${finalNetworkMode}"`
+            `    PRE-CREATE CHECK: containerConfig.HostConfig.NetworkMode = "${finalNetworkMode}"`
           );
-          logger.info(`   ðŸ” Expected NetworkMode = "${expectedNetworkMode}"`);
+          logger.info(`    Expected NetworkMode = "${expectedNetworkMode}"`);
 
           // Verify it uses the NEW container ID, not the old one
           if (finalNetworkMode !== expectedNetworkMode) {
@@ -1446,21 +1449,21 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             // Check if it still contains the OLD container ID
             if (currentRef === oldContainerId && oldContainerId.length === 64) {
               logger.error(
-                `   âŒ ERROR: NetworkMode still contains OLD container ID: ${oldContainerId.substring(0, 12)}...`
+                `    ERROR: NetworkMode still contains OLD container ID: ${oldContainerId.substring(0, 12)}...`
               );
               logger.error(
-                `   âŒ Should be NEW container ID: ${newContainer.Id.substring(0, 12)}...`
+                `    Should be NEW container ID: ${newContainer.Id.substring(0, 12)}...`
               );
               // Force replace it with the new container ID
               cleanHostConfig.NetworkMode = expectedNetworkMode;
               if (containerConfig.HostConfig) {
                 containerConfig.HostConfig.NetworkMode = expectedNetworkMode;
               }
-              logger.info(`   âœ… FORCED replacement: NetworkMode = "${expectedNetworkMode}"`);
+              logger.info(`    FORCED replacement: NetworkMode = "${expectedNetworkMode}"`);
             } else {
               // It's different but not the old ID - might be a different issue, log it
               logger.warn(
-                `   âš ï¸  NetworkMode mismatch: got "${finalNetworkMode}" but expected "${expectedNetworkMode}"`
+                `     NetworkMode mismatch: got "${finalNetworkMode}" but expected "${expectedNetworkMode}"`
               );
               // Still force it to be correct
               cleanHostConfig.NetworkMode = expectedNetworkMode;
@@ -1469,14 +1472,14 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
               }
             }
           } else {
-            logger.info(`   âœ… NetworkMode is correct: "${finalNetworkMode}"`);
+            logger.info(`    NetworkMode is correct: "${finalNetworkMode}"`);
           }
 
           // Ensure NetworkMode is set correctly in containerConfig
           if (containerConfig.HostConfig) {
             containerConfig.HostConfig.NetworkMode = cleanHostConfig.NetworkMode;
             logger.info(
-              `   âœ… Final containerConfig.HostConfig.NetworkMode = "${containerConfig.HostConfig.NetworkMode}"`
+              `    Final containerConfig.HostConfig.NetworkMode = "${containerConfig.HostConfig.NetworkMode}"`
             );
           }
 
@@ -1497,7 +1500,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
 
             if (existingContainer) {
               logger.warn(
-                `   âš ï¸  Container ${containerName} already exists (ID: ${existingContainer.Id.substring(0, 12)}...), removing it first...`
+                `     Container ${containerName} already exists (ID: ${existingContainer.Id.substring(0, 12)}...), removing it first...`
               );
               try {
                 // Stop it first if running
@@ -1507,7 +1510,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                     endpointId,
                     existingContainer.Id
                   );
-                  logger.info(`   âœ… Stopped existing ${containerName}`);
+                  logger.info(`    Stopped existing ${containerName}`);
                 } catch (stopErr) {
                   // May already be stopped, continue
                   logger.debug(
@@ -1521,13 +1524,13 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                   endpointId,
                   existingContainer.Id
                 );
-                logger.info(`   âœ… Removed existing ${containerName}`);
+                logger.info(`    Removed existing ${containerName}`);
 
                 // Wait a moment for Docker to clean up
                 await new Promise((resolve) => setTimeout(resolve, 2000));
               } catch (removeErr) {
                 logger.error(
-                  `   âŒ Failed to remove existing ${containerName}: ${removeErr.message}`
+                  `    Failed to remove existing ${containerName}: ${removeErr.message}`
                 );
                 throw new Error(
                   `Cannot create ${containerName}: existing container could not be removed`
@@ -1536,13 +1539,13 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             }
           } catch (checkErr) {
             logger.warn(
-              `   âš ï¸  Could not check for existing container ${containerName}: ${checkErr.message}, proceeding anyway...`
+              `     Could not check for existing container ${containerName}: ${checkErr.message}, proceeding anyway...`
             );
           }
 
           // Log the full payload being sent to Docker API
           logger.info(
-            `   ðŸ“¦ Container creation payload: ${JSON.stringify(containerConfig, null, 2)}`
+            `    Container creation payload: ${JSON.stringify(containerConfig, null, 2)}`
           );
 
           const newDependentContainer = await portainerService.createContainer(
@@ -1565,10 +1568,10 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
 
             if (actualNetworkMode !== expectedNetworkMode) {
               logger.error(
-                `   âŒ MISMATCH: Created container has NetworkMode="${actualNetworkMode}" but expected "${expectedNetworkMode}"`
+                `    MISMATCH: Created container has NetworkMode="${actualNetworkMode}" but expected "${expectedNetworkMode}"`
               );
               logger.error(
-                `   âŒ Docker may have cached the old container reference. Attempting fix...`
+                `    Docker may have cached the old container reference. Attempting fix...`
               );
               // Remove the incorrectly created container
               try {
@@ -1590,7 +1593,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 };
 
                 logger.info(
-                  `   ðŸ”„ Retrying container creation with NetworkMode="${expectedNetworkMode}"`
+                  `    Retrying container creation with NetworkMode="${expectedNetworkMode}"`
                 );
                 const retryContainer = await portainerService.createContainer(
                   portainerUrl,
@@ -1607,49 +1610,49 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 );
                 const retryNetworkMode = retryDetails.HostConfig?.NetworkMode || "";
                 if (retryNetworkMode === expectedNetworkMode) {
-                  logger.info(`   âœ… Retry successful: NetworkMode is now correct`);
+                  logger.info(`    Retry successful: NetworkMode is now correct`);
                   // Use the retry container
                   Object.assign(newDependentContainer, retryContainer);
                 } else {
-                  logger.error(`   âŒ Retry failed: NetworkMode is still "${retryNetworkMode}"`);
+                  logger.error(`    Retry failed: NetworkMode is still "${retryNetworkMode}"`);
                   throw new Error(
                     `Failed to create container with correct NetworkMode. Got "${retryNetworkMode}" instead of "${expectedNetworkMode}"`
                   );
                 }
               } catch (retryErr) {
-                logger.error(`   âŒ Failed to retry container creation: ${retryErr.message}`);
+                logger.error(`    Failed to retry container creation: ${retryErr.message}`);
                 throw retryErr;
               }
             } else {
               logger.info(
-                `   âœ… Verified: Created container has correct NetworkMode="${actualNetworkMode}"`
+                `    Verified: Created container has correct NetworkMode="${actualNetworkMode}"`
               );
             }
           } catch (verifyErr) {
             logger.warn(
-              `   âš ï¸  Could not verify created container NetworkMode: ${verifyErr.message}`
+              `     Could not verify created container NetworkMode: ${verifyErr.message}`
             );
             // Continue anyway - the container was created
           }
 
           // Start the new container
           await portainerService.startContainer(portainerUrl, endpointId, newDependentContainer.Id);
-          logger.info(`   âœ… ${container.name} recreated and started successfully`);
+          logger.info(`    ${container.name} recreated and started successfully`);
         } catch (err) {
-          logger.error(`   âš ï¸  Failed to recreate ${container.name}:`, err.message);
-          logger.error(`   âš ï¸  Error stack:`, err.stack);
+          logger.error(`     Failed to recreate ${container.name}:`, { error: err });
+          logger.error(`     Error stack:`, { error: err });
           if (err.response) {
-            logger.error(`   âš ï¸  HTTP Status: ${err.response.status}`);
+            logger.error(`     HTTP Status: ${err.response.status}`);
             logger.error(
-              `   âš ï¸  Docker API error response:`,
+              `     Docker API error response:`,
               JSON.stringify(err.response.data, null, 2)
             );
             if (err.response.data?.message) {
-              logger.error(`   âš ï¸  Docker error message: ${err.response.data.message}`);
+              logger.error(`     Docker error message: ${err.response.data.message}`);
             }
           } else {
             logger.error(
-              `   âš ï¸  Error object:`,
+              `     Error object:`,
               JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
             );
           }
@@ -1665,7 +1668,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             await portainerService.stopContainer(portainerUrl, endpointId, container.id);
             await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief wait
             await portainerService.startContainer(portainerUrl, endpointId, container.id);
-            logger.info(`   âœ… ${container.name} restarted successfully`);
+            logger.info(`    ${container.name} restarted successfully`);
           } else if (container.isStopped) {
             // Container was stopped (possibly because dependency was down)
             // Try to start it now that the dependency is back up
@@ -1674,7 +1677,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
             );
             try {
               await portainerService.startContainer(portainerUrl, endpointId, container.id);
-              logger.info(`   âœ… ${container.name} started successfully`);
+              logger.info(`    ${container.name} started successfully`);
             } catch (startErr) {
               // If start fails, it might need a full restart
               logger.info(`   Attempting full restart of ${container.name}...`);
@@ -1685,20 +1688,20 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
                 });
               await new Promise((resolve) => setTimeout(resolve, 1000));
               await portainerService.startContainer(portainerUrl, endpointId, container.id);
-              logger.info(`   âœ… ${container.name} restarted successfully`);
+              logger.info(`    ${container.name} restarted successfully`);
             }
           }
         } catch (err) {
-          logger.error(`   âš ï¸  Failed to restart ${container.name}:`, err.message);
+          logger.error(`     Failed to restart ${container.name}:`, { error: err });
           // Continue with other containers
         }
       }
-      logger.info(`âœ… Dependent container restart process completed`);
+      logger.info(` Dependent container restart process completed`);
     } else {
-      logger.info(`â„¹ï¸  No dependent containers found`);
+      logger.info(`  No dependent containers found`);
     }
   } catch (err) {
-    logger.error("âš ï¸  Error restarting dependent containers:", err.message);
+    logger.error("  Error restarting dependent containers:", { error: err });
     // Don't fail the upgrade if dependent restart fails
   }
 
@@ -1710,7 +1713,7 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
       : networkMode.replace("container:", "");
 
     logger.info(
-      `ðŸ”„ Container uses shared network mode (${networkMode}), restarting all containers using the same network...`,
+      ` Container uses shared network mode (${networkMode}), restarting all containers using the same network...`,
       {
         module: "containerService",
         operation: "upgradeSingleContainer",
@@ -1781,29 +1784,17 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
               await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief wait
               await portainerService.startContainer(portainerUrl, endpointId, container.id);
             }
-            logger.info(`   âœ… ${container.name} started successfully`);
+            logger.info(`    ${container.name} started successfully`);
             startedContainerIds.push(container.id);
           } catch (err) {
-            logger.error(`   âš ï¸  Failed to start ${container.name}: ${err.message}`);
+            logger.error(`     Failed to start ${container.name}: ${err.message}`);
             // Continue with other containers
           }
         }
-        logger.info(`âœ… All network-dependent containers started`);
+        logger.info(` All network-dependent containers started`);
 
-        // Refetch container information and update cache
-        if (startedContainerIds.length > 0) {
-          logger.info(`   Refetching container information from Portainer and updating cache...`);
-          try {
-            await containerCacheService.refetchAndUpdateContainerCache(
-              portainerUrl,
-              endpointId,
-              startedContainerIds
-            );
-            logger.info(`   âœ… Cache updated for ${startedContainerIds.length} container(s)`);
-          } catch (err) {
-            logger.warn(`   âš ï¸  Failed to update cache for containers: ${err.message}`);
-          }
-        }
+        // Container information will be updated on next pull from Portainer
+        // Normalized tables are already updated via markDockerHubImageUpToDate
       } else {
         // Even if no other containers found, start the upgraded container itself
         logger.info(
@@ -1811,19 +1802,16 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
         );
         try {
           await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
-          logger.info(`   âœ… ${originalContainerName} started successfully`);
+          logger.info(`    ${originalContainerName} started successfully`);
 
-          // Update cache
-          await containerCacheService.refetchAndUpdateContainerCache(portainerUrl, endpointId, [
-            newContainer.Id,
-          ]);
-          logger.info(`   âœ… Cache updated for started container`);
+          // Container information will be updated on next pull from Portainer
+          // Normalized tables are already updated via markDockerHubImageUpToDate
         } catch (err) {
-          logger.error(`   âš ï¸  Failed to start ${originalContainerName}: ${err.message}`);
+          logger.error(`     Failed to start ${originalContainerName}: ${err.message}`);
         }
       }
     } catch (err) {
-      logger.error(`âš ï¸  Error restarting containers that use network: ${err.message}`);
+      logger.error(`  Error restarting containers that use network: ${err.message}`);
       // Don't fail the upgrade if this fails
     }
   }
@@ -1831,52 +1819,93 @@ async function upgradeSingleContainer(portainerUrl, endpointId, containerId, ima
   // Invalidate cache for this image so next check gets fresh data
   dockerRegistryService.clearDigestCache(imageRepo, currentTag);
 
-  // Update the container cache to mark this container as no longer having an update
-  // This ensures the cache persists across app restarts
+  // Update normalized tables to mark this container as no longer having an update
+  // This ensures the update status persists across app restarts
   try {
-    const cached = await getContainerCache("containers");
-    if (cached && cached.containers && Array.isArray(cached.containers)) {
-      let cacheUpdated = false;
-      const updatedContainers = cached.containers.map((cachedContainer) => {
-        // Match by containerId (can be full or shortened)
-        const matchesId =
-          cachedContainer.id === containerId ||
-          cachedContainer.id === workingContainerId ||
-          cachedContainer.id === newContainer.Id ||
-          cachedContainer.id?.substring(0, 12) === containerId.substring(0, 12) ||
-          cachedContainer.id?.substring(0, 12) === workingContainerId.substring(0, 12);
+    if (userId && imageRepo) {
+      const {
+        markDockerHubImageUpToDate,
+        getDockerHubImageVersion,
+        getAllPortainerInstances,
+        upsertPortainerContainer,
+      } = require("../db/database");
+      // Get the latest digest/version from database (which was the target of the upgrade)
+      const versionInfo = await getDockerHubImageVersion(userId, imageRepo);
+      if (versionInfo && versionInfo.latestDigest && versionInfo.latestVersion) {
+        // Container now has the latest image, so current = latest
+        await markDockerHubImageUpToDate(
+          userId,
+          imageRepo,
+          versionInfo.latestDigest,
+          versionInfo.latestVersion
+        );
 
-        // Also match by name as fallback
-        const matchesName = cachedContainer.name === originalContainerName.replace("/", "");
+        // Also update portainer_containers table with the new current digest
+        // Find the Portainer instance ID for this URL
+        const instances = await getAllPortainerInstances(userId);
+        const instance = instances.find((inst) => inst.url === portainerUrl);
+        if (instance && instance.id) {
+          // Get the new container's digest (from the newly created container)
+          let newContainerDigest = versionInfo.latestDigest;
+          try {
+            // Try to get the actual digest from the new container
+            const newContainerDetails = await portainerService.getContainerDetails(
+              portainerUrl,
+              endpointId,
+              newContainer.Id
+            );
+            const imageId = newContainerDetails.Image || "";
+            if (imageId && imageId.startsWith("sha256:")) {
+              newContainerDigest = imageId;
+            }
+          } catch (digestError) {
+            // If we can't get the digest from container, use the one from versionInfo
+            logger.debug("Could not get digest from new container, using versionInfo digest:", {
+              error: digestError,
+            });
+          }
 
-        if (matchesId || matchesName) {
-          cacheUpdated = true;
-          return { ...cachedContainer, hasUpdate: false };
+          await upsertPortainerContainer(userId, instance.id, {
+            containerId: newContainer.Id,
+            containerName: originalContainerName.replace("/", ""),
+            endpointId: endpointId,
+            imageName: newImageName,
+            imageRepo: imageRepo,
+            status: newContainer.State?.Status || containerDetails.State?.Status || null,
+            state: newContainer.State?.Status || containerDetails.State?.Status || null,
+            stackName:
+              containerDetails.Config?.Labels?.["com.docker.compose.project"] ||
+              containerDetails.Config?.Labels?.["com.docker.stack.namespace"] ||
+              null,
+            currentDigest: newContainerDigest,
+            imageCreatedDate: null, // Will be updated on next pull
+            usesNetworkMode: false, // Will be updated on next pull
+            providesNetwork: false, // Will be updated on next pull
+          });
         }
-        return cachedContainer;
-      });
 
-      if (cacheUpdated) {
-        // Update the cache with the modified container
-        const updatedCache = {
-          ...cached,
-          containers: updatedContainers,
-        };
-        await setContainerCache("containers", updatedCache);
-        logger.info("Updated container cache to mark upgraded container as up-to-date", {
+        logger.info("Updated normalized tables to mark upgraded container as up-to-date", {
           module: "containerService",
           operation: "upgradeSingleContainer",
           containerName: originalContainerName,
           containerId: containerId.substring(0, 12),
+          newContainerId: newContainer.Id.substring(0, 12),
+          imageRepo: imageRepo,
+          newDigest: versionInfo.latestDigest.substring(0, 12),
+          newVersion: versionInfo.latestVersion,
+        });
+      } else {
+        logger.warn("Could not find latest version info in database to update normalized tables", {
+          imageRepo: imageRepo,
         });
       }
     }
-  } catch (cacheError) {
-    // Don't fail the upgrade if cache update fails
-    logger.warn("Failed to update container cache after upgrade:", cacheError.message);
+  } catch (dbError) {
+    // Don't fail the upgrade if database update fails
+    logger.warn("Failed to update normalized tables after upgrade:", { error: dbError });
   }
 
-  logger.info(`âœ… Upgrade completed successfully for ${originalContainerName}`);
+  logger.info(` Upgrade completed successfully for ${originalContainerName}`);
 
   return {
     success: true,

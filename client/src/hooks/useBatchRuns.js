@@ -17,62 +17,74 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch latest run
-  const fetchLatestRun = useCallback(async () => {
+  // Fetch all batch run data in parallel
+  const fetchBatchRuns = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setLoading(true);
+    }
+    setError("");
+
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/runs/latest`);
-      if (response.data.success) {
-        setLatestRun(response.data.run || null);
-        // Auto-select latest run if none selected
-        setSelectedRun((prev) => (!prev && response.data.run ? response.data.run : prev));
+      // Fetch all data in parallel for better performance
+      const [latestResponse, byJobTypeResponse, recentResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/batch/runs/latest`),
+        axios.get(`${API_BASE_URL}/api/batch/runs/latest?byJobType=true`),
+        axios.get(`${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`),
+      ]);
+
+      // Process latest run
+      if (latestResponse.data.success) {
+        const latest = latestResponse.data.run || null;
+        setLatestRun(latest);
+        // Auto-select latest run only on initial load if none selected
+        // Use functional update to avoid race conditions
+        if (isInitialLoad && latest) {
+          setSelectedRun((prev) => prev || latest);
+        }
       }
 
-      const byJobTypeResponse = await axios.get(
-        `${API_BASE_URL}/api/batch/runs/latest?byJobType=true`
-      );
+      // Process latest runs by job type
       if (byJobTypeResponse.data.success) {
         setLatestRunsByJobType(byJobTypeResponse.data.runs || {});
       }
-      setError(""); // Clear error on success
+
+      // Process recent runs
+      if (recentResponse.data.success) {
+        setRecentRuns(recentResponse.data.runs || []);
+      }
     } catch (err) {
-      console.error("Error fetching latest batch run:", err);
-      setLatestRun(null);
-      setLatestRunsByJobType({});
+      console.error("Error fetching batch runs:", err);
       const errorMessage = getErrorMessage("BATCH", "FETCH_RUNS");
       setError(errorMessage);
+      // Only clear data if this is the initial load
+      if (isInitialLoad) {
+        setLatestRun(null);
+        setLatestRunsByJobType({});
+        setRecentRuns([]);
+      }
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, []);
 
-  // Fetch recent runs
-  const fetchRecentRuns = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`);
-      if (response.data.success) {
-        setRecentRuns(response.data.runs || []);
-      }
-    } catch (err) {
-      console.error("Error fetching recent batch runs:", err);
-      const errorMessage = getErrorMessage("BATCH", "FETCH_RECENT");
-      // Only set error if we don't have any data
-      if (recentRuns.length === 0) {
-        setError(errorMessage);
-      }
-    }
-  }, [recentRuns.length]);
-
   // Initial fetch and refresh interval
   useEffect(() => {
-    fetchLatestRun();
-    fetchRecentRuns();
+    // Initial load
+    fetchBatchRuns(true);
+
+    // Set up refresh interval (only refresh data, don't show loading state)
     const interval = setInterval(() => {
-      fetchLatestRun();
-      fetchRecentRuns();
+      fetchBatchRuns(false);
     }, pollingInterval);
 
     return () => clearInterval(interval);
-  }, [fetchLatestRun, fetchRecentRuns, pollingInterval]);
+  }, [fetchBatchRuns, pollingInterval]);
+
+  const refetch = useCallback(() => {
+    fetchBatchRuns(false);
+  }, [fetchBatchRuns]);
 
   return {
     latestRun,
@@ -82,9 +94,6 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
     setSelectedRun,
     loading,
     error,
-    refetch: useCallback(() => {
-      fetchLatestRun();
-      fetchRecentRuns();
-    }, [fetchLatestRun, fetchRecentRuns]),
+    refetch,
   };
 }

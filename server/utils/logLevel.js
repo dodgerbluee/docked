@@ -4,7 +4,7 @@
  * Stores preference in database and provides getter/setter
  */
 
-const { getSetting, setSetting } = require("../db/database");
+const { getSystemSetting, setSystemSetting } = require("../db/database");
 
 const LOG_LEVEL_KEY = "log_level";
 const DEFAULT_LOG_LEVEL = "info";
@@ -20,12 +20,12 @@ function logError(message, error) {
 }
 
 /**
- * Get current log level
+ * Get current log level (system-wide)
  * @returns {Promise<string>} - 'info' or 'debug'
  */
 async function getLogLevel() {
   try {
-    const level = await getSetting(LOG_LEVEL_KEY);
+    const level = await getSystemSetting(LOG_LEVEL_KEY);
     return level || DEFAULT_LOG_LEVEL;
   } catch (err) {
     // Don't use logger to avoid circular dependency
@@ -35,7 +35,7 @@ async function getLogLevel() {
 }
 
 /**
- * Set log level
+ * Set log level (system-wide)
  * @param {string} level - 'info' or 'debug'
  * @returns {Promise<void>}
  */
@@ -44,7 +44,8 @@ async function setLogLevel(level) {
     throw new Error('Log level must be "info" or "debug"');
   }
   try {
-    await setSetting(LOG_LEVEL_KEY, level);
+    await setSystemSetting(LOG_LEVEL_KEY, level);
+    updateCachedLogLevel(level);
   } catch (err) {
     // Don't use logger to avoid circular dependency
     logError("Error setting log level", err);
