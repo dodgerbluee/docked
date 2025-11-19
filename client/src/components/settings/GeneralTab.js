@@ -42,7 +42,6 @@ const GeneralTab = React.memo(function GeneralTab({
     { value: "on", label: "On", icon: Power },
   ];
 
-
   const handleClearTrackedAppData = async () => {
     if (!onClearTrackedAppData) {
       alert("Error: Clear Tracked App Data handler is not available. Please refresh the page.");
