@@ -366,7 +366,7 @@ function initializeDatabase() {
         last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, image_repo),
+        UNIQUE(user_id, image_repo, current_tag),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
           (err) => {
@@ -1379,53 +1379,63 @@ function upsertDockerHubImageVersion(userId, imageRepo, versionData) {
 }
 
 /**
- * Get Docker Hub version info for a specific image repo
+ * Get Docker Hub version info for a specific image repo and tag
  * @param {number} userId - User ID
  * @param {string} imageRepo - Image repository
+ * @param {string} currentTag - Current tag (optional, for backward compatibility)
  * @returns {Promise<Object|null>} - Version info or null
  */
-function getDockerHubImageVersion(userId, imageRepo) {
+function getDockerHubImageVersion(userId, imageRepo, currentTag = null) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.get(
-      `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ?`,
-      [userId, imageRepo],
-      (err, row) => {
-        if (err) {
-          reject(err);
+
+    // If tag is provided, use it in the query (new constraint)
+    // If not provided, try to find any record for the repo (backward compatibility)
+    let query, params;
+    if (currentTag !== null && currentTag !== undefined) {
+      query = `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ? AND current_tag = ?`;
+      params = [userId, imageRepo, currentTag];
+    } else {
+      // Fallback: get first matching record (for backward compatibility)
+      query = `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ? LIMIT 1`;
+      params = [userId, imageRepo];
+    }
+
+    db.get(query, params, (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        if (row) {
+          resolve({
+            id: row.id,
+            userId: row.user_id,
+            imageName: row.image_name,
+            imageRepo: row.image_repo,
+            registry: row.registry,
+            namespace: row.namespace,
+            repository: row.repository,
+            currentTag: row.current_tag,
+            currentVersion: row.current_version,
+            currentDigest: row.current_digest,
+            latestTag: row.latest_tag,
+            latestVersion: row.latest_version,
+            latestDigest: row.latest_digest,
+            hasUpdate: row.has_update === 1,
+            latestPublishDate: row.latest_publish_date,
+            currentVersionPublishDate: row.current_version_publish_date,
+            existsInDockerHub: row.exists_in_docker_hub === 1,
+            lastChecked: row.last_checked,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          });
         } else {
-          if (row) {
-            resolve({
-              id: row.id,
-              userId: row.user_id,
-              imageName: row.image_name,
-              imageRepo: row.image_repo,
-              registry: row.registry,
-              namespace: row.namespace,
-              repository: row.repository,
-              currentTag: row.current_tag,
-              currentVersion: row.current_version,
-              currentDigest: row.current_digest,
-              latestTag: row.latest_tag,
-              latestVersion: row.latest_version,
-              latestDigest: row.latest_digest,
-              hasUpdate: row.has_update === 1,
-              latestPublishDate: row.latest_publish_date,
-              currentVersionPublishDate: row.current_version_publish_date,
-              existsInDockerHub: row.exists_in_docker_hub === 1,
-              lastChecked: row.last_checked,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            });
-          } else {
-            resolve(null);
-          }
+          resolve(null);
         }
       }
-    );
+    });
   });
 }
 
@@ -1541,26 +1551,38 @@ function getDockerHubImagesWithUpdates(userId) {
  * @param {string} newVersion - New version after upgrade
  * @returns {Promise<void>}
  */
-function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion) {
+function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, currentTag = null) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.run(
-      `UPDATE docker_hub_image_versions 
-       SET current_digest = ?, current_version = ?, latest_digest = ?, 
-           latest_version = ?, has_update = 0, updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = ? AND image_repo = ?`,
-      [newDigest, newVersion, newDigest, newVersion, userId, imageRepo],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+
+    // If currentTag is provided, use it in WHERE clause (new constraint)
+    // Otherwise, try to match by version (backward compatibility)
+    let query, params;
+    if (currentTag !== null && currentTag !== undefined) {
+      query = `UPDATE docker_hub_image_versions 
+               SET current_digest = ?, current_version = ?, latest_digest = ?, 
+                   latest_version = ?, has_update = 0, updated_at = CURRENT_TIMESTAMP
+               WHERE user_id = ? AND image_repo = ? AND current_tag = ?`;
+      params = [newDigest, newVersion, newDigest, newVersion, userId, imageRepo, currentTag];
+    } else {
+      // Fallback: match by version if tag not provided
+      query = `UPDATE docker_hub_image_versions 
+               SET current_digest = ?, current_version = ?, latest_digest = ?, 
+                   latest_version = ?, has_update = 0, updated_at = CURRENT_TIMESTAMP
+               WHERE user_id = ? AND image_repo = ? AND current_version = ?`;
+      params = [newDigest, newVersion, newDigest, newVersion, userId, imageRepo, newVersion];
+    }
+
+    db.run(query, params, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 
@@ -1869,7 +1891,16 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       dh.latest_publish_date as dh_latest_publish_date
     FROM portainer_containers pc
     LEFT JOIN docker_hub_image_versions dh 
-      ON pc.user_id = dh.user_id AND pc.image_repo = dh.image_repo`;
+      ON pc.user_id = dh.user_id 
+      AND pc.image_repo = dh.image_repo
+      AND (
+        -- Extract tag from image_name and match with current_tag
+        -- Handle both formats: "repo:tag" and just "repo" (defaults to "latest")
+        COALESCE(
+          NULLIF(SUBSTR(pc.image_name, INSTR(pc.image_name || ':', ':') + 1), ''),
+          'latest'
+        ) = COALESCE(dh.current_tag, 'latest')
+      )`;
 
     const params = [userId];
 
@@ -1899,7 +1930,9 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
         const containers = rows.map((row) => {
           // Compute hasUpdate per-container by comparing this container's currentDigest
           // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
+          // The JOIN now matches on tag, so we can reliably compare
           let hasUpdate = false;
+
           if (row.current_digest && row.dh_latest_digest) {
             const normalizedCurrent = normalizeDigest(row.current_digest);
             const normalizedLatest = normalizeDigest(row.dh_latest_digest);
@@ -2217,8 +2250,11 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
         }
 
         // Check for running job (status = 'running' and no completed_at)
+        // Also check if it's stale (running for more than 1 hour)
         db.get(
-          "SELECT id FROM batch_runs WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL ORDER BY started_at DESC LIMIT 1",
+          `SELECT id, started_at FROM batch_runs 
+           WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL 
+           ORDER BY started_at DESC LIMIT 1`,
           [userId, jobType],
           (err, row) => {
             if (err) {
@@ -2228,14 +2264,61 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
             }
 
             if (row) {
-              // Job is already running
-              db.run("COMMIT", (commitErr) => {
-                if (commitErr) {
-                  reject(commitErr);
-                } else {
-                  resolve({ isRunning: true, runId: row.id });
-                }
-              });
+              // Check if the job is stale (running for more than 5 minutes)
+              const startedAtStr = row.started_at;
+              let startedAt;
+              if (
+                typeof startedAtStr === "string" &&
+                /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)
+              ) {
+                startedAt = new Date(startedAtStr.replace(" ", "T") + "Z");
+              } else {
+                startedAt = new Date(startedAtStr);
+              }
+
+              const now = new Date();
+              const runningDurationMs = now.getTime() - startedAt.getTime();
+              const STALE_JOB_THRESHOLD = 60 * 5 * 1000; // 5 minutes
+
+              if (runningDurationMs > STALE_JOB_THRESHOLD) {
+                // Job is stale - mark it as failed and allow new job to run
+                db.run(
+                  `UPDATE batch_runs 
+                   SET status = 'failed', completed_at = CURRENT_TIMESTAMP, 
+                       error_message = ?, duration_ms = ?
+                   WHERE id = ?`,
+                  [
+                    `Job was interrupted (server restart detected). Original start: ${startedAtStr}`,
+                    runningDurationMs,
+                    row.id,
+                  ],
+                  (updateErr) => {
+                    if (updateErr) {
+                      db.run("ROLLBACK");
+                      reject(updateErr);
+                      return;
+                    }
+
+                    // Stale job cleaned up - lock acquired
+                    db.run("COMMIT", (commitErr) => {
+                      if (commitErr) {
+                        reject(commitErr);
+                      } else {
+                        resolve({ isRunning: false, runId: null });
+                      }
+                    });
+                  }
+                );
+              } else {
+                // Job is still running (not stale)
+                db.run("COMMIT", (commitErr) => {
+                  if (commitErr) {
+                    reject(commitErr);
+                  } else {
+                    resolve({ isRunning: true, runId: row.id });
+                  }
+                });
+              }
             } else {
               // No running job - lock acquired, commit will release it
               // The actual job record will be created by createBatchRun
@@ -2251,6 +2334,89 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
         );
       });
     });
+  });
+}
+
+/**
+ * Clean up stale running batch jobs (jobs that have been running for more than 1 hour)
+ * This is called on startup to handle cases where the server was restarted during a job
+ * @returns {Promise<number>} - Number of stale jobs cleaned up
+ */
+function cleanupStaleBatchJobs() {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const STALE_JOB_THRESHOLD = 60 * 60 * 1000; // 1 hour
+    const thresholdTime = new Date(Date.now() - STALE_JOB_THRESHOLD).toISOString();
+
+    // First, get all stale jobs to calculate their durations
+    db.all(
+      `SELECT id, started_at FROM batch_runs 
+       WHERE status = 'running' AND completed_at IS NULL AND started_at < ?`,
+      [thresholdTime],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!rows || rows.length === 0) {
+          resolve(0);
+          return;
+        }
+
+        // Update each stale job with calculated duration
+        let completed = 0;
+        let errors = 0;
+
+        rows.forEach((row) => {
+          const startedAtStr = row.started_at;
+          let startedAt;
+          if (
+            typeof startedAtStr === "string" &&
+            /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)
+          ) {
+            startedAt = new Date(startedAtStr.replace(" ", "T") + "Z");
+          } else {
+            startedAt = new Date(startedAtStr);
+          }
+
+          const now = new Date();
+          const durationMs = now.getTime() - startedAt.getTime();
+
+          db.run(
+            `UPDATE batch_runs 
+             SET status = 'failed', completed_at = CURRENT_TIMESTAMP, 
+                 error_message = ?, duration_ms = ?
+             WHERE id = ?`,
+            [
+              `Job was interrupted (server restart detected). Original start: ${startedAtStr}`,
+              durationMs,
+              row.id,
+            ],
+            (updateErr) => {
+              if (updateErr) {
+                errors++;
+                logger.error(`Failed to cleanup stale batch job ${row.id}:`, updateErr);
+              } else {
+                completed++;
+              }
+
+              // Resolve when all updates are done
+              if (completed + errors === rows.length) {
+                if (completed > 0) {
+                  logger.info(`Cleaned up ${completed} stale batch job(s) on startup`);
+                }
+                resolve(completed);
+              }
+            }
+          );
+        });
+      }
+    );
   });
 }
 
@@ -3206,6 +3372,7 @@ module.exports = {
   getBatchConfig,
   updateBatchConfig,
   checkAndAcquireBatchJobLock,
+  cleanupStaleBatchJobs,
   createBatchRun,
   updateBatchRun,
   getBatchRunById,

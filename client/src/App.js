@@ -190,6 +190,7 @@ function App() {
     fetchDockerHubCredentials,
     dockerHubCredentials,
     fetchTrackedImages,
+    fetchContainers,
   });
   const {
     handleBatchPull,
