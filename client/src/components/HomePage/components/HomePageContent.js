@@ -245,7 +245,9 @@ const HomePageContent = ({
                   />
                 )}
                 {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
-                {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
+                {activeTab === TAB_NAMES.ADMIN && (
+                  <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
+                )}
               </>
             )}
           </>

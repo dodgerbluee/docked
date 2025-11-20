@@ -21,9 +21,64 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
   const hasData = entry.data && !entry.error;
   const containerNames = entry.containerNames || [];
   const containers = entry.data?.containers || [];
+  const searchQuery = entry._searchQuery || "";
+
+  // Filter containers based on search query if present
+  let filteredContainerNames = containerNames;
+  let filteredContainers = containers;
+
+  if (searchQuery) {
+    const query = searchQuery.toLowerCase();
+    
+    // Helper function to check if a container's JSON data matches the query
+    const containerJsonMatches = (container) => {
+      try {
+        const containerJsonString = JSON.stringify(container || {}).toLowerCase();
+        return containerJsonString.includes(query);
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    // Filter container names - check if name matches OR if the container's JSON matches
+    filteredContainerNames = containerNames.filter((name, idx) => {
+      const nameMatches = name?.toLowerCase().includes(query);
+      if (nameMatches) return true;
+      
+      // Check if this container's JSON data matches
+      const container = containers[idx];
+      if (container && containerJsonMatches(container)) {
+        return true;
+      }
+      return false;
+    });
+    
+    // Filter containers by name, image, ID, or JSON content
+    filteredContainers = containers.filter((container) => {
+      const containerName = container.name?.toLowerCase() || "";
+      const containerImage = container.image?.toLowerCase() || "";
+      const containerId = container.id?.toLowerCase() || "";
+      
+      // Check name, image, or ID match
+      if (
+        containerName.includes(query) ||
+        containerImage.includes(query) ||
+        containerId.includes(query)
+      ) {
+        return true;
+      }
+      
+      // Check if container's JSON content matches
+      if (containerJsonMatches(container)) {
+        return true;
+      }
+      
+      return false;
+    });
+  }
 
   // Display containers if we have container names OR if we have containers in the data
-  const hasContainers = containerNames.length > 0 || containers.length > 0;
+  const hasContainers = filteredContainerNames.length > 0 || filteredContainers.length > 0;
 
   // Check if we have Portainer instance data (instanceName, instanceUrl) even without containers
   const hasPortainerInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
@@ -89,11 +144,11 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
   }
 
   if (hasData && hasContainers) {
-    // Use containerNames if available, otherwise use containers directly
+    // Use filtered containerNames if available, otherwise use filtered containers directly
     const containersToDisplay =
-      containerNames.length > 0
-        ? containerNames.map((name, idx) => ({ name, idx }))
-        : containers.map((c, idx) => ({ name: c.name || c.id || `Container ${idx + 1}`, idx }));
+      filteredContainerNames.length > 0
+        ? filteredContainerNames.map((name, idx) => ({ name, idx }))
+        : filteredContainers.map((c, idx) => ({ name: c.name || c.id || `Container ${idx + 1}`, idx }));
 
     return (
       <>
@@ -102,7 +157,7 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
           const isContainerExpanded = expandedContainers.has(containerKey);
           // Try multiple ways to find the container data
           const containerData =
-            containers.find((c) => {
+            filteredContainers.find((c) => {
               const cName = c.name || "";
               const cId = c.id || "";
               // Match by name (with or without leading slash)
@@ -115,7 +170,7 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
                 cId.substring(0, 12) === name ||
                 name.substring(0, 12) === cId.substring(0, 12)
               );
-            }) || containers[idx]; // Fallback to index-based lookup
+            }) || filteredContainers[idx]; // Fallback to index-based lookup
 
           return (
             <div key={`${entry.key}-${idx}`} className={styles.containerItem}>

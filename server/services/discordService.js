@@ -224,10 +224,20 @@ function getRateLimitResetTime(webhookUrl) {
  * @returns {string} - Deduplication key
  */
 function createDeduplicationKey(notification) {
-  // Use image name and latest version as key
+  // Use image name, latest version, and container name (if available) as key
+  // This ensures different containers with the same image/version are tracked separately
   const imageName = notification.imageName || notification.name || "";
   const latestVersion = notification.latestVersion || "";
-  return `${imageName}:${latestVersion}`;
+  const containerName = notification.name || notification.containerName || "";
+  const userId = notification.userId || notification.user_id || "";
+  
+  // For portainer containers, include container name to make it unique per container
+  if (notification.notificationType === "portainer-container") {
+    return `${userId}:${containerName}:${imageName}:${latestVersion}`;
+  }
+  
+  // For tracked images, use image name and version
+  return `${userId}:${imageName}:${latestVersion}`;
 }
 
 /**

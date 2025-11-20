@@ -37,7 +37,8 @@ function getDiscordService() {
 async function getAllContainersWithUpdates(
   forceRefresh = false,
   filterPortainerUrl = null,
-  userId = null
+  userId = null,
+  batchLogger = null
 ) {
   // Get previous data from normalized tables to compare for newly detected updates
   let previousContainers = null;
@@ -711,14 +712,21 @@ async function getAllContainersWithUpdates(
           const portainerUrl = instance ? instance.url : null;
           // Use name as primary key since container IDs change after upgrades
           const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
+          
+          // Normalize digest for consistent comparison
+          const normalizeDigest = (digest) => {
+            if (!digest) return null;
+            return digest.replace(/^sha256:/i, "").toLowerCase();
+          };
+          
           previousContainersMap.set(key, {
             name: container.containerName,
             portainerUrl: portainerUrl,
             endpointId: container.endpointId,
             hasUpdate: container.hasUpdate || false,
-            latestDigest: container.latestDigest || null,
+            latestDigest: normalizeDigest(container.latestDigest),
             latestVersion: container.latestVersion || container.latestTag || null,
-            currentDigest: container.currentDigest || null,
+            currentDigest: normalizeDigest(container.currentDigest),
           });
         });
 
@@ -739,36 +747,84 @@ async function getAllContainersWithUpdates(
             // - Previous container had hasUpdate: true with the same latest digest/version (already notified)
             // - Container was just upgraded (current digest matches latest digest - handled by upgrade process)
             let shouldNotify = false;
+            let isNewlyIdentified = false;
 
             if (!previousContainer) {
               // New container with update - always notify
               shouldNotify = true;
+              isNewlyIdentified = true;
             } else if (!previousContainer.hasUpdate && container.hasUpdate) {
               // Container previously had no update, now has update - new update detected
               shouldNotify = true;
+              isNewlyIdentified = true;
             } else if (previousContainer.hasUpdate && container.hasUpdate) {
               // Both had updates - check if the latest version/digest changed
-              const previousLatestDigest = previousContainer.latestDigest;
-              const currentLatestDigest = container.latestDigest || container.latestDigestFull;
-              const previousLatestVersion = previousContainer.latestVersion;
+              const previousLatestDigest = previousContainer.latestDigest || null;
+              const currentLatestDigest = container.latestDigest || container.latestDigestFull || null;
+              const previousLatestVersion = previousContainer.latestVersion || null;
               const currentLatestVersion =
-                container.latestVersion || container.newVersion || container.latestTag;
+                container.latestVersion || container.newVersion || container.latestTag || null;
+
+              // Normalize digests for comparison (remove 'sha256:' prefix if present)
+              const normalizeDigest = (digest) => {
+                if (!digest) return null;
+                return digest.replace(/^sha256:/i, "").toLowerCase();
+              };
+
+              const normalizedPreviousDigest = normalizeDigest(previousLatestDigest);
+              const normalizedCurrentDigest = normalizeDigest(currentLatestDigest);
 
               // Notify if digest or version changed (newer update available)
+              // Only notify if both values exist and are different
               if (
-                currentLatestDigest &&
-                previousLatestDigest &&
-                currentLatestDigest !== previousLatestDigest
+                normalizedCurrentDigest &&
+                normalizedPreviousDigest &&
+                normalizedCurrentDigest !== normalizedPreviousDigest
               ) {
                 shouldNotify = true;
+                isNewlyIdentified = true;
               } else if (
                 currentLatestVersion &&
                 previousLatestVersion &&
                 currentLatestVersion !== previousLatestVersion
               ) {
                 shouldNotify = true;
+                isNewlyIdentified = true;
               }
               // If neither changed, don't notify (same update still available)
+              // Also don't notify if one is null and the other isn't (data inconsistency, not a new update)
+            }
+
+            // Log all newly identified upgrades (regardless of Discord notification)
+            if (isNewlyIdentified) {
+              const imageName = container.image || "Unknown";
+              const currentVersion = container.currentVersion || container.currentTag || "Unknown";
+              const latestVersion =
+                container.newVersion || container.latestTag || container.latestVersion || "Unknown";
+              const currentDigest = container.currentDigest || container.currentDigestFull || "N/A";
+              const latestDigest = container.latestDigest || container.latestDigestFull || "N/A";
+
+              const logData = {
+                module: "containerQueryService",
+                operation: "getAllContainersWithUpdates",
+                containerName: container.name,
+                imageName: imageName,
+                currentDigest: currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest,
+                latestDigest: latestDigest.length > 12 ? latestDigest.substring(0, 12) + "..." : latestDigest,
+                currentVersion: currentVersion,
+                latestVersion: latestVersion,
+                portainerUrl: container.portainerUrl || "Unknown",
+                endpointId: container.endpointId || "Unknown",
+                userId: userId || "batch",
+              };
+
+              // Use batch logger if available (for batch job logs), otherwise use regular logger
+              const logMessage = `Newly identified upgrade: ${container.name} (${imageName}) - ${currentVersion} → ${latestVersion}`;
+              if (batchLogger) {
+                batchLogger.info(logMessage, logData);
+              } else {
+                logger.info("Newly identified upgrade detected", logData);
+              }
             }
 
             if (shouldNotify) {
