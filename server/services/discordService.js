@@ -236,7 +236,7 @@ function createDeduplicationKey(notification) {
       .trim();
   };
 
-  const imageName = notification.imageName || notification.name || "";
+  const imageName = notification.imageName || "";
   const latestDigest = normalizeDigest(
     notification.latestDigest || notification.latest_digest || ""
   );
@@ -254,50 +254,85 @@ function createDeduplicationKey(notification) {
   }
 
   // For tracked images, use SHA digest as the key
+  // For GitHub/GitLab, use githubRepo if imageName is not available
+  const identifier = imageName || notification.githubRepo || notification.name || "";
   if (!latestDigest) {
-    // Fallback to version if no digest available
+    // Fallback to version if no digest available (for GitHub/GitLab tracked images)
     const latestVersion = notification.latestVersion || "";
-    return `${userId}:${imageName}:${latestVersion}`;
+    return `${userId}:${identifier}:${latestVersion}`;
   }
-  return `${userId}:${imageName}:${latestDigest}`;
+  return `${userId}:${identifier}:${latestDigest}`;
 }
 
 /**
  * Check if notification is a duplicate
  * @param {string} key - Deduplication key
- * @returns {boolean} - True if duplicate
+ * @param {number} userId - User ID
+ * @returns {Promise<boolean>} - True if duplicate
  */
-function isDuplicate(key) {
+async function isDuplicate(key, userId) {
+  // First check in-memory cache for fast lookup
   const timestamp = recentNotifications.get(key);
-  if (!timestamp) {
-    return false;
+  if (timestamp) {
+    // For SHA-based keys (contain 64-char hex digest), never expire - once notified, never notify again
+    // For version-based keys (fallback), use the window
+    const isShaBased = /:[a-f0-9]{64}$/.test(key);
+
+    if (isShaBased) {
+      // SHA-based keys never expire - permanent deduplication
+      return true;
+    }
+
+    // Version-based keys (fallback) use the window
+    const now = Date.now();
+    if (now - timestamp > DEDUPLICATION_WINDOW) {
+      recentNotifications.delete(key);
+      // Fall through to database check
+    } else {
+      return true;
+    }
   }
 
-  // For SHA-based keys (contain 64-char hex digest), never expire - once notified, never notify again
-  // For version-based keys (fallback), use the window
-  const isShaBased = /:[a-f0-9]{64}$/.test(key);
-
-  if (isShaBased) {
-    // SHA-based keys never expire - permanent deduplication
-    return true;
+  // Check database for persistent deduplication (survives server restarts)
+  if (userId) {
+    try {
+      const { hasDiscordNotificationBeenSent } = getDatabase();
+      const wasSent = await hasDiscordNotificationBeenSent(userId, key);
+      if (wasSent) {
+        // Update in-memory cache for future lookups
+        recordNotification(key);
+        return true;
+      }
+    } catch (error) {
+      // If database check fails, log error but don't block notification
+      // Fall through to allow notification (fail open)
+      logger.warn("Error checking database for duplicate notification:", error);
+    }
   }
 
-  // Version-based keys (fallback) use the window
-  const now = Date.now();
-  if (now - timestamp > DEDUPLICATION_WINDOW) {
-    recentNotifications.delete(key);
-    return false;
-  }
-
-  return true;
+  return false;
 }
 
 /**
  * Record notification for deduplication
  * @param {string} key - Deduplication key
+ * @param {number} userId - User ID (optional, for database persistence)
+ * @param {string} notificationType - Notification type (optional, for database persistence)
  */
-function recordNotification(key) {
+async function recordNotification(key, userId = null, notificationType = null) {
+  // Update in-memory cache for fast lookups
   recentNotifications.set(key, Date.now());
+
+  // Also persist to database if userId provided (ensures deduplication survives restarts)
+  if (userId) {
+    try {
+      const { recordDiscordNotificationSent } = getDatabase();
+      await recordDiscordNotificationSent(userId, key, notificationType || "unknown");
+    } catch (error) {
+      // Log error but don't fail - in-memory cache still works
+      logger.warn("Error recording notification to database:", error);
+    }
+  }
 
   // Trigger cleanup if map grows too large (safety check in addition to periodic cleanup)
   if (recentNotifications.size > 1000) {
@@ -585,15 +620,17 @@ async function queueNotification(imageData) {
     return;
   }
 
-  // Check for duplicates
+  // Check for duplicates (checks both in-memory cache and database)
   const dedupKey = createDeduplicationKey(imageData);
-  if (isDuplicate(dedupKey)) {
+  const isDup = await isDuplicate(dedupKey, userId);
+  if (isDup) {
     logger.debug(`Skipping duplicate notification for ${dedupKey}`);
     return;
   }
 
   // Record immediately when queuing (prevents duplicates even if processing is delayed)
-  recordNotification(dedupKey);
+  // This records to both in-memory cache and database
+  await recordNotification(dedupKey, userId, imageData.notificationType || "tracked-app");
 
   // Format notification payload once
   const payload = formatVersionUpdateNotification(imageData);
@@ -648,8 +685,13 @@ async function processNotificationQueue() {
       const result = await sendNotificationWithRetry(notification.webhookUrl, notification.payload);
 
       if (result.success) {
-        // Record successful notification for deduplication
-        recordNotification(notification.dedupKey);
+        // Record successful notification for deduplication (already recorded when queued, but ensure it's persisted)
+        const userId = notification.imageData.userId || notification.imageData.user_id;
+        await recordNotification(
+          notification.dedupKey,
+          userId,
+          notification.imageData.notificationType || "tracked-app"
+        );
         logger.info(`Discord notification sent for ${notification.imageData.name}`);
       } else {
         logger.error(
@@ -685,9 +727,10 @@ async function sendNotificationImmediate(imageData) {
     return { success: false, error: `No enabled Discord webhooks configured for user ${userId}` };
   }
 
-  // Check for duplicates
+  // Check for duplicates (checks both in-memory cache and database)
   const dedupKey = createDeduplicationKey(imageData);
-  if (isDuplicate(dedupKey)) {
+  const isDup = await isDuplicate(dedupKey, userId);
+  if (isDup) {
     return { success: false, error: "Duplicate notification" };
   }
 
@@ -697,7 +740,7 @@ async function sendNotificationImmediate(imageData) {
   const result = await sendNotificationWithRetry(webhooks[0].webhook_url, payload);
 
   if (result.success) {
-    recordNotification(dedupKey);
+    await recordNotification(dedupKey, userId, imageData.notificationType || "tracked-app");
   }
 
   return result;
