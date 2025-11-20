@@ -51,7 +51,8 @@ class TrackedAppsCheckHandler extends JobHandler {
       }
 
       // Check for updates (checkAllTrackedImages will use each image's user_id for Docker Hub credentials)
-      const results = await trackedImageService.checkAllTrackedImages(images);
+      // Pass batch logger to capture upgrade logs
+      const results = await trackedImageService.checkAllTrackedImages(images, logger);
 
       // Extract metrics
       result.itemsChecked = images.length;

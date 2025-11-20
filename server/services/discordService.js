@@ -30,7 +30,7 @@ const rateLimitTracker = new Map(); // webhookUrl -> { count, resetAt }
 
 // Deduplication: Track recent notifications to prevent duplicates
 const recentNotifications = new Map(); // key -> timestamp
-const DEDUPLICATION_WINDOW = 5 * 60 * 1000; // 5 minutes
+const DEDUPLICATION_WINDOW = 365 * 24 * 60 * 60 * 1000; // 1 year (for fallback version-based keys)
 
 // Cleanup interval for memory management (every 5 minutes)
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -44,8 +44,11 @@ function cleanupExpiredEntries() {
   let cleanedCount = 0;
 
   // Clean up expired notification deduplication entries
+  // Only clean up version-based keys (fallback), never clean SHA-based keys (permanent)
   for (const [key, timestamp] of recentNotifications.entries()) {
-    if (now - timestamp > DEDUPLICATION_WINDOW) {
+    // Check if this is a SHA-based key (contains a 64-char hex digest)
+    const isShaBased = /:[a-f0-9]{64}$/.test(key);
+    if (!isShaBased && now - timestamp > DEDUPLICATION_WINDOW) {
       recentNotifications.delete(key);
       cleanedCount++;
     }
@@ -224,20 +227,39 @@ function getRateLimitResetTime(webhookUrl) {
  * @returns {string} - Deduplication key
  */
 function createDeduplicationKey(notification) {
-  // Use image name, latest version, and container name (if available) as key
-  // This ensures different containers with the same image/version are tracked separately
+  // Normalize digest for consistent comparison (remove sha256: prefix, lowercase)
+  const normalizeDigest = (digest) => {
+    if (!digest) return "";
+    return String(digest)
+      .replace(/^sha256:/i, "")
+      .toLowerCase()
+      .trim();
+  };
+
   const imageName = notification.imageName || notification.name || "";
-  const latestVersion = notification.latestVersion || "";
+  const latestDigest = normalizeDigest(
+    notification.latestDigest || notification.latest_digest || ""
+  );
   const containerName = notification.name || notification.containerName || "";
   const userId = notification.userId || notification.user_id || "";
-  
-  // For portainer containers, include container name to make it unique per container
+
+  // For portainer containers, use SHA digest as the key (one notification per unique SHA)
   if (notification.notificationType === "portainer-container") {
-    return `${userId}:${containerName}:${imageName}:${latestVersion}`;
+    if (!latestDigest) {
+      // Fallback to version if no digest available (shouldn't happen normally)
+      const latestVersion = notification.latestVersion || "";
+      return `${userId}:${containerName}:${imageName}:${latestVersion}`;
+    }
+    return `${userId}:${containerName}:${imageName}:${latestDigest}`;
   }
-  
-  // For tracked images, use image name and version
-  return `${userId}:${imageName}:${latestVersion}`;
+
+  // For tracked images, use SHA digest as the key
+  if (!latestDigest) {
+    // Fallback to version if no digest available
+    const latestVersion = notification.latestVersion || "";
+    return `${userId}:${imageName}:${latestVersion}`;
+  }
+  return `${userId}:${imageName}:${latestDigest}`;
 }
 
 /**
@@ -251,9 +273,18 @@ function isDuplicate(key) {
     return false;
   }
 
+  // For SHA-based keys (contain 64-char hex digest), never expire - once notified, never notify again
+  // For version-based keys (fallback), use the window
+  const isShaBased = /:[a-f0-9]{64}$/.test(key);
+
+  if (isShaBased) {
+    // SHA-based keys never expire - permanent deduplication
+    return true;
+  }
+
+  // Version-based keys (fallback) use the window
   const now = Date.now();
   if (now - timestamp > DEDUPLICATION_WINDOW) {
-    // Outside deduplication window, remove old entry
     recentNotifications.delete(key);
     return false;
   }
@@ -560,6 +591,9 @@ async function queueNotification(imageData) {
     logger.debug(`Skipping duplicate notification for ${dedupKey}`);
     return;
   }
+
+  // Record immediately when queuing (prevents duplicates even if processing is delayed)
+  recordNotification(dedupKey);
 
   // Format notification payload once
   const payload = formatVersionUpdateNotification(imageData);

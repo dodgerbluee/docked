@@ -712,13 +712,13 @@ async function getAllContainersWithUpdates(
           const portainerUrl = instance ? instance.url : null;
           // Use name as primary key since container IDs change after upgrades
           const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
-          
+
           // Normalize digest for consistent comparison
           const normalizeDigest = (digest) => {
             if (!digest) return null;
             return digest.replace(/^sha256:/i, "").toLowerCase();
           };
-          
+
           previousContainersMap.set(key, {
             name: container.containerName,
             portainerUrl: portainerUrl,
@@ -760,7 +760,8 @@ async function getAllContainersWithUpdates(
             } else if (previousContainer.hasUpdate && container.hasUpdate) {
               // Both had updates - check if the latest version/digest changed
               const previousLatestDigest = previousContainer.latestDigest || null;
-              const currentLatestDigest = container.latestDigest || container.latestDigestFull || null;
+              const currentLatestDigest =
+                container.latestDigest || container.latestDigestFull || null;
               const previousLatestVersion = previousContainer.latestVersion || null;
               const currentLatestVersion =
                 container.latestVersion || container.newVersion || container.latestTag || null;
@@ -809,8 +810,12 @@ async function getAllContainersWithUpdates(
                 operation: "getAllContainersWithUpdates",
                 containerName: container.name,
                 imageName: imageName,
-                currentDigest: currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest,
-                latestDigest: latestDigest.length > 12 ? latestDigest.substring(0, 12) + "..." : latestDigest,
+                currentDigest:
+                  currentDigest.length > 12
+                    ? currentDigest.substring(0, 12) + "..."
+                    : currentDigest,
+                latestDigest:
+                  latestDigest.length > 12 ? latestDigest.substring(0, 12) + "..." : latestDigest,
                 currentVersion: currentVersion,
                 latestVersion: latestVersion,
                 portainerUrl: container.portainerUrl || "Unknown",
@@ -842,6 +847,7 @@ async function getAllContainersWithUpdates(
                 sourceType: "docker",
                 currentVersion: currentVersion,
                 latestVersion: latestVersion,
+                latestDigest: container.latestDigest || container.latestDigestFull || null,
                 latestVersionPublishDate: container.latestPublishDate || null,
                 releaseUrl: null, // Containers don't have release URLs
                 notificationType: "portainer-container",

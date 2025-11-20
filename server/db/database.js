@@ -1391,7 +1391,7 @@ function getDockerHubImageVersion(userId, imageRepo, currentTag = null) {
       reject(new Error("Database not initialized"));
       return;
     }
-    
+
     // If tag is provided, use it in the query (new constraint)
     // If not provided, try to find any record for the repo (backward compatibility)
     let query, params;
@@ -1403,43 +1403,39 @@ function getDockerHubImageVersion(userId, imageRepo, currentTag = null) {
       query = `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ? LIMIT 1`;
       params = [userId, imageRepo];
     }
-    
-    db.get(
-      query,
-      params,
-      (err, row) => {
-        if (err) {
-          reject(err);
+
+    db.get(query, params, (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        if (row) {
+          resolve({
+            id: row.id,
+            userId: row.user_id,
+            imageName: row.image_name,
+            imageRepo: row.image_repo,
+            registry: row.registry,
+            namespace: row.namespace,
+            repository: row.repository,
+            currentTag: row.current_tag,
+            currentVersion: row.current_version,
+            currentDigest: row.current_digest,
+            latestTag: row.latest_tag,
+            latestVersion: row.latest_version,
+            latestDigest: row.latest_digest,
+            hasUpdate: row.has_update === 1,
+            latestPublishDate: row.latest_publish_date,
+            currentVersionPublishDate: row.current_version_publish_date,
+            existsInDockerHub: row.exists_in_docker_hub === 1,
+            lastChecked: row.last_checked,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          });
         } else {
-          if (row) {
-            resolve({
-              id: row.id,
-              userId: row.user_id,
-              imageName: row.image_name,
-              imageRepo: row.image_repo,
-              registry: row.registry,
-              namespace: row.namespace,
-              repository: row.repository,
-              currentTag: row.current_tag,
-              currentVersion: row.current_version,
-              currentDigest: row.current_digest,
-              latestTag: row.latest_tag,
-              latestVersion: row.latest_version,
-              latestDigest: row.latest_digest,
-              hasUpdate: row.has_update === 1,
-              latestPublishDate: row.latest_publish_date,
-              currentVersionPublishDate: row.current_version_publish_date,
-              existsInDockerHub: row.exists_in_docker_hub === 1,
-              lastChecked: row.last_checked,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            });
-          } else {
-            resolve(null);
-          }
+          resolve(null);
         }
       }
-    );
+    });
   });
 }
 
@@ -1561,7 +1557,7 @@ function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, cu
       reject(new Error("Database not initialized"));
       return;
     }
-    
+
     // If currentTag is provided, use it in WHERE clause (new constraint)
     // Otherwise, try to match by version (backward compatibility)
     let query, params;
@@ -1579,18 +1575,14 @@ function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, cu
                WHERE user_id = ? AND image_repo = ? AND current_version = ?`;
       params = [newDigest, newVersion, newDigest, newVersion, userId, imageRepo, newVersion];
     }
-    
-    db.run(
-      query,
-      params,
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+
+    db.run(query, params, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
       }
-    );
+    });
   });
 }
 
@@ -1940,13 +1932,13 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
           // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
           // The JOIN now matches on tag, so we can reliably compare
           let hasUpdate = false;
-          
+
           if (row.current_digest && row.dh_latest_digest) {
             const normalizedCurrent = normalizeDigest(row.current_digest);
             const normalizedLatest = normalizeDigest(row.dh_latest_digest);
             hasUpdate = normalizedCurrent !== normalizedLatest;
           }
-          
+
           return {
             id: row.id,
             userId: row.user_id,

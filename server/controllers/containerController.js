@@ -478,13 +478,13 @@ async function getContainerData(req, res, next) {
     const dockerHubDataMap = new Map();
     for (const container of allContainers) {
       if (!container.imageRepo) continue;
-      
+
       // Extract tag from imageName
       const imageParts = container.imageName?.includes(":")
         ? container.imageName.split(":")
         : [container.imageName, "latest"];
       const containerTag = imageParts[1];
-      
+
       try {
         const dhData = await getDockerHubImageVersion(userId, container.imageRepo, containerTag);
         if (dhData) {
@@ -493,7 +493,9 @@ async function getContainerData(req, res, next) {
         }
       } catch (err) {
         // If we can't get Docker Hub data, continue without it
-        logger.debug(`Could not get Docker Hub data for ${container.imageRepo}:${containerTag}:`, { error: err });
+        logger.debug(`Could not get Docker Hub data for ${container.imageRepo}:${containerTag}:`, {
+          error: err,
+        });
       }
     }
 
@@ -510,7 +512,7 @@ async function getContainerData(req, res, next) {
     // Also preserve portainerInstanceId for grouping
     const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
-      
+
       // Extract tag from imageName to lookup Docker Hub data
       const imageParts = c.imageName?.includes(":")
         ? c.imageName.split(":")

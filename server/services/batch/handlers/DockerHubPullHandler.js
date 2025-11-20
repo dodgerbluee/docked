@@ -41,7 +41,12 @@ class DockerHubPullHandler extends JobHandler {
       logger.info("Starting Docker Hub pull batch job", { userId });
 
       // Execute the container service pull - pass batch logger to capture upgrade logs
-      const serviceResult = await containerService.getAllContainersWithUpdates(true, null, userId, logger);
+      const serviceResult = await containerService.getAllContainersWithUpdates(
+        true,
+        null,
+        userId,
+        logger
+      );
 
       // Extract metrics
       result.itemsChecked = serviceResult.containers?.length || 0;

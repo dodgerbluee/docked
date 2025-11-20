@@ -19,6 +19,7 @@ export const useBatchProcessing = ({
   fetchDockerHubCredentials,
   dockerHubCredentials,
   fetchTrackedImages,
+  fetchContainers,
 }) => {
   // Use extracted hooks
   const { handleBatchPull, handleBatchTrackedAppsCheck } = useBatchTriggers({
@@ -38,6 +39,8 @@ export const useBatchProcessing = ({
     passwordChanged,
     batchConfig,
     setLastPullTime,
+    fetchContainers,
+    fetchTrackedImages,
   });
 
   const { batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef } = useBatchIntervals({
