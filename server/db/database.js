@@ -670,7 +670,9 @@ function initializeDatabase() {
                 "CREATE INDEX IF NOT EXISTS idx_discord_notifications_user_key ON discord_notifications_sent(user_id, deduplication_key)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating discord_notifications user_key index:", { error: idxErr });
+                    logger.error("Error creating discord_notifications user_key index:", {
+                      error: idxErr,
+                    });
                   }
                 }
               );
@@ -678,7 +680,9 @@ function initializeDatabase() {
                 "CREATE INDEX IF NOT EXISTS idx_discord_notifications_sent_at ON discord_notifications_sent(sent_at DESC)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating discord_notifications sent_at index:", { error: idxErr });
+                    logger.error("Error creating discord_notifications sent_at index:", {
+                      error: idxErr,
+                    });
                   }
                 }
               );
