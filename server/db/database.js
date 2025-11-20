@@ -647,6 +647,48 @@ function initializeDatabase() {
             }
           }
         );
+
+        // Create discord_notifications_sent table to persist notification deduplication
+        // This ensures notifications are only sent once per SHA, even across server restarts
+        db.run(
+          `CREATE TABLE IF NOT EXISTS discord_notifications_sent (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        deduplication_key TEXT NOT NULL,
+        notification_type TEXT NOT NULL,
+        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, deduplication_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`,
+          (err) => {
+            if (err) {
+              logger.error("Error creating discord_notifications_sent table:", { error: err });
+            } else {
+              logger.info("Discord notifications sent table ready");
+              // Create indexes for discord_notifications_sent table
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_discord_notifications_user_key ON discord_notifications_sent(user_id, deduplication_key)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating discord_notifications user_key index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_discord_notifications_sent_at ON discord_notifications_sent(sent_at DESC)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating discord_notifications sent_at index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+            }
+          }
+        );
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
         logger.error("Stack:", { error: serializeError });
@@ -3305,6 +3347,60 @@ function getEnabledDiscordWebhooks(userId) {
 }
 
 /**
+ * Check if a Discord notification has already been sent for a given deduplication key
+ * @param {number} userId - User ID
+ * @param {string} deduplicationKey - Deduplication key (e.g., "userId:imageName:sha256digest")
+ * @returns {Promise<boolean>} - True if notification was already sent
+ */
+function hasDiscordNotificationBeenSent(userId, deduplicationKey) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.get(
+      "SELECT id FROM discord_notifications_sent WHERE user_id = ? AND deduplication_key = ?",
+      [userId, deduplicationKey],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(!!row);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Record that a Discord notification has been sent
+ * @param {number} userId - User ID
+ * @param {string} deduplicationKey - Deduplication key (e.g., "userId:imageName:sha256digest")
+ * @param {string} notificationType - Type of notification (e.g., "tracked-app", "portainer-container")
+ * @returns {Promise<void>}
+ */
+function recordDiscordNotificationSent(userId, deduplicationKey, notificationType) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    // Use INSERT OR IGNORE to handle race conditions gracefully
+    db.run(
+      "INSERT OR IGNORE INTO discord_notifications_sent (user_id, deduplication_key, notification_type) VALUES (?, ?, ?)",
+      [userId, deduplicationKey, notificationType],
+      (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
  * Close database connection
  */
 function closeDatabase() {
@@ -3390,5 +3486,7 @@ module.exports = {
   updateDiscordWebhook,
   deleteDiscordWebhook,
   getEnabledDiscordWebhooks,
+  hasDiscordNotificationBeenSent,
+  recordDiscordNotificationSent,
   closeDatabase,
 };
