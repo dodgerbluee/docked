@@ -32,10 +32,11 @@ async function checkImageUpdates(
   let storedVersionInfo = null;
   if (userId) {
     try {
-      storedVersionInfo = await getDockerHubImageVersion(userId, repo);
+      // Pass currentTag to get the correct record for this specific tag
+      storedVersionInfo = await getDockerHubImageVersion(userId, repo, currentTag);
     } catch (dbError) {
       // If database lookup fails, continue without stored info
-      logger.debug(`Could not get stored version info for ${repo}:`, { error: dbError });
+      logger.debug(`Could not get stored version info for ${repo}:${currentTag}:`, { error: dbError });
     }
   }
 

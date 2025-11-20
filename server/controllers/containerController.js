@@ -187,7 +187,7 @@ async function pullContainers(req, res, next) {
   } catch (error) {
     // Handle rate limit exceeded errors specially
     if (error.isRateLimitExceeded || error instanceof RateLimitExceededError) {
-      logger.warn("Docker Hub rate limit exceeded", {
+      logger.warn("Docker Hub rate limit exceeded - not updating container data", {
         module: "containerController",
         operation: "pullContainers",
         error: error,
@@ -208,6 +208,7 @@ async function pullContainers(req, res, next) {
         message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
       }
 
+      // Return error without updating container data
       return res.status(429).json({
         success: false,
         error: error.message || "Docker Hub rate limit exceeded",
@@ -473,18 +474,26 @@ async function getContainerData(req, res, next) {
     const userInstances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
-    // Get Docker Hub data for containers that have imageRepo
-    const imageRepos = [...new Set(allContainers.map((c) => c.imageRepo).filter(Boolean))];
+    // Get Docker Hub data for containers - now we need to get data per container (repo + tag)
     const dockerHubDataMap = new Map();
-    for (const imageRepo of imageRepos) {
+    for (const container of allContainers) {
+      if (!container.imageRepo) continue;
+      
+      // Extract tag from imageName
+      const imageParts = container.imageName?.includes(":")
+        ? container.imageName.split(":")
+        : [container.imageName, "latest"];
+      const containerTag = imageParts[1];
+      
       try {
-        const dhData = await getDockerHubImageVersion(userId, imageRepo);
+        const dhData = await getDockerHubImageVersion(userId, container.imageRepo, containerTag);
         if (dhData) {
-          dockerHubDataMap.set(imageRepo, dhData);
+          // Use repo:tag as key to handle multiple tags of same repo
+          dockerHubDataMap.set(`${container.imageRepo}:${containerTag}`, dhData);
         }
       } catch (err) {
         // If we can't get Docker Hub data, continue without it
-        logger.debug(`Could not get Docker Hub data for ${imageRepo}:`, { error: err });
+        logger.debug(`Could not get Docker Hub data for ${container.imageRepo}:${containerTag}:`, { error: err });
       }
     }
 
@@ -501,7 +510,14 @@ async function getContainerData(req, res, next) {
     // Also preserve portainerInstanceId for grouping
     const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
-      const dhData = c.imageRepo ? dockerHubDataMap.get(c.imageRepo) : null;
+      
+      // Extract tag from imageName to lookup Docker Hub data
+      const imageParts = c.imageName?.includes(":")
+        ? c.imageName.split(":")
+        : [c.imageName, "latest"];
+      const containerTag = imageParts[1];
+      const dhDataKey = c.imageRepo ? `${c.imageRepo}:${containerTag}` : null;
+      const dhData = dhDataKey ? dockerHubDataMap.get(dhDataKey) : null;
 
       // Compute hasUpdate per-container by comparing this container's currentDigest
       // to the Docker Hub latestDigest (not using the shared hasUpdate flag)

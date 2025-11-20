@@ -42,41 +42,27 @@ export const useBatchTriggers = ({
 
   const handleBatchPull = useCallback(async () => {
     let runId = null;
-    const logs = [];
-
-    const log = (message) => {
-      const timestamp = new Date().toISOString();
-      const logEntry = `[${timestamp}] ${message}`;
-      logs.push(logEntry);
-      console.log(logEntry);
-    };
 
     try {
-      // Create batch run record
-      log("Starting batch pull process...");
-      const runResponse = await axios.post(`${API_BASE_URL}/api/batch/runs`, {
-        status: "running",
-        jobType: "docker-hub-pull",
-      });
-      runId = runResponse.data.runId;
-      log(`Batch run ${runId} created`);
-
       setPulling(true);
       setError(null);
-      log("🔄 Pulling fresh data from Docker Hub...");
 
-      // Start the pull operation
-      log("Initiating Docker Hub API call...");
-      const pullPromise = axios.post(
-        `${API_BASE_URL}/api/containers/pull`,
-        {},
+      // Trigger the batch job using the batch system API
+      const triggerResponse = await axios.post(
+        `${API_BASE_URL}/api/batch/trigger`,
         {
-          timeout: 300000, // 5 minute timeout
+          jobType: "docker-hub-pull",
+        },
+        {
+          timeout: 5000, // Short timeout for the trigger call
         }
       );
 
-      // While pulling, fetch any existing cached data to show immediately
-      log("Fetching cached data for immediate display...");
+      if (!triggerResponse.data.success) {
+        throw new Error(triggerResponse.data.error || "Failed to trigger batch job");
+      }
+
+      // Fetch cached data for immediate display
       try {
         const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
         if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
@@ -98,25 +84,49 @@ export const useBatchTriggers = ({
             setPortainerInstancesFromAPI(cachedResponse.data.portainerInstances);
           }
           setDataFetched(true);
-          log("Cached data loaded successfully");
         }
       } catch (cacheErr) {
-        log("No cached data available yet");
+        // Ignore cache errors
       }
 
-      // Wait for the pull to complete
-      log("Waiting for Docker Hub pull to complete...");
-      const response = await pullPromise;
-      log("Docker Hub pull completed successfully");
+      // Poll for the latest batch run to get the runId and wait for completion
+      const maxWaitTime = 300000; // 5 minutes
+      const pollInterval = 1000; // 1 second
+      const startTime = Date.now();
+      let batchRun = null;
 
-      if (response.data.success === false) {
-        throw new Error(
-          response.data.error || response.data.message || "Failed to pull container data"
-        );
+      while (Date.now() - startTime < maxWaitTime) {
+        try {
+          const latestRunResponse = await axios.get(
+            `${API_BASE_URL}/api/batch/runs/latest?jobType=docker-hub-pull`
+          );
+          batchRun = latestRunResponse.data.run;
+
+          if (batchRun) {
+            runId = batchRun.id;
+
+            // Check if the run is completed or failed
+            if (batchRun.status === "completed" || batchRun.status === "failed") {
+              break;
+            }
+          }
+        } catch (pollErr) {
+          // Continue polling on error
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
       }
 
-      let containersChecked = 0;
-      let containersUpdated = 0;
+      if (!batchRun) {
+        throw new Error("Batch job did not complete within the expected time");
+      }
+
+      if (batchRun.status === "failed") {
+        throw new Error(batchRun.error_message || "Batch job failed");
+      }
+
+      // Fetch updated container data after batch job completes
+      const response = await axios.get(`${API_BASE_URL}/api/containers`);
 
       if (response.data.grouped && response.data.stacks) {
         const apiContainers = response.data.containers || [];
@@ -137,81 +147,30 @@ export const useBatchTriggers = ({
           setPortainerInstancesFromAPI(response.data.portainerInstances);
         }
 
-        containersChecked = updatedContainers.length || 0;
-        containersUpdated = response.data.containers?.filter((c) => c.hasUpdate).length || 0;
-        log(
-          `Processed ${containersChecked} containers, ${containersUpdated} with updates available`
-        );
-
         setDockerHubDataPulled(true);
         localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
         const pullTime = new Date();
         setLastPullTime(pullTime);
         localStorage.setItem("lastPullTime", pullTime.toISOString());
-      } else {
-        const apiContainers = Array.isArray(response.data) ? response.data : [];
-        const updatedContainers = apiContainers.map((apiContainer) => {
-          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-            if (!apiContainer.hasUpdate) {
-              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-            }
-            return { ...apiContainer, hasUpdate: false };
-          }
-          return apiContainer;
-        });
-        setContainers(updatedContainers);
-        setStacks([]);
-        setUnusedImagesCount(0);
-        containersChecked = updatedContainers.length || 0;
-        log(`Processed ${containersChecked} containers (legacy format)`);
       }
 
       setError(null);
       setDataFetched(true);
 
-      log("Fetching unused images...");
+      // Fetch unused images
       await fetchUnusedImages();
-      log("Unused images fetched");
-
-      // Update batch run as completed
-      if (runId) {
-        await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
-          status: "completed",
-          containersChecked,
-          containersUpdated,
-          logs: logs.join("\n"),
-        });
-        log(`Batch run ${runId} marked as completed`);
-      }
     } catch (err) {
       const errorMessage = await handleDockerHubError(
         err,
         fetchDockerHubCredentials,
         dockerHubCredentials,
         (msg) => {
-          log(
-            `❌ ${err.response?.status === 429 || err.response?.data?.rateLimitExceeded ? "Rate limit exceeded" : "Error"}: ${msg}`
-          );
           setError(msg);
         }
       );
-      console.error("Error pulling containers:", err);
-
-      if (runId) {
-        try {
-          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
-            status: "failed",
-            errorMessage,
-            logs: logs.join("\n"),
-          });
-          log(`Batch run ${runId} marked as failed`);
-        } catch (updateErr) {
-          console.error("Error updating batch run:", updateErr);
-        }
-      }
+      console.error("Error in batch pull:", err);
     } finally {
       setPulling(false);
-      log("Batch pull process finished (success or failure)");
     }
   }, [
     setPulling,

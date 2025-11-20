@@ -14,7 +14,7 @@ on:
         default: false
 
 jobs:
-  lint:
+  eslint-server:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -28,23 +28,41 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
-            client/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
           cd server && npm ci
-          cd ../client && npm ci
 
-      # - name: Run ESLint (server)
-      #   run: |
-      #     cd server
-      #     if [ -f "node_modules/.bin/eslint" ]; then
-      #       npx eslint . --ext .js
-      #     else
-      #       npm install --save-dev eslint@^8.57.0
-      #       npx eslint . --ext .js
-      #     fi
+      - name: Run ESLint (server)
+        run: |
+          cd server
+          if [ -f "node_modules/.bin/eslint" ]; then
+            npx eslint . --ext .js
+          else
+            echo "ESLint not found in server/node_modules/.bin/eslint"
+            exit 1
+          fi
+
+  eslint-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd client && npm ci
 
       - name: Run ESLint (client)
         run: |
@@ -66,12 +84,30 @@ jobs:
             npx eslint src --ext .js,.jsx
           fi
 
+  prettier:
+    runs-on: ubuntu-latest
+    if: inputs.check-formatting == true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Check formatting (Prettier)
-        if: inputs.check-formatting == true
         run: |
           if [ -f "node_modules/.bin/prettier" ]; then
             npx prettier --check "**/*.{js,jsx,json,css,md}" || (echo "Formatting check failed. Run 'prettier --write' to fix." && exit 1)
           else
             echo "Prettier not installed, skipping formatting check"
+            exit 1
           fi
 
