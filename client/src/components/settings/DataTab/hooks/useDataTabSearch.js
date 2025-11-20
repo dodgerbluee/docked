@@ -51,7 +51,7 @@ export const useDataTabSearch = (dataEntries) => {
           const containerName = container.name?.toLowerCase() || "";
           const containerImage = container.image?.toLowerCase() || "";
           const containerId = container.id?.toLowerCase() || "";
-          
+
           // Check name, image, or ID match
           if (
             containerName.includes(query) ||
@@ -60,7 +60,7 @@ export const useDataTabSearch = (dataEntries) => {
           ) {
             return true;
           }
-          
+
           // Check if container's JSON content matches
           try {
             const containerJsonString = JSON.stringify(container || {}).toLowerCase();
@@ -70,7 +70,7 @@ export const useDataTabSearch = (dataEntries) => {
           } catch (e) {
             // If JSON stringify fails, skip
           }
-          
+
           return false;
         });
 
@@ -114,4 +114,3 @@ export const useDataTabSearch = (dataEntries) => {
     filteredDataEntries,
   };
 };
-

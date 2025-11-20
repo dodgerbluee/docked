@@ -29,7 +29,7 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
 
   if (searchQuery) {
     const query = searchQuery.toLowerCase();
-    
+
     // Helper function to check if a container's JSON data matches the query
     const containerJsonMatches = (container) => {
       try {
@@ -39,12 +39,12 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
         return false;
       }
     };
-    
+
     // Filter container names - check if name matches OR if the container's JSON matches
     filteredContainerNames = containerNames.filter((name, idx) => {
       const nameMatches = name?.toLowerCase().includes(query);
       if (nameMatches) return true;
-      
+
       // Check if this container's JSON data matches
       const container = containers[idx];
       if (container && containerJsonMatches(container)) {
@@ -52,13 +52,13 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       }
       return false;
     });
-    
+
     // Filter containers by name, image, ID, or JSON content
     filteredContainers = containers.filter((container) => {
       const containerName = container.name?.toLowerCase() || "";
       const containerImage = container.image?.toLowerCase() || "";
       const containerId = container.id?.toLowerCase() || "";
-      
+
       // Check name, image, or ID match
       if (
         containerName.includes(query) ||
@@ -67,12 +67,12 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       ) {
         return true;
       }
-      
+
       // Check if container's JSON content matches
       if (containerJsonMatches(container)) {
         return true;
       }
-      
+
       return false;
     });
   }
@@ -148,7 +148,10 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
     const containersToDisplay =
       filteredContainerNames.length > 0
         ? filteredContainerNames.map((name, idx) => ({ name, idx }))
-        : filteredContainers.map((c, idx) => ({ name: c.name || c.id || `Container ${idx + 1}`, idx }));
+        : filteredContainers.map((c, idx) => ({
+            name: c.name || c.id || `Container ${idx + 1}`,
+            idx,
+          }));
 
     return (
       <>

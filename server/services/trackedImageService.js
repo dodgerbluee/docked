@@ -25,19 +25,20 @@ function getDiscordService() {
 /**
  * Check for updates on a single tracked image
  * @param {Object} trackedImage - Tracked image object from database
+ * @param {Object} batchLogger - Optional batch logger for batch job logs
  * @returns {Promise<Object>} - Update information
  */
-async function checkTrackedImage(trackedImage) {
+async function checkTrackedImage(trackedImage, batchLogger = null) {
   const sourceType = trackedImage.source_type || "docker";
 
   // Handle GitHub repositories
   if (sourceType === "github" && trackedImage.github_repo) {
-    return await checkGitHubTrackedImage(trackedImage);
+    return await checkGitHubTrackedImage(trackedImage, batchLogger);
   }
 
   // Handle GitLab repositories
   if (sourceType === "gitlab" && trackedImage.github_repo) {
-    return await checkGitLabTrackedImage(trackedImage);
+    return await checkGitLabTrackedImage(trackedImage, batchLogger);
   }
 
   // Handle Docker images (existing logic)
@@ -202,8 +203,38 @@ async function checkTrackedImage(trackedImage) {
     displayLatestVersion = String(trackedImage.latest_version);
   }
 
-  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (hasUpdate && !trackedImage.has_update) {
+    // Log newly identified tracked app update
+    const currentDigest = trackedImage.current_digest || "N/A";
+    const latestDigestFormatted = latestDigest || "N/A";
+    const currentDigestShort =
+      currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest;
+    const latestDigestShort =
+      latestDigestFormatted.length > 12
+        ? latestDigestFormatted.substring(0, 12) + "..."
+        : latestDigestFormatted;
+
+    const logData = {
+      module: "trackedImageService",
+      operation: "checkTrackedImage",
+      trackedImageName: trackedImage.name,
+      imageName: imageName,
+      currentDigest: currentDigestShort,
+      latestDigest: latestDigestShort,
+      currentVersion: displayCurrentVersion,
+      latestVersion: displayLatestVersion,
+      userId: trackedImage.user_id || "batch",
+    };
+
+    // Use batch logger if available (for batch job logs), otherwise use regular logger
+    const logMessage = `New tracked app update found: ${trackedImage.name} (${imageName}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    if (batchLogger) {
+      batchLogger.info(logMessage, logData);
+    } else {
+      logger.info("New tracked app update detected", logData);
+    }
+
     try {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
@@ -215,6 +246,7 @@ async function checkTrackedImage(trackedImage) {
           sourceType: "docker",
           currentVersion: displayCurrentVersion,
           latestVersion: displayLatestVersion,
+          latestDigest: latestDigest || null,
           latestVersionPublishDate: latestPublishDate,
           notificationType: "tracked-app",
           userId: trackedImage.user_id,
@@ -245,7 +277,7 @@ async function checkTrackedImage(trackedImage) {
  * @param {Object} trackedImage - Tracked image object from database
  * @returns {Promise<Object>} - Update information
  */
-async function checkGitHubTrackedImage(trackedImage) {
+async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
   const githubRepo = trackedImage.github_repo;
 
   let hasUpdate = false;
@@ -454,8 +486,27 @@ async function checkGitHubTrackedImage(trackedImage) {
       ? String(trackedImage.latest_version)
       : "Unknown";
 
-  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (hasUpdate && !trackedImage.has_update) {
+    // Log newly identified tracked app update
+    const logData = {
+      module: "trackedImageService",
+      operation: "checkGitHubTrackedImage",
+      trackedImageName: trackedImage.name,
+      githubRepo: githubRepo,
+      currentVersion: displayCurrentVersion,
+      latestVersion: displayLatestVersion,
+      userId: trackedImage.user_id || "batch",
+    };
+
+    // Use batch logger if available (for batch job logs), otherwise use regular logger
+    const logMessage = `New tracked app update found: ${trackedImage.name} (${githubRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    if (batchLogger) {
+      batchLogger.info(logMessage, logData);
+    } else {
+      logger.info("New tracked app update detected", logData);
+    }
+
     try {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
@@ -501,14 +552,15 @@ async function checkGitHubTrackedImage(trackedImage) {
 /**
  * Check for updates on all tracked images
  * @param {Array} trackedImages - Array of tracked image objects
+ * @param {Object} batchLogger - Optional batch logger for batch job logs
  * @returns {Promise<Array>} - Array of update information
  */
-async function checkAllTrackedImages(trackedImages) {
+async function checkAllTrackedImages(trackedImages, batchLogger = null) {
   const results = [];
 
   for (const image of trackedImages) {
     try {
-      const result = await checkTrackedImage(image);
+      const result = await checkTrackedImage(image, batchLogger);
       results.push(result);
     } catch (error) {
       // If rate limit exceeded, stop processing and propagate error
@@ -534,7 +586,7 @@ async function checkAllTrackedImages(trackedImages) {
  * @param {Object} trackedImage - Tracked image object from database
  * @returns {Promise<Object>} - Update information
  */
-async function checkGitLabTrackedImage(trackedImage) {
+async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
   const gitlabRepo = trackedImage.github_repo; // Reusing github_repo field for GitLab repos
   const gitlabToken = trackedImage.gitlab_token || null; // Get token from database
 
@@ -757,8 +809,27 @@ async function checkGitLabTrackedImage(trackedImage) {
       ? String(trackedImage.latest_version)
       : "Unknown";
 
-  // Send Discord notification if update detected (only if newly detected, not if already had update)
+  // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (hasUpdate && !trackedImage.has_update) {
+    // Log newly identified tracked app update
+    const logData = {
+      module: "trackedImageService",
+      operation: "checkGitLabTrackedImage",
+      trackedImageName: trackedImage.name,
+      gitlabRepo: gitlabRepo,
+      currentVersion: displayCurrentVersion,
+      latestVersion: displayLatestVersion,
+      userId: trackedImage.user_id || "batch",
+    };
+
+    // Use batch logger if available (for batch job logs), otherwise use regular logger
+    const logMessage = `New tracked app update found: ${trackedImage.name} (${gitlabRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    if (batchLogger) {
+      batchLogger.info(logMessage, logData);
+    } else {
+      logger.info("New tracked app update detected", logData);
+    }
+
     try {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {

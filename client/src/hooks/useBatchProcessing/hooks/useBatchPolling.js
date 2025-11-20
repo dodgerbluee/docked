@@ -15,6 +15,8 @@ import { API_BASE_URL } from "../../../constants/api";
  * @param {boolean} params.passwordChanged - Whether password has been changed
  * @param {Object} params.batchConfig - Batch configuration
  * @param {Function} params.setLastPullTime - Set last pull time function
+ * @param {Function} params.fetchContainers - Function to fetch containers
+ * @param {Function} params.fetchTrackedImages - Function to fetch tracked images
  * @returns {void}
  */
 export const useBatchPolling = ({
@@ -23,6 +25,8 @@ export const useBatchPolling = ({
   passwordChanged,
   batchConfig,
   setLastPullTime,
+  fetchContainers,
+  fetchTrackedImages,
 }) => {
   const lastCheckedBatchRunIdRef = useRef(null);
   const lastCheckedBatchRunStatusRef = useRef(null);
@@ -72,6 +76,11 @@ export const useBatchPolling = ({
                   lastCheckedBatchRunStatusRef.current = dockerHubRun.status;
                   setLastPullTime(completedAt);
                   localStorage.setItem("lastPullTime", completedAt.toISOString());
+
+                  // Refresh container data when batch completes
+                  if (fetchContainers) {
+                    fetchContainers(false); // false = don't show loading spinner
+                  }
                 } else {
                   lastCheckedBatchRunIdRef.current = dockerHubRun.id;
                   lastCheckedBatchRunStatusRef.current = dockerHubRun.status;
@@ -106,6 +115,11 @@ export const useBatchPolling = ({
                 if (shouldUpdate) {
                   lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
                   lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
+
+                  // Refresh tracked images when batch completes
+                  if (fetchTrackedImages) {
+                    fetchTrackedImages();
+                  }
                 } else {
                   lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
                   lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
@@ -126,5 +140,13 @@ export const useBatchPolling = ({
     const interval = setInterval(checkBatchRuns, 5000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, authToken, passwordChanged, setLastPullTime, batchConfig]);
+  }, [
+    isAuthenticated,
+    authToken,
+    passwordChanged,
+    setLastPullTime,
+    batchConfig,
+    fetchContainers,
+    fetchTrackedImages,
+  ]);
 };

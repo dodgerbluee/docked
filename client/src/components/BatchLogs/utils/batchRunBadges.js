@@ -98,19 +98,22 @@ export const getStatusBadge = (status) => {
 };
 
 /**
- * Get manual badge JSX
+ * Get manual badge JSX (icon only with tooltip)
  * @returns {JSX.Element} Manual badge
  */
 export const getManualBadge = () => {
   return (
     <span
+      title="Manual"
       style={{
         ...badgeBaseStyle,
         background: "rgba(239, 62, 66, 0.2)",
         color: "var(--dodger-red)",
+        padding: "4px 8px",
+        cursor: "help",
       }}
     >
-      Manual
+      👤
     </span>
   );
 };
