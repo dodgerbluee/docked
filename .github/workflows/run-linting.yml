@@ -68,7 +68,7 @@ jobs:
         run: |
           cd client
           if [ -f "node_modules/.bin/eslint" ]; then
-            npx eslint src --ext .js,.jsx
+            npx eslint src --ext .js,.jsx --max-warnings=0
           elif [ -d "node_modules/react-scripts" ]; then
             CI=true npm run build 2>&1 | tee /tmp/build.log
             BUILD_EXIT_CODE=${PIPESTATUS[0]}
@@ -79,9 +79,15 @@ jobs:
               fi
               exit $BUILD_EXIT_CODE
             fi
+            # CI=true should make react-scripts fail on warnings, but check explicitly for ESLint warnings
+            if grep -qiE "(eslint.*warning|warning.*eslint)" /tmp/build.log; then
+              echo "Build contains ESLint warnings. Failing lint check."
+              grep -iE "(eslint.*warning|warning.*eslint)" /tmp/build.log | head -50
+              exit 1
+            fi
           else
             npm install --save-dev eslint
-            npx eslint src --ext .js,.jsx
+            npx eslint src --ext .js,.jsx --max-warnings=0
           fi
 
   prettier:
