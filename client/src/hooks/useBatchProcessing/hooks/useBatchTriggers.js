@@ -41,8 +41,6 @@ export const useBatchTriggers = ({
   } = containersData;
 
   const handleBatchPull = useCallback(async () => {
-    let runId = null;
-
     try {
       setPulling(true);
       setError(null);
@@ -103,8 +101,6 @@ export const useBatchTriggers = ({
           batchRun = latestRunResponse.data.run;
 
           if (batchRun) {
-            runId = batchRun.id;
-
             // Check if the run is completed or failed
             if (batchRun.status === "completed" || batchRun.status === "failed") {
               break;
@@ -160,14 +156,9 @@ export const useBatchTriggers = ({
       // Fetch unused images
       await fetchUnusedImages();
     } catch (err) {
-      const errorMessage = await handleDockerHubError(
-        err,
-        fetchDockerHubCredentials,
-        dockerHubCredentials,
-        (msg) => {
-          setError(msg);
-        }
-      );
+      await handleDockerHubError(err, fetchDockerHubCredentials, dockerHubCredentials, (msg) => {
+        setError(msg);
+      });
       console.error("Error in batch pull:", err);
     } finally {
       setPulling(false);

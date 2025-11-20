@@ -2250,8 +2250,11 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
         }
 
         // Check for running job (status = 'running' and no completed_at)
+        // Also check if it's stale (running for more than 1 hour)
         db.get(
-          "SELECT id FROM batch_runs WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL ORDER BY started_at DESC LIMIT 1",
+          `SELECT id, started_at FROM batch_runs 
+           WHERE user_id = ? AND job_type = ? AND status = 'running' AND completed_at IS NULL 
+           ORDER BY started_at DESC LIMIT 1`,
           [userId, jobType],
           (err, row) => {
             if (err) {
@@ -2261,14 +2264,61 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
             }
 
             if (row) {
-              // Job is already running
-              db.run("COMMIT", (commitErr) => {
-                if (commitErr) {
-                  reject(commitErr);
-                } else {
-                  resolve({ isRunning: true, runId: row.id });
-                }
-              });
+              // Check if the job is stale (running for more than 5 minutes)
+              const startedAtStr = row.started_at;
+              let startedAt;
+              if (
+                typeof startedAtStr === "string" &&
+                /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)
+              ) {
+                startedAt = new Date(startedAtStr.replace(" ", "T") + "Z");
+              } else {
+                startedAt = new Date(startedAtStr);
+              }
+
+              const now = new Date();
+              const runningDurationMs = now.getTime() - startedAt.getTime();
+              const STALE_JOB_THRESHOLD = 60 * 5 * 1000; // 5 minutes
+
+              if (runningDurationMs > STALE_JOB_THRESHOLD) {
+                // Job is stale - mark it as failed and allow new job to run
+                db.run(
+                  `UPDATE batch_runs 
+                   SET status = 'failed', completed_at = CURRENT_TIMESTAMP, 
+                       error_message = ?, duration_ms = ?
+                   WHERE id = ?`,
+                  [
+                    `Job was interrupted (server restart detected). Original start: ${startedAtStr}`,
+                    runningDurationMs,
+                    row.id,
+                  ],
+                  (updateErr) => {
+                    if (updateErr) {
+                      db.run("ROLLBACK");
+                      reject(updateErr);
+                      return;
+                    }
+
+                    // Stale job cleaned up - lock acquired
+                    db.run("COMMIT", (commitErr) => {
+                      if (commitErr) {
+                        reject(commitErr);
+                      } else {
+                        resolve({ isRunning: false, runId: null });
+                      }
+                    });
+                  }
+                );
+              } else {
+                // Job is still running (not stale)
+                db.run("COMMIT", (commitErr) => {
+                  if (commitErr) {
+                    reject(commitErr);
+                  } else {
+                    resolve({ isRunning: true, runId: row.id });
+                  }
+                });
+              }
             } else {
               // No running job - lock acquired, commit will release it
               // The actual job record will be created by createBatchRun
@@ -2284,6 +2334,89 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
         );
       });
     });
+  });
+}
+
+/**
+ * Clean up stale running batch jobs (jobs that have been running for more than 1 hour)
+ * This is called on startup to handle cases where the server was restarted during a job
+ * @returns {Promise<number>} - Number of stale jobs cleaned up
+ */
+function cleanupStaleBatchJobs() {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const STALE_JOB_THRESHOLD = 60 * 60 * 1000; // 1 hour
+    const thresholdTime = new Date(Date.now() - STALE_JOB_THRESHOLD).toISOString();
+
+    // First, get all stale jobs to calculate their durations
+    db.all(
+      `SELECT id, started_at FROM batch_runs 
+       WHERE status = 'running' AND completed_at IS NULL AND started_at < ?`,
+      [thresholdTime],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!rows || rows.length === 0) {
+          resolve(0);
+          return;
+        }
+
+        // Update each stale job with calculated duration
+        let completed = 0;
+        let errors = 0;
+
+        rows.forEach((row) => {
+          const startedAtStr = row.started_at;
+          let startedAt;
+          if (
+            typeof startedAtStr === "string" &&
+            /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/.test(startedAtStr)
+          ) {
+            startedAt = new Date(startedAtStr.replace(" ", "T") + "Z");
+          } else {
+            startedAt = new Date(startedAtStr);
+          }
+
+          const now = new Date();
+          const durationMs = now.getTime() - startedAt.getTime();
+
+          db.run(
+            `UPDATE batch_runs 
+             SET status = 'failed', completed_at = CURRENT_TIMESTAMP, 
+                 error_message = ?, duration_ms = ?
+             WHERE id = ?`,
+            [
+              `Job was interrupted (server restart detected). Original start: ${startedAtStr}`,
+              durationMs,
+              row.id,
+            ],
+            (updateErr) => {
+              if (updateErr) {
+                errors++;
+                logger.error(`Failed to cleanup stale batch job ${row.id}:`, updateErr);
+              } else {
+                completed++;
+              }
+
+              // Resolve when all updates are done
+              if (completed + errors === rows.length) {
+                if (completed > 0) {
+                  logger.info(`Cleaned up ${completed} stale batch job(s) on startup`);
+                }
+                resolve(completed);
+              }
+            }
+          );
+        });
+      }
+    );
   });
 }
 
@@ -3239,6 +3372,7 @@ module.exports = {
   getBatchConfig,
   updateBatchConfig,
   checkAndAcquireBatchJobLock,
+  cleanupStaleBatchJobs,
   createBatchRun,
   updateBatchRun,
   getBatchRunById,

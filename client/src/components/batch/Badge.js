@@ -103,7 +103,6 @@ export const ManualBadge = React.memo(function ManualBadge() {
   return (
     <span className={`${styles.badge} ${styles.manualBadge}`}>
       <User size={14} className={styles.badgeIcon} />
-      <span>Manual</span>
     </span>
   );
 });
