@@ -47,6 +47,13 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.searchInput {
+  min-width: 200px;
+  max-width: 300px;
+  flex: 0 1 auto;
 }
 
 .error {

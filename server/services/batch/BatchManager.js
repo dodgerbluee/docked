@@ -8,6 +8,7 @@ const {
   createBatchRun,
   updateBatchRun,
   checkAndAcquireBatchJobLock,
+  cleanupStaleBatchJobs,
 } = require("../../db/database");
 const BatchLogger = require("./Logger");
 const Scheduler = require("./Scheduler");
@@ -175,6 +176,19 @@ class BatchManager {
     logger.info(`🚀 Starting batch manager with ${this.handlers.size} registered job handler(s)`);
 
     try {
+      // Clean up any stale running jobs from previous server instance
+      try {
+        const cleanedCount = await cleanupStaleBatchJobs();
+        if (cleanedCount > 0) {
+          logger.info(`Cleaned up ${cleanedCount} stale batch job(s) on startup`);
+        }
+      } catch (cleanupErr) {
+        logger.warn("Failed to cleanup stale batch jobs on startup (non-fatal):", {
+          error: cleanupErr.message,
+        });
+        // Don't fail startup if cleanup fails
+      }
+
       await this.scheduler.start();
     } catch (err) {
       logger.error("❌ Failed to start batch system:", err);

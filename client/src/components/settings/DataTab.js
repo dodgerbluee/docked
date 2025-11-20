@@ -3,11 +3,13 @@ import { RefreshCw } from "lucide-react";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Alert from "../ui/Alert";
+import SearchInput from "../ui/SearchInput";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
 import styles from "./DataTab.module.css";
 import { useDeveloperMode } from "./DataTab/hooks/useDeveloperMode";
 import { useContainerData } from "./DataTab/hooks/useContainerData";
 import { useContainerExpansion } from "./DataTab/hooks/useContainerExpansion";
+import { useDataTabSearch } from "./DataTab/hooks/useDataTabSearch";
 import ContainerDataList from "./DataTab/components/ContainerDataList";
 import { formatDate } from "./DataTab/utils/containerDataProcessing";
 
@@ -19,13 +21,14 @@ function DataTab() {
   // Use extracted hooks
   const { developerModeEnabled, checkingDeveloperMode } = useDeveloperMode();
   const { dataEntries, loading, error, fetchContainerData } = useContainerData();
+  const { searchQuery, setSearchQuery, filteredDataEntries } = useDataTabSearch(dataEntries);
   const {
     expandedContainers,
     toggleContainerExpansion,
     expandAllContainers,
     collapseAllContainers,
     areAllExpanded,
-  } = useContainerExpansion(dataEntries);
+  } = useContainerExpansion(filteredDataEntries);
 
   if (checkingDeveloperMode || loading) {
     return (
@@ -73,19 +76,27 @@ function DataTab() {
             </div>
             <div className={styles.actions}>
               {dataEntries.length > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (areAllExpanded()) {
-                      collapseAllContainers();
-                    } else {
-                      expandAllContainers();
-                    }
-                  }}
-                  size="sm"
-                >
-                  {areAllExpanded() ? "Collapse All" : "Expand All"}
-                </Button>
+                <>
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search entries..."
+                    className={styles.searchInput}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (areAllExpanded()) {
+                        collapseAllContainers();
+                      } else {
+                        expandAllContainers();
+                      }
+                    }}
+                    size="sm"
+                  >
+                    {areAllExpanded() ? "Collapse All" : "Expand All"}
+                  </Button>
+                </>
               )}
               <Button
                 variant="outline"
@@ -108,7 +119,7 @@ function DataTab() {
 
         <div className={styles.content}>
           <ContainerDataList
-            dataEntries={dataEntries}
+            dataEntries={filteredDataEntries}
             expandedContainers={expandedContainers}
             onToggleExpansion={toggleContainerExpansion}
           />

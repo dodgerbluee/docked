@@ -1830,14 +1830,17 @@ async function upgradeSingleContainer(
         upsertPortainerContainer,
       } = require("../db/database");
       // Get the latest digest/version from database (which was the target of the upgrade)
-      const versionInfo = await getDockerHubImageVersion(userId, imageRepo);
+      // Pass currentTag to get the correct record for this specific tag
+      const versionInfo = await getDockerHubImageVersion(userId, imageRepo, currentTag);
       if (versionInfo && versionInfo.latestDigest && versionInfo.latestVersion) {
         // Container now has the latest image, so current = latest
+        // Pass currentTag to update the correct record
         await markDockerHubImageUpToDate(
           userId,
           imageRepo,
           versionInfo.latestDigest,
-          versionInfo.latestVersion
+          versionInfo.latestVersion,
+          currentTag
         );
 
         // Also update portainer_containers table with the new current digest

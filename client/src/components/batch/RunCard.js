@@ -51,6 +51,7 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
         <span className={styles.runId}>Run #{run.id}</span>
         <div className={styles.badges}>
           <JobTypeBadge jobType={run.job_type} />
+          {Number(run.is_manual) === 1 && <ManualBadge />}
           {run.status === "completed" && <CheckCircle2 size={18} className={styles.successIcon} />}
           {run.status === "failed" && (
             <div
@@ -61,7 +62,6 @@ const RunCard = React.memo(function RunCard({ run, isSelected, onClick }) {
               <XCircle size={18} className={styles.errorIcon} />
             </div>
           )}
-          {Number(run.is_manual) === 1 && <ManualBadge />}
         </div>
       </div>
 
