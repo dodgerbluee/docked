@@ -231,7 +231,8 @@ async function getAllContainersWithUpdates(
   }
 
   // Fetch containers from Portainer instances (filtered if specified)
-  for (const instance of instancesToProcess) {
+  for (let instanceIndex = 0; instanceIndex < instancesToProcess.length; instanceIndex++) {
+    const instance = instancesToProcess[instanceIndex];
     const portainerUrl = instance.url || instance;
     const instanceName =
       instance.name ||
@@ -345,26 +346,102 @@ async function getAllContainersWithUpdates(
             if (userId && instance.id) {
               try {
                 const { upsertContainerWithVersion } = require("../db/database");
+                const dockerRegistryService = require("./dockerRegistryService");
 
-                // Prepare version data if available
-                const versionData = updateInfo.imageRepo
+                // Extract tag from imageName
+                const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
+                const imageTag = imageParts[1];
+
+                // Determine registry from provider or imageRepo
+                let registry = "docker.io";
+                let namespace = null;
+                let repository = updateInfo.imageRepo;
+
+                if (updateInfo.provider) {
+                  // Map provider name to registry URL
+                  const providerRegistryMap = {
+                    dockerhub: "docker.io",
+                    ghcr: "ghcr.io",
+                    gitlab: "registry.gitlab.com",
+                    gcr: "gcr.io",
+                  };
+                  registry = providerRegistryMap[updateInfo.provider] || "docker.io";
+                } else if (updateInfo.imageRepo) {
+                  // Fallback: detect from imageRepo
+                  const registryInfo = dockerRegistryService.detectRegistry(updateInfo.imageRepo);
+                  const registryMap = {
+                    dockerhub: "docker.io",
+                    ghcr: "ghcr.io",
+                    gitlab: "registry.gitlab.com",
+                    gcr: "gcr.io",
+                  };
+                  registry = registryMap[registryInfo.type] || "docker.io";
+                }
+
+                // Extract namespace/repository if registry is not docker.io
+                if (registry !== "docker.io" && updateInfo.imageRepo.includes("/")) {
+                  const parts = updateInfo.imageRepo.split("/");
+                  if (parts.length >= 2) {
+                    namespace = parts[0];
+                    repository = parts.slice(1).join("/");
+                  }
+                }
+
+                // Prepare version data (only latest_* fields, no current_*)
+                // Include version data if we have either digest OR version/tag (for GitHub Releases fallback)
+                const hasVersionInfo = updateInfo.latestDigestFull || updateInfo.latestTag || updateInfo.newVersion;
+                const versionData = updateInfo.imageRepo && hasVersionInfo
                   ? {
-                      imageName: imageName,
-                      registry: "docker.io",
-                      namespace: null,
-                      repository: updateInfo.imageRepo,
-                      currentTag: updateInfo.currentTag,
-                      currentVersion: updateInfo.currentVersion,
-                      currentDigest: updateInfo.currentDigestFull,
-                      latestTag: updateInfo.latestTag,
-                      latestVersion: updateInfo.newVersion,
-                      latestDigest: updateInfo.latestDigestFull,
-                      hasUpdate: updateInfo.hasUpdate,
+                      registry: registry,
+                      provider: updateInfo.provider || null, // Track which provider was used (dockerhub, ghcr, gitlab, github-releases, etc.)
+                      namespace: namespace,
+                      repository: repository,
+                      currentTag: imageTag, // Tag we're checking
+                      latestTag: updateInfo.latestTag || imageTag,
+                      latestVersion: updateInfo.newVersion || updateInfo.latestTag, // Use latestTag if newVersion is null (for GitHub Releases)
+                      latestDigest: updateInfo.latestDigestFull || null, // May be null for GitHub Releases
                       latestPublishDate: updateInfo.latestPublishDate,
-                      currentVersionPublishDate: updateInfo.currentVersionPublishDate,
-                      existsInDockerHub: updateInfo.existsInDockerHub,
+                      existsInRegistry: updateInfo.existsInRegistry || updateInfo.existsInDockerHub || false,
                     }
                   : null;
+
+                // Log version data creation for debugging
+                if (updateInfo.imageRepo) {
+                  logger.info(`[REGISTRY_VERSION_DEBUG] Preparing version data for ${updateInfo.imageRepo}:${imageTag}`, {
+                    hasVersionInfo,
+                    hasDigest: !!updateInfo.latestDigestFull,
+                    hasTag: !!updateInfo.latestTag,
+                    hasVersion: !!updateInfo.newVersion,
+                    provider: updateInfo.provider,
+                    isFallback: updateInfo.isFallback,
+                    versionDataCreated: !!versionData,
+                    latestTag: updateInfo.latestTag,
+                    latestVersion: updateInfo.newVersion,
+                    latestDigest: updateInfo.latestDigestFull ? updateInfo.latestDigestFull.substring(0, 12) + "..." : null,
+                    currentTag: imageTag,
+                    updateInfoKeys: Object.keys(updateInfo),
+                  });
+                  
+                  if (!versionData) {
+                    logger.warn(`[REGISTRY_VERSION_DEBUG] No version data created for ${updateInfo.imageRepo}:${imageTag} - missing required info`, {
+                      imageRepo: updateInfo.imageRepo,
+                      imageTag: imageTag,
+                      latestDigestFull: updateInfo.latestDigestFull,
+                      latestTag: updateInfo.latestTag,
+                      newVersion: updateInfo.newVersion,
+                      hasVersionInfo: hasVersionInfo,
+                      condition: `updateInfo.imageRepo && hasVersionInfo`,
+                      imageRepoExists: !!updateInfo.imageRepo,
+                    });
+                  } else {
+                    logger.info(`[REGISTRY_VERSION_DEBUG] Version data created successfully for ${updateInfo.imageRepo}:${imageTag}`, {
+                      registry: versionData.registry,
+                      latestTag: versionData.latestTag,
+                      latestVersion: versionData.latestVersion,
+                      latestDigest: versionData.latestDigest ? versionData.latestDigest.substring(0, 12) + "..." : null,
+                    });
+                  }
+                }
 
                 // Save container and version data atomically in a single transaction
                 await upsertContainerWithVersion(
@@ -376,11 +453,15 @@ async function getAllContainersWithUpdates(
                     endpointId: endpointId,
                     imageName: imageName,
                     imageRepo: updateInfo.imageRepo,
+                    imageTag: imageTag,
                     status: container.Status,
                     state: container.State,
                     stackName: stackName,
                     currentDigest: updateInfo.currentDigestFull,
                     imageCreatedDate: currentImageCreated,
+                    registry: registry,
+                    namespace: namespace,
+                    repository: repository,
                     usesNetworkMode: usesNetworkMode || false,
                     providesNetwork: providesNetwork || false,
                   },
@@ -399,12 +480,16 @@ async function getAllContainersWithUpdates(
               throw error;
             }
             // If a single container fails, log it but return a basic container object
-            if (process.env.DEBUG) {
-              logger.error(
-                `Error checking updates for container ${container.Names[0]?.replace("/", "") || container.Id.substring(0, 12)}:`,
-                error.message
-              );
-            }
+            const containerName = container.Names[0]?.replace("/", "") || container.Id.substring(0, 12);
+            logger.warn(
+              `Error checking updates for container ${containerName}:`,
+              {
+                containerName,
+                image: container.Image,
+                error: error.message,
+                stack: process.env.DEBUG ? error.stack : undefined,
+              }
+            );
             // Return a basic container object without update info
             // Try to check if image exists in Docker Hub even if update check failed
             let existsInDockerHub = false;
@@ -473,10 +558,34 @@ async function getAllContainersWithUpdates(
                 instanceId: instance.id,
               }
             );
+            
+            // Clean up orphaned deployed images after container deletion
+            try {
+              const { cleanupOrphanedDeployedImages } = require("../db/database");
+              const orphanedImages = await cleanupOrphanedDeployedImages(userId);
+              if (orphanedImages > 0) {
+                logger.debug(`Cleaned up ${orphanedImages} orphaned deployed image(s) for ${instanceName}`);
+              }
+            } catch (cleanupErr) {
+              logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+            }
           }
         } catch (cleanupError) {
           // Don't fail the entire fetch if cleanup fails
           logger.warn("Error cleaning up deleted containers:", { error: cleanupError });
+        }
+      }
+      
+      // Clean up orphaned registry versions after all instances processed
+      if (userId && instanceIndex === instancesToProcess.length - 1) {
+        try {
+          const { cleanupOrphanedRegistryVersions } = require("../db/database");
+          const orphanedVersions = await cleanupOrphanedRegistryVersions(userId);
+          if (orphanedVersions > 0) {
+            logger.debug(`Cleaned up ${orphanedVersions} orphaned registry version(s) for user ${userId}`);
+          }
+        } catch (cleanupErr) {
+          logger.warn("Error cleaning up orphaned registry versions:", cleanupErr);
         }
       }
     } catch (error) {
@@ -1043,27 +1152,56 @@ async function getContainersFromPortainer(userId = null) {
 
       // Save containers to database if userId is provided
       if (userId && validContainers.length > 0) {
-        const { upsertPortainerContainer } = require("../db/database");
+        const { upsertContainer } = require("../db/database");
         const imageRepoParser = require("../utils/imageRepoParser");
+        const dockerRegistryService = require("./dockerRegistryService");
 
         for (const container of validContainers) {
           try {
             // Parse image repo from image name
             const parsed = imageRepoParser.parseImageName(container.image || "");
             const imageRepo = parsed.repository || container.image?.split(":")[0] || "";
+            
+            // Extract tag
+            const imageParts = container.image?.includes(":") ? container.image.split(":") : [container.image, "latest"];
+            const imageTag = imageParts[1];
 
-            // Save container to database (without Docker Hub data)
-            await upsertPortainerContainer(userId, instance.id, {
+            // Determine registry
+            const registryInfo = dockerRegistryService.detectRegistry(imageRepo);
+            const registryMap = {
+              dockerhub: "docker.io",
+              ghcr: "ghcr.io",
+              gitlab: "registry.gitlab.com",
+              gcr: "gcr.io",
+            };
+            const registry = registryMap[registryInfo.type] || "docker.io";
+            
+            let namespace = null;
+            let repository = imageRepo;
+            if (registry !== "docker.io" && imageRepo.includes("/")) {
+              const parts = imageRepo.split("/");
+              if (parts.length >= 2) {
+                namespace = parts[0];
+                repository = parts.slice(1).join("/");
+              }
+            }
+
+            // Save container to database (will create deployed_image automatically)
+            await upsertContainer(userId, instance.id, {
               containerId: container.id,
               containerName: container.name,
               endpointId: container.endpointId,
               imageName: container.image,
               imageRepo: imageRepo,
+              imageTag: imageTag,
               status: container.status,
               state: container.state,
               stackName: container.stackName,
               currentDigest: container.currentDigest || null,
               imageCreatedDate: container.currentImageCreated || null,
+              registry: registry,
+              namespace: namespace,
+              repository: repository,
               usesNetworkMode: container.usesNetworkMode || false,
               providesNetwork: container.providesNetwork || false,
             });

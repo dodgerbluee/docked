@@ -124,6 +124,7 @@ function HomePage({
   setDraggedTabIndex,
   handleReorderTabs,
   toggleStack,
+  discordWebhooks = [],
 }) {
   // Memoize context value
   const batchConfigContextValue = useMemo(
@@ -148,6 +149,7 @@ function HomePage({
           notificationCount={notificationCount}
           activeContainersWithUpdates={activeContainersWithUpdates}
           activeTrackedAppsBehind={activeTrackedAppsBehind}
+          discordWebhooks={discordWebhooks}
           showNotificationMenu={showNotificationMenu}
           showAvatarMenu={showAvatarMenu}
           onToggleNotificationMenu={toggleNotificationMenu}
@@ -350,6 +352,15 @@ HomePage.propTypes = {
   setDraggedTabIndex: PropTypes.func.isRequired,
   handleReorderTabs: PropTypes.func.isRequired,
   toggleStack: PropTypes.func.isRequired,
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
 };
 
 export default HomePage;

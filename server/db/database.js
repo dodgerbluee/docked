@@ -343,74 +343,56 @@ function initializeDatabase() {
           }
         );
 
-        // Create docker_hub_image_versions table to track Docker Hub image version information per user
+        // Create deployed_images table - tracks actual images used by containers
         db.run(
-          `CREATE TABLE IF NOT EXISTS docker_hub_image_versions (
+          `CREATE TABLE IF NOT EXISTS deployed_images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        image_name TEXT NOT NULL,
         image_repo TEXT NOT NULL,
-        registry TEXT DEFAULT 'docker.io',
+        image_tag TEXT NOT NULL,
+        image_digest TEXT,
+        image_created_date TEXT,
+        registry TEXT,
         namespace TEXT,
-        repository TEXT NOT NULL,
-        current_tag TEXT,
-        current_version TEXT,
-        current_digest TEXT,
-        latest_tag TEXT,
-        latest_version TEXT,
-        latest_digest TEXT,
-        has_update INTEGER DEFAULT 0,
-        latest_publish_date TEXT,
-        current_version_publish_date TEXT,
-        exists_in_docker_hub INTEGER DEFAULT 0,
-        last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
+        repository TEXT,
+        first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, image_repo, current_tag),
+        UNIQUE(user_id, image_repo, image_tag, image_digest),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
           (err) => {
             if (err) {
-              logger.error("Error creating docker_hub_image_versions table:", { error: err });
+              logger.error("Error creating deployed_images table:", { error: err });
             } else {
-              logger.info("Docker Hub image versions table ready");
-              // Create indexes for docker_hub_image_versions table
+              logger.info("Deployed images table ready");
+              // Create indexes for deployed_images table
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_user_id ON docker_hub_image_versions(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_deployed_images_user_id ON deployed_images(user_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating docker_hub_image_versions user_id index:", {
+                    logger.error("Error creating deployed_images user_id index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_user_has_update ON docker_hub_image_versions(user_id, has_update)",
+                "CREATE INDEX IF NOT EXISTS idx_deployed_images_image_repo ON deployed_images(image_repo)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error(
-                      "Error creating docker_hub_image_versions user_has_update index:",
-                      { error: idxErr }
-                    );
-                  }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_image_repo ON docker_hub_image_versions(image_repo)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating docker_hub_image_versions image_repo index:", {
+                    logger.error("Error creating deployed_images image_repo index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_docker_hub_image_versions_last_checked ON docker_hub_image_versions(last_checked)",
+                "CREATE INDEX IF NOT EXISTS idx_deployed_images_last_seen ON deployed_images(last_seen)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating docker_hub_image_versions last_checked index:", {
+                    logger.error("Error creating deployed_images last_seen index:", {
                       error: idxErr,
                     });
                   }
@@ -420,9 +402,80 @@ function initializeDatabase() {
           }
         );
 
-        // Create portainer_containers table to store Portainer container state per user
+        // Create registry_image_versions table - tracks latest versions available in registries
         db.run(
-          `CREATE TABLE IF NOT EXISTS portainer_containers (
+          `CREATE TABLE IF NOT EXISTS registry_image_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        image_repo TEXT NOT NULL,
+        registry TEXT NOT NULL,
+        provider TEXT,
+        namespace TEXT,
+        repository TEXT NOT NULL,
+        tag TEXT,
+        latest_digest TEXT,
+        latest_version TEXT,
+        latest_publish_date TEXT,
+        exists_in_registry INTEGER DEFAULT 0,
+        last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, image_repo, tag),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`,
+          (err) => {
+            if (err) {
+              logger.error("Error creating registry_image_versions table:", { error: err });
+            } else {
+              logger.info("Registry image versions table ready");
+              // Add provider column if it doesn't exist (migration for existing databases)
+              db.run(
+                "ALTER TABLE registry_image_versions ADD COLUMN provider TEXT",
+                (alterErr) => {
+                  // Ignore error if column already exists
+                  if (alterErr && !alterErr.message.includes("duplicate column")) {
+                    logger.debug("Provider column may already exist or migration not needed:", alterErr.message);
+                  }
+                }
+              );
+              // Create indexes for registry_image_versions table
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_user_id ON registry_image_versions(user_id)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating registry_image_versions user_id index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_image_repo ON registry_image_versions(image_repo)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating registry_image_versions image_repo index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_last_checked ON registry_image_versions(last_checked)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating registry_image_versions last_checked index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+            }
+          }
+        );
+
+        // Create containers table (renamed from portainer_containers) to store container state per user
+        db.run(
+          `CREATE TABLE IF NOT EXISTS containers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         portainer_instance_id INTEGER NOT NULL,
@@ -434,8 +487,7 @@ function initializeDatabase() {
         status TEXT,
         state TEXT,
         stack_name TEXT,
-        current_digest TEXT,
-        image_created_date TEXT,
+        deployed_image_id INTEGER,
         uses_network_mode INTEGER DEFAULT 0,
         provides_network INTEGER DEFAULT 0,
         last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -443,49 +495,60 @@ function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, container_id, portainer_instance_id, endpoint_id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE CASCADE
+        FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE CASCADE,
+        FOREIGN KEY (deployed_image_id) REFERENCES deployed_images(id) ON DELETE SET NULL
       )`,
           (err) => {
             if (err) {
-              logger.error("Error creating portainer_containers table:", { error: err });
+              logger.error("Error creating containers table:", { error: err });
             } else {
-              logger.info("Portainer containers table ready");
-              // Create indexes for portainer_containers table
+              logger.info("Containers table ready");
+              // Create indexes for containers table
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_containers_user_id ON portainer_containers(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating portainer_containers user_id index:", {
+                    logger.error("Error creating containers user_id index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_containers_instance ON portainer_containers(portainer_instance_id)",
+                "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(portainer_instance_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating portainer_containers instance index:", {
+                    logger.error("Error creating containers instance index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_containers_image_repo ON portainer_containers(image_repo)",
+                "CREATE INDEX IF NOT EXISTS idx_containers_deployed_image ON containers(deployed_image_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating portainer_containers image_repo index:", {
+                    logger.error("Error creating containers deployed_image_id index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_containers_last_seen ON portainer_containers(last_seen)",
+                "CREATE INDEX IF NOT EXISTS idx_containers_image_repo ON containers(image_repo)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating portainer_containers last_seen index:", {
+                    logger.error("Error creating containers image_repo index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_containers_last_seen ON containers(last_seen)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating containers last_seen index:", {
                       error: idxErr,
                     });
                   }
@@ -1353,7 +1416,256 @@ function deleteDockerHubCredentials(userId) {
 }
 
 /**
+ * Upsert deployed image (what containers are actually using)
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} imageTag - Image tag
+ * @param {string} imageDigest - Image digest (SHA256)
+ * @param {Object} options - Additional options (imageCreatedDate, registry, namespace, repository)
+ * @returns {Promise<number>} - ID of the deployed image record
+ */
+function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const {
+      imageCreatedDate = null,
+      registry = null,
+      namespace = null,
+      repository = null,
+    } = options;
+
+    // First try to find existing record
+    db.get(
+      `SELECT id FROM deployed_images 
+       WHERE user_id = ? AND image_repo = ? AND image_tag = ? AND image_digest = ?`,
+      [userId, imageRepo, imageTag, imageDigest],
+      (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (row) {
+          // Update last_seen for existing record
+          db.run(
+            `UPDATE deployed_images 
+             SET last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [row.id],
+            (updateErr) => {
+              if (updateErr) {
+                reject(updateErr);
+              } else {
+                resolve(row.id);
+              }
+            }
+          );
+        } else {
+          // Insert new record
+          db.run(
+            `INSERT INTO deployed_images (
+              user_id, image_repo, image_tag, image_digest, image_created_date,
+              registry, namespace, repository, first_seen, last_seen, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [userId, imageRepo, imageTag, imageDigest, imageCreatedDate, registry, namespace, repository || imageRepo],
+            function (insertErr) {
+              if (insertErr) {
+                reject(insertErr);
+              } else {
+                resolve(this.lastID);
+              }
+            }
+          );
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get deployed image by repo, tag, and digest
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} imageTag - Image tag
+ * @param {string} imageDigest - Image digest
+ * @returns {Promise<Object|null>} - Deployed image record or null
+ */
+function getDeployedImage(userId, imageRepo, imageTag, imageDigest) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    db.get(
+      `SELECT * FROM deployed_images 
+       WHERE user_id = ? AND image_repo = ? AND image_tag = ? AND image_digest = ?`,
+      [userId, imageRepo, imageTag, imageDigest],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Upsert registry image version (latest available in registry)
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} tag - Tag being checked
+ * @param {Object} versionData - Version data from registry
+ * @returns {Promise<number>} - ID of the record
+ */
+function upsertRegistryImageVersion(userId, imageRepo, tag, versionData) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const {
+      registry = "docker.io",
+      provider = null,
+      namespace = null,
+      repository = null,
+      latestDigest = null,
+      latestVersion = null,
+      latestPublishDate = null,
+      existsInRegistry = true,
+    } = versionData;
+
+    db.run(
+      `INSERT OR REPLACE INTO registry_image_versions (
+        user_id, image_repo, registry, provider, namespace, repository, tag,
+        latest_digest, latest_version, latest_publish_date,
+        exists_in_registry, last_checked, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        userId,
+        imageRepo,
+        registry,
+        provider,
+        namespace,
+        repository || imageRepo,
+        tag,
+        latestDigest,
+        latestVersion,
+        latestPublishDate,
+        existsInRegistry ? 1 : 0,
+      ],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get registry image version for a specific repo and tag
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} tag - Tag
+ * @returns {Promise<Object|null>} - Registry version info or null
+ */
+function getRegistryImageVersion(userId, imageRepo, tag) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    db.get(
+      `SELECT * FROM registry_image_versions 
+       WHERE user_id = ? AND image_repo = ? AND tag = ?`,
+      [userId, imageRepo, tag],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Clean up orphaned deployed images (not referenced by any container)
+ * @param {number} userId - User ID
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function cleanupOrphanedDeployedImages(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    db.run(
+      `DELETE FROM deployed_images 
+       WHERE user_id = ? 
+       AND id NOT IN (SELECT DISTINCT deployed_image_id FROM containers WHERE user_id = ? AND deployed_image_id IS NOT NULL)`,
+      [userId, userId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Clean up orphaned registry image versions (not referenced by any deployed image)
+ * @param {number} userId - User ID
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function cleanupOrphanedRegistryVersions(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    // Keep registry versions that match deployed images or were checked recently (within 7 days)
+    db.run(
+      `DELETE FROM registry_image_versions 
+       WHERE user_id = ? 
+       AND image_repo || ':' || tag NOT IN (
+         SELECT DISTINCT image_repo || ':' || image_tag 
+         FROM deployed_images 
+         WHERE user_id = ?
+       )
+       AND last_checked < datetime('now', '-7 days')`,
+      [userId, userId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      }
+    );
+  });
+}
+
+/**
  * Upsert Docker Hub image version information
+ * @deprecated Use upsertRegistryImageVersion instead
  * @param {number} userId - User ID
  * @param {string} imageRepo - Image repository (without tag, e.g., "nginx")
  * @param {Object} versionData - Version data to store
@@ -1629,13 +1941,13 @@ function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, cu
 }
 
 /**
- * Upsert Portainer container data
+ * Upsert container data
  * @param {number} userId - User ID
  * @param {number} portainerInstanceId - Portainer instance ID
  * @param {Object} containerData - Container data
  * @returns {Promise<number>} - ID of the record
  */
-function upsertPortainerContainer(userId, portainerInstanceId, containerData) {
+function upsertContainer(userId, portainerInstanceId, containerData) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
@@ -1655,50 +1967,67 @@ function upsertPortainerContainer(userId, portainerInstanceId, containerData) {
       imageCreatedDate = null,
       usesNetworkMode = false,
       providesNetwork = false,
+      imageTag = "latest",
+      registry = null,
+      namespace = null,
+      repository = null,
     } = containerData;
 
-    db.run(
-      `INSERT OR REPLACE INTO portainer_containers (
-        user_id, portainer_instance_id, container_id, container_name, endpoint_id,
-        image_name, image_repo, status, state, stack_name,
-        current_digest, image_created_date, uses_network_mode, provides_network,
-        last_seen, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [
-        userId,
-        portainerInstanceId,
-        containerId,
-        containerName,
-        endpointId,
-        imageName,
-        imageRepo,
-        status,
-        state,
-        stackName,
-        currentDigest,
-        imageCreatedDate,
-        usesNetworkMode ? 1 : 0,
-        providesNetwork ? 1 : 0,
-      ],
-      function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(this.lastID);
-        }
-      }
-    );
+    // Extract tag from imageName if not provided
+    const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
+
+    // First, upsert deployed image
+    upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
+      imageCreatedDate,
+      registry,
+      namespace,
+      repository,
+    })
+      .then((deployedImageId) => {
+        // Then upsert container with reference to deployed image
+        db.run(
+          `INSERT OR REPLACE INTO containers (
+          user_id, portainer_instance_id, container_id, container_name, endpoint_id,
+          image_name, image_repo, status, state, stack_name,
+          deployed_image_id, uses_network_mode, provides_network,
+          last_seen, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            userId,
+            portainerInstanceId,
+            containerId,
+            containerName,
+            endpointId,
+            imageName,
+            imageRepo,
+            status,
+            state,
+            stackName,
+            deployedImageId,
+            usesNetworkMode ? 1 : 0,
+            providesNetwork ? 1 : 0,
+          ],
+          function (err) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(this.lastID);
+            }
+          }
+        );
+      })
+      .catch(reject);
   });
 }
 
 /**
- * Upsert Portainer container and Docker Hub version data in a single transaction
- * Ensures atomicity - both succeed or both fail
+ * Upsert container with deployed image and registry version data in a single transaction
+ * Ensures atomicity - all succeed or all fail
  * @param {number} userId - User ID
  * @param {number} portainerInstanceId - Portainer instance ID
  * @param {Object} containerData - Container data
- * @param {Object} versionData - Docker Hub version data (optional)
- * @returns {Promise<{containerId: number, versionId: number|null}>} - IDs of created/updated records
+ * @param {Object} versionData - Registry version data (optional)
+ * @returns {Promise<{containerId: number, deployedImageId: number, registryVersionId: number|null}>} - IDs of created/updated records
  */
 function upsertContainerWithVersion(
   userId,
@@ -1721,7 +2050,7 @@ function upsertContainerWithVersion(
             return;
           }
 
-          // Upsert container
+          // Extract container data
           const {
             containerId,
             containerName,
@@ -1735,120 +2064,144 @@ function upsertContainerWithVersion(
             imageCreatedDate = null,
             usesNetworkMode = false,
             providesNetwork = false,
+            imageTag = null,
+            registry = null,
+            namespace = null,
+            repository = null,
           } = containerData;
 
-          db.run(
-            `INSERT OR REPLACE INTO portainer_containers (
-            user_id, portainer_instance_id, container_id, container_name, endpoint_id,
-            image_name, image_repo, status, state, stack_name,
-            current_digest, image_created_date, uses_network_mode, provides_network,
-            last_seen, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            [
-              userId,
-              portainerInstanceId,
-              containerId,
-              containerName,
-              endpointId,
-              imageName,
-              imageRepo,
-              status,
-              state,
-              stackName,
-              currentDigest,
-              imageCreatedDate,
-              usesNetworkMode ? 1 : 0,
-              providesNetwork ? 1 : 0,
-            ],
-            function (containerErr) {
-              if (containerErr) {
-                db.run("ROLLBACK");
-                reject(containerErr);
-                return;
-              }
+          // Extract tag from imageName if not provided
+          const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
 
-              const containerRecordId = this.lastID;
+          // First, upsert deployed image
+          upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
+            imageCreatedDate,
+            registry,
+            namespace,
+            repository,
+          })
+            .then((deployedImageId) => {
+              // Then upsert container with reference to deployed image
+              db.run(
+                `INSERT OR REPLACE INTO containers (
+                user_id, portainer_instance_id, container_id, container_name, endpoint_id,
+                image_name, image_repo, status, state, stack_name,
+                deployed_image_id, uses_network_mode, provides_network,
+                last_seen, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [
+                  userId,
+                  portainerInstanceId,
+                  containerId,
+                  containerName,
+                  endpointId,
+                  imageName,
+                  imageRepo,
+                  status,
+                  state,
+                  stackName,
+                  deployedImageId,
+                  usesNetworkMode ? 1 : 0,
+                  providesNetwork ? 1 : 0,
+                ],
+                function (containerErr) {
+                  if (containerErr) {
+                    db.run("ROLLBACK");
+                    reject(containerErr);
+                    return;
+                  }
 
-              // If version data is provided, upsert it
-              if (versionData && imageRepo) {
-                const {
-                  imageName: vImageName = imageName,
-                  registry = "docker.io",
-                  namespace = null,
-                  repository = null,
-                  currentTag = null,
-                  currentVersion = null,
-                  currentDigest: vCurrentDigest = currentDigest,
-                  latestTag = null,
-                  latestVersion = null,
-                  latestDigest = null,
-                  hasUpdate = false,
-                  latestPublishDate = null,
-                  currentVersionPublishDate = null,
-                  existsInDockerHub = true,
-                } = versionData;
+                  const containerRecordId = this.lastID;
 
-                db.run(
-                  `INSERT OR REPLACE INTO docker_hub_image_versions (
-                  user_id, image_name, image_repo, registry, namespace, repository,
-                  current_tag, current_version, current_digest,
-                  latest_tag, latest_version, latest_digest,
-                  has_update, latest_publish_date, current_version_publish_date,
-                  exists_in_docker_hub, last_checked, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                  [
-                    userId,
-                    vImageName || imageRepo,
-                    imageRepo,
-                    registry,
-                    namespace,
-                    repository || imageRepo,
-                    currentTag,
-                    currentVersion,
-                    vCurrentDigest,
-                    latestTag,
-                    latestVersion,
-                    latestDigest,
-                    hasUpdate ? 1 : 0,
-                    latestPublishDate,
-                    currentVersionPublishDate,
-                    existsInDockerHub ? 1 : 0,
-                  ],
-                  function (versionErr) {
-                    if (versionErr) {
-                      db.run("ROLLBACK");
-                      reject(versionErr);
-                      return;
-                    }
+                  // If version data is provided, upsert registry version
+                  if (versionData && imageRepo) {
+                    const {
+                      registry: vRegistry = registry || "docker.io",
+                      provider: vProvider = null,
+                      namespace: vNamespace = namespace,
+                      repository: vRepository = repository,
+                      currentTag = tag,
+                      latestTag = tag,
+                      latestVersion = null,
+                      latestDigest = null,
+                      latestPublishDate = null,
+                      existsInRegistry = true,
+                    } = versionData;
 
-                    // Both succeeded - commit transaction
+                    // Log before inserting registry version
+                    logger.debug(`Inserting registry image version for ${imageRepo}:${currentTag}`, {
+                      registry: vRegistry,
+                      provider: vProvider,
+                      latestDigest: latestDigest ? latestDigest.substring(0, 12) + "..." : null,
+                      latestVersion: latestVersion,
+                      latestTag: latestTag,
+                      existsInRegistry: existsInRegistry,
+                    });
+
+                    db.run(
+                      `INSERT OR REPLACE INTO registry_image_versions (
+                      user_id, image_repo, registry, provider, namespace, repository, tag,
+                      latest_digest, latest_version, latest_publish_date,
+                      exists_in_registry, last_checked, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                      [
+                        userId,
+                        imageRepo,
+                        vRegistry,
+                        vProvider,
+                        vNamespace,
+                        vRepository || imageRepo,
+                        currentTag,
+                        latestDigest,
+                        latestVersion,
+                        latestPublishDate,
+                        existsInRegistry ? 1 : 0,
+                      ],
+                      function (versionErr) {
+                        if (versionErr) {
+                          logger.error(`Error inserting registry image version for ${imageRepo}:${currentTag}:`, versionErr);
+                          db.run("ROLLBACK");
+                          reject(versionErr);
+                          return;
+                        }
+                        
+                        logger.debug(`Successfully inserted registry image version for ${imageRepo}:${currentTag} (ID: ${this.lastID})`);
+
+                        // All succeeded - commit transaction
+                        db.run("COMMIT", (commitErr) => {
+                          if (commitErr) {
+                            reject(commitErr);
+                          } else {
+                            resolve({
+                              containerId: containerRecordId,
+                              deployedImageId: deployedImageId,
+                              registryVersionId: this.lastID,
+                            });
+                          }
+                        });
+                      }
+                    );
+                  } else {
+                    // No version data - just commit container and deployed image update
                     db.run("COMMIT", (commitErr) => {
                       if (commitErr) {
                         reject(commitErr);
                       } else {
                         resolve({
                           containerId: containerRecordId,
-                          versionId: this.lastID,
+                          deployedImageId: deployedImageId,
+                          registryVersionId: null,
                         });
                       }
                     });
                   }
-                );
-              } else {
-                // No version data - just commit container update
-                db.run("COMMIT", (commitErr) => {
-                  if (commitErr) {
-                    reject(commitErr);
-                  } else {
-                    resolve({
-                      containerId: containerRecordId,
-                      versionId: null,
-                    });
-                  }
-                });
-              }
-            }
-          );
+                }
+              );
+            })
+            .catch((err) => {
+              db.run("ROLLBACK");
+              reject(err);
+            });
         });
       });
     });
@@ -1856,7 +2209,7 @@ function upsertContainerWithVersion(
 }
 
 /**
- * Get all Portainer containers for a user
+ * Get all containers for a user (with deployed image info)
  * @param {number} userId - User ID
  * @param {string|null} portainerUrl - Optional filter by Portainer URL
  * @returns {Promise<Array>} - Array of containers
@@ -1868,18 +2221,27 @@ function getPortainerContainers(userId, portainerUrl = null) {
       return;
     }
 
-    let query = `SELECT pc.* FROM portainer_containers pc`;
+    let query = `SELECT 
+      c.*,
+      di.image_digest as current_digest,
+      di.image_created_date,
+      di.image_tag,
+      di.registry,
+      di.namespace,
+      di.repository
+    FROM containers c
+    LEFT JOIN deployed_images di ON c.deployed_image_id = di.id`;
     const params = [userId];
 
     if (portainerUrl) {
-      query += ` JOIN portainer_instances pi ON pc.portainer_instance_id = pi.id 
-                 WHERE pc.user_id = ? AND pi.url = ?`;
+      query += ` JOIN portainer_instances pi ON c.portainer_instance_id = pi.id 
+                 WHERE c.user_id = ? AND pi.url = ?`;
       params.push(portainerUrl);
     } else {
-      query += ` WHERE pc.user_id = ?`;
+      query += ` WHERE c.user_id = ?`;
     }
 
-    query += ` ORDER BY pc.last_seen DESC`;
+    query += ` ORDER BY c.last_seen DESC`;
 
     db.all(query, params, (err, rows) => {
       if (err) {
@@ -1899,6 +2261,8 @@ function getPortainerContainers(userId, portainerUrl = null) {
           stackName: row.stack_name,
           currentDigest: row.current_digest,
           imageCreatedDate: row.image_created_date,
+          imageTag: row.image_tag,
+          deployedImageId: row.deployed_image_id,
           usesNetworkMode: row.uses_network_mode === 1,
           providesNetwork: row.provides_network === 1,
           lastSeen: row.last_seen,
@@ -1912,7 +2276,7 @@ function getPortainerContainers(userId, portainerUrl = null) {
 }
 
 /**
- * Get Portainer containers with Docker Hub update info (JOIN query)
+ * Get containers with update information (joined with deployed images and registry versions)
  * @param {number} userId - User ID
  * @param {string|null} portainerUrl - Optional filter
  * @returns {Promise<Array>} - Containers with update info
@@ -1925,36 +2289,39 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
     }
 
     let query = `SELECT 
-      pc.*,
-      dh.latest_digest as dh_latest_digest,
-      dh.latest_version as dh_latest_version,
-      dh.latest_tag as dh_latest_tag,
-      dh.has_update as dh_has_update,
-      dh.latest_publish_date as dh_latest_publish_date
-    FROM portainer_containers pc
-    LEFT JOIN docker_hub_image_versions dh 
-      ON pc.user_id = dh.user_id 
-      AND pc.image_repo = dh.image_repo
-      AND (
-        -- Extract tag from image_name and match with current_tag
-        -- Handle both formats: "repo:tag" and just "repo" (defaults to "latest")
-        COALESCE(
-          NULLIF(SUBSTR(pc.image_name, INSTR(pc.image_name || ':', ':') + 1), ''),
-          'latest'
-        ) = COALESCE(dh.current_tag, 'latest')
-      )`;
+      c.*,
+      di.image_digest as current_digest,
+      di.image_created_date,
+      di.image_tag,
+      di.registry,
+      riv.latest_digest as dh_latest_digest,
+      riv.latest_version as dh_latest_version,
+      riv.tag as dh_latest_tag,
+      riv.latest_publish_date as dh_latest_publish_date,
+      riv.provider as dh_provider,
+      CASE 
+        WHEN di.image_digest IS NOT NULL AND riv.latest_digest IS NOT NULL 
+          AND di.image_digest != riv.latest_digest THEN 1
+        ELSE 0
+      END as dh_has_update
+    FROM containers c
+    LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
+    LEFT JOIN registry_image_versions riv 
+      ON di.user_id = riv.user_id 
+      AND di.image_repo = riv.image_repo
+      AND di.image_tag = riv.tag`;
 
     const params = [userId];
 
     if (portainerUrl) {
-      query += ` JOIN portainer_instances pi ON pc.portainer_instance_id = pi.id 
-                 WHERE pc.user_id = ? AND pi.url = ?`;
+      query += ` JOIN portainer_instances pi ON c.portainer_instance_id = pi.id 
+                 WHERE c.user_id = ? AND pi.url = ?`;
       params.push(portainerUrl);
     } else {
-      query += ` WHERE pc.user_id = ?`;
+      query += ` WHERE c.user_id = ?`;
     }
 
-    query += ` ORDER BY pc.last_seen DESC`;
+    query += ` ORDER BY c.last_seen DESC`;
 
     db.all(query, params, (err, rows) => {
       if (err) {
@@ -1970,10 +2337,8 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
         };
 
         const containers = rows.map((row) => {
-          // Compute hasUpdate per-container by comparing this container's currentDigest
-          // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
-          // The JOIN now matches on tag, so we can reliably compare
-          let hasUpdate = false;
+          // has_update is already calculated in the query, but double-check with normalized digests
+          let hasUpdate = row.dh_has_update === 1;
 
           if (row.current_digest && row.dh_latest_digest) {
             const normalizedCurrent = normalizeDigest(row.current_digest);
@@ -1995,6 +2360,8 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
             stackName: row.stack_name,
             currentDigest: row.current_digest,
             imageCreatedDate: row.image_created_date,
+            imageTag: row.image_tag,
+            deployedImageId: row.deployed_image_id,
             usesNetworkMode: row.uses_network_mode === 1,
             providesNetwork: row.provides_network === 1,
             latestDigest: row.dh_latest_digest,
@@ -2002,6 +2369,7 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
             latestTag: row.dh_latest_tag,
             hasUpdate: hasUpdate, // Computed per-container, not from shared table
             latestPublishDate: row.dh_latest_publish_date,
+            provider: row.dh_provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
             lastSeen: row.last_seen,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
@@ -2026,13 +2394,20 @@ function deletePortainerContainersForInstance(userId, portainerInstanceId) {
       return;
     }
     db.run(
-      `DELETE FROM portainer_containers WHERE user_id = ? AND portainer_instance_id = ?`,
+      `DELETE FROM containers WHERE user_id = ? AND portainer_instance_id = ?`,
       [userId, portainerInstanceId],
       function (err) {
         if (err) {
           reject(err);
         } else {
-          resolve();
+          // Clean up orphaned deployed images after deleting containers
+          cleanupOrphanedDeployedImages(userId)
+            .then(() => resolve())
+            .catch((cleanupErr) => {
+              // Log but don't fail - orphaned images will be cleaned up later
+              logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+              resolve();
+            });
         }
       }
     );
@@ -2062,13 +2437,19 @@ function deletePortainerContainersNotInList(
     if (!currentContainerIds || currentContainerIds.length === 0) {
       // If no current containers, delete all for this instance/endpoint
       db.run(
-        `DELETE FROM portainer_containers WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ?`,
+        `DELETE FROM containers WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ?`,
         [userId, portainerInstanceId, endpointId],
         function (err) {
           if (err) {
             reject(err);
           } else {
-            resolve(this.changes);
+            // Clean up orphaned deployed images
+            cleanupOrphanedDeployedImages(userId)
+              .then(() => resolve(this.changes))
+              .catch((cleanupErr) => {
+                logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+                resolve(this.changes);
+              });
           }
         }
       );
@@ -2080,7 +2461,7 @@ function deletePortainerContainersNotInList(
     const params = [userId, portainerInstanceId, endpointId, ...currentContainerIds];
 
     db.run(
-      `DELETE FROM portainer_containers 
+      `DELETE FROM containers 
        WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? 
        AND container_id NOT IN (${placeholders})`,
       params,
@@ -2088,7 +2469,13 @@ function deletePortainerContainersNotInList(
         if (err) {
           reject(err);
         } else {
-          resolve(this.changes);
+          // Clean up orphaned deployed images
+          cleanupOrphanedDeployedImages(userId)
+            .then(() => resolve(this.changes))
+            .catch((cleanupErr) => {
+              logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+              resolve(this.changes);
+            });
         }
       }
     );
@@ -2107,13 +2494,34 @@ function cleanupStalePortainerContainers(daysOld = 7) {
       return;
     }
     db.run(
-      `DELETE FROM portainer_containers WHERE last_seen < datetime('now', '-' || ? || ' days')`,
+      `DELETE FROM containers WHERE last_seen < datetime('now', '-' || ? || ' days')`,
       [daysOld],
       function (err) {
         if (err) {
           reject(err);
         } else {
-          resolve(this.changes);
+          // Clean up orphaned deployed images after deleting stale containers
+          // Get all user IDs that had containers deleted
+          db.all(
+            `SELECT DISTINCT user_id FROM containers WHERE last_seen < datetime('now', '-' || ? || ' days')`,
+            [daysOld],
+            (userErr, userRows) => {
+              if (userErr) {
+                logger.warn("Error getting user IDs for cleanup:", userErr);
+                resolve(this.changes);
+              } else {
+                // Clean up orphaned images for each user
+                const cleanupPromises = (userRows || []).map((row) =>
+                  cleanupOrphanedDeployedImages(row.user_id).catch((cleanupErr) => {
+                    logger.warn(`Error cleaning up orphaned images for user ${row.user_id}:`, cleanupErr);
+                  })
+                );
+                Promise.all(cleanupPromises)
+                  .then(() => resolve(this.changes))
+                  .catch(() => resolve(this.changes));
+              }
+            }
+          );
         }
       }
     );
@@ -2133,21 +2541,31 @@ function clearUserContainerData(userId) {
     }
     db.serialize(() => {
       db.run("BEGIN TRANSACTION");
-      db.run(`DELETE FROM portainer_containers WHERE user_id = ?`, [userId], (err1) => {
+      // Delete containers first (will cascade to set deployed_image_id to NULL)
+      db.run(`DELETE FROM containers WHERE user_id = ?`, [userId], (err1) => {
         if (err1) {
           db.run("ROLLBACK");
           reject(err1);
         } else {
-          db.run(`DELETE FROM docker_hub_image_versions WHERE user_id = ?`, [userId], (err2) => {
+          // Delete orphaned deployed images
+          db.run(`DELETE FROM deployed_images WHERE user_id = ? AND id NOT IN (SELECT DISTINCT deployed_image_id FROM containers WHERE user_id = ? AND deployed_image_id IS NOT NULL)`, [userId, userId], (err2) => {
             if (err2) {
               db.run("ROLLBACK");
               reject(err2);
             } else {
-              db.run("COMMIT", (commitErr) => {
-                if (commitErr) {
-                  reject(commitErr);
+              // Delete registry versions (keep ones checked recently - within 7 days)
+              db.run(`DELETE FROM registry_image_versions WHERE user_id = ? AND last_checked < datetime('now', '-7 days')`, [userId], (err3) => {
+                if (err3) {
+                  db.run("ROLLBACK");
+                  reject(err3);
                 } else {
-                  resolve();
+                  db.run("COMMIT", (commitErr) => {
+                    if (commitErr) {
+                      reject(commitErr);
+                    } else {
+                      resolve();
+                    }
+                  });
                 }
               });
             }
@@ -3456,8 +3874,8 @@ module.exports = {
   getDockerHubImageVersionsBatch,
   getDockerHubImagesWithUpdates,
   markDockerHubImageUpToDate,
-  // Portainer containers
-  upsertPortainerContainer,
+  // Containers and images
+  upsertContainer,
   upsertContainerWithVersion,
   getPortainerContainers,
   getPortainerContainersWithUpdates,
@@ -3465,6 +3883,14 @@ module.exports = {
   deletePortainerContainersNotInList,
   cleanupStalePortainerContainers,
   clearUserContainerData,
+  // Deployed images
+  upsertDeployedImage,
+  getDeployedImage,
+  cleanupOrphanedDeployedImages,
+  // Registry image versions
+  upsertRegistryImageVersion,
+  getRegistryImageVersion,
+  cleanupOrphanedRegistryVersions,
   getBatchConfig,
   updateBatchConfig,
   checkAndAcquireBatchJobLock,
@@ -3489,4 +3915,83 @@ module.exports = {
   hasDiscordNotificationBeenSent,
   recordDiscordNotificationSent,
   closeDatabase,
+  getRawDatabaseRecords,
 };
+
+/**
+ * Get raw database records for all relevant tables (for debugging)
+ * @param {number} userId - User ID
+ * @returns {Promise<Object>} - Raw database records organized by table
+ */
+function getRawDatabaseRecords(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    const records = {};
+    const tables = [
+      "portainer_instances",
+      "containers",
+      "deployed_images",
+      "registry_image_versions",
+      "tracked_images",
+    ];
+
+    let completed = 0;
+    const total = tables.length;
+
+    if (total === 0) {
+      resolve(records);
+      return;
+    }
+
+    tables.forEach((tableName) => {
+      let query;
+      let params = [];
+
+      // Build query based on table
+      if (tableName === "portainer_instances") {
+        query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY id ASC`;
+        params = [userId];
+      } else if (tableName === "containers") {
+        query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY last_seen DESC`;
+        params = [userId];
+      } else if (tableName === "deployed_images") {
+        query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY last_seen DESC`;
+        params = [userId];
+      } else if (tableName === "registry_image_versions") {
+        query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY last_checked DESC`;
+        params = [userId];
+      } else if (tableName === "tracked_images") {
+        query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY name ASC`;
+        params = [userId];
+      } else {
+        query = `SELECT * FROM ${tableName} ORDER BY id ASC`;
+      }
+
+      db.all(query, params, (err, rows) => {
+        if (err) {
+          logger.warn(`Error fetching raw records from ${tableName}:`, err.message);
+          records[tableName] = [];
+          records[`${tableName}_error`] = err.message;
+        } else {
+          // Convert SQLite row objects to plain objects
+          records[tableName] = (rows || []).map((row) => {
+            const plainRow = {};
+            for (const key in row) {
+              plainRow[key] = row[key];
+            }
+            return plainRow;
+          });
+        }
+
+        completed++;
+        if (completed === total) {
+          resolve(records);
+        }
+      });
+    });
+  });
+}

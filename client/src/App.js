@@ -31,6 +31,7 @@ import { useTabReordering } from "./hooks/useTabReordering";
 import { useEnhancedNavigation } from "./hooks/useEnhancedNavigation";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAddPortainerModal } from "./hooks/useAddPortainerModal";
+import { useDiscordSettings } from "./hooks/useDiscordSettings";
 import HomePage from "./components/HomePage";
 import FirstLoginPage from "./components/FirstLoginPage";
 import { TAB_NAMES } from "./constants/apiConstants";
@@ -135,6 +136,9 @@ function App() {
     authToken,
     passwordChanged
   );
+
+  // Discord webhooks - using custom hook
+  const { discordWebhooks } = useDiscordSettings();
 
   // Container data management - using custom hook
   const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
@@ -671,6 +675,7 @@ function App() {
             setDraggedTabIndex={setDraggedTabIndex}
             handleReorderTabs={handleReorderTabs}
             toggleStack={toggleStack}
+            discordWebhooks={discordWebhooks}
           />
         }
       />

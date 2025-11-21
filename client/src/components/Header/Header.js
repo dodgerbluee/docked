@@ -18,6 +18,7 @@ const Header = ({
   notificationCount,
   activeContainersWithUpdates = [],
   activeTrackedAppsBehind = [],
+  discordWebhooks = [],
   showNotificationMenu,
   showAvatarMenu,
   instanceAdmin,
@@ -100,6 +101,7 @@ const Header = ({
                   notificationCount={notificationCount}
                   activeContainersWithUpdates={activeContainersWithUpdates}
                   activeTrackedAppsBehind={activeTrackedAppsBehind}
+                  discordWebhooks={discordWebhooks}
                   onClose={handleNotificationClose}
                   onNavigateToPortainer={onNavigateToPortainer}
                   onNavigateToTrackedApps={onNavigateToTrackedApps}
@@ -140,6 +142,15 @@ Header.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
   activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
   showNotificationMenu: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
   instanceAdmin: PropTypes.bool,
