@@ -420,27 +420,14 @@ async function getImageDigestFromDockerHub(imageRepo, tag = "latest") {
 }
 
 // Get the image digest from registry for a specific tag
-async function getLatestImageDigest(imageRepo, tag = "latest") {
-  const registry = detectRegistry(imageRepo);
-
-  switch (registry.type) {
-    case "dockerhub":
-      // Get digest for the specified tag (index digest)
-      const digest = await getImageDigestFromDockerHub(registry.repo, tag);
-      if (digest) {
-        return { digest: digest, tag: tag };
-      }
-
-      return null;
-    case "ghcr":
-    case "gitlab":
-    case "gcr":
-    case "lscr":
-      // These registries would need their own implementation
-      // For now, return null
-      return null;
-    default:
-      return null;
+// Legacy function - use registryService.getLatestDigest() in new code
+async function getLatestImageDigest(imageRepo, tag = "latest", userId = null) {
+  const registryService = require("./services/registry");
+  try {
+    return await registryService.getLatestDigest(imageRepo, tag, { userId });
+  } catch (error) {
+    // Return null on error for backward compatibility
+    return null;
   }
 }
 
@@ -576,77 +563,23 @@ async function getCurrentImageDigest(containerDetails, imageName, portainerUrl, 
 }
 
 // Get available image tags from registry
+// Legacy function - use imageUpdateService.checkImageUpdates() in new code
 async function checkImageUpdates(
   imageName,
   containerDetails = null,
   portainerUrl = null,
-  endpointId = null
+  endpointId = null,
+  userId = null
 ) {
-  // Extract image name and tag
-  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
-  const repo = imageParts[0];
-  const currentTag = imageParts[1];
-
-  // Get current image digest if available
-  let currentDigest = null;
-  if (containerDetails) {
-    currentDigest = await getCurrentImageDigest(
-      containerDetails,
-      imageName,
-      portainerUrl,
-      endpointId
-    );
-  }
-
-  // Get the image digest from registry for the current tag
-  const latestImageInfo = await getLatestImageDigest(repo, currentTag);
-
-  let hasUpdate = false;
-  let latestDigest = null;
-  let latestTag = currentTag; // Use the current tag, not "latest"
-
-  if (latestImageInfo) {
-    latestDigest = latestImageInfo.digest;
-    latestTag = latestImageInfo.tag;
-
-    // Compare digests to determine if update is available
-    if (currentDigest && latestDigest) {
-      // If digests are different, there's an update available
-      hasUpdate = currentDigest !== latestDigest;
-    } else {
-      // Fallback: if we can't compare digests, compare tags
-      // If current tag is different from latest tag, there's an update
-      if (currentTag !== latestTag) {
-        hasUpdate = true;
-      }
-    }
-  } else {
-    // Fallback: if we can't get digests, assume no update available
-    // (We can't reliably compare without digests)
-    hasUpdate = false;
-  }
-
-  // Format digest for display (shortened version)
-  const formatDigest = (digest) => {
-    if (!digest) {
-      return null;
-    }
-    // Return first 12 characters after "sha256:" for display
-    return digest.replace("sha256:", "").substring(0, 12);
-  };
-
-  return {
-    currentTag: currentTag,
-    currentVersion: currentTag,
-    currentDigest: formatDigest(currentDigest),
-    currentDigestFull: currentDigest,
-    hasUpdate: hasUpdate,
-    latestTag: latestTag,
-    newVersion: latestTag,
-    latestDigest: formatDigest(latestDigest),
-    latestDigestFull: latestDigest,
-    imageRepo: repo,
-  };
+  // Use the imageUpdateService for consistency
+  const imageUpdateService = require("./services/imageUpdateService");
+  return await imageUpdateService.checkImageUpdates(
+    imageName,
+    containerDetails,
+    portainerUrl,
+    endpointId,
+    userId
+  );
 }
 
 // Pull new image

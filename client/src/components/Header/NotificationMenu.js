@@ -12,6 +12,7 @@ const NotificationMenu = ({
   notificationCount,
   activeContainersWithUpdates,
   activeTrackedAppsBehind,
+  discordWebhooks = [],
   onClose,
   onNavigateToPortainer,
   onNavigateToTrackedApps,
@@ -19,6 +20,8 @@ const NotificationMenu = ({
   onDismissContainerNotification,
   onDismissTrackedAppNotification,
 }) => {
+  // Get enabled webhooks with avatars
+  const enabledWebhooks = discordWebhooks.filter((webhook) => webhook.enabled && webhook.avatarUrl);
   return (
     <div className="notification-menu">
       <div className="notification-menu-header">
@@ -42,8 +45,28 @@ const NotificationMenu = ({
                     onNavigateToPortainer && onNavigateToPortainer(container);
                   }}
                 >
-                  <div className="notification-item-title">{container.name}</div>
-                  <div className="notification-item-subtitle">Update available</div>
+                  <div className="notification-item-header">
+                    <div className="notification-item-text">
+                      <div className="notification-item-title">{container.name}</div>
+                      <div className="notification-item-subtitle">Update available</div>
+                    </div>
+                    {enabledWebhooks.length > 0 && (
+                      <div className="notification-webhook-avatars">
+                        {enabledWebhooks.slice(0, 3).map((webhook) => (
+                          <img
+                            key={webhook.id}
+                            src={webhook.avatarUrl}
+                            alt={webhook.name || "Webhook avatar"}
+                            className="notification-webhook-avatar"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                            title={webhook.name || webhook.serverName || "Discord webhook"}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button
                   className="notification-dismiss-button"
@@ -91,9 +114,29 @@ const NotificationMenu = ({
                     onNavigateToTrackedApps();
                   }}
                 >
-                  <div className="notification-item-title">{image.name}</div>
-                  <div className="notification-item-subtitle">
-                    Update available: {image.latest_version}
+                  <div className="notification-item-header">
+                    <div className="notification-item-text">
+                      <div className="notification-item-title">{image.name}</div>
+                      <div className="notification-item-subtitle">
+                        Update available: {image.latest_version}
+                      </div>
+                    </div>
+                    {enabledWebhooks.length > 0 && (
+                      <div className="notification-webhook-avatars">
+                        {enabledWebhooks.slice(0, 3).map((webhook) => (
+                          <img
+                            key={webhook.id}
+                            src={webhook.avatarUrl}
+                            alt={webhook.name || "Webhook avatar"}
+                            className="notification-webhook-avatar"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                            title={webhook.name || webhook.serverName || "Discord webhook"}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -137,6 +180,15 @@ NotificationMenu.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
   activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
   onClose: PropTypes.func.isRequired,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,

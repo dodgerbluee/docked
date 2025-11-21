@@ -1,9 +1,13 @@
 /**
  * Tracked Image Service
  * Handles update checking for tracked images (Docker, GitHub, and GitLab)
+ * 
+ * Uses the unified registry service with automatic provider selection
+ * and fallback strategies for robust update detection.
  */
 
 const dockerRegistryService = require("./dockerRegistryService");
+const registryService = require("./registry");
 const githubService = require("./githubService");
 const gitlabService = require("./gitlabService");
 const { updateTrackedImage } = require("../db/database");
@@ -49,11 +53,16 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   const repo = imageParts[0];
   const currentTag = imageParts[1];
 
-  // Get the latest image digest from registry (use tracked image's user_id for Docker Hub credentials)
+  // Get the latest image digest from registry (use tracked image's user_id for credentials)
+  // Use new unified registry service with automatic fallback
   const userId = trackedImage.user_id;
   let latestImageInfo;
   try {
-    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag, userId);
+    latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
+      userId,
+      githubRepo: trackedImage.github_repo, // Pass GitHub repo for fallback if available
+      useFallback: true, // Enable GitHub Releases fallback
+    });
   } catch (error) {
     // If rate limit exceeded, propagate the error
     if (error.isRateLimitExceeded) {
@@ -96,16 +105,13 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
       latestVersion = null;
     }
 
-    // Compare digests to determine if update is available
-    if (trackedImage.current_digest && latestDigest) {
-      // If digests are different, there's an update available
-      hasUpdate = trackedImage.current_digest !== latestDigest;
-    } else if (latestVersion && latestVersion !== "latest") {
-      // Fallback: if we can't compare digests, compare tags (only if we have a real version)
-      if (trackedImage.current_version && trackedImage.current_version !== latestVersion) {
-        hasUpdate = true;
-      }
-    }
+    // Use registry service's hasUpdate method for consistent comparison
+    // This handles both digest-based and version-based (fallback) comparisons
+    hasUpdate = registryService.hasUpdate(
+      trackedImage.current_digest,
+      trackedImage.current_version || currentTag,
+      latestImageInfo
+    );
   }
 
   // Format digest for display (shortened version)
@@ -123,11 +129,10 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   const tagForPublishDate = latestVersion !== "latest" ? latestVersion : latestTag;
   if (tagForPublishDate && hasUpdate) {
     try {
-      latestPublishDate = await dockerRegistryService.getTagPublishDate(
-        repo,
-        tagForPublishDate,
-        userId
-      );
+      latestPublishDate = await registryService.getTagPublishDate(repo, tagForPublishDate, {
+        userId,
+        githubRepo: trackedImage.github_repo, // Pass GitHub repo for fallback
+      });
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       latestPublishDate = null;
