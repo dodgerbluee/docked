@@ -353,6 +353,61 @@ async function deleteAvatar(req, res, next) {
 }
 
 /**
+ * Get another user's avatar (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getAvatarByUserId(req, res, next) {
+  try {
+    // Only instance admins can view other users' avatars
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden",
+      });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const avatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
+
+    if (fs.existsSync(avatarPath)) {
+      res.sendFile(avatarPath);
+    } else {
+      // Return default avatar instead of 404
+      const possibleDefaultPaths = [
+        path.join(__dirname, "../../client/public/img/default-avatar.jpg"),
+        path.join(__dirname, "../../public/img/default-avatar.jpg"),
+        path.join(process.cwd(), "client/public/img/default-avatar.jpg"),
+        path.join(process.cwd(), "public/img/default-avatar.jpg"),
+      ];
+
+      let defaultAvatarSent = false;
+      for (const defaultPath of possibleDefaultPaths) {
+        if (fs.existsSync(defaultPath)) {
+          res.sendFile(defaultPath);
+          defaultAvatarSent = true;
+          break;
+        }
+      }
+
+      if (!defaultAvatarSent) {
+        res.status(204).end();
+      }
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Migrate avatar from username-based directory to user ID-based directory
  * This is a one-time migration when a user's avatar is accessed after username change
  * @param {number} userId - User ID
@@ -411,6 +466,7 @@ async function migrateAvatarFromUsername(userId, username) {
 
 module.exports = {
   getAvatar,
+  getAvatarByUserId,
   getRecentAvatars,
   getRecentAvatar,
   uploadAvatar,

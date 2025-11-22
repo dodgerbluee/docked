@@ -1,0 +1,303 @@
+.modalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.userInfoCard,
+.statsCard,
+.roleCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.avatarContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.usernameDisplay {
+  text-align: center;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.roleBadgeIcon {
+  flex-shrink: 0;
+}
+
+/* Instance Admin - Most prestigious (Gold/Premium) */
+.roleBadgeInstanceAdmin {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+}
+
+body.dark-mode .roleBadgeInstanceAdmin {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+  border: 1px solid rgba(251, 191, 36, 0.6);
+}
+
+.roleBadgeInstanceAdmin:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+}
+
+/* Admin - Middle tier (Blue) */
+.roleBadgeAdmin {
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.15) 0%, rgba(30, 144, 255, 0.25) 100%);
+  color: var(--dodger-blue);
+  border: 1px solid rgba(30, 144, 255, 0.3);
+}
+
+body.dark-mode .roleBadgeAdmin {
+  background: linear-gradient(135deg, rgba(30, 136, 229, 0.2) 0%, rgba(30, 136, 229, 0.3) 100%);
+  color: var(--dodger-blue-light);
+  border: 1px solid rgba(30, 136, 229, 0.4);
+}
+
+.roleBadgeAdmin:hover {
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.25) 0%, rgba(30, 144, 255, 0.35) 100%);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .roleBadgeAdmin:hover {
+  background: linear-gradient(135deg, rgba(30, 136, 229, 0.3) 0%, rgba(30, 136, 229, 0.4) 100%);
+  border-color: var(--dodger-blue-light);
+}
+
+/* Member - Lowest tier (Gray/Subtle) */
+.roleBadgeMember {
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode .roleBadgeMember {
+  background: rgba(156, 163, 175, 0.2);
+  color: var(--text-tertiary);
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+.roleBadgeMember:hover {
+  background: rgba(156, 163, 175, 0.2);
+  border-color: rgba(156, 163, 175, 0.4);
+}
+
+body.dark-mode .roleBadgeMember:hover {
+  background: rgba(156, 163, 175, 0.25);
+  border-color: rgba(156, 163, 175, 0.4);
+}
+
+.sectionTitle {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.infoGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.infoItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.infoItem:last-child {
+  border-bottom: none;
+}
+
+.infoLabel {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.infoValue {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: right;
+  word-break: break-word;
+  font-weight: 500;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.statLabel {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.statValue {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.noStats {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
+  padding: 20px;
+}
+
+.roleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roleLabel {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* react-select styles are handled by selectStyles utility */
+
+.selectOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selectOptionIcon {
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.passwordSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.changePasswordButton {
+  width: auto;
+  display: inline-block;
+  align-self: flex-start;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+  padding: 10px 20px !important;
+  font-size: 1rem;
+  min-height: 42px;
+}
+
+.changePasswordButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .changePasswordButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .changePasswordButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.saveButton {
+  width: auto;
+  display: inline-block;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+  padding: 10px 20px !important;
+  font-size: 1rem;
+  min-height: 42px;
+}
+
+.saveButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .saveButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .saveButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+

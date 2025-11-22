@@ -18,6 +18,7 @@ const Header = ({
   notificationCount,
   activeContainersWithUpdates = [],
   activeTrackedAppsBehind = [],
+  versionUpdateInfo,
   discordWebhooks = [],
   showNotificationMenu,
   showAvatarMenu,
@@ -32,6 +33,7 @@ const Header = ({
   onNavigateToTrackedApps,
   onDismissContainerNotification,
   onDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
   onTemporaryThemeToggle,
   onLogout,
   API_BASE_URL,
@@ -101,13 +103,17 @@ const Header = ({
                   notificationCount={notificationCount}
                   activeContainersWithUpdates={activeContainersWithUpdates}
                   activeTrackedAppsBehind={activeTrackedAppsBehind}
+                  versionUpdateInfo={versionUpdateInfo}
                   discordWebhooks={discordWebhooks}
+                  instanceAdmin={instanceAdmin}
                   onClose={handleNotificationClose}
                   onNavigateToPortainer={onNavigateToPortainer}
                   onNavigateToTrackedApps={onNavigateToTrackedApps}
                   onNavigateToSummary={onNavigateToSummary}
+                  onNavigateToSettings={onNavigateToSettings}
                   onDismissContainerNotification={onDismissContainerNotification}
                   onDismissTrackedAppNotification={onDismissTrackedAppNotification}
+                  onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
                 />
               )}
             </div>
@@ -142,6 +148,12 @@ Header.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
   activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
   discordWebhooks: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -157,13 +169,14 @@ Header.propTypes = {
   onToggleNotificationMenu: PropTypes.func.isRequired,
   onToggleAvatarMenu: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
-  onNavigateToSettings: PropTypes.func.isRequired,
+  onNavigateToSettings: PropTypes.func,
   onNavigateToBatch: PropTypes.func.isRequired,
   onNavigateToAdmin: PropTypes.func,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onDismissContainerNotification: PropTypes.func.isRequired,
   onDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
   onTemporaryThemeToggle: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,

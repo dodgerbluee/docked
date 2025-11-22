@@ -5,16 +5,18 @@
 import React from "react";
 import PropTypes from "prop-types";
 import Input from "../../ui/Input";
+import RepositoryTokenSelector from "./RepositoryTokenSelector";
 
 /**
  * GitLab source form component
  * @param {Object} props
  * @param {string} props.githubRepo - GitLab repository input value
- * @param {string} props.gitlabToken - GitLab token input value
+ * @param {number} props.repositoryTokenId - Selected repository token ID
  * @param {Function} props.onChange - Form change handler
+ * @param {Function} props.onTokenChange - Token selection change handler
  * @param {boolean} props.loading - Whether form is loading
  */
-const GitLabSourceForm = ({ githubRepo, gitlabToken, onChange, loading }) => {
+const GitLabSourceForm = ({ githubRepo, repositoryTokenId, onChange, onTokenChange, loading }) => {
   return (
     <>
       <Input
@@ -28,15 +30,11 @@ const GitLabSourceForm = ({ githubRepo, gitlabToken, onChange, loading }) => {
         disabled={loading}
         helperText="GitLab repository in owner/repo format or full GitLab URL"
       />
-      <Input
-        label="GitLab Token (Optional)"
-        name="gitlabToken"
-        type="password"
-        value={gitlabToken}
-        onChange={onChange}
-        placeholder="Enter GitLab personal access token"
-        disabled={loading}
-        helperText="Required for private repositories. Leave empty to use GITLAB_TOKEN environment variable or for public repos."
+      <RepositoryTokenSelector
+        provider="gitlab"
+        selectedTokenId={repositoryTokenId}
+        onTokenChange={onTokenChange}
+        loading={loading}
       />
     </>
   );
@@ -44,8 +42,9 @@ const GitLabSourceForm = ({ githubRepo, gitlabToken, onChange, loading }) => {
 
 GitLabSourceForm.propTypes = {
   githubRepo: PropTypes.string.isRequired,
-  gitlabToken: PropTypes.string.isRequired,
+  repositoryTokenId: PropTypes.number,
   onChange: PropTypes.func.isRequired,
+  onTokenChange: PropTypes.func.isRequired,
   loading: PropTypes.bool.isRequired,
 };
 

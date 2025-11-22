@@ -6,7 +6,8 @@ import Button from "../ui/Button";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
 import { formatDate } from "../../utils/batchFormatters";
 import ImportUsersModal from "../ImportUsersModal";
-import { Upload, Download } from "lucide-react";
+import UserDetailsModal from "./UserDetailsModal";
+import { Upload, Download, Crown, Shield, User } from "lucide-react";
 import { useExport } from "../../hooks/useExport";
 import styles from "./UsersTab.module.css";
 
@@ -19,6 +20,8 @@ const UsersTab = React.memo(function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
 
   // Use reusable export hook
   const { exporting, exportError, exportSuccess, handleExport } = useExport();
@@ -44,11 +47,26 @@ const UsersTab = React.memo(function UsersTab() {
     }
   };
 
-  const getRoleDisplay = (user) => {
+  const getRoleBadge = (user) => {
     if (user.instanceAdmin) {
-      return "Instance Admin";
+      return {
+        label: "Instance Admin",
+        icon: Crown,
+        className: styles.roleBadgeInstanceAdmin,
+      };
+    } else if (user.role === "Administrator") {
+      return {
+        label: "Admin",
+        icon: Shield,
+        className: styles.roleBadgeAdmin,
+      };
+    } else {
+      return {
+        label: "Member",
+        icon: User,
+        className: styles.roleBadgeMember,
+      };
     }
-    return user.role || "Administrator";
   };
 
   const handleExportUsers = () => {
@@ -57,6 +75,20 @@ const UsersTab = React.memo(function UsersTab() {
 
   const handleImportSuccess = () => {
     setShowImportModal(false);
+    fetchUsers(); // Refresh the users list
+  };
+
+  const handleUserClick = (user) => {
+    setSelectedUser(user);
+    setShowUserDetailsModal(true);
+  };
+
+  const handleUserDetailsClose = () => {
+    setShowUserDetailsModal(false);
+    setSelectedUser(null);
+  };
+
+  const handleUserUpdated = () => {
     fetchUsers(); // Refresh the users list
   };
 
@@ -91,29 +123,34 @@ const UsersTab = React.memo(function UsersTab() {
             <thead>
               <tr>
                 <th>Username</th>
-                <th>Email</th>
-                <th>Creation Date</th>
-                <th>Last Logged In</th>
                 <th>Role</th>
+                <th className={styles.dateHeader}>Creation Date</th>
+                <th className={styles.dateHeader}>Last Logged In</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id}>
+                <tr
+                  key={user.id}
+                  className={styles.clickableRow}
+                  onClick={() => handleUserClick(user)}
+                >
                   <td className={styles.username}>{user.username}</td>
-                  <td className={styles.email}>{user.email || "-"}</td>
+                  <td className={styles.role}>
+                    {(() => {
+                      const badge = getRoleBadge(user);
+                      const Icon = badge.icon;
+                      return (
+                        <span className={`${styles.roleBadge} ${badge.className}`}>
+                          <Icon size={14} className={styles.roleBadgeIcon} />
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className={styles.date}>{formatDate(user.createdAt)}</td>
                   <td className={styles.date}>
                     {user.lastLogin ? formatDate(user.lastLogin) : "Never"}
-                  </td>
-                  <td className={styles.role}>
-                    <span
-                      className={`${styles.roleBadge} ${
-                        user.instanceAdmin ? styles.instanceAdmin : styles.admin
-                      }`}
-                    >
-                      {getRoleDisplay(user)}
-                    </span>
                   </td>
                 </tr>
               ))}
@@ -137,7 +174,6 @@ const UsersTab = React.memo(function UsersTab() {
           >
             Import Users
           </Button>
-
           <Button
             type="button"
             variant="primary"
@@ -156,6 +192,15 @@ const UsersTab = React.memo(function UsersTab() {
         onClose={() => setShowImportModal(false)}
         onSuccess={handleImportSuccess}
       />
+
+      {selectedUser && (
+        <UserDetailsModal
+          isOpen={showUserDetailsModal}
+          onClose={handleUserDetailsClose}
+          user={selectedUser}
+          onUserUpdated={handleUserUpdated}
+        />
+      )}
     </div>
   );
 });

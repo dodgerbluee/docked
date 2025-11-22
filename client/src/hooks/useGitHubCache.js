@@ -14,7 +14,7 @@ export function useGitHubCache(fetchTrackedApps) {
       setClearingGitHubCache(true);
       console.log("🗑️ Clearing latest version data for tracked apps...");
 
-      const response = await axios.delete(`${API_BASE_URL}/api/tracked-images/cache`);
+      const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/cache`);
 
       if (response.data && response.data.success) {
         console.log("✅ Latest version data cleared successfully");

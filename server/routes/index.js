@@ -26,6 +26,7 @@ const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
+const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -76,6 +77,7 @@ router.get("/health", (req, res) => {
  *                   example: "production"
  */
 router.get("/version", versionController.getVersion);
+router.get("/version/latest-release", versionController.getLatestRelease);
 
 /**
  * @swagger
@@ -181,9 +183,12 @@ router.use(authenticate);
 // User management routes (protected)
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
+router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
 router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
 router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
+router.post("/auth/users/:userId/password", asyncHandler(authController.adminUpdateUserPassword));
+router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUserRole));
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
@@ -216,6 +221,7 @@ router.delete("/portainer/instances/:id", asyncHandler(portainerController.delet
 
 // Avatar routes
 router.get("/avatars", asyncHandler(avatarController.getAvatar));
+router.get("/avatars/user/:userId", asyncHandler(avatarController.getAvatarByUserId));
 router.get("/avatars/recent", asyncHandler(avatarController.getRecentAvatars));
 router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
@@ -272,6 +278,36 @@ router.get(
 router.post(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
+);
+
+// Repository access token routes
+router.get(
+  "/repository-access-tokens",
+  asyncHandler(repositoryAccessTokenController.getTokens)
+);
+router.get(
+  "/repository-access-tokens/:provider",
+  asyncHandler(repositoryAccessTokenController.getTokenByProvider)
+);
+router.post(
+  "/repository-access-tokens",
+  asyncHandler(repositoryAccessTokenController.upsertToken)
+);
+router.delete(
+  "/repository-access-tokens/:id",
+  asyncHandler(repositoryAccessTokenController.deleteToken)
+);
+
+router.get(
+  "/repository-access-tokens/:id/associated-images",
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.getAssociatedImages)
+);
+
+router.post(
+  "/repository-access-tokens/:id/associate-images",
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.associateImages)
 );
 
 // Logs routes
