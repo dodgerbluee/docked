@@ -4,22 +4,22 @@
 
 /**
  * Get list of tracked GitHub repositories
- * @param {Array} trackedImages - Array of tracked images
+ * @param {Array} trackedApps - Array of tracked images
  * @returns {Array} Array of GitHub repository strings
  */
-export function getTrackedGitHubRepos(trackedImages) {
-  return trackedImages
+export function getTrackedGitHubRepos(trackedApps) {
+  return trackedApps
     .filter((img) => img.source_type === "github" && img.github_repo)
     .map((img) => img.github_repo);
 }
 
 /**
  * Get list of tracked Docker images (without tags)
- * @param {Array} trackedImages - Array of tracked images
+ * @param {Array} trackedApps - Array of tracked images
  * @returns {Array} Array of Docker image names (without tags)
  */
-export function getTrackedDockerImages(trackedImages) {
-  return trackedImages
+export function getTrackedDockerImages(trackedApps) {
+  return trackedApps
     .filter((img) => img.source_type === "docker" && img.image_name)
     .map((img) => img.image_name.split(":")[0]); // Remove tag for comparison
 }

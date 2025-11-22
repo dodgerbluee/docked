@@ -70,6 +70,10 @@ body.dark-mode .sidebarItem.active {
   border-bottom: 2px solid var(--border-color);
 }
 
+.filterSectionSpacing {
+  margin-top: 32px;
+}
+
 .sidebarHeader h3 {
   margin: 0;
   color: var(--text-primary);

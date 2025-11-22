@@ -1,5 +1,5 @@
 /**
- * Custom hook for managing tracked image form state and logic
+ * Custom hook for managing tracked app form state and logic
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -9,17 +9,17 @@ import {
   getTrackedDockerImages,
   filterTrackedItems,
 } from "../../../utils/trackedAppsFilters";
-import { extractDisplayName } from "../utils/trackedImageValidation";
+import { extractDisplayName } from "../utils/trackedAppValidation";
 
 /**
- * Hook to manage tracked image form state
+ * Hook to manage tracked app form state
  * @param {Object} options
- * @param {Array} options.trackedImages - Currently tracked images
+ * @param {Array} options.trackedApps - Currently tracked apps
  * @param {Object} options.initialData - Initial data for editing
  * @param {boolean} options.isOpen - Whether modal is open
  * @returns {Object} Form state and handlers
  */
-export const useTrackedImageForm = ({ trackedImages = [], initialData = null, isOpen }) => {
+export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen }) => {
   const [sourceType, setSourceType] = useState("github");
   const [usePredefined, setUsePredefined] = useState(true);
   const [usePredefinedDocker, setUsePredefinedDocker] = useState(true);
@@ -36,20 +36,20 @@ export const useTrackedImageForm = ({ trackedImages = [], initialData = null, is
 
   // Get available options for react-select (filter out already tracked)
   const githubRepoOptions = useMemo(() => {
-    const tracked = getTrackedGitHubRepos(trackedImages);
+    const tracked = getTrackedGitHubRepos(trackedApps);
     return filterTrackedItems(PREDEFINED_GITHUB_REPOS, tracked).map((repo) => ({
       value: repo,
       label: repo,
     }));
-  }, [trackedImages]);
+  }, [trackedApps]);
 
   const dockerImageOptions = useMemo(() => {
-    const tracked = getTrackedDockerImages(trackedImages);
+    const tracked = getTrackedDockerImages(trackedApps);
     return filterTrackedItems(PREDEFINED_DOCKER_IMAGES, tracked).map((image) => ({
       value: image,
       label: image,
     }));
-  }, [trackedImages]);
+  }, [trackedApps]);
 
   // Auto-populate display name from selected repository/image
   // Skip auto-population when editing (initialData exists)

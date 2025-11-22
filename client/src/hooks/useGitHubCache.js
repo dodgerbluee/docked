@@ -6,7 +6,7 @@ import { API_BASE_URL } from "../constants/api";
  * useGitHubCache Hook
  * Manages GitHub cache clearing functionality
  */
-export function useGitHubCache(fetchTrackedImages) {
+export function useGitHubCache(fetchTrackedApps) {
   const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
 
   const handleClearGitHubCache = useCallback(async () => {
@@ -14,7 +14,7 @@ export function useGitHubCache(fetchTrackedImages) {
       setClearingGitHubCache(true);
       console.log("🗑️ Clearing latest version data for tracked apps...");
 
-      const response = await axios.delete(`${API_BASE_URL}/api/tracked-images/cache`);
+      const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/cache`);
 
       if (response.data && response.data.success) {
         console.log("✅ Latest version data cleared successfully");
@@ -22,7 +22,7 @@ export function useGitHubCache(fetchTrackedImages) {
         console.log(message);
 
         // Refresh tracked images to show updated data
-        await fetchTrackedImages();
+        await fetchTrackedApps();
       } else {
         console.error("Failed to clear latest version data");
       }
@@ -37,7 +37,7 @@ export function useGitHubCache(fetchTrackedImages) {
     } finally {
       setClearingGitHubCache(false);
     }
-  }, [fetchTrackedImages]);
+  }, [fetchTrackedApps]);
 
   return {
     clearingGitHubCache,

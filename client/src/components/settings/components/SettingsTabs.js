@@ -7,9 +7,11 @@ import PropTypes from "prop-types";
 import LoadingSpinner from "../../ui/LoadingSpinner";
 import GeneralTab from "../GeneralTab";
 import PortainerTab from "../PortainerTab";
+import TrackedAppsTab from "../TrackedAppsTab";
 import DockerHubTab from "../DockerHubTab";
 import DiscordTab from "../DiscordTab";
 import UserDetailsTab from "../UserDetailsTab";
+import RepositoriesTab from "../RepositoriesTab";
 import DataTab from "../DataTab";
 import { SETTINGS_TABS } from "../../../constants/settings";
 
@@ -18,7 +20,6 @@ import { SETTINGS_TABS } from "../../../constants/settings";
  * @param {Object} props
  * @param {string} props.currentActiveSection - Current active section
  * @param {Object} props.settings - Settings object from useSettings hook
- * @param {boolean} props.isFirstLogin - Whether this is first login
  * @param {Object} props.avatar - Avatar object
  * @param {Array} props.recentAvatars - Recent avatars array
  * @param {Function} props.onAvatarChange - Avatar change handler
@@ -33,7 +34,6 @@ import { SETTINGS_TABS } from "../../../constants/settings";
 const SettingsTabs = ({
   currentActiveSection,
   settings,
-  isFirstLogin,
   avatar,
   recentAvatars,
   onAvatarChange,
@@ -63,8 +63,6 @@ const SettingsTabs = ({
             generalSettingsSaving={settings.generalSettingsSaving}
             generalSettingsSuccess={settings.generalSettingsSuccess}
             handleSaveGeneralSettings={settings.handleSaveGeneralSettings}
-            onClearTrackedAppData={handleClearTrackedAppData}
-            clearingTrackedAppData={clearingTrackedAppData}
           />
         )}
       </>
@@ -80,6 +78,15 @@ const SettingsTabs = ({
         handleDeleteInstance={settings.handleDeleteInstance}
         onClearPortainerData={handleClearPortainerData}
         clearingPortainerData={clearingPortainerData}
+      />
+    );
+  }
+
+  if (currentActiveSection === SETTINGS_TABS.TRACKED_APPS) {
+    return (
+      <TrackedAppsTab
+        onClearTrackedAppData={handleClearTrackedAppData}
+        clearingTrackedAppData={clearingTrackedAppData}
       />
     );
   }
@@ -124,7 +131,6 @@ const SettingsTabs = ({
         usernameSuccess={settings.usernameSuccess}
         usernameLoading={settings.usernameLoading}
         handleUsernameSubmit={settings.handleUsernameSubmit}
-        isFirstLogin={isFirstLogin}
         currentPassword={settings.currentPassword}
         setCurrentPassword={settings.setCurrentPassword}
         newPassword={settings.newPassword}
@@ -144,6 +150,10 @@ const SettingsTabs = ({
     );
   }
 
+  if (currentActiveSection === SETTINGS_TABS.REPOSITORIES) {
+    return <RepositoriesTab />;
+  }
+
   if (currentActiveSection === SETTINGS_TABS.DATA && settings.localRefreshingTogglesEnabled) {
     return <DataTab />;
   }
@@ -154,7 +164,6 @@ const SettingsTabs = ({
 SettingsTabs.propTypes = {
   currentActiveSection: PropTypes.string.isRequired,
   settings: PropTypes.object.isRequired,
-  isFirstLogin: PropTypes.bool.isRequired,
   avatar: PropTypes.string,
   recentAvatars: PropTypes.array,
   onAvatarChange: PropTypes.func.isRequired,

@@ -3,7 +3,7 @@ import { Bell } from "lucide-react";
 import PropTypes from "prop-types";
 import AvatarMenu from "./AvatarMenu";
 import NotificationMenu from "./NotificationMenu";
-import { containerShape, trackedImageShape } from "../../utils/propTypes";
+import { containerShape, trackedAppShape } from "../../utils/propTypes";
 import styles from "./Header.module.css";
 
 /**
@@ -18,6 +18,8 @@ const Header = ({
   notificationCount,
   activeContainersWithUpdates = [],
   activeTrackedAppsBehind = [],
+  versionUpdateInfo,
+  discordWebhooks = [],
   showNotificationMenu,
   showAvatarMenu,
   instanceAdmin,
@@ -31,6 +33,7 @@ const Header = ({
   onNavigateToTrackedApps,
   onDismissContainerNotification,
   onDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
   onTemporaryThemeToggle,
   onLogout,
   API_BASE_URL,
@@ -100,12 +103,17 @@ const Header = ({
                   notificationCount={notificationCount}
                   activeContainersWithUpdates={activeContainersWithUpdates}
                   activeTrackedAppsBehind={activeTrackedAppsBehind}
+                  versionUpdateInfo={versionUpdateInfo}
+                  discordWebhooks={discordWebhooks}
+                  instanceAdmin={instanceAdmin}
                   onClose={handleNotificationClose}
                   onNavigateToPortainer={onNavigateToPortainer}
                   onNavigateToTrackedApps={onNavigateToTrackedApps}
                   onNavigateToSummary={onNavigateToSummary}
+                  onNavigateToSettings={onNavigateToSettings}
                   onDismissContainerNotification={onDismissContainerNotification}
                   onDismissTrackedAppNotification={onDismissTrackedAppNotification}
+                  onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
                 />
               )}
             </div>
@@ -139,20 +147,36 @@ Header.propTypes = {
   darkMode: PropTypes.bool.isRequired,
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
-  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
   showNotificationMenu: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
   instanceAdmin: PropTypes.bool,
   onToggleNotificationMenu: PropTypes.func.isRequired,
   onToggleAvatarMenu: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
-  onNavigateToSettings: PropTypes.func.isRequired,
+  onNavigateToSettings: PropTypes.func,
   onNavigateToBatch: PropTypes.func.isRequired,
   onNavigateToAdmin: PropTypes.func,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onDismissContainerNotification: PropTypes.func.isRequired,
   onDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
   onTemporaryThemeToggle: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,

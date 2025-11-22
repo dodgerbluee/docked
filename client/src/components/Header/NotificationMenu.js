@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import PropTypes from "prop-types";
 import { X, Bell } from "lucide-react";
-import { containerShape, trackedImageShape } from "../../utils/propTypes";
+import { containerShape, trackedAppShape } from "../../utils/propTypes";
 import "./NotificationMenu.css";
 
 /**
@@ -12,13 +12,20 @@ const NotificationMenu = ({
   notificationCount,
   activeContainersWithUpdates,
   activeTrackedAppsBehind,
+  versionUpdateInfo,
+  discordWebhooks = [],
+  instanceAdmin = false,
   onClose,
   onNavigateToPortainer,
   onNavigateToTrackedApps,
   onNavigateToSummary,
+  onNavigateToSettings,
   onDismissContainerNotification,
   onDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
 }) => {
+  // Get enabled webhooks (show icons even if avatarUrl is missing)
+  const enabledWebhooks = discordWebhooks.filter((webhook) => webhook.enabled);
   return (
     <div className="notification-menu">
       <div className="notification-menu-header">
@@ -28,6 +35,42 @@ const NotificationMenu = ({
         )}
       </div>
       <div className="notification-menu-content">
+        {versionUpdateInfo && instanceAdmin && (
+          <>
+            <div className="notification-section-header">App Update (1)</div>
+            <div className="notification-item">
+              <div
+                className="notification-item-content"
+                onClick={() => {
+                  onClose();
+                  if (onNavigateToSettings) {
+                    onNavigateToSettings();
+                  }
+                }}
+              >
+                <div className="notification-item-header">
+                  <div className="notification-item-text">
+                    <div className="notification-item-title">Docked</div>
+                    <div className="notification-item-subtitle">
+                      Update available: {versionUpdateInfo.latestVersion}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                className="notification-dismiss-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissVersionUpdateNotification(versionUpdateInfo.latestVersion);
+                }}
+                aria-label="Dismiss notification"
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </>
+        )}
         {activeContainersWithUpdates.length > 0 && (
           <>
             <div className="notification-section-header">
@@ -42,8 +85,37 @@ const NotificationMenu = ({
                     onNavigateToPortainer && onNavigateToPortainer(container);
                   }}
                 >
-                  <div className="notification-item-title">{container.name}</div>
-                  <div className="notification-item-subtitle">Update available</div>
+                  <div className="notification-item-header">
+                    <div className="notification-item-text">
+                      <div className="notification-item-title">{container.name}</div>
+                      <div className="notification-item-subtitle">Update available</div>
+                    </div>
+                    {enabledWebhooks.length > 0 && (
+                      <div className="notification-webhook-avatars">
+                        {enabledWebhooks.slice(0, 3).map((webhook) => {
+                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
+                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
+                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
+                          return (
+                            <img
+                              key={webhook.id}
+                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
+                              alt={webhook.name || "Webhook avatar"}
+                              className="notification-webhook-avatar"
+                              onError={(e) => {
+                                // Use default avatar if webhook avatar fails to load
+                                // Never use user avatar - this should always be webhook avatar or default
+                                if (e.target.src !== "/img/default-avatar.jpg") {
+                                  e.target.src = "/img/default-avatar.jpg";
+                                }
+                              }}
+                              title={webhook.name || webhook.serverName || "Discord webhook"}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button
                   className="notification-dismiss-button"
@@ -78,7 +150,9 @@ const NotificationMenu = ({
         )}
         {activeTrackedAppsBehind.length > 0 && (
           <>
-            {activeContainersWithUpdates.length > 0 && <div className="notification-divider" />}
+            {(activeContainersWithUpdates.length > 0 || (versionUpdateInfo && instanceAdmin)) && (
+              <div className="notification-divider" />
+            )}
             <div className="notification-section-header">
               Tracked App Updates ({activeTrackedAppsBehind.length})
             </div>
@@ -91,9 +165,38 @@ const NotificationMenu = ({
                     onNavigateToTrackedApps();
                   }}
                 >
-                  <div className="notification-item-title">{image.name}</div>
-                  <div className="notification-item-subtitle">
-                    Update available: {image.latest_version}
+                  <div className="notification-item-header">
+                    <div className="notification-item-text">
+                      <div className="notification-item-title">{image.name}</div>
+                      <div className="notification-item-subtitle">
+                        Update available: {image.latest_version}
+                      </div>
+                    </div>
+                    {enabledWebhooks.length > 0 && (
+                      <div className="notification-webhook-avatars">
+                        {enabledWebhooks.slice(0, 3).map((webhook) => {
+                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
+                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
+                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
+                          return (
+                            <img
+                              key={webhook.id}
+                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
+                              alt={webhook.name || "Webhook avatar"}
+                              className="notification-webhook-avatar"
+                              onError={(e) => {
+                                // Use default avatar if webhook avatar fails to load
+                                // Never use user avatar - this should always be webhook avatar or default
+                                if (e.target.src !== "/img/default-avatar.jpg") {
+                                  e.target.src = "/img/default-avatar.jpg";
+                                }
+                              }}
+                              title={webhook.name || webhook.serverName || "Discord webhook"}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -136,13 +239,31 @@ const NotificationMenu = ({
 NotificationMenu.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
-  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
+  instanceAdmin: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
+  onNavigateToSettings: PropTypes.func,
   onDismissContainerNotification: PropTypes.func.isRequired,
   onDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
 };
 
 export default memo(NotificationMenu);

@@ -1,5 +1,5 @@
 /**
- * Validation utilities for tracked image forms
+ * Validation utilities for tracked app forms
  */
 
 /**

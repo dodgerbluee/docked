@@ -66,7 +66,7 @@ const WelcomeModal = ({
 }) => {
   const handleGetStarted = () => {
     onClose();
-    sessionStorage.setItem("welcomeModalShown", "true");
+    localStorage.setItem("welcomeModalShown", "true");
     // Set flag to open Portainer modal after navigation
     sessionStorage.setItem("openPortainerModal", "true");
     // Navigate to Portainer page first
@@ -80,7 +80,7 @@ const WelcomeModal = ({
 
   const handleAddTrackedApp = () => {
     onClose();
-    sessionStorage.setItem("welcomeModalShown", "true");
+    localStorage.setItem("welcomeModalShown", "true");
     // Set flag to open Tracked Apps modal after navigation
     sessionStorage.setItem("openTrackedAppModal", "true");
     // Navigate to Tracked Apps page first

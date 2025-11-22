@@ -1,29 +1,29 @@
 /**
- * Tracked Images Controller
- * Handles CRUD operations for tracked images
+ * Tracked Apps Controller
+ * Handles CRUD operations for tracked apps
  */
 
 const {
-  getAllTrackedImages,
-  getTrackedImageById,
-  getTrackedImageByImageName,
-  createTrackedImage,
-  updateTrackedImage,
-  deleteTrackedImage,
+  getAllTrackedApps,
+  getTrackedAppById,
+  getTrackedAppByImageName,
+  createTrackedApp,
+  updateTrackedApp,
+  deleteTrackedApp,
 } = require("../db/database");
 const { validateRequiredFields } = require("../utils/validation");
-const trackedImageService = require("../services/trackedImageService");
+const trackedAppService = require("../services/trackedAppService");
 const githubService = require("../services/githubService");
 const gitlabService = require("../services/gitlabService");
-const { clearLatestVersionsForAllTrackedImages } = require("../db/database");
+const { clearLatestVersionsForAllTrackedApps } = require("../db/database");
 
 /**
- * Get all tracked images
+ * Get all tracked apps
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getTrackedImages(req, res, next) {
+async function getTrackedApps(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -32,7 +32,7 @@ async function getTrackedImages(req, res, next) {
         error: "Authentication required",
       });
     }
-    const images = await getAllTrackedImages(userId);
+    const images = await getAllTrackedApps(userId);
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
     const formattedImages = images.map((image) => {
@@ -80,12 +80,12 @@ async function getTrackedImages(req, res, next) {
 }
 
 /**
- * Get a single tracked image
+ * Get a single tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getTrackedImage(req, res, next) {
+async function getTrackedApp(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -95,12 +95,12 @@ async function getTrackedImage(req, res, next) {
       });
     }
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id), userId);
+    const image = await getTrackedAppById(parseInt(id), userId);
 
     if (!image) {
       return res.status(404).json({
         success: false,
-        error: "Tracked image not found",
+        error: "Tracked app not found",
       });
     }
 
@@ -114,12 +114,12 @@ async function getTrackedImage(req, res, next) {
 }
 
 /**
- * Create a new tracked image
+ * Create a new tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function createTrackedImageEndpoint(req, res, next) {
+async function createTrackedAppEndpoint(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -151,7 +151,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(userId, null, githubRepo.trim());
+      const existing = await getTrackedAppByImageName(userId, null, githubRepo.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -160,11 +160,11 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Create tracked GitHub repo
-      const id = await createTrackedImage(userId, name.trim(), null, githubRepo.trim(), "github");
+      const id = await createTrackedApp(userId, name.trim(), null, githubRepo.trim(), "github");
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
+        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
@@ -182,7 +182,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if repo already exists
-      const existing = await getTrackedImageByImageName(userId, null, githubRepo.trim());
+      const existing = await getTrackedAppByImageName(userId, null, githubRepo.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -191,7 +191,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Create tracked GitLab repo
-      const id = await createTrackedImage(
+      const id = await createTrackedApp(
         userId,
         name.trim(),
         null,
@@ -202,7 +202,7 @@ async function createTrackedImageEndpoint(req, res, next) {
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
+        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
@@ -220,7 +220,7 @@ async function createTrackedImageEndpoint(req, res, next) {
       }
 
       // Check if image name already exists
-      const existing = await getTrackedImageByImageName(userId, imageName.trim());
+      const existing = await getTrackedAppByImageName(userId, imageName.trim());
       if (existing) {
         return res.status(400).json({
           success: false,
@@ -228,17 +228,17 @@ async function createTrackedImageEndpoint(req, res, next) {
         });
       }
 
-      // Create tracked image
-      const id = await createTrackedImage(userId, name.trim(), imageName.trim(), null, "docker");
+      // Create tracked app
+      const id = await createTrackedApp(userId, name.trim(), imageName.trim(), null, "docker");
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
-        await updateTrackedImage(id, userId, { current_version: current_version.trim() });
+        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
       }
 
       res.json({
         success: true,
-        message: "Tracked image created successfully",
+        message: "Tracked app created successfully",
         id: id,
       });
     }
@@ -255,12 +255,12 @@ async function createTrackedImageEndpoint(req, res, next) {
 }
 
 /**
- * Update a tracked image
+ * Update a tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function updateTrackedImageEndpoint(req, res, next) {
+async function updateTrackedAppEndpoint(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -272,12 +272,12 @@ async function updateTrackedImageEndpoint(req, res, next) {
     const { id } = req.params;
     const { name, imageName, current_version, gitlabToken } = req.body;
 
-    // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id), userId);
+    // Check if tracked app exists
+    const existing = await getTrackedAppById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: "Tracked image not found",
+        error: "Tracked app not found",
       });
     }
 
@@ -293,7 +293,7 @@ async function updateTrackedImageEndpoint(req, res, next) {
     if (imageName && imageName !== null) {
       const trimmedImageName = String(imageName).trim();
       if (trimmedImageName !== existing.image_name) {
-        const conflict = await getTrackedImageByImageName(userId, trimmedImageName);
+        const conflict = await getTrackedAppByImageName(userId, trimmedImageName);
         if (conflict && conflict.id !== parseInt(id)) {
           return res.status(400).json({
             success: false,
@@ -303,7 +303,7 @@ async function updateTrackedImageEndpoint(req, res, next) {
       }
     }
 
-    // Update tracked image
+    // Update tracked app
     const updateData = {};
     if (name !== undefined && name !== null) {
       updateData.name = String(name).trim();
@@ -360,14 +360,14 @@ async function updateTrackedImageEndpoint(req, res, next) {
       }
     }
 
-    await updateTrackedImage(parseInt(id), userId, updateData);
+    await updateTrackedApp(parseInt(id), userId, updateData);
 
     // Fetch the updated image to return current state
-    const updatedImage = await getTrackedImageById(parseInt(id), userId);
+    const updatedImage = await getTrackedAppById(parseInt(id), userId);
 
     res.json({
       success: true,
-      message: "Tracked image updated successfully",
+      message: "Tracked app updated successfully",
       image: updatedImage
         ? {
             ...updatedImage,
@@ -388,12 +388,12 @@ async function updateTrackedImageEndpoint(req, res, next) {
 }
 
 /**
- * Delete a tracked image
+ * Delete a tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function deleteTrackedImageEndpoint(req, res, next) {
+async function deleteTrackedAppEndpoint(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -404,21 +404,21 @@ async function deleteTrackedImageEndpoint(req, res, next) {
     }
     const { id } = req.params;
 
-    // Check if tracked image exists
-    const existing = await getTrackedImageById(parseInt(id), userId);
+    // Check if tracked app exists
+    const existing = await getTrackedAppById(parseInt(id), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: "Tracked image not found",
+        error: "Tracked app not found",
       });
     }
 
-    // Delete tracked image
-    await deleteTrackedImage(parseInt(id), userId);
+    // Delete tracked app
+    await deleteTrackedApp(parseInt(id), userId);
 
     res.json({
       success: true,
-      message: "Tracked image deleted successfully",
+      message: "Tracked app deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -426,12 +426,12 @@ async function deleteTrackedImageEndpoint(req, res, next) {
 }
 
 /**
- * Check for updates on all tracked images
+ * Check for updates on all tracked apps
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function checkTrackedImagesUpdates(req, res, next) {
+async function checkTrackedAppsUpdates(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -440,8 +440,8 @@ async function checkTrackedImagesUpdates(req, res, next) {
         error: "Authentication required",
       });
     }
-    const images = await getAllTrackedImages(userId);
-    const results = await trackedImageService.checkAllTrackedImages(images);
+    const images = await getAllTrackedApps(userId);
+    const results = await trackedAppService.checkAllTrackedImages(images);
 
     res.json({
       success: true,
@@ -453,12 +453,12 @@ async function checkTrackedImagesUpdates(req, res, next) {
 }
 
 /**
- * Check for updates on a single tracked image
+ * Check for updates on a single tracked app
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function checkTrackedImageUpdate(req, res, next) {
+async function checkTrackedAppUpdate(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -468,16 +468,16 @@ async function checkTrackedImageUpdate(req, res, next) {
       });
     }
     const { id } = req.params;
-    const image = await getTrackedImageById(parseInt(id), userId);
+    const image = await getTrackedAppById(parseInt(id), userId);
 
     if (!image) {
       return res.status(404).json({
         success: false,
-        error: "Tracked image not found",
+        error: "Tracked app not found",
       });
     }
 
-    const result = await trackedImageService.checkTrackedImage(image);
+    const result = await trackedAppService.checkTrackedApp(image);
 
     res.json({
       success: true,
@@ -489,7 +489,7 @@ async function checkTrackedImageUpdate(req, res, next) {
 }
 
 /**
- * Clear latest version data for all tracked images
+ * Clear latest version data for all tracked apps
  * This clears the latest_version, latest_digest, has_update, and current_version_publish_date
  * Also clears the GitHub and GitLab release caches
  * @param {Object} req - Express request object
@@ -505,8 +505,8 @@ async function clearGitHubCache(req, res, next) {
         error: "Authentication required",
       });
     }
-    // Clear latest version data for all tracked images
-    const rowsUpdated = await clearLatestVersionsForAllTrackedImages(userId);
+    // Clear latest version data for all tracked apps
+    const rowsUpdated = await clearLatestVersionsForAllTrackedApps(userId);
 
     // Also clear the GitHub and GitLab release caches
     githubService.clearReleaseCache();
@@ -525,9 +525,9 @@ async function clearGitHubCache(req, res, next) {
 module.exports = {
   getTrackedImages,
   getTrackedImage,
-  createTrackedImage: createTrackedImageEndpoint,
-  updateTrackedImage: updateTrackedImageEndpoint,
-  deleteTrackedImage: deleteTrackedImageEndpoint,
+  createTrackedApp: createTrackedAppEndpoint,
+  updateTrackedApp: updateTrackedAppEndpoint,
+  deleteTrackedApp: deleteTrackedAppEndpoint,
   checkTrackedImagesUpdates,
   checkTrackedImageUpdate,
   clearGitHubCache,

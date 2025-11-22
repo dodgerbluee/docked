@@ -17,18 +17,18 @@ export function isUnknown(img) {
 
 /**
  * Calculate tracked apps statistics
- * @param {Array} trackedImages - Array of tracked images
+ * @param {Array} trackedApps - Array of tracked images
  * @param {Map} dismissedNotifications - Map of dismissed notifications (id -> version)
  * @returns {Object} Statistics object
  */
-export function calculateTrackedAppsStats(trackedImages, dismissedNotifications = new Map()) {
-  const totalTrackedApps = trackedImages.length;
+export function calculateTrackedAppsStats(trackedApps, dismissedNotifications = new Map()) {
+  const totalTrackedApps = trackedApps.length;
 
   // Count unknown apps first
-  const trackedAppsUnknown = trackedImages.filter(isUnknown).length;
+  const trackedAppsUnknown = trackedApps.filter(isUnknown).length;
 
   // Up to date: apps that are not unknown, not behind, and have matching versions
-  const trackedAppsUpToDate = trackedImages.filter((img) => {
+  const trackedAppsUpToDate = trackedApps.filter((img) => {
     // Exclude unknown apps
     if (isUnknown(img)) return false;
 
@@ -40,7 +40,7 @@ export function calculateTrackedAppsStats(trackedImages, dismissedNotifications 
   }).length;
 
   // Behind: apps that have updates (excluding unknown apps)
-  const trackedAppsBehind = trackedImages.filter((img) => {
+  const trackedAppsBehind = trackedApps.filter((img) => {
     // Exclude unknown apps
     if (isUnknown(img)) return false;
 
@@ -48,7 +48,7 @@ export function calculateTrackedAppsStats(trackedImages, dismissedNotifications 
   }).length;
 
   // Filter out dismissed notifications, but show again if version has changed
-  const activeTrackedAppsBehind = trackedImages.filter((img) => {
+  const activeTrackedAppsBehind = trackedApps.filter((img) => {
     if (!img.has_update) return false;
     // Convert ID to string to match how it's stored in localStorage
     const dismissedVersion = dismissedNotifications.get(String(img.id));

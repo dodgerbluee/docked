@@ -10,7 +10,7 @@ erDiagram
     users ||--o{ portainer_containers : "owns"
     users ||--o{ docker_hub_image_versions : "tracks"
     users ||--o{ docker_hub_credentials : "has"
-    users ||--o{ tracked_images : "tracks"
+    users ||--o{ tracked_apps : "tracks"
     users ||--o{ discord_webhooks : "configures"
     users ||--o{ settings : "has"
     users ||--o{ batch_config : "configures"
@@ -102,7 +102,7 @@ erDiagram
         DATETIME updated_at
     }
 
-    tracked_images {
+    tracked_apps {
         INTEGER id PK
         INTEGER user_id FK "NOT NULL"
         TEXT name "NOT NULL"
@@ -206,7 +206,7 @@ The following indexes are created for performance:
 - **portainer_instances**: `idx_portainer_user_id`, `idx_portainer_url`, `idx_portainer_display_order`
 - **portainer_containers**: `idx_portainer_containers_user_id`, `idx_portainer_containers_instance`, `idx_portainer_containers_image_repo`, `idx_portainer_containers_last_seen`
 - **docker_hub_image_versions**: `idx_docker_hub_image_versions_user_id`, `idx_docker_hub_image_versions_user_has_update`, `idx_docker_hub_image_versions_image_repo`, `idx_docker_hub_image_versions_last_checked`
-- **tracked_images**: `idx_tracked_images_user_id`, `idx_tracked_images_name`, `idx_tracked_images_image_name`, `idx_tracked_images_github_repo`
+- **tracked_apps**: `idx_tracked_apps_user_id`, `idx_tracked_apps_name`, `idx_tracked_apps_image_name`, `idx_tracked_apps_github_repo`
 - **discord_webhooks**: `idx_discord_webhooks_user_id`, `idx_discord_webhooks_enabled`
 - **settings**: `idx_settings_user_id`, `idx_settings_key`
 - **batch_runs**: `idx_batch_runs_started_at`, `idx_batch_runs_status`

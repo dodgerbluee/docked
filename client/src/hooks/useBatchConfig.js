@@ -6,7 +6,7 @@ import { API_BASE_URL } from "../constants/api";
  * Custom hook for batch configuration management
  * Handles fetching and updating batch configuration
  */
-export const useBatchConfig = (isAuthenticated, authToken, passwordChanged) => {
+export const useBatchConfig = (isAuthenticated, authToken) => {
   const [batchConfig, setBatchConfig] = useState({
     "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
     "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
@@ -14,7 +14,7 @@ export const useBatchConfig = (isAuthenticated, authToken, passwordChanged) => {
 
   // Fetch batch configuration
   useEffect(() => {
-    if (isAuthenticated && authToken && passwordChanged) {
+    if (isAuthenticated && authToken) {
       const fetchBatchConfig = async () => {
         try {
           const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
@@ -38,7 +38,7 @@ export const useBatchConfig = (isAuthenticated, authToken, passwordChanged) => {
       };
       fetchBatchConfig();
     }
-  }, [isAuthenticated, authToken, passwordChanged]);
+  }, [isAuthenticated, authToken]);
 
   // Memoize batch config update callback to prevent it from being recreated on every render
   const handleBatchConfigUpdate = useCallback(async () => {

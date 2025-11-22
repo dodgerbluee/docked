@@ -503,6 +503,63 @@ body.dark-mode .githubIconLink:hover {
   color: var(--dodger-blue-light);
 }
 
+.gitlabIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.gitlabIconLink:hover {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .gitlabIconLink {
+  color: #ffffff;
+}
+
+body.dark-mode .gitlabIconLink:hover {
+  color: var(--dodger-blue-light);
+}
+
+.googleIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    color 0.2s,
+    transform 0.2s;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.googleIconLink:hover {
+  color: var(--dodger-blue);
+  transform: scale(1.1);
+}
+
+body.dark-mode .googleIconLink {
+  color: var(--text-primary);
+}
+
+body.dark-mode .googleIconLink:hover {
+  color: var(--dodger-blue-light);
+}
+
 .upgradeCheckmark {
   color: var(--text-secondary);
   flex-shrink: 0;
@@ -622,4 +679,31 @@ body.dark-mode .rebuildButton:hover {
 .dockerIcon {
   width: 16px;
   height: 16px;
+}
+
+.noDigestBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+  white-space: nowrap;
+  width: fit-content;
+  margin-bottom: 6px;
+  margin-top: 4px;
+}
+
+body.dark-mode .noDigestBadge {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.noDigestBadge svg {
+  flex-shrink: 0;
 }

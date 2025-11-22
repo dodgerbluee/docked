@@ -1,10 +1,12 @@
 /**
- * Container image links component (Docker Hub / GitHub Container Registry)
+ * Container image links component (Docker Hub / GitHub Container Registry / GitLab Container Registry)
  */
 
 import React from "react";
 import PropTypes from "prop-types";
 import GitHubIcon from "../../../icons/GitHubIcon";
+import GitLabIcon from "../../../icons/GitLabIcon";
+import GoogleIcon from "../../../icons/GoogleIcon";
 import styles from "../../PortainerContainerCard.module.css";
 
 /**
@@ -12,12 +14,26 @@ import styles from "../../PortainerContainerCard.module.css";
  * @param {Object} props
  * @param {boolean} props.isDocker - Whether image is from Docker Hub
  * @param {boolean} props.isGitHub - Whether image is from GitHub Container Registry
+ * @param {boolean} props.isGitLab - Whether image is from GitLab Container Registry
+ * @param {boolean} props.isGoogle - Whether image is from Google Container Registry
  * @param {string} props.dockerHubUrl - Docker Hub URL
  * @param {string} props.githubUrl - GitHub Container Registry URL
+ * @param {string} props.gitlabUrl - GitLab Container Registry URL
+ * @param {string} props.googleUrl - Google Container Registry URL
  * @param {string} props.imageName - Image name
  */
-const ContainerImageLinks = ({ isDocker, isGitHub, dockerHubUrl, githubUrl, imageName }) => {
-  if (!imageName || (!isDocker && !isGitHub)) {
+const ContainerImageLinks = ({
+  isDocker,
+  isGitHub,
+  isGitLab,
+  isGoogle,
+  dockerHubUrl,
+  githubUrl,
+  gitlabUrl,
+  googleUrl,
+  imageName,
+}) => {
+  if (!imageName || (!isDocker && !isGitHub && !isGitLab && !isGoogle)) {
     return null;
   }
 
@@ -57,6 +73,40 @@ const ContainerImageLinks = ({ isDocker, isGitHub, dockerHubUrl, githubUrl, imag
         >
           <GitHubIcon size={18} />
         </a>
+      ) : isGitLab ? (
+        <a
+          href={gitlabUrl || "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.gitlabIconLink}
+          title="Open GitLab Container Registry"
+          aria-label="Open GitLab Container Registry"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!gitlabUrl) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <GitLabIcon size={18} />
+        </a>
+      ) : isGoogle ? (
+        <a
+          href={googleUrl || "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.googleIconLink}
+          title="Open Google Container Registry"
+          aria-label="Open Google Container Registry"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!googleUrl) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <GoogleIcon size={18} />
+        </a>
       ) : null}
     </>
   );
@@ -65,8 +115,12 @@ const ContainerImageLinks = ({ isDocker, isGitHub, dockerHubUrl, githubUrl, imag
 ContainerImageLinks.propTypes = {
   isDocker: PropTypes.bool.isRequired,
   isGitHub: PropTypes.bool.isRequired,
+  isGitLab: PropTypes.bool.isRequired,
+  isGoogle: PropTypes.bool.isRequired,
   dockerHubUrl: PropTypes.string,
   githubUrl: PropTypes.string,
+  gitlabUrl: PropTypes.string,
+  googleUrl: PropTypes.string,
   imageName: PropTypes.string,
 };
 

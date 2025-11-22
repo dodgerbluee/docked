@@ -28,6 +28,7 @@
 }
 
 .sectionTitle {
+  margin-top: 0;
   margin-bottom: 20px;
   color: var(--text-primary);
   font-size: 1.3rem;
@@ -52,6 +53,10 @@
   margin-top: 30px;
 }
 
+.portainerInstancesList .sectionTitle {
+  margin-top: 0;
+}
+
 .instancesGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -59,9 +64,18 @@
 }
 
 .trackedAppsSummary {
-  margin-top: 40px;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.trackedAppsSummaryWithDivider {
+  margin-top: 0;
   padding-top: 30px;
   border-top: 2px solid var(--border-color);
+}
+
+.trackedAppsSummary .sectionTitle {
+  margin-top: 0;
 }
 
 .loadingState,
@@ -75,4 +89,39 @@
 .emptyState p {
   margin: 0;
   font-size: 1rem;
+}
+
+.disabledMessageContainer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px 20px;
+}
+
+.disabledMessage {
+  max-width: 600px;
+  text-align: center;
+  padding: 40px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.disabledMessageTitle {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.disabledMessageText {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.disabledMessageText strong {
+  color: var(--text-primary);
+  font-weight: 600;
 }

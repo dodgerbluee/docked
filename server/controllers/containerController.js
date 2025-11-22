@@ -458,6 +458,182 @@ async function batchUpgradeContainers(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+/**
+ * Correlate database records by image name/version
+ * Groups all related records (containers, deployed_images, registry_image_versions, portainer_instances)
+ * together for easier debugging
+ * @param {Object} rawDatabaseRecords - Raw database records by table
+ * @param {Array} allContainers - All containers with joined data
+ * @param {Array} userInstances - All Portainer instances
+ * @returns {Object} Correlated records grouped by image
+ */
+function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstances) {
+  const correlated = {};
+  const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+
+  // Helper to extract image repo and tag from various formats
+  const extractImageInfo = (imageName, imageRepo, imageTag) => {
+    let repo = imageRepo || "";
+    let tag = imageTag || "latest";
+
+    // If we have imageName, try to extract from it
+    if (imageName && !repo) {
+      if (imageName.includes(":")) {
+        const parts = imageName.split(":");
+        repo = parts.slice(0, -1).join(":");
+        tag = parts[parts.length - 1];
+      } else {
+        repo = imageName;
+      }
+    }
+
+    // Remove @sha256 suffix if present
+    if (tag && tag.includes("@")) {
+      tag = tag.split("@")[0];
+    }
+
+    return { repo, tag };
+  };
+
+  // First pass: Group containers by image_repo:tag
+  const containersByImage = new Map();
+
+  (rawDatabaseRecords.containers || []).forEach((container) => {
+    const { repo, tag } = extractImageInfo(container.image_name, container.image_repo, null);
+    const imageKey = `${repo}:${tag}`;
+
+    if (!containersByImage.has(imageKey)) {
+      containersByImage.set(imageKey, {
+        imageRepo: repo,
+        imageTag: tag,
+        containers: [],
+        deployedImages: [],
+        registryVersions: [],
+        portainerInstances: new Set(),
+      });
+    }
+
+    containersByImage.get(imageKey).containers.push(container);
+
+    // Track which Portainer instance this container belongs to
+    if (container.portainer_instance_id) {
+      containersByImage.get(imageKey).portainerInstances.add(container.portainer_instance_id);
+    }
+
+    // Also track deployed_image_id if present
+    if (container.deployed_image_id) {
+      containersByImage.get(imageKey).deployedImageIds =
+        containersByImage.get(imageKey).deployedImageIds || new Set();
+      containersByImage.get(imageKey).deployedImageIds.add(container.deployed_image_id);
+    }
+  });
+
+  // Second pass: Correlate deployed_images by image_repo and by ID
+  const deployedImageMap = new Map();
+  (rawDatabaseRecords.deployed_images || []).forEach((deployedImage) => {
+    deployedImageMap.set(deployedImage.id, deployedImage);
+
+    const { repo, tag } = extractImageInfo(null, deployedImage.image_repo, deployedImage.image_tag);
+    const imageKey = `${repo}:${tag}`;
+
+    if (containersByImage.has(imageKey)) {
+      containersByImage.get(imageKey).deployedImages.push(deployedImage);
+    } else {
+      // Create entry for deployed images without containers
+      if (!containersByImage.has(imageKey)) {
+        containersByImage.set(imageKey, {
+          imageRepo: repo,
+          imageTag: tag,
+          containers: [],
+          deployedImages: [],
+          registryVersions: [],
+          portainerInstances: new Set(),
+        });
+      }
+      containersByImage.get(imageKey).deployedImages.push(deployedImage);
+    }
+  });
+
+  // Third pass: Match deployed_images to containers by deployed_image_id
+  containersByImage.forEach((data) => {
+    if (data.deployedImageIds) {
+      data.deployedImageIds.forEach((deployedImageId) => {
+        const deployedImage = deployedImageMap.get(deployedImageId);
+        if (deployedImage && !data.deployedImages.find((di) => di.id === deployedImage.id)) {
+          data.deployedImages.push(deployedImage);
+        }
+      });
+      delete data.deployedImageIds;
+    }
+  });
+
+  // Fourth pass: Correlate registry_image_versions by image_repo
+  (rawDatabaseRecords.registry_image_versions || []).forEach((version) => {
+    const imageRepo = version.image_repo || "";
+    // Try to match by current_tag, latest_tag, or any tag
+    const imageTag = version.current_tag || version.latest_tag || version.image_tag || "latest";
+    const imageKey = `${imageRepo}:${imageTag}`;
+
+    // Try exact match first
+    if (containersByImage.has(imageKey)) {
+      containersByImage.get(imageKey).registryVersions.push(version);
+    } else {
+      // Try matching by repo only (any tag)
+      let matched = false;
+      containersByImage.forEach((data, key) => {
+        if (key.startsWith(`${imageRepo}:`)) {
+          data.registryVersions.push(version);
+          matched = true;
+        }
+      });
+
+      // If no match, create a repo-only entry
+      if (!matched) {
+        const repoOnlyKey = `${imageRepo}:*`;
+        if (!containersByImage.has(repoOnlyKey)) {
+          containersByImage.set(repoOnlyKey, {
+            imageRepo,
+            imageTag: "*",
+            containers: [],
+            deployedImages: [],
+            registryVersions: [],
+            portainerInstances: new Set(),
+          });
+        }
+        containersByImage.get(repoOnlyKey).registryVersions.push(version);
+      }
+    }
+  });
+
+  // Convert to object format and add Portainer instance details
+  containersByImage.forEach((data, imageKey) => {
+    const portainerInstances = Array.from(data.portainerInstances)
+      .map((instanceId) => {
+        const instance = instanceMap.get(instanceId);
+        return instance || { id: instanceId, error: "Instance not found" };
+      })
+      .filter(Boolean);
+
+    correlated[imageKey] = {
+      imageRepo: data.imageRepo,
+      imageTag: data.imageTag,
+      containers: data.containers,
+      deployedImages: data.deployedImages,
+      registryVersions: data.registryVersions,
+      portainerInstances: portainerInstances,
+      // Add summary counts
+      summary: {
+        containerCount: data.containers.length,
+        deployedImageCount: data.deployedImages.length,
+        registryVersionCount: data.registryVersions.length,
+        portainerInstanceCount: portainerInstances.length,
+      },
+    };
+  });
+
+  return correlated;
+}
+
 async function getContainerData(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -468,36 +644,11 @@ async function getContainerData(req, res, next) {
       });
     }
 
-    // Get ALL containers from portainer_containers table (even without Docker Hub data)
-    const { getPortainerContainers, getDockerHubImageVersion } = require("../db/database");
-    const allContainers = await getPortainerContainers(userId);
+    // Get ALL containers with joined deployed images and registry versions
+    const { getPortainerContainersWithUpdates } = require("../db/database");
+    const allContainers = await getPortainerContainersWithUpdates(userId);
     const userInstances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
-
-    // Get Docker Hub data for containers - now we need to get data per container (repo + tag)
-    const dockerHubDataMap = new Map();
-    for (const container of allContainers) {
-      if (!container.imageRepo) continue;
-
-      // Extract tag from imageName
-      const imageParts = container.imageName?.includes(":")
-        ? container.imageName.split(":")
-        : [container.imageName, "latest"];
-      const containerTag = imageParts[1];
-
-      try {
-        const dhData = await getDockerHubImageVersion(userId, container.imageRepo, containerTag);
-        if (dhData) {
-          // Use repo:tag as key to handle multiple tags of same repo
-          dockerHubDataMap.set(`${container.imageRepo}:${containerTag}`, dhData);
-        }
-      } catch (err) {
-        // If we can't get Docker Hub data, continue without it
-        logger.debug(`Could not get Docker Hub data for ${container.imageRepo}:${containerTag}:`, {
-          error: err,
-        });
-      }
-    }
 
     // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
     const normalizeDigest = (digest) => {
@@ -513,22 +664,8 @@ async function getContainerData(req, res, next) {
     const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
 
-      // Extract tag from imageName to lookup Docker Hub data
-      const imageParts = c.imageName?.includes(":")
-        ? c.imageName.split(":")
-        : [c.imageName, "latest"];
-      const containerTag = imageParts[1];
-      const dhDataKey = c.imageRepo ? `${c.imageRepo}:${containerTag}` : null;
-      const dhData = dhDataKey ? dockerHubDataMap.get(dhDataKey) : null;
-
-      // Compute hasUpdate per-container by comparing this container's currentDigest
-      // to the Docker Hub latestDigest (not using the shared hasUpdate flag)
-      let hasUpdate = false;
-      if (dhData && c.currentDigest && dhData.latestDigest) {
-        const normalizedCurrent = normalizeDigest(c.currentDigest);
-        const normalizedLatest = normalizeDigest(dhData.latestDigest);
-        hasUpdate = normalizedCurrent !== normalizedLatest;
-      }
+      // Data is already joined from getPortainerContainersWithUpdates
+      // hasUpdate is already computed in the query
 
       return {
         id: c.containerId,
@@ -543,26 +680,56 @@ async function getContainerData(req, res, next) {
         endpointId: c.endpointId,
         stackName: c.stackName,
         currentDigest: c.currentDigest,
-        currentTag: c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest",
-        currentVersion: c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest",
+        currentTag:
+          c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
+        currentVersion:
+          c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
         currentImageCreated: c.imageCreatedDate,
         usesNetworkMode: c.usesNetworkMode || false,
         providesNetwork: c.providesNetwork || false,
-        // Docker Hub data (may be null if not available)
-        // hasUpdate is computed per-container, not from shared table
-        hasUpdate: hasUpdate,
-        latestDigest: dhData ? dhData.latestDigest : null,
-        latestVersion: dhData ? dhData.latestVersion : null,
-        latestTag: dhData ? dhData.latestTag : null,
-        latestPublishDate: dhData ? dhData.latestPublishDate : null,
-        existsInDockerHub: dhData ? dhData.existsInDockerHub || false : false,
+        // Registry version data (already joined, may be null if not available)
+        hasUpdate: c.hasUpdate || false,
+        latestDigest: c.latestDigest || null,
+        latestVersion: c.latestVersion || null,
+        latestTag: c.latestTag || null,
+        latestPublishDate: c.latestPublishDate || null,
+        existsInDockerHub: false, // Deprecated - use existsInRegistry
+        existsInRegistry: true, // Will be determined from registry_image_versions
+        deployedImageId: c.deployedImageId || null,
         lastSeen: c.lastSeen,
         updatedAt: c.updatedAt,
       };
     });
 
-    // Group by portainer instance for display
-    // Filter by portainerInstanceId directly (more reliable than URL matching)
+    // Group by image (repo:tag) for formatted view - show all containers using same image together
+    const containersByImage = new Map();
+    formattedContainers.forEach((c) => {
+      if (c.imageRepo) {
+        const imageKey = `${c.imageRepo}:${c.currentTag || "latest"}`;
+        if (!containersByImage.has(imageKey)) {
+          containersByImage.set(imageKey, {
+            imageRepo: c.imageRepo,
+            imageTag: c.currentTag || "latest",
+            currentDigest: c.currentDigest,
+            currentVersion: c.currentVersion,
+            latestDigest: c.latestDigest,
+            latestVersion: c.latestVersion,
+            latestTag: c.latestTag,
+            latestPublishDate: c.latestPublishDate,
+            hasUpdate: c.hasUpdate,
+            existsInRegistry: c.existsInRegistry,
+            containers: [],
+          });
+        }
+        containersByImage.get(imageKey).containers.push(c);
+        // Update hasUpdate if any container has update
+        if (c.hasUpdate) {
+          containersByImage.get(imageKey).hasUpdate = true;
+        }
+      }
+    });
+
+    // Also group by portainer instance for instance-based view
     const containersByInstanceId = new Map();
     formattedContainers.forEach((c) => {
       if (c.portainerInstanceId) {
@@ -573,8 +740,32 @@ async function getContainerData(req, res, next) {
       }
     });
 
-    // Show ALL instances, even if they have no containers (so user knows the instance exists)
-    const entries = userInstances.map((instance) => {
+    // Create entries grouped by image (for formatted view)
+    const imageEntries = Array.from(containersByImage.entries()).map(([imageKey, imageData]) => ({
+      key: `image-${imageKey}`,
+      imageRepo: imageData.imageRepo,
+      imageTag: imageData.imageTag,
+      containerCount: imageData.containers.length,
+      containerNames: imageData.containers.map((c) => c.name || c.id || "Unknown"),
+      data: {
+        imageRepo: imageData.imageRepo,
+        imageTag: imageData.imageTag,
+        currentDigest: imageData.currentDigest,
+        currentVersion: imageData.currentVersion,
+        latestDigest: imageData.latestDigest,
+        latestVersion: imageData.latestVersion,
+        latestTag: imageData.latestTag,
+        latestPublishDate: imageData.latestPublishDate,
+        hasUpdate: imageData.hasUpdate,
+        existsInRegistry: imageData.existsInRegistry,
+        containers: imageData.containers,
+      },
+      createdAt: null,
+      updatedAt: imageData.containers.length > 0 ? imageData.containers[0].updatedAt || null : null,
+    }));
+
+    // Also create entries grouped by instance (for instance-based view)
+    const instanceEntries = userInstances.map((instance) => {
       const instanceContainers = containersByInstanceId.get(instance.id) || [];
       return {
         key: `portainer-${instance.id}`,
@@ -585,11 +776,13 @@ async function getContainerData(req, res, next) {
           instanceUrl: instance.url,
           containers: instanceContainers,
         },
-        createdAt: null, // Not stored in normalized tables
+        createdAt: null,
         updatedAt: instanceContainers.length > 0 ? instanceContainers[0].updatedAt || null : null,
       };
     });
-    // Don't filter out entries with 0 containers - show all instances
+
+    // Use image-based entries for formatted view (shows all containers using same image together)
+    const entries = imageEntries;
 
     logger.info("Container data retrieved from normalized tables", {
       module: "containerController",
@@ -605,9 +798,21 @@ async function getContainerData(req, res, next) {
       ),
     });
 
+    // Get raw database records for debugging
+    const rawDatabaseRecords = await getRawDatabaseRecords(userId);
+
+    // Create correlated view: group all DB records by image name/version
+    const correlatedRecords = correlateRecordsByImage(
+      rawDatabaseRecords,
+      allContainers,
+      userInstances
+    );
+
     res.json({
       success: true,
       entries: entries,
+      rawDatabaseRecords: rawDatabaseRecords, // Add raw DB records for debugging
+      correlatedRecords: correlatedRecords, // Add correlated records for formatted view
     });
   } catch (error) {
     logger.error("Error getting container data", {
@@ -620,6 +825,16 @@ async function getContainerData(req, res, next) {
       error: error.message || "Failed to get container data",
     });
   }
+}
+
+/**
+ * Get raw database records for all relevant tables (for debugging)
+ * @param {number} userId - User ID
+ * @returns {Promise<Object>} - Raw database records organized by table
+ */
+async function getRawDatabaseRecords(userId) {
+  const { getRawDatabaseRecords: getRawRecords } = require("../db/database");
+  return await getRawRecords(userId);
 }
 
 /**

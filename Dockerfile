@@ -29,6 +29,16 @@ WORKDIR /app
 # Install build tools for sqlite3 native module
 RUN apk add --no-cache python3 make g++
 
+# Install crane for container registry operations (avoids API rate limits and token management)
+# Download crane binary from GitHub releases
+RUN apk add --no-cache wget && \
+    wget -qO- https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz | \
+    tar -xz -C /tmp && \
+    mv /tmp/crane /usr/local/bin/crane && \
+    chmod +x /usr/local/bin/crane && \
+    rm -rf /tmp/go-containerregistry* && \
+    test -f /usr/local/bin/crane && echo "crane installed successfully"
+
 # Copy root package.json (for version info)
 COPY package.json ./
 

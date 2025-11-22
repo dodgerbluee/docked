@@ -1,9 +1,13 @@
 /**
  * Image Update Service
  * Handles checking for Docker image updates
+ *
+ * Uses the unified registry service with automatic provider selection
+ * and fallback strategies for robust update detection.
  */
 
 const dockerRegistryService = require("./dockerRegistryService");
+const registryService = require("./registry");
 const logger = require("../utils/logger");
 const { getDockerHubImageVersion } = require("../db/database");
 
@@ -73,9 +77,13 @@ async function checkImageUpdates(
   }
 
   // Get the image digest from registry for the current tag
+  // Use new unified registry service with automatic fallback
   let latestImageInfo;
   try {
-    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag, userId);
+    latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
+      userId,
+      useFallback: true, // Enable GitHub Releases fallback if available
+    });
   } catch (error) {
     // If rate limit exceeded, propagate the error
     if (error.isRateLimitExceeded) {
@@ -85,38 +93,61 @@ async function checkImageUpdates(
     latestImageInfo = null;
   }
 
+  // If we didn't get provider from registry lookup, detect it from image name
+  // This ensures provider is set even when digest lookup fails
+  if (!latestImageInfo?.provider) {
+    const dockerRegistryService = require("./dockerRegistryService");
+    const registryInfo = dockerRegistryService.detectRegistry(repo);
+    const providerMap = {
+      dockerhub: "dockerhub",
+      ghcr: "ghcr",
+      gitlab: "gitlab",
+      gcr: "gcr",
+      lscr: "dockerhub",
+    };
+    const detectedProvider = providerMap[registryInfo.type] || null;
+    if (detectedProvider) {
+      // Create a minimal latestImageInfo with provider even if digest lookup failed
+      if (!latestImageInfo) {
+        latestImageInfo = {
+          provider: detectedProvider,
+          digest: null,
+          tag: currentTag,
+        };
+      } else {
+        latestImageInfo.provider = detectedProvider;
+      }
+    }
+  }
+
   let hasUpdate = false;
   let latestDigest = null;
   let latestTag = currentTag; // Use the current tag, not "latest"
 
-  // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
-  const normalizeDigest = (digest) => {
-    if (!digest) {
-      return null;
-    }
-    // Ensure digest starts with sha256: for consistent comparison
-    return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
-  };
-
   if (latestImageInfo) {
     latestDigest = latestImageInfo.digest;
-    latestTag = latestImageInfo.tag;
+    // For GitHub Releases fallback, use version if digest is null
+    latestTag = latestImageInfo.tag || latestImageInfo.version || currentTag;
 
-    // Compare digests to determine if update is available
-    // Always use the container's actual digest (from Portainer), not the shared Docker Hub record
-    if (currentDigest && latestDigest) {
-      const normalizedCurrent = normalizeDigest(currentDigest);
-      const normalizedLatest = normalizeDigest(latestDigest);
+    // Log when using fallback to help debug
+    if (latestImageInfo.isFallback && !latestDigest) {
+      logger.debug(
+        `Using GitHub Releases fallback for ${repo}:${currentTag} - version: ${latestTag}, digest: null`
+      );
+    }
 
-      // If digests are different, there's an update available
-      hasUpdate = normalizedCurrent !== normalizedLatest;
+    // Use registry service's hasUpdate method for consistent comparison
+    // This handles both digest-based and version-based (fallback) comparisons
+    hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo);
 
-      if (process.env.DEBUG) {
-        logger.debug(
-          `Comparing digests for ${repo}: current=${normalizedCurrent.substring(0, 12)}..., latest=${normalizedLatest.substring(0, 12)}..., hasUpdate=${hasUpdate}`
-        );
-      }
-    } else if (
+    if (process.env.DEBUG) {
+      logger.debug(
+        `Comparing for ${repo}:${currentTag} - currentDigest=${currentDigest ? currentDigest.substring(0, 12) + "..." : "null"}, latestDigest=${latestDigest ? latestDigest.substring(0, 12) + "..." : "null"}, hasUpdate=${hasUpdate}, isFallback=${latestImageInfo.isFallback || false}`
+      );
+    }
+
+    // Handle stored version info edge cases
+    if (
       storedVersionInfo &&
       storedVersionInfo.hasUpdate === false &&
       latestDigest &&
@@ -124,12 +155,15 @@ async function checkImageUpdates(
     ) {
       // If we have stored info saying no update (container was recently upgraded),
       // and we can't get current digest from container, trust the stored info
-      // But verify against the latest digest from Docker Hub
+      // But verify against the latest digest from registry
       if (storedVersionInfo.currentDigest) {
-        const normalizedStored = normalizeDigest(storedVersionInfo.currentDigest);
-        const normalizedLatest = normalizeDigest(latestDigest);
-        // If stored digest matches latest, definitely no update
-        if (normalizedStored === normalizedLatest) {
+        const storedHasUpdate = registryService.hasUpdate(
+          storedVersionInfo.currentDigest,
+          currentTag,
+          latestImageInfo
+        );
+        if (!storedHasUpdate) {
+          // Stored digest matches latest - no update
           hasUpdate = false;
           currentDigest = storedVersionInfo.currentDigest;
         } else {
@@ -146,12 +180,6 @@ async function checkImageUpdates(
       // In this case, assume no update to avoid false positives
       // The next check will properly compare digests once they're available
       hasUpdate = false;
-    } else {
-      // Fallback: if we can't compare digests, compare tags
-      // If current tag is different from latest tag, there's an update
-      if (currentTag !== latestTag) {
-        hasUpdate = true;
-      }
     }
   } else {
     // Fallback: if we can't get digests, use stored info if available
@@ -182,7 +210,9 @@ async function checkImageUpdates(
   let latestPublishDate = null;
   if (latestTag && hasUpdate) {
     try {
-      latestPublishDate = await dockerRegistryService.getTagPublishDate(repo, latestTag, userId);
+      latestPublishDate = await registryService.getTagPublishDate(repo, latestTag, {
+        userId,
+      });
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       // Silently continue - publish date is nice to have but not critical
@@ -190,9 +220,13 @@ async function checkImageUpdates(
     }
   }
 
-  // Determine if image exists in Docker Hub based on whether we got a valid response from getLatestImageDigest
-  // If latestImageInfo is not null, the image exists in Docker Hub
-  const existsInDockerHub = latestImageInfo !== null;
+  // Determine if image exists in registry based on whether we got a valid response
+  // If latestImageInfo is not null, the image exists in the registry
+  const existsInRegistry = latestImageInfo !== null;
+
+  // For backward compatibility, also set existsInDockerHub
+  // (though it may now refer to other registries too)
+  const existsInDockerHub = existsInRegistry;
 
   return {
     currentTag: currentTag,
@@ -207,7 +241,10 @@ async function checkImageUpdates(
     latestPublishDate: latestPublishDate,
     currentVersionPublishDate: null,
     imageRepo: repo,
-    existsInDockerHub: existsInDockerHub,
+    existsInDockerHub: existsInDockerHub, // Backward compatibility
+    existsInRegistry: existsInRegistry,
+    provider: latestImageInfo?.provider || null,
+    isFallback: latestImageInfo?.isFallback || false,
   };
 }
 
