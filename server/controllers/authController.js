@@ -8,8 +8,12 @@ const logger = require("../utils/logger");
 const { validateRequiredFields, isValidEmail } = require("../utils/validation");
 const {
   getUserByUsername,
+  getUserById,
   verifyPassword,
   updatePassword,
+  updateUserPasswordById,
+  updateUserRole,
+  getUserStats,
   updateUsername,
   updateLastLogin,
   getAllUsers,
@@ -1959,6 +1963,159 @@ async function exportUsersEndpoint(req, res, next) {
   }
 }
 
+/**
+ * Get user statistics (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getUserStatsEndpoint(req, res, next) {
+  try {
+    // Only instance admins can view user stats
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const stats = await getUserStats(parseInt(userId));
+    res.json({ success: true, stats });
+  } catch (error) {
+    logger.error("Error getting user stats:", error);
+    next(error);
+  }
+}
+
+/**
+ * Admin update user password (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function adminUpdateUserPassword(req, res, next) {
+  try {
+    // Only instance admins can update other users' passwords
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "New password is required",
+      });
+    }
+
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: "New password must be at least 6 characters long",
+      });
+    }
+
+    // Verify user exists
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Update password
+    await updateUserPasswordById(parseInt(userId), newPassword);
+
+    res.json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    logger.error("Error updating user password:", error);
+    next(error);
+  }
+}
+
+/**
+ * Admin update user role (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function adminUpdateUserRole(req, res, next) {
+  try {
+    // Only instance admins can update other users' roles
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    const { role, instanceAdmin } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    // Validate role
+    const validRoles = ["Administrator", "Member"];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Role must be one of: ${validRoles.join(", ")}`,
+      });
+    }
+
+    // Don't allow changing instance admin status if user is trying to set role to Member with instanceAdmin=true
+    if (role === "Member" && instanceAdmin === true) {
+      return res.status(400).json({
+        success: false,
+        error: "Member role cannot have instance admin privileges",
+      });
+    }
+
+    // Verify user exists
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Update role
+    const newRole = role || user.role;
+    const newInstanceAdmin = instanceAdmin !== undefined ? instanceAdmin : user.instance_admin === 1;
+    await updateUserRole(parseInt(userId), newRole, newInstanceAdmin);
+
+    res.json({
+      success: true,
+      message: "User role updated successfully",
+    });
+  } catch (error) {
+    logger.error("Error updating user role:", error);
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1983,4 +2140,7 @@ module.exports = {
   checkUserExists,
   getAllUsersEndpoint,
   exportUsersEndpoint,
+  getUserStatsEndpoint,
+  adminUpdateUserPassword,
+  adminUpdateUserRole,
 };

@@ -275,6 +275,69 @@ function initializeDatabase() {
           }
         );
 
+        // Create repository_access_tokens table
+        db.run(
+          `CREATE TABLE IF NOT EXISTS repository_access_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        provider TEXT NOT NULL CHECK(provider IN ('github', 'gitlab')),
+        name TEXT NOT NULL,
+        access_token TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, provider, name),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`,
+          (err) => {
+            if (err) {
+              logger.error("Error creating repository_access_tokens table:", { error: err });
+            } else {
+              logger.info("Repository access tokens table ready");
+              // Add name column if it doesn't exist (migration for existing databases)
+              db.run(
+                "ALTER TABLE repository_access_tokens ADD COLUMN name TEXT",
+                (alterErr) => {
+                  // Ignore error if column already exists
+                  if (alterErr && !alterErr.message.includes("duplicate column")) {
+                    logger.debug("Name column may already exist or migration not needed:", alterErr.message);
+                  } else {
+                    // If column was just added, set default names for existing tokens
+                    db.run(
+                      "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
+                      (updateErr) => {
+                        if (updateErr) {
+                          logger.debug("Error setting default names:", updateErr.message);
+                        }
+                      }
+                    );
+                  }
+                }
+              );
+              // Create indexes for repository_access_tokens table
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_repo_tokens_user_id ON repository_access_tokens(user_id)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating repository_access_tokens user_id index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_repo_tokens_provider ON repository_access_tokens(provider)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating repository_access_tokens provider index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+            }
+          }
+        );
+
         // Create tracked_apps table
         db.run(
           `CREATE TABLE IF NOT EXISTS tracked_apps (
@@ -302,6 +365,16 @@ function initializeDatabase() {
               logger.error("Error creating tracked_apps table:", { error: err });
             } else {
               logger.info("Tracked apps table ready");
+              // Add repository_token_id column if it doesn't exist (migration for existing databases)
+              db.run(
+                "ALTER TABLE tracked_apps ADD COLUMN repository_token_id INTEGER",
+                (alterErr) => {
+                  // Ignore error if column already exists
+                  if (alterErr && !alterErr.message.includes("duplicate column")) {
+                    logger.debug("Repository token ID column may already exist or migration not needed:", alterErr.message);
+                  }
+                }
+              );
               // Create indexes
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",
@@ -395,6 +468,26 @@ function initializeDatabase() {
                     logger.error("Error creating deployed_images last_seen index:", {
                       error: idxErr,
                     });
+                  }
+                }
+              );
+              // Add repository_token_id column if it doesn't exist (migration for existing databases)
+              db.run(
+                "ALTER TABLE deployed_images ADD COLUMN repository_token_id INTEGER",
+                (alterErr) => {
+                  // Ignore error if column already exists
+                  if (alterErr && !alterErr.message.includes("duplicate column")) {
+                    logger.debug("Repository token ID column may already exist or migration not needed:", alterErr.message);
+                  } else {
+                    // Add foreign key constraint if column was just created
+                    db.run(
+                      "CREATE INDEX IF NOT EXISTS idx_deployed_images_repository_token_id ON deployed_images(repository_token_id)",
+                      (idxErr) => {
+                        if (idxErr && !idxErr.message.includes("already exists")) {
+                          logger.debug("Index for repository_token_id may already exist:", idxErr.message);
+                        }
+                      }
+                    );
                   }
                 }
               );
@@ -846,6 +939,103 @@ async function updatePassword(username, newPassword) {
         }
       }
     );
+  });
+}
+
+/**
+ * Update user password by user ID (admin function)
+ * @param {number} userId - User ID
+ * @param {string} newPassword - New plain text password
+ * @returns {Promise<void>}
+ */
+async function updateUserPasswordById(userId, newPassword) {
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [passwordHash, userId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update user role and instance admin status (admin function)
+ * @param {number} userId - User ID
+ * @param {string} role - User role (e.g., "Administrator", "Member")
+ * @param {boolean} instanceAdmin - Whether user is instance admin
+ * @returns {Promise<void>}
+ */
+function updateUserRole(userId, role, instanceAdmin) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      "UPDATE users SET role = ?, instance_admin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [role, instanceAdmin ? 1 : 0, userId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get user statistics (counts of portainer instances and tracked apps)
+ * @param {number} userId - User ID
+ * @returns {Promise<Object>} - Object with portainerInstancesCount and trackedAppsCount
+ */
+function getUserStats(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    Promise.all([
+      new Promise((resolveCount, rejectCount) => {
+        db.get(
+          "SELECT COUNT(*) as count FROM portainer_instances WHERE user_id = ?",
+          [userId],
+          (err, row) => {
+            if (err) rejectCount(err);
+            else resolveCount(row?.count || 0);
+          }
+        );
+      }),
+      new Promise((resolveCount, rejectCount) => {
+        db.get(
+          "SELECT COUNT(*) as count FROM tracked_apps WHERE user_id = ?",
+          [userId],
+          (err, row) => {
+            if (err) rejectCount(err);
+            else resolveCount(row?.count || 0);
+          }
+        );
+      }),
+    ])
+      .then(([portainerInstancesCount, trackedAppsCount]) => {
+        resolve({
+          portainerInstancesCount,
+          trackedAppsCount,
+        });
+      })
+      .catch(reject);
   });
 }
 
@@ -1413,6 +1603,169 @@ function deleteDockerHubCredentials(userId) {
 }
 
 /**
+ * Get all repository access tokens for a user
+ * @param {number} userId - User ID
+ * @returns {Promise<Array>} - Array of repository access tokens
+ */
+function getAllRepositoryAccessTokens(userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.all(
+      "SELECT id, user_id, provider, name, access_token, created_at, updated_at FROM repository_access_tokens WHERE user_id = ? ORDER BY provider ASC, name ASC",
+      [userId],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Don't return the actual token in the response for security
+          const safeTokens = (rows || []).map(({ access_token, ...rest }) => ({
+            ...rest,
+            has_token: !!access_token,
+          }));
+          resolve(safeTokens);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get repository access token by provider for a user
+ * @param {number} userId - User ID
+ * @param {string} provider - Provider ('github' or 'gitlab')
+ * @returns {Promise<Object|null>} - Repository access token or null
+ */
+function getRepositoryAccessTokenByProvider(userId, provider) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.get(
+      "SELECT id, user_id, provider, name, access_token, created_at, updated_at FROM repository_access_tokens WHERE user_id = ? AND provider = ?",
+      [userId, provider],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          if (!row) {
+            resolve(null);
+          } else {
+            // Don't return the actual token in the response for security
+            const { access_token, ...rest } = row;
+            resolve({ ...rest, has_token: !!access_token });
+          }
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Get repository access token by ID (includes token value for internal use)
+ * @param {number} tokenId - Token ID
+ * @param {number} userId - User ID
+ * @returns {Promise<Object|null>} - Repository access token with access_token or null
+ */
+function getRepositoryAccessTokenById(tokenId, userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.get(
+      "SELECT id, user_id, provider, name, access_token, created_at, updated_at FROM repository_access_tokens WHERE id = ? AND user_id = ?",
+      [tokenId, userId],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || null);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Create or update a repository access token
+ * @param {number} userId - User ID
+ * @param {string} provider - Provider ('github' or 'gitlab')
+ * @param {string} name - Token name/description
+ * @param {string} accessToken - Access token
+ * @param {number} tokenId - Optional token ID for updates
+ * @returns {Promise<number>} - ID of the token record
+ */
+function upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenId = null) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    
+    if (tokenId) {
+      // Update existing token
+      db.run(
+        `UPDATE repository_access_tokens 
+         SET name = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND user_id = ?`,
+        [name, accessToken, tokenId, userId],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(tokenId);
+          }
+        }
+      );
+    } else {
+      // Insert new token
+      db.run(
+        `INSERT INTO repository_access_tokens (user_id, provider, name, access_token, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [userId, provider, name, accessToken],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.lastID);
+          }
+        }
+      );
+    }
+  });
+}
+
+/**
+ * Delete a repository access token
+ * @param {number} id - Token ID
+ * @param {number} userId - User ID
+ * @returns {Promise<void>}
+ */
+function deleteRepositoryAccessToken(id, userId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+    db.run(
+      "DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?",
+      [id, userId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
  * Upsert deployed image (what containers are actually using)
  * @param {number} userId - User ID
  * @param {string} imageRepo - Image repository
@@ -1477,6 +1830,102 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
               }
             }
           );
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Associate image repositories with a repository access token
+ * @param {number} userId - User ID
+ * @param {number} tokenId - Repository access token ID
+ * @param {Array<string>} imageRepos - Array of image repository names
+ * @returns {Promise<void>}
+ */
+function associateImagesWithToken(userId, tokenId, imageRepos) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    if (!imageRepos || imageRepos.length === 0) {
+      // If no images provided, clear all associations for this token
+      db.run(
+        `UPDATE deployed_images 
+         SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = ? AND repository_token_id = ?`,
+        [userId, tokenId],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+      return;
+    }
+
+    // First, clear existing associations for this token
+    db.run(
+      `UPDATE deployed_images 
+       SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ? AND repository_token_id = ?`,
+      [userId, tokenId],
+      (clearErr) => {
+        if (clearErr) {
+          reject(clearErr);
+          return;
+        }
+
+        // Then set new associations
+        const placeholders = imageRepos.map(() => "?").join(",");
+        const params = [tokenId, userId, ...imageRepos];
+
+        db.run(
+          `UPDATE deployed_images 
+           SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? AND image_repo IN (${placeholders})`,
+          params,
+          function (err) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      }
+    );
+  });
+}
+
+/**
+ * Get image repositories associated with a repository access token
+ * @param {number} userId - User ID
+ * @param {number} tokenId - Repository access token ID
+ * @returns {Promise<Array<string>>} - Array of image repository names
+ */
+function getAssociatedImagesForToken(userId, tokenId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error("Database not initialized"));
+      return;
+    }
+
+    db.all(
+      `SELECT DISTINCT image_repo 
+       FROM deployed_images 
+       WHERE user_id = ? AND repository_token_id = ?`,
+      [userId, tokenId],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const imageRepos = rows.map((row) => row.image_repo);
+          resolve(imageRepos);
         }
       }
     );
@@ -3208,7 +3657,8 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
  * @param {string} imageName - Image name or null for GitHub
  * @param {string} githubRepo - GitHub repo or null for Docker
  * @param {string} sourceType - 'docker', 'github', or 'gitlab'
- * @param {string} gitlabToken - GitLab token (optional)
+ * @param {string} gitlabToken - GitLab token (optional, for backward compatibility)
+ * @param {number} repositoryTokenId - Repository token ID (optional, preferred over gitlabToken)
  * @returns {Promise<number>} - ID of created tracked app
  */
 function createTrackedApp(
@@ -3217,7 +3667,8 @@ function createTrackedApp(
   imageName = null,
   githubRepo = null,
   sourceType = "docker",
-  gitlabToken = null
+  gitlabToken = null,
+  repositoryTokenId = null
 ) {
   return new Promise((resolve, reject) => {
     if (!db) {
@@ -3225,8 +3676,8 @@ function createTrackedApp(
       return;
     }
     db.run(
-      "INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token) VALUES (?, ?, ?, ?, ?, ?)",
-      [userId, name, imageName, githubRepo, sourceType, gitlabToken],
+      "INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token, repository_token_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [userId, name, imageName, githubRepo, sourceType, gitlabToken, repositoryTokenId],
       function (err) {
         if (err) {
           reject(err);
@@ -3297,6 +3748,10 @@ function updateTrackedApp(id, userId, updateData) {
     if (updateData.gitlab_token !== undefined) {
       fields.push("gitlab_token = ?");
       values.push(updateData.gitlab_token);
+    }
+    if (updateData.repository_token_id !== undefined) {
+      fields.push("repository_token_id = ?");
+      values.push(updateData.repository_token_id);
     }
 
     if (fields.length === 0) {
@@ -3841,6 +4296,9 @@ module.exports = {
   getUserById,
   verifyPassword,
   updatePassword,
+  updateUserPasswordById,
+  updateUserRole,
+  getUserStats,
   updateUsername,
   updateLastLogin,
   waitForDatabase,
@@ -3858,6 +4316,13 @@ module.exports = {
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
+  getAllRepositoryAccessTokens,
+  getRepositoryAccessTokenByProvider,
+  getRepositoryAccessTokenById,
+  upsertRepositoryAccessToken,
+  deleteRepositoryAccessToken,
+  associateImagesWithToken,
+  getAssociatedImagesForToken,
   getAllTrackedApps,
   getTrackedAppById,
   getTrackedAppByImageName,

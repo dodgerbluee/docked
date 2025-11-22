@@ -128,7 +128,7 @@ async function createTrackedAppEndpoint(req, res, next) {
         error: "Authentication required",
       });
     }
-    const { name, imageName, githubRepo, sourceType, current_version, gitlabToken } = req.body;
+    const { name, imageName, githubRepo, sourceType, current_version, gitlabToken, repositoryTokenId } = req.body;
 
     // Validate name is required
     if (!name || !name.trim()) {
@@ -160,7 +160,15 @@ async function createTrackedAppEndpoint(req, res, next) {
       }
 
       // Create tracked GitHub repo
-      const id = await createTrackedApp(userId, name.trim(), null, githubRepo.trim(), "github");
+      const id = await createTrackedApp(
+        userId,
+        name.trim(),
+        null,
+        githubRepo.trim(),
+        "github",
+        null,
+        repositoryTokenId || null
+      );
 
       // Update current_version if provided
       if (current_version && current_version.trim()) {
@@ -197,7 +205,8 @@ async function createTrackedAppEndpoint(req, res, next) {
         null,
         githubRepo.trim(),
         "gitlab",
-        gitlabToken || null
+        gitlabToken || null,
+        repositoryTokenId || null
       );
 
       // Update current_version if provided
@@ -270,7 +279,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const { name, imageName, current_version, gitlabToken } = req.body;
+    const { name, imageName, current_version, gitlabToken, repositoryTokenId } = req.body;
 
     // Check if tracked app exists
     const existing = await getTrackedAppById(parseInt(id), userId);
@@ -314,6 +323,9 @@ async function updateTrackedAppEndpoint(req, res, next) {
     if (gitlabToken !== undefined) {
       // Allow setting to null/empty string to clear token
       updateData.gitlab_token = gitlabToken && gitlabToken.trim() ? gitlabToken.trim() : null;
+    }
+    if (repositoryTokenId !== undefined) {
+      updateData.repository_token_id = repositoryTokenId || null;
     }
     if (current_version !== undefined && current_version !== null) {
       const trimmedVersion = String(current_version).trim();

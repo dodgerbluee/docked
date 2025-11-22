@@ -12,16 +12,20 @@ const NotificationMenu = ({
   notificationCount,
   activeContainersWithUpdates,
   activeTrackedAppsBehind,
+  versionUpdateInfo,
   discordWebhooks = [],
+  instanceAdmin = false,
   onClose,
   onNavigateToPortainer,
   onNavigateToTrackedApps,
   onNavigateToSummary,
+  onNavigateToSettings,
   onDismissContainerNotification,
   onDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
 }) => {
-  // Get enabled webhooks with avatars
-  const enabledWebhooks = discordWebhooks.filter((webhook) => webhook.enabled && webhook.avatarUrl);
+  // Get enabled webhooks (show icons even if avatarUrl is missing)
+  const enabledWebhooks = discordWebhooks.filter((webhook) => webhook.enabled);
   return (
     <div className="notification-menu">
       <div className="notification-menu-header">
@@ -31,6 +35,42 @@ const NotificationMenu = ({
         )}
       </div>
       <div className="notification-menu-content">
+        {versionUpdateInfo && instanceAdmin && (
+          <>
+            <div className="notification-section-header">App Update (1)</div>
+            <div className="notification-item">
+              <div
+                className="notification-item-content"
+                onClick={() => {
+                  onClose();
+                  if (onNavigateToSettings) {
+                    onNavigateToSettings();
+                  }
+                }}
+              >
+                <div className="notification-item-header">
+                  <div className="notification-item-text">
+                    <div className="notification-item-title">Docked</div>
+                    <div className="notification-item-subtitle">
+                      Update available: {versionUpdateInfo.latestVersion}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                className="notification-dismiss-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissVersionUpdateNotification(versionUpdateInfo.latestVersion);
+                }}
+                aria-label="Dismiss notification"
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </>
+        )}
         {activeContainersWithUpdates.length > 0 && (
           <>
             <div className="notification-section-header">
@@ -55,11 +95,14 @@ const NotificationMenu = ({
                         {enabledWebhooks.slice(0, 3).map((webhook) => (
                           <img
                             key={webhook.id}
-                            src={webhook.avatarUrl}
+                            src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
                             alt={webhook.name || "Webhook avatar"}
                             className="notification-webhook-avatar"
                             onError={(e) => {
-                              e.target.style.display = "none";
+                              // Use default avatar if image fails to load
+                              if (e.target.src !== "/img/default-avatar.jpg") {
+                                e.target.src = "/img/default-avatar.jpg";
+                              }
                             }}
                             title={webhook.name || webhook.serverName || "Discord webhook"}
                           />
@@ -101,7 +144,9 @@ const NotificationMenu = ({
         )}
         {activeTrackedAppsBehind.length > 0 && (
           <>
-            {activeContainersWithUpdates.length > 0 && <div className="notification-divider" />}
+            {(activeContainersWithUpdates.length > 0 || (versionUpdateInfo && instanceAdmin)) && (
+              <div className="notification-divider" />
+            )}
             <div className="notification-section-header">
               Tracked App Updates ({activeTrackedAppsBehind.length})
             </div>
@@ -126,11 +171,14 @@ const NotificationMenu = ({
                         {enabledWebhooks.slice(0, 3).map((webhook) => (
                           <img
                             key={webhook.id}
-                            src={webhook.avatarUrl}
+                            src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
                             alt={webhook.name || "Webhook avatar"}
                             className="notification-webhook-avatar"
                             onError={(e) => {
-                              e.target.style.display = "none";
+                              // Use default avatar if image fails to load
+                              if (e.target.src !== "/img/default-avatar.jpg") {
+                                e.target.src = "/img/default-avatar.jpg";
+                              }
                             }}
                             title={webhook.name || webhook.serverName || "Discord webhook"}
                           />
@@ -180,6 +228,12 @@ NotificationMenu.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
   activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
   discordWebhooks: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -189,12 +243,15 @@ NotificationMenu.propTypes = {
       enabled: PropTypes.bool,
     })
   ),
+  instanceAdmin: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
   onNavigateToPortainer: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
+  onNavigateToSettings: PropTypes.func,
   onDismissContainerNotification: PropTypes.func.isRequired,
   onDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
 };
 
 export default memo(NotificationMenu);

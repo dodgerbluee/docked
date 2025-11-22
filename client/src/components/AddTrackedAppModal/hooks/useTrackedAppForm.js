@@ -31,6 +31,7 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
     githubRepo: "",
     currentVersion: "",
     gitlabToken: "",
+    repositoryTokenId: null,
   });
   const lastAutoPopulatedName = useRef("");
 
@@ -112,6 +113,7 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
           githubRepo: initialData.github_repo || "",
           currentVersion: initialData.current_version || "",
           gitlabToken: initialData.gitlab_token || "",
+          repositoryTokenId: initialData.repository_token_id || null,
         });
         setSourceType(initialData.source_type || "github");
         const isPredefinedRepo = PREDEFINED_GITHUB_REPOS.includes(initialData.github_repo);
@@ -141,6 +143,7 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
           githubRepo: "",
           currentVersion: "",
           gitlabToken: "",
+          repositoryTokenId: null,
         });
         setSourceType("github");
         setUsePredefined(true);
@@ -166,6 +169,7 @@ export const useTrackedAppForm = ({ trackedApps = [], initialData = null, isOpen
       githubRepo: "",
       currentVersion: "",
       gitlabToken: "",
+      repositoryTokenId: null,
     });
     setSourceType("github");
     setUsePredefined(true);

@@ -70,6 +70,7 @@ function AddTrackedAppModal({
     selectedPredefinedImage,
     setSelectedPredefinedImage,
     formData,
+    setFormData,
     handleChange,
     resetForm,
     githubRepoOptions,
@@ -128,9 +129,15 @@ function AddTrackedAppModal({
         payload.current_version = formData.currentVersion.trim();
       }
 
-      // Add GitLab token if source type is GitLab (send even if empty to allow clearing)
-      if (sourceType === "gitlab") {
-        payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+      // Add repository token ID if source type is GitLab or GitHub
+      if (sourceType === "gitlab" || sourceType === "github") {
+        if (formData.repositoryTokenId) {
+          payload.repositoryTokenId = formData.repositoryTokenId;
+        }
+        // Keep gitlabToken for backward compatibility if no token ID is selected
+        if (sourceType === "gitlab" && !formData.repositoryTokenId) {
+          payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+        }
       }
 
       let response;
@@ -281,8 +288,11 @@ function AddTrackedAppModal({
         ) : (
           <GitLabSourceForm
             githubRepo={formData.githubRepo}
-            gitlabToken={formData.gitlabToken}
+            repositoryTokenId={formData.repositoryTokenId}
             onChange={handleChange}
+            onTokenChange={(tokenId) => {
+              setFormData({ ...formData, repositoryTokenId: tokenId });
+            }}
             loading={loading}
           />
         )}

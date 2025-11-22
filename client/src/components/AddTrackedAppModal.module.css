@@ -67,6 +67,11 @@ body.dark-mode .sourceTypeButton.active {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+body.dark-mode .icon {
+  color: #ffffff;
 }
 
 .dockerIcon {

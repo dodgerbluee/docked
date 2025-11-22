@@ -1,0 +1,63 @@
+.tokenSelector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.tokenSelectWrapper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.tokenSelectWrapper > :global(.react-select-container) {
+  flex: 0 0 33.333%;
+  width: 33.333%;
+  max-width: 33.333%;
+  min-width: 33.333%;
+}
+
+.addTokenButton {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+.optionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.optionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+body.dark-mode .optionIcon {
+  color: #ffffff;
+}
+
+.notConfigured {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+.helperText {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+

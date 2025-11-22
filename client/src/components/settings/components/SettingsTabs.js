@@ -7,9 +7,11 @@ import PropTypes from "prop-types";
 import LoadingSpinner from "../../ui/LoadingSpinner";
 import GeneralTab from "../GeneralTab";
 import PortainerTab from "../PortainerTab";
+import TrackedAppsTab from "../TrackedAppsTab";
 import DockerHubTab from "../DockerHubTab";
 import DiscordTab from "../DiscordTab";
 import UserDetailsTab from "../UserDetailsTab";
+import RepositoriesTab from "../RepositoriesTab";
 import DataTab from "../DataTab";
 import { SETTINGS_TABS } from "../../../constants/settings";
 
@@ -61,8 +63,6 @@ const SettingsTabs = ({
             generalSettingsSaving={settings.generalSettingsSaving}
             generalSettingsSuccess={settings.generalSettingsSuccess}
             handleSaveGeneralSettings={settings.handleSaveGeneralSettings}
-            onClearTrackedAppData={handleClearTrackedAppData}
-            clearingTrackedAppData={clearingTrackedAppData}
           />
         )}
       </>
@@ -78,6 +78,15 @@ const SettingsTabs = ({
         handleDeleteInstance={settings.handleDeleteInstance}
         onClearPortainerData={handleClearPortainerData}
         clearingPortainerData={clearingPortainerData}
+      />
+    );
+  }
+
+  if (currentActiveSection === SETTINGS_TABS.TRACKED_APPS) {
+    return (
+      <TrackedAppsTab
+        onClearTrackedAppData={handleClearTrackedAppData}
+        clearingTrackedAppData={clearingTrackedAppData}
       />
     );
   }
@@ -139,6 +148,10 @@ const SettingsTabs = ({
         onAvatarUploaded={onAvatarUploaded}
       />
     );
+  }
+
+  if (currentActiveSection === SETTINGS_TABS.REPOSITORIES) {
+    return <RepositoriesTab />;
   }
 
   if (currentActiveSection === SETTINGS_TABS.DATA && settings.localRefreshingTogglesEnabled) {

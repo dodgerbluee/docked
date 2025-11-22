@@ -352,12 +352,14 @@ function App() {
   const {
     activeContainersWithUpdates,
     activeTrackedAppsBehind,
+    versionUpdateInfo,
     notificationCount,
     trackedAppsStats,
     dismissedTrackedAppNotifications,
     handleDismissContainerNotification,
     handleDismissTrackedAppNotification,
-  } = useNotifications(containers, trackedApps);
+    handleDismissVersionUpdateNotification,
+  } = useNotifications(containers, trackedApps, instanceAdmin);
 
   const { trackedAppsBehind } = trackedAppsStats;
 
@@ -481,12 +483,14 @@ function App() {
               notificationCount,
               activeContainersWithUpdates,
               activeTrackedAppsBehind,
+              versionUpdateInfo,
               showNotificationMenu,
               showAvatarMenu,
               onToggleNotificationMenu: toggleNotificationMenu,
               onToggleAvatarMenu: toggleAvatarMenu,
               onDismissContainerNotification: handleDismissContainerNotification,
               onDismissTrackedAppNotification: handleDismissTrackedAppNotification,
+              onDismissVersionUpdateNotification: handleDismissVersionUpdateNotification,
               onTemporaryThemeToggle: handleTemporaryThemeToggle,
               onLogout: handleLogoutWithCleanup,
             }}
@@ -566,6 +570,7 @@ function App() {
             notificationCount={notificationCount}
             activeContainersWithUpdates={activeContainersWithUpdates}
             activeTrackedAppsBehind={activeTrackedAppsBehind}
+            versionUpdateInfo={versionUpdateInfo}
             dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
             trackedAppsBehind={trackedAppsBehind}
             showAvatarMenu={showAvatarMenu}
@@ -589,6 +594,7 @@ function App() {
             handleNavigateToTrackedApps={handleNavigateToTrackedApps}
             handleDismissContainerNotification={handleDismissContainerNotification}
             handleDismissTrackedAppNotification={handleDismissTrackedAppNotification}
+            onDismissVersionUpdateNotification={handleDismissVersionUpdateNotification}
             handleTemporaryThemeToggle={handleTemporaryThemeToggle}
             handleLogoutWithCleanup={handleLogoutWithCleanup}
             handleUsernameUpdate={handleUsernameUpdate}

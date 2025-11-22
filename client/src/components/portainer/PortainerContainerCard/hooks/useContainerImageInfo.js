@@ -9,6 +9,9 @@ import {
   isGitHubContainer,
   isDockerHub,
   getGitHubContainerUrl,
+  isGitLabContainer,
+  getGitLabContainerUrl,
+  getGitLabRepoUrl,
 } from "../utils/containerImageParsing";
 import { getDockerHubRepoUrl } from "../../../../utils/formatters";
 import { showToast } from "../../../../utils/toast";
@@ -38,10 +41,27 @@ export const useContainerImageInfo = (container) => {
     return false;
   }, [container.provider, container.image, container.existsInDockerHub]);
 
+  const isGitLab = useMemo(() => {
+    // Primary: Use provider field if available
+    if (container.provider === "gitlab") {
+      return true;
+    }
+    // Check updateSourceType for GitLab-tracked apps
+    if (container.updateSourceType === "gitlab") {
+      return true;
+    }
+    // Fallback: Only if provider is not set, use image name pattern
+    if (container.provider === null || container.provider === undefined) {
+      return isGitLabContainer(container.image);
+    }
+    return false;
+  }, [container.provider, container.updateSourceType, container.image]);
+
   const isDocker = useMemo(() => {
     // ONLY show Docker Hub icon if provider is explicitly "dockerhub"
-    return container.provider === "dockerhub";
-  }, [container.provider]);
+    // and not GitHub or GitLab
+    return container.provider === "dockerhub" && !isGitHub && !isGitLab;
+  }, [container.provider, isGitHub, isGitLab]);
 
   // Construct GitHub URL based on provider or tracked app info
   const githubUrl = useMemo(() => {
@@ -61,6 +81,26 @@ export const useContainerImageInfo = (container) => {
     // Otherwise, try to get from container image (ghcr.io pattern)
     return getGitHubContainerUrl(container.image);
   }, [container.hasUpdate, container.updateSourceType, container.updateGitHubRepo, container.provider, container.image]);
+
+  // Construct GitLab URL based on provider or tracked app info
+  const gitlabUrl = useMemo(() => {
+    // If update is from GitLab-tracked app, use the tracked app's GitLab repo URL
+    if (container.hasUpdate && container.updateSourceType === "gitlab" && container.updateGitLabRepo) {
+      return getGitLabRepoUrl(container.updateGitLabRepo);
+    }
+    // If provider is gitlab, construct GitLab Container Registry URL or repo URL
+    if (container.provider === "gitlab") {
+      // Try to get repo URL from image name
+      const repoUrl = getGitLabRepoUrl(container.image);
+      if (repoUrl) {
+        return repoUrl;
+      }
+      // Fallback to container registry URL
+      return getGitLabContainerUrl(container.image);
+    }
+    // Otherwise, try to get from container image (registry.gitlab.com pattern)
+    return getGitLabContainerUrl(container.image);
+  }, [container.hasUpdate, container.updateSourceType, container.updateGitLabRepo, container.provider, container.image]);
 
   const dockerHubUrl = useMemo(
     () => (container.image ? getDockerHubRepoUrl(container.image) : null),
@@ -89,20 +129,24 @@ export const useContainerImageInfo = (container) => {
       if (container.image) {
         if (isGitHub && githubUrl) {
           window.open(githubUrl, "_blank", "noopener,noreferrer");
+        } else if (isGitLab && gitlabUrl) {
+          window.open(gitlabUrl, "_blank", "noopener,noreferrer");
         } else if (isDocker && dockerHubUrl) {
           window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
         }
       }
     },
-    [container.image, isGitHub, isDocker, githubUrl, dockerHubUrl]
+    [container.image, isGitHub, isGitLab, isDocker, githubUrl, gitlabUrl, dockerHubUrl]
   );
 
   return {
     imageVersion,
     imageNameWithoutVersion,
     isGitHub,
+    isGitLab,
     isDocker,
     githubUrl,
+    gitlabUrl,
     dockerHubUrl,
     handleVersionClick,
     handleImageNameClick,

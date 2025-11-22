@@ -5,7 +5,7 @@ import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
  * Custom hook for managing notification state and logic
  * Handles dismissed notifications for containers and tracked apps
  */
-export const useNotifications = (containers, trackedApps) => {
+export const useNotifications = (containers, trackedApps, instanceAdmin = false) => {
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
   const [dismissedContainerNotifications, setDismissedContainerNotifications] = useState(() => {
@@ -39,6 +39,16 @@ export const useNotifications = (containers, trackedApps) => {
     return new Map();
   });
 
+  const [dismissedVersionUpdateNotification, setDismissedVersionUpdateNotification] = useState(() => {
+    try {
+      const stored = localStorage.getItem("dismissedVersionUpdateNotification");
+      return stored || null;
+    } catch (err) {
+      console.error("Error loading dismissed version update notification:", err);
+    }
+    return null;
+  });
+
   // Persist dismissed notifications to localStorage whenever they change
   useEffect(() => {
     try {
@@ -58,6 +68,18 @@ export const useNotifications = (containers, trackedApps) => {
       console.error("Error saving dismissed tracked app notifications:", err);
     }
   }, [dismissedTrackedAppNotifications]);
+
+  useEffect(() => {
+    try {
+      if (dismissedVersionUpdateNotification) {
+        localStorage.setItem("dismissedVersionUpdateNotification", dismissedVersionUpdateNotification);
+      } else {
+        localStorage.removeItem("dismissedVersionUpdateNotification");
+      }
+    } catch (err) {
+      console.error("Error saving dismissed version update notification:", err);
+    }
+  }, [dismissedVersionUpdateNotification]);
 
   // Filter containers with updates
   const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
@@ -90,10 +112,34 @@ export const useNotifications = (containers, trackedApps) => {
 
   const { activeTrackedAppsBehind } = trackedAppsStats;
 
-  // Calculate notification count
+  // Check for version update
+  const versionUpdateInfo = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("versionUpdateInfo");
+      if (stored) {
+        const info = JSON.parse(stored);
+        // Only show if not dismissed or if the version has changed
+        if (
+          info.hasUpdate &&
+          info.latestVersion &&
+          dismissedVersionUpdateNotification !== info.latestVersion
+        ) {
+          return info;
+        }
+      }
+    } catch (err) {
+      console.error("Error loading version update info:", err);
+    }
+    return null;
+  }, [dismissedVersionUpdateNotification]);
+
+  // Calculate notification count (include version update only for instance admins)
   const notificationCount = useMemo(
-    () => activeContainersWithUpdates.length + activeTrackedAppsBehind.length,
-    [activeContainersWithUpdates.length, activeTrackedAppsBehind.length]
+    () =>
+      activeContainersWithUpdates.length +
+      activeTrackedAppsBehind.length +
+      (versionUpdateInfo && instanceAdmin ? 1 : 0),
+    [activeContainersWithUpdates.length, activeTrackedAppsBehind.length, versionUpdateInfo, instanceAdmin]
   );
 
   // Notification handlers
@@ -114,15 +160,21 @@ export const useNotifications = (containers, trackedApps) => {
     });
   }, []);
 
+  const handleDismissVersionUpdateNotification = useCallback((latestVersion) => {
+    setDismissedVersionUpdateNotification(latestVersion);
+  }, []);
+
   return {
     dismissedContainerNotifications,
     dismissedTrackedAppNotifications,
     containersWithUpdates,
     activeContainersWithUpdates,
     activeTrackedAppsBehind,
+    versionUpdateInfo,
     notificationCount,
     trackedAppsStats,
     handleDismissContainerNotification,
     handleDismissTrackedAppNotification,
+    handleDismissVersionUpdateNotification,
   };
 };

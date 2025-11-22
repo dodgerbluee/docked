@@ -24,8 +24,12 @@ export function initToastContainer() {
 
 /**
  * Show a toast notification
+ * @param {string} message - Toast message
+ * @param {string} type - Toast type (info, success, error, warning)
+ * @param {number} duration - Duration in milliseconds (default: 3000)
+ * @param {Function} onClick - Optional click handler
  */
-export function showToast(message, type = "info", duration = 3000) {
+export function showToast(message, type = "info", duration = 3000, onClick = null) {
   if (typeof document === "undefined") {
     console.log(`[${type.toUpperCase()}] ${message}`);
     return;
@@ -37,6 +41,11 @@ export function showToast(message, type = "info", duration = 3000) {
   toast.className = `toast toast-${type}`;
   toast.setAttribute("role", "alert");
   toast.textContent = message;
+
+  if (onClick) {
+    toast.style.cursor = "pointer";
+    toast.addEventListener("click", onClick);
+  }
 
   // Add styles if not already present
   if (!document.getElementById("toast-styles")) {

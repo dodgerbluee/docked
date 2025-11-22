@@ -5,6 +5,11 @@ import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
+import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
+import GitHubIcon from "../icons/GitHubIcon";
+import GitLabIcon from "../icons/GitLabIcon";
+import { SETTINGS_TABS } from "../../constants/settings";
+import AssociateImagesModal from "./AssociateImagesModal";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -21,6 +26,13 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
+  const [associateImagesModalOpen, setAssociateImagesModalOpen] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(null);
+
+  const {
+    tokens,
+    loading: tokensLoading,
+  } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.PORTAINER });
 
   const handleDeleteClick = (instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -46,6 +58,19 @@ const PortainerTab = React.memo(function PortainerTab({
       console.error("Error clearing Portainer data:", error);
       alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
     }
+  };
+
+  const handleAssociateImages = (token) => {
+    setSelectedToken(token);
+    setAssociateImagesModalOpen(true);
+  };
+
+  const getProviderIcon = (provider) => {
+    return provider === "github" ? GitHubIcon : GitLabIcon;
+  };
+
+  const getProviderLabel = (provider) => {
+    return provider === "github" ? "GitHub" : "GitLab";
   };
 
   return (
@@ -127,6 +152,55 @@ const PortainerTab = React.memo(function PortainerTab({
         variant="danger"
       />
 
+      <div className={styles.repositoryTokensSection}>
+        <div className={styles.sectionHeader}>
+          <h4 className={styles.sectionTitle}>Repositories</h4>
+        </div>
+        {tokensLoading ? (
+          <div className={styles.emptyState}>
+            <p className={styles.emptyText}>Loading repositories...</p>
+          </div>
+        ) : tokens.length === 0 ? (
+          <Card variant="default" padding="md" className={styles.emptyTokenCard}>
+            <p className={styles.emptyText}>
+              No repository access tokens configured. Add tokens on the{" "}
+              <strong>Repositories</strong> tab to associate them with your container images.
+            </p>
+          </Card>
+        ) : (
+          <div className={styles.tokensGrid}>
+            {tokens.map((token) => {
+              const IconComponent = getProviderIcon(token.provider);
+              return (
+                <Card key={token.id} variant="default" padding="md" className={styles.tokenCard}>
+                  <div className={styles.tokenContent}>
+                    <div className={styles.tokenInfo}>
+                      <div className={styles.tokenHeader}>
+                        <span className={styles.tokenIcon}>
+                          <IconComponent size={18} />
+                        </span>
+                        <strong className={styles.tokenProvider}>
+                          {token.name || getProviderLabel(token.provider)}
+                        </strong>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAssociateImages(token)}
+                      disabled={tokensLoading}
+                    >
+                      Associate Images
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>
         <div className={styles.dataActions}>
@@ -158,6 +232,15 @@ const PortainerTab = React.memo(function PortainerTab({
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      <AssociateImagesModal
+        isOpen={associateImagesModalOpen}
+        onClose={() => {
+          setAssociateImagesModalOpen(false);
+          setSelectedToken(null);
+        }}
+        token={selectedToken}
       />
     </div>
   );

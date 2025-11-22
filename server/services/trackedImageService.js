@@ -608,8 +608,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
     );
     latestRelease = await gitlabService.getLatestRelease(gitlabRepo, gitlabToken);
     logger.info(
-      `[TrackedImage] GitLab release result:`,
-      latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"
+      `[TrackedImage] GitLab release result: ${latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"}`
     );
 
     // Set latestVersion if we have a release with a tag_name
@@ -700,7 +699,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
     } else if (latestRelease && !latestRelease.tag_name) {
       // Release exists but has no tag_name - log warning
       logger.warn(`[TrackedImage] GitLab release for ${gitlabRepo} has no tag_name - skipping`);
-      logger.warn(`[TrackedImage] Release data:`, JSON.stringify(latestRelease, null, 2));
+      logger.warn(`[TrackedImage] Release data: ${JSON.stringify(latestRelease, null, 2)}`);
     } else if (!latestRelease) {
       logger.warn(`[TrackedImage] No GitLab release found for ${gitlabRepo}`);
     }

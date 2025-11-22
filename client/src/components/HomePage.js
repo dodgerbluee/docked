@@ -50,6 +50,7 @@ function HomePage({
   notificationCount,
   activeContainersWithUpdates,
   activeTrackedAppsBehind,
+  versionUpdateInfo,
   dismissedTrackedAppNotifications,
   trackedAppsBehind,
   // Menu State
@@ -76,6 +77,7 @@ function HomePage({
   handleNavigateToTrackedApps,
   handleDismissContainerNotification,
   handleDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
   handleTemporaryThemeToggle,
   handleLogoutWithCleanup,
   handleUsernameUpdate,
@@ -148,6 +150,7 @@ function HomePage({
           notificationCount={notificationCount}
           activeContainersWithUpdates={activeContainersWithUpdates}
           activeTrackedAppsBehind={activeTrackedAppsBehind}
+          versionUpdateInfo={versionUpdateInfo}
           discordWebhooks={discordWebhooks}
           showNotificationMenu={showNotificationMenu}
           showAvatarMenu={showAvatarMenu}
@@ -162,6 +165,7 @@ function HomePage({
           onNavigateToTrackedApps={handleNavigateToTrackedApps}
           onDismissContainerNotification={handleDismissContainerNotification}
           onDismissTrackedAppNotification={handleDismissTrackedAppNotification}
+          onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
           onTemporaryThemeToggle={handleTemporaryThemeToggle}
           onLogout={handleLogoutWithCleanup}
           API_BASE_URL={API_BASE_URL}
@@ -280,6 +284,12 @@ HomePage.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.array.isRequired,
   activeTrackedAppsBehind: PropTypes.array.isRequired,
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
   trackedAppsBehind: PropTypes.number.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
@@ -303,6 +313,7 @@ HomePage.propTypes = {
   handleNavigateToTrackedApps: PropTypes.func.isRequired,
   handleDismissContainerNotification: PropTypes.func.isRequired,
   handleDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
   handleTemporaryThemeToggle: PropTypes.func.isRequired,
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,

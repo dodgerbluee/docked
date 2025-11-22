@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import PropTypes from "prop-types";
 import { Monitor, Sun, Moon, Power, PowerOff } from "lucide-react";
 import { COLOR_SCHEMES } from "../../constants/settings";
@@ -6,7 +6,7 @@ import Button from "../ui/Button";
 import Alert from "../ui/Alert";
 // Card is not currently used but kept for potential future use
 import ToggleButton from "../ui/ToggleButton";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import AboutSection from "./AboutSection";
 import styles from "./GeneralTab.module.css";
 
 /**
@@ -16,21 +16,13 @@ import styles from "./GeneralTab.module.css";
 const GeneralTab = React.memo(function GeneralTab({
   localColorScheme,
   setLocalColorScheme,
-  localLogLevel,
-  handleLogLevelChange,
   localRefreshingTogglesEnabled,
   handleRefreshingTogglesChange,
   generalSettingsChanged,
   generalSettingsSaving,
   generalSettingsSuccess,
   handleSaveGeneralSettings,
-  onClearPortainerData,
-  onClearTrackedAppData,
-  clearingPortainerData,
-  clearingTrackedAppData,
 }) {
-  const [trackedAppConfirm, setTrackedAppConfirm] = useState(false);
-
   const colorSchemeOptions = [
     { value: COLOR_SCHEMES.SYSTEM, label: "System", icon: Monitor },
     { value: COLOR_SCHEMES.LIGHT, label: "Light", icon: Sun },
@@ -41,19 +33,6 @@ const GeneralTab = React.memo(function GeneralTab({
     { value: "off", label: "Off", icon: PowerOff },
     { value: "on", label: "On", icon: Power },
   ];
-
-  const handleClearTrackedAppData = async () => {
-    if (!onClearTrackedAppData) {
-      alert("Error: Clear Tracked App Data handler is not available. Please refresh the page.");
-      return;
-    }
-    try {
-      await onClearTrackedAppData();
-    } catch (error) {
-      console.error("Error clearing tracked app data:", error);
-      alert("Error clearing tracked app data: " + (error.message || "Unknown error"));
-    }
-  };
 
   return (
     <div className={styles.updateSection}>
@@ -111,38 +90,28 @@ const GeneralTab = React.memo(function GeneralTab({
         </div>
       </form>
 
-      <div className={styles.dataManagement}>
-        <h4 className={styles.sectionTitle}>Data Management</h4>
-        <div className={styles.dataActions}>
-          <div className={styles.dataActionItem}>
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => setTrackedAppConfirm(true)}
-              disabled={clearingTrackedAppData}
-              className={styles.dangerButton}
-            >
-              {clearingTrackedAppData ? "Clearing..." : "Clear Tracked App Data"}
-            </Button>
-            <small className={styles.dataActionHelper}>
-              Clears the latest version data for all tracked apps. This will reset the "Latest"
-              version information and force fresh data to be fetched on the next check. Your tracked
-              app configurations will be preserved.
-            </small>
-          </div>
+      <div className={styles.supportSection}>
+        <h4 className={styles.sectionTitle}>Support</h4>
+        <div className={styles.supportContent}>
+          <a
+            href="https://www.buymeacoffee.com/dodgerbluel"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.coffeeLink}
+          >
+            <img
+              src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png"
+              alt="Buy Me A Coffee"
+              className={styles.coffeeButton}
+            />
+          </a>
+          <p className={styles.supportText}>
+            Enjoying Docked? Consider supporting the project to help keep it running and improving.
+          </p>
         </div>
       </div>
 
-      <ConfirmDialog
-        isOpen={trackedAppConfirm}
-        onClose={() => setTrackedAppConfirm(false)}
-        onConfirm={handleClearTrackedAppData}
-        title="Clear Tracked Application Data?"
-        message="This will clear the latest version data for all tracked apps. This action cannot be undone."
-        confirmText="Clear Data"
-        cancelText="Cancel"
-        variant="danger"
-      />
+      <AboutSection />
     </div>
   );
 });
@@ -150,18 +119,12 @@ const GeneralTab = React.memo(function GeneralTab({
 GeneralTab.propTypes = {
   localColorScheme: PropTypes.string.isRequired,
   setLocalColorScheme: PropTypes.func.isRequired,
-  localLogLevel: PropTypes.string.isRequired,
-  handleLogLevelChange: PropTypes.func.isRequired,
   localRefreshingTogglesEnabled: PropTypes.bool.isRequired,
   handleRefreshingTogglesChange: PropTypes.func.isRequired,
   generalSettingsChanged: PropTypes.bool.isRequired,
   generalSettingsSaving: PropTypes.bool.isRequired,
   generalSettingsSuccess: PropTypes.string,
   handleSaveGeneralSettings: PropTypes.func.isRequired,
-  onClearPortainerData: PropTypes.func,
-  onClearTrackedAppData: PropTypes.func,
-  clearingPortainerData: PropTypes.bool,
-  clearingTrackedAppData: PropTypes.bool,
 };
 
 export default GeneralTab;

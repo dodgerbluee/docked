@@ -28,8 +28,10 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     imageVersion,
     imageNameWithoutVersion,
     isGitHub: isGitHubContainer,
+    isGitLab: isGitLabContainer,
     isDocker: isDockerHub,
     githubUrl,
+    gitlabUrl,
     dockerHubUrl,
     handleVersionClick,
     handleImageNameClick,
@@ -151,13 +153,15 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             </h4>
             {!showUpdates && (
               <div className={styles.iconGroup}>
-                {container.image && (isDockerHub || isGitHubContainer) && (
+                {container.image && (isDockerHub || isGitHubContainer || isGitLabContainer) && (
                   <ContainerImageLinks
                     imageName={container.image}
                     dockerHubUrl={dockerHubUrl}
                     githubUrl={githubUrl}
+                    gitlabUrl={gitlabUrl}
                     isDocker={isDockerHub}
                     isGitHub={isGitHubContainer}
+                    isGitLab={isGitLabContainer}
                   />
                 )}
                 {!isPortainer && developerModeEnabled && (
@@ -194,13 +198,15 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               </div>
             )}
           </div>
-          {showUpdates && container.image && (isDockerHub || isGitHubContainer) && (
+          {showUpdates && container.image && (isDockerHub || isGitHubContainer || isGitLabContainer) && (
             <div className={styles.iconGroup}>
               <ContainerImageLinks
                 isDocker={isDockerHub}
                 isGitHub={isGitHubContainer}
+                isGitLab={isGitLabContainer}
                 dockerHubUrl={dockerHubUrl}
                 githubUrl={githubUrl}
+                gitlabUrl={gitlabUrl}
                 imageName={container.image}
               />
               {showUpdates && (

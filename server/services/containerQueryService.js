@@ -51,26 +51,27 @@ async function getAllContainersWithUpdates(
     dockerRegistryService.clearAllDigestCache();
   }
 
-  // Get tracked apps to determine update source type (GitHub vs Docker Hub)
-  // Create a map of imageRepo -> { source_type, github_repo } for quick lookup
+  // Get tracked apps to determine update source type (GitHub vs GitLab vs Docker Hub)
+  // Create a map of imageRepo -> { source_type, github_repo, gitlab_repo } for quick lookup
   const trackedAppsMap = new Map();
   if (userId) {
     try {
       const imageRepoParser = require("../utils/imageRepoParser");
       const trackedApps = await getAllTrackedApps(userId);
       trackedApps.forEach((app) => {
-        if (app.image_name && app.source_type === "github") {
+        if (app.image_name && (app.source_type === "github" || app.source_type === "gitlab")) {
           // Use the same parser to normalize imageRepo for consistent matching
           try {
             const parsed = imageRepoParser.parseImageName(app.image_name);
             const imageRepo = parsed.imageRepo;
-            // Map all GitHub-tracked apps (not just those with has_update)
+            // Map all GitHub/GitLab-tracked apps (not just those with has_update)
             // The container's update detection is independent
             trackedAppsMap.set(imageRepo, {
               source_type: app.source_type,
               github_repo: app.github_repo,
+              gitlab_repo: app.source_type === "gitlab" ? app.github_repo : null, // Reusing github_repo field for GitLab
             });
-            // Also try matching without registry prefix for Docker Hub images that come from GitHub
+            // Also try matching without registry prefix for Docker Hub images that come from GitHub/GitLab
             // e.g., if image_name is "owner/repo:tag" but container uses "ghcr.io/owner/repo:tag"
             if (parsed.registry === "docker.io" && parsed.namespace) {
               // Try matching as "namespace/repository" format
@@ -79,6 +80,7 @@ async function getAllContainersWithUpdates(
                 trackedAppsMap.set(dockerHubFormat, {
                   source_type: app.source_type,
                   github_repo: app.github_repo,
+                  gitlab_repo: app.source_type === "gitlab" ? app.github_repo : null,
                 });
               }
             }
@@ -89,6 +91,7 @@ async function getAllContainersWithUpdates(
             trackedAppsMap.set(imageRepo, {
               source_type: app.source_type,
               github_repo: app.github_repo,
+              gitlab_repo: app.source_type === "gitlab" ? app.github_repo : null,
             });
           }
         }
@@ -123,9 +126,10 @@ async function getAllContainersWithUpdates(
           // Get instance info
           const instance = instanceMap.get(c.portainerInstanceId);
 
-          // Check if this container's update comes from a GitHub-tracked app
+          // Check if this container's update comes from a GitHub/GitLab-tracked app
           let updateSourceType = null;
           let updateGitHubRepo = null;
+          let updateGitLabRepo = null;
           if (c.hasUpdate && c.imageRepo) {
             // Try exact match first
             let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
@@ -141,10 +145,20 @@ async function getAllContainersWithUpdates(
               }
             }
             
-            if (trackedAppInfo && trackedAppInfo.source_type === "github") {
-              updateSourceType = "github";
-              updateGitHubRepo = trackedAppInfo.github_repo;
+            if (trackedAppInfo) {
+              if (trackedAppInfo.source_type === "github") {
+                updateSourceType = "github";
+                updateGitHubRepo = trackedAppInfo.github_repo;
+              } else if (trackedAppInfo.source_type === "gitlab") {
+                updateSourceType = "gitlab";
+                updateGitLabRepo = trackedAppInfo.gitlab_repo;
+              }
             }
+          }
+          
+          // Also check if provider is gitlab (from registry detection)
+          if (!updateSourceType && c.provider === "gitlab") {
+            updateSourceType = "gitlab";
           }
 
           return {
@@ -175,6 +189,7 @@ async function getAllContainersWithUpdates(
             provider: c.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
             updateSourceType: updateSourceType,
             updateGitHubRepo: updateGitHubRepo,
+            updateGitLabRepo: updateGitLabRepo,
           };
         });
 
@@ -387,9 +402,10 @@ async function getAllContainersWithUpdates(
               }
             }
 
-            // Check if this container's update comes from a GitHub-tracked app
+            // Check if this container's update comes from a GitHub/GitLab-tracked app
             let updateSourceType = null;
             let updateGitHubRepo = null;
+            let updateGitLabRepo = null;
             if (updateInfo.hasUpdate && updateInfo.imageRepo) {
               // Try exact match first
               let trackedAppInfo = trackedAppsMap.get(updateInfo.imageRepo);
@@ -405,10 +421,20 @@ async function getAllContainersWithUpdates(
                 }
               }
               
-              if (trackedAppInfo && trackedAppInfo.source_type === "github") {
-                updateSourceType = "github";
-                updateGitHubRepo = trackedAppInfo.github_repo;
+              if (trackedAppInfo) {
+                if (trackedAppInfo.source_type === "github") {
+                  updateSourceType = "github";
+                  updateGitHubRepo = trackedAppInfo.github_repo;
+                } else if (trackedAppInfo.source_type === "gitlab") {
+                  updateSourceType = "gitlab";
+                  updateGitLabRepo = trackedAppInfo.gitlab_repo;
+                }
               }
+            }
+            
+            // Also check if provider is gitlab (from registry detection)
+            if (!updateSourceType && updateInfo.provider === "gitlab") {
+              updateSourceType = "gitlab";
             }
 
             const containerData = {
@@ -438,8 +464,9 @@ async function getAllContainersWithUpdates(
               usesNetworkMode: usesNetworkMode || false,
               providesNetwork: providesNetwork || false,
               provider: updateInfo.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
-              updateSourceType: updateSourceType, // "github" if update comes from GitHub-tracked app
+              updateSourceType: updateSourceType, // "github" or "gitlab" if update comes from tracked app
               updateGitHubRepo: updateGitHubRepo, // GitHub repo URL if update comes from GitHub-tracked app
+              updateGitLabRepo: updateGitLabRepo, // GitLab repo URL if update comes from GitLab-tracked app
             };
 
             // Save to normalized tables for persistence across restarts
@@ -748,9 +775,10 @@ async function getAllContainersWithUpdates(
           : [c.imageName, "latest"];
         const currentTag = imageParts[1];
         
-        // Check if this container's update comes from a GitHub-tracked app
+        // Check if this container's update comes from a GitHub/GitLab-tracked app
         let updateSourceType = null;
         let updateGitHubRepo = null;
+        let updateGitLabRepo = null;
         if (c.hasUpdate && c.imageRepo) {
           // Try exact match first
           let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
@@ -766,10 +794,20 @@ async function getAllContainersWithUpdates(
             }
           }
           
-          if (trackedAppInfo && trackedAppInfo.source_type === "github") {
-            updateSourceType = "github";
-            updateGitHubRepo = trackedAppInfo.github_repo;
+          if (trackedAppInfo) {
+            if (trackedAppInfo.source_type === "github") {
+              updateSourceType = "github";
+              updateGitHubRepo = trackedAppInfo.github_repo;
+            } else if (trackedAppInfo.source_type === "gitlab") {
+              updateSourceType = "gitlab";
+              updateGitLabRepo = trackedAppInfo.gitlab_repo;
+            }
           }
+        }
+        
+        // Also check if provider is gitlab (from registry detection)
+        if (!updateSourceType && c.provider === "gitlab") {
+          updateSourceType = "gitlab";
         }
         
         return {
@@ -800,6 +838,7 @@ async function getAllContainersWithUpdates(
           provider: c.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
           updateSourceType: updateSourceType,
           updateGitHubRepo: updateGitHubRepo,
+          updateGitLabRepo: updateGitLabRepo,
         };
       });
 
