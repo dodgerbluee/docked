@@ -319,7 +319,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ needs.docker-metadata.outputs.tags }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.prepare-promotion.outputs.release_version }}-amd64
+            ${{ env.REGISTRY }}/${{ github.repository }}:latest-amd64
           labels: ${{ needs.docker-metadata.outputs.labels }}
           build-args: |
             NODE_ENV=production
@@ -371,7 +373,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ needs.docker-metadata.outputs.tags }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.prepare-promotion.outputs.release_version }}-arm64
+            ${{ env.REGISTRY }}/${{ github.repository }}:latest-arm64
           labels: ${{ needs.docker-metadata.outputs.labels }}
           build-args: |
             NODE_ENV=production
@@ -379,10 +383,77 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/arm64
 
-  # Job 7: Create release and finalize promotion
+  # Job 7: Create multi-arch manifest from separate architecture builds
+  docker-manifest:
+    runs-on: ubuntu-latest
+    needs: [prepare-promotion, docker-amd64, docker-arm64]
+    if: github.event.inputs.confirm == 'promote'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for version tag
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}"
+          
+          # Create multi-arch manifest from amd64 and arm64 images
+          docker buildx imagetools create \
+            --tag ${IMAGE}:${RELEASE_VERSION} \
+            ${IMAGE}:${RELEASE_VERSION}-amd64 \
+            ${IMAGE}:${RELEASE_VERSION}-arm64
+          
+          echo "✓ Created multi-arch manifest for ${IMAGE}:${RELEASE_VERSION}"
+
+      - name: Create multi-arch manifest for latest tag
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}"
+          
+          # Create multi-arch manifest from amd64 and arm64 images
+          docker buildx imagetools create \
+            --tag ${IMAGE}:latest \
+            ${IMAGE}:latest-amd64 \
+            ${IMAGE}:latest-arm64
+          
+          echo "✓ Created multi-arch manifest for ${IMAGE}:latest"
+
+      - name: Create multi-arch manifest for semver tags
+        run: |
+          RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}"
+          
+          # Extract major and minor version numbers
+          MAJOR=$(echo "$RELEASE_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$RELEASE_VERSION" | cut -d. -f2)
+          
+          # Create multi-arch manifest for major.minor tag
+          docker buildx imagetools create \
+            --tag ${IMAGE}:${MAJOR}.${MINOR} \
+            ${IMAGE}:${RELEASE_VERSION}-amd64 \
+            ${IMAGE}:${RELEASE_VERSION}-arm64
+          
+          # Create multi-arch manifest for major tag
+          docker buildx imagetools create \
+            --tag ${IMAGE}:${MAJOR} \
+            ${IMAGE}:${RELEASE_VERSION}-amd64 \
+            ${IMAGE}:${RELEASE_VERSION}-arm64
+          
+          echo "✓ Created multi-arch manifests for semver tags"
+
+  # Job 8: Create release and finalize promotion
   create-release:
     runs-on: ubuntu-latest
-    needs: [prepare-promotion, build, docker-amd64, docker-arm64]
+    needs: [prepare-promotion, build, docker-manifest]
     if: github.event.inputs.confirm == 'promote'
     permissions:
       contents: write
