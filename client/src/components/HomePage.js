@@ -18,7 +18,6 @@ function HomePage({
   recentAvatars,
   darkMode,
   instanceAdmin,
-  passwordChanged,
   authToken,
   // State
   activeTab,
@@ -39,7 +38,7 @@ function HomePage({
   stacks,
   unusedImages,
   unusedImagesCount,
-  trackedImages,
+  trackedApps,
   portainerInstances,
   containersByPortainer,
   loadingInstances,
@@ -51,6 +50,7 @@ function HomePage({
   notificationCount,
   activeContainersWithUpdates,
   activeTrackedAppsBehind,
+  versionUpdateInfo,
   dismissedTrackedAppNotifications,
   trackedAppsBehind,
   // Menu State
@@ -77,6 +77,7 @@ function HomePage({
   handleNavigateToTrackedApps,
   handleDismissContainerNotification,
   handleDismissTrackedAppNotification,
+  onDismissVersionUpdateNotification,
   handleTemporaryThemeToggle,
   handleLogoutWithCleanup,
   handleUsernameUpdate,
@@ -105,7 +106,7 @@ function HomePage({
   fetchUnusedImages,
   fetchRecentAvatars,
   fetchAvatar,
-  fetchTrackedImages,
+  fetchTrackedApps,
   setContainers,
   setStacks,
   setUnusedImages,
@@ -124,6 +125,7 @@ function HomePage({
   setDraggedTabIndex,
   handleReorderTabs,
   toggleStack,
+  discordWebhooks = [],
 }) {
   // Memoize context value
   const batchConfigContextValue = useMemo(
@@ -148,6 +150,8 @@ function HomePage({
           notificationCount={notificationCount}
           activeContainersWithUpdates={activeContainersWithUpdates}
           activeTrackedAppsBehind={activeTrackedAppsBehind}
+          versionUpdateInfo={versionUpdateInfo}
+          discordWebhooks={discordWebhooks}
           showNotificationMenu={showNotificationMenu}
           showAvatarMenu={showAvatarMenu}
           onToggleNotificationMenu={toggleNotificationMenu}
@@ -161,6 +165,7 @@ function HomePage({
           onNavigateToTrackedApps={handleNavigateToTrackedApps}
           onDismissContainerNotification={handleDismissContainerNotification}
           onDismissTrackedAppNotification={handleDismissTrackedAppNotification}
+          onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
           onTemporaryThemeToggle={handleTemporaryThemeToggle}
           onLogout={handleLogoutWithCleanup}
           API_BASE_URL={API_BASE_URL}
@@ -174,7 +179,6 @@ function HomePage({
           containers={containers}
           containersWithUpdates={containersWithUpdates}
           trackedAppsBehind={trackedAppsBehind}
-          passwordChanged={passwordChanged}
           loading={loading}
           pulling={pulling}
           error={error}
@@ -184,7 +188,7 @@ function HomePage({
           portainerInstances={portainerInstances}
           unusedImages={unusedImages}
           unusedImagesCount={unusedImagesCount}
-          trackedImages={trackedImages}
+          trackedApps={trackedApps}
           dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
           containersByPortainer={containersByPortainer}
           loadingInstances={loadingInstances}
@@ -209,7 +213,7 @@ function HomePage({
           setUnusedImagesCount={setUnusedImagesCount}
           fetchContainers={fetchContainers}
           fetchUnusedImages={fetchUnusedImages}
-          fetchTrackedImages={fetchTrackedImages}
+          fetchTrackedApps={fetchTrackedApps}
           openModal={openModal}
           handlePull={handlePull}
           handleBatchPull={handleBatchPull}
@@ -251,7 +255,6 @@ HomePage.propTypes = {
   recentAvatars: PropTypes.array,
   darkMode: PropTypes.bool,
   instanceAdmin: PropTypes.bool,
-  passwordChanged: PropTypes.bool,
   authToken: PropTypes.string,
   activeTab: PropTypes.string.isRequired,
   contentTab: PropTypes.string.isRequired,
@@ -270,7 +273,7 @@ HomePage.propTypes = {
   stacks: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
-  trackedImages: PropTypes.array.isRequired,
+  trackedApps: PropTypes.array.isRequired,
   portainerInstances: PropTypes.array.isRequired,
   containersByPortainer: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
@@ -281,6 +284,12 @@ HomePage.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.array.isRequired,
   activeTrackedAppsBehind: PropTypes.array.isRequired,
+  versionUpdateInfo: PropTypes.shape({
+    hasUpdate: PropTypes.bool,
+    latestVersion: PropTypes.string,
+    currentVersion: PropTypes.string,
+    checkedAt: PropTypes.string,
+  }),
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
   trackedAppsBehind: PropTypes.number.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
@@ -304,6 +313,7 @@ HomePage.propTypes = {
   handleNavigateToTrackedApps: PropTypes.func.isRequired,
   handleDismissContainerNotification: PropTypes.func.isRequired,
   handleDismissTrackedAppNotification: PropTypes.func.isRequired,
+  onDismissVersionUpdateNotification: PropTypes.func,
   handleTemporaryThemeToggle: PropTypes.func.isRequired,
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
@@ -350,6 +360,15 @@ HomePage.propTypes = {
   setDraggedTabIndex: PropTypes.func.isRequired,
   handleReorderTabs: PropTypes.func.isRequired,
   toggleStack: PropTypes.func.isRequired,
+  discordWebhooks: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      avatarUrl: PropTypes.string,
+      name: PropTypes.string,
+      serverName: PropTypes.string,
+      enabled: PropTypes.bool,
+    })
+  ),
 };
 
 export default HomePage;

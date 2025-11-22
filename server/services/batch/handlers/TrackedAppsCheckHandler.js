@@ -4,8 +4,8 @@
  */
 
 const JobHandler = require("../JobHandler");
-const trackedImageService = require("../../trackedImageService");
-const { getAllTrackedImages, getAllUsers } = require("../../../db/database");
+const trackedAppService = require("../../trackedAppService");
+const { getAllTrackedApps, getAllUsers } = require("../../../db/database");
 
 class TrackedAppsCheckHandler extends JobHandler {
   getJobType() {
@@ -41,21 +41,21 @@ class TrackedAppsCheckHandler extends JobHandler {
     try {
       logger.info("Starting tracked apps check batch job", { userId });
 
-      // Get tracked images for this specific user
-      const images = await getAllTrackedImages(userId);
-      logger.debug(`Found ${images.length} tracked images for user ${userId}`);
+      // Get tracked apps for this specific user
+      const apps = await getAllTrackedApps(userId);
+      logger.debug(`Found ${apps.length} tracked apps for user ${userId}`);
 
-      if (images.length === 0) {
-        logger.info("No tracked images found for user", { userId });
+      if (apps.length === 0) {
+        logger.info("No tracked apps found for user", { userId });
         return result;
       }
 
-      // Check for updates (checkAllTrackedImages will use each image's user_id for Docker Hub credentials)
+      // Check for updates (checkAllTrackedApps will use each app's user_id for Docker Hub credentials)
       // Pass batch logger to capture upgrade logs
-      const results = await trackedImageService.checkAllTrackedImages(images, logger);
+      const results = await trackedAppService.checkAllTrackedApps(apps, logger);
 
       // Extract metrics
-      result.itemsChecked = images.length;
+      result.itemsChecked = apps.length;
       result.itemsUpdated = results.filter((r) => r.hasUpdate).length;
 
       logger.info("Tracked apps check completed successfully", {

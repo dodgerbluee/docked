@@ -1,0 +1,96 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.required {
+  color: var(--dodger-red);
+  margin-left: 2px;
+}
+
+.providerOptions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.providerButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.providerButton:hover:not(:disabled) {
+  border-color: var(--dodger-blue);
+  background: var(--bg-secondary);
+}
+
+.providerButton.active {
+  border-color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .providerButton.active {
+  border-color: var(--dodger-blue-light);
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue-light);
+}
+
+.providerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.providerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.helperText {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.submitButton {
+  min-width: 120px;
+}
+

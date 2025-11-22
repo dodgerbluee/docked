@@ -240,7 +240,7 @@ async function generateDocumentation() {
           doc.push("");
           doc.push("- `users` - Core user accounts");
           doc.push("- `portainer_instances` - Portainer instances per user (via `user_id`)");
-          doc.push("- `tracked_images` - Tracked Docker images per user (via `user_id`)");
+          doc.push("- `tracked_apps` - Tracked Docker images per user (via `user_id`)");
           doc.push("- `settings` - User-specific settings (via `user_id`)");
           doc.push(
             "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)"

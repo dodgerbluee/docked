@@ -134,11 +134,29 @@ body.dark-mode .addButton:hover:not(:disabled) {
 
 .emptyState {
   text-align: center;
+  padding: 20px;
 }
 
 .emptyText {
   color: var(--text-secondary);
   margin: 0;
+  line-height: 1.5;
+}
+
+.emptyTokenCard {
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+}
+
+.emptyTokenCard .emptyText {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.emptyTokenCard .emptyText strong {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .addInstanceCard {
@@ -246,3 +264,148 @@ body.dark-mode .dangerButton:hover:not(:disabled) {
   line-height: 1.4;
   max-width: 100%;
 }
+
+.repositoryTokensSection {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.repositoryTokensSection .sectionHeader {
+  margin-bottom: 16px;
+}
+
+.repositoryTokensSection .sectionTitle {
+  margin-bottom: 0;
+}
+
+.tokensGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tokenCard {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.tokenCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.tokenContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.tokenInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.tokenHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.tokenIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+body.dark-mode .tokenIcon {
+  color: #ffffff;
+}
+
+.tokenProvider {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.tokenStatus {
+  margin-top: 4px;
+}
+
+.tokenStatusBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue);
+  border: 1px solid var(--dodger-blue);
+}
+
+body.dark-mode .tokenStatusBadge {
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.tokenStatusBadgeMissing {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.addTokenCard {
+  border: 2px dashed var(--border-color) !important;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg-primary) !important;
+}
+
+.addTokenCard:hover {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-secondary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+body.dark-mode .addTokenCard:hover {
+  border-color: var(--dodger-blue-light) !important;
+}
+
+.addTokenContent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+}
+
+.addTokenText {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.addTokenCard:hover .addTokenText {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .addTokenCard:hover .addTokenText {
+  color: var(--dodger-blue-light);
+}
+
+.addTokenIcon {
+  flex-shrink: 0;
+}
+

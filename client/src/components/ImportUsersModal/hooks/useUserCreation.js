@@ -97,11 +97,11 @@ export function useUserCreation({
         configData.discordWebhooks = currentUser.discordWebhooks;
       }
       if (
-        currentUser.trackedImages &&
-        Array.isArray(currentUser.trackedImages) &&
-        currentUser.trackedImages.length > 0
+        currentUser.trackedApps &&
+        Array.isArray(currentUser.trackedApps) &&
+        currentUser.trackedApps.length > 0
       ) {
-        configData.trackedImages = currentUser.trackedImages;
+        configData.trackedApps = currentUser.trackedApps;
       }
 
       // Build credentials (only include non-skipped steps)

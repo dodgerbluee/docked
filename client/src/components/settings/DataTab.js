@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -29,6 +29,9 @@ function DataTab() {
     collapseAllContainers,
     areAllExpanded,
   } = useContainerExpansion(filteredDataEntries);
+  const containerDataListRef = useRef(null);
+  const [viewMode, setViewMode] = useState("formatted"); // Track view mode
+  const [rawRecordsExpanded, setRawRecordsExpanded] = useState(false);
 
   if (checkingDeveloperMode || loading) {
     return (
@@ -83,19 +86,37 @@ function DataTab() {
                     placeholder="Search entries..."
                     className={styles.searchInput}
                   />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (areAllExpanded()) {
-                        collapseAllContainers();
-                      } else {
-                        expandAllContainers();
-                      }
-                    }}
-                    size="sm"
-                  >
-                    {areAllExpanded() ? "Collapse All" : "Expand All"}
-                  </Button>
+                  {viewMode === "formatted" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (areAllExpanded()) {
+                          collapseAllContainers();
+                        } else {
+                          expandAllContainers();
+                        }
+                      }}
+                      size="sm"
+                    >
+                      {areAllExpanded() ? "Collapse All" : "Expand All"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (rawRecordsExpanded) {
+                          containerDataListRef.current?.collapseAllRawRecords();
+                          setRawRecordsExpanded(false);
+                        } else {
+                          containerDataListRef.current?.expandAllRawRecords();
+                          setRawRecordsExpanded(true);
+                        }
+                      }}
+                      size="sm"
+                    >
+                      {rawRecordsExpanded ? "Collapse All" : "Expand All"}
+                    </Button>
+                  )}
                 </>
               )}
               <Button
@@ -119,9 +140,22 @@ function DataTab() {
 
         <div className={styles.content}>
           <ContainerDataList
+            ref={containerDataListRef}
             dataEntries={filteredDataEntries}
             expandedContainers={expandedContainers}
             onToggleExpansion={toggleContainerExpansion}
+            rawDatabaseRecords={
+              dataEntries.length > 0 && dataEntries[0]?.rawDatabaseRecords
+                ? dataEntries[0].rawDatabaseRecords
+                : null
+            }
+            searchQuery={searchQuery}
+            onViewModeChange={(mode) => {
+              setViewMode(mode);
+              if (mode === "formatted") {
+                setRawRecordsExpanded(false);
+              }
+            }}
           />
         </div>
       </Card>

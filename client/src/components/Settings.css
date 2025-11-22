@@ -11,27 +11,6 @@
   box-shadow: 0 4px 20px var(--shadow);
 }
 
-.first-login-warning {
-  background: rgba(239, 62, 66, 0.1);
-  border: 2px solid var(--dodger-red);
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-  text-align: center;
-}
-
-.first-login-warning h2 {
-  color: var(--dodger-red);
-  margin: 0 0 10px 0;
-  font-size: 1.5rem;
-}
-
-.first-login-warning p {
-  color: var(--text-primary);
-  margin: 0;
-  font-size: 1rem;
-}
-
 .settings-container h2 {
   color: var(--text-primary);
   margin-bottom: 30px;

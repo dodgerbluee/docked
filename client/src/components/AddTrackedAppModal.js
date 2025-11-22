@@ -14,8 +14,8 @@ import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedAppModal.module.css";
-import { useTrackedImageForm } from "./AddTrackedAppModal/hooks/useTrackedImageForm";
-import { validateForm } from "./AddTrackedAppModal/utils/trackedImageValidation";
+import { useTrackedAppForm } from "./AddTrackedAppModal/hooks/useTrackedAppForm";
+import { validateForm } from "./AddTrackedAppModal/utils/trackedAppValidation";
 import { selectStyles } from "./AddTrackedAppModal/utils/selectStyles";
 import GitHubSourceForm from "./AddTrackedAppModal/components/GitHubSourceForm";
 import GitLabSourceForm from "./AddTrackedAppModal/components/GitLabSourceForm";
@@ -43,7 +43,7 @@ function AddTrackedAppModal({
   isOpen,
   onClose,
   onSuccess,
-  trackedImages = [],
+  trackedApps = [],
   initialData = null,
   onDelete = null,
 }) {
@@ -52,8 +52,8 @@ function AddTrackedAppModal({
   const lastAutoPopulatedNameRef = useRef("");
 
   // Use extracted form hook
-  const formState = useTrackedImageForm({
-    trackedImages,
+  const formState = useTrackedAppForm({
+    trackedApps,
     initialData,
     isOpen,
   });
@@ -70,6 +70,7 @@ function AddTrackedAppModal({
     selectedPredefinedImage,
     setSelectedPredefinedImage,
     formData,
+    setFormData,
     handleChange,
     resetForm,
     githubRepoOptions,
@@ -128,16 +129,22 @@ function AddTrackedAppModal({
         payload.current_version = formData.currentVersion.trim();
       }
 
-      // Add GitLab token if source type is GitLab (send even if empty to allow clearing)
-      if (sourceType === "gitlab") {
-        payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+      // Add repository token ID if source type is GitLab or GitHub
+      if (sourceType === "gitlab" || sourceType === "github") {
+        if (formData.repositoryTokenId) {
+          payload.repositoryTokenId = formData.repositoryTokenId;
+        }
+        // Keep gitlabToken for backward compatibility if no token ID is selected
+        if (sourceType === "gitlab" && !formData.repositoryTokenId) {
+          payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+        }
       }
 
       let response;
       if (initialData) {
-        response = await axios.put(`${API_BASE_URL}/api/tracked-images/${initialData.id}`, payload);
+        response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${initialData.id}`, payload);
       } else {
-        response = await axios.post(`${API_BASE_URL}/api/tracked-images`, payload);
+        response = await axios.post(`${API_BASE_URL}/api/tracked-apps`, payload);
       }
 
       if (response.data.success) {
@@ -281,8 +288,11 @@ function AddTrackedAppModal({
         ) : (
           <GitLabSourceForm
             githubRepo={formData.githubRepo}
-            gitlabToken={formData.gitlabToken}
+            repositoryTokenId={formData.repositoryTokenId}
             onChange={handleChange}
+            onTokenChange={(tokenId) => {
+              setFormData({ ...formData, repositoryTokenId: tokenId });
+            }}
             loading={loading}
           />
         )}
@@ -362,7 +372,7 @@ AddTrackedAppModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,
-  trackedImages: PropTypes.array,
+  trackedApps: PropTypes.array,
   initialData: PropTypes.object,
   onDelete: PropTypes.func,
 };

@@ -28,6 +28,13 @@ export const useContainerData = () => {
 
       if (response.data.success) {
         const entries = response.data.entries || [];
+        const rawDatabaseRecords = response.data.rawDatabaseRecords || {};
+        
+        // Attach raw database records to the first entry for easy access
+        if (entries.length > 0 && Object.keys(rawDatabaseRecords).length > 0) {
+          entries[0].rawDatabaseRecords = rawDatabaseRecords;
+        }
+        
         setDataEntries(entries);
       } else {
         setError(response.data.error || "Failed to fetch container data");

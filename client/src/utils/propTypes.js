@@ -48,8 +48,8 @@ export const unusedImageShape = PropTypes.shape({
   size: PropTypes.number,
 });
 
-// Tracked image shape
-export const trackedImageShape = PropTypes.shape({
+// Tracked app shape
+export const trackedAppShape = PropTypes.shape({
   id: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
   currentVersion: PropTypes.string,

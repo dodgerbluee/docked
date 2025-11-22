@@ -6,6 +6,8 @@
 
 const path = require("path");
 const fs = require("fs");
+const githubService = require("../services/githubService");
+const logger = require("../utils/logger");
 
 /**
  * Get application version
@@ -78,6 +80,74 @@ const getVersion = (req, res) => {
   }
 };
 
+/**
+ * Get latest release from GitHub
+ * Proxies the GitHub API call through the backend for better error handling and logging
+ *
+ * @route GET /api/version/latest-release
+ * @access Public (no authentication required)
+ * @returns {Object} Latest release information
+ * @returns {boolean} success - Whether the request was successful
+ * @returns {Object|null} latestVersion - Latest release info or null
+ * @returns {string|null} error - Error message if request failed
+ */
+const getLatestRelease = async (req, res) => {
+  const GITHUB_REPO = "dodgerbluee/docked";
+
+  try {
+    logger.info(`[Version] Checking for latest release from GitHub: ${GITHUB_REPO}`);
+
+    const latestRelease = await githubService.getLatestRelease(GITHUB_REPO);
+
+    if (latestRelease && latestRelease.tag_name) {
+      logger.info(`[Version] Latest release found: ${latestRelease.tag_name}`, {
+        tag_name: latestRelease.tag_name,
+        published_at: latestRelease.published_at,
+        html_url: latestRelease.html_url,
+      });
+
+      return res.json({
+        success: true,
+        latestVersion: latestRelease,
+      });
+    }
+
+    logger.warn(`[Version] No releases found for ${GITHUB_REPO}`);
+    return res.json({
+      success: false,
+      latestVersion: null,
+      error: "No releases found",
+    });
+  } catch (error) {
+    const errorMessage = error?.message || String(error);
+    const statusCode = error?.response?.status || error?.status || 500;
+    const statusText = error?.response?.statusText || "Unknown error";
+
+    logger.error(`[Version] Error fetching latest release from GitHub: ${errorMessage}`, {
+      statusCode,
+      statusText,
+      repo: GITHUB_REPO,
+      errorDetails: {
+        message: error?.message,
+        response: error?.response
+          ? {
+              status: error.response.status,
+              statusText: error.response.statusText,
+              headers: error.response.headers,
+            }
+          : null,
+      },
+    });
+
+    return res.status(500).json({
+      success: false,
+      latestVersion: null,
+      error: `Failed to check for updates: ${errorMessage}`,
+    });
+  }
+};
+
 module.exports = {
   getVersion,
+  getLatestRelease,
 };

@@ -26,7 +26,6 @@ const HomePageContent = ({
   containers,
   containersWithUpdates,
   trackedAppsBehind,
-  passwordChanged,
   loading,
   pulling,
   error,
@@ -36,7 +35,7 @@ const HomePageContent = ({
   portainerInstances,
   unusedImages,
   unusedImagesCount,
-  trackedImages,
+  trackedApps,
   dismissedTrackedAppNotifications,
   containersByPortainer,
   loadingInstances,
@@ -61,7 +60,7 @@ const HomePageContent = ({
   setUnusedImagesCount,
   fetchContainers,
   fetchUnusedImages,
-  fetchTrackedImages,
+  fetchTrackedApps,
   openModal,
   handlePull,
   handleBatchPull,
@@ -89,7 +88,7 @@ const HomePageContent = ({
         containers={containers}
         unusedImages={unusedImages}
         unusedImagesCount={unusedImagesCount}
-        trackedImages={trackedImages}
+        trackedApps={trackedApps}
         dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
         onNavigateToPortainer={() => setActiveTab(TAB_NAMES.PORTAINER)}
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
@@ -105,7 +104,7 @@ const HomePageContent = ({
     portainerInstances,
     unusedImages,
     unusedImagesCount,
-    trackedImages,
+    trackedApps,
     dismissedTrackedAppNotifications,
     setActiveTab,
     setSelectedPortainerInstances,
@@ -117,12 +116,12 @@ const HomePageContent = ({
   const renderTrackedApps = useCallback(() => {
     return (
       <TrackedAppsPage
-        onDeleteTrackedImage={fetchTrackedImages}
-        onUpgradeTrackedImage={fetchTrackedImages}
-        onEditTrackedImage={fetchTrackedImages}
+        onDeleteTrackedApp={fetchTrackedApps}
+        onUpgradeTrackedApp={fetchTrackedApps}
+        onEditTrackedApp={fetchTrackedApps}
       />
     );
-  }, [fetchTrackedImages]);
+  }, [fetchTrackedApps]);
 
   return (
     <div className="container">
@@ -151,7 +150,6 @@ const HomePageContent = ({
           <SettingsPage
             key={username || authToken || "settings"}
             username={username}
-            passwordChanged={passwordChanged}
             avatar={avatar}
             recentAvatars={recentAvatars || []}
             onUsernameUpdate={handleUsernameUpdate}
@@ -265,7 +263,6 @@ HomePageContent.propTypes = {
   containers: PropTypes.array.isRequired,
   containersWithUpdates: PropTypes.array.isRequired,
   trackedAppsBehind: PropTypes.number.isRequired,
-  passwordChanged: PropTypes.bool.isRequired,
   loading: PropTypes.bool.isRequired,
   pulling: PropTypes.bool.isRequired,
   error: PropTypes.string,
@@ -275,7 +272,7 @@ HomePageContent.propTypes = {
   portainerInstances: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
-  trackedImages: PropTypes.array.isRequired,
+  trackedApps: PropTypes.array.isRequired,
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
   containersByPortainer: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
@@ -300,7 +297,7 @@ HomePageContent.propTypes = {
   setUnusedImagesCount: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
-  fetchTrackedImages: PropTypes.func.isRequired,
+  fetchTrackedApps: PropTypes.func.isRequired,
   openModal: PropTypes.func.isRequired,
   handlePull: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,

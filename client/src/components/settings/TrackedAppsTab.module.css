@@ -1,0 +1,79 @@
+.updateSection {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.description {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.dataManagement {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sectionTitle {
+  margin: 0 0 20px 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.dataActions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dataActionItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dangerButton {
+  width: auto;
+  display: inline-block;
+  align-self: flex-start;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+  padding: 10px 20px !important;
+  font-size: 1rem;
+  min-height: 42px;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .dangerButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .dangerButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.dataActionHelper {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  max-width: 100%;
+}
+

@@ -21,11 +21,12 @@ const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedImageController = require("../controllers/trackedImageController");
+const trackedAppController = require("../controllers/trackedAppController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
+const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
@@ -76,6 +77,7 @@ router.get("/health", (req, res) => {
  *                   example: "production"
  */
 router.get("/version", versionController.getVersion);
+router.get("/version/latest-release", versionController.getLatestRelease);
 
 /**
  * @swagger
@@ -181,9 +183,12 @@ router.use(authenticate);
 // User management routes (protected)
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
+router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
 router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
 router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
+router.post("/auth/users/:userId/password", asyncHandler(authController.adminUpdateUserPassword));
+router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUserRole));
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
@@ -216,6 +221,7 @@ router.delete("/portainer/instances/:id", asyncHandler(portainerController.delet
 
 // Avatar routes
 router.get("/avatars", asyncHandler(avatarController.getAvatar));
+router.get("/avatars/user/:userId", asyncHandler(avatarController.getAvatarByUserId));
 router.get("/avatars/recent", asyncHandler(avatarController.getRecentAvatars));
 router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
@@ -235,21 +241,21 @@ router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunH
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
-// Tracked images routes
+// Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
-router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
-router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
+router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
 router.post(
-  "/tracked-images/check-updates",
-  asyncHandler(trackedImageController.checkTrackedImagesUpdates)
+  "/tracked-apps/check-updates",
+  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
 );
-router.delete("/tracked-images/cache", asyncHandler(trackedImageController.clearGitHubCache));
-router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
-router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
-router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
+router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitHubCache));
+router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
+router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
+router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
 router.post(
-  "/tracked-images/:id/check-update",
-  asyncHandler(trackedImageController.checkTrackedImageUpdate)
+  "/tracked-apps/:id/check-update",
+  asyncHandler(trackedAppController.checkTrackedAppUpdate)
 );
 
 // Discord notification routes
@@ -272,6 +278,36 @@ router.get(
 router.post(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
+);
+
+// Repository access token routes
+router.get(
+  "/repository-access-tokens",
+  asyncHandler(repositoryAccessTokenController.getTokens)
+);
+router.get(
+  "/repository-access-tokens/:provider",
+  asyncHandler(repositoryAccessTokenController.getTokenByProvider)
+);
+router.post(
+  "/repository-access-tokens",
+  asyncHandler(repositoryAccessTokenController.upsertToken)
+);
+router.delete(
+  "/repository-access-tokens/:id",
+  asyncHandler(repositoryAccessTokenController.deleteToken)
+);
+
+router.get(
+  "/repository-access-tokens/:id/associated-images",
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.getAssociatedImages)
+);
+
+router.post(
+  "/repository-access-tokens/:id/associate-images",
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.associateImages)
 );
 
 // Logs routes

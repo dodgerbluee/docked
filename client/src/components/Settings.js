@@ -15,7 +15,6 @@ const Settings = React.memo(
     username,
     onUsernameUpdate,
     onLogout,
-    isFirstLogin = false,
     onPasswordUpdateSuccess,
     onPortainerInstancesChange,
     activeSection = "general",
@@ -79,7 +78,6 @@ const Settings = React.memo(
         onPortainerInstancesChange: handlePortainerInstancesChange,
         onAvatarChange: handleAvatarChange,
         onBatchConfigUpdate: handleBatchConfigUpdate,
-        isFirstLogin,
         colorScheme,
         onColorSchemeChange: handleColorSchemeChange,
         refreshInstances,
@@ -92,7 +90,6 @@ const Settings = React.memo(
         handlePortainerInstancesChange,
         handleAvatarChange,
         handleBatchConfigUpdate,
-        isFirstLogin,
         colorScheme,
         handleColorSchemeChange,
         refreshInstances,
@@ -106,12 +103,7 @@ const Settings = React.memo(
     // Use prop if provided, otherwise use internal state
     const [internalActiveSection, setInternalActiveSection] = useState(activeSection);
 
-    // If first login, always show user details tab (password section is now in User tab)
-    // BUT: if activeSection is explicitly LOGS, respect it (for URL routing)
-    const currentActiveSection =
-      isFirstLogin && activeSection !== SETTINGS_TABS.LOGS
-        ? SETTINGS_TABS.USER_DETAILS
-        : activeSection || internalActiveSection;
+    const currentActiveSection = activeSection || internalActiveSection;
     // eslint-disable-next-line no-unused-vars
     const setActiveSection = onSectionChange || setInternalActiveSection;
 
@@ -189,22 +181,15 @@ const Settings = React.memo(
 
     // Sync activeSection prop to internal state
     useEffect(() => {
-      if (isFirstLogin) {
-        if (onSectionChange) {
-          onSectionChange(SETTINGS_TABS.USER_DETAILS);
-        } else {
-          setInternalActiveSection(SETTINGS_TABS.USER_DETAILS);
-        }
-      } else if (activeSection) {
+      if (activeSection) {
         // Always sync when activeSection prop changes
         setInternalActiveSection(activeSection);
       }
-    }, [isFirstLogin, activeSection, onSectionChange]);
+    }, [activeSection]);
 
     return (
       <>
         <SettingsHeader
-          isFirstLogin={isFirstLogin}
           userInfo={settings.userInfo}
           showUserInfoAboveTabs={showUserInfoAboveTabs}
         />
@@ -213,7 +198,6 @@ const Settings = React.memo(
           <SettingsTabs
             currentActiveSection={currentActiveSection}
             settings={settings}
-            isFirstLogin={isFirstLogin}
             avatar={avatar}
             recentAvatars={recentAvatars}
             onAvatarChange={onAvatarChange}
@@ -236,7 +220,6 @@ const Settings = React.memo(
     // because we use refs to store them, so reference changes don't matter
     return (
       prevProps.username === nextProps.username &&
-      prevProps.isFirstLogin === nextProps.isFirstLogin &&
       prevProps.activeSection === nextProps.activeSection &&
       prevProps.showUserInfoAboveTabs === nextProps.showUserInfoAboveTabs &&
       prevProps.colorScheme === nextProps.colorScheme &&

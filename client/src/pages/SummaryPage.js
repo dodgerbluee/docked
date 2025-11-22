@@ -10,7 +10,7 @@ import {
   containerShape,
   portainerInstanceShape,
   unusedImageShape,
-  trackedImageShape,
+  trackedAppShape,
 } from "../utils/propTypes";
 import WelcomeModal from "./SummaryPage/components/WelcomeModal";
 import styles from "./SummaryPage.module.css";
@@ -22,7 +22,7 @@ import styles from "./SummaryPage.module.css";
  * @param {Array} props.containers - Array of all containers
  * @param {Array} props.unusedImages - Array of unused images
  * @param {number} props.unusedImagesCount - Total count of unused images
- * @param {Array} props.trackedImages - Array of tracked images
+ * @param {Array} props.trackedApps - Array of tracked images
  * @param {Map} props.dismissedTrackedAppNotifications - Map of dismissed tracked app notifications
  * @param {Function} props.onNavigateToPortainer - Handler for navigating to Portainer tab
  * @param {Function} props.onNavigateToTrackedApps - Handler for navigating to Tracked Apps tab
@@ -36,7 +36,7 @@ const SummaryPage = ({
   containers = [],
   unusedImages = [],
   unusedImagesCount = 0,
-  trackedImages = [],
+  trackedApps = [],
   dismissedTrackedAppNotifications = new Map(),
   onNavigateToPortainer,
   onNavigateToTrackedApps,
@@ -47,23 +47,28 @@ const SummaryPage = ({
 }) => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const hasNoInstances = portainerInstances.length === 0;
-  const hasNoTrackedApps = trackedImages.length === 0;
+  const hasNoTrackedApps = trackedApps.length === 0;
   const shouldShowWelcome = hasNoInstances && hasNoTrackedApps;
 
   // Show welcome modal when there are no instances and no tracked apps
   // Add a delay to ensure data has been fetched from the API
-  // Only show once per login session (using sessionStorage)
+  // Only show once (using localStorage to persist across refreshes)
   useEffect(() => {
-    // Check if modal has already been shown in this session
-    const welcomeModalShown = sessionStorage.getItem("welcomeModalShown") === "true";
+    // Don't show modal while loading - wait for data to be fetched
+    if (isLoading) {
+      return;
+    }
+
+    // Check if modal has already been shown/dismissed
+    const welcomeModalShown = localStorage.getItem("welcomeModalShown") === "true";
 
     if (shouldShowWelcome && !welcomeModalShown) {
       // Reduced delay for faster appearance
       const timer = setTimeout(() => {
-        // Show modal if instances and tracked apps are still empty
-        if (portainerInstances.length === 0 && trackedImages.length === 0) {
+        // Show modal if instances and tracked apps are still empty and not loading
+        if (portainerInstances.length === 0 && trackedApps.length === 0 && !isLoading) {
           setShowWelcomeModal(true);
-          sessionStorage.setItem("welcomeModalShown", "true");
+          localStorage.setItem("welcomeModalShown", "true");
         }
       }, 500); // 0.5 second delay for faster appearance
 
@@ -72,13 +77,13 @@ const SummaryPage = ({
       // If instances or tracked apps are added, close the modal
       setShowWelcomeModal(false);
     }
-  }, [shouldShowWelcome, portainerInstances.length, trackedImages.length]);
+  }, [shouldShowWelcome, portainerInstances.length, trackedApps.length, isLoading]);
   const summaryStats = useSummaryStats({
     portainerInstances,
     containers,
     unusedImages,
     unusedImagesCount,
-    trackedImages,
+    trackedApps,
     dismissedTrackedAppNotifications,
   });
 
@@ -230,12 +235,12 @@ const SummaryPage = ({
         isOpen={showWelcomeModal}
         onClose={() => {
           setShowWelcomeModal(false);
-          sessionStorage.setItem("welcomeModalShown", "true"); // Mark as shown/dismissed in session
+          localStorage.setItem("welcomeModalShown", "true"); // Mark as shown/dismissed (persists across refreshes)
         }}
         onAddInstance={onAddInstance}
         onAddTrackedApp={() => {
           setShowWelcomeModal(false);
-          sessionStorage.setItem("welcomeModalShown", "true");
+          localStorage.setItem("welcomeModalShown", "true");
           if (onNavigateToTrackedApps) {
             onNavigateToTrackedApps();
           }
@@ -251,7 +256,7 @@ SummaryPage.propTypes = {
   containers: PropTypes.arrayOf(containerShape),
   unusedImages: PropTypes.arrayOf(unusedImageShape),
   unusedImagesCount: PropTypes.number,
-  trackedImages: PropTypes.arrayOf(trackedImageShape),
+  trackedApps: PropTypes.arrayOf(trackedAppShape),
   dismissedTrackedAppNotifications: PropTypes.instanceOf(Map),
   onNavigateToPortainer: PropTypes.func,
   onNavigateToTrackedApps: PropTypes.func,
