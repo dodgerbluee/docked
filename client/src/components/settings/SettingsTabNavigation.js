@@ -11,7 +11,6 @@ import { SETTINGS_TABS, SETTINGS_TAB_LABELS } from "../../constants/settings";
 const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
   activeTab,
   onTabChange,
-  passwordChanged,
   developerModeEnabled = false,
 }) {
   const tabs = [
@@ -24,8 +23,8 @@ const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
     ...(developerModeEnabled ? [SETTINGS_TABS.DATA] : []),
   ];
 
-  // Determine which tabs should be disabled
-  const disabledTabs = tabs.filter((tab) => tab !== SETTINGS_TABS.USER_DETAILS && !passwordChanged);
+  // No tabs are disabled
+  const disabledTabs = [];
 
   return (
     <TabNavigation
@@ -41,7 +40,6 @@ const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
 SettingsTabNavigation.propTypes = {
   activeTab: PropTypes.string.isRequired,
   onTabChange: PropTypes.func.isRequired,
-  passwordChanged: PropTypes.bool.isRequired,
   developerModeEnabled: PropTypes.bool,
 };
 

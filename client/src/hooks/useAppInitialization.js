@@ -8,14 +8,13 @@ import axios from "axios";
 export function useAppInitialization({
   isAuthenticated,
   authToken,
-  passwordChanged,
   fetchColorScheme,
   fetchDockerHubCredentials,
   fetchContainers,
   fetchPortainerInstances,
   fetchAvatar,
   fetchRecentAvatars,
-  fetchTrackedImages,
+  fetchTrackedApps,
   setDataFetched,
   setDockerHubDataPulled,
   setPortainerInstancesFromAPI,
@@ -23,7 +22,7 @@ export function useAppInitialization({
   setStacks,
   setUnusedImages,
   setUnusedImagesCount,
-  setTrackedImages,
+  setTrackedApps,
   batchIntervalRef,
   showAvatarMenu,
   showNotificationMenu,
@@ -35,7 +34,7 @@ export function useAppInitialization({
 
   // Fetch cached data on page load/refresh (no Docker Hub calls)
   useEffect(() => {
-    if (isAuthenticated && authToken && passwordChanged && !initialFetchDoneRef.current) {
+    if (isAuthenticated && authToken && !initialFetchDoneRef.current) {
       // Ensure axios header is set before fetching
       if (!axios.defaults.headers.common["Authorization"]) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
@@ -51,7 +50,6 @@ export function useAppInitialization({
   }, [
     isAuthenticated,
     authToken,
-    passwordChanged,
     // Note: fetchContainers is intentionally excluded from deps to prevent re-fetching
     // when it's recreated due to container state changes (e.g., after clearing cache)
     // We use initialFetchDoneRef to ensure this only runs once on mount
@@ -70,7 +68,7 @@ export function useAppInitialization({
       setStacks([]);
       setUnusedImages([]);
       setUnusedImagesCount(0);
-      setTrackedImages([]);
+      setTrackedApps([]);
       // Clear batch interval on logout
       if (batchIntervalRef.current) {
         clearInterval(batchIntervalRef.current);
@@ -86,7 +84,7 @@ export function useAppInitialization({
     setStacks,
     setUnusedImages,
     setUnusedImagesCount,
-    setTrackedImages,
+    setTrackedApps,
     batchIntervalRef,
   ]);
 
@@ -96,7 +94,7 @@ export function useAppInitialization({
       fetchPortainerInstances();
       fetchAvatar();
       fetchRecentAvatars();
-      fetchTrackedImages();
+      fetchTrackedApps();
     }
   }, [
     isAuthenticated,
@@ -104,7 +102,7 @@ export function useAppInitialization({
     fetchPortainerInstances,
     fetchAvatar,
     fetchRecentAvatars,
-    fetchTrackedImages,
+    fetchTrackedApps,
   ]);
 
   // Close avatar menu and notification menu when clicking outside

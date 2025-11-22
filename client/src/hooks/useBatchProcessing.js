@@ -9,7 +9,6 @@ import { useBatchIntervals } from "./useBatchProcessing/hooks/useBatchIntervals"
 export const useBatchProcessing = ({
   isAuthenticated,
   authToken,
-  passwordChanged,
   batchConfig,
   containersData,
   successfullyUpdatedContainersRef,
@@ -18,7 +17,7 @@ export const useBatchProcessing = ({
   setLastPullTime,
   fetchDockerHubCredentials,
   dockerHubCredentials,
-  fetchTrackedImages,
+  fetchTrackedApps,
   fetchContainers,
 }) => {
   // Use extracted hooks
@@ -30,24 +29,22 @@ export const useBatchProcessing = ({
     setLastPullTime,
     fetchDockerHubCredentials,
     dockerHubCredentials,
-    fetchTrackedImages,
+    fetchTrackedApps,
   });
 
   useBatchPolling({
     isAuthenticated,
     authToken,
-    passwordChanged,
     batchConfig,
     setLastPullTime,
     fetchContainers,
-    fetchTrackedImages,
+    fetchTrackedApps,
   });
 
   const { batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef } = useBatchIntervals({
     batchEnabled: batchConfig.enabled,
     isAuthenticated,
     authToken,
-    passwordChanged,
     intervalMinutes: batchConfig.intervalMinutes,
     handleBatchPull,
     handleBatchTrackedAppsCheck,

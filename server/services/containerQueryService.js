@@ -8,7 +8,7 @@ const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
 const networkModeService = require("./networkModeService");
 const imageUpdateService = require("./imageUpdateService");
-const { getAllPortainerInstances } = require("../db/database");
+const { getAllPortainerInstances, getAllTrackedApps } = require("../db/database");
 const logger = require("../utils/logger");
 
 // Lazy load discordService to avoid loading issues during module initialization
@@ -51,6 +51,53 @@ async function getAllContainersWithUpdates(
     dockerRegistryService.clearAllDigestCache();
   }
 
+  // Get tracked apps to determine update source type (GitHub vs Docker Hub)
+  // Create a map of imageRepo -> { source_type, github_repo } for quick lookup
+  const trackedAppsMap = new Map();
+  if (userId) {
+    try {
+      const imageRepoParser = require("../utils/imageRepoParser");
+      const trackedApps = await getAllTrackedApps(userId);
+      trackedApps.forEach((app) => {
+        if (app.image_name && app.source_type === "github") {
+          // Use the same parser to normalize imageRepo for consistent matching
+          try {
+            const parsed = imageRepoParser.parseImageName(app.image_name);
+            const imageRepo = parsed.imageRepo;
+            // Map all GitHub-tracked apps (not just those with has_update)
+            // The container's update detection is independent
+            trackedAppsMap.set(imageRepo, {
+              source_type: app.source_type,
+              github_repo: app.github_repo,
+            });
+            // Also try matching without registry prefix for Docker Hub images that come from GitHub
+            // e.g., if image_name is "owner/repo:tag" but container uses "ghcr.io/owner/repo:tag"
+            if (parsed.registry === "docker.io" && parsed.namespace) {
+              // Try matching as "namespace/repository" format
+              const dockerHubFormat = `${parsed.namespace}/${parsed.repository}`;
+              if (dockerHubFormat !== imageRepo) {
+                trackedAppsMap.set(dockerHubFormat, {
+                  source_type: app.source_type,
+                  github_repo: app.github_repo,
+                });
+              }
+            }
+          } catch (parseError) {
+            // Fallback to simple split if parsing fails
+            const imageParts = app.image_name.includes(":") ? app.image_name.split(":") : [app.image_name];
+            const imageRepo = imageParts[0];
+            trackedAppsMap.set(imageRepo, {
+              source_type: app.source_type,
+              github_repo: app.github_repo,
+            });
+          }
+        }
+      });
+    } catch (error) {
+      logger.debug("Error fetching tracked apps for source type mapping:", error);
+    }
+  }
+
   // Check cache first unless force refresh is requested
   if (!forceRefresh) {
     // If userId is provided, try to use normalized tables first (per-user data)
@@ -75,6 +122,30 @@ async function getAllContainersWithUpdates(
 
           // Get instance info
           const instance = instanceMap.get(c.portainerInstanceId);
+
+          // Check if this container's update comes from a GitHub-tracked app
+          let updateSourceType = null;
+          let updateGitHubRepo = null;
+          if (c.hasUpdate && c.imageRepo) {
+            // Try exact match first
+            let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
+            
+            // If no exact match, try normalizing the container's imageRepo
+            if (!trackedAppInfo && c.imageName) {
+              try {
+                const imageRepoParser = require("../utils/imageRepoParser");
+                const parsed = imageRepoParser.parseImageName(c.imageName);
+                trackedAppInfo = trackedAppsMap.get(parsed.imageRepo);
+              } catch (parseError) {
+                // If parsing fails, continue without match
+              }
+            }
+            
+            if (trackedAppInfo && trackedAppInfo.source_type === "github") {
+              updateSourceType = "github";
+              updateGitHubRepo = trackedAppInfo.github_repo;
+            }
+          }
 
           return {
             id: c.containerId,
@@ -101,6 +172,9 @@ async function getAllContainersWithUpdates(
             existsInDockerHub: c.latestDigest ? true : false,
             usesNetworkMode: c.usesNetworkMode || false,
             providesNetwork: c.providesNetwork || false,
+            provider: c.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
+            updateSourceType: updateSourceType,
+            updateGitHubRepo: updateGitHubRepo,
           };
         });
 
@@ -313,6 +387,30 @@ async function getAllContainersWithUpdates(
               }
             }
 
+            // Check if this container's update comes from a GitHub-tracked app
+            let updateSourceType = null;
+            let updateGitHubRepo = null;
+            if (updateInfo.hasUpdate && updateInfo.imageRepo) {
+              // Try exact match first
+              let trackedAppInfo = trackedAppsMap.get(updateInfo.imageRepo);
+              
+              // If no exact match, try normalizing the container's imageRepo
+              if (!trackedAppInfo) {
+                try {
+                  const imageRepoParser = require("../utils/imageRepoParser");
+                  const parsed = imageRepoParser.parseImageName(imageName);
+                  trackedAppInfo = trackedAppsMap.get(parsed.imageRepo);
+                } catch (parseError) {
+                  // If parsing fails, continue without match
+                }
+              }
+              
+              if (trackedAppInfo && trackedAppInfo.source_type === "github") {
+                updateSourceType = "github";
+                updateGitHubRepo = trackedAppInfo.github_repo;
+              }
+            }
+
             const containerData = {
               id: container.Id,
               name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
@@ -339,6 +437,9 @@ async function getAllContainersWithUpdates(
               existsInDockerHub: updateInfo.existsInDockerHub || false,
               usesNetworkMode: usesNetworkMode || false,
               providesNetwork: providesNetwork || false,
+              provider: updateInfo.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
+              updateSourceType: updateSourceType, // "github" if update comes from GitHub-tracked app
+              updateGitHubRepo: updateGitHubRepo, // GitHub repo URL if update comes from GitHub-tracked app
             };
 
             // Save to normalized tables for persistence across restarts
@@ -646,6 +747,31 @@ async function getAllContainersWithUpdates(
           ? c.imageName.split(":")
           : [c.imageName, "latest"];
         const currentTag = imageParts[1];
+        
+        // Check if this container's update comes from a GitHub-tracked app
+        let updateSourceType = null;
+        let updateGitHubRepo = null;
+        if (c.hasUpdate && c.imageRepo) {
+          // Try exact match first
+          let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
+          
+          // If no exact match, try normalizing the container's imageRepo
+          if (!trackedAppInfo && c.imageName) {
+            try {
+              const imageRepoParser = require("../utils/imageRepoParser");
+              const parsed = imageRepoParser.parseImageName(c.imageName);
+              trackedAppInfo = trackedAppsMap.get(parsed.imageRepo);
+            } catch (parseError) {
+              // If parsing fails, continue without match
+            }
+          }
+          
+          if (trackedAppInfo && trackedAppInfo.source_type === "github") {
+            updateSourceType = "github";
+            updateGitHubRepo = trackedAppInfo.github_repo;
+          }
+        }
+        
         return {
           id: c.containerId,
           name: c.containerName,
@@ -671,6 +797,9 @@ async function getAllContainersWithUpdates(
           existsInDockerHub: c.latestDigest ? true : false,
           usesNetworkMode: c.usesNetworkMode || false,
           providesNetwork: c.providesNetwork || false,
+          provider: c.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
+          updateSourceType: updateSourceType,
+          updateGitHubRepo: updateGitHubRepo,
         };
       });
 

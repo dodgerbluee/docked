@@ -10,7 +10,6 @@ export function useUserSettings({
   username,
   onUsernameUpdate,
   onPasswordUpdateSuccess,
-  isFirstLogin = false,
 }) {
   const [userInfo, setUserInfo] = useState(null);
   const [newUsername, setNewUsername] = useState("");
@@ -114,8 +113,14 @@ export function useUserSettings({
       }
 
       try {
-        // For first login, don't send currentPassword since it's optional
-        const requestBody = isFirstLogin ? { newPassword } : { currentPassword, newPassword };
+        // Always require current password
+        if (!currentPassword) {
+          setPasswordError("Current password is required");
+          setPasswordLoading(false);
+          return;
+        }
+
+        const requestBody = { currentPassword, newPassword };
 
         const response = await axios.post(`${API_BASE_URL}/api/auth/update-password`, requestBody);
 
@@ -125,7 +130,7 @@ export function useUserSettings({
           setNewPassword("");
           setConfirmPassword("");
           await fetchUserInfo();
-          if (isFirstLogin && onPasswordUpdateSuccess) {
+          if (onPasswordUpdateSuccess) {
             setTimeout(() => {
               onPasswordUpdateSuccess();
             }, 1500);
@@ -145,7 +150,6 @@ export function useUserSettings({
       newPassword,
       confirmPassword,
       currentPassword,
-      isFirstLogin,
       onPasswordUpdateSuccess,
       fetchUserInfo,
     ]

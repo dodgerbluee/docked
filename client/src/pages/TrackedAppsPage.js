@@ -21,26 +21,26 @@ import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsC
 /**
  * TrackedAppsPage component
  * @param {Object} props - Component props
- * @param {Function} props.onDeleteTrackedImage - Handler for deleting tracked images
- * @param {Function} props.onUpgradeTrackedImage - Handler for upgrading tracked images (to refresh App.js state)
- * @param {Function} props.onEditTrackedImage - Handler for editing tracked images (to refresh App.js state)
+ * @param {Function} props.onDeleteTrackedApp - Handler for deleting tracked apps
+ * @param {Function} props.onUpgradeTrackedApp - Handler for upgrading tracked apps (to refresh App.js state)
+ * @param {Function} props.onEditTrackedApp - Handler for editing tracked apps (to refresh App.js state)
  */
-function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTrackedImage }) {
+function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTrackedApp }) {
   const {
-    trackedImages,
-    trackedImageError,
-    trackedImageSuccess,
+    trackedApps,
+    trackedAppError,
+    trackedAppSuccess,
     checkingUpdates,
     lastScanTime,
-    editingTrackedImageData,
-    showAddTrackedImageModal,
-    handleTrackedImageModalSuccess,
-    handleDeleteTrackedImage,
-    handleUpgradeTrackedImage,
-    handleEditTrackedImage,
-    handleCheckTrackedImagesUpdates,
-    setShowAddTrackedImageModal,
-    setEditingTrackedImageData,
+    editingTrackedAppData,
+    showAddTrackedAppModal,
+    handleTrackedAppModalSuccess,
+    handleDeleteTrackedApp,
+    handleUpgradeTrackedApp,
+    handleEditTrackedApp,
+    handleCheckTrackedAppsUpdates,
+    setShowAddTrackedAppModal,
+    setEditingTrackedAppData,
     confirmDialog,
     setConfirmDialog,
   } = useTrackedApps();
@@ -56,17 +56,17 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
     const shouldOpenModal = sessionStorage.getItem("openTrackedAppModal") === "true";
     if (shouldOpenModal) {
       sessionStorage.removeItem("openTrackedAppModal");
-      setEditingTrackedImageData(null);
+      setEditingTrackedAppData(null);
       // Small delay to ensure page is fully rendered
       setTimeout(() => {
-        setShowAddTrackedImageModal(true);
+        setShowAddTrackedAppModal(true);
       }, 100);
     }
-  }, [setEditingTrackedImageData, setShowAddTrackedImageModal]);
+  }, [setEditingTrackedAppData, setShowAddTrackedAppModal]);
 
   // Use extracted hooks
   const showCheckmark = useTrackedAppsCheckmark({
-    trackedImageSuccess,
+    trackedAppSuccess,
     checkingUpdates,
   });
 
@@ -79,7 +79,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   } = useTrackedAppsSelection();
 
   const { appsWithUpdates, appsWithoutUpdates, displayedApps } = useTrackedAppsFiltering(
-    trackedImages,
+    trackedApps,
     selectedSourceFilters,
     searchQuery,
     contentTab
@@ -92,29 +92,29 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
 
   // Handle delete with callback
   const handleDelete = async (id) => {
-    await handleDeleteTrackedImage(id);
-    if (onDeleteTrackedImage) {
-      onDeleteTrackedImage(id);
+    await handleDeleteTrackedApp(id);
+    if (onDeleteTrackedApp) {
+      onDeleteTrackedApp(id);
     }
   };
 
   // Handle upgrade with callback to refresh App.js state
   const handleUpgrade = useCallback(
     async (id, latestVersion) => {
-      await handleUpgradeTrackedImage(id, latestVersion);
-      if (onUpgradeTrackedImage) {
-        await onUpgradeTrackedImage();
+      await handleUpgradeTrackedApp(id, latestVersion);
+      if (onUpgradeTrackedApp) {
+        await onUpgradeTrackedApp();
       }
     },
-    [handleUpgradeTrackedImage, onUpgradeTrackedImage]
+    [handleUpgradeTrackedApp, onUpgradeTrackedApp]
   );
 
   // Handle modal success with callback to refresh App.js state
-  const handleModalSuccess = async (imageId) => {
-    await handleTrackedImageModalSuccess(imageId);
+  const handleModalSuccess = async (appId) => {
+    await handleTrackedAppModalSuccess(appId);
     // Refresh App.js state after editing/adding to update notification count
-    if (onEditTrackedImage) {
-      await onEditTrackedImage();
+    if (onEditTrackedApp) {
+      await onEditTrackedApp();
     }
   };
 
@@ -131,9 +131,9 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
   }, []);
 
   const handleAddNew = useCallback(() => {
-    setEditingTrackedImageData(null); // Clear any editing state
-    setShowAddTrackedImageModal(true);
-  }, [setEditingTrackedImageData, setShowAddTrackedImageModal]);
+    setEditingTrackedAppData(null); // Clear any editing state
+    setShowAddTrackedAppModal(true);
+  }, [setEditingTrackedAppData, setShowAddTrackedAppModal]);
 
   // Handle batch mark upgraded
   const handleBatchMarkUpgraded = useCallback(async () => {
@@ -177,10 +177,10 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       <TrackedAppsHeader
         searchQuery={searchQuery}
         onSearchChange={(e) => setSearchQuery(e.target.value)}
-        onCheckUpdates={handleCheckTrackedImagesUpdates}
+        onCheckUpdates={handleCheckTrackedAppsUpdates}
         checkingUpdates={checkingUpdates}
         showCheckmark={showCheckmark}
-        trackedImagesCount={trackedImages.length}
+        trackedAppsCount={trackedApps.length}
         markingUpgraded={markingUpgraded}
         toolbarActions={toolbarActions}
       />
@@ -193,7 +193,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
           onSelectedSourceFiltersChange={setSelectedSourceFilters}
         />
         <div className={styles.trackedAppsContentArea}>
-          {trackedImageError && <div className={styles.errorMessage}>{trackedImageError}</div>}
+          {trackedAppError && <div className={styles.errorMessage}>{trackedAppError}</div>}
 
           <TrackedAppsContentArea
             contentTab={contentTab}
@@ -204,7 +204,7 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
             collapsedSections={collapsedSections}
             onToggleSection={handleToggleSection}
             onToggleSelect={handleToggleSelect}
-            onEdit={handleEditTrackedImage}
+            onEdit={handleEditTrackedApp}
             onUpgrade={handleUpgrade}
             onAddNew={handleAddNew}
           />
@@ -226,14 +226,14 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
       </div>
 
       <AddTrackedAppModal
-        isOpen={showAddTrackedImageModal}
+        isOpen={showAddTrackedAppModal}
         onClose={() => {
-          setEditingTrackedImageData(null); // Clear editing state when modal closes
-          setShowAddTrackedImageModal(false);
+          setEditingTrackedAppData(null); // Clear editing state when modal closes
+          setShowAddTrackedAppModal(false);
         }}
         onSuccess={handleModalSuccess}
-        trackedImages={trackedImages}
-        initialData={editingTrackedImageData}
+        trackedApps={trackedApps}
+        initialData={editingTrackedAppData}
         onDelete={handleDelete}
       />
 
@@ -265,7 +265,9 @@ function TrackedAppsPage({ onDeleteTrackedImage, onUpgradeTrackedImage, onEditTr
 }
 
 TrackedAppsPage.propTypes = {
-  onDeleteTrackedImage: PropTypes.func,
+  onDeleteTrackedApp: PropTypes.func,
+  onUpgradeTrackedApp: PropTypes.func,
+  onEditTrackedApp: PropTypes.func,
 };
 
 export default TrackedAppsPage;

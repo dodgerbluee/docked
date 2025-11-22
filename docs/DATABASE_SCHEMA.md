@@ -357,12 +357,12 @@ CREATE TABLE settings (
 
 ---
 
-### `tracked_images`
+### `tracked_apps`
 
 **SQL Definition:**
 
 ```sql
-CREATE TABLE tracked_images (
+CREATE TABLE tracked_apps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         image_name TEXT,
@@ -404,9 +404,9 @@ CREATE TABLE tracked_images (
 
 #### Indexes
 
-- **idx_tracked_images_github_repo**: `CREATE INDEX idx_tracked_images_github_repo ON tracked_images(github_repo)`
-- **idx_tracked_images_image_name**: `CREATE INDEX idx_tracked_images_image_name ON tracked_images(image_name)`
-- **idx_tracked_images_name**: `CREATE INDEX idx_tracked_images_name ON tracked_images(name)`
+- **idx_tracked_apps_github_repo**: `CREATE INDEX idx_tracked_apps_github_repo ON tracked_apps(github_repo)`
+- **idx_tracked_apps_image_name**: `CREATE INDEX idx_tracked_apps_image_name ON tracked_apps(image_name)`
+- **idx_tracked_apps_name**: `CREATE INDEX idx_tracked_apps_name ON tracked_apps(name)`
 
 ---
 
@@ -454,7 +454,7 @@ The database follows a user-centric design where most tables are scoped to indiv
 - `portainer_instances` - Portainer instances per user (via `user_id`)
 - `portainer_containers` - Container state from Portainer instances per user (via `user_id`)
 - `docker_hub_image_versions` - Docker Hub image version tracking per user (via `user_id`)
-- `tracked_images` - Tracked Docker images per user (via `user_id`)
+- `tracked_apps` - Tracked Docker images per user (via `user_id`)
 - `settings` - User-specific settings (via `user_id`)
 - `discord_webhooks` - Discord webhook configurations per user (via `user_id`)
 - `docker_hub_credentials` - Docker Hub credentials per user (via `user_id`)

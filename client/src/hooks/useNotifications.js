@@ -5,7 +5,7 @@ import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
  * Custom hook for managing notification state and logic
  * Handles dismissed notifications for containers and tracked apps
  */
-export const useNotifications = (containers, trackedImages) => {
+export const useNotifications = (containers, trackedApps) => {
   // Store dismissed notifications as Map: id -> dismissed version
   // Load from localStorage on mount
   const [dismissedContainerNotifications, setDismissedContainerNotifications] = useState(() => {
@@ -84,8 +84,8 @@ export const useNotifications = (containers, trackedImages) => {
 
   // Calculate tracked apps statistics
   const trackedAppsStats = useMemo(
-    () => calculateTrackedAppsStats(trackedImages, dismissedTrackedAppNotifications),
-    [trackedImages, dismissedTrackedAppNotifications]
+    () => calculateTrackedAppsStats(trackedApps, dismissedTrackedAppNotifications),
+    [trackedApps, dismissedTrackedAppNotifications]
   );
 
   const { activeTrackedAppsBehind } = trackedAppsStats;

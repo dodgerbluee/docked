@@ -275,9 +275,9 @@ function initializeDatabase() {
           }
         );
 
-        // Create tracked_images table
+        // Create tracked_apps table
         db.run(
-          `CREATE TABLE IF NOT EXISTS tracked_images (
+          `CREATE TABLE IF NOT EXISTS tracked_apps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
@@ -299,41 +299,41 @@ function initializeDatabase() {
       )`,
           (err) => {
             if (err) {
-              logger.error("Error creating tracked_images table:", { error: err });
+              logger.error("Error creating tracked_apps table:", { error: err });
             } else {
-              logger.info("Tracked images table ready");
+              logger.info("Tracked apps table ready");
               // Create indexes
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_images_user_id ON tracked_images(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_images user_id index:", { error: idxErr });
+                    logger.error("Error creating tracked_apps user_id index:", { error: idxErr });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_images_name ON tracked_images(name)",
+                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_name ON tracked_apps(name)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_images name index:", { error: idxErr });
+                    logger.error("Error creating tracked_apps name index:", { error: idxErr });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_images_image_name ON tracked_images(image_name)",
+                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_image_name ON tracked_apps(image_name)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_images image_name index:", {
+                    logger.error("Error creating tracked_apps image_name index:", {
                       error: idxErr,
                     });
                   }
                 }
               );
               db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_images_github_repo ON tracked_images(github_repo)",
+                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_github_repo ON tracked_apps(github_repo)",
                 (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_images github_repo index:", {
+                    logger.error("Error creating tracked_apps github_repo index:", {
                       error: idxErr,
                     });
                   }
@@ -826,10 +826,9 @@ async function verifyPassword(plainPassword, hashedPassword) {
  * Update user password
  * @param {string} username - Username
  * @param {string} newPassword - New plain text password
- * @param {boolean} markPasswordChanged - Mark password as changed (for first login)
  * @returns {Promise<void>}
  */
-async function updatePassword(username, newPassword, markPasswordChanged = true) {
+async function updatePassword(username, newPassword) {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   return new Promise((resolve, reject) => {
     if (!db) {
@@ -837,8 +836,8 @@ async function updatePassword(username, newPassword, markPasswordChanged = true)
       return;
     }
     db.run(
-      "UPDATE users SET password_hash = ?, password_changed = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
-      [passwordHash, markPasswordChanged ? 1 : 0, username],
+      "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
+      [passwordHash, username],
       function (err) {
         if (err) {
           reject(err);
@@ -1004,7 +1003,6 @@ function hasAnyUsers() {
  * @param {string} password - Plain text password
  * @param {string} email - User email (optional)
  * @param {string} role - User role (default: 'Administrator')
- * @param {boolean} passwordChanged - Whether password has been changed (default: true for registered users)
  * @param {boolean} instanceAdmin - Whether user is instance admin (default: false)
  * @returns {Promise<void>}
  */
@@ -1013,7 +1011,6 @@ async function createUser(
   password,
   email = null,
   role = "Administrator",
-  passwordChanged = true,
   instanceAdmin = false
 ) {
   const passwordHash = await bcrypt.hash(password, 10);
@@ -1024,7 +1021,7 @@ async function createUser(
     }
     db.run(
       "INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin) VALUES (?, ?, ?, ?, ?, ?)",
-      [username, passwordHash, email, role, passwordChanged ? 1 : 0, instanceAdmin ? 1 : 0],
+      [username, passwordHash, email, role, 1, instanceAdmin ? 1 : 0],
       function (err) {
         if (err) {
           reject(err);
@@ -3115,14 +3112,14 @@ function getLatestBatchRunsByJobType(userId) {
  * @param {number} userId - User ID
  * @returns {Promise<Array>} - Array of tracked images
  */
-function getAllTrackedImages(userId) {
+function getAllTrackedApps(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.all(
-      "SELECT * FROM tracked_images WHERE user_id = ? ORDER BY name ASC",
+      "SELECT * FROM tracked_apps WHERE user_id = ? ORDER BY name ASC",
       [userId],
       (err, rows) => {
         if (err) {
@@ -3136,19 +3133,19 @@ function getAllTrackedImages(userId) {
 }
 
 /**
- * Get a tracked image by ID for a user
- * @param {number} id - Tracked image ID
+ * Get a tracked app by ID for a user
+ * @param {number} id - Tracked app ID
  * @param {number} userId - User ID
- * @returns {Promise<Object|null>} - Tracked image or null
+ * @returns {Promise<Object|null>} - Tracked app or null
  */
-function getTrackedImageById(id, userId) {
+function getTrackedAppById(id, userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.get(
-      "SELECT * FROM tracked_images WHERE id = ? AND user_id = ?",
+      "SELECT * FROM tracked_apps WHERE id = ? AND user_id = ?",
       [id, userId],
       (err, row) => {
         if (err) {
@@ -3162,13 +3159,13 @@ function getTrackedImageById(id, userId) {
 }
 
 /**
- * Get a tracked image by image name or GitHub repo for a user
+ * Get a tracked app by image name or GitHub repo for a user
  * @param {number} userId - User ID
  * @param {string} imageName - Image name (or null for GitHub)
  * @param {string} githubRepo - GitHub repo (or null for Docker)
- * @returns {Promise<Object|null>} - Tracked image or null
+ * @returns {Promise<Object|null>} - Tracked app or null
  */
-function getTrackedImageByImageName(userId, imageName = null, githubRepo = null) {
+function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
@@ -3176,7 +3173,7 @@ function getTrackedImageByImageName(userId, imageName = null, githubRepo = null)
     }
     if (githubRepo) {
       db.get(
-        "SELECT * FROM tracked_images WHERE user_id = ? AND github_repo = ?",
+        "SELECT * FROM tracked_apps WHERE user_id = ? AND github_repo = ?",
         [userId, githubRepo],
         (err, row) => {
           if (err) {
@@ -3188,7 +3185,7 @@ function getTrackedImageByImageName(userId, imageName = null, githubRepo = null)
       );
     } else if (imageName) {
       db.get(
-        "SELECT * FROM tracked_images WHERE user_id = ? AND image_name = ?",
+        "SELECT * FROM tracked_apps WHERE user_id = ? AND image_name = ?",
         [userId, imageName],
         (err, row) => {
           if (err) {
@@ -3205,16 +3202,16 @@ function getTrackedImageByImageName(userId, imageName = null, githubRepo = null)
 }
 
 /**
- * Create a new tracked image
+ * Create a new tracked app
  * @param {number} userId - User ID
  * @param {string} name - Display name
  * @param {string} imageName - Image name or null for GitHub
  * @param {string} githubRepo - GitHub repo or null for Docker
  * @param {string} sourceType - 'docker', 'github', or 'gitlab'
  * @param {string} gitlabToken - GitLab token (optional)
- * @returns {Promise<number>} - ID of created tracked image
+ * @returns {Promise<number>} - ID of created tracked app
  */
-function createTrackedImage(
+function createTrackedApp(
   userId,
   name,
   imageName = null,
@@ -3228,7 +3225,7 @@ function createTrackedImage(
       return;
     }
     db.run(
-      "INSERT INTO tracked_images (user_id, name, image_name, github_repo, source_type, gitlab_token) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO tracked_apps (user_id, name, image_name, github_repo, source_type, gitlab_token) VALUES (?, ?, ?, ?, ?, ?)",
       [userId, name, imageName, githubRepo, sourceType, gitlabToken],
       function (err) {
         if (err) {
@@ -3242,13 +3239,13 @@ function createTrackedImage(
 }
 
 /**
- * Update a tracked image
- * @param {number} id - Tracked image ID
+ * Update a tracked app
+ * @param {number} id - Tracked app ID
  * @param {number} userId - User ID
  * @param {Object} updateData - Data to update
  * @returns {Promise<void>}
  */
-function updateTrackedImage(id, userId, updateData) {
+function updateTrackedApp(id, userId, updateData) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
@@ -3310,7 +3307,7 @@ function updateTrackedImage(id, userId, updateData) {
     fields.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id, userId);
 
-    const sql = `UPDATE tracked_images SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`;
+    const sql = `UPDATE tracked_apps SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`;
 
     db.run(sql, values, function (err) {
       if (err) {
@@ -3323,18 +3320,18 @@ function updateTrackedImage(id, userId, updateData) {
 }
 
 /**
- * Delete a tracked image
- * @param {number} id - Tracked image ID
+ * Delete a tracked app
+ * @param {number} id - Tracked app ID
  * @param {number} userId - User ID
  * @returns {Promise<void>}
  */
-function deleteTrackedImage(id, userId) {
+function deleteTrackedApp(id, userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.run("DELETE FROM tracked_images WHERE id = ? AND user_id = ?", [id, userId], function (err) {
+    db.run("DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], function (err) {
       if (err) {
         reject(err);
       } else {
@@ -3345,18 +3342,18 @@ function deleteTrackedImage(id, userId) {
 }
 
 /**
- * Clear latest version data for all tracked images for a user
+ * Clear latest version data for all tracked apps for a user
  * @param {number} userId - User ID
  * @returns {Promise<number>} - Number of rows updated
  */
-function clearLatestVersionsForAllTrackedImages(userId) {
+function clearLatestVersionsForAllTrackedApps(userId) {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error("Database not initialized"));
       return;
     }
     db.run(
-      `UPDATE tracked_images 
+      `UPDATE tracked_apps 
        SET latest_version = NULL, 
            latest_digest = NULL, 
            has_update = 0,
@@ -3861,13 +3858,13 @@ module.exports = {
   getDockerHubCredentials,
   updateDockerHubCredentials,
   deleteDockerHubCredentials,
-  getAllTrackedImages,
-  getTrackedImageById,
-  getTrackedImageByImageName,
-  createTrackedImage,
-  updateTrackedImage,
-  deleteTrackedImage,
-  clearLatestVersionsForAllTrackedImages,
+  getAllTrackedApps,
+  getTrackedAppById,
+  getTrackedAppByImageName,
+  createTrackedApp,
+  updateTrackedApp,
+  deleteTrackedApp,
+  clearLatestVersionsForAllTrackedApps,
   // Docker Hub image versions
   upsertDockerHubImageVersion,
   getDockerHubImageVersion,
@@ -3936,7 +3933,7 @@ function getRawDatabaseRecords(userId) {
       "containers",
       "deployed_images",
       "registry_image_versions",
-      "tracked_images",
+      "tracked_apps",
     ];
 
     let completed = 0;
@@ -3964,7 +3961,7 @@ function getRawDatabaseRecords(userId) {
       } else if (tableName === "registry_image_versions") {
         query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY last_checked DESC`;
         params = [userId];
-      } else if (tableName === "tracked_images") {
+      } else if (tableName === "tracked_apps") {
         query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY name ASC`;
         params = [userId];
       } else {

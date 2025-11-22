@@ -208,7 +208,7 @@ const DatabaseRecordsView = forwardRef(({
                             displayHeader = record.container_name;
                           } else if (tableName === "registry_image_versions" && record.repository) {
                             displayHeader = record.repository;
-                          } else if (tableName === "tracked_images" && record.name) {
+                          } else if (tableName === "tracked_apps" && record.name) {
                             displayHeader = record.name;
                           } else if (primaryKey) {
                             displayHeader = `ID: ${primaryKey}`;

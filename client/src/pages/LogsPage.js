@@ -94,7 +94,6 @@ LogsPage.propTypes = {
   }).isRequired,
   settingsProps: PropTypes.shape({
     username: PropTypes.string.isRequired,
-    passwordChanged: PropTypes.bool.isRequired,
     avatar: PropTypes.string,
     recentAvatars: PropTypes.array,
     onUsernameUpdate: PropTypes.func.isRequired,

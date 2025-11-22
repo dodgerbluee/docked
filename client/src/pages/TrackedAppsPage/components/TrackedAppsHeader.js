@@ -17,7 +17,7 @@ import styles from "../../TrackedAppsPage.module.css";
  * @param {Function} props.onCheckUpdates - Check for updates handler
  * @param {boolean} props.checkingUpdates - Whether checking for updates
  * @param {boolean} props.showCheckmark - Whether to show success checkmark
- * @param {number} props.trackedImagesCount - Number of tracked images
+ * @param {number} props.trackedAppsCount - Number of tracked images
  * @param {boolean} props.markingUpgraded - Whether marking apps as upgraded
  * @param {React.ReactNode} props.toolbarActions - Toolbar action buttons
  */
@@ -27,7 +27,7 @@ const TrackedAppsHeader = ({
   onCheckUpdates,
   checkingUpdates,
   showCheckmark,
-  trackedImagesCount,
+  trackedAppsCount,
   markingUpgraded,
   toolbarActions,
 }) => {
@@ -46,7 +46,7 @@ const TrackedAppsHeader = ({
             {toolbarActions}
             <Button
               onClick={onCheckUpdates}
-              disabled={checkingUpdates || trackedImagesCount === 0 || markingUpgraded}
+              disabled={checkingUpdates || trackedAppsCount === 0 || markingUpgraded}
               title={checkingUpdates ? "Checking for updates..." : "Check for updates"}
               variant="outline"
               icon={RefreshCw}
@@ -68,7 +68,7 @@ TrackedAppsHeader.propTypes = {
   onCheckUpdates: PropTypes.func.isRequired,
   checkingUpdates: PropTypes.bool.isRequired,
   showCheckmark: PropTypes.bool.isRequired,
-  trackedImagesCount: PropTypes.number.isRequired,
+  trackedAppsCount: PropTypes.number.isRequired,
   markingUpgraded: PropTypes.bool.isRequired,
   toolbarActions: PropTypes.node,
 };

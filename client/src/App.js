@@ -18,7 +18,7 @@ import { useNavigation } from "./hooks/useNavigation";
 import { useTheme } from "./hooks/useTheme";
 import { useDockerHubCredentials } from "./hooks/useDockerHubCredentials";
 import { useBatchConfig } from "./hooks/useBatchConfig";
-import { useTrackedImages } from "./hooks/useTrackedImages";
+import { useTrackedApps } from "./hooks/useTrackedApps";
 import { usePortainerInstances } from "./hooks/usePortainerInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
 import { useNewPortainerInstance } from "./hooks/useNewPortainerInstance";
@@ -33,7 +33,6 @@ import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAddPortainerModal } from "./hooks/useAddPortainerModal";
 import { useDiscordSettings } from "./hooks/useDiscordSettings";
 import HomePage from "./components/HomePage";
-import FirstLoginPage from "./components/FirstLoginPage";
 import { TAB_NAMES } from "./constants/apiConstants";
 
 function App() {
@@ -44,7 +43,6 @@ function App() {
     username,
     userRole,
     instanceAdmin,
-    passwordChanged,
     isValidating,
     handleLogin,
     handleUsernameUpdate,
@@ -114,8 +112,11 @@ function App() {
     authToken
   );
 
-  // Tracked images - using custom hook
-  const { trackedImages, setTrackedImages, fetchTrackedImages } = useTrackedImages();
+  // Tracked apps - using custom hook
+  const { trackedApps, setTrackedApps, fetchTrackedApps } = useTrackedApps(
+    isAuthenticated,
+    authToken
+  );
   // Avatar management - using custom hook
   const avatarManagement = useAvatarManagement(isAuthenticated, authToken);
   const {
@@ -133,12 +134,11 @@ function App() {
   // Batch config - using custom hook
   const { batchConfig, setBatchConfig, handleBatchConfigUpdate } = useBatchConfig(
     isAuthenticated,
-    authToken,
-    passwordChanged
+    authToken
   );
 
   // Discord webhooks - using custom hook
-  const { discordWebhooks } = useDiscordSettings();
+  const { discordWebhooks } = useDiscordSettings(isAuthenticated, authToken);
 
   // Container data management - using custom hook
   const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
@@ -173,8 +173,8 @@ function App() {
     updateLastImageDeleteTime,
   } = containersData;
 
-  // GitHub cache management - using custom hook (moved after fetchTrackedImages is available)
-  const { handleClearGitHubCache } = useGitHubCache(fetchTrackedImages);
+  // GitHub cache management - using custom hook (moved after fetchTrackedApps is available)
+  const { handleClearGitHubCache } = useGitHubCache(fetchTrackedApps);
 
   // Tab reordering - using custom hook (moved after fetchContainers is available)
   const { draggedTabIndex, setDraggedTabIndex, handleReorderTabs } =
@@ -184,7 +184,6 @@ function App() {
   const batchProcessing = useBatchProcessing({
     isAuthenticated,
     authToken,
-    passwordChanged,
     batchConfig,
     containersData,
     successfullyUpdatedContainersRef,
@@ -193,7 +192,7 @@ function App() {
     setLastPullTime,
     fetchDockerHubCredentials,
     dockerHubCredentials,
-    fetchTrackedImages,
+    fetchTrackedApps,
     fetchContainers,
   });
   const {
@@ -312,14 +311,13 @@ function App() {
   useAppInitialization({
     isAuthenticated,
     authToken,
-    passwordChanged,
     fetchColorScheme,
     fetchDockerHubCredentials,
     fetchContainers,
     fetchPortainerInstances,
     fetchAvatar,
     fetchRecentAvatars,
-    fetchTrackedImages,
+    fetchTrackedApps,
     setDataFetched,
     setDockerHubDataPulled,
     setPortainerInstancesFromAPI,
@@ -327,7 +325,7 @@ function App() {
     setStacks,
     setUnusedImages,
     setUnusedImagesCount,
-    setTrackedImages,
+    setTrackedApps,
     batchIntervalRef,
     showAvatarMenu,
     showNotificationMenu,
@@ -359,7 +357,7 @@ function App() {
     dismissedTrackedAppNotifications,
     handleDismissContainerNotification,
     handleDismissTrackedAppNotification,
-  } = useNotifications(containers, trackedImages);
+  } = useNotifications(containers, trackedApps);
 
   const { trackedAppsBehind } = trackedAppsStats;
 
@@ -468,33 +466,6 @@ function App() {
     return <Login onLogin={handleLoginWithNavigation} />;
   }
 
-  // If password not changed, force settings page
-  if (!passwordChanged) {
-    return (
-      <FirstLoginPage
-        username={username}
-        onUsernameUpdate={handleUsernameUpdate}
-        onLogout={handleLogoutWithCleanup}
-        avatar={avatar}
-        recentAvatars={recentAvatars}
-        onAvatarChange={handleAvatarChange}
-        onRecentAvatarsChange={(avatars) => {
-          setRecentAvatars(avatars);
-          fetchRecentAvatars();
-        }}
-        onAvatarUploaded={async () => {
-          await fetchAvatar();
-        }}
-        onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
-        onPortainerInstancesChange={() => {
-          fetchPortainerInstances();
-          fetchContainers();
-        }}
-        onBatchConfigUpdate={handleBatchConfigUpdate}
-      />
-    );
-  }
-
   // Use React Router for routing
   return (
     <Routes>
@@ -521,7 +492,6 @@ function App() {
             }}
             settingsProps={{
               username,
-              passwordChanged,
               avatar,
               recentAvatars,
               onUsernameUpdate: handleUsernameUpdate,
@@ -567,7 +537,6 @@ function App() {
             avatar={avatar}
             darkMode={darkMode}
             instanceAdmin={instanceAdmin}
-            passwordChanged={passwordChanged}
             authToken={authToken}
             activeTab={activeTab}
             contentTab={contentTab}
@@ -586,7 +555,7 @@ function App() {
             stacks={stacks}
             unusedImages={unusedImages}
             unusedImagesCount={unusedImagesCount}
-            trackedImages={trackedImages}
+            trackedApps={trackedApps}
             portainerInstances={portainerInstances}
             containersByPortainer={containersByPortainer}
             loadingInstances={loadingInstances}
@@ -656,7 +625,7 @@ function App() {
             fetchUnusedImages={fetchUnusedImages}
             fetchRecentAvatars={fetchRecentAvatars}
             fetchAvatar={fetchAvatar}
-            fetchTrackedImages={fetchTrackedImages}
+            fetchTrackedApps={fetchTrackedApps}
             setContainers={setContainers}
             setStacks={setStacks}
             setUnusedImages={setUnusedImages}

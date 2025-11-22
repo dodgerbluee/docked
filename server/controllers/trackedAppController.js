@@ -441,7 +441,7 @@ async function checkTrackedAppsUpdates(req, res, next) {
       });
     }
     const images = await getAllTrackedApps(userId);
-    const results = await trackedAppService.checkAllTrackedImages(images);
+    const results = await trackedAppService.checkAllTrackedApps(images);
 
     res.json({
       success: true,
@@ -523,12 +523,12 @@ async function clearGitHubCache(req, res, next) {
 }
 
 module.exports = {
-  getTrackedImages,
-  getTrackedImage,
+  getTrackedApps,
+  getTrackedApp,
   createTrackedApp: createTrackedAppEndpoint,
   updateTrackedApp: updateTrackedAppEndpoint,
   deleteTrackedApp: deleteTrackedAppEndpoint,
-  checkTrackedImagesUpdates,
-  checkTrackedImageUpdate,
+  checkTrackedAppsUpdates,
+  checkTrackedAppUpdate,
   clearGitHubCache,
 };

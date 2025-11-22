@@ -8,7 +8,7 @@ import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
  * @param {Array} params.containers - Array of all containers
  * @param {Array} params.unusedImages - Array of unused images
  * @param {number} params.unusedImagesCount - Total count of unused images
- * @param {Array} params.trackedImages - Array of tracked images
+ * @param {Array} params.trackedApps - Array of tracked images
  * @param {Map} params.dismissedTrackedAppNotifications - Map of dismissed tracked app notifications
  * @returns {Object} Summary statistics object
  */
@@ -17,7 +17,7 @@ export const useSummaryStats = ({
   containers = [],
   unusedImages = [],
   unusedImagesCount = 0,
-  trackedImages = [],
+  trackedApps = [],
   dismissedTrackedAppNotifications = new Map(),
 }) => {
   // Calculate containers with updates and up to date
@@ -36,8 +36,8 @@ export const useSummaryStats = ({
 
   // Calculate tracked apps statistics
   const trackedAppsStats = useMemo(
-    () => calculateTrackedAppsStats(trackedImages, dismissedTrackedAppNotifications),
-    [trackedImages, dismissedTrackedAppNotifications]
+    () => calculateTrackedAppsStats(trackedApps, dismissedTrackedAppNotifications),
+    [trackedApps, dismissedTrackedAppNotifications]
   );
 
   const { totalTrackedApps, trackedAppsUpToDate, trackedAppsBehind, trackedAppsUnknown } =

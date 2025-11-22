@@ -21,7 +21,7 @@ const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedImageController = require("../controllers/trackedImageController");
+const trackedAppController = require("../controllers/trackedAppController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
@@ -235,21 +235,21 @@ router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunH
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
-// Tracked images routes
+// Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
-router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
-router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
+router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
 router.post(
-  "/tracked-images/check-updates",
-  asyncHandler(trackedImageController.checkTrackedImagesUpdates)
+  "/tracked-apps/check-updates",
+  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
 );
-router.delete("/tracked-images/cache", asyncHandler(trackedImageController.clearGitHubCache));
-router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
-router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
-router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
+router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitHubCache));
+router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
+router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
+router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
 router.post(
-  "/tracked-images/:id/check-update",
-  asyncHandler(trackedImageController.checkTrackedImageUpdate)
+  "/tracked-apps/:id/check-update",
+  asyncHandler(trackedAppController.checkTrackedAppUpdate)
 );
 
 // Discord notification routes
