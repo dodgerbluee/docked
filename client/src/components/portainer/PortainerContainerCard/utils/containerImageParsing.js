@@ -91,23 +91,23 @@ export const getGitLabContainerUrl = (imageName) => {
  */
 export const getGitLabRepoUrl = (imageName) => {
   if (!imageName) return null;
-  
+
   // If it's already a full URL, return it
   if (imageName.startsWith("http")) {
     return imageName;
   }
-  
+
   // If it's a GitLab Container Registry image, extract the repo
   if (imageName.startsWith("registry.gitlab.com/")) {
     const imageWithoutVersion = extractImageName(imageName);
     const repoPath = imageWithoutVersion.replace("registry.gitlab.com/", "");
     return `https://gitlab.com/${repoPath}`;
   }
-  
+
   // If it's in owner/repo format, construct the URL
   if (imageName.includes("/")) {
     return `https://gitlab.com/${imageName}`;
   }
-  
+
   return null;
 };

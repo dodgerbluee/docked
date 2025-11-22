@@ -71,9 +71,10 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
     });
 
     return options;
-  }, [providerTokens, provider]);
+  }, [providerTokens]);
 
-  const selectedOption = tokenOptions.find((opt) => opt.value === selectedTokenId) || tokenOptions[0];
+  const selectedOption =
+    tokenOptions.find((opt) => opt.value === selectedTokenId) || tokenOptions[0];
 
   const formatOptionLabel = ({ label, icon: IconComponent, hasToken }) => (
     <div className={styles.optionLabel}>
@@ -89,9 +90,7 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
 
   return (
     <div className={styles.tokenSelector}>
-      <label className={styles.label}>
-        {getProviderLabel(provider)} Access Token (Optional)
-      </label>
+      <label className={styles.label}>{getProviderLabel(provider)} Access Token (Optional)</label>
       <div className={styles.tokenSelectWrapper}>
         <Select
           value={selectedOption}
@@ -139,4 +138,3 @@ RepositoryTokenSelector.propTypes = {
 };
 
 export default RepositoryTokenSelector;
-

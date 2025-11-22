@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Github } from "lucide-react";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
@@ -141,9 +140,7 @@ function AddRepositoryAccessTokenModal({
             })}
           </div>
           {existingToken && (
-            <small className={styles.helperText}>
-              Provider cannot be changed when editing
-            </small>
+            <small className={styles.helperText}>Provider cannot be changed when editing</small>
           )}
         </div>
 
@@ -164,7 +161,11 @@ function AddRepositoryAccessTokenModal({
           value={accessToken}
           onChange={(e) => setAccessToken(e.target.value)}
           required={!existingToken}
-          placeholder={existingToken ? "Enter new token to update (leave blank to keep current)" : "Enter your access token"}
+          placeholder={
+            existingToken
+              ? "Enter new token to update (leave blank to keep current)"
+              : "Enter your access token"
+          }
           disabled={loading}
           helperText={
             existingToken
@@ -204,4 +205,3 @@ AddRepositoryAccessTokenModal.propTypes = {
 };
 
 export default AddRepositoryAccessTokenModal;
-

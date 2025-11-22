@@ -8,18 +8,17 @@ import styles from "../../DataTab.module.css";
  * DatabaseRecordsView Component
  * Displays raw database records organized by table
  */
-const DatabaseRecordsView = forwardRef(({ 
-  rawDatabaseRecords, 
-  searchQuery = "",
-}, ref) => {
+const DatabaseRecordsView = forwardRef(({ rawDatabaseRecords, searchQuery = "" }, ref) => {
   const [expandedTables, setExpandedTables] = useState(new Set());
   const [activeTable, setActiveTable] = useState(null);
   const [expandedRecords, setExpandedRecords] = useState(new Set());
 
   // Extract tables - must be done before useMemo
-  const tables = rawDatabaseRecords && Object.keys(rawDatabaseRecords).length > 0
-    ? Object.keys(rawDatabaseRecords).filter((key) => !key.endsWith("_error"))
-    : [];
+  const tables = useMemo(() => {
+    return rawDatabaseRecords && Object.keys(rawDatabaseRecords).length > 0
+      ? Object.keys(rawDatabaseRecords).filter((key) => !key.endsWith("_error"))
+      : [];
+  }, [rawDatabaseRecords]);
 
   // Filter records based on search query - must be called before any early returns
   const filteredRecordsByTable = useMemo(() => {
@@ -50,20 +49,21 @@ const DatabaseRecordsView = forwardRef(({
     return filtered;
   }, [rawDatabaseRecords, searchQuery, tables]);
 
-  // Function to check if all records are expanded
+  // Function to check if all records are expanded (unused but kept for potential future use)
+  // eslint-disable-next-line no-unused-vars
   const areAllRecordsExpanded = () => {
     // Check if all tables with records are expanded
     const tablesWithRecords = tables.filter((tableName) => {
       const records = filteredRecordsByTable[tableName] || [];
       return records.length > 0;
     });
-    
+
     if (tablesWithRecords.length === 0) {
       return false;
     }
-    
+
     const allTablesExpanded = tablesWithRecords.every((tableName) => expandedTables.has(tableName));
-    
+
     // Check if all records are expanded
     let totalRecords = 0;
     let expandedCount = 0;
@@ -71,48 +71,62 @@ const DatabaseRecordsView = forwardRef(({
       const records = filteredRecordsByTable[tableName] || [];
       records.forEach((record, index) => {
         totalRecords++;
-        const primaryKey = record.id || record.user_id || record.container_id || record.deployed_image_id || record.registry_image_version_id;
+        const primaryKey =
+          record.id ||
+          record.user_id ||
+          record.container_id ||
+          record.deployed_image_id ||
+          record.registry_image_version_id;
         const recordKey = `${tableName}:${primaryKey || index}`;
         if (expandedRecords.has(recordKey)) {
           expandedCount++;
         }
       });
     });
-    
+
     const allRecordsExpanded = totalRecords > 0 && expandedCount === totalRecords;
-    
+
     return allTablesExpanded && allRecordsExpanded;
   };
 
   // Expose methods to parent via ref - must be after tables and filteredRecordsByTable are defined
-  useImperativeHandle(ref, () => ({
-    expandAll: () => {
-      const tablesWithRecords = tables.filter((tableName) => {
-        const records = filteredRecordsByTable[tableName] || [];
-        return records.length > 0;
-      });
-      setExpandedTables(new Set(tablesWithRecords));
-      if (tablesWithRecords.length > 0) {
-        setActiveTable(tablesWithRecords[0]);
-      }
-      
-      const allRecordKeys = new Set();
-      tables.forEach((tableName) => {
-        const records = filteredRecordsByTable[tableName] || [];
-        records.forEach((record, index) => {
-          const primaryKey = record.id || record.user_id || record.container_id || record.deployed_image_id || record.registry_image_version_id;
-          const recordKey = `${tableName}:${primaryKey || index}`;
-          allRecordKeys.add(recordKey);
+  useImperativeHandle(
+    ref,
+    () => ({
+      expandAll: () => {
+        const tablesWithRecords = tables.filter((tableName) => {
+          const records = filteredRecordsByTable[tableName] || [];
+          return records.length > 0;
         });
-      });
-      setExpandedRecords(allRecordKeys);
-    },
-    collapseAll: () => {
-      setExpandedTables(new Set());
-      setActiveTable(null);
-      setExpandedRecords(new Set());
-    },
-  }), [tables, filteredRecordsByTable]);
+        setExpandedTables(new Set(tablesWithRecords));
+        if (tablesWithRecords.length > 0) {
+          setActiveTable(tablesWithRecords[0]);
+        }
+
+        const allRecordKeys = new Set();
+        tables.forEach((tableName) => {
+          const records = filteredRecordsByTable[tableName] || [];
+          records.forEach((record, index) => {
+            const primaryKey =
+              record.id ||
+              record.user_id ||
+              record.container_id ||
+              record.deployed_image_id ||
+              record.registry_image_version_id;
+            const recordKey = `${tableName}:${primaryKey || index}`;
+            allRecordKeys.add(recordKey);
+          });
+        });
+        setExpandedRecords(allRecordKeys);
+      },
+      collapseAll: () => {
+        setExpandedTables(new Set());
+        setActiveTable(null);
+        setExpandedRecords(new Set());
+      },
+    }),
+    [tables, filteredRecordsByTable]
+  );
 
   if (!rawDatabaseRecords || Object.keys(rawDatabaseRecords).length === 0) {
     return (
@@ -130,8 +144,8 @@ const DatabaseRecordsView = forwardRef(({
       <div className={styles.dataSection}>
         <div className={styles.dataHeader}>Raw Database Records</div>
         <p className={styles.dataDescription}>
-          Raw records from database tables. Use this to debug update detection
-          and see the actual state of your data.
+          Raw records from database tables. Use this to debug update detection and see the actual
+          state of your data.
         </p>
 
         <div className={styles.tableTabs}>
@@ -139,8 +153,8 @@ const DatabaseRecordsView = forwardRef(({
             const allRecords = rawDatabaseRecords[tableName] || [];
             const filteredRecords = filteredRecordsByTable[tableName] || [];
             const error = rawDatabaseRecords[`${tableName}_error`];
-            const isTableExpanded = expandedTables.has(tableName);
-            const hasFilteredResults = searchQuery.trim() && filteredRecords.length < allRecords.length;
+            const hasFilteredResults =
+              searchQuery.trim() && filteredRecords.length < allRecords.length;
 
             return (
               <div key={tableName} className={styles.tableTab}>
@@ -169,7 +183,9 @@ const DatabaseRecordsView = forwardRef(({
                 >
                   <span className={styles.tableTabName}>{tableName}</span>
                   <span className={styles.tableTabCount}>
-                    ({filteredRecords.length}{hasFilteredResults && `/${allRecords.length}`} {filteredRecords.length === 1 ? "record" : "records"})
+                    ({filteredRecords.length}
+                    {hasFilteredResults && `/${allRecords.length}`}{" "}
+                    {filteredRecords.length === 1 ? "record" : "records"})
                   </span>
                   {error && (
                     <span className={styles.tableTabError} title={error}>
@@ -194,10 +210,15 @@ const DatabaseRecordsView = forwardRef(({
                       <div className={styles.recordsList}>
                         {filteredRecords.map((record, index) => {
                           // Use a stable key based on the record's primary key or a combination of fields
-                          const primaryKey = record.id || record.user_id || record.container_id || record.deployed_image_id || record.registry_image_version_id;
+                          const primaryKey =
+                            record.id ||
+                            record.user_id ||
+                            record.container_id ||
+                            record.deployed_image_id ||
+                            record.registry_image_version_id;
                           const recordKey = `${tableName}:${primaryKey || index}`;
                           const isExpanded = expandedRecords.has(recordKey);
-                          
+
                           // Get display header based on table type
                           let displayHeader = `ID: ${primaryKey || `Record ${index + 1}`}`;
                           if (tableName === "portainer_instances" && record.name) {
@@ -231,11 +252,13 @@ const DatabaseRecordsView = forwardRef(({
                                 }}
                               >
                                 <span className={styles.recordHeaderIcon}>
-                                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                  {isExpanded ? (
+                                    <ChevronDown size={16} />
+                                  ) : (
+                                    <ChevronRight size={16} />
+                                  )}
                                 </span>
-                                <span className={styles.recordHeaderText}>
-                                  {displayHeader}
-                                </span>
+                                <span className={styles.recordHeaderText}>{displayHeader}</span>
                               </button>
                               {isExpanded && (
                                 <div className={styles.recordContent}>
@@ -266,4 +289,3 @@ DatabaseRecordsView.propTypes = {
 DatabaseRecordsView.displayName = "DatabaseRecordsView";
 
 export default DatabaseRecordsView;
-

@@ -155,19 +155,20 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             </h4>
           </div>
           <div className={styles.iconGroup}>
-            {container.image && (isDockerHub || isGitHubContainer || isGitLabContainer || isGoogleContainer) && (
-              <ContainerImageLinks
-                isDocker={isDockerHub}
-                isGitHub={isGitHubContainer}
-                isGitLab={isGitLabContainer}
-                isGoogle={isGoogleContainer}
-                dockerHubUrl={dockerHubUrl}
-                githubUrl={githubUrl}
-                gitlabUrl={gitlabUrl}
-                googleUrl={googleUrl}
-                imageName={container.image}
-              />
-            )}
+            {container.image &&
+              (isDockerHub || isGitHubContainer || isGitLabContainer || isGoogleContainer) && (
+                <ContainerImageLinks
+                  isDocker={isDockerHub}
+                  isGitHub={isGitHubContainer}
+                  isGitLab={isGitLabContainer}
+                  isGoogle={isGoogleContainer}
+                  dockerHubUrl={dockerHubUrl}
+                  githubUrl={githubUrl}
+                  gitlabUrl={gitlabUrl}
+                  googleUrl={googleUrl}
+                  imageName={container.image}
+                />
+              )}
             {!showUpdates && !isPortainer && developerModeEnabled && (
               <span
                 className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
@@ -203,18 +204,10 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               <span
                 className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""} ${upgrading ? styles.upgrading : ""}`}
                 title={
-                  isPortainer
-                    ? PORTAINER_CONTAINER_MESSAGE
-                    : upgrading
-                      ? "Upgrading..."
-                      : "Upgrade"
+                  isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"
                 }
                 aria-label={
-                  isPortainer
-                    ? PORTAINER_CONTAINER_MESSAGE
-                    : upgrading
-                      ? "Upgrading..."
-                      : "Upgrade"
+                  isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"
                 }
                 onClick={(e) => {
                   e.stopPropagation();
@@ -259,7 +252,10 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           </p>
         )}
         {container.noDigest && (
-          <div className={styles.noDigestBadge} title="Container was checked but no digest was returned from the registry">
+          <div
+            className={styles.noDigestBadge}
+            title="Container was checked but no digest was returned from the registry"
+          >
             <AlertCircle size={14} />
             <span>No Digest</span>
           </div>
@@ -287,7 +283,10 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 </span>
               ))}
             {container.noDigest && (
-              <div className={styles.noDigestBadge} title="Container was checked but no digest was returned from the registry">
+              <div
+                className={styles.noDigestBadge}
+                title="Container was checked but no digest was returned from the registry"
+              >
                 <AlertCircle size={14} />
                 <span>No Digest</span>
               </div>

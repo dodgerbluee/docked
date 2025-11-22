@@ -1,9 +1,9 @@
 /**
  * Base Registry Provider Interface
- * 
+ *
  * All registry providers must implement this interface to ensure
  * consistent behavior across different container registries.
- * 
+ *
  * This abstract class defines the contract for:
  * - Fetching image digests
  * - Getting tag information
@@ -145,4 +145,3 @@ class RegistryProvider {
 }
 
 module.exports = RegistryProvider;
-

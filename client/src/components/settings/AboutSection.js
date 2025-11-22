@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import PropTypes from "prop-types";
 import { ExternalLink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
 import Card from "../ui/Card";
@@ -13,7 +12,7 @@ import styles from "./AboutSection.module.css";
  * Displays application version and update information
  */
 const AboutSection = () => {
-  const { version, environment, isDevBuild, loading: versionLoading } = useVersion();
+  const { version, isDevBuild, loading: versionLoading } = useVersion();
   const [updateInfo, setUpdateInfo] = useState({
     loading: false,
     hasUpdate: false,
@@ -226,4 +225,3 @@ const AboutSection = () => {
 AboutSection.propTypes = {};
 
 export default AboutSection;
-

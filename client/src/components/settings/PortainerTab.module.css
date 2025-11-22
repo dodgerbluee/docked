@@ -286,7 +286,9 @@ body.dark-mode .dangerButton:hover:not(:disabled) {
 }
 
 .tokenCard {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .tokenCard:hover {
@@ -490,4 +492,3 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   margin: 0;
   margin-left: 28px;
 }
-

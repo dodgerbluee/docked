@@ -1340,13 +1340,7 @@ async function importUsers(req, res, next) {
         }
 
         // Create user
-        await createUser(
-          username,
-          password,
-          email || null,
-          role,
-          isInstanceAdmin
-        );
+        await createUser(username, password, email || null, role, isInstanceAdmin);
 
         // Set verification token if provided (for instance admins)
         if (verificationToken) {
@@ -2103,7 +2097,8 @@ async function adminUpdateUserRole(req, res, next) {
 
     // Update role
     const newRole = role || user.role;
-    const newInstanceAdmin = instanceAdmin !== undefined ? instanceAdmin : user.instance_admin === 1;
+    const newInstanceAdmin =
+      instanceAdmin !== undefined ? instanceAdmin : user.instance_admin === 1;
     await updateUserRole(parseInt(userId), newRole, newInstanceAdmin);
 
     res.json({

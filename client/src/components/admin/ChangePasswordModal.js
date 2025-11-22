@@ -136,4 +136,3 @@ ChangePasswordModal.propTypes = {
 };
 
 export default ChangePasswordModal;
-

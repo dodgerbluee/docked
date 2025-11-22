@@ -128,7 +128,15 @@ async function createTrackedAppEndpoint(req, res, next) {
         error: "Authentication required",
       });
     }
-    const { name, imageName, githubRepo, sourceType, current_version, gitlabToken, repositoryTokenId } = req.body;
+    const {
+      name,
+      imageName,
+      githubRepo,
+      sourceType,
+      current_version,
+      gitlabToken,
+      repositoryTokenId,
+    } = req.body;
 
     // Validate name is required
     if (!name || !name.trim()) {
@@ -279,7 +287,8 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const { name, imageName, current_version, gitlabToken, repositoryTokenId, isUpgrade } = req.body;
+    const { name, imageName, current_version, gitlabToken, repositoryTokenId, isUpgrade } =
+      req.body;
 
     // Check if tracked app exists
     const existing = await getTrackedAppById(parseInt(id), userId);
@@ -340,10 +349,11 @@ async function updateTrackedAppEndpoint(req, res, next) {
       };
 
       // Check if this is an edit (imageName changed) vs an upgrade (marking as upgraded)
-      const isImageNameChange = imageName && imageName !== null && String(imageName).trim() !== existing.image_name;
+      const isImageNameChange =
+        imageName && imageName !== null && String(imageName).trim() !== existing.image_name;
       const isExplicitUpgrade = isUpgrade === true;
       const isCurrentVersionChange = trimmedVersion !== existing.current_version;
-      
+
       if (isImageNameChange || !isExplicitUpgrade) {
         // When editing (changing imageName or current_version via modal), don't clear has_update
         // Let the recheck determine if there's an update available
@@ -351,7 +361,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
         if (isImageNameChange) {
           updateData.current_digest = null;
         }
-        
+
         // If current_version changed, clear latest_version and latest_digest to force fresh recheck
         // This ensures the recheck will fetch the latest version and compare it properly
         if (isCurrentVersionChange) {
@@ -359,7 +369,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
           updateData.latest_digest = null;
           updateData.current_digest = null; // Also clear current_digest for fresh comparison
         }
-        
+
         // Don't set has_update here - let the recheck determine if there's an update
       } else {
         // When user explicitly upgrades (marks as upgraded via checkmark), set current_version AND sync latest_version to match

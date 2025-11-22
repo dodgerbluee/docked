@@ -95,7 +95,9 @@ const NotificationMenu = ({
                         {enabledWebhooks.slice(0, 3).map((webhook) => (
                           <img
                             key={webhook.id}
-                            src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
+                            src={
+                              webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"
+                            }
                             alt={webhook.name || "Webhook avatar"}
                             className="notification-webhook-avatar"
                             onError={(e) => {
@@ -171,7 +173,9 @@ const NotificationMenu = ({
                         {enabledWebhooks.slice(0, 3).map((webhook) => (
                           <img
                             key={webhook.id}
-                            src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
+                            src={
+                              webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"
+                            }
                             alt={webhook.name || "Webhook avatar"}
                             className="notification-webhook-avatar"
                             onError={(e) => {

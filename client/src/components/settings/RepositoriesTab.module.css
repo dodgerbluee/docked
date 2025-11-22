@@ -53,7 +53,9 @@
 }
 
 .tokenCard {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .tokenCard:hover {
@@ -142,4 +144,3 @@ body.dark-mode .addTokenCard:hover .addTokenText {
 .addTokenIcon {
   flex-shrink: 0;
 }
-

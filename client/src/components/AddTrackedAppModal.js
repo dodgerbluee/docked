@@ -163,7 +163,7 @@ function AddTrackedAppModal({
         // Pass the image ID to onSuccess so it can check the version
         // For create: response.data.id, for update: response.data.image.id
         const imageId = response.data.image?.id || response.data.id || initialData?.id;
-        
+
         // Wait for onSuccess to complete (including recheck) before closing modal
         // This ensures the UI shows the correct state immediately and prevents
         // showing intermediate states (red sidebar, etc.)

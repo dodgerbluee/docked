@@ -475,7 +475,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   const extractImageInfo = (imageName, imageRepo, imageTag) => {
     let repo = imageRepo || "";
     let tag = imageTag || "latest";
-    
+
     // If we have imageName, try to extract from it
     if (imageName && !repo) {
       if (imageName.includes(":")) {
@@ -486,26 +486,22 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
         repo = imageName;
       }
     }
-    
+
     // Remove @sha256 suffix if present
     if (tag && tag.includes("@")) {
       tag = tag.split("@")[0];
     }
-    
+
     return { repo, tag };
   };
 
   // First pass: Group containers by image_repo:tag
   const containersByImage = new Map();
-  
+
   (rawDatabaseRecords.containers || []).forEach((container) => {
-    const { repo, tag } = extractImageInfo(
-      container.image_name,
-      container.image_repo,
-      null
-    );
+    const { repo, tag } = extractImageInfo(container.image_name, container.image_repo, null);
     const imageKey = `${repo}:${tag}`;
-    
+
     if (!containersByImage.has(imageKey)) {
       containersByImage.set(imageKey, {
         imageRepo: repo,
@@ -516,17 +512,18 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
         portainerInstances: new Set(),
       });
     }
-    
+
     containersByImage.get(imageKey).containers.push(container);
-    
+
     // Track which Portainer instance this container belongs to
     if (container.portainer_instance_id) {
       containersByImage.get(imageKey).portainerInstances.add(container.portainer_instance_id);
     }
-    
+
     // Also track deployed_image_id if present
     if (container.deployed_image_id) {
-      containersByImage.get(imageKey).deployedImageIds = containersByImage.get(imageKey).deployedImageIds || new Set();
+      containersByImage.get(imageKey).deployedImageIds =
+        containersByImage.get(imageKey).deployedImageIds || new Set();
       containersByImage.get(imageKey).deployedImageIds.add(container.deployed_image_id);
     }
   });
@@ -535,14 +532,10 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   const deployedImageMap = new Map();
   (rawDatabaseRecords.deployed_images || []).forEach((deployedImage) => {
     deployedImageMap.set(deployedImage.id, deployedImage);
-    
-    const { repo, tag } = extractImageInfo(
-      null,
-      deployedImage.image_repo,
-      deployedImage.image_tag
-    );
+
+    const { repo, tag } = extractImageInfo(null, deployedImage.image_repo, deployedImage.image_tag);
     const imageKey = `${repo}:${tag}`;
-    
+
     if (containersByImage.has(imageKey)) {
       containersByImage.get(imageKey).deployedImages.push(deployedImage);
     } else {
@@ -566,7 +559,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
     if (data.deployedImageIds) {
       data.deployedImageIds.forEach((deployedImageId) => {
         const deployedImage = deployedImageMap.get(deployedImageId);
-        if (deployedImage && !data.deployedImages.find(di => di.id === deployedImage.id)) {
+        if (deployedImage && !data.deployedImages.find((di) => di.id === deployedImage.id)) {
           data.deployedImages.push(deployedImage);
         }
       });
@@ -580,7 +573,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
     // Try to match by current_tag, latest_tag, or any tag
     const imageTag = version.current_tag || version.latest_tag || version.image_tag || "latest";
     const imageKey = `${imageRepo}:${imageTag}`;
-    
+
     // Try exact match first
     if (containersByImage.has(imageKey)) {
       containersByImage.get(imageKey).registryVersions.push(version);
@@ -593,7 +586,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
           matched = true;
         }
       });
-      
+
       // If no match, create a repo-only entry
       if (!matched) {
         const repoOnlyKey = `${imageRepo}:*`;
@@ -687,8 +680,10 @@ async function getContainerData(req, res, next) {
         endpointId: c.endpointId,
         stackName: c.stackName,
         currentDigest: c.currentDigest,
-        currentTag: c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
-        currentVersion: c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
+        currentTag:
+          c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
+        currentVersion:
+          c.imageTag || (c.imageName?.includes(":") ? c.imageName.split(":")[1] : "latest"),
         currentImageCreated: c.imageCreatedDate,
         usesNetworkMode: c.usesNetworkMode || false,
         providesNetwork: c.providesNetwork || false,
@@ -807,7 +802,11 @@ async function getContainerData(req, res, next) {
     const rawDatabaseRecords = await getRawDatabaseRecords(userId);
 
     // Create correlated view: group all DB records by image name/version
-    const correlatedRecords = correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstances);
+    const correlatedRecords = correlateRecordsByImage(
+      rawDatabaseRecords,
+      allContainers,
+      userInstances
+    );
 
     res.json({
       success: true,

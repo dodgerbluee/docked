@@ -39,15 +39,17 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
     return new Map();
   });
 
-  const [dismissedVersionUpdateNotification, setDismissedVersionUpdateNotification] = useState(() => {
-    try {
-      const stored = localStorage.getItem("dismissedVersionUpdateNotification");
-      return stored || null;
-    } catch (err) {
-      console.error("Error loading dismissed version update notification:", err);
+  const [dismissedVersionUpdateNotification, setDismissedVersionUpdateNotification] = useState(
+    () => {
+      try {
+        const stored = localStorage.getItem("dismissedVersionUpdateNotification");
+        return stored || null;
+      } catch (err) {
+        console.error("Error loading dismissed version update notification:", err);
+      }
+      return null;
     }
-    return null;
-  });
+  );
 
   // Persist dismissed notifications to localStorage whenever they change
   useEffect(() => {
@@ -72,7 +74,10 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
   useEffect(() => {
     try {
       if (dismissedVersionUpdateNotification) {
-        localStorage.setItem("dismissedVersionUpdateNotification", dismissedVersionUpdateNotification);
+        localStorage.setItem(
+          "dismissedVersionUpdateNotification",
+          dismissedVersionUpdateNotification
+        );
       } else {
         localStorage.removeItem("dismissedVersionUpdateNotification");
       }
@@ -139,7 +144,12 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
       activeContainersWithUpdates.length +
       activeTrackedAppsBehind.length +
       (versionUpdateInfo && instanceAdmin ? 1 : 0),
-    [activeContainersWithUpdates.length, activeTrackedAppsBehind.length, versionUpdateInfo, instanceAdmin]
+    [
+      activeContainersWithUpdates.length,
+      activeTrackedAppsBehind.length,
+      versionUpdateInfo,
+      instanceAdmin,
+    ]
   );
 
   // Notification handlers

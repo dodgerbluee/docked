@@ -209,4 +209,3 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   border-radius: 6px;
   border: 1px solid var(--error-color);
 }
-

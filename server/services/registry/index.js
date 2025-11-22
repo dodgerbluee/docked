@@ -1,6 +1,6 @@
 /**
  * Registry Service - Public API
- * 
+ *
  * Unified interface for all container registry operations.
  * Provides automatic provider selection, fallback strategies,
  * and consistent error handling.
@@ -94,4 +94,3 @@ module.exports = {
   // Export manager for advanced usage
   getRegistryManager,
 };
-
