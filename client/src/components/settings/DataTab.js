@@ -58,15 +58,12 @@ const DataTab = React.memo(function DataTab() {
     }
   }, [rawRecordsExpanded]);
 
-  const handleViewModeChange = useCallback(
-    (mode) => {
-      setViewMode(mode);
-      if (mode === "formatted") {
-        setRawRecordsExpanded(false);
-      }
-    },
-    []
-  );
+  const handleViewModeChange = useCallback((mode) => {
+    setViewMode(mode);
+    if (mode === "formatted") {
+      setRawRecordsExpanded(false);
+    }
+  }, []);
 
   const rawDatabaseRecords = useMemo(() => {
     return dataEntries.length > 0 && dataEntries[0]?.rawDatabaseRecords
@@ -138,19 +135,11 @@ const DataTab = React.memo(function DataTab() {
                     className={styles.searchInput}
                   />
                   {viewMode === "formatted" ? (
-                    <Button
-                      variant="outline"
-                      onClick={handleExpandCollapseFormatted}
-                      size="sm"
-                    >
+                    <Button variant="outline" onClick={handleExpandCollapseFormatted} size="sm">
                       {areAllExpanded() ? "Collapse All" : "Expand All"}
                     </Button>
                   ) : (
-                    <Button
-                      variant="outline"
-                      onClick={handleExpandCollapseRaw}
-                      size="sm"
-                    >
+                    <Button variant="outline" onClick={handleExpandCollapseRaw} size="sm">
                       {rawRecordsExpanded ? "Collapse All" : "Expand All"}
                     </Button>
                   )}

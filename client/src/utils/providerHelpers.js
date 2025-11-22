@@ -32,4 +32,3 @@ export function getProviderLabel(provider) {
 export function isValidProvider(provider) {
   return provider === "github" || provider === "gitlab";
 }
-

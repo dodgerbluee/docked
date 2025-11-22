@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
@@ -40,12 +40,9 @@ const PortainerTab = React.memo(function PortainerTab({
     refreshSettings,
   } = usePageVisibilitySettings();
 
-  const handleDeleteClick = useCallback(
-    (instanceId) => {
-      setDeleteConfirm({ isOpen: true, instanceId });
-    },
-    []
-  );
+  const handleDeleteClick = useCallback((instanceId) => {
+    setDeleteConfirm({ isOpen: true, instanceId });
+  }, []);
 
   const handleDeleteConfirm = useCallback(() => {
     if (deleteConfirm.instanceId) {
@@ -76,10 +73,6 @@ const PortainerTab = React.memo(function PortainerTab({
 
   const handleDeleteClose = useCallback(() => {
     setDeleteConfirm({ isOpen: false, instanceId: null });
-  }, []);
-
-  const handlePortainerConfirmOpen = useCallback(() => {
-    setPortainerConfirm(true);
   }, []);
 
   const handlePortainerConfirmClose = useCallback(() => {

@@ -582,7 +582,7 @@ function formatVersionUpdateNotification(imageData) {
       latestDisplay = latestVersion;
     }
   }
-  
+
   // If we don't have a valid releaseUrl, try to construct one
   if (sourceType === "github" && githubRepo && latestVersion && latestDisplay === latestVersion) {
     // Validate inputs before constructing URL
@@ -864,12 +864,12 @@ async function getWebhookInfo(webhookUrl) {
         // Discord CDN URL format for webhooks: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
         // Extract webhook ID from URL or use data.id
         const webhookIdRaw = data.id || webhookUrl.match(/\/webhooks\/(\d+)\//)?.[1];
-        
+
         // Validate webhookId is a valid numeric string to prevent injection
         if (webhookIdRaw && /^\d+$/.test(String(webhookIdRaw))) {
           const webhookId = String(webhookIdRaw);
           const avatarHash = String(data.avatar);
-          
+
           // Validate avatarHash contains only safe characters (alphanumeric, underscore, hyphen)
           // Discord avatar hashes are base64-like strings, typically 32 characters
           // This prevents path traversal attacks (../) and other injection attempts
@@ -879,7 +879,7 @@ async function getWebhookInfo(webhookUrl) {
             const extension = avatarHash.startsWith("a_") ? "gif" : "png";
             // Construct URL with validated inputs - size parameter for consistent sizing (128px is a good default)
             const constructedUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.${extension}?size=128`;
-            
+
             // Final validation: Ensure the constructed URL is actually a Discord CDN URL
             // This provides defense-in-depth against any potential injection
             if (constructedUrl.startsWith("https://cdn.discordapp.com/avatars/")) {

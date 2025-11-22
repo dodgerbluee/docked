@@ -16,11 +16,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
 }) {
   const [trackedAppConfirm, setTrackedAppConfirm] = useState(false);
 
-  const {
-    disableTrackedAppsPage,
-    updateDisableTrackedAppsPage,
-    refreshSettings,
-  } = usePageVisibilitySettings();
+  const { disableTrackedAppsPage, updateDisableTrackedAppsPage, refreshSettings } =
+    usePageVisibilitySettings();
 
   const handleClearTrackedAppData = useCallback(async () => {
     if (!onClearTrackedAppData) {

@@ -15,6 +15,7 @@
  */
 
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const containerController = require("../controllers/containerController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
@@ -31,6 +32,34 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
+
+// Rate limiters for specific routes
+// Avatar routes rate limiter: 100 requests per 15 minutes per IP
+const avatarLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Repository access token routes rate limiter: 100 requests per 15 minutes per IP
+const repositoryAssociatedImagesRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Associate images route rate limiter: 10 requests per minute per IP (more restrictive for write operations)
+const associateImagesLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per minute
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 /**
  * @swagger
@@ -220,9 +249,13 @@ router.post("/portainer/instances/reorder", asyncHandler(portainerController.upd
 router.delete("/portainer/instances/:id", asyncHandler(portainerController.deleteInstance));
 
 // Avatar routes
-router.get("/avatars", asyncHandler(avatarController.getAvatar));
-router.get("/avatars/user/:userId", asyncHandler(avatarController.getAvatarByUserId));
-router.get("/avatars/recent", asyncHandler(avatarController.getRecentAvatars));
+router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));
+router.get(
+  "/avatars/user/:userId",
+  avatarLimiter,
+  asyncHandler(avatarController.getAvatarByUserId)
+);
+router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
 router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
 router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
@@ -310,12 +343,14 @@ router.delete(
 
 router.get(
   "/repository-access-tokens/:id/associated-images",
+  repositoryAssociatedImagesRateLimiter,
   authenticate,
   asyncHandler(repositoryAccessTokenController.getAssociatedImages)
 );
 
 router.post(
   "/repository-access-tokens/:id/associate-images",
+  associateImagesLimiter,
   authenticate,
   asyncHandler(repositoryAccessTokenController.associateImages)
 );

@@ -39,7 +39,7 @@ async function getDiscordWebhooks(req, res, next) {
     }
     const { getAllDiscordWebhooks, getDiscordWebhookById, updateDiscordWebhook } = getDatabase();
     const webhooks = await getAllDiscordWebhooks(userId);
-    
+
     // Refresh avatar URLs for webhooks that don't have them
     // This ensures webhook avatars from Discord are always displayed correctly
     // This is important because webhooks should show their Discord avatar, not user avatars
@@ -67,11 +67,11 @@ async function getDiscordWebhooks(req, res, next) {
         }
       }
     });
-    
+
     // Wait for all refresh attempts to complete (non-blocking)
     // This ensures webhooks get their Discord avatars even if they were created before avatar support
     await Promise.allSettled(refreshPromises);
-    
+
     res.json({
       success: true,
       webhooks: webhooks,
