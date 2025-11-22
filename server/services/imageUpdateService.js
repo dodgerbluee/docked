@@ -93,6 +93,33 @@ async function checkImageUpdates(
     latestImageInfo = null;
   }
 
+  // If we didn't get provider from registry lookup, detect it from image name
+  // This ensures provider is set even when digest lookup fails
+  if (!latestImageInfo?.provider) {
+    const dockerRegistryService = require("./dockerRegistryService");
+    const registryInfo = dockerRegistryService.detectRegistry(repo);
+    const providerMap = {
+      dockerhub: "dockerhub",
+      ghcr: "ghcr",
+      gitlab: "gitlab",
+      gcr: "gcr",
+      lscr: "dockerhub",
+    };
+    const detectedProvider = providerMap[registryInfo.type] || null;
+    if (detectedProvider) {
+      // Create a minimal latestImageInfo with provider even if digest lookup failed
+      if (!latestImageInfo) {
+        latestImageInfo = {
+          provider: detectedProvider,
+          digest: null,
+          tag: currentTag,
+        };
+      } else {
+        latestImageInfo.provider = detectedProvider;
+      }
+    }
+  }
+
   let hasUpdate = false;
   let latestDigest = null;
   let latestTag = currentTag; // Use the current tag, not "latest"

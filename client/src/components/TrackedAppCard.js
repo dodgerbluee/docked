@@ -71,7 +71,12 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
         return image.currentVersionPublishDate;
       }
     } else {
-      return image.currentVersionPublishDate;
+      // Docker Hub: show latest version publish date if there's an update, otherwise current version publish date
+      if (image.latest_version && image.has_update && image.latestVersionPublishDate) {
+        return image.latestVersionPublishDate;
+      } else if (image.currentVersionPublishDate) {
+        return image.currentVersionPublishDate;
+      }
     }
     return null;
   }, [
@@ -83,13 +88,16 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
   ]);
 
   // Memoize event handlers
-  const handleEdit = useCallback(() => {
+  const handleEdit = useCallback((e) => {
+    if (e) {
+      e.stopPropagation();
+    }
     onEdit(image);
   }, [image, onEdit]);
 
   const handleUpgrade = useCallback(() => {
-    onUpgrade(image.id, image.latest_version);
-  }, [image.id, image.latest_version, onUpgrade]);
+    onUpgrade(image.id, image.latest_version, image.name);
+  }, [image.id, image.latest_version, image.name, onUpgrade]);
 
   // Check if current version is not available
   // Only show red if the app has been checked (last_checked exists) and got a bad response
@@ -115,11 +123,29 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
     return image.last_checked && hasNoLatestVersion && !image.has_update;
   }, [image.last_checked, hasNoLatestVersion, image.has_update]);
 
+  // Handle card click - mark as upgraded if it has an update
+  const handleCardClick = useCallback(() => {
+    if (image.has_update && onUpgrade) {
+      handleUpgrade();
+    }
+  }, [image.has_update, onUpgrade, handleUpgrade]);
+
   return (
     <div
       className={`${styles.card} ${
         shouldShowUnknownBorder ? styles.unknownBorder : ""
-      } ${image.has_update ? styles.updateAvailable : hasNoCurrentVersion ? styles.noCurrentVersion : styles.noUpdate}`}
+      } ${image.has_update ? styles.updateAvailable : hasNoCurrentVersion ? styles.noCurrentVersion : styles.noUpdate} ${image.has_update ? styles.clickableCard : ""}`}
+      onClick={image.has_update ? handleCardClick : undefined}
+      style={image.has_update ? { cursor: "pointer" } : undefined}
+      role={image.has_update ? "button" : undefined}
+      tabIndex={image.has_update ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (image.has_update && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+      aria-label={image.has_update ? `Mark ${image.name} as upgraded` : undefined}
     >
       <div className={styles.content}>
         <div className={styles.header}>
@@ -281,6 +307,19 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
                 >
                   <Pencil size={14} className={styles.editIcon} />
                 </Button>
+                {image.has_update && (
+                  <span
+                    className={styles.upgradedCheckmark}
+                    title="Mark Upgraded"
+                    aria-label="Mark Upgraded"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpgrade();
+                    }}
+                  >
+                    <Check size={18} />
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -341,8 +380,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
             <p className={styles.metaItem}>
               <strong>Released:</strong> {new Date(publishDate).toLocaleDateString()}
             </p>
-          ) : (image.source_type === "github" || image.source_type === "gitlab") &&
-            (image.current_version || image.latest_version) ? (
+          ) : (image.current_version || image.latest_version) ? (
             <p className={styles.metaItem}>
               <strong>Released:</strong> <span className={styles.unavailable}>Not available</span>
             </p>

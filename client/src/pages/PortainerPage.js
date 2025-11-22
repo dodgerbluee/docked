@@ -103,9 +103,13 @@ function PortainerPage({
     onSetContentTab,
   });
 
+  // Image source filter state
+  const [selectedImageSourceFilters, setSelectedImageSourceFilters] = useState(new Set());
+
   // Use extracted search hook
   const { searchQuery, setSearchQuery, filteredGroupedStacks } = usePortainerSearch(
-    portainerPage.groupedStacks
+    portainerPage.groupedStacks,
+    selectedImageSourceFilters
   );
 
   const handleToggleCollapsed = useCallback(() => {
@@ -197,6 +201,8 @@ function PortainerPage({
             onContentTabChange={portainerPage.setContentTab}
             selectedPortainerInstances={portainerPage.selectedPortainerInstances}
             onSelectedPortainerInstancesChange={portainerPage.setSelectedPortainerInstances}
+            selectedImageSourceFilters={selectedImageSourceFilters}
+            onSelectedImageSourceFiltersChange={setSelectedImageSourceFilters}
             onAddInstance={onAddInstance}
           />
         </ErrorBoundary>

@@ -2745,11 +2745,16 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       riv.tag as dh_latest_tag,
       riv.latest_publish_date as dh_latest_publish_date,
       riv.provider as dh_provider,
+      riv.last_checked as dh_last_checked,
       CASE 
         WHEN di.image_digest IS NOT NULL AND riv.latest_digest IS NOT NULL 
           AND di.image_digest != riv.latest_digest THEN 1
         ELSE 0
-      END as dh_has_update
+      END as dh_has_update,
+      CASE
+        WHEN di.id IS NOT NULL AND riv.id IS NOT NULL AND riv.latest_digest IS NULL THEN 1
+        ELSE 0
+      END as dh_no_digest
     FROM containers c
     LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
     LEFT JOIN registry_image_versions riv 
@@ -2816,6 +2821,8 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
             hasUpdate: hasUpdate, // Computed per-container, not from shared table
             latestPublishDate: row.dh_latest_publish_date,
             provider: row.dh_provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
+            noDigest: row.dh_no_digest === 1, // Flag: container was checked but no digest was returned
+            lastChecked: row.dh_last_checked, // When the registry was last checked for this image
             lastSeen: row.last_seen,
             createdAt: row.created_at,
             updatedAt: row.updated_at,

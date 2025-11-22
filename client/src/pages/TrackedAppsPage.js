@@ -24,8 +24,9 @@ import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsC
  * @param {Function} props.onDeleteTrackedApp - Handler for deleting tracked apps
  * @param {Function} props.onUpgradeTrackedApp - Handler for upgrading tracked apps (to refresh App.js state)
  * @param {Function} props.onEditTrackedApp - Handler for editing tracked apps (to refresh App.js state)
+ * @param {Function} props.onNavigateToSettings - Handler for navigating to Settings page
  */
-function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTrackedApp }) {
+function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTrackedApp, onNavigateToSettings }) {
   const {
     trackedApps,
     trackedAppError,
@@ -207,6 +208,8 @@ function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTracke
             onEdit={handleEditTrackedApp}
             onUpgrade={handleUpgrade}
             onAddNew={handleAddNew}
+            trackedAppsCount={trackedApps.length}
+            onNavigateToSettings={onNavigateToSettings}
           />
 
           {lastScanTime && (
@@ -241,6 +244,7 @@ function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTracke
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         message={confirmDialog.message}
+        variant={confirmDialog.variant || "danger"}
         onConfirm={() => {
           if (confirmDialog.onConfirm) {
             confirmDialog.onConfirm();
@@ -256,6 +260,7 @@ function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTracke
               message: "",
               onConfirm: null,
               onClose: null,
+              variant: "danger",
             });
           }
         }}
@@ -268,6 +273,7 @@ TrackedAppsPage.propTypes = {
   onDeleteTrackedApp: PropTypes.func,
   onUpgradeTrackedApp: PropTypes.func,
   onEditTrackedApp: PropTypes.func,
+  onNavigateToSettings: PropTypes.func,
 };
 
 export default TrackedAppsPage;

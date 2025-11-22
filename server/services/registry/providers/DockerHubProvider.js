@@ -113,20 +113,68 @@ class DockerHubProvider extends RegistryProvider {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `${normalizedRepo}:${tag}`;
 
-    // Check cache
+    // Check cache with original tag
     const cached = digestCache.get(cacheKey);
     if (cached) {
       this.logOperation("getLatestDigest (cached)", imageRepo, { tag });
       return cached;
     }
 
-    // Skip if tag contains digest
-    if (tag && tag.includes("@sha256")) {
-      this.logOperation("getLatestDigest (skipped)", imageRepo, { reason: "tag contains digest" });
+    // Handle incomplete SHA256 digests (e.g., "tag@sha256" without hash)
+    // Strip incomplete digest markers before processing
+    let cleanedTag = tag;
+    if (tag && tag.includes("@sha256") && !tag.includes("@sha256:")) {
+      // Remove incomplete @sha256 marker
+      cleanedTag = tag.replace("@sha256", "");
+      logger.debug(`[DockerHub] Stripped incomplete @sha256 marker from tag: ${tag} -> ${cleanedTag}`);
+      
+      // Also check cache with cleaned tag (in case it was cached with cleaned tag)
+      const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
+      const cleanedCached = digestCache.get(cleanedCacheKey);
+      if (cleanedCached) {
+        // Cache with original tag key for future lookups
+        digestCache.set(cacheKey, cleanedCached, config.cache.digestCacheTTL);
+        this.logOperation("getLatestDigest (cached)", imageRepo, { tag: cleanedTag });
+        return cleanedCached;
+      }
+    }
+
+    // Skip if tag contains complete digest
+    if (cleanedTag && cleanedTag.includes("@sha256:")) {
+      this.logOperation("getLatestDigest (skipped)", imageRepo, { reason: "tag contains complete digest" });
       return null;
     }
 
     try {
+      // First, try using crane/skopeo (works for public images, uses registry protocol)
+      // This bypasses API complexity and rate limits are handled by Docker Hub's registry limits
+      const { getImageDigest } = require("../../../utils/containerTools");
+      const imageRef = `${normalizedRepo}:${cleanedTag}`;
+      logger.debug(`[DockerHub] Trying to get digest for ${imageRef} using crane/skopeo`);
+      const digest = await getImageDigest(imageRef);
+      
+      if (digest) {
+        const result = { 
+          digest, 
+          tag: cleanedTag,
+          provider: "dockerhub",
+        };
+        
+        // Cache the result with both original and cleaned tag keys
+        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+        if (cleanedTag !== tag) {
+          const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
+          digestCache.set(cleanedCacheKey, result, config.cache.digestCacheTTL);
+        }
+        
+        this.logOperation("getLatestDigest", imageRepo, { tag: cleanedTag, digest: digest.substring(0, 12) + "..." });
+        logger.info(`[DockerHub] Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo - ${digest.substring(0, 12)}...`);
+        return result;
+      }
+      
+      // If crane/skopeo failed, try API approach
+      logger.debug(`[DockerHub] crane/skopeo failed for ${imageRef}, trying API approach`);
+
       // Rate limit delay
       const delay = await this.getRateLimitDelay(options);
       await rateLimitDelay(delay);
@@ -148,10 +196,10 @@ class DockerHubProvider extends RegistryProvider {
         return null;
       }
 
-      // Request manifest
-      const registryUrl = `https://registry-1.docker.io/v2/${namespace}/${repository}/manifests/${tag}`;
+      // Request manifest - accept both manifest list (multi-arch) and regular manifest (single-arch)
+      const registryUrl = `https://registry-1.docker.io/v2/${namespace}/${repository}/manifests/${cleanedTag}`;
       const headers = {
-        Accept: "application/vnd.docker.distribution.manifest.list.v2+json",
+        Accept: "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json,application/vnd.docker.distribution.manifest.v1+json",
         Authorization: `Bearer ${token}`,
       };
 
@@ -179,17 +227,40 @@ class DockerHubProvider extends RegistryProvider {
 
       if (response.status === 200 && response.headers["docker-content-digest"]) {
         const digest = response.headers["docker-content-digest"];
-        const result = { digest, tag };
+        const result = { 
+          digest, 
+          tag: cleanedTag,
+          provider: "dockerhub", // Explicitly set provider
+        };
         
-        // Cache the result
+        // Cache the result with both original and cleaned tag keys
         digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+        if (cleanedTag !== tag) {
+          const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
+          digestCache.set(cleanedCacheKey, result, config.cache.digestCacheTTL);
+        }
         
-        this.logOperation("getLatestDigest", imageRepo, { tag, digest: digest.substring(0, 12) + "..." });
+        this.logOperation("getLatestDigest", imageRepo, { tag: cleanedTag, digest: digest.substring(0, 12) + "..." });
+        logger.debug(`[DockerHub] Successfully got digest for ${imageRepo}:${cleanedTag} via API - ${digest.substring(0, 12)}...`);
         return result;
       }
+      
+      // If we got a 200 but no digest header, log it for debugging
+      if (response.status === 200 && !response.headers["docker-content-digest"]) {
+        logger.warn(`Docker Hub returned 200 for ${imageRepo}:${cleanedTag} but no docker-content-digest header. Content-Type: ${response.headers["content-type"]}`);
+      }
 
+      // Log detailed error information for debugging
       if (response.status !== 200 && response.status !== 404) {
-        logger.warn(`Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
+        logger.warn(`Failed to get digest for ${imageRepo}:${cleanedTag} (status: ${response.status})`, {
+          imageRepo,
+          tag: cleanedTag,
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      } else if (response.status === 404) {
+        logger.debug(`Image ${imageRepo}:${cleanedTag} not found on Docker Hub (404)`);
       }
 
       return null;
@@ -198,7 +269,15 @@ class DockerHubProvider extends RegistryProvider {
         throw error;
       }
       if (error.response?.status !== 404) {
-        logger.error(`Error fetching digest for ${imageRepo}:${tag}:`, error.message);
+        logger.error(`Error fetching digest for ${imageRepo}:${cleanedTag}:`, {
+          error: error.message,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          imageRepo,
+          tag: cleanedTag,
+        });
+      } else {
+        logger.debug(`Image ${imageRepo}:${cleanedTag} not found on Docker Hub (404 in catch)`);
       }
       return null;
     }

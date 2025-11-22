@@ -110,7 +110,7 @@ function Login({ onLogin }) {
               }}
             />
           </h1>
-          <p>Portainer Container Manager</p>
+          <p>Update Manager</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
           {createUserSuccess && (

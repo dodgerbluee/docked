@@ -4,8 +4,8 @@
 
 import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
 import PropTypes from "prop-types";
-import ContainerDataEntry from "./ContainerDataEntry";
 import DatabaseRecordsView from "./DatabaseRecordsView";
+import CorrelatedRecordsView from "./CorrelatedRecordsView";
 import styles from "../../DataTab.module.css";
 
 /**
@@ -27,6 +27,12 @@ const ContainerDataList = forwardRef(({
 }, ref) => {
   const [viewMode, setViewMode] = useState("formatted"); // "formatted" or "raw"
   const databaseRecordsViewRef = useRef(null);
+  
+  // Get correlated records from first entry if available (use original dataEntries, not filtered)
+  // This ensures correlated records are always available regardless of search
+  const correlatedRecords = dataEntries.length > 0 && dataEntries[0]?.correlatedRecords
+    ? dataEntries[0].correlatedRecords
+    : null;
   
   const handleViewModeChange = (newMode) => {
     setViewMode(newMode);
@@ -74,22 +80,20 @@ const ContainerDataList = forwardRef(({
         </button>
       </div>
 
-      {/* Formatted View */}
+      {/* Formatted View - Always shows correlated DB records when available */}
       {viewMode === "formatted" && (
         <div>
-          {dataEntries.length === 0 ? (
-            <div className={styles.emptyState}>
-              <p>No formatted container data available.</p>
-            </div>
+          {correlatedRecords && Object.keys(correlatedRecords).length > 0 ? (
+            <CorrelatedRecordsView
+              correlatedRecords={correlatedRecords}
+              expandedContainers={expandedContainers}
+              onToggleExpansion={onToggleExpansion}
+              searchQuery={searchQuery}
+            />
           ) : (
-            dataEntries.map((entry) => (
-              <ContainerDataEntry
-                key={entry.key}
-                entry={entry}
-                expandedContainers={expandedContainers}
-                onToggleExpansion={onToggleExpansion}
-              />
-            ))
+            <div className={styles.emptyState}>
+              <p>No correlated database records available.</p>
+            </div>
           )}
         </div>
       )}

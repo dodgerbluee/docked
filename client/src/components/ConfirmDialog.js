@@ -5,6 +5,7 @@
 
 import React, { useRef } from "react";
 import PropTypes from "prop-types";
+import { AlertCircle } from "lucide-react";
 import styles from "./ConfirmDialog.module.css";
 
 /**
@@ -25,6 +26,7 @@ function ConfirmDialog({
   cancelLabel = "Cancel",
   onConfirm,
   onCancel,
+  variant = "danger", // "danger" | "primary" | "success"
 }) {
   const mouseDownTargetRef = useRef(null);
 
@@ -104,17 +106,35 @@ function ConfirmDialog({
       onMouseUp={handleMouseUp}
     >
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.header}>
-          <h3>{title}</h3>
-        </div>
+        {variant !== "success" && (
+          <div className={styles.header}>
+            <h3>{title}</h3>
+          </div>
+        )}
         <div className={styles.content}>
+          {variant === "success" && (
+            <>
+              <div className={styles.iconContainer}>
+                <AlertCircle size={48} className={styles.warningIcon} />
+              </div>
+              <h3 className={styles.title}>{title}</h3>
+            </>
+          )}
           <p>{message}</p>
         </div>
         <div className={styles.actions}>
           <button type="button" className={styles.cancelButton} onClick={onCancel}>
             {cancelLabel}
           </button>
-          <button type="button" className={styles.confirmButton} onClick={onConfirm}>
+          <button
+            type="button"
+            className={
+              variant === "danger"
+                ? styles.dangerConfirmButton
+                : styles.confirmButton
+            }
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </button>
         </div>
@@ -131,6 +151,7 @@ ConfirmDialog.propTypes = {
   cancelLabel: PropTypes.string,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
+  variant: PropTypes.oneOf(["primary", "danger", "success"]),
 };
 
 export default ConfirmDialog;

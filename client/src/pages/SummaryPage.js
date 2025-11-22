@@ -30,6 +30,8 @@ import styles from "./SummaryPage.module.css";
  * @param {Function} props.onSetContentTab - Handler for setting content tab
  * @param {boolean} props.isLoading - Whether data is currently loading
  * @param {Function} props.onAddInstance - Handler to open Add Portainer Instance modal
+ * @param {boolean} props.disablePortainerPage - Whether Portainer page is disabled
+ * @param {boolean} props.disableTrackedAppsPage - Whether Tracked Apps page is disabled
  */
 const SummaryPage = ({
   portainerInstances = [],
@@ -44,6 +46,8 @@ const SummaryPage = ({
   onSetContentTab,
   isLoading = false,
   onAddInstance,
+  disablePortainerPage = false,
+  disableTrackedAppsPage = false,
 }) => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const hasNoInstances = portainerInstances.length === 0;
@@ -111,124 +115,145 @@ const SummaryPage = ({
       </div>
 
       <div className={styles.contentTabPanel}>
-        <h3 className={styles.sectionTitle}>Portainer Summary</h3>
-        <div className={styles.summaryStats}>
-          <StatCard
-            value={shouldShowEmptyState ? 0 : summaryStats.totalContainers}
-            label="Total Containers"
-            clickable={!shouldShowEmptyState}
-            onClick={() => {
-              if (shouldShowEmptyState || !onNavigateToPortainer) return;
-              onNavigateToPortainer();
-              if (onSetSelectedPortainerInstances) {
-                onSetSelectedPortainerInstances(new Set());
-              }
-              if (onSetContentTab) {
-                onSetContentTab(PORTAINER_CONTENT_TABS.ALL);
-              }
-            }}
-          />
-          <StatCard
-            value={shouldShowEmptyState ? 0 : summaryStats.containersWithUpdates}
-            label="Updates Available"
-            variant={
-              shouldShowEmptyState || summaryStats.containersWithUpdates === 0
-                ? STAT_CARD_VARIANTS.DEFAULT
-                : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
-            }
-            clickable={!shouldShowEmptyState}
-            onClick={() => {
-              if (shouldShowEmptyState) return;
-              handlePortainerStatClick(CONTENT_TABS.UPDATES);
-            }}
-          />
-          <StatCard
-            value={shouldShowEmptyState ? 0 : summaryStats.containersUpToDate}
-            label="Up to Date"
-            variant={STAT_CARD_VARIANTS.CURRENT}
-            clickable={!shouldShowEmptyState}
-            onClick={() => {
-              if (shouldShowEmptyState) return;
-              handlePortainerStatClick(CONTENT_TABS.CURRENT);
-            }}
-          />
-          <StatCard
-            value={shouldShowEmptyState ? 0 : summaryStats.unusedImages}
-            label="Unused Images"
-            variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
-            clickable={!shouldShowEmptyState}
-            onClick={() => {
-              if (shouldShowEmptyState) return;
-              handlePortainerStatClick(CONTENT_TABS.UNUSED);
-            }}
-          />
-        </div>
-        <div className={styles.summaryDivider}></div>
-
-        <div className={styles.portainerInstancesList}>
-          <h3 className={styles.sectionTitle}>Portainer Instances</h3>
-          {shouldShowEmptyState || summaryStats.portainerStats.length === 0 ? (
-            <div className={styles.emptyState}>
-              <p>No Portainer instances configured.</p>
+        {disablePortainerPage && disableTrackedAppsPage ? (
+          <div className={styles.disabledMessageContainer}>
+            <div className={styles.disabledMessage}>
+              <h3 className={styles.disabledMessageTitle}>Both Pages Disabled</h3>
+              <p className={styles.disabledMessageText}>
+                Both the Portainer and Tracked Apps pages are currently disabled. To re-enable them, go to{" "}
+                <strong>Settings</strong> and uncheck the "Disable Portainer Page" and "Disable Tracked Apps Page" options.
+              </p>
             </div>
-          ) : (
-            <div className={styles.instancesGrid}>
-              {summaryStats.portainerStats.map((stat) => (
-                <PortainerInstanceCard
-                  key={stat.name}
-                  instance={stat}
-                  onInstanceClick={handleInstanceClick}
-                  onStatClick={handleInstanceStatClick}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className={styles.trackedAppsSummary}>
-          <h3 className={styles.sectionTitle}>Tracked Apps Summary</h3>
-          <div className={styles.summaryStats}>
-            <StatCard
-              value={summaryStats.totalTrackedApps}
-              label="Tracked Apps"
-              clickable={true}
-              onClick={() => {
-                handleTrackedAppsClick();
-              }}
-            />
-            <StatCard
-              value={summaryStats.trackedAppsBehind}
-              label="Updates Available"
-              variant={
-                summaryStats.trackedAppsBehind === 0
-                  ? STAT_CARD_VARIANTS.DEFAULT
-                  : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
-              }
-              clickable={true}
-              onClick={() => {
-                handleTrackedAppsClick();
-              }}
-            />
-            <StatCard
-              value={summaryStats.trackedAppsUpToDate}
-              label="Up to Date"
-              variant={STAT_CARD_VARIANTS.CURRENT}
-              clickable={true}
-              onClick={() => {
-                handleTrackedAppsClick();
-              }}
-            />
-            <StatCard
-              value={summaryStats.trackedAppsUnknown}
-              label="Unknown"
-              variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
-              clickable={true}
-              onClick={() => {
-                handleTrackedAppsClick();
-              }}
-            />
           </div>
-        </div>
+        ) : (
+          <>
+            {!disablePortainerPage && (
+              <>
+                <h3 className={styles.sectionTitle}>Portainer Summary</h3>
+                <div className={styles.summaryStats}>
+                  <StatCard
+                    value={shouldShowEmptyState ? 0 : summaryStats.totalContainers}
+                    label="Total Containers"
+                    clickable={!shouldShowEmptyState}
+                    onClick={() => {
+                      if (shouldShowEmptyState || !onNavigateToPortainer) return;
+                      onNavigateToPortainer();
+                      if (onSetSelectedPortainerInstances) {
+                        onSetSelectedPortainerInstances(new Set());
+                      }
+                      if (onSetContentTab) {
+                        onSetContentTab(PORTAINER_CONTENT_TABS.ALL);
+                      }
+                    }}
+                  />
+                  <StatCard
+                    value={shouldShowEmptyState ? 0 : summaryStats.containersWithUpdates}
+                    label="Updates Available"
+                    variant={
+                      shouldShowEmptyState || summaryStats.containersWithUpdates === 0
+                        ? STAT_CARD_VARIANTS.DEFAULT
+                        : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
+                    }
+                    clickable={!shouldShowEmptyState}
+                    onClick={() => {
+                      if (shouldShowEmptyState) return;
+                      handlePortainerStatClick(CONTENT_TABS.UPDATES);
+                    }}
+                  />
+                  <StatCard
+                    value={shouldShowEmptyState ? 0 : summaryStats.containersUpToDate}
+                    label="Up to Date"
+                    variant={STAT_CARD_VARIANTS.CURRENT}
+                    clickable={!shouldShowEmptyState}
+                    onClick={() => {
+                      if (shouldShowEmptyState) return;
+                      handlePortainerStatClick(CONTENT_TABS.CURRENT);
+                    }}
+                  />
+                  <StatCard
+                    value={shouldShowEmptyState ? 0 : summaryStats.unusedImages}
+                    label="Unused Images"
+                    variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
+                    clickable={!shouldShowEmptyState}
+                    onClick={() => {
+                      if (shouldShowEmptyState) return;
+                      handlePortainerStatClick(CONTENT_TABS.UNUSED);
+                    }}
+                  />
+                </div>
+                <div className={styles.summaryDivider}></div>
+
+                <div className={styles.portainerInstancesList}>
+                  <h3 className={styles.sectionTitle}>Portainer Instances</h3>
+                  {shouldShowEmptyState || summaryStats.portainerStats.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <p>No Portainer instances configured.</p>
+                    </div>
+                  ) : (
+                    <div className={styles.instancesGrid}>
+                      {summaryStats.portainerStats.map((stat) => (
+                        <PortainerInstanceCard
+                          key={stat.name}
+                          instance={stat}
+                          onInstanceClick={handleInstanceClick}
+                          onStatClick={handleInstanceStatClick}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {!disableTrackedAppsPage && <div className={styles.summaryDivider}></div>}
+              </>
+            )}
+
+            {!disableTrackedAppsPage && (
+              <div className={`${styles.trackedAppsSummary} ${!disablePortainerPage ? styles.trackedAppsSummaryWithDivider : ""}`}>
+                <h3 className={styles.sectionTitle}>Tracked Apps Summary</h3>
+                <div className={styles.summaryStats}>
+                  <StatCard
+                    value={summaryStats.totalTrackedApps}
+                    label="Tracked Apps"
+                    clickable={true}
+                    onClick={() => {
+                      handleTrackedAppsClick();
+                    }}
+                  />
+                  <StatCard
+                    value={summaryStats.trackedAppsBehind}
+                    label="Updates Available"
+                    variant={
+                      summaryStats.trackedAppsBehind === 0
+                        ? STAT_CARD_VARIANTS.DEFAULT
+                        : STAT_CARD_VARIANTS.UPDATE_AVAILABLE
+                    }
+                    clickable={true}
+                    onClick={() => {
+                      handleTrackedAppsClick();
+                    }}
+                  />
+                  <StatCard
+                    value={summaryStats.trackedAppsUpToDate}
+                    label="Up to Date"
+                    variant={STAT_CARD_VARIANTS.CURRENT}
+                    clickable={true}
+                    onClick={() => {
+                      handleTrackedAppsClick();
+                    }}
+                  />
+                  <StatCard
+                    value={summaryStats.trackedAppsUnknown}
+                    label="Unknown"
+                    variant={STAT_CARD_VARIANTS.UNUSED_IMAGES}
+                    clickable={true}
+                    onClick={() => {
+                      handleTrackedAppsClick();
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <WelcomeModal
@@ -264,6 +289,8 @@ SummaryPage.propTypes = {
   onSetContentTab: PropTypes.func,
   isLoading: PropTypes.bool,
   onAddInstance: PropTypes.func,
+  disablePortainerPage: PropTypes.bool,
+  disableTrackedAppsPage: PropTypes.bool,
 };
 
 export default SummaryPage;

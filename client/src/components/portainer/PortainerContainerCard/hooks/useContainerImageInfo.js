@@ -57,11 +57,34 @@ export const useContainerImageInfo = (container) => {
     return false;
   }, [container.provider, container.updateSourceType, container.image]);
 
+  const isGoogle = useMemo(() => {
+    // Primary: Use provider field if available
+    if (container.provider === "gcr") {
+      return true;
+    }
+    // Fallback: Check image name pattern for gcr.io
+    if (container.provider === null || container.provider === undefined) {
+      return container.image && container.image.startsWith("gcr.io/");
+    }
+    return false;
+  }, [container.provider, container.image]);
+
   const isDocker = useMemo(() => {
-    // ONLY show Docker Hub icon if provider is explicitly "dockerhub"
-    // and not GitHub or GitLab
-    return container.provider === "dockerhub" && !isGitHub && !isGitLab;
-  }, [container.provider, isGitHub, isGitLab]);
+    // Primary: Use provider field if available
+    if (container.provider === "dockerhub") {
+      return !isGitHub && !isGitLab && !isGoogle;
+    }
+    // Fallback: Only if provider is not set, use image name pattern
+    // Don't show Docker Hub icon if it's GitHub, GitLab, or Google
+    if (container.provider === null || container.provider === undefined) {
+      if (isGitHub || isGitLab || isGoogle) {
+        return false;
+      }
+      // If existsInDockerHub is true or not set, assume Docker Hub
+      return container.existsInDockerHub !== false;
+    }
+    return false;
+  }, [container.provider, container.existsInDockerHub, isGitHub, isGitLab, isGoogle]);
 
   // Construct GitHub URL based on provider or tracked app info
   const githubUrl = useMemo(() => {
@@ -107,6 +130,25 @@ export const useContainerImageInfo = (container) => {
     [container.image]
   );
 
+  // Construct Google Container Registry / Artifact Registry URL
+  const googleUrl = useMemo(() => {
+    if (!container.image || !isGoogle) {
+      return null;
+    }
+    // Extract repo from image name (e.g., "gcr.io/project/repo:tag" -> "project/repo")
+    const imageParts = container.image.split(":");
+    const repo = imageParts[0];
+    if (repo.startsWith("gcr.io/")) {
+      const normalizedRepo = repo.replace("gcr.io/", "");
+      const parts = normalizedRepo.split("/");
+      const project = parts[0];
+      // Use Artifact Registry console (GCR is deprecated, but gcr.io URLs still work)
+      // Try to construct a link to Artifact Registry for the project
+      return `https://console.cloud.google.com/artifacts/docker/${project}?project=${project}`;
+    }
+    return null;
+  }, [container.image, isGoogle]);
+
   const handleVersionClick = useCallback(
     async (e) => {
       e.stopPropagation();
@@ -131,12 +173,14 @@ export const useContainerImageInfo = (container) => {
           window.open(githubUrl, "_blank", "noopener,noreferrer");
         } else if (isGitLab && gitlabUrl) {
           window.open(gitlabUrl, "_blank", "noopener,noreferrer");
+        } else if (isGoogle && googleUrl) {
+          window.open(googleUrl, "_blank", "noopener,noreferrer");
         } else if (isDocker && dockerHubUrl) {
           window.open(dockerHubUrl, "_blank", "noopener,noreferrer");
         }
       }
     },
-    [container.image, isGitHub, isGitLab, isDocker, githubUrl, gitlabUrl, dockerHubUrl]
+    [container.image, isGitHub, isGitLab, isGoogle, isDocker, githubUrl, gitlabUrl, googleUrl, dockerHubUrl]
   );
 
   return {
@@ -144,9 +188,11 @@ export const useContainerImageInfo = (container) => {
     imageNameWithoutVersion,
     isGitHub,
     isGitLab,
+    isGoogle,
     isDocker,
     githubUrl,
     gitlabUrl,
+    googleUrl,
     dockerHubUrl,
     handleVersionClick,
     handleImageNameClick,

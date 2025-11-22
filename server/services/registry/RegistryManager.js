@@ -105,8 +105,20 @@ class RegistryManager {
         };
       }
 
-      // If primary provider returns null (not found), don't fallback
-      // Only fallback on errors or rate limits
+      // If primary provider returns null (not found), still return provider info if available
+      // This ensures provider is set even when digest lookup fails
+      if (provider) {
+        // Try to get provider from the provider itself (in case it returned null but has provider info)
+        const providerName = provider.getName();
+        if (providerName) {
+          return {
+            digest: null,
+            tag: tag,
+            provider: providerName,
+            isFallback: false,
+          };
+        }
+      }
       return null;
     } catch (error) {
       // Handle rate limit or other errors

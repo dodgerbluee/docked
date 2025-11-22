@@ -279,7 +279,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const { name, imageName, current_version, gitlabToken, repositoryTokenId } = req.body;
+    const { name, imageName, current_version, gitlabToken, repositoryTokenId, isUpgrade } = req.body;
 
     // Check if tracked app exists
     const existing = await getTrackedAppById(parseInt(id), userId);
@@ -339,36 +339,60 @@ async function updateTrackedAppEndpoint(req, res, next) {
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 
-      // When user upgrades, set current_version AND sync latest_version to match
-      // This ensures they stay in sync and batch checks won't re-detect an update
-      // ALWAYS clear has_update when user explicitly upgrades
-      updateData.has_update = 0;
+      // Check if this is an edit (imageName changed) vs an upgrade (marking as upgraded)
+      const isImageNameChange = imageName && imageName !== null && String(imageName).trim() !== existing.image_name;
+      const isExplicitUpgrade = isUpgrade === true;
+      const isCurrentVersionChange = trimmedVersion !== existing.current_version;
+      
+      if (isImageNameChange || !isExplicitUpgrade) {
+        // When editing (changing imageName or current_version via modal), don't clear has_update
+        // Let the recheck determine if there's an update available
+        // Clear current_digest to force a fresh check with the new image/version
+        if (isImageNameChange) {
+          updateData.current_digest = null;
+        }
+        
+        // If current_version changed, clear latest_version and latest_digest to force fresh recheck
+        // This ensures the recheck will fetch the latest version and compare it properly
+        if (isCurrentVersionChange) {
+          updateData.latest_version = null;
+          updateData.latest_digest = null;
+          updateData.current_digest = null; // Also clear current_digest for fresh comparison
+        }
+        
+        // Don't set has_update here - let the recheck determine if there's an update
+      } else {
+        // When user explicitly upgrades (marks as upgraded via checkmark), set current_version AND sync latest_version to match
+        // This ensures they stay in sync and batch checks won't re-detect an update
+        // ALWAYS clear has_update when user explicitly upgrades
+        updateData.has_update = 0;
 
-      // If there's a stored latest_version, check if we should sync it
-      if (existing.latest_version) {
-        const normalizedCurrent = normalizeVersion(trimmedVersion);
-        const normalizedLatest = normalizeVersion(existing.latest_version);
+        // If there's a stored latest_version, check if we should sync it
+        if (existing.latest_version) {
+          const normalizedCurrent = normalizeVersion(trimmedVersion);
+          const normalizedLatest = normalizeVersion(existing.latest_version);
 
-        if (normalizedCurrent === normalizedLatest && normalizedCurrent !== "") {
-          // Versions match after normalization - sync latest_version to current_version format
-          // This ensures they're in perfect sync and batch checks won't re-detect updates
-          updateData.latest_version = trimmedVersion;
+          if (normalizedCurrent === normalizedLatest && normalizedCurrent !== "") {
+            // Versions match after normalization - sync latest_version to current_version format
+            // This ensures they're in perfect sync and batch checks won't re-detect updates
+            updateData.latest_version = trimmedVersion;
 
-          // If we have a latest_version_publish_date, use it as current_version_publish_date
-          // since current and latest are now the same
-          if (existing.latest_version_publish_date) {
-            updateData.current_version_publish_date = existing.latest_version_publish_date;
+            // If we have a latest_version_publish_date, use it as current_version_publish_date
+            // since current and latest are now the same
+            if (existing.latest_version_publish_date) {
+              updateData.current_version_publish_date = existing.latest_version_publish_date;
+            }
+            // Clear latest_version_publish_date since current and latest are now the same
+            updateData.latest_version_publish_date = null;
+          } else {
+            // Versions don't match after normalization - user might be upgrading to a different version
+            // Still sync latest_version to current_version to keep them in sync
+            updateData.latest_version = trimmedVersion;
           }
-          // Clear latest_version_publish_date since current and latest are now the same
-          updateData.latest_version_publish_date = null;
         } else {
-          // Versions don't match after normalization - user might be upgrading to a different version
-          // Still sync latest_version to current_version to keep them in sync
+          // No latest_version stored - set it to match current_version
           updateData.latest_version = trimmedVersion;
         }
-      } else {
-        // No latest_version stored - set it to match current_version
-        updateData.latest_version = trimmedVersion;
       }
     }
 

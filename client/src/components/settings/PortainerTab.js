@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
@@ -6,6 +6,7 @@ import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
+import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
 import GitHubIcon from "../icons/GitHubIcon";
 import GitLabIcon from "../icons/GitLabIcon";
 import { SETTINGS_TABS } from "../../constants/settings";
@@ -29,10 +30,46 @@ const PortainerTab = React.memo(function PortainerTab({
   const [associateImagesModalOpen, setAssociateImagesModalOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
 
+  const { tokens, loading: tokensLoading } = useRepositoryAccessTokens({
+    activeSection: SETTINGS_TABS.PORTAINER,
+  });
+
   const {
-    tokens,
-    loading: tokensLoading,
-  } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.PORTAINER });
+    disablePortainerPage: initialDisablePortainerPage,
+    updateDisablePortainerPage,
+    refreshSettings,
+  } = usePageVisibilitySettings();
+
+  const [localDisablePortainerPage, setLocalDisablePortainerPage] = useState(
+    initialDisablePortainerPage
+  );
+  const [saving, setSaving] = useState(false);
+
+  // Update local state when initial value changes
+  useEffect(() => {
+    setLocalDisablePortainerPage(initialDisablePortainerPage);
+  }, [initialDisablePortainerPage]);
+
+  const handleDisablePortainerPageChange = (e) => {
+    setLocalDisablePortainerPage(e.target.checked);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const success = await updateDisablePortainerPage(localDisablePortainerPage);
+      if (success) {
+        // Refresh settings to ensure sync
+        await refreshSettings();
+        // Dispatch custom event to notify HomePage to refresh
+        window.dispatchEvent(new CustomEvent("pageVisibilitySettingsUpdated"));
+      }
+    } catch (error) {
+      console.error("Error saving page visibility settings:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDeleteClick = (instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -199,6 +236,40 @@ const PortainerTab = React.memo(function PortainerTab({
             })}
           </div>
         )}
+      </div>
+
+      <div className={styles.pageVisibilitySection}>
+        <div className={styles.sectionHeader}>
+          <h4 className={styles.sectionTitle}>Page Visibility</h4>
+        </div>
+        <Card variant="default" padding="md" className={styles.visibilityCard}>
+          <div className={styles.checkboxContainer}>
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={localDisablePortainerPage}
+                onChange={handleDisablePortainerPageChange}
+                className={styles.checkbox}
+              />
+              <span className={styles.checkboxText}>Disable Portainer Page</span>
+            </label>
+            <p className={styles.checkboxNote}>
+              This will disable the functionality of the Portainer page. The Portainer tab will be
+              hidden from the home page navigation.
+            </p>
+          </div>
+          <div className={styles.formActions}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSave}
+              disabled={saving || localDisablePortainerPage === initialDisablePortainerPage}
+              className={styles.saveButton}
+            >
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </Card>
       </div>
 
       <div className={styles.dataManagement}>

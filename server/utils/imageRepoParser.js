@@ -13,8 +13,16 @@ function parseImageName(imageName) {
     throw new Error("Invalid image name provided");
   }
 
+  // Handle incomplete SHA256 digests (e.g., "image:tag@sha256" without hash)
+  // Remove incomplete digest markers
+  let cleanedImageName = imageName;
+  if (cleanedImageName.includes("@sha256") && !cleanedImageName.includes("@sha256:")) {
+    // Remove incomplete @sha256 marker
+    cleanedImageName = cleanedImageName.replace("@sha256", "");
+  }
+
   // Split by colon to separate tag
-  const parts = imageName.split(":");
+  const parts = cleanedImageName.split(":");
   const tag = parts.length > 1 ? parts[parts.length - 1] : "latest";
   const nameWithoutTag = parts.slice(0, -1).join(":") || parts[0];
 
