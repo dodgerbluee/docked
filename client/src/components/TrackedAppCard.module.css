@@ -24,6 +24,15 @@
   box-shadow: 0 4px 12px var(--shadow);
 }
 
+.clickableCard {
+  cursor: pointer;
+}
+
+.clickableCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
 .unknownBorder {
   border: 2px solid var(--dodger-red);
 }

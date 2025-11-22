@@ -467,6 +467,9 @@ async function getAllContainersWithUpdates(
               updateSourceType: updateSourceType, // "github" or "gitlab" if update comes from tracked app
               updateGitHubRepo: updateGitHubRepo, // GitHub repo URL if update comes from GitHub-tracked app
               updateGitLabRepo: updateGitLabRepo, // GitLab repo URL if update comes from GitLab-tracked app
+              // Flag: container was checked (has provider) but no digest was returned
+              // This means a registry_image_versions entry exists but latest_digest is NULL
+              noDigest: updateInfo.provider !== null && !updateInfo.latestDigest && !updateInfo.latestDigestFull,
             };
 
             // Save to normalized tables for persistence across restarts
@@ -839,6 +842,8 @@ async function getAllContainersWithUpdates(
           updateSourceType: updateSourceType,
           updateGitHubRepo: updateGitHubRepo,
           updateGitLabRepo: updateGitLabRepo,
+          noDigest: c.noDigest || false, // Flag: container was checked but no digest was returned
+          lastChecked: c.lastChecked || null, // When the registry was last checked for this image
         };
       });
 
@@ -1246,7 +1251,17 @@ async function getContainersFromPortainer(userId = null) {
             const imageParts = imageName.includes(":")
               ? imageName.split(":")
               : [imageName, "latest"];
-            const currentTag = imageParts[1];
+            let imageTag = imageParts[1];
+
+            // Handle incomplete SHA256 digests
+            if (imageTag && imageTag.includes("@sha256") && !imageTag.includes("@sha256:")) {
+              // Remove incomplete digest marker
+              imageTag = imageTag.replace("@sha256", "");
+              // If tag becomes empty, use "latest"
+              if (!imageTag) {
+                imageTag = "latest";
+              }
+            }
 
             // Extract stack name from labels
             const labels = details.Config.Labels || {};
@@ -1295,8 +1310,8 @@ async function getContainersFromPortainer(userId = null) {
               portainerName: instanceName,
               hasUpdate: false, // No Docker Hub check
               currentDigest: currentDigest, // Full digest (sha256:...)
-              currentTag: currentTag,
-              currentVersion: currentTag,
+              currentTag: imageTag,
+              currentVersion: imageTag,
               latestDigest: null,
               latestTag: null,
               latestVersion: null,
@@ -1326,26 +1341,37 @@ async function getContainersFromPortainer(userId = null) {
 
         for (const container of validContainers) {
           try {
-            // Parse image repo from image name
+            // Parse image repo from image name (handles incomplete SHA256 digests)
             const parsed = imageRepoParser.parseImageName(container.image || "");
-            const imageRepo = parsed.repository || container.image?.split(":")[0] || "";
+            // Use parsed.imageRepo which includes registry prefix if not docker.io
+            const imageRepo = parsed.imageRepo || container.image?.split(":")[0] || "";
             
-            // Extract tag
-            const imageParts = container.image?.includes(":") ? container.image.split(":") : [container.image, "latest"];
-            const imageTag = imageParts[1];
+            // Extract tag from parsed result (already handles incomplete SHA256)
+            let imageTag = parsed.tag || "latest";
 
-            // Determine registry
+            // Determine registry and provider
             const registryInfo = dockerRegistryService.detectRegistry(imageRepo);
             const registryMap = {
               dockerhub: "docker.io",
               ghcr: "ghcr.io",
               gitlab: "registry.gitlab.com",
               gcr: "gcr.io",
+              lscr: "docker.io", // lscr.io images are also on Docker Hub
             };
             const registry = registryMap[registryInfo.type] || "docker.io";
             
+            // Map registry type to provider
+            const providerMap = {
+              dockerhub: "dockerhub",
+              ghcr: "ghcr",
+              gitlab: "gitlab",
+              gcr: "gcr",
+              lscr: "dockerhub", // lscr.io images are on Docker Hub
+            };
+            const provider = providerMap[registryInfo.type] || null;
+            
             let namespace = null;
-            let repository = imageRepo;
+            let repository = parsed.repository || imageRepo;
             if (registry !== "docker.io" && imageRepo.includes("/")) {
               const parts = imageRepo.split("/");
               if (parts.length >= 2) {

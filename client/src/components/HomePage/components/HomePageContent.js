@@ -12,7 +12,8 @@ import PortainerPage from "../../../pages/PortainerPage";
 import SettingsPage from "../../../pages/SettingsPage";
 import BatchPage from "../../../pages/BatchPage";
 import AdminPage from "../../../pages/AdminPage";
-import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS } from "../../../constants/apiConstants";
+import { TAB_NAMES, CONTENT_TABS } from "../../../constants/apiConstants";
+import { SETTINGS_TABS } from "../../../constants/settings";
 
 /**
  * HomePage content component
@@ -78,6 +79,8 @@ const HomePageContent = ({
   handleLogoutWithCleanup,
   editingPortainerInstance,
   fetchPortainerInstances,
+  disablePortainerPage = false,
+  disableTrackedAppsPage = false,
 }) => {
   // Render summary page
   const renderSummary = useCallback(() => {
@@ -96,6 +99,8 @@ const HomePageContent = ({
         onSetContentTab={setContentTab}
         isLoading={isLoading}
         onAddInstance={openModal}
+        disablePortainerPage={disablePortainerPage}
+        disableTrackedAppsPage={disableTrackedAppsPage}
       />
     );
   }, [
@@ -110,6 +115,8 @@ const HomePageContent = ({
     setSelectedPortainerInstances,
     setContentTab,
     openModal,
+    disablePortainerPage,
+    disableTrackedAppsPage,
   ]);
 
   // Render tracked apps
@@ -119,9 +126,21 @@ const HomePageContent = ({
         onDeleteTrackedApp={fetchTrackedApps}
         onUpgradeTrackedApp={fetchTrackedApps}
         onEditTrackedApp={fetchTrackedApps}
+        onNavigateToSettings={() => {
+          // Navigate to settings first
+          setActiveTab(TAB_NAMES.SETTINGS);
+          // Set the Tracked Apps tab after a delay to ensure Settings page is rendered
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                setSettingsTab(SETTINGS_TABS.TRACKED_APPS);
+              }, 200);
+            });
+          });
+        }}
       />
     );
-  }, [fetchTrackedApps]);
+  }, [fetchTrackedApps, setActiveTab, setSettingsTab]);
 
   return (
     <div className="container">
@@ -141,6 +160,8 @@ const HomePageContent = ({
             }}
             containersWithUpdates={containersWithUpdates}
             trackedAppsBehind={trackedAppsBehind}
+            disablePortainerPage={disablePortainerPage}
+            disableTrackedAppsPage={disableTrackedAppsPage}
           />
         )}
 
@@ -215,7 +236,7 @@ const HomePageContent = ({
             {!loading && (
               <>
                 {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                {activeTab === TAB_NAMES.PORTAINER && (
+                {!disablePortainerPage && activeTab === TAB_NAMES.PORTAINER && (
                   <PortainerPage
                     portainerInstances={portainerInstances}
                     containers={containers}
@@ -242,7 +263,7 @@ const HomePageContent = ({
                     onSetContentTab={setContentTab}
                   />
                 )}
-                {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                {!disableTrackedAppsPage && activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
                 {activeTab === TAB_NAMES.ADMIN && (
                   <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
                 )}
@@ -315,6 +336,8 @@ HomePageContent.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   editingPortainerInstance: PropTypes.object,
   fetchPortainerInstances: PropTypes.func.isRequired,
+  disablePortainerPage: PropTypes.bool,
+  disableTrackedAppsPage: PropTypes.bool,
 };
 
 export default HomePageContent;

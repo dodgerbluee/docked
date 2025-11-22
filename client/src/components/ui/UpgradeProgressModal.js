@@ -285,9 +285,10 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
       isOpen={isOpen}
       onClose={handleClose}
       size={modalSize}
-      showCloseButton={true}
+      showCloseButton={stage !== MODAL_STAGES.CONFIRM}
+      title={stage !== MODAL_STAGES.CONFIRM ? undefined : ""}
       className={styles.modal}
-      nonBlocking={true}
+      nonBlocking={stage !== MODAL_STAGES.CONFIRM}
     >
       <div className={styles.content}>
         {/* Confirmation Stage */}

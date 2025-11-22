@@ -50,8 +50,12 @@ const Modal = React.memo(function Modal({
   }, [isOpen, onClose]);
 
   const handleOverlayClick = (e) => {
-    // Only close if clicking directly on the overlay (not on modal content)
-    if (e.target !== e.currentTarget) {
+    // Only close if clicking directly on the overlay or backdrop (not on modal content)
+    // For non-blocking modals, the backdrop div is the target
+    // For blocking modals, the overlay itself is the target
+    const isClickOnOverlay = e.target === e.currentTarget;
+    const isClickOnBackdrop = e.target.classList?.contains(styles.backdrop);
+    if (!isClickOnOverlay && !isClickOnBackdrop) {
       return;
     }
 
@@ -131,8 +135,27 @@ const Modal = React.memo(function Modal({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
+      {/* For non-blocking modals, add a clickable backdrop layer to capture overlay clicks */}
+      {nonBlocking && (
+        <div
+          className={styles.backdrop}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            pointerEvents: "auto",
+            zIndex: 0,
+          }}
+          onClick={handleOverlayClick}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+        />
+      )}
       <div
         className={`${styles.modal} ${sizeClass} ${className}`}
+        style={nonBlocking ? { position: "relative", zIndex: 1 } : undefined}
         onClick={(e) => e.stopPropagation()}
         {...props}
       >

@@ -5,6 +5,8 @@ import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import HomePageContent from "./HomePage/components/HomePageContent";
 import HomePageModals from "./HomePage/components/HomePageModals";
+import { usePageVisibilitySettings } from "../hooks/usePageVisibilitySettings";
+import { TAB_NAMES } from "../constants/apiConstants";
 
 /**
  * HomePage Component
@@ -127,6 +129,33 @@ function HomePage({
   toggleStack,
   discordWebhooks = [],
 }) {
+  const {
+    disablePortainerPage,
+    disableTrackedAppsPage,
+    refreshSettings,
+  } = usePageVisibilitySettings();
+
+  // Listen for settings updates and refresh
+  React.useEffect(() => {
+    const handleSettingsUpdate = () => {
+      refreshSettings();
+    };
+
+    window.addEventListener('pageVisibilitySettingsUpdated', handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('pageVisibilitySettingsUpdated', handleSettingsUpdate);
+    };
+  }, [refreshSettings]);
+
+  // Redirect to summary if user is on a disabled page
+  React.useEffect(() => {
+    if (disablePortainerPage && activeTab === TAB_NAMES.PORTAINER) {
+      setActiveTab(TAB_NAMES.SUMMARY);
+    }
+    if (disableTrackedAppsPage && activeTab === TAB_NAMES.TRACKED_APPS) {
+      setActiveTab(TAB_NAMES.SUMMARY);
+    }
+  }, [disablePortainerPage, disableTrackedAppsPage, activeTab, setActiveTab]);
   // Memoize context value
   const batchConfigContextValue = useMemo(
     () => ({
@@ -231,6 +260,8 @@ function HomePage({
           handleLogoutWithCleanup={handleLogoutWithCleanup}
           editingPortainerInstance={editingPortainerInstance}
           fetchPortainerInstances={fetchPortainerInstances}
+          disablePortainerPage={disablePortainerPage}
+          disableTrackedAppsPage={disableTrackedAppsPage}
         />
 
         <div className="version-footer-wrapper">

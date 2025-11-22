@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import PropTypes from "prop-types";
-import { HardDriveDownload, RefreshCw } from "lucide-react";
+import { HardDriveDownload, RefreshCw, AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
 import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/portainerPage";
@@ -29,9 +29,11 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     imageNameWithoutVersion,
     isGitHub: isGitHubContainer,
     isGitLab: isGitLabContainer,
+    isGoogle: isGoogleContainer,
     isDocker: isDockerHub,
     githubUrl,
     gitlabUrl,
+    googleUrl,
     dockerHubUrl,
     handleVersionClick,
     handleImageNameClick,
@@ -151,97 +153,84 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             >
               {imageNameWithoutVersion}
             </h4>
-            {!showUpdates && (
-              <div className={styles.iconGroup}>
-                {container.image && (isDockerHub || isGitHubContainer || isGitLabContainer) && (
-                  <ContainerImageLinks
-                    imageName={container.image}
-                    dockerHubUrl={dockerHubUrl}
-                    githubUrl={githubUrl}
-                    gitlabUrl={gitlabUrl}
-                    isDocker={isDockerHub}
-                    isGitHub={isGitHubContainer}
-                    isGitLab={isGitLabContainer}
-                  />
-                )}
-                {!isPortainer && developerModeEnabled && (
-                  <span
-                    className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
-                    title={
-                      isPortainer
-                        ? PORTAINER_CONTAINER_MESSAGE
-                        : upgrading
-                          ? "Rebuilding..."
-                          : "Rebuild container with latest image"
-                    }
-                    aria-label={
-                      isPortainer
-                        ? PORTAINER_CONTAINER_MESSAGE
-                        : upgrading
-                          ? "Rebuilding..."
-                          : "Rebuild container with latest image"
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isPortainer && !upgrading && onUpgrade) {
-                        onUpgrade(container);
-                      }
-                    }}
-                  >
-                    {upgrading ? (
-                      <span className={styles.upgradingText}>Rebuilding...</span>
-                    ) : (
-                      <RefreshCw size={18} />
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
-          {showUpdates && container.image && (isDockerHub || isGitHubContainer || isGitLabContainer) && (
-            <div className={styles.iconGroup}>
+          <div className={styles.iconGroup}>
+            {container.image && (isDockerHub || isGitHubContainer || isGitLabContainer || isGoogleContainer) && (
               <ContainerImageLinks
                 isDocker={isDockerHub}
                 isGitHub={isGitHubContainer}
                 isGitLab={isGitLabContainer}
+                isGoogle={isGoogleContainer}
                 dockerHubUrl={dockerHubUrl}
                 githubUrl={githubUrl}
                 gitlabUrl={gitlabUrl}
+                googleUrl={googleUrl}
                 imageName={container.image}
               />
-              {showUpdates && (
-                <span
-                  className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""} ${upgrading ? styles.upgrading : ""}`}
-                  title={
-                    isPortainer
-                      ? PORTAINER_CONTAINER_MESSAGE
-                      : upgrading
-                        ? "Upgrading..."
-                        : "Upgrade"
+            )}
+            {!showUpdates && !isPortainer && developerModeEnabled && (
+              <span
+                className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
+                title={
+                  isPortainer
+                    ? PORTAINER_CONTAINER_MESSAGE
+                    : upgrading
+                      ? "Rebuilding..."
+                      : "Rebuild container with latest image"
+                }
+                aria-label={
+                  isPortainer
+                    ? PORTAINER_CONTAINER_MESSAGE
+                    : upgrading
+                      ? "Rebuilding..."
+                      : "Rebuild container with latest image"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isPortainer && !upgrading && onUpgrade) {
+                    onUpgrade(container);
                   }
-                  aria-label={
-                    isPortainer
-                      ? PORTAINER_CONTAINER_MESSAGE
-                      : upgrading
-                        ? "Upgrading..."
-                        : "Upgrade"
+                }}
+              >
+                {upgrading ? (
+                  <span className={styles.upgradingText}>Rebuilding...</span>
+                ) : (
+                  <RefreshCw size={18} />
+                )}
+              </span>
+            )}
+            {showUpdates && (
+              <span
+                className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""} ${upgrading ? styles.upgrading : ""}`}
+                title={
+                  isPortainer
+                    ? PORTAINER_CONTAINER_MESSAGE
+                    : upgrading
+                      ? "Upgrading..."
+                      : "Upgrade"
+                }
+                aria-label={
+                  isPortainer
+                    ? PORTAINER_CONTAINER_MESSAGE
+                    : upgrading
+                      ? "Upgrading..."
+                      : "Upgrade"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isPortainer && !upgrading) {
+                    onUpgrade(container);
                   }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isPortainer && !upgrading) {
-                      onUpgrade(container);
-                    }
-                  }}
-                >
-                  {upgrading ? (
-                    <span className={styles.upgradingText}>Upgrading...</span>
-                  ) : (
-                    <HardDriveDownload size={18} />
-                  )}
-                </span>
-              )}
-            </div>
-          )}
+                }}
+              >
+                {upgrading ? (
+                  <span className={styles.upgradingText}>Upgrading...</span>
+                ) : (
+                  <HardDriveDownload size={18} />
+                )}
+              </span>
+            )}
+          </div>
         </div>
         {showUpdates &&
           container.portainerName &&
@@ -269,6 +258,12 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             <strong>Published:</strong> {formatTimeAgo(container.latestPublishDate)}
           </p>
         )}
+        {container.noDigest && (
+          <div className={styles.noDigestBadge} title="Container was checked but no digest was returned from the registry">
+            <AlertCircle size={14} />
+            <span>No Digest</span>
+          </div>
+        )}
         {!showUpdates && container.currentDigest && (
           <>
             {container.portainerName &&
@@ -291,6 +286,12 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                   {container.portainerName}
                 </span>
               ))}
+            {container.noDigest && (
+              <div className={styles.noDigestBadge} title="Container was checked but no digest was returned from the registry">
+                <AlertCircle size={14} />
+                <span>No Digest</span>
+              </div>
+            )}
             <ContainerVersionDisplay
               container={container}
               imageVersion={imageVersion}

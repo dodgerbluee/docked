@@ -43,6 +43,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
     title: "",
     message: "",
     onConfirm: null,
+    variant: "danger",
   });
 
   const fetchTrackedApps = useCallback(async () => {
@@ -129,6 +130,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
                 message: "",
                 onConfirm: null,
                 onClose: null,
+                variant: "danger",
               });
               resolve();
             } else {
@@ -140,6 +142,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
                 message: "",
                 onConfirm: null,
                 onClose: null,
+                variant: "danger",
               });
               reject(new Error(error));
             }
@@ -183,22 +186,82 @@ export function useTrackedApps(isAuthenticated, authToken) {
   );
 
   const handleUpgradeTrackedApp = useCallback(
-    async (id, latestVersion) => {
-      try {
-        const response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${id}`, {
-          current_version: latestVersion,
+    (id, latestVersion, appName) => {
+      return new Promise((resolve, reject) => {
+        let isResolved = false;
+
+        const handleConfirm = async () => {
+          if (isResolved) return;
+          isResolved = true;
+
+          try {
+            const response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${id}`, {
+              current_version: latestVersion,
+              isUpgrade: true, // Flag to indicate this is an explicit upgrade
+            });
+            if (response.data.success) {
+              await fetchTrackedApps();
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+                variant: "danger",
+              });
+              resolve();
+            } else {
+              const error = response.data.error || "Failed to update current version";
+              setTrackedAppError(error);
+              setConfirmDialog({
+                isOpen: false,
+                title: "",
+                message: "",
+                onConfirm: null,
+                onClose: null,
+                variant: "danger",
+              });
+              reject(new Error(error));
+            }
+          } catch (err) {
+            const error = err.response?.data?.error || "Failed to update current version";
+            setTrackedAppError(error);
+            setConfirmDialog({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: null,
+              onClose: null,
+            });
+            reject(new Error(error));
+          }
+        };
+
+        const handleCancel = () => {
+          if (isResolved) return;
+          isResolved = true;
+          setConfirmDialog({
+            isOpen: false,
+            title: "",
+            message: "",
+            onConfirm: null,
+            onClose: null,
+          });
+          reject(new Error("Upgrade cancelled"));
+        };
+
+        const displayName = appName || "this tracked app";
+        setConfirmDialog({
+          isOpen: true,
+          title: "Mark as Upgraded?",
+          message: `Are you sure you want to mark ${displayName} as upgraded to version ${latestVersion}?`,
+          onConfirm: handleConfirm,
+          onClose: handleCancel,
+          variant: "success", // Use green success variant like upgrade modal
         });
-        if (response.data.success) {
-          await fetchTrackedApps();
-          // No success message - the UI update is sufficient feedback
-        } else {
-          setTrackedAppError(response.data.error || "Failed to update current version");
-        }
-      } catch (err) {
-        setTrackedAppError(err.response?.data?.error || "Failed to update current version");
-      }
+      });
     },
-    [fetchTrackedApps]
+    [fetchTrackedApps, setConfirmDialog]
   );
 
   const handleEditTrackedApp = useCallback((app) => {

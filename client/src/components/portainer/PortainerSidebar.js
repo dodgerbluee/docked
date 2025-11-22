@@ -4,6 +4,8 @@ import { Plus } from "lucide-react";
 import {
   PORTAINER_CONTENT_TABS,
   PORTAINER_CONTENT_TAB_LABELS,
+  PORTAINER_IMAGE_SOURCE_FILTERS,
+  PORTAINER_IMAGE_SOURCE_FILTER_LABELS,
 } from "../../constants/portainerPage";
 import styles from "./PortainerSidebar.module.css";
 
@@ -17,6 +19,8 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
   onContentTabChange,
   selectedPortainerInstances,
   onSelectedPortainerInstancesChange,
+  selectedImageSourceFilters,
+  onSelectedImageSourceFiltersChange,
   onAddInstance,
 }) {
   const handleInstanceToggle = (instanceName, checked) => {
@@ -39,6 +43,35 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
         return next;
       } else {
         next.delete(instanceName);
+        return next;
+      }
+    });
+  };
+
+  const handleImageSourceToggle = (sourceFilter, checked) => {
+    onSelectedImageSourceFiltersChange((prev) => {
+      const next = new Set(prev);
+
+      if (checked) {
+        next.add(sourceFilter);
+
+        // Check if all filters are now selected
+        const allFilters = [
+          PORTAINER_IMAGE_SOURCE_FILTERS.DOCKERHUB,
+          PORTAINER_IMAGE_SOURCE_FILTERS.GITHUB,
+          PORTAINER_IMAGE_SOURCE_FILTERS.GITLAB,
+          PORTAINER_IMAGE_SOURCE_FILTERS.GOOGLE,
+        ];
+        const allSelected = allFilters.every((filter) => next.has(filter));
+
+        // If all are selected, clear all to show all
+        if (allSelected) {
+          return new Set();
+        }
+
+        return next;
+      } else {
+        next.delete(sourceFilter);
         return next;
       }
     });
@@ -143,6 +176,49 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           <span>Add Instance</span>
         </button>
       </div>
+
+      {/* Source Filter */}
+      <div className={`${styles.sidebarHeader} ${styles.filterSectionSpacing}`}>
+        <h3>Filter by Source</h3>
+      </div>
+      <div className={styles.filterContainer}>
+        <div className={styles.filterBox}>
+          {Object.values(PORTAINER_IMAGE_SOURCE_FILTERS).map((sourceFilter) => (
+            <div key={sourceFilter} className={styles.filterLabel}>
+              <label className={styles.checkbox}>
+                <input
+                  type="checkbox"
+                  checked={selectedImageSourceFilters.has(sourceFilter)}
+                  onChange={(e) => handleImageSourceToggle(sourceFilter, e.target.checked)}
+                  aria-label={`Filter by ${PORTAINER_IMAGE_SOURCE_FILTER_LABELS[sourceFilter]}`}
+                />
+              </label>
+              <span
+                className={styles.filterText}
+                onClick={() =>
+                  handleImageSourceToggle(
+                    sourceFilter,
+                    !selectedImageSourceFilters.has(sourceFilter)
+                  )
+                }
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleImageSourceToggle(
+                      sourceFilter,
+                      !selectedImageSourceFilters.has(sourceFilter)
+                    );
+                  }
+                }}
+              >
+                {PORTAINER_IMAGE_SOURCE_FILTER_LABELS[sourceFilter]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 });
@@ -153,6 +229,8 @@ PortainerSidebar.propTypes = {
   onContentTabChange: PropTypes.func.isRequired,
   selectedPortainerInstances: PropTypes.instanceOf(Set).isRequired,
   onSelectedPortainerInstancesChange: PropTypes.func.isRequired,
+  selectedImageSourceFilters: PropTypes.instanceOf(Set).isRequired,
+  onSelectedImageSourceFiltersChange: PropTypes.func.isRequired,
   onAddInstance: PropTypes.func.isRequired,
 };
 

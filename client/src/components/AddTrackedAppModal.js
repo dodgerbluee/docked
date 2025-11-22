@@ -84,6 +84,18 @@ function AddTrackedAppModal({
     }
   }, [isOpen]);
 
+  // Reset form when modal closes (after it's fully closed, so user doesn't see the reset)
+  React.useEffect(() => {
+    if (!isOpen) {
+      // Use a small delay to ensure modal is fully closed before resetting
+      // This prevents the form from resetting while still visible
+      const timeoutId = setTimeout(() => {
+        resetForm();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOpen, resetForm]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -148,17 +160,35 @@ function AddTrackedAppModal({
       }
 
       if (response.data.success) {
-        resetForm();
         // Pass the image ID to onSuccess so it can check the version
         // For create: response.data.id, for update: response.data.image.id
         const imageId = response.data.image?.id || response.data.id || initialData?.id;
-        onSuccess(imageId);
-        onClose();
+        
+        // Wait for onSuccess to complete (including recheck) before closing modal
+        // This ensures the UI shows the correct state immediately and prevents
+        // showing intermediate states (red sidebar, etc.)
+        // Keep loading state active during recheck
+        try {
+          if (onSuccess) {
+            await onSuccess(imageId);
+          }
+          // Close modal and clear loading state after recheck completes
+          // Form will be reset when modal closes (via useEffect)
+          onClose();
+        } catch (err) {
+          // If recheck fails, still close the modal but log the error
+          console.error("Error during post-edit recheck:", err);
+          // Form will be reset when modal closes (via useEffect)
+          onClose();
+        } finally {
+          setLoading(false);
+        }
       } else {
         setError(
           response.data.error ||
             (initialData ? "Failed to update tracked item" : "Failed to add tracked item")
         );
+        setLoading(false);
       }
     } catch (err) {
       setError(
@@ -167,7 +197,6 @@ function AddTrackedAppModal({
             ? "Failed to update tracked item. Please try again."
             : "Failed to add tracked item. Please try again.")
       );
-    } finally {
       setLoading(false);
     }
   };

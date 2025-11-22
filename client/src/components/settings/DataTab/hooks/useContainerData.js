@@ -29,10 +29,16 @@ export const useContainerData = () => {
       if (response.data.success) {
         const entries = response.data.entries || [];
         const rawDatabaseRecords = response.data.rawDatabaseRecords || {};
+        const correlatedRecords = response.data.correlatedRecords || {};
         
-        // Attach raw database records to the first entry for easy access
-        if (entries.length > 0 && Object.keys(rawDatabaseRecords).length > 0) {
-          entries[0].rawDatabaseRecords = rawDatabaseRecords;
+        // Attach raw database records and correlated records to the first entry for easy access
+        if (entries.length > 0) {
+          if (Object.keys(rawDatabaseRecords).length > 0) {
+            entries[0].rawDatabaseRecords = rawDatabaseRecords;
+          }
+          if (Object.keys(correlatedRecords).length > 0) {
+            entries[0].correlatedRecords = correlatedRecords;
+          }
         }
         
         setDataEntries(entries);

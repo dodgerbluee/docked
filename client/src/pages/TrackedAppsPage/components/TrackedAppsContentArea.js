@@ -84,6 +84,8 @@ AddNewCard.propTypes = {
  * @param {Function} props.onEdit - Edit handler
  * @param {Function} props.onUpgrade - Upgrade handler
  * @param {Function} props.onAddNew - Add new app handler
+ * @param {number} props.trackedAppsCount - Total number of tracked apps
+ * @param {Function} props.onNavigateToSettings - Handler for navigating to Settings page
  */
 const TrackedAppsContentArea = ({
   contentTab,
@@ -97,6 +99,8 @@ const TrackedAppsContentArea = ({
   onEdit,
   onUpgrade,
   onAddNew,
+  trackedAppsCount = 0,
+  onNavigateToSettings,
 }) => {
   return (
     <div className={styles.contentTabPanel}>
@@ -225,9 +229,33 @@ const TrackedAppsContentArea = ({
       // UP_TO_DATE and UPDATES tabs should always show their sections
       contentTab === TRACKED_APPS_CONTENT_TABS.ALL ? (
         <div className={styles.emptyState}>
-          <div className={styles.grid}>
-            <AddNewCard onClick={onAddNew} />
-          </div>
+          {trackedAppsCount === 0 ? (
+            <div className={styles.emptyStateMessage}>
+              <p className={styles.emptyStateText}>
+                No tracked apps configured.{" "}
+                <button
+                  type="button"
+                  onClick={onAddNew}
+                  className={styles.emptyStateLink}
+                >
+                  Add a tracked app
+                </button>
+                {" or "}
+                <button
+                  type="button"
+                  onClick={onNavigateToSettings}
+                  className={styles.emptyStateLink}
+                >
+                  disable the page in Settings
+                </button>
+                .
+              </p>
+            </div>
+          ) : (
+            <div className={styles.grid}>
+              <AddNewCard onClick={onAddNew} />
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -246,6 +274,8 @@ TrackedAppsContentArea.propTypes = {
   onEdit: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
   onAddNew: PropTypes.func.isRequired,
+  trackedAppsCount: PropTypes.number,
+  onNavigateToSettings: PropTypes.func,
 };
 
 export default TrackedAppsContentArea;
