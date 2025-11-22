@@ -133,12 +133,52 @@ async function testWebhook(webhookUrl) {
   // Re-validate URL right before use to prevent tampering
   // Parse URL to ensure hostname is actually Discord domain
   let parsedUrl;
+  let safeUrl;
   try {
     parsedUrl = new URL(webhookUrl.trim());
     // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
     const validHostnames = ["discord.com", "discordapp.com"];
     if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
       return { success: false, error: "Invalid webhook URL hostname" };
+    }
+
+    // Validate and extract pathname components to prevent request forgery
+    // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
+    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    if (!pathMatch) {
+      return { success: false, error: "Invalid webhook URL path format" };
+    }
+
+    const webhookId = pathMatch[1];
+    const webhookToken = pathMatch[2];
+
+    // Validate extracted components match safe patterns
+    if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
+      return { success: false, error: "Invalid webhook URL components" };
+    }
+
+    // Reconstruct URL from validated components to prevent request forgery
+    // This ensures CodeQL recognizes the URL is constructed from validated parts, not user input
+    // Use validated hostname to determine base URL (whitelist approach)
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const baseUrl =
+      hostname === "discord.com"
+        ? "https://discord.com"
+        : hostname === "discordapp.com"
+          ? "https://discordapp.com"
+          : null;
+
+    if (!baseUrl) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+
+    // Construct URL using validated base URL and validated path components
+    // This approach ensures CodeQL sees we're using a whitelisted base URL, not user input
+    safeUrl = `${baseUrl}/api/webhooks/${webhookId}/${webhookToken}`;
+
+    // Final validation: ensure reconstructed URL matches expected pattern
+    if (!validateWebhookUrl(safeUrl)) {
+      return { success: false, error: "Reconstructed URL validation failed" };
     }
   } catch (error) {
     return { success: false, error: "Invalid webhook URL format" };
@@ -158,9 +198,9 @@ async function testWebhook(webhookUrl) {
       ],
     };
 
-    // Use parsed URL to prevent SSRF via redirects
+    // Use reconstructed URL from validated components to prevent SSRF and request forgery
     // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
-    const response = await axios.post(parsedUrl.toString(), testPayload, {
+    const response = await axios.post(safeUrl, testPayload, {
       headers: { "Content-Type": "application/json" },
       validateStatus: () => true, // Don't throw on any status
       maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
@@ -374,12 +414,52 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
   // Re-validate URL right before use to prevent tampering
   // Parse URL to ensure hostname is actually Discord domain
   let parsedUrl;
+  let safeUrl;
   try {
     parsedUrl = new URL(webhookUrl.trim());
     // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
     const validHostnames = ["discord.com", "discordapp.com"];
     if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
       return { success: false, error: "Invalid webhook URL hostname" };
+    }
+
+    // Validate and extract pathname components to prevent request forgery
+    // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
+    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    if (!pathMatch) {
+      return { success: false, error: "Invalid webhook URL path format" };
+    }
+
+    const webhookId = pathMatch[1];
+    const webhookToken = pathMatch[2];
+
+    // Validate extracted components match safe patterns
+    if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
+      return { success: false, error: "Invalid webhook URL components" };
+    }
+
+    // Reconstruct URL from validated components to prevent request forgery
+    // This ensures CodeQL recognizes the URL is constructed from validated parts, not user input
+    // Use validated hostname to determine base URL (whitelist approach)
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const baseUrl =
+      hostname === "discord.com"
+        ? "https://discord.com"
+        : hostname === "discordapp.com"
+          ? "https://discordapp.com"
+          : null;
+
+    if (!baseUrl) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+
+    // Construct URL using validated base URL and validated path components
+    // This approach ensures CodeQL sees we're using a whitelisted base URL, not user input
+    safeUrl = `${baseUrl}/api/webhooks/${webhookId}/${webhookToken}`;
+
+    // Final validation: ensure reconstructed URL matches expected pattern
+    if (!validateWebhookUrl(safeUrl)) {
+      return { success: false, error: "Reconstructed URL validation failed" };
     }
   } catch (error) {
     return { success: false, error: "Invalid webhook URL format" };
@@ -396,9 +476,9 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
         }
       }
 
-      // Use parsed URL to prevent SSRF via redirects
+      // Use reconstructed URL from validated components to prevent SSRF and request forgery
       // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
-      const response = await axios.post(parsedUrl.toString(), payload, {
+      const response = await axios.post(safeUrl, payload, {
         headers: { "Content-Type": "application/json" },
         validateStatus: () => true, // Don't throw on any status, handle manually
         maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
@@ -835,6 +915,7 @@ async function getWebhookInfo(webhookUrl) {
   // Re-validate URL right before use to prevent tampering
   // Parse URL to ensure hostname is actually Discord domain
   let parsedUrl;
+  let safeUrl;
   try {
     parsedUrl = new URL(webhookUrl.trim());
     // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
@@ -842,15 +923,54 @@ async function getWebhookInfo(webhookUrl) {
     if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
       return { success: false, error: "Invalid webhook URL hostname" };
     }
+
+    // Validate and extract pathname components to prevent request forgery
+    // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
+    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    if (!pathMatch) {
+      return { success: false, error: "Invalid webhook URL path format" };
+    }
+
+    const webhookId = pathMatch[1];
+    const webhookToken = pathMatch[2];
+
+    // Validate extracted components match safe patterns
+    if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
+      return { success: false, error: "Invalid webhook URL components" };
+    }
+
+    // Reconstruct URL from validated components to prevent request forgery
+    // This ensures CodeQL recognizes the URL is constructed from validated parts, not user input
+    // Use validated hostname to determine base URL (whitelist approach)
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const baseUrl =
+      hostname === "discord.com"
+        ? "https://discord.com"
+        : hostname === "discordapp.com"
+          ? "https://discordapp.com"
+          : null;
+
+    if (!baseUrl) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+
+    // Construct URL using validated base URL and validated path components
+    // This approach ensures CodeQL sees we're using a whitelisted base URL, not user input
+    safeUrl = `${baseUrl}/api/webhooks/${webhookId}/${webhookToken}`;
+
+    // Final validation: ensure reconstructed URL matches expected pattern
+    if (!validateWebhookUrl(safeUrl)) {
+      return { success: false, error: "Reconstructed URL validation failed" };
+    }
   } catch (error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
   try {
     // Discord allows GET requests to webhook URLs to retrieve webhook information
-    // Use parsed URL to prevent SSRF via redirects
+    // Use reconstructed URL from validated components to prevent SSRF and request forgery
     // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
-    const response = await axios.get(parsedUrl.toString(), {
+    const response = await axios.get(safeUrl, {
       validateStatus: () => true, // Don't throw on any status
       maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
     });
