@@ -5,8 +5,7 @@ import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
 import AddRepositoryAccessTokenModal from "../AddRepositoryAccessTokenModal";
-import GitHubIcon from "../icons/GitHubIcon";
-import GitLabIcon from "../icons/GitLabIcon";
+import { getProviderIcon, getProviderLabel } from "../../utils/providerHelpers";
 import { SETTINGS_TABS } from "../../constants/settings";
 import styles from "./RepositoriesTab.module.css";
 
@@ -49,14 +48,6 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
       await deleteToken(tokenDeleteConfirm.tokenId);
     }
     setTokenDeleteConfirm({ isOpen: false, tokenId: null });
-  };
-
-  const getProviderIcon = (provider) => {
-    return provider === "github" ? GitHubIcon : GitLabIcon;
-  };
-
-  const getProviderLabel = (provider) => {
-    return provider === "github" ? "GitHub" : "GitLab";
   };
 
   return (

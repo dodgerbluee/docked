@@ -29,13 +29,15 @@ export function useRepositoryAccessTokens({ activeSection }) {
 
   useEffect(() => {
     fetchTokens();
-  }, [fetchTokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (activeSection === "portainer") {
       fetchTokens();
     }
-  }, [activeSection, fetchTokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
 
   const createOrUpdateToken = useCallback(
     async (provider, name, accessToken, tokenId = null) => {

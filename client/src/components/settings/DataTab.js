@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback, useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -17,7 +17,7 @@ import { formatDate } from "./DataTab/utils/containerDataProcessing";
  * DataTab Component
  * Displays container data from database with expandable JSON view (developer mode only)
  */
-function DataTab() {
+const DataTab = React.memo(function DataTab() {
   // Use extracted hooks
   const { developerModeEnabled, checkingDeveloperMode } = useDeveloperMode();
   const { dataEntries, loading, error, fetchContainerData } = useContainerData();
@@ -32,6 +32,57 @@ function DataTab() {
   const containerDataListRef = useRef(null);
   const [viewMode, setViewMode] = useState("formatted"); // Track view mode
   const [rawRecordsExpanded, setRawRecordsExpanded] = useState(false);
+
+  const handleSearchChange = useCallback(
+    (e) => {
+      setSearchQuery(e.target.value);
+    },
+    [setSearchQuery]
+  );
+
+  const handleExpandCollapseFormatted = useCallback(() => {
+    if (areAllExpanded()) {
+      collapseAllContainers();
+    } else {
+      expandAllContainers();
+    }
+  }, [areAllExpanded, collapseAllContainers, expandAllContainers]);
+
+  const handleExpandCollapseRaw = useCallback(() => {
+    if (rawRecordsExpanded) {
+      containerDataListRef.current?.collapseAllRawRecords();
+      setRawRecordsExpanded(false);
+    } else {
+      containerDataListRef.current?.expandAllRawRecords();
+      setRawRecordsExpanded(true);
+    }
+  }, [rawRecordsExpanded]);
+
+  const handleViewModeChange = useCallback(
+    (mode) => {
+      setViewMode(mode);
+      if (mode === "formatted") {
+        setRawRecordsExpanded(false);
+      }
+    },
+    []
+  );
+
+  const rawDatabaseRecords = useMemo(() => {
+    return dataEntries.length > 0 && dataEntries[0]?.rawDatabaseRecords
+      ? dataEntries[0].rawDatabaseRecords
+      : null;
+  }, [dataEntries]);
+
+  const lastPulledInfo = useMemo(() => {
+    if (dataEntries.length > 0 && dataEntries[0]) {
+      return {
+        lastPortainerPull: dataEntries[0].lastPortainerPull,
+        lastDockerHubPull: dataEntries[0].lastDockerHubPull,
+      };
+    }
+    return null;
+  }, [dataEntries]);
 
   if (checkingDeveloperMode || loading) {
     return (
@@ -62,16 +113,16 @@ function DataTab() {
           <div className={styles.header}>
             <div className={styles.headerTitle}>
               <h3 className={styles.title}>Portainer Data</h3>
-              {dataEntries.length > 0 && dataEntries[0] && (
+              {lastPulledInfo && (
                 <div className={styles.lastPulledInfo}>
-                  {dataEntries[0].lastPortainerPull && (
+                  {lastPulledInfo.lastPortainerPull && (
                     <span className={styles.lastPulled}>
-                      Last Portainer pull: {formatDate(dataEntries[0].lastPortainerPull)}
+                      Last Portainer pull: {formatDate(lastPulledInfo.lastPortainerPull)}
                     </span>
                   )}
-                  {dataEntries[0].lastDockerHubPull && (
+                  {lastPulledInfo.lastDockerHubPull && (
                     <span className={styles.lastPulled}>
-                      Last Docker Hub pull: {formatDate(dataEntries[0].lastDockerHubPull)}
+                      Last Docker Hub pull: {formatDate(lastPulledInfo.lastDockerHubPull)}
                     </span>
                   )}
                 </div>
@@ -82,20 +133,14 @@ function DataTab() {
                 <>
                   <SearchInput
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handleSearchChange}
                     placeholder="Search entries..."
                     className={styles.searchInput}
                   />
                   {viewMode === "formatted" ? (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        if (areAllExpanded()) {
-                          collapseAllContainers();
-                        } else {
-                          expandAllContainers();
-                        }
-                      }}
+                      onClick={handleExpandCollapseFormatted}
                       size="sm"
                     >
                       {areAllExpanded() ? "Collapse All" : "Expand All"}
@@ -103,15 +148,7 @@ function DataTab() {
                   ) : (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        if (rawRecordsExpanded) {
-                          containerDataListRef.current?.collapseAllRawRecords();
-                          setRawRecordsExpanded(false);
-                        } else {
-                          containerDataListRef.current?.expandAllRawRecords();
-                          setRawRecordsExpanded(true);
-                        }
-                      }}
+                      onClick={handleExpandCollapseRaw}
                       size="sm"
                     >
                       {rawRecordsExpanded ? "Collapse All" : "Expand All"}
@@ -144,24 +181,15 @@ function DataTab() {
             dataEntries={filteredDataEntries}
             expandedContainers={expandedContainers}
             onToggleExpansion={toggleContainerExpansion}
-            rawDatabaseRecords={
-              dataEntries.length > 0 && dataEntries[0]?.rawDatabaseRecords
-                ? dataEntries[0].rawDatabaseRecords
-                : null
-            }
+            rawDatabaseRecords={rawDatabaseRecords}
             searchQuery={searchQuery}
-            onViewModeChange={(mode) => {
-              setViewMode(mode);
-              if (mode === "formatted") {
-                setRawRecordsExpanded(false);
-              }
-            }}
+            onViewModeChange={handleViewModeChange}
           />
         </div>
       </Card>
     </div>
   );
-}
+});
 
 DataTab.propTypes = {};
 

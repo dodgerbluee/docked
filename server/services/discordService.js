@@ -768,15 +768,16 @@ async function getWebhookInfo(webhookUrl) {
       // Construct avatar URL if avatar hash is provided
       let avatarUrl = null;
       if (data.avatar) {
-        // Discord CDN URL format: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
-        // Extract webhook ID from URL
-        const webhookIdMatch = webhookUrl.match(/\/webhooks\/(\d+)\//);
-        if (webhookIdMatch) {
-          const webhookId = webhookIdMatch[1];
+        // Discord CDN URL format for webhooks: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
+        // Extract webhook ID from URL or use data.id
+        const webhookId = data.id || webhookUrl.match(/\/webhooks\/(\d+)\//)?.[1];
+        if (webhookId) {
           const avatarHash = data.avatar;
           // Discord avatars can be .png, .jpg, .webp, or .gif
-          // Try .png first, but the actual format might vary
-          avatarUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.png`;
+          // Check if avatar starts with 'a_' which indicates animated (gif)
+          const extension = avatarHash.startsWith("a_") ? "gif" : "png";
+          // Add size parameter for consistent sizing (128px is a good default)
+          avatarUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.${extension}?size=128`;
         }
       }
 

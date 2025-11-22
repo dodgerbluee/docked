@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
@@ -7,10 +7,10 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
 import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
-import GitHubIcon from "../icons/GitHubIcon";
-import GitLabIcon from "../icons/GitLabIcon";
+import { getProviderIcon, getProviderLabel } from "../../utils/providerHelpers";
 import { SETTINGS_TABS } from "../../constants/settings";
 import AssociateImagesModal from "./AssociateImagesModal";
+import PageVisibilitySection from "./components/PageVisibilitySection";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -40,49 +40,21 @@ const PortainerTab = React.memo(function PortainerTab({
     refreshSettings,
   } = usePageVisibilitySettings();
 
-  const [localDisablePortainerPage, setLocalDisablePortainerPage] = useState(
-    initialDisablePortainerPage
+  const handleDeleteClick = useCallback(
+    (instanceId) => {
+      setDeleteConfirm({ isOpen: true, instanceId });
+    },
+    []
   );
-  const [saving, setSaving] = useState(false);
 
-  // Update local state when initial value changes
-  useEffect(() => {
-    setLocalDisablePortainerPage(initialDisablePortainerPage);
-  }, [initialDisablePortainerPage]);
-
-  const handleDisablePortainerPageChange = (e) => {
-    setLocalDisablePortainerPage(e.target.checked);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const success = await updateDisablePortainerPage(localDisablePortainerPage);
-      if (success) {
-        // Refresh settings to ensure sync
-        await refreshSettings();
-        // Dispatch custom event to notify HomePage to refresh
-        window.dispatchEvent(new CustomEvent("pageVisibilitySettingsUpdated"));
-      }
-    } catch (error) {
-      console.error("Error saving page visibility settings:", error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteClick = (instanceId) => {
-    setDeleteConfirm({ isOpen: true, instanceId });
-  };
-
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = useCallback(() => {
     if (deleteConfirm.instanceId) {
       handleDeleteInstance(deleteConfirm.instanceId);
     }
     setDeleteConfirm({ isOpen: false, instanceId: null });
-  };
+  }, [deleteConfirm.instanceId, handleDeleteInstance]);
 
-  const handleClearPortainerData = async () => {
+  const handleClearPortainerData = useCallback(async () => {
     if (!onClearPortainerData) {
       alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
       return;
@@ -95,20 +67,46 @@ const PortainerTab = React.memo(function PortainerTab({
       console.error("Error clearing Portainer data:", error);
       alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
     }
-  };
+  }, [onClearPortainerData]);
 
-  const handleAssociateImages = (token) => {
+  const handleAssociateImages = useCallback((token) => {
     setSelectedToken(token);
     setAssociateImagesModalOpen(true);
-  };
+  }, []);
 
-  const getProviderIcon = (provider) => {
-    return provider === "github" ? GitHubIcon : GitLabIcon;
-  };
+  const handleDeleteClose = useCallback(() => {
+    setDeleteConfirm({ isOpen: false, instanceId: null });
+  }, []);
 
-  const getProviderLabel = (provider) => {
-    return provider === "github" ? "GitHub" : "GitLab";
-  };
+  const handlePortainerConfirmOpen = useCallback(() => {
+    setPortainerConfirm(true);
+  }, []);
+
+  const handlePortainerConfirmClose = useCallback(() => {
+    setPortainerConfirm(false);
+  }, []);
+
+  const handleAssociateModalClose = useCallback(() => {
+    setAssociateImagesModalOpen(false);
+    setSelectedToken(null);
+  }, []);
+
+  const handleEditInstanceClick = useCallback(
+    (instance) => {
+      if (onEditInstance) {
+        onEditInstance(instance);
+      } else {
+        handleEditInstance(instance);
+      }
+    },
+    [onEditInstance, handleEditInstance]
+  );
+
+  const handleAddInstanceClick = useCallback(() => {
+    if (onEditInstance) {
+      onEditInstance(null);
+    }
+  }, [onEditInstance]);
 
   return (
     <div className={styles.updateSection}>
@@ -146,13 +144,7 @@ const PortainerTab = React.memo(function PortainerTab({
                   )}
                 </div>
                 <ActionButtons
-                  onEdit={() => {
-                    if (onEditInstance) {
-                      onEditInstance(instance);
-                    } else {
-                      handleEditInstance(instance);
-                    }
-                  }}
+                  onEdit={() => handleEditInstanceClick(instance)}
                   onDelete={() => handleDeleteClick(instance.id)}
                 />
               </div>
@@ -162,11 +154,7 @@ const PortainerTab = React.memo(function PortainerTab({
             variant="default"
             padding="md"
             className={styles.addInstanceCard}
-            onClick={() => {
-              if (onEditInstance) {
-                onEditInstance(null);
-              }
-            }}
+            onClick={handleAddInstanceClick}
           >
             <div className={styles.addInstanceContent}>
               <div className={styles.addInstanceText}>
@@ -180,7 +168,7 @@ const PortainerTab = React.memo(function PortainerTab({
 
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
-        onClose={() => setDeleteConfirm({ isOpen: false, instanceId: null })}
+        onClose={handleDeleteClose}
         onConfirm={handleDeleteConfirm}
         title="Delete Portainer Instance?"
         message="Are you sure you want to delete this Portainer instance? This action cannot be undone."
@@ -238,39 +226,14 @@ const PortainerTab = React.memo(function PortainerTab({
         )}
       </div>
 
-      <div className={styles.pageVisibilitySection}>
-        <div className={styles.sectionHeader}>
-          <h4 className={styles.sectionTitle}>Page Visibility</h4>
-        </div>
-        <Card variant="default" padding="md" className={styles.visibilityCard}>
-          <div className={styles.checkboxContainer}>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={localDisablePortainerPage}
-                onChange={handleDisablePortainerPageChange}
-                className={styles.checkbox}
-              />
-              <span className={styles.checkboxText}>Disable Portainer Page</span>
-            </label>
-            <p className={styles.checkboxNote}>
-              This will disable the functionality of the Portainer page. The Portainer tab will be
-              hidden from the home page navigation.
-            </p>
-          </div>
-          <div className={styles.formActions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={handleSave}
-              disabled={saving || localDisablePortainerPage === initialDisablePortainerPage}
-              className={styles.saveButton}
-            >
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </Card>
-      </div>
+      <PageVisibilitySection
+        initialDisabled={initialDisablePortainerPage}
+        onUpdate={updateDisablePortainerPage}
+        onRefresh={refreshSettings}
+        title="Page Visibility"
+        checkboxLabel="Disable Portainer Page"
+        checkboxNote="This will disable the functionality of the Portainer page. The Portainer tab will be hidden from the home page navigation."
+      />
 
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>
@@ -296,7 +259,7 @@ const PortainerTab = React.memo(function PortainerTab({
 
       <ConfirmDialog
         isOpen={portainerConfirm}
-        onClose={() => setPortainerConfirm(false)}
+        onClose={handlePortainerConfirmClose}
         onConfirm={handleClearPortainerData}
         title="Clear Portainer Data?"
         message="This will remove all cached container information from Portainer instances. This action cannot be undone."
@@ -307,10 +270,7 @@ const PortainerTab = React.memo(function PortainerTab({
 
       <AssociateImagesModal
         isOpen={associateImagesModalOpen}
-        onClose={() => {
-          setAssociateImagesModalOpen(false);
-          setSelectedToken(null);
-        }}
+        onClose={handleAssociateModalClose}
         token={selectedToken}
       />
     </div>

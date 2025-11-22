@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import Card from "../ui/Card";
+import PageVisibilitySection from "./components/PageVisibilitySection";
 import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
 import styles from "./TrackedAppsTab.module.css";
 
@@ -17,43 +17,12 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
   const [trackedAppConfirm, setTrackedAppConfirm] = useState(false);
 
   const {
-    disableTrackedAppsPage: initialDisableTrackedAppsPage,
+    disableTrackedAppsPage,
     updateDisableTrackedAppsPage,
     refreshSettings,
   } = usePageVisibilitySettings();
 
-  const [localDisableTrackedAppsPage, setLocalDisableTrackedAppsPage] = useState(
-    initialDisableTrackedAppsPage
-  );
-  const [saving, setSaving] = useState(false);
-
-  // Update local state when initial value changes
-  useEffect(() => {
-    setLocalDisableTrackedAppsPage(initialDisableTrackedAppsPage);
-  }, [initialDisableTrackedAppsPage]);
-
-  const handleDisableTrackedAppsPageChange = (e) => {
-    setLocalDisableTrackedAppsPage(e.target.checked);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const success = await updateDisableTrackedAppsPage(localDisableTrackedAppsPage);
-      if (success) {
-        // Refresh settings to ensure sync
-        await refreshSettings();
-        // Dispatch custom event to notify HomePage to refresh
-        window.dispatchEvent(new CustomEvent("pageVisibilitySettingsUpdated"));
-      }
-    } catch (error) {
-      console.error("Error saving page visibility settings:", error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleClearTrackedAppData = async () => {
+  const handleClearTrackedAppData = useCallback(async () => {
     if (!onClearTrackedAppData) {
       alert("Error: Clear Tracked App Data handler is not available. Please refresh the page.");
       return;
@@ -65,43 +34,29 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
       console.error("Error clearing tracked app data:", error);
       alert("Error clearing tracked app data: " + (error.message || "Unknown error"));
     }
-  };
+  }, [onClearTrackedAppData]);
+
+  const handleConfirmOpen = useCallback(() => {
+    setTrackedAppConfirm(true);
+  }, []);
+
+  const handleConfirmClose = useCallback(() => {
+    setTrackedAppConfirm(false);
+  }, []);
 
   return (
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Tracked Apps Settings</h3>
       <p className={styles.description}>Manage your tracked app data and configurations.</p>
 
-      <div className={styles.pageVisibilitySection}>
-        <Card variant="default" padding="md" className={styles.visibilityCard}>
-          <div className={styles.checkboxContainer}>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={localDisableTrackedAppsPage}
-                onChange={handleDisableTrackedAppsPageChange}
-                className={styles.checkbox}
-              />
-              <span className={styles.checkboxText}>Disable Tracked Apps Page</span>
-            </label>
-            <p className={styles.checkboxNote}>
-              This will disable the functionality of the Tracked Apps page. The Tracked Apps tab
-              will be hidden from the home page navigation.
-            </p>
-          </div>
-          <div className={styles.formActions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={handleSave}
-              disabled={saving || localDisableTrackedAppsPage === initialDisableTrackedAppsPage}
-              className={styles.saveButton}
-            >
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </Card>
-      </div>
+      <PageVisibilitySection
+        initialDisabled={disableTrackedAppsPage}
+        onUpdate={updateDisableTrackedAppsPage}
+        onRefresh={refreshSettings}
+        title="Page Visibility"
+        checkboxLabel="Disable Tracked Apps Page"
+        checkboxNote="This will disable the functionality of the Tracked Apps page. The Tracked Apps tab will be hidden from the home page navigation."
+      />
 
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>
@@ -110,7 +65,7 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
             <Button
               type="button"
               variant="danger"
-              onClick={() => setTrackedAppConfirm(true)}
+              onClick={handleConfirmOpen}
               disabled={clearingTrackedAppData}
               className={styles.dangerButton}
             >
@@ -127,7 +82,7 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
 
       <ConfirmDialog
         isOpen={trackedAppConfirm}
-        onClose={() => setTrackedAppConfirm(false)}
+        onClose={handleConfirmClose}
         onConfirm={handleClearTrackedAppData}
         title="Clear Tracked Application Data?"
         message="This will clear the latest version data for all tracked apps. This action cannot be undone."
