@@ -14,8 +14,8 @@ import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedAppModal.module.css";
-import { useTrackedImageForm } from "./AddTrackedAppModal/hooks/useTrackedImageForm";
-import { validateForm } from "./AddTrackedAppModal/utils/trackedImageValidation";
+import { useTrackedAppForm } from "./AddTrackedAppModal/hooks/useTrackedAppForm";
+import { validateForm } from "./AddTrackedAppModal/utils/trackedAppValidation";
 import { selectStyles } from "./AddTrackedAppModal/utils/selectStyles";
 import GitHubSourceForm from "./AddTrackedAppModal/components/GitHubSourceForm";
 import GitLabSourceForm from "./AddTrackedAppModal/components/GitLabSourceForm";
@@ -43,7 +43,7 @@ function AddTrackedAppModal({
   isOpen,
   onClose,
   onSuccess,
-  trackedImages = [],
+  trackedApps = [],
   initialData = null,
   onDelete = null,
 }) {
@@ -52,8 +52,8 @@ function AddTrackedAppModal({
   const lastAutoPopulatedNameRef = useRef("");
 
   // Use extracted form hook
-  const formState = useTrackedImageForm({
-    trackedImages,
+  const formState = useTrackedAppForm({
+    trackedApps,
     initialData,
     isOpen,
   });
@@ -135,9 +135,9 @@ function AddTrackedAppModal({
 
       let response;
       if (initialData) {
-        response = await axios.put(`${API_BASE_URL}/api/tracked-images/${initialData.id}`, payload);
+        response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${initialData.id}`, payload);
       } else {
-        response = await axios.post(`${API_BASE_URL}/api/tracked-images`, payload);
+        response = await axios.post(`${API_BASE_URL}/api/tracked-apps`, payload);
       }
 
       if (response.data.success) {
@@ -362,7 +362,7 @@ AddTrackedAppModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,
-  trackedImages: PropTypes.array,
+  trackedApps: PropTypes.array,
   initialData: PropTypes.object,
   onDelete: PropTypes.func,
 };

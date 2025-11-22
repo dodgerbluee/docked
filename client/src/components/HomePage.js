@@ -18,7 +18,6 @@ function HomePage({
   recentAvatars,
   darkMode,
   instanceAdmin,
-  passwordChanged,
   authToken,
   // State
   activeTab,
@@ -39,7 +38,7 @@ function HomePage({
   stacks,
   unusedImages,
   unusedImagesCount,
-  trackedImages,
+  trackedApps,
   portainerInstances,
   containersByPortainer,
   loadingInstances,
@@ -105,7 +104,7 @@ function HomePage({
   fetchUnusedImages,
   fetchRecentAvatars,
   fetchAvatar,
-  fetchTrackedImages,
+  fetchTrackedApps,
   setContainers,
   setStacks,
   setUnusedImages,
@@ -176,7 +175,6 @@ function HomePage({
           containers={containers}
           containersWithUpdates={containersWithUpdates}
           trackedAppsBehind={trackedAppsBehind}
-          passwordChanged={passwordChanged}
           loading={loading}
           pulling={pulling}
           error={error}
@@ -186,7 +184,7 @@ function HomePage({
           portainerInstances={portainerInstances}
           unusedImages={unusedImages}
           unusedImagesCount={unusedImagesCount}
-          trackedImages={trackedImages}
+          trackedApps={trackedApps}
           dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
           containersByPortainer={containersByPortainer}
           loadingInstances={loadingInstances}
@@ -211,7 +209,7 @@ function HomePage({
           setUnusedImagesCount={setUnusedImagesCount}
           fetchContainers={fetchContainers}
           fetchUnusedImages={fetchUnusedImages}
-          fetchTrackedImages={fetchTrackedImages}
+          fetchTrackedApps={fetchTrackedApps}
           openModal={openModal}
           handlePull={handlePull}
           handleBatchPull={handleBatchPull}
@@ -253,7 +251,6 @@ HomePage.propTypes = {
   recentAvatars: PropTypes.array,
   darkMode: PropTypes.bool,
   instanceAdmin: PropTypes.bool,
-  passwordChanged: PropTypes.bool,
   authToken: PropTypes.string,
   activeTab: PropTypes.string.isRequired,
   contentTab: PropTypes.string.isRequired,
@@ -272,7 +269,7 @@ HomePage.propTypes = {
   stacks: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
-  trackedImages: PropTypes.array.isRequired,
+  trackedApps: PropTypes.array.isRequired,
   portainerInstances: PropTypes.array.isRequired,
   containersByPortainer: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,

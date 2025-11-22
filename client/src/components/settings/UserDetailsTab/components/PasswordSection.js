@@ -15,7 +15,6 @@ import styles from "../../UserDetailsTab.module.css";
  * @param {Object} props
  * @param {boolean} props.isExpanded - Whether section is expanded
  * @param {Function} props.onToggle - Toggle expansion handler
- * @param {boolean} props.isFirstLogin - Whether this is first login
  * @param {string} props.currentPassword - Current password value
  * @param {Function} props.setCurrentPassword - Set current password handler
  * @param {string} props.newPassword - New password value
@@ -30,7 +29,6 @@ import styles from "../../UserDetailsTab.module.css";
 const PasswordSection = ({
   isExpanded,
   onToggle,
-  isFirstLogin,
   currentPassword,
   setCurrentPassword,
   newPassword,
@@ -60,18 +58,16 @@ const PasswordSection = ({
           {passwordSuccess && <Alert variant="info">{passwordSuccess}</Alert>}
           {passwordError && <Alert variant="error">{passwordError}</Alert>}
           <form onSubmit={handlePasswordSubmit} className={styles.form}>
-            {!isFirstLogin && (
-              <Input
-                id="currentPassword"
-                label="Current Password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                disabled={passwordLoading}
-              />
-            )}
+            <Input
+              id="currentPassword"
+              label="Current Password"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              disabled={passwordLoading}
+            />
             <Input
               id="newPassword"
               label="New Password"
@@ -103,7 +99,7 @@ const PasswordSection = ({
                   passwordLoading ||
                   !newPassword ||
                   !confirmPassword ||
-                  (!isFirstLogin && !currentPassword)
+                  !currentPassword
                 }
                 className={styles.submitButton}
               >
@@ -120,7 +116,6 @@ const PasswordSection = ({
 PasswordSection.propTypes = {
   isExpanded: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
-  isFirstLogin: PropTypes.bool.isRequired,
   currentPassword: PropTypes.string.isRequired,
   setCurrentPassword: PropTypes.func.isRequired,
   newPassword: PropTypes.string.isRequired,

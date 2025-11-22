@@ -10,7 +10,6 @@ import styles from "./PasswordTab.module.css";
  * Handles password updates
  */
 const PasswordTab = React.memo(function PasswordTab({
-  isFirstLogin,
   currentPassword,
   setCurrentPassword,
   newPassword,
@@ -28,18 +27,16 @@ const PasswordTab = React.memo(function PasswordTab({
       {passwordSuccess && <Alert variant="info">{passwordSuccess}</Alert>}
       {passwordError && <Alert variant="error">{passwordError}</Alert>}
       <form onSubmit={handlePasswordSubmit} className={styles.form}>
-        {!isFirstLogin && (
-          <Input
-            id="currentPassword"
-            label="Current Password"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            disabled={passwordLoading}
-          />
-        )}
+        <Input
+          id="currentPassword"
+          label="Current Password"
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          disabled={passwordLoading}
+        />
         <Input
           id="newPassword"
           label="New Password"
@@ -71,7 +68,7 @@ const PasswordTab = React.memo(function PasswordTab({
               passwordLoading ||
               !newPassword ||
               !confirmPassword ||
-              (!isFirstLogin && !currentPassword)
+              !currentPassword
             }
             className={styles.submitButton}
           >
@@ -84,7 +81,6 @@ const PasswordTab = React.memo(function PasswordTab({
 });
 
 PasswordTab.propTypes = {
-  isFirstLogin: PropTypes.bool.isRequired,
   currentPassword: PropTypes.string.isRequired,
   setCurrentPassword: PropTypes.func.isRequired,
   newPassword: PropTypes.string.isRequired,

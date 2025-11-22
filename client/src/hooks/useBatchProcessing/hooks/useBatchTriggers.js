@@ -17,7 +17,7 @@ import { handleDockerHubError } from "../../../utils/apiErrorHandler";
  * @param {Function} params.setLastPullTime - Set last pull time function
  * @param {Function} params.fetchDockerHubCredentials - Fetch Docker Hub credentials function
  * @param {Object} params.dockerHubCredentials - Docker Hub credentials
- * @param {Function} params.fetchTrackedImages - Fetch tracked images function
+ * @param {Function} params.fetchTrackedApps - Fetch tracked images function
  * @returns {Object} Batch trigger handlers
  */
 export const useBatchTriggers = ({
@@ -28,7 +28,7 @@ export const useBatchTriggers = ({
   setLastPullTime,
   fetchDockerHubCredentials,
   dockerHubCredentials,
-  fetchTrackedImages,
+  fetchTrackedApps,
 }) => {
   const {
     setContainers,
@@ -223,7 +223,7 @@ export const useBatchTriggers = ({
         const appsWithUpdates = updatedImages.filter((img) => Boolean(img.has_update)).length;
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
-        await fetchTrackedImages();
+        await fetchTrackedApps();
 
         if (runId) {
           await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
@@ -261,7 +261,7 @@ export const useBatchTriggers = ({
     } finally {
       log("Tracked apps batch check process finished (success or failure)");
     }
-  }, [fetchTrackedImages]);
+  }, [fetchTrackedApps]);
 
   return {
     handleBatchPull,

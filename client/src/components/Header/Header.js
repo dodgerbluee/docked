@@ -3,7 +3,7 @@ import { Bell } from "lucide-react";
 import PropTypes from "prop-types";
 import AvatarMenu from "./AvatarMenu";
 import NotificationMenu from "./NotificationMenu";
-import { containerShape, trackedImageShape } from "../../utils/propTypes";
+import { containerShape, trackedAppShape } from "../../utils/propTypes";
 import styles from "./Header.module.css";
 
 /**
@@ -141,7 +141,7 @@ Header.propTypes = {
   darkMode: PropTypes.bool.isRequired,
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
-  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
   discordWebhooks: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

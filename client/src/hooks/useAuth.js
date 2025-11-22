@@ -30,13 +30,6 @@ export const useAuth = () => {
     }
     return stored === "true";
   });
-  const [passwordChanged, setPasswordChanged] = useState(() => {
-    const stored = localStorage.getItem("passwordChanged");
-    if (stored === null && localStorage.getItem("authToken")) {
-      return false;
-    }
-    return stored === "true";
-  });
 
   const logoutInProgressRef = useRef(false);
   const handleLogoutRef = useRef(null);
@@ -45,14 +38,12 @@ export const useAuth = () => {
   const handleLogout = useCallback(() => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("username");
-    localStorage.removeItem("passwordChanged");
     localStorage.removeItem("userRole");
     localStorage.removeItem("instanceAdmin");
     setAuthToken(null);
     setUsername(null);
     setUserRole("Administrator");
     setInstanceAdmin(false);
-    setPasswordChanged(false);
     setIsAuthenticated(false);
     delete axios.defaults.headers.common["Authorization"];
   }, []);
@@ -106,11 +97,10 @@ export const useAuth = () => {
   }, [handleLogout]);
 
   // Handle login
-  const handleLogin = useCallback((token, user, pwdChanged, role, isInstanceAdmin = false) => {
+  const handleLogin = useCallback((token, user, role, isInstanceAdmin = false) => {
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setAuthToken(token);
     setUsername(user);
-    setPasswordChanged(pwdChanged);
     if (role) {
       setUserRole(role);
       localStorage.setItem("userRole", role);
@@ -137,10 +127,9 @@ export const useAuth = () => {
     }
   }, []);
 
-  // Handle password update success
+  // Handle password update success (no-op, kept for backward compatibility)
   const handlePasswordUpdateSuccess = useCallback(() => {
-    setPasswordChanged(true);
-    localStorage.setItem("passwordChanged", "true");
+    // Password update success - no special handling needed
   }, []);
 
   // Keep ref updated with latest logout function
@@ -194,7 +183,6 @@ export const useAuth = () => {
     username,
     userRole,
     instanceAdmin,
-    passwordChanged,
     isValidating,
     handleLogin,
     handleUsernameUpdate,

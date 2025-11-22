@@ -18,7 +18,6 @@ import { SETTINGS_TABS } from "../../../constants/settings";
  * @param {Object} props
  * @param {string} props.currentActiveSection - Current active section
  * @param {Object} props.settings - Settings object from useSettings hook
- * @param {boolean} props.isFirstLogin - Whether this is first login
  * @param {Object} props.avatar - Avatar object
  * @param {Array} props.recentAvatars - Recent avatars array
  * @param {Function} props.onAvatarChange - Avatar change handler
@@ -33,7 +32,6 @@ import { SETTINGS_TABS } from "../../../constants/settings";
 const SettingsTabs = ({
   currentActiveSection,
   settings,
-  isFirstLogin,
   avatar,
   recentAvatars,
   onAvatarChange,
@@ -124,7 +122,6 @@ const SettingsTabs = ({
         usernameSuccess={settings.usernameSuccess}
         usernameLoading={settings.usernameLoading}
         handleUsernameSubmit={settings.handleUsernameSubmit}
-        isFirstLogin={isFirstLogin}
         currentPassword={settings.currentPassword}
         setCurrentPassword={settings.setCurrentPassword}
         newPassword={settings.newPassword}
@@ -154,7 +151,6 @@ const SettingsTabs = ({
 SettingsTabs.propTypes = {
   currentActiveSection: PropTypes.string.isRequired,
   settings: PropTypes.object.isRequired,
-  isFirstLogin: PropTypes.bool.isRequired,
   avatar: PropTypes.string,
   recentAvatars: PropTypes.array,
   onAvatarChange: PropTypes.func.isRequired,

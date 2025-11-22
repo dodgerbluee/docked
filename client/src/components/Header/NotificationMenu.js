@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import PropTypes from "prop-types";
 import { X, Bell } from "lucide-react";
-import { containerShape, trackedImageShape } from "../../utils/propTypes";
+import { containerShape, trackedAppShape } from "../../utils/propTypes";
 import "./NotificationMenu.css";
 
 /**
@@ -179,7 +179,7 @@ const NotificationMenu = ({
 NotificationMenu.propTypes = {
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
-  activeTrackedAppsBehind: PropTypes.arrayOf(trackedImageShape),
+  activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
   discordWebhooks: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

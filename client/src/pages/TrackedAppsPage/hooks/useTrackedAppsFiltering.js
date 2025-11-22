@@ -10,14 +10,14 @@ import {
 
 /**
  * Hook to filter tracked apps by source type and search query
- * @param {Array} trackedImages - All tracked images
+ * @param {Array} trackedApps - All tracked images
  * @param {Set} selectedSourceFilters - Selected source filters
  * @param {string} searchQuery - Search query
  * @param {string} contentTab - Current content tab
  * @returns {Object} Filtered apps and computed arrays
  */
 export const useTrackedAppsFiltering = (
-  trackedImages,
+  trackedApps,
   selectedSourceFilters,
   searchQuery,
   contentTab
@@ -25,9 +25,9 @@ export const useTrackedAppsFiltering = (
   // Filter by source type
   const filteredBySource = useMemo(() => {
     if (selectedSourceFilters.size === 0) {
-      return trackedImages;
+      return trackedApps;
     }
-    return trackedImages.filter((img) => {
+    return trackedApps.filter((img) => {
       const sourceType = img.source_type || "docker";
       if (sourceType === "docker") {
         return selectedSourceFilters.has(TRACKED_APPS_SOURCE_FILTERS.DOCKERHUB);
@@ -38,7 +38,7 @@ export const useTrackedAppsFiltering = (
       }
       return false;
     });
-  }, [trackedImages, selectedSourceFilters]);
+  }, [trackedApps, selectedSourceFilters]);
 
   // Filter by search query
   const filteredBySearch = useMemo(() => {

@@ -55,12 +55,11 @@ function Login({ onLogin }) {
       if (response.data.success) {
         // Clear success message on successful login
         setCreateUserSuccess("");
-        // Clear welcome modal session flag on new login
-        sessionStorage.removeItem("welcomeModalShown");
+        // Clear welcome modal flag on new login (so it shows again for new users)
+        localStorage.removeItem("welcomeModalShown");
         // Store token in localStorage
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("username", username);
-        localStorage.setItem("passwordChanged", response.data.passwordChanged ? "true" : "false");
         // Store role if provided
         if (response.data.role) {
           localStorage.setItem("userRole", response.data.role);
@@ -72,7 +71,6 @@ function Login({ onLogin }) {
         onLogin(
           response.data.token,
           username,
-          response.data.passwordChanged,
           response.data.role || "Administrator",
           response.data.instanceAdmin || false
         );

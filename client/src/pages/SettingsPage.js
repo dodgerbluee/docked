@@ -16,7 +16,6 @@ import styles from "./SettingsPage.module.css";
  */
 function SettingsPage({
   username,
-  passwordChanged,
   avatar,
   recentAvatars,
   onUsernameUpdate,
@@ -79,14 +78,7 @@ function SettingsPage({
   }, [controlledActiveTab, internalTab]);
 
   // Use controlled tab if provided, otherwise use internal state
-  const settingsTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
-
-  // If first login, force user details tab (password section is now in User tab)
-  // BUT: if controlledActiveTab is explicitly set to LOGS, respect it (for URL routing)
-  const activeTab =
-    !passwordChanged && controlledActiveTab !== SETTINGS_TABS.LOGS
-      ? SETTINGS_TABS.USER_DETAILS
-      : settingsTab;
+  const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
 
   const handleTabChange = useCallback(
     (tab) => {
@@ -138,7 +130,6 @@ function SettingsPage({
         <SettingsTabNavigation
           activeTab={activeTab}
           onTabChange={handleTabChange}
-          passwordChanged={passwordChanged}
           developerModeEnabled={developerModeEnabled}
         />
       )}
@@ -150,7 +141,6 @@ function SettingsPage({
             username={username}
             onUsernameUpdate={onUsernameUpdate}
             onLogout={onLogout}
-            isFirstLogin={!passwordChanged}
             avatar={avatar}
             recentAvatars={recentAvatars}
             onAvatarChange={onAvatarChange}
@@ -177,7 +167,6 @@ function SettingsPage({
 
 SettingsPage.propTypes = {
   username: PropTypes.string.isRequired,
-  passwordChanged: PropTypes.bool.isRequired,
   avatar: PropTypes.string,
   recentAvatars: PropTypes.arrayOf(PropTypes.string),
   onUsernameUpdate: PropTypes.func.isRequired,
