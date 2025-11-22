@@ -92,23 +92,27 @@ const NotificationMenu = ({
                     </div>
                     {enabledWebhooks.length > 0 && (
                       <div className="notification-webhook-avatars">
-                        {enabledWebhooks.slice(0, 3).map((webhook) => (
-                          <img
-                            key={webhook.id}
-                            src={
-                              webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"
-                            }
-                            alt={webhook.name || "Webhook avatar"}
-                            className="notification-webhook-avatar"
-                            onError={(e) => {
-                              // Use default avatar if image fails to load
-                              if (e.target.src !== "/img/default-avatar.jpg") {
-                                e.target.src = "/img/default-avatar.jpg";
-                              }
-                            }}
-                            title={webhook.name || webhook.serverName || "Discord webhook"}
-                          />
-                        ))}
+                        {enabledWebhooks.slice(0, 3).map((webhook) => {
+                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
+                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
+                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
+                          return (
+                            <img
+                              key={webhook.id}
+                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
+                              alt={webhook.name || "Webhook avatar"}
+                              className="notification-webhook-avatar"
+                              onError={(e) => {
+                                // Use default avatar if webhook avatar fails to load
+                                // Never use user avatar - this should always be webhook avatar or default
+                                if (e.target.src !== "/img/default-avatar.jpg") {
+                                  e.target.src = "/img/default-avatar.jpg";
+                                }
+                              }}
+                              title={webhook.name || webhook.serverName || "Discord webhook"}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -170,23 +174,27 @@ const NotificationMenu = ({
                     </div>
                     {enabledWebhooks.length > 0 && (
                       <div className="notification-webhook-avatars">
-                        {enabledWebhooks.slice(0, 3).map((webhook) => (
-                          <img
-                            key={webhook.id}
-                            src={
-                              webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"
-                            }
-                            alt={webhook.name || "Webhook avatar"}
-                            className="notification-webhook-avatar"
-                            onError={(e) => {
-                              // Use default avatar if image fails to load
-                              if (e.target.src !== "/img/default-avatar.jpg") {
-                                e.target.src = "/img/default-avatar.jpg";
-                              }
-                            }}
-                            title={webhook.name || webhook.serverName || "Discord webhook"}
-                          />
-                        ))}
+                        {enabledWebhooks.slice(0, 3).map((webhook) => {
+                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
+                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
+                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
+                          return (
+                            <img
+                              key={webhook.id}
+                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
+                              alt={webhook.name || "Webhook avatar"}
+                              className="notification-webhook-avatar"
+                              onError={(e) => {
+                                // Use default avatar if webhook avatar fails to load
+                                // Never use user avatar - this should always be webhook avatar or default
+                                if (e.target.src !== "/img/default-avatar.jpg") {
+                                  e.target.src = "/img/default-avatar.jpg";
+                                }
+                              }}
+                              title={webhook.name || webhook.serverName || "Discord webhook"}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -125,7 +125,22 @@ function validateWebhookUrl(webhookUrl) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 async function testWebhook(webhookUrl) {
+  // Validate webhook URL format before use
   if (!validateWebhookUrl(webhookUrl)) {
+    return { success: false, error: "Invalid webhook URL format" };
+  }
+
+  // Re-validate URL right before use to prevent tampering
+  // Parse URL to ensure hostname is actually Discord domain
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(webhookUrl.trim());
+    // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
+    const validHostnames = ["discord.com", "discordapp.com"];
+    if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+  } catch (error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
@@ -143,9 +158,12 @@ async function testWebhook(webhookUrl) {
       ],
     };
 
-    const response = await axios.post(webhookUrl, testPayload, {
+    // Use parsed URL to prevent SSRF via redirects
+    // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
+    const response = await axios.post(parsedUrl.toString(), testPayload, {
       headers: { "Content-Type": "application/json" },
       validateStatus: () => true, // Don't throw on any status
+      maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
     });
 
     if (response.status >= 200 && response.status < 300) {
@@ -348,6 +366,25 @@ async function recordNotification(key, userId = null, notificationType = null) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETRIES) {
+  // Validate webhook URL format before use
+  if (!validateWebhookUrl(webhookUrl)) {
+    return { success: false, error: "Invalid webhook URL format" };
+  }
+
+  // Re-validate URL right before use to prevent tampering
+  // Parse URL to ensure hostname is actually Discord domain
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(webhookUrl.trim());
+    // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
+    const validHostnames = ["discord.com", "discordapp.com"];
+    if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+  } catch (error) {
+    return { success: false, error: "Invalid webhook URL format" };
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       // Check rate limit before sending
@@ -359,9 +396,12 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
         }
       }
 
-      const response = await axios.post(webhookUrl, payload, {
+      // Use parsed URL to prevent SSRF via redirects
+      // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
+      const response = await axios.post(parsedUrl.toString(), payload, {
         headers: { "Content-Type": "application/json" },
         validateStatus: () => true, // Don't throw on any status, handle manually
+        maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
       });
 
       // Record request for rate limiting
@@ -787,14 +827,32 @@ async function sendNotificationImmediate(imageData) {
  * @returns {Promise<{success: boolean, name?: string, channel_id?: string, guild_id?: string, avatar?: string, avatar_url?: string, error?: string}>}
  */
 async function getWebhookInfo(webhookUrl) {
+  // Validate webhook URL format before use
   if (!validateWebhookUrl(webhookUrl)) {
+    return { success: false, error: "Invalid webhook URL format" };
+  }
+
+  // Re-validate URL right before use to prevent tampering
+  // Parse URL to ensure hostname is actually Discord domain
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(webhookUrl.trim());
+    // Ensure hostname is actually discord.com or discordapp.com (not a subdomain or different domain)
+    const validHostnames = ["discord.com", "discordapp.com"];
+    if (!validHostnames.includes(parsedUrl.hostname.toLowerCase())) {
+      return { success: false, error: "Invalid webhook URL hostname" };
+    }
+  } catch (error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
   try {
     // Discord allows GET requests to webhook URLs to retrieve webhook information
-    const response = await axios.get(webhookUrl, {
+    // Use parsed URL to prevent SSRF via redirects
+    // maxRedirects: 0 prevents axios from following redirects, which could lead to SSRF attacks
+    const response = await axios.get(parsedUrl.toString(), {
       validateStatus: () => true, // Don't throw on any status
+      maxRedirects: 0, // Prevent redirects to prevent SSRF attacks
     });
 
     if (response.status === 200 && response.data) {
