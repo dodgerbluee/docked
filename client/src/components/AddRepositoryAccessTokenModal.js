@@ -9,7 +9,7 @@ import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
-import { getProviderIcon, getProviderLabel } from "../utils/providerHelpers";
+import { getProviderIcon } from "../utils/providerHelpers";
 import styles from "./AddRepositoryAccessTokenModal.module.css";
 
 const PROVIDER_OPTIONS = [
@@ -108,12 +108,9 @@ const AddRepositoryAccessTokenModal = React.memo(function AddRepositoryAccessTok
     return provider && accessToken && accessToken.trim().length > 0;
   }, [name, provider, accessToken, existingToken]);
 
-  const handleProviderChange = useCallback(
-    (newProvider) => {
-      setProvider(newProvider);
-    },
-    []
-  );
+  const handleProviderChange = useCallback((newProvider) => {
+    setProvider(newProvider);
+  }, []);
 
   const handleNameChange = useCallback((e) => {
     setName(e.target.value);

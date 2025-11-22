@@ -35,12 +35,9 @@ const PageVisibilitySection = React.memo(function PageVisibilitySection({
     setLocalDisabled(initialDisabled);
   }, [initialDisabled]);
 
-  const handleChange = useCallback(
-    (e) => {
-      setLocalDisabled(e.target.checked);
-    },
-    []
-  );
+  const handleChange = useCallback((e) => {
+    setLocalDisabled(e.target.checked);
+  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -107,4 +104,3 @@ PageVisibilitySection.propTypes = {
 };
 
 export default PageVisibilitySection;
-
