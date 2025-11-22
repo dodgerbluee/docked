@@ -492,8 +492,16 @@ function formatVersionUpdateNotification(imageData) {
   // Determine source display with hyperlink
   let sourceDisplay;
   if (sourceType === "github" && githubRepo) {
-    const repoUrl = `https://github.com/${githubRepo}`;
-    sourceDisplay = `[GitHub: ${githubRepo}](${repoUrl})`;
+    // Validate githubRepo format (owner/repo) to prevent injection
+    // GitHub repo format: alphanumeric, hyphens, underscores, dots, and forward slash
+    const githubRepoPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+    if (githubRepoPattern.test(githubRepo)) {
+      const repoUrl = `https://github.com/${githubRepo}`;
+      sourceDisplay = `[GitHub: ${githubRepo}](${repoUrl})`;
+    } else {
+      // Invalid format, display without link
+      sourceDisplay = `GitHub: ${githubRepo}`;
+    }
   } else if (sourceType === "github") {
     sourceDisplay = "GitHub: Unknown";
   } else {
@@ -512,12 +520,39 @@ function formatVersionUpdateNotification(imageData) {
 
   // For GitHub, format latest version with hyperlink to release page if available
   if (sourceType === "github" && releaseUrl && latestVersion) {
-    // Use the release URL if available
-    latestDisplay = `[${latestVersion}](${releaseUrl})`;
-  } else if (sourceType === "github" && githubRepo && latestVersion) {
-    // Fallback: construct release URL from repo and tag
-    const constructedReleaseUrl = `https://github.com/${githubRepo}/releases/tag/${latestVersion}`;
-    latestDisplay = `[${latestVersion}](${constructedReleaseUrl})`;
+    // Validate releaseUrl is a GitHub URL to prevent injection
+    // Only allow https://github.com URLs
+    if (typeof releaseUrl === "string" && releaseUrl.startsWith("https://github.com/")) {
+      // Additional validation: ensure it doesn't contain dangerous characters
+      // GitHub URLs should be safe, but validate to prevent protocol handlers (javascript:, data:, etc.)
+      try {
+        const url = new URL(releaseUrl);
+        if (url.protocol === "https:" && url.hostname === "github.com") {
+          latestDisplay = `[${latestVersion}](${releaseUrl})`;
+        } else {
+          // Invalid URL format, fall back to constructing it
+          latestDisplay = latestVersion;
+        }
+      } catch (e) {
+        // Invalid URL, use version without link
+        latestDisplay = latestVersion;
+      }
+    } else {
+      // Invalid releaseUrl, fall back to constructing it
+      latestDisplay = latestVersion;
+    }
+  }
+  
+  // If we don't have a valid releaseUrl, try to construct one
+  if (sourceType === "github" && githubRepo && latestVersion && latestDisplay === latestVersion) {
+    // Validate inputs before constructing URL
+    const githubRepoPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+    // Validate version tag format (alphanumeric, dots, hyphens, underscores, and 'v' prefix)
+    const versionPattern = /^[a-zA-Z0-9._-]+$/;
+    if (githubRepoPattern.test(githubRepo) && versionPattern.test(latestVersion)) {
+      const constructedReleaseUrl = `https://github.com/${githubRepo}/releases/tag/${latestVersion}`;
+      latestDisplay = `[${latestVersion}](${constructedReleaseUrl})`;
+    }
   }
 
   // Format publish date
@@ -770,14 +805,43 @@ async function getWebhookInfo(webhookUrl) {
       if (data.avatar) {
         // Discord CDN URL format for webhooks: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
         // Extract webhook ID from URL or use data.id
-        const webhookId = data.id || webhookUrl.match(/\/webhooks\/(\d+)\//)?.[1];
-        if (webhookId) {
-          const avatarHash = data.avatar;
-          // Discord avatars can be .png, .jpg, .webp, or .gif
-          // Check if avatar starts with 'a_' which indicates animated (gif)
-          const extension = avatarHash.startsWith("a_") ? "gif" : "png";
-          // Add size parameter for consistent sizing (128px is a good default)
-          avatarUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.${extension}?size=128`;
+        const webhookIdRaw = data.id || webhookUrl.match(/\/webhooks\/(\d+)\//)?.[1];
+        
+        // Validate webhookId is a valid numeric string to prevent injection
+        if (webhookIdRaw && /^\d+$/.test(String(webhookIdRaw))) {
+          const webhookId = String(webhookIdRaw);
+          const avatarHash = String(data.avatar);
+          
+          // Validate avatarHash contains only safe characters (alphanumeric, underscore, hyphen)
+          // Discord avatar hashes are base64-like strings, typically 32 characters
+          // This prevents path traversal attacks (../) and other injection attempts
+          if (/^[a-zA-Z0-9_-]+$/.test(avatarHash) && avatarHash.length <= 64) {
+            // Discord avatars can be .png, .jpg, .webp, or .gif
+            // Check if avatar starts with 'a_' which indicates animated (gif)
+            const extension = avatarHash.startsWith("a_") ? "gif" : "png";
+            // Construct URL with validated inputs - size parameter for consistent sizing (128px is a good default)
+            const constructedUrl = `https://cdn.discordapp.com/avatars/${webhookId}/${avatarHash}.${extension}?size=128`;
+            
+            // Final validation: Ensure the constructed URL is actually a Discord CDN URL
+            // This provides defense-in-depth against any potential injection
+            if (constructedUrl.startsWith("https://cdn.discordapp.com/avatars/")) {
+              avatarUrl = constructedUrl;
+            } else {
+              logger.warn("Constructed avatar URL does not match expected Discord CDN format", {
+                constructedUrl,
+                webhookId,
+              });
+            }
+          } else {
+            logger.warn("Invalid avatar hash format detected, skipping avatar URL construction", {
+              avatarHashLength: avatarHash.length,
+              webhookId,
+            });
+          }
+        } else {
+          logger.warn("Invalid webhook ID format detected, skipping avatar URL construction", {
+            webhookIdRaw,
+          });
         }
       }
 
