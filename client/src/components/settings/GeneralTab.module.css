@@ -133,3 +133,46 @@ body.dark-mode .dangerButton:hover:not(:disabled) {
   line-height: 1.4;
   max-width: 100%;
 }
+
+.supportSection {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.supportContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  text-align: left;
+}
+
+.supportText {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin: 0;
+  max-width: 500px;
+  white-space: nowrap;
+}
+
+.coffeeLink {
+  display: inline-block;
+  transition:
+    transform 0.2s,
+    opacity 0.2s;
+}
+
+.coffeeLink:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.coffeeButton {
+  height: 60px !important;
+  width: 217px !important;
+  display: block;
+  border: none;
+  padding: 0;
+  margin: 0;
+}

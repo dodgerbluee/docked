@@ -222,6 +222,39 @@ body.dark-mode .notification-item:hover::before {
   min-width: 0;
 }
 
+.notification-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.notification-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-webhook-avatars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.notification-webhook-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+body.dark-mode .notification-webhook-avatar {
+  border-color: #404040;
+}
+
 .notification-item-title {
   color: var(--text-primary);
   font-weight: 600;

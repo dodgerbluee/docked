@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { AlertCircle } from "lucide-react";
 import Modal from "./Modal";
 import Button from "./Button";
 import styles from "./ConfirmDialog.module.css";
@@ -16,7 +17,7 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
   message,
   confirmText = "Confirm",
   cancelText = "Cancel",
-  variant = "danger",
+  variant = "danger", // "danger" | "primary" | "success"
   ...props
 }) {
   const handleConfirm = () => {
@@ -25,8 +26,23 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" zIndex={20000} {...props}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={variant !== "success" ? title : undefined}
+      size="sm"
+      zIndex={20000}
+      {...props}
+    >
       <div className={styles.content}>
+        {variant === "success" && (
+          <>
+            <div className={styles.iconContainer}>
+              <AlertCircle size={48} className={styles.warningIcon} />
+            </div>
+            <h3 className={styles.title}>{title}</h3>
+          </>
+        )}
         <p className={styles.message}>{message}</p>
         <div className={styles.actions}>
           <Button variant="outline" onClick={onClose} className={styles.cancelButton}>
@@ -53,7 +69,7 @@ ConfirmDialog.propTypes = {
   message: PropTypes.string.isRequired,
   confirmText: PropTypes.string,
   cancelText: PropTypes.string,
-  variant: PropTypes.oneOf(["primary", "danger"]),
+  variant: PropTypes.oneOf(["primary", "danger", "success"]),
 };
 
 export default ConfirmDialog;

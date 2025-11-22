@@ -15,7 +15,6 @@ export function useSettings({
   onPortainerInstancesChange,
   onAvatarChange,
   onBatchConfigUpdate,
-  isFirstLogin = false,
   colorScheme = "system",
   onColorSchemeChange,
   refreshInstances,
@@ -25,7 +24,6 @@ export function useSettings({
     username,
     onUsernameUpdate,
     onPasswordUpdateSuccess,
-    isFirstLogin,
   });
 
   const portainerSettings = usePortainerSettings({

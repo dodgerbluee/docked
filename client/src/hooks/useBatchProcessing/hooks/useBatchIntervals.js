@@ -10,7 +10,6 @@ import { useEffect, useRef } from "react";
  * @param {boolean} params.batchEnabled - Whether batch is enabled
  * @param {boolean} params.isAuthenticated - Whether user is authenticated
  * @param {string} params.authToken - Auth token
- * @param {boolean} params.passwordChanged - Whether password has been changed
  * @param {number} params.intervalMinutes - Interval in minutes
  * @param {Function} params.handleBatchPull - Batch pull handler
  * @param {Function} params.handleBatchTrackedAppsCheck - Batch tracked apps check handler
@@ -20,7 +19,6 @@ export const useBatchIntervals = ({
   batchEnabled,
   isAuthenticated,
   authToken,
-  passwordChanged,
   intervalMinutes,
   handleBatchPull,
   handleBatchTrackedAppsCheck,
@@ -41,7 +39,7 @@ export const useBatchIntervals = ({
     }
 
     // Only set up interval if batch is enabled
-    if (batchEnabled && isAuthenticated && authToken && passwordChanged && intervalMinutes > 0) {
+    if (batchEnabled && isAuthenticated && authToken && intervalMinutes > 0) {
       const intervalMs = intervalMinutes * 60 * 1000;
       const intervalId = setInterval(() => {
         if (batchIntervalRef.current === intervalId) {
@@ -107,7 +105,6 @@ export const useBatchIntervals = ({
     intervalMinutes,
     isAuthenticated,
     authToken,
-    passwordChanged,
     handleBatchPull,
     handleBatchTrackedAppsCheck,
   ]);

@@ -4,17 +4,15 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { AlertTriangle } from "lucide-react";
 import "../../Settings.css";
 
 /**
  * Settings header component
  * @param {Object} props
- * @param {boolean} props.isFirstLogin - Whether this is first login
  * @param {Object} props.userInfo - User info object
  * @param {boolean} props.showUserInfoAboveTabs - Whether to show user info above tabs
  */
-const SettingsHeader = ({ isFirstLogin, userInfo, showUserInfoAboveTabs }) => {
+const SettingsHeader = ({ userInfo, showUserInfoAboveTabs }) => {
   const renderUserInfo = () => {
     if (!userInfo) return null;
 
@@ -36,32 +34,10 @@ const SettingsHeader = ({ isFirstLogin, userInfo, showUserInfoAboveTabs }) => {
     );
   };
 
-  return (
-    <>
-      {isFirstLogin && (
-        <div className="first-login-warning">
-          <h2>
-            <AlertTriangle
-              size={20}
-              style={{
-                display: "inline-block",
-                verticalAlign: "middle",
-                marginRight: "8px",
-              }}
-            />
-            First Time Login
-          </h2>
-          <p>You must change your password before accessing the application.</p>
-        </div>
-      )}
-
-      {showUserInfoAboveTabs && renderUserInfo()}
-    </>
-  );
+  return <>{showUserInfoAboveTabs && renderUserInfo()}</>;
 };
 
 SettingsHeader.propTypes = {
-  isFirstLogin: PropTypes.bool.isRequired,
   userInfo: PropTypes.object,
   showUserInfoAboveTabs: PropTypes.bool.isRequired,
 };

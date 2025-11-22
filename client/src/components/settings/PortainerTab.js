@@ -1,10 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
+import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
+import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
+import { getProviderIcon, getProviderLabel } from "../../utils/providerHelpers";
+import { SETTINGS_TABS } from "../../constants/settings";
+import AssociateImagesModal from "./AssociateImagesModal";
+import PageVisibilitySection from "./components/PageVisibilitySection";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -21,19 +27,31 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
+  const [associateImagesModalOpen, setAssociateImagesModalOpen] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(null);
 
-  const handleDeleteClick = (instanceId) => {
+  const { tokens, loading: tokensLoading } = useRepositoryAccessTokens({
+    activeSection: SETTINGS_TABS.PORTAINER,
+  });
+
+  const {
+    disablePortainerPage: initialDisablePortainerPage,
+    updateDisablePortainerPage,
+    refreshSettings,
+  } = usePageVisibilitySettings();
+
+  const handleDeleteClick = useCallback((instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
-  };
+  }, []);
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = useCallback(() => {
     if (deleteConfirm.instanceId) {
       handleDeleteInstance(deleteConfirm.instanceId);
     }
     setDeleteConfirm({ isOpen: false, instanceId: null });
-  };
+  }, [deleteConfirm.instanceId, handleDeleteInstance]);
 
-  const handleClearPortainerData = async () => {
+  const handleClearPortainerData = useCallback(async () => {
     if (!onClearPortainerData) {
       alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
       return;
@@ -46,7 +64,42 @@ const PortainerTab = React.memo(function PortainerTab({
       console.error("Error clearing Portainer data:", error);
       alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
     }
-  };
+  }, [onClearPortainerData]);
+
+  const handleAssociateImages = useCallback((token) => {
+    setSelectedToken(token);
+    setAssociateImagesModalOpen(true);
+  }, []);
+
+  const handleDeleteClose = useCallback(() => {
+    setDeleteConfirm({ isOpen: false, instanceId: null });
+  }, []);
+
+  const handlePortainerConfirmClose = useCallback(() => {
+    setPortainerConfirm(false);
+  }, []);
+
+  const handleAssociateModalClose = useCallback(() => {
+    setAssociateImagesModalOpen(false);
+    setSelectedToken(null);
+  }, []);
+
+  const handleEditInstanceClick = useCallback(
+    (instance) => {
+      if (onEditInstance) {
+        onEditInstance(instance);
+      } else {
+        handleEditInstance(instance);
+      }
+    },
+    [onEditInstance, handleEditInstance]
+  );
+
+  const handleAddInstanceClick = useCallback(() => {
+    if (onEditInstance) {
+      onEditInstance(null);
+    }
+  }, [onEditInstance]);
 
   return (
     <div className={styles.updateSection}>
@@ -84,13 +137,7 @@ const PortainerTab = React.memo(function PortainerTab({
                   )}
                 </div>
                 <ActionButtons
-                  onEdit={() => {
-                    if (onEditInstance) {
-                      onEditInstance(instance);
-                    } else {
-                      handleEditInstance(instance);
-                    }
-                  }}
+                  onEdit={() => handleEditInstanceClick(instance)}
                   onDelete={() => handleDeleteClick(instance.id)}
                 />
               </div>
@@ -100,11 +147,7 @@ const PortainerTab = React.memo(function PortainerTab({
             variant="default"
             padding="md"
             className={styles.addInstanceCard}
-            onClick={() => {
-              if (onEditInstance) {
-                onEditInstance(null);
-              }
-            }}
+            onClick={handleAddInstanceClick}
           >
             <div className={styles.addInstanceContent}>
               <div className={styles.addInstanceText}>
@@ -118,13 +161,71 @@ const PortainerTab = React.memo(function PortainerTab({
 
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
-        onClose={() => setDeleteConfirm({ isOpen: false, instanceId: null })}
+        onClose={handleDeleteClose}
         onConfirm={handleDeleteConfirm}
         title="Delete Portainer Instance?"
         message="Are you sure you want to delete this Portainer instance? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      <div className={styles.repositoryTokensSection}>
+        <div className={styles.sectionHeader}>
+          <h4 className={styles.sectionTitle}>Repositories</h4>
+        </div>
+        {tokensLoading ? (
+          <div className={styles.emptyState}>
+            <p className={styles.emptyText}>Loading repositories...</p>
+          </div>
+        ) : tokens.length === 0 ? (
+          <Card variant="default" padding="md" className={styles.emptyTokenCard}>
+            <p className={styles.emptyText}>
+              No repository access tokens configured. Add tokens on the{" "}
+              <strong>Repositories</strong> tab to associate them with your container images.
+            </p>
+          </Card>
+        ) : (
+          <div className={styles.tokensGrid}>
+            {tokens.map((token) => {
+              const IconComponent = getProviderIcon(token.provider);
+              return (
+                <Card key={token.id} variant="default" padding="md" className={styles.tokenCard}>
+                  <div className={styles.tokenContent}>
+                    <div className={styles.tokenInfo}>
+                      <div className={styles.tokenHeader}>
+                        <span className={styles.tokenIcon}>
+                          <IconComponent size={18} />
+                        </span>
+                        <strong className={styles.tokenProvider}>
+                          {token.name || getProviderLabel(token.provider)}
+                        </strong>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAssociateImages(token)}
+                      disabled={tokensLoading}
+                    >
+                      Associate Images
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <PageVisibilitySection
+        initialDisabled={initialDisablePortainerPage}
+        onUpdate={updateDisablePortainerPage}
+        onRefresh={refreshSettings}
+        title="Page Visibility"
+        checkboxLabel="Disable Portainer Page"
+        checkboxNote="This will disable the functionality of the Portainer page. The Portainer tab will be hidden from the home page navigation."
       />
 
       <div className={styles.dataManagement}>
@@ -151,13 +252,19 @@ const PortainerTab = React.memo(function PortainerTab({
 
       <ConfirmDialog
         isOpen={portainerConfirm}
-        onClose={() => setPortainerConfirm(false)}
+        onClose={handlePortainerConfirmClose}
         onConfirm={handleClearPortainerData}
         title="Clear Portainer Data?"
         message="This will remove all cached container information from Portainer instances. This action cannot be undone."
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      <AssociateImagesModal
+        isOpen={associateImagesModalOpen}
+        onClose={handleAssociateModalClose}
+        token={selectedToken}
       />
     </div>
   );

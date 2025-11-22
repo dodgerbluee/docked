@@ -16,6 +16,20 @@ export const PORTAINER_CONTENT_TAB_LABELS = {
   [PORTAINER_CONTENT_TABS.ALL]: "All",
 };
 
+export const PORTAINER_IMAGE_SOURCE_FILTERS = {
+  DOCKERHUB: "dockerhub",
+  GITHUB: "github",
+  GITLAB: "gitlab",
+  GOOGLE: "google",
+};
+
+export const PORTAINER_IMAGE_SOURCE_FILTER_LABELS = {
+  [PORTAINER_IMAGE_SOURCE_FILTERS.DOCKERHUB]: "Docker Hub",
+  [PORTAINER_IMAGE_SOURCE_FILTERS.GITHUB]: "GitHub",
+  [PORTAINER_IMAGE_SOURCE_FILTERS.GITLAB]: "GitLab",
+  [PORTAINER_IMAGE_SOURCE_FILTERS.GOOGLE]: "Google",
+};
+
 // Stack constants
 export const STACK_NAMES = {
   STANDALONE: "Standalone",

@@ -37,8 +37,41 @@ async function getDiscordWebhooks(req, res, next) {
         error: "Authentication required",
       });
     }
-    const { getAllDiscordWebhooks } = getDatabase();
+    const { getAllDiscordWebhooks, getDiscordWebhookById, updateDiscordWebhook } = getDatabase();
     const webhooks = await getAllDiscordWebhooks(userId);
+
+    // Refresh avatar URLs for webhooks that don't have them
+    // This ensures webhook avatars from Discord are always displayed correctly
+    // This is important because webhooks should show their Discord avatar, not user avatars
+    const discord = getDiscordService();
+    const refreshPromises = webhooks.map(async (webhook) => {
+      // If webhook has a URL but no avatar URL, try to fetch it from Discord
+      if (webhook.hasWebhook && !webhook.avatarUrl) {
+        try {
+          // Get the full webhook from database to access webhook_url (not exposed in sanitized response)
+          const fullWebhook = await getDiscordWebhookById(webhook.id);
+          if (fullWebhook && fullWebhook.webhook_url) {
+            const webhookInfo = await discord.getWebhookInfo(fullWebhook.webhook_url);
+            if (webhookInfo.success && webhookInfo.avatar_url) {
+              // Update the webhook with the avatar URL from Discord
+              await updateDiscordWebhook(webhook.id, { avatarUrl: webhookInfo.avatar_url });
+              // Update the webhook object in the response so it's immediately available
+              webhook.avatarUrl = webhookInfo.avatar_url;
+              logger.info(`Refreshed avatar URL for webhook ${webhook.id} from Discord`);
+            }
+          }
+        } catch (error) {
+          // Non-blocking: if we can't fetch avatar, continue with existing data
+          // The frontend will show default avatar as fallback
+          logger.debug(`Could not refresh avatar URL for webhook ${webhook.id}:`, error.message);
+        }
+      }
+    });
+
+    // Wait for all refresh attempts to complete (non-blocking)
+    // This ensures webhooks get their Discord avatars even if they were created before avatar support
+    await Promise.allSettled(refreshPromises);
+
     res.json({
       success: true,
       webhooks: webhooks,

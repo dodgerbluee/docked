@@ -8,8 +8,12 @@ const logger = require("../utils/logger");
 const { validateRequiredFields, isValidEmail } = require("../utils/validation");
 const {
   getUserByUsername,
+  getUserById,
   verifyPassword,
   updatePassword,
+  updateUserPasswordById,
+  updateUserRole,
+  getUserStats,
   updateUsername,
   updateLastLogin,
   getAllUsers,
@@ -22,14 +26,14 @@ const {
   deleteDockerHubCredentials,
   getAllPortainerInstances,
   getAllDiscordWebhooks,
-  getAllTrackedImages,
+  getAllTrackedApps,
   getBatchConfig,
   getSetting,
   getSystemSetting,
   createPortainerInstance,
   createDiscordWebhook,
-  createTrackedImage,
-  updateTrackedImage,
+  createTrackedApp,
+  updateTrackedApp,
   updateBatchConfig,
   setSetting,
   setSystemSetting,
@@ -139,7 +143,6 @@ async function register(req, res, next) {
       password,
       email || null,
       "Administrator",
-      true,
       isFirstUser // instance_admin = true for first user
     );
 
@@ -338,7 +341,6 @@ async function login(req, res, next) {
       refreshToken,
       username: user.username,
       role: user.role,
-      passwordChanged: user.password_changed === 1,
       instanceAdmin: user.instance_admin === 1,
     });
   } catch (error) {
@@ -470,40 +472,23 @@ async function updateUserPassword(req, res, next) {
       });
     }
 
-    // If password hasn't been changed (first login), currentPassword is optional
-    // The session token proves authentication, so we don't need to verify the password again
-    // Otherwise, verify current password for security
-    if (user.password_changed === 1) {
-      // Password has been changed before - require current password verification
-      if (!currentPassword) {
-        return res.status(400).json({
-          success: false,
-          error: "Current password is required",
-        });
-      }
-      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
-      if (!passwordValid) {
-        return res.status(401).json({
-          success: false,
-          error: "Current password is incorrect",
-        });
-      }
+    // Always require current password verification for security
+    if (!currentPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "Current password is required",
+      });
     }
-    // First login - currentPassword is optional since the user just authenticated
-    // If provided, we'll verify it, but it's not required
-    else if (currentPassword) {
-      // Optional verification if current password is provided
-      const passwordValid = await verifyPassword(currentPassword, user.password_hash);
-      if (!passwordValid) {
-        return res.status(401).json({
-          success: false,
-          error: "Current password is incorrect",
-        });
-      }
+    const passwordValid = await verifyPassword(currentPassword, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        error: "Current password is incorrect",
+      });
     }
 
-    // Update password and mark as changed
-    await updatePassword(username, newPassword, true);
+    // Update password
+    await updatePassword(username, newPassword);
 
     res.json({
       success: true,
@@ -544,7 +529,6 @@ async function getCurrentUser(req, res, next) {
       user: {
         username: user.username,
         role: user.role,
-        passwordChanged: user.password_changed === 1,
         instanceAdmin: user.instance_admin === 1,
         created_at: user.created_at,
         updated_at: user.updated_at,
@@ -935,7 +919,7 @@ async function exportUserConfig(req, res, next) {
       portainerInstances,
       dockerHubCreds,
       discordWebhooks,
-      trackedImages,
+      trackedApps,
       batchConfig,
       colorScheme,
       logLevel,
@@ -944,7 +928,7 @@ async function exportUserConfig(req, res, next) {
       getAllPortainerInstances(user.id),
       getDockerHubCredentials(user.id),
       getAllDiscordWebhooks(user.id),
-      getAllTrackedImages(user.id),
+      getAllTrackedApps(user.id),
       getBatchConfig(user.id),
       getSetting("color_scheme", user.id),
       getSystemSetting("log_level"),
@@ -990,7 +974,7 @@ async function exportUserConfig(req, res, next) {
         created_at: webhook.created_at,
         updated_at: webhook.updated_at,
       })),
-      trackedImages: trackedImages.map((image) => ({
+      trackedApps: trackedApps.map((image) => ({
         id: image.id,
         name: image.name,
         image_name: image.image_name,
@@ -1064,7 +1048,7 @@ async function importUserConfig(req, res, next) {
       portainerInstances: [],
       dockerHubCredentials: null,
       discordWebhooks: [],
-      trackedImages: [],
+      trackedApps: [],
       generalSettings: null,
       errors: [],
     };
@@ -1178,10 +1162,10 @@ async function importUserConfig(req, res, next) {
     }
 
     // Import tracked images
-    if (configData.trackedImages && Array.isArray(configData.trackedImages)) {
-      for (const image of configData.trackedImages) {
+    if (configData.trackedApps && Array.isArray(configData.trackedApps)) {
+      for (const image of configData.trackedApps) {
         try {
-          const id = await createTrackedImage(
+          const id = await createTrackedApp(
             user.id,
             image.name,
             image.image_name,
@@ -1215,10 +1199,10 @@ async function importUserConfig(req, res, next) {
           }
 
           if (Object.keys(updateData).length > 0) {
-            await updateTrackedImage(id, user.id, updateData);
+            await updateTrackedApp(id, user.id, updateData);
           }
 
-          results.trackedImages.push({ id, name: image.name });
+          results.trackedApps.push({ id, name: image.name });
         } catch (error) {
           results.errors.push(
             `Tracked image "${image.name}": ${error.message || "Failed to import"}`
@@ -1356,15 +1340,12 @@ async function importUsers(req, res, next) {
         }
 
         // Create user
-        await createUser(
-          username,
-          password,
-          email || null,
-          role,
-          true, // passwordChanged = true for imported users
-          isInstanceAdmin,
-          verificationToken
-        );
+        await createUser(username, password, email || null, role, isInstanceAdmin);
+
+        // Set verification token if provided (for instance admins)
+        if (verificationToken) {
+          await updateVerificationToken(username, verificationToken);
+        }
 
         results.imported.push({
           username,
@@ -1607,10 +1588,13 @@ async function createUserWithConfig(req, res, next) {
       password,
       email || null,
       role || "Administrator",
-      true, // passwordChanged = true
-      instanceAdmin || false,
-      finalVerificationToken || null
+      instanceAdmin || false
     );
+
+    // Set verification token if provided (for instance admins)
+    if (finalVerificationToken) {
+      await updateVerificationToken(username, finalVerificationToken);
+    }
 
     // Get the created user for importing webhooks
     const user = await getUserByUsername(username);
@@ -1635,7 +1619,7 @@ async function createUserWithConfig(req, res, next) {
       portainerInstances: [],
       dockerHubCredentials: null,
       discordWebhooks: [],
-      trackedImages: [],
+      trackedApps: [],
       errors: [],
     };
 
@@ -1741,10 +1725,10 @@ async function createUserWithConfig(req, res, next) {
 
     // Import tracked images (no credentials needed, just config data)
     // This can be done independently of credentials
-    if (configData && configData.trackedImages && Array.isArray(configData.trackedImages)) {
-      for (const image of configData.trackedImages) {
+    if (configData && configData.trackedApps && Array.isArray(configData.trackedApps)) {
+      for (const image of configData.trackedApps) {
         try {
-          const id = await createTrackedImage(
+          const id = await createTrackedApp(
             user.id,
             image.name,
             image.image_name,
@@ -1778,10 +1762,10 @@ async function createUserWithConfig(req, res, next) {
           }
 
           if (Object.keys(updateData).length > 0) {
-            await updateTrackedImage(id, user.id, updateData);
+            await updateTrackedApp(id, user.id, updateData);
           }
 
-          results.trackedImages.push({ id, name: image.name });
+          results.trackedApps.push({ id, name: image.name });
         } catch (error) {
           results.errors.push(
             `Tracked image "${image.name}": ${error.message || "Failed to import"}`
@@ -1877,7 +1861,7 @@ async function exportUsersEndpoint(req, res, next) {
           portainerInstances,
           dockerHubCredentials,
           discordWebhooks,
-          trackedImages,
+          trackedApps,
           batchConfig,
           colorScheme,
           logLevel,
@@ -1886,7 +1870,7 @@ async function exportUsersEndpoint(req, res, next) {
           getAllPortainerInstances(user.id),
           getDockerHubCredentials(user.id),
           getAllDiscordWebhooks(user.id),
-          getAllTrackedImages(user.id),
+          getAllTrackedApps(user.id),
           getBatchConfig(user.id),
           getSetting("color_scheme", user.id),
           getSystemSetting("log_level"), // Log level is system-wide
@@ -1930,7 +1914,7 @@ async function exportUsersEndpoint(req, res, next) {
             created_at: webhook.createdAt,
             updated_at: webhook.updatedAt,
           })),
-          trackedImages: trackedImages.map((image) => ({
+          trackedApps: trackedApps.map((image) => ({
             id: image.id,
             name: image.name,
             image_name: image.image_name,
@@ -1973,6 +1957,160 @@ async function exportUsersEndpoint(req, res, next) {
   }
 }
 
+/**
+ * Get user statistics (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function getUserStatsEndpoint(req, res, next) {
+  try {
+    // Only instance admins can view user stats
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const stats = await getUserStats(parseInt(userId));
+    res.json({ success: true, stats });
+  } catch (error) {
+    logger.error("Error getting user stats:", error);
+    next(error);
+  }
+}
+
+/**
+ * Admin update user password (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function adminUpdateUserPassword(req, res, next) {
+  try {
+    // Only instance admins can update other users' passwords
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "New password is required",
+      });
+    }
+
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: "New password must be at least 6 characters long",
+      });
+    }
+
+    // Verify user exists
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Update password
+    await updateUserPasswordById(parseInt(userId), newPassword);
+
+    res.json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    logger.error("Error updating user password:", error);
+    next(error);
+  }
+}
+
+/**
+ * Admin update user role (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function adminUpdateUserRole(req, res, next) {
+  try {
+    // Only instance admins can update other users' roles
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+    const { role, instanceAdmin } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    // Validate role
+    const validRoles = ["Administrator", "Member"];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Role must be one of: ${validRoles.join(", ")}`,
+      });
+    }
+
+    // Don't allow changing instance admin status if user is trying to set role to Member with instanceAdmin=true
+    if (role === "Member" && instanceAdmin === true) {
+      return res.status(400).json({
+        success: false,
+        error: "Member role cannot have instance admin privileges",
+      });
+    }
+
+    // Verify user exists
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Update role
+    const newRole = role || user.role;
+    const newInstanceAdmin =
+      instanceAdmin !== undefined ? instanceAdmin : user.instance_admin === 1;
+    await updateUserRole(parseInt(userId), newRole, newInstanceAdmin);
+
+    res.json({
+      success: true,
+      message: "User role updated successfully",
+    });
+  } catch (error) {
+    logger.error("Error updating user role:", error);
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1997,4 +2135,7 @@ module.exports = {
   checkUserExists,
   getAllUsersEndpoint,
   exportUsersEndpoint,
+  getUserStatsEndpoint,
+  adminUpdateUserPassword,
+  adminUpdateUserRole,
 };

@@ -1,12 +1,16 @@
 /**
- * Tracked Image Service
- * Handles update checking for tracked images (Docker, GitHub, and GitLab)
+ * Tracked App Service
+ * Handles update checking for tracked apps (Docker, GitHub, and GitLab)
+ *
+ * Uses the unified registry service with automatic provider selection
+ * and fallback strategies for robust update detection.
  */
 
 const dockerRegistryService = require("./dockerRegistryService");
+const registryService = require("./registry");
 const githubService = require("./githubService");
 const gitlabService = require("./gitlabService");
-const { updateTrackedImage } = require("../db/database");
+const { updateTrackedApp } = require("../db/database");
 const logger = require("../utils/logger");
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
@@ -24,36 +28,41 @@ function getDiscordService() {
 
 /**
  * Check for updates on a single tracked image
- * @param {Object} trackedImage - Tracked image object from database
+ * @param {Object} trackedApp - Tracked app object from database
  * @param {Object} batchLogger - Optional batch logger for batch job logs
  * @returns {Promise<Object>} - Update information
  */
-async function checkTrackedImage(trackedImage, batchLogger = null) {
-  const sourceType = trackedImage.source_type || "docker";
+async function checkTrackedApp(trackedApp, batchLogger = null) {
+  const sourceType = trackedApp.source_type || "docker";
 
   // Handle GitHub repositories
-  if (sourceType === "github" && trackedImage.github_repo) {
-    return await checkGitHubTrackedImage(trackedImage, batchLogger);
+  if (sourceType === "github" && trackedApp.github_repo) {
+    return await checkGitHubTrackedApp(trackedApp, batchLogger);
   }
 
   // Handle GitLab repositories
-  if (sourceType === "gitlab" && trackedImage.github_repo) {
-    return await checkGitLabTrackedImage(trackedImage, batchLogger);
+  if (sourceType === "gitlab" && trackedApp.github_repo) {
+    return await checkGitLabTrackedApp(trackedApp, batchLogger);
   }
 
   // Handle Docker images (existing logic)
-  const imageName = trackedImage.image_name;
+  const imageName = trackedApp.image_name;
 
   // Extract image name and tag
   const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
   const repo = imageParts[0];
   const currentTag = imageParts[1];
 
-  // Get the latest image digest from registry (use tracked image's user_id for Docker Hub credentials)
-  const userId = trackedImage.user_id;
+  // Get the latest image digest from registry (use tracked image's user_id for credentials)
+  // Use new unified registry service with automatic fallback
+  const userId = trackedApp.user_id;
   let latestImageInfo;
   try {
-    latestImageInfo = await dockerRegistryService.getLatestImageDigest(repo, currentTag, userId);
+    latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
+      userId,
+      githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback if available
+      useFallback: true, // Enable GitHub Releases fallback
+    });
   } catch (error) {
     // If rate limit exceeded, propagate the error
     if (error.isRateLimitExceeded) {
@@ -96,16 +105,13 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
       latestVersion = null;
     }
 
-    // Compare digests to determine if update is available
-    if (trackedImage.current_digest && latestDigest) {
-      // If digests are different, there's an update available
-      hasUpdate = trackedImage.current_digest !== latestDigest;
-    } else if (latestVersion && latestVersion !== "latest") {
-      // Fallback: if we can't compare digests, compare tags (only if we have a real version)
-      if (trackedImage.current_version && trackedImage.current_version !== latestVersion) {
-        hasUpdate = true;
-      }
-    }
+    // Use registry service's hasUpdate method for consistent comparison
+    // This handles both digest-based and version-based (fallback) comparisons
+    hasUpdate = registryService.hasUpdate(
+      trackedApp.current_digest,
+      trackedApp.current_version || currentTag,
+      latestImageInfo
+    );
   }
 
   // Format digest for display (shortened version)
@@ -123,11 +129,10 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   const tagForPublishDate = latestVersion !== "latest" ? latestVersion : latestTag;
   if (tagForPublishDate && hasUpdate) {
     try {
-      latestPublishDate = await dockerRegistryService.getTagPublishDate(
-        repo,
-        tagForPublishDate,
-        userId
-      );
+      latestPublishDate = await registryService.getTagPublishDate(repo, tagForPublishDate, {
+        userId,
+        githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback
+      });
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       latestPublishDate = null;
@@ -136,8 +141,8 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
 
   // If current version is "latest" and we found the actual version, update it
   // Also update if current version is not set
-  let currentVersionToStore = trackedImage.current_version;
-  let currentDigestToStore = trackedImage.current_digest;
+  let currentVersionToStore = trackedApp.current_version;
+  let currentDigestToStore = trackedApp.current_digest;
 
   // Only update current version if we found a real version (not "latest")
   if (latestVersion && latestVersion !== "latest") {
@@ -175,21 +180,21 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   }
 
   // Update current version/digest if we have better information
-  if (currentVersionToStore && currentVersionToStore !== trackedImage.current_version) {
+  if (currentVersionToStore && currentVersionToStore !== trackedApp.current_version) {
     updateData.current_version = currentVersionToStore;
   }
-  if (currentDigestToStore && currentDigestToStore !== trackedImage.current_digest) {
+  if (currentDigestToStore && currentDigestToStore !== trackedApp.current_digest) {
     updateData.current_digest = currentDigestToStore;
   }
 
-  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
+  await updateTrackedApp(trackedApp.id, trackedApp.user_id, updateData);
 
   // Use the resolved current version (or fallback to stored/currentTag)
   // Ensure we always return a string, never null/undefined
   const displayCurrentVersion = currentVersionToStore
     ? String(currentVersionToStore)
-    : trackedImage.current_version
-      ? String(trackedImage.current_version)
+    : trackedApp.current_version
+      ? String(trackedApp.current_version)
       : currentTag;
 
   // Use latestVersion if we have it, otherwise use the stored latest_version or currentTag
@@ -197,16 +202,16 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   let displayLatestVersion = currentTag; // Default fallback
   if (latestVersion && latestVersion !== "latest") {
     displayLatestVersion = String(latestVersion);
-  } else if (trackedImage.latest_version && trackedImage.latest_version !== "latest") {
-    displayLatestVersion = String(trackedImage.latest_version);
-  } else if (trackedImage.latest_version) {
-    displayLatestVersion = String(trackedImage.latest_version);
+  } else if (trackedApp.latest_version && trackedApp.latest_version !== "latest") {
+    displayLatestVersion = String(trackedApp.latest_version);
+  } else if (trackedApp.latest_version) {
+    displayLatestVersion = String(trackedApp.latest_version);
   }
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedImage.has_update) {
+  if (hasUpdate && !trackedApp.has_update) {
     // Log newly identified tracked app update
-    const currentDigest = trackedImage.current_digest || "N/A";
+    const currentDigest = trackedApp.current_digest || "N/A";
     const latestDigestFormatted = latestDigest || "N/A";
     const currentDigestShort =
       currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest;
@@ -216,19 +221,19 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
         : latestDigestFormatted;
 
     const logData = {
-      module: "trackedImageService",
-      operation: "checkTrackedImage",
-      trackedImageName: trackedImage.name,
+      module: "trackedAppService",
+      operation: "checkTrackedApp",
+      trackedAppName: trackedApp.name,
       imageName: imageName,
       currentDigest: currentDigestShort,
       latestDigest: latestDigestShort,
       currentVersion: displayCurrentVersion,
       latestVersion: displayLatestVersion,
-      userId: trackedImage.user_id || "batch",
+      userId: trackedApp.user_id || "batch",
     };
 
     // Use batch logger if available (for batch job logs), otherwise use regular logger
-    const logMessage = `New tracked app update found: ${trackedImage.name} (${imageName}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    const logMessage = `New tracked app update found: ${trackedApp.name} (${imageName}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
     if (batchLogger) {
       batchLogger.info(logMessage, logData);
     } else {
@@ -239,8 +244,8 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
         await discord.queueNotification({
-          id: trackedImage.id,
-          name: trackedImage.name,
+          id: trackedApp.id,
+          name: trackedApp.name,
           imageName: imageName,
           githubRepo: null,
           sourceType: "docker",
@@ -249,7 +254,7 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
           latestDigest: latestDigest || null,
           latestVersionPublishDate: latestPublishDate,
           notificationType: "tracked-app",
-          userId: trackedImage.user_id,
+          userId: trackedApp.user_id,
         });
       }
     } catch (error) {
@@ -259,13 +264,13 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
   }
 
   return {
-    id: trackedImage.id,
-    name: trackedImage.name,
+    id: trackedApp.id,
+    name: trackedApp.name,
     imageName: imageName,
     currentVersion: displayCurrentVersion,
-    currentDigest: formatDigest(currentDigestToStore || trackedImage.current_digest),
+    currentDigest: formatDigest(currentDigestToStore || trackedApp.current_digest),
     latestVersion: displayLatestVersion,
-    latestDigest: formatDigest(latestDigest || trackedImage.latest_digest),
+    latestDigest: formatDigest(latestDigest || trackedApp.latest_digest),
     hasUpdate: Boolean(hasUpdate), // Ensure boolean, not 0/1
     latestPublishDate: latestPublishDate,
     imageRepo: repo,
@@ -274,11 +279,11 @@ async function checkTrackedImage(trackedImage, batchLogger = null) {
 
 /**
  * Check for updates on a GitHub tracked image
- * @param {Object} trackedImage - Tracked image object from database
+ * @param {Object} trackedApp - Tracked app object from database
  * @returns {Promise<Object>} - Update information
  */
-async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
-  const githubRepo = trackedImage.github_repo;
+async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
+  const githubRepo = trackedApp.github_repo;
 
   let hasUpdate = false;
   let latestVersion = null;
@@ -297,7 +302,7 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
 
       // Compare with current version to determine if update is available
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
-      // This must match the normalization in trackedImageController.js
+      // This must match the normalization in trackedAppController.js
       const normalizeVersion = (v) => {
         if (!v) {
           return "";
@@ -305,17 +310,17 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 
-      if (trackedImage.current_version) {
-        const normalizedCurrent = normalizeVersion(trackedImage.current_version);
+      if (trackedApp.current_version) {
+        const normalizedCurrent = normalizeVersion(trackedApp.current_version);
         const normalizedLatest = normalizeVersion(latestVersion);
         // If normalized versions are different and both are valid, there's an update
         // If they match (after normalization), there's no update
         if (normalizedCurrent !== "" && normalizedLatest !== "") {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          if (normalizedCurrent === normalizedLatest && trackedImage.has_update) {
+          if (normalizedCurrent === normalizedLatest && trackedApp.has_update) {
             logger.debug(
-              `[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
+              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
           }
         } else {
@@ -332,7 +337,7 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitHub tags may vary
           try {
-            const currentVersionTag = trackedImage.current_version;
+            const currentVersionTag = trackedApp.current_version;
             currentVersionRelease = await githubService.getReleaseByTag(
               githubRepo,
               currentVersionTag
@@ -359,7 +364,7 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
           } catch (err) {
             // Non-blocking - if we can't get current version release, continue
             logger.error(
-              `Error fetching current version release for ${githubRepo}:${trackedImage.current_version}:`,
+              `Error fetching current version release for ${githubRepo}:${trackedApp.current_version}:`,
               err.message
             );
           }
@@ -401,10 +406,10 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
       updateData.latest_version = versionStr;
     }
-  } else if (hasUpdate && trackedImage.latest_version) {
+  } else if (hasUpdate && trackedApp.latest_version) {
     // If we have an update but couldn't get latest version, preserve existing latest_version
     // This prevents clearing the version when there's a known update
-    updateData.latest_version = trackedImage.latest_version;
+    updateData.latest_version = trackedApp.latest_version;
   } else if (!hasUpdate && !latestVersion) {
     // Only clear latest_version if we don't have an update and don't have a latest version
     // This prevents clearing valid version data when there's no update
@@ -412,8 +417,8 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
   }
 
   // Update current version if we don't have one yet
-  let currentVersionToStore = trackedImage.current_version;
-  // Normalize versions for comparison (must match normalization in checkGitHubTrackedImage)
+  let currentVersionToStore = trackedApp.current_version;
+  // Normalize versions for comparison (must match normalization in checkGitHubTrackedApp)
   const normalizeVersionForComparison = (v) => {
     if (!v) {
       return "";
@@ -458,10 +463,10 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
       // If they match, clear latest_version_publish_date since current_version_publish_date covers it
       updateData.latest_version_publish_date = null;
     }
-  } else if (hasUpdate && trackedImage.latest_version_publish_date) {
+  } else if (hasUpdate && trackedApp.latest_version_publish_date) {
     // If we have an update but no published_at, preserve existing latest_version_publish_date
     // This prevents clearing the publish date when there's a known update
-    updateData.latest_version_publish_date = trackedImage.latest_version_publish_date;
+    updateData.latest_version_publish_date = trackedApp.latest_version_publish_date;
   } else {
     // Only clear if we don't have an update
     if (!hasUpdate) {
@@ -469,38 +474,38 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
+  await updateTrackedApp(trackedApp.id, trackedApp.user_id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore
     ? String(currentVersionToStore)
-    : trackedImage.current_version
-      ? String(trackedImage.current_version)
+    : trackedApp.current_version
+      ? String(trackedApp.current_version)
       : "Not checked";
 
   // Show latest version if we have it from the release or from database
   // Always prefer the latestVersion from the release if available
   const displayLatestVersion = latestVersion
     ? String(latestVersion)
-    : trackedImage.latest_version
-      ? String(trackedImage.latest_version)
+    : trackedApp.latest_version
+      ? String(trackedApp.latest_version)
       : "Unknown";
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedImage.has_update) {
+  if (hasUpdate && !trackedApp.has_update) {
     // Log newly identified tracked app update
     const logData = {
-      module: "trackedImageService",
-      operation: "checkGitHubTrackedImage",
-      trackedImageName: trackedImage.name,
+      module: "trackedAppService",
+      operation: "checkGitHubTrackedApp",
+      trackedAppName: trackedApp.name,
       githubRepo: githubRepo,
       currentVersion: displayCurrentVersion,
       latestVersion: displayLatestVersion,
-      userId: trackedImage.user_id || "batch",
+      userId: trackedApp.user_id || "batch",
     };
 
     // Use batch logger if available (for batch job logs), otherwise use regular logger
-    const logMessage = `New tracked app update found: ${trackedImage.name} (${githubRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    const logMessage = `New tracked app update found: ${trackedApp.name} (${githubRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
     if (batchLogger) {
       batchLogger.info(logMessage, logData);
     } else {
@@ -511,8 +516,8 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
         await discord.queueNotification({
-          id: trackedImage.id,
-          name: trackedImage.name,
+          id: trackedApp.id,
+          name: trackedApp.name,
           imageName: null,
           githubRepo: githubRepo,
           sourceType: "github",
@@ -522,7 +527,7 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
             latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
           releaseUrl: latestRelease?.html_url || null,
           notificationType: "tracked-app",
-          userId: trackedImage.user_id,
+          userId: trackedApp.user_id,
         });
       }
     } catch (error) {
@@ -532,8 +537,8 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
   }
 
   return {
-    id: trackedImage.id,
-    name: trackedImage.name,
+    id: trackedApp.id,
+    name: trackedApp.name,
     imageName: null,
     githubRepo: githubRepo,
     sourceType: "github",
@@ -551,16 +556,16 @@ async function checkGitHubTrackedImage(trackedImage, batchLogger = null) {
 
 /**
  * Check for updates on all tracked images
- * @param {Array} trackedImages - Array of tracked image objects
+ * @param {Array} trackedApps - Array of tracked image objects
  * @param {Object} batchLogger - Optional batch logger for batch job logs
  * @returns {Promise<Array>} - Array of update information
  */
-async function checkAllTrackedImages(trackedImages, batchLogger = null) {
+async function checkAllTrackedApps(trackedApps, batchLogger = null) {
   const results = [];
 
-  for (const image of trackedImages) {
+  for (const image of trackedApps) {
     try {
-      const result = await checkTrackedImage(image, batchLogger);
+      const result = await checkTrackedApp(image, batchLogger);
       results.push(result);
     } catch (error) {
       // If rate limit exceeded, stop processing and propagate error
@@ -583,12 +588,12 @@ async function checkAllTrackedImages(trackedImages, batchLogger = null) {
 
 /**
  * Check for updates on a GitLab tracked image
- * @param {Object} trackedImage - Tracked image object from database
+ * @param {Object} trackedApp - Tracked app object from database
  * @returns {Promise<Object>} - Update information
  */
-async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
-  const gitlabRepo = trackedImage.github_repo; // Reusing github_repo field for GitLab repos
-  const gitlabToken = trackedImage.gitlab_token || null; // Get token from database
+async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
+  const gitlabRepo = trackedApp.github_repo; // Reusing github_repo field for GitLab repos
+  const gitlabToken = trackedApp.gitlab_token || null; // Get token from database
 
   let hasUpdate = false;
   let latestVersion = null;
@@ -603,8 +608,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
     );
     latestRelease = await gitlabService.getLatestRelease(gitlabRepo, gitlabToken);
     logger.info(
-      `[TrackedImage] GitLab release result:`,
-      latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"
+      `[TrackedImage] GitLab release result: ${latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"}`
     );
 
     // Set latestVersion if we have a release with a tag_name
@@ -614,7 +618,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
 
       // Compare with current version to determine if update is available
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
-      // This must match the normalization in trackedImageController.js
+      // This must match the normalization in trackedAppController.js
       const normalizeVersion = (v) => {
         if (!v) {
           return "";
@@ -622,17 +626,17 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
 
-      if (trackedImage.current_version) {
-        const normalizedCurrent = normalizeVersion(trackedImage.current_version);
+      if (trackedApp.current_version) {
+        const normalizedCurrent = normalizeVersion(trackedApp.current_version);
         const normalizedLatest = normalizeVersion(latestVersion);
         // If normalized versions are different and both are valid, there's an update
         // If they match (after normalization), there's no update
         if (normalizedCurrent !== "" && normalizedLatest !== "") {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          if (normalizedCurrent === normalizedLatest && trackedImage.has_update) {
+          if (normalizedCurrent === normalizedLatest && trackedApp.has_update) {
             logger.debug(
-              `[TrackedImage] Version match detected but has_update was true: current="${trackedImage.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
+              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
           }
         } else {
@@ -649,7 +653,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitLab tags may vary
           try {
-            const currentVersionTag = trackedImage.current_version;
+            const currentVersionTag = trackedApp.current_version;
             currentVersionRelease = await gitlabService.getReleaseByTag(
               gitlabRepo,
               currentVersionTag,
@@ -679,7 +683,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
           } catch (err) {
             // Non-blocking - if we can't get current version release, continue
             logger.error(
-              `Error fetching current version release for ${gitlabRepo}:${trackedImage.current_version}:`,
+              `Error fetching current version release for ${gitlabRepo}:${trackedApp.current_version}:`,
               err.message
             );
           }
@@ -695,7 +699,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
     } else if (latestRelease && !latestRelease.tag_name) {
       // Release exists but has no tag_name - log warning
       logger.warn(`[TrackedImage] GitLab release for ${gitlabRepo} has no tag_name - skipping`);
-      logger.warn(`[TrackedImage] Release data:`, JSON.stringify(latestRelease, null, 2));
+      logger.warn(`[TrackedImage] Release data: ${JSON.stringify(latestRelease, null, 2)}`);
     } else if (!latestRelease) {
       logger.warn(`[TrackedImage] No GitLab release found for ${gitlabRepo}`);
     }
@@ -724,10 +728,10 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
       updateData.latest_version = versionStr;
     }
-  } else if (hasUpdate && trackedImage.latest_version) {
+  } else if (hasUpdate && trackedApp.latest_version) {
     // If we have an update but couldn't get latest version, preserve existing latest_version
     // This prevents clearing the version when there's a known update
-    updateData.latest_version = trackedImage.latest_version;
+    updateData.latest_version = trackedApp.latest_version;
   } else if (!hasUpdate && !latestVersion) {
     // Only clear latest_version if we don't have an update and don't have a latest version
     // This prevents clearing valid version data when there's no update
@@ -735,8 +739,8 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
   }
 
   // Update current version if we don't have one yet
-  let currentVersionToStore = trackedImage.current_version;
-  // Normalize versions for comparison (must match normalization in checkGitLabTrackedImage)
+  let currentVersionToStore = trackedApp.current_version;
+  // Normalize versions for comparison (must match normalization in checkGitLabTrackedApp)
   const normalizeVersionForComparison = (v) => {
     if (!v) {
       return "";
@@ -781,10 +785,10 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
       // If they match, clear latest_version_publish_date since current_version_publish_date covers it
       updateData.latest_version_publish_date = null;
     }
-  } else if (hasUpdate && trackedImage.latest_version_publish_date) {
+  } else if (hasUpdate && trackedApp.latest_version_publish_date) {
     // If we have an update but no published_at, preserve existing latest_version_publish_date
     // This prevents clearing the publish date when there's a known update
-    updateData.latest_version_publish_date = trackedImage.latest_version_publish_date;
+    updateData.latest_version_publish_date = trackedApp.latest_version_publish_date;
   } else {
     // Only clear if we don't have an update
     if (!hasUpdate) {
@@ -792,38 +796,38 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
     }
   }
 
-  await updateTrackedImage(trackedImage.id, trackedImage.user_id, updateData);
+  await updateTrackedApp(trackedApp.id, trackedApp.user_id, updateData);
 
   // Format display values
   const displayCurrentVersion = currentVersionToStore
     ? String(currentVersionToStore)
-    : trackedImage.current_version
-      ? String(trackedImage.current_version)
+    : trackedApp.current_version
+      ? String(trackedApp.current_version)
       : "Not checked";
 
   // Show latest version if we have it from the release or from database
   // Always prefer the latestVersion from the release if available
   const displayLatestVersion = latestVersion
     ? String(latestVersion)
-    : trackedImage.latest_version
-      ? String(trackedImage.latest_version)
+    : trackedApp.latest_version
+      ? String(trackedApp.latest_version)
       : "Unknown";
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedImage.has_update) {
+  if (hasUpdate && !trackedApp.has_update) {
     // Log newly identified tracked app update
     const logData = {
-      module: "trackedImageService",
-      operation: "checkGitLabTrackedImage",
-      trackedImageName: trackedImage.name,
+      module: "trackedAppService",
+      operation: "checkGitLabTrackedApp",
+      trackedAppName: trackedApp.name,
       gitlabRepo: gitlabRepo,
       currentVersion: displayCurrentVersion,
       latestVersion: displayLatestVersion,
-      userId: trackedImage.user_id || "batch",
+      userId: trackedApp.user_id || "batch",
     };
 
     // Use batch logger if available (for batch job logs), otherwise use regular logger
-    const logMessage = `New tracked app update found: ${trackedImage.name} (${gitlabRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
+    const logMessage = `New tracked app update found: ${trackedApp.name} (${gitlabRepo}) - ${displayCurrentVersion} → ${displayLatestVersion}`;
     if (batchLogger) {
       batchLogger.info(logMessage, logData);
     } else {
@@ -834,8 +838,8 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
       const discord = getDiscordService();
       if (discord && discord.queueNotification) {
         await discord.queueNotification({
-          id: trackedImage.id,
-          name: trackedImage.name,
+          id: trackedApp.id,
+          name: trackedApp.name,
           imageName: null,
           githubRepo: gitlabRepo,
           sourceType: "gitlab",
@@ -845,7 +849,7 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
             latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
           releaseUrl: latestRelease?.html_url || null,
           notificationType: "tracked-app",
-          userId: trackedImage.user_id,
+          userId: trackedApp.user_id,
         });
       }
     } catch (error) {
@@ -855,8 +859,8 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
   }
 
   return {
-    id: trackedImage.id,
-    name: trackedImage.name,
+    id: trackedApp.id,
+    name: trackedApp.name,
     imageName: null,
     githubRepo: gitlabRepo,
     sourceType: "gitlab",
@@ -873,6 +877,6 @@ async function checkGitLabTrackedImage(trackedImage, batchLogger = null) {
 }
 
 module.exports = {
-  checkTrackedImage,
-  checkAllTrackedImages,
+  checkTrackedApp,
+  checkAllTrackedApps,
 };

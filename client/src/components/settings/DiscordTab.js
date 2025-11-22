@@ -68,16 +68,17 @@ const DiscordTab = React.memo(function DiscordTab({
             <Card key={webhook.id} variant="default" padding="md" className={styles.webhookCard}>
               <div className={styles.webhookContent}>
                 <div className={styles.webhookInfo}>
-                  {webhook.avatarUrl && (
-                    <img
-                      src={webhook.avatarUrl}
-                      alt="Server avatar"
-                      className={styles.avatar}
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                      }}
-                    />
-                  )}
+                  <img
+                    src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
+                    alt="Webhook avatar"
+                    className={styles.avatar}
+                    onError={(e) => {
+                      // Fallback to default avatar if image fails to load
+                      if (e.target.src !== "/img/default-avatar.jpg") {
+                        e.target.src = "/img/default-avatar.jpg";
+                      }
+                    }}
+                  />
                   <div className={styles.webhookDetails}>
                     <strong className={styles.serverName}>
                       {webhook.serverName || "Unnamed Server"}

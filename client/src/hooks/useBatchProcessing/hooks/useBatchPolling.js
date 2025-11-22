@@ -12,21 +12,19 @@ import { API_BASE_URL } from "../../../constants/api";
  * @param {Object} params - Parameters
  * @param {boolean} params.isAuthenticated - Whether user is authenticated
  * @param {string} params.authToken - Auth token
- * @param {boolean} params.passwordChanged - Whether password has been changed
  * @param {Object} params.batchConfig - Batch configuration
  * @param {Function} params.setLastPullTime - Set last pull time function
  * @param {Function} params.fetchContainers - Function to fetch containers
- * @param {Function} params.fetchTrackedImages - Function to fetch tracked images
+ * @param {Function} params.fetchTrackedApps - Function to fetch tracked apps
  * @returns {void}
  */
 export const useBatchPolling = ({
   isAuthenticated,
   authToken,
-  passwordChanged,
   batchConfig,
   setLastPullTime,
   fetchContainers,
-  fetchTrackedImages,
+  fetchTrackedApps,
 }) => {
   const lastCheckedBatchRunIdRef = useRef(null);
   const lastCheckedBatchRunStatusRef = useRef(null);
@@ -34,7 +32,7 @@ export const useBatchPolling = ({
   const lastCheckedTrackedAppsBatchRunStatusRef = useRef(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !authToken || !passwordChanged) {
+    if (!isAuthenticated || !authToken) {
       return;
     }
 
@@ -116,9 +114,9 @@ export const useBatchPolling = ({
                   lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
                   lastCheckedTrackedAppsBatchRunStatusRef.current = trackedAppsRun.status;
 
-                  // Refresh tracked images when batch completes
-                  if (fetchTrackedImages) {
-                    fetchTrackedImages();
+                  // Refresh tracked apps when batch completes
+                  if (fetchTrackedApps) {
+                    fetchTrackedApps();
                   }
                 } else {
                   lastCheckedTrackedAppsBatchRunIdRef.current = trackedAppsRun.id;
@@ -140,13 +138,5 @@ export const useBatchPolling = ({
     const interval = setInterval(checkBatchRuns, 5000);
 
     return () => clearInterval(interval);
-  }, [
-    isAuthenticated,
-    authToken,
-    passwordChanged,
-    setLastPullTime,
-    batchConfig,
-    fetchContainers,
-    fetchTrackedImages,
-  ]);
+  }, [isAuthenticated, authToken, setLastPullTime, batchConfig, fetchContainers, fetchTrackedApps]);
 };

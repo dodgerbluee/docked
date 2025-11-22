@@ -15,21 +15,51 @@
  */
 
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const containerController = require("../controllers/containerController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedImageController = require("../controllers/trackedImageController");
+const trackedAppController = require("../controllers/trackedAppController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
+const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
+
+// Rate limiters for specific routes
+// Avatar routes rate limiter: 100 requests per 15 minutes per IP
+const avatarLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Repository access token routes rate limiter: 100 requests per 15 minutes per IP
+const repositoryAssociatedImagesRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Associate images route rate limiter: 10 requests per minute per IP (more restrictive for write operations)
+const associateImagesLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per minute
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 /**
  * @swagger
@@ -76,6 +106,7 @@ router.get("/health", (req, res) => {
  *                   example: "production"
  */
 router.get("/version", versionController.getVersion);
+router.get("/version/latest-release", versionController.getLatestRelease);
 
 /**
  * @swagger
@@ -181,9 +212,12 @@ router.use(authenticate);
 // User management routes (protected)
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
+router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
 router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
 router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
+router.post("/auth/users/:userId/password", asyncHandler(authController.adminUpdateUserPassword));
+router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUserRole));
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
@@ -215,8 +249,13 @@ router.post("/portainer/instances/reorder", asyncHandler(portainerController.upd
 router.delete("/portainer/instances/:id", asyncHandler(portainerController.deleteInstance));
 
 // Avatar routes
-router.get("/avatars", asyncHandler(avatarController.getAvatar));
-router.get("/avatars/recent", asyncHandler(avatarController.getRecentAvatars));
+router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));
+router.get(
+  "/avatars/user/:userId",
+  avatarLimiter,
+  asyncHandler(avatarController.getAvatarByUserId)
+);
+router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
 router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
 router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
@@ -235,21 +274,21 @@ router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunH
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
 
-// Tracked images routes
+// Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
-router.get("/tracked-images", asyncHandler(trackedImageController.getTrackedImages));
-router.post("/tracked-images", asyncHandler(trackedImageController.createTrackedImage));
+router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
+router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
 router.post(
-  "/tracked-images/check-updates",
-  asyncHandler(trackedImageController.checkTrackedImagesUpdates)
+  "/tracked-apps/check-updates",
+  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
 );
-router.delete("/tracked-images/cache", asyncHandler(trackedImageController.clearGitHubCache));
-router.get("/tracked-images/:id", asyncHandler(trackedImageController.getTrackedImage));
-router.put("/tracked-images/:id", asyncHandler(trackedImageController.updateTrackedImage));
-router.delete("/tracked-images/:id", asyncHandler(trackedImageController.deleteTrackedImage));
+router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitHubCache));
+router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
+router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
+router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
 router.post(
-  "/tracked-images/:id/check-update",
-  asyncHandler(trackedImageController.checkTrackedImageUpdate)
+  "/tracked-apps/:id/check-update",
+  asyncHandler(trackedAppController.checkTrackedAppUpdate)
 );
 
 // Discord notification routes
@@ -266,12 +305,54 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
 router.get(
+  "/settings/disable-portainer-page",
+  asyncHandler(settingsController.getDisablePortainerPageHandler)
+);
+router.post(
+  "/settings/disable-portainer-page",
+  asyncHandler(settingsController.setDisablePortainerPageHandler)
+);
+router.get(
+  "/settings/disable-tracked-apps-page",
+  asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
+);
+router.post(
+  "/settings/disable-tracked-apps-page",
+  asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
+);
+router.get(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
 );
 router.post(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
+);
+
+// Repository access token routes
+router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
+router.get(
+  "/repository-access-tokens/:provider",
+  asyncHandler(repositoryAccessTokenController.getTokenByProvider)
+);
+router.post("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.upsertToken));
+router.delete(
+  "/repository-access-tokens/:id",
+  asyncHandler(repositoryAccessTokenController.deleteToken)
+);
+
+router.get(
+  "/repository-access-tokens/:id/associated-images",
+  repositoryAssociatedImagesRateLimiter,
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.getAssociatedImages)
+);
+
+router.post(
+  "/repository-access-tokens/:id/associate-images",
+  associateImagesLimiter,
+  authenticate,
+  asyncHandler(repositoryAccessTokenController.associateImages)
 );
 
 // Logs routes

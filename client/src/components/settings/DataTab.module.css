@@ -2,6 +2,208 @@
   width: 100%;
 }
 
+/* View Mode Toggle */
+.viewModeToggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.viewModeButton {
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.viewModeButton:hover {
+  background: var(--background-hover);
+  border-color: var(--border-hover);
+}
+
+.viewModeButton.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* Database Records View */
+.databaseRecordsView {
+  width: 100%;
+}
+
+.tableTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tableTab {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tableTabButton {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.2s;
+  color: var(--text-primary);
+}
+
+.tableTabButton:hover {
+  background: var(--background-hover);
+}
+
+.tableTabButton.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.tableTabName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.tableTabCount {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  color: var(--text-primary);
+}
+
+.tableTabError {
+  margin-left: auto;
+  font-size: 1.2rem;
+}
+
+.tableContent {
+  padding: 16px;
+  background: var(--background-primary);
+  border-top: 1px solid var(--border-color);
+}
+
+.recordsList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recordItem {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--background-secondary);
+}
+
+.recordHeader {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.recordHeaderButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--background-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.recordHeaderButton:hover {
+  background: var(--background-secondary);
+  border-color: var(--border-hover);
+}
+
+.recordHeaderIcon {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.recordHeaderText {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.recordContent {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.recordId {
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 8px;
+}
+
+.recordsControls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.expandAllButton {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.expandAllButton:hover {
+  background: var(--background-hover);
+  border-color: var(--border-hover);
+}
+
+.errorMessage {
+  color: var(--error-color);
+  padding: 12px;
+  background: var(--error-background);
+  border-radius: 4px;
+}
+
+.emptyMessage {
+  color: var(--text-secondary);
+  padding: 12px;
+  text-align: center;
+}
+
+.dataDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
 .headerWrapper {
   width: 100%;
   margin-bottom: 20px;
@@ -246,4 +448,78 @@ body.dark-mode .content {
   color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: capitalize;
+}
+
+/* Correlated Records View */
+.correlatedRecordsList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.correlatedRecordItem {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+
+.correlatedRecordHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-hover);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.correlatedRecordHeader:hover {
+  background: var(--background-secondary);
+}
+
+.correlatedRecordIcon {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.correlatedRecordTitle {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-family: monospace;
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.correlatedRecordCounts {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.correlatedRecordContent {
+  padding: 16px;
+  background: var(--background-primary);
+  border-top: 1px solid var(--border-color);
+  animation: slideDown 0.2s ease-out;
+}
+
+.searchInfo {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
 }

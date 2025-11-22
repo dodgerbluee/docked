@@ -14,8 +14,8 @@ import Alert from "./ui/Alert";
 import { API_BASE_URL } from "../utils/api";
 import GitLabIcon from "./icons/GitLabIcon";
 import styles from "./AddTrackedAppModal.module.css";
-import { useTrackedImageForm } from "./AddTrackedAppModal/hooks/useTrackedImageForm";
-import { validateForm } from "./AddTrackedAppModal/utils/trackedImageValidation";
+import { useTrackedAppForm } from "./AddTrackedAppModal/hooks/useTrackedAppForm";
+import { validateForm } from "./AddTrackedAppModal/utils/trackedAppValidation";
 import { selectStyles } from "./AddTrackedAppModal/utils/selectStyles";
 import GitHubSourceForm from "./AddTrackedAppModal/components/GitHubSourceForm";
 import GitLabSourceForm from "./AddTrackedAppModal/components/GitLabSourceForm";
@@ -43,7 +43,7 @@ function AddTrackedAppModal({
   isOpen,
   onClose,
   onSuccess,
-  trackedImages = [],
+  trackedApps = [],
   initialData = null,
   onDelete = null,
 }) {
@@ -52,8 +52,8 @@ function AddTrackedAppModal({
   const lastAutoPopulatedNameRef = useRef("");
 
   // Use extracted form hook
-  const formState = useTrackedImageForm({
-    trackedImages,
+  const formState = useTrackedAppForm({
+    trackedApps,
     initialData,
     isOpen,
   });
@@ -70,6 +70,7 @@ function AddTrackedAppModal({
     selectedPredefinedImage,
     setSelectedPredefinedImage,
     formData,
+    setFormData,
     handleChange,
     resetForm,
     githubRepoOptions,
@@ -82,6 +83,18 @@ function AddTrackedAppModal({
       setError("");
     }
   }, [isOpen]);
+
+  // Reset form when modal closes (after it's fully closed, so user doesn't see the reset)
+  React.useEffect(() => {
+    if (!isOpen) {
+      // Use a small delay to ensure modal is fully closed before resetting
+      // This prevents the form from resetting while still visible
+      const timeoutId = setTimeout(() => {
+        resetForm();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOpen, resetForm]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,30 +141,54 @@ function AddTrackedAppModal({
         payload.current_version = formData.currentVersion.trim();
       }
 
-      // Add GitLab token if source type is GitLab (send even if empty to allow clearing)
-      if (sourceType === "gitlab") {
-        payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+      // Add repository token ID if source type is GitLab or GitHub
+      if (sourceType === "gitlab" || sourceType === "github") {
+        if (formData.repositoryTokenId) {
+          payload.repositoryTokenId = formData.repositoryTokenId;
+        }
+        // Keep gitlabToken for backward compatibility if no token ID is selected
+        if (sourceType === "gitlab" && !formData.repositoryTokenId) {
+          payload.gitlabToken = formData.gitlabToken ? formData.gitlabToken.trim() : "";
+        }
       }
 
       let response;
       if (initialData) {
-        response = await axios.put(`${API_BASE_URL}/api/tracked-images/${initialData.id}`, payload);
+        response = await axios.put(`${API_BASE_URL}/api/tracked-apps/${initialData.id}`, payload);
       } else {
-        response = await axios.post(`${API_BASE_URL}/api/tracked-images`, payload);
+        response = await axios.post(`${API_BASE_URL}/api/tracked-apps`, payload);
       }
 
       if (response.data.success) {
-        resetForm();
         // Pass the image ID to onSuccess so it can check the version
         // For create: response.data.id, for update: response.data.image.id
         const imageId = response.data.image?.id || response.data.id || initialData?.id;
-        onSuccess(imageId);
-        onClose();
+
+        // Wait for onSuccess to complete (including recheck) before closing modal
+        // This ensures the UI shows the correct state immediately and prevents
+        // showing intermediate states (red sidebar, etc.)
+        // Keep loading state active during recheck
+        try {
+          if (onSuccess) {
+            await onSuccess(imageId);
+          }
+          // Close modal and clear loading state after recheck completes
+          // Form will be reset when modal closes (via useEffect)
+          onClose();
+        } catch (err) {
+          // If recheck fails, still close the modal but log the error
+          console.error("Error during post-edit recheck:", err);
+          // Form will be reset when modal closes (via useEffect)
+          onClose();
+        } finally {
+          setLoading(false);
+        }
       } else {
         setError(
           response.data.error ||
             (initialData ? "Failed to update tracked item" : "Failed to add tracked item")
         );
+        setLoading(false);
       }
     } catch (err) {
       setError(
@@ -160,7 +197,6 @@ function AddTrackedAppModal({
             ? "Failed to update tracked item. Please try again."
             : "Failed to add tracked item. Please try again.")
       );
-    } finally {
       setLoading(false);
     }
   };
@@ -281,8 +317,11 @@ function AddTrackedAppModal({
         ) : (
           <GitLabSourceForm
             githubRepo={formData.githubRepo}
-            gitlabToken={formData.gitlabToken}
+            repositoryTokenId={formData.repositoryTokenId}
             onChange={handleChange}
+            onTokenChange={(tokenId) => {
+              setFormData({ ...formData, repositoryTokenId: tokenId });
+            }}
             loading={loading}
           />
         )}
@@ -362,7 +401,7 @@ AddTrackedAppModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,
-  trackedImages: PropTypes.array,
+  trackedApps: PropTypes.array,
   initialData: PropTypes.object,
   onDelete: PropTypes.func,
 };

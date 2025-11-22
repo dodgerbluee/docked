@@ -27,7 +27,6 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
   usernameLoading,
   handleUsernameSubmit,
   // Password props
-  isFirstLogin,
   currentPassword,
   setCurrentPassword,
   newPassword,
@@ -49,10 +48,9 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
   const { exporting, exportError, exportSuccess, handleExport } = useExport();
 
   // Collapsible sections state
-  // Auto-expand password section on first login
   const [expandedSections, setExpandedSections] = useState({
     username: false,
-    password: isFirstLogin || false,
+    password: false,
     avatar: false,
   });
 
@@ -96,7 +94,6 @@ const UserDetailsTab = React.memo(function UserDetailsTab({
       <PasswordSection
         isExpanded={expandedSections.password}
         onToggle={() => toggleSection("password")}
-        isFirstLogin={isFirstLogin}
         currentPassword={currentPassword}
         setCurrentPassword={setCurrentPassword}
         newPassword={newPassword}
@@ -162,7 +159,6 @@ UserDetailsTab.propTypes = {
   usernameLoading: PropTypes.bool.isRequired,
   handleUsernameSubmit: PropTypes.func.isRequired,
   // Password props
-  isFirstLogin: PropTypes.bool.isRequired,
   currentPassword: PropTypes.string.isRequired,
   setCurrentPassword: PropTypes.func.isRequired,
   newPassword: PropTypes.string.isRequired,

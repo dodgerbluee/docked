@@ -12,7 +12,8 @@ import PortainerPage from "../../../pages/PortainerPage";
 import SettingsPage from "../../../pages/SettingsPage";
 import BatchPage from "../../../pages/BatchPage";
 import AdminPage from "../../../pages/AdminPage";
-import { TAB_NAMES, CONTENT_TABS, SETTINGS_TABS } from "../../../constants/apiConstants";
+import { TAB_NAMES, CONTENT_TABS } from "../../../constants/apiConstants";
+import { SETTINGS_TABS } from "../../../constants/settings";
 
 /**
  * HomePage content component
@@ -26,7 +27,6 @@ const HomePageContent = ({
   containers,
   containersWithUpdates,
   trackedAppsBehind,
-  passwordChanged,
   loading,
   pulling,
   error,
@@ -36,7 +36,7 @@ const HomePageContent = ({
   portainerInstances,
   unusedImages,
   unusedImagesCount,
-  trackedImages,
+  trackedApps,
   dismissedTrackedAppNotifications,
   containersByPortainer,
   loadingInstances,
@@ -61,7 +61,7 @@ const HomePageContent = ({
   setUnusedImagesCount,
   fetchContainers,
   fetchUnusedImages,
-  fetchTrackedImages,
+  fetchTrackedApps,
   openModal,
   handlePull,
   handleBatchPull,
@@ -79,6 +79,8 @@ const HomePageContent = ({
   handleLogoutWithCleanup,
   editingPortainerInstance,
   fetchPortainerInstances,
+  disablePortainerPage = false,
+  disableTrackedAppsPage = false,
 }) => {
   // Render summary page
   const renderSummary = useCallback(() => {
@@ -89,7 +91,7 @@ const HomePageContent = ({
         containers={containers}
         unusedImages={unusedImages}
         unusedImagesCount={unusedImagesCount}
-        trackedImages={trackedImages}
+        trackedApps={trackedApps}
         dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
         onNavigateToPortainer={() => setActiveTab(TAB_NAMES.PORTAINER)}
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
@@ -97,6 +99,8 @@ const HomePageContent = ({
         onSetContentTab={setContentTab}
         isLoading={isLoading}
         onAddInstance={openModal}
+        disablePortainerPage={disablePortainerPage}
+        disableTrackedAppsPage={disableTrackedAppsPage}
       />
     );
   }, [
@@ -105,24 +109,38 @@ const HomePageContent = ({
     portainerInstances,
     unusedImages,
     unusedImagesCount,
-    trackedImages,
+    trackedApps,
     dismissedTrackedAppNotifications,
     setActiveTab,
     setSelectedPortainerInstances,
     setContentTab,
     openModal,
+    disablePortainerPage,
+    disableTrackedAppsPage,
   ]);
 
   // Render tracked apps
   const renderTrackedApps = useCallback(() => {
     return (
       <TrackedAppsPage
-        onDeleteTrackedImage={fetchTrackedImages}
-        onUpgradeTrackedImage={fetchTrackedImages}
-        onEditTrackedImage={fetchTrackedImages}
+        onDeleteTrackedApp={fetchTrackedApps}
+        onUpgradeTrackedApp={fetchTrackedApps}
+        onEditTrackedApp={fetchTrackedApps}
+        onNavigateToSettings={() => {
+          // Navigate to settings first
+          setActiveTab(TAB_NAMES.SETTINGS);
+          // Set the Tracked Apps tab after a delay to ensure Settings page is rendered
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                setSettingsTab(SETTINGS_TABS.TRACKED_APPS);
+              }, 200);
+            });
+          });
+        }}
       />
     );
-  }, [fetchTrackedImages]);
+  }, [fetchTrackedApps, setActiveTab, setSettingsTab]);
 
   return (
     <div className="container">
@@ -142,6 +160,8 @@ const HomePageContent = ({
             }}
             containersWithUpdates={containersWithUpdates}
             trackedAppsBehind={trackedAppsBehind}
+            disablePortainerPage={disablePortainerPage}
+            disableTrackedAppsPage={disableTrackedAppsPage}
           />
         )}
 
@@ -151,7 +171,6 @@ const HomePageContent = ({
           <SettingsPage
             key={username || authToken || "settings"}
             username={username}
-            passwordChanged={passwordChanged}
             avatar={avatar}
             recentAvatars={recentAvatars || []}
             onUsernameUpdate={handleUsernameUpdate}
@@ -217,7 +236,7 @@ const HomePageContent = ({
             {!loading && (
               <>
                 {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                {activeTab === TAB_NAMES.PORTAINER && (
+                {!disablePortainerPage && activeTab === TAB_NAMES.PORTAINER && (
                   <PortainerPage
                     portainerInstances={portainerInstances}
                     containers={containers}
@@ -244,7 +263,9 @@ const HomePageContent = ({
                     onSetContentTab={setContentTab}
                   />
                 )}
-                {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                {!disableTrackedAppsPage &&
+                  activeTab === TAB_NAMES.TRACKED_APPS &&
+                  renderTrackedApps()}
                 {activeTab === TAB_NAMES.ADMIN && (
                   <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
                 )}
@@ -265,7 +286,6 @@ HomePageContent.propTypes = {
   containers: PropTypes.array.isRequired,
   containersWithUpdates: PropTypes.array.isRequired,
   trackedAppsBehind: PropTypes.number.isRequired,
-  passwordChanged: PropTypes.bool.isRequired,
   loading: PropTypes.bool.isRequired,
   pulling: PropTypes.bool.isRequired,
   error: PropTypes.string,
@@ -275,7 +295,7 @@ HomePageContent.propTypes = {
   portainerInstances: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
-  trackedImages: PropTypes.array.isRequired,
+  trackedApps: PropTypes.array.isRequired,
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
   containersByPortainer: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
@@ -300,7 +320,7 @@ HomePageContent.propTypes = {
   setUnusedImagesCount: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
-  fetchTrackedImages: PropTypes.func.isRequired,
+  fetchTrackedApps: PropTypes.func.isRequired,
   openModal: PropTypes.func.isRequired,
   handlePull: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,
@@ -318,6 +338,8 @@ HomePageContent.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   editingPortainerInstance: PropTypes.object,
   fetchPortainerInstances: PropTypes.func.isRequired,
+  disablePortainerPage: PropTypes.bool,
+  disableTrackedAppsPage: PropTypes.bool,
 };
 
 export default HomePageContent;
