@@ -3,30 +3,27 @@
  * Popup form to add or edit a repository access token (GitHub/GitLab)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
-import GitHubIcon from "./icons/GitHubIcon";
-import GitLabIcon from "./icons/GitLabIcon";
+import { getProviderIcon, getProviderLabel } from "../utils/providerHelpers";
 import styles from "./AddRepositoryAccessTokenModal.module.css";
 
 const PROVIDER_OPTIONS = [
   {
     value: "github",
     label: "GitHub",
-    icon: GitHubIcon,
   },
   {
     value: "gitlab",
     label: "GitLab",
-    icon: GitLabIcon,
   },
 ];
 
-function AddRepositoryAccessTokenModal({
+const AddRepositoryAccessTokenModal = React.memo(function AddRepositoryAccessTokenModal({
   isOpen,
   onClose,
   onSuccess,
@@ -39,61 +36,66 @@ function AddRepositoryAccessTokenModal({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (existingToken) {
-      setProvider(existingToken.provider);
-      setName(existingToken.name || "");
-      // Don't pre-fill token for security
-      setAccessToken("");
-    } else {
-      setProvider("github");
-      setName("");
-      setAccessToken("");
-    }
-    setError("");
-  }, [existingToken, isOpen]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    // Validate name is required
-    if (!name || name.trim().length === 0) {
-      setError("Token name is required");
-      return;
-    }
-
-    // Only require token if creating new token (not editing)
-    if (!existingToken && (!accessToken || accessToken.trim().length === 0)) {
-      setError("Access token is required");
-      return;
-    }
-
-    if (onSuccess) {
-      // Pass empty string if token is blank when editing (to keep existing)
-      const tokenToSave = accessToken.trim() || "";
-      const result = await onSuccess(provider, name.trim(), tokenToSave, existingToken?.id);
-      if (result && result.success) {
-        // Reset form and close modal
+    if (isOpen) {
+      if (existingToken) {
+        setProvider(existingToken.provider);
+        setName(existingToken.name || "");
+        // Don't pre-fill token for security
+        setAccessToken("");
+      } else {
+        setProvider("github");
         setName("");
         setAccessToken("");
-        setError("");
-        onClose();
-      } else if (result && result.error) {
-        setError(result.error);
       }
+      setError("");
     }
-  };
+  }, [existingToken, isOpen]);
 
-  const handleClose = () => {
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setError("");
+
+      // Validate name is required
+      if (!name || name.trim().length === 0) {
+        setError("Token name is required");
+        return;
+      }
+
+      // Only require token if creating new token (not editing)
+      if (!existingToken && (!accessToken || accessToken.trim().length === 0)) {
+        setError("Access token is required");
+        return;
+      }
+
+      if (onSuccess) {
+        // Pass empty string if token is blank when editing (to keep existing)
+        const tokenToSave = accessToken.trim() || "";
+        const result = await onSuccess(provider, name.trim(), tokenToSave, existingToken?.id);
+        if (result && result.success) {
+          // Reset form and close modal
+          setName("");
+          setAccessToken("");
+          setError("");
+          onClose();
+        } else if (result && result.error) {
+          setError(result.error);
+        }
+      }
+    },
+    [name, accessToken, existingToken, provider, onSuccess, onClose]
+  );
+
+  const handleClose = useCallback(() => {
     if (!loading) {
       setError("");
       setName("");
       setAccessToken("");
       onClose();
     }
-  };
+  }, [loading, onClose]);
 
-  const isFormValid = () => {
+  const isFormValid = useMemo(() => {
     // Name is always required
     if (!name || name.trim().length === 0) {
       return false;
@@ -104,7 +106,31 @@ function AddRepositoryAccessTokenModal({
       return provider;
     }
     return provider && accessToken && accessToken.trim().length > 0;
-  };
+  }, [name, provider, accessToken, existingToken]);
+
+  const handleProviderChange = useCallback(
+    (newProvider) => {
+      setProvider(newProvider);
+    },
+    []
+  );
+
+  const handleNameChange = useCallback((e) => {
+    setName(e.target.value);
+  }, []);
+
+  const handleTokenChange = useCallback((e) => {
+    setAccessToken(e.target.value);
+  }, []);
+
+  const providerOptionsWithIcons = useMemo(
+    () =>
+      PROVIDER_OPTIONS.map((option) => ({
+        ...option,
+        icon: getProviderIcon(option.value),
+      })),
+    []
+  );
 
   return (
     <Modal
@@ -119,7 +145,7 @@ function AddRepositoryAccessTokenModal({
             Provider <span className={styles.required}>*</span>
           </label>
           <div className={styles.providerOptions}>
-            {PROVIDER_OPTIONS.map((option) => {
+            {providerOptionsWithIcons.map((option) => {
               const IconComponent = option.icon;
               return (
                 <button
@@ -128,7 +154,7 @@ function AddRepositoryAccessTokenModal({
                   className={`${styles.providerButton} ${
                     provider === option.value ? styles.active : ""
                   }`}
-                  onClick={() => setProvider(option.value)}
+                  onClick={() => handleProviderChange(option.value)}
                   disabled={loading || !!existingToken}
                 >
                   <span className={styles.providerIcon}>
@@ -148,7 +174,7 @@ function AddRepositoryAccessTokenModal({
           label="Token Name"
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={handleNameChange}
           required
           placeholder="e.g., Production Token, Personal Token"
           disabled={loading}
@@ -159,7 +185,7 @@ function AddRepositoryAccessTokenModal({
           label="Access Token"
           type="password"
           value={accessToken}
-          onChange={(e) => setAccessToken(e.target.value)}
+          onChange={handleTokenChange}
           required={!existingToken}
           placeholder={
             existingToken
@@ -185,7 +211,7 @@ function AddRepositoryAccessTokenModal({
           <Button
             type="submit"
             variant="outline"
-            disabled={loading || !isFormValid()}
+            disabled={loading || !isFormValid}
             className={styles.submitButton}
           >
             {loading ? "Saving..." : existingToken ? "Update Token" : "Save Token"}
@@ -194,7 +220,7 @@ function AddRepositoryAccessTokenModal({
       </form>
     </Modal>
   );
-}
+});
 
 AddRepositoryAccessTokenModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,

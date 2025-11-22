@@ -3,20 +3,24 @@
  * Allows selecting an existing token or adding a new one
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Plus } from "lucide-react";
 import Select from "react-select";
 import { useRepositoryAccessTokens } from "../../../hooks/useRepositoryAccessTokens";
 import AddRepositoryAccessTokenModal from "../../AddRepositoryAccessTokenModal";
-import GitHubIcon from "../../icons/GitHubIcon";
-import GitLabIcon from "../../icons/GitLabIcon";
+import { getProviderIcon, getProviderLabel } from "../../../utils/providerHelpers";
 import Button from "../../ui/Button";
 import { SETTINGS_TABS } from "../../../constants/settings";
 import { selectStyles } from "../utils/selectStyles";
 import styles from "./RepositoryTokenSelector.module.css";
 
-function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loading }) {
+const RepositoryTokenSelector = React.memo(function RepositoryTokenSelector({
+  provider,
+  selectedTokenId,
+  onTokenChange,
+  loading,
+}) {
   const [showAddModal, setShowAddModal] = useState(false);
   const {
     tokens,
@@ -26,29 +30,32 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
   } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.PORTAINER });
 
   // Filter tokens by provider
-  const providerTokens = tokens.filter((token) => token.provider === provider);
+  const providerTokens = useMemo(
+    () => tokens.filter((token) => token.provider === provider),
+    [tokens, provider]
+  );
 
   useEffect(() => {
     if (provider) {
       fetchTokens();
     }
-  }, [provider, fetchTokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]);
 
-  const handleAddToken = async (tokenProvider, name, accessToken, tokenId) => {
-    const result = await createOrUpdateToken(tokenProvider, name, accessToken, tokenId);
-    if (result && result.success) {
-      await fetchTokens();
-      // Auto-select the newly created token by ID
-      if (result.id) {
-        onTokenChange(result.id);
+  const handleAddToken = useCallback(
+    async (tokenProvider, name, accessToken, tokenId) => {
+      const result = await createOrUpdateToken(tokenProvider, name, accessToken, tokenId);
+      if (result && result.success) {
+        await fetchTokens();
+        // Auto-select the newly created token by ID
+        if (result.id) {
+          onTokenChange(result.id);
+        }
       }
-    }
-    return result;
-  };
-
-  const getProviderLabel = (tokenProvider) => {
-    return tokenProvider === "github" ? "GitHub" : "GitLab";
-  };
+      return result;
+    },
+    [createOrUpdateToken, fetchTokens, onTokenChange]
+  );
 
   // Create options for the dropdown, including "None" option
   const tokenOptions = useMemo(() => {
@@ -61,7 +68,7 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
     ];
 
     providerTokens.forEach((token) => {
-      const IconComponent = token.provider === "github" ? GitHubIcon : GitLabIcon;
+      const IconComponent = getProviderIcon(token.provider);
       options.push({
         value: token.id,
         label: token.name || `${getProviderLabel(token.provider)} Token`,
@@ -73,20 +80,40 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
     return options;
   }, [providerTokens]);
 
-  const selectedOption =
-    tokenOptions.find((opt) => opt.value === selectedTokenId) || tokenOptions[0];
-
-  const formatOptionLabel = ({ label, icon: IconComponent, hasToken }) => (
-    <div className={styles.optionLabel}>
-      {IconComponent && (
-        <span className={styles.optionIcon}>
-          <IconComponent size={16} />
-        </span>
-      )}
-      <span>{label}</span>
-      {hasToken === false && <span className={styles.notConfigured}>(not configured)</span>}
-    </div>
+  const selectedOption = useMemo(
+    () => tokenOptions.find((opt) => opt.value === selectedTokenId) || tokenOptions[0],
+    [tokenOptions, selectedTokenId]
   );
+
+  const formatOptionLabel = useCallback(
+    ({ label, icon: IconComponent, hasToken }) => (
+      <div className={styles.optionLabel}>
+        {IconComponent && (
+          <span className={styles.optionIcon}>
+            <IconComponent size={16} />
+          </span>
+        )}
+        <span>{label}</span>
+        {hasToken === false && <span className={styles.notConfigured}>(not configured)</span>}
+      </div>
+    ),
+    []
+  );
+
+  const handleTokenChange = useCallback(
+    (option) => {
+      onTokenChange(option.value);
+    },
+    [onTokenChange]
+  );
+
+  const handleModalClose = useCallback(() => {
+    setShowAddModal(false);
+  }, []);
+
+  const handleModalOpen = useCallback(() => {
+    setShowAddModal(true);
+  }, []);
 
   return (
     <div className={styles.tokenSelector}>
@@ -94,7 +121,7 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
       <div className={styles.tokenSelectWrapper}>
         <Select
           value={selectedOption}
-          onChange={(option) => onTokenChange(option.value)}
+          onChange={handleTokenChange}
           options={tokenOptions}
           formatOptionLabel={formatOptionLabel}
           placeholder="Select a token..."
@@ -107,7 +134,7 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setShowAddModal(true)}
+          onClick={handleModalOpen}
           disabled={loading || tokensLoading}
           icon={Plus}
           className={styles.addTokenButton}
@@ -121,14 +148,14 @@ function RepositoryTokenSelector({ provider, selectedTokenId, onTokenChange, loa
 
       <AddRepositoryAccessTokenModal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={handleModalClose}
         onSuccess={handleAddToken}
         existingToken={null}
         loading={tokensLoading}
       />
     </div>
   );
-}
+});
 
 RepositoryTokenSelector.propTypes = {
   provider: PropTypes.oneOf(["github", "gitlab"]).isRequired,
