@@ -88,12 +88,15 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
   ]);
 
   // Memoize event handlers
-  const handleEdit = useCallback((e) => {
-    if (e) {
-      e.stopPropagation();
-    }
-    onEdit(image);
-  }, [image, onEdit]);
+  const handleEdit = useCallback(
+    (e) => {
+      if (e) {
+        e.stopPropagation();
+      }
+      onEdit(image);
+    },
+    [image, onEdit]
+  );
 
   const handleUpgrade = useCallback(() => {
     onUpgrade(image.id, image.latest_version, image.name);
@@ -380,7 +383,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
             <p className={styles.metaItem}>
               <strong>Released:</strong> {new Date(publishDate).toLocaleDateString()}
             </p>
-          ) : (image.current_version || image.latest_version) ? (
+          ) : image.current_version || image.latest_version ? (
             <p className={styles.metaItem}>
               <strong>Released:</strong> <span className={styles.unavailable}>Not available</span>
             </p>

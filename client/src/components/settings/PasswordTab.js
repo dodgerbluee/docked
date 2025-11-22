@@ -64,12 +64,7 @@ const PasswordTab = React.memo(function PasswordTab({
           <Button
             type="submit"
             variant="primary"
-            disabled={
-              passwordLoading ||
-              !newPassword ||
-              !confirmPassword ||
-              !currentPassword
-            }
+            disabled={passwordLoading || !newPassword || !confirmPassword || !currentPassword}
             className={styles.submitButton}
           >
             {passwordLoading ? "Updating..." : "Update Password"}

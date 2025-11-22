@@ -26,7 +26,7 @@ const CorrelatedRecordsView = ({
   searchQuery = "",
 }) => {
   const [localExpanded, setLocalExpanded] = useState(new Set());
-  
+
   // Use local state if onToggleExpansion is not provided, otherwise use parent state
   const isExpanded = (key) => {
     // For correlated records, the key format is "correlated-{imageKey}"
@@ -36,7 +36,7 @@ const CorrelatedRecordsView = ({
     }
     return localExpanded.has(key);
   };
-  
+
   const toggleExpansion = (key) => {
     if (onToggleExpansion) {
       // Parent manages state - use a dummy entry key since we're not using the old format
@@ -67,7 +67,7 @@ const CorrelatedRecordsView = ({
 
     Object.keys(correlatedRecords).forEach((imageKey) => {
       const record = correlatedRecords[imageKey];
-      
+
       // Check if any part of the record matches the search query
       try {
         const recordString = JSON.stringify(record).toLowerCase();
@@ -105,9 +105,9 @@ const CorrelatedRecordsView = ({
       <div className={styles.dataSection}>
         <div className={styles.dataHeader}>Correlated Database Records by Image</div>
         <p className={styles.dataDescription}>
-          Raw database records correlated by image name/version. All related records
-          (containers, deployed_images, registry_image_versions, portainer_instances)
-          are grouped together to show connections and help with debugging.
+          Raw database records correlated by image name/version. All related records (containers,
+          deployed_images, registry_image_versions, portainer_instances) are grouped together to
+          show connections and help with debugging.
         </p>
         {searchQuery.trim() && (
           <p className={styles.searchInfo}>
@@ -126,11 +126,17 @@ const CorrelatedRecordsView = ({
             const summary = record.summary || {};
             const displayHeader = `${record.imageRepo || "unknown"}:${record.imageTag || "latest"}`;
             const counts = [
-              summary.containerCount > 0 && `${summary.containerCount} container${summary.containerCount !== 1 ? "s" : ""}`,
-              summary.deployedImageCount > 0 && `${summary.deployedImageCount} deployed image${summary.deployedImageCount !== 1 ? "s" : ""}`,
-              summary.registryVersionCount > 0 && `${summary.registryVersionCount} version${summary.registryVersionCount !== 1 ? "s" : ""}`,
-              summary.portainerInstanceCount > 0 && `${summary.portainerInstanceCount} instance${summary.portainerInstanceCount !== 1 ? "s" : ""}`,
-            ].filter(Boolean).join(", ");
+              summary.containerCount > 0 &&
+                `${summary.containerCount} container${summary.containerCount !== 1 ? "s" : ""}`,
+              summary.deployedImageCount > 0 &&
+                `${summary.deployedImageCount} deployed image${summary.deployedImageCount !== 1 ? "s" : ""}`,
+              summary.registryVersionCount > 0 &&
+                `${summary.registryVersionCount} version${summary.registryVersionCount !== 1 ? "s" : ""}`,
+              summary.portainerInstanceCount > 0 &&
+                `${summary.portainerInstanceCount} instance${summary.portainerInstanceCount !== 1 ? "s" : ""}`,
+            ]
+              .filter(Boolean)
+              .join(", ");
 
             return (
               <div key={imageKey} className={styles.correlatedRecordItem}>
@@ -142,9 +148,7 @@ const CorrelatedRecordsView = ({
                     {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </span>
                   <span className={styles.correlatedRecordTitle}>{displayHeader}</span>
-                  {counts && (
-                    <span className={styles.correlatedRecordCounts}>({counts})</span>
-                  )}
+                  {counts && <span className={styles.correlatedRecordCounts}>({counts})</span>}
                 </button>
                 {expanded && (
                   <div className={styles.correlatedRecordContent}>
@@ -168,4 +172,3 @@ CorrelatedRecordsView.propTypes = {
 };
 
 export default CorrelatedRecordsView;
-

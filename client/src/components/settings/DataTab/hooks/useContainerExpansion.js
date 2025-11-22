@@ -23,7 +23,7 @@ export const useContainerExpansion = (dataEntries) => {
       // For old format (if still used), use entryKey:containerName
       containerKey = `${entryKey}:${containerName}`;
     }
-    
+
     setExpandedContainers((prev) => {
       const next = new Set(prev);
       if (next.has(containerKey)) {
@@ -48,7 +48,7 @@ export const useContainerExpansion = (dataEntries) => {
       setExpandedContainers(allContainerKeys);
       return;
     }
-    
+
     // Fallback to old format (shouldn't be used anymore)
     const allContainerKeys = new Set();
     dataEntries.forEach((entry) => {
@@ -77,7 +77,7 @@ export const useContainerExpansion = (dataEntries) => {
       const correlatedRecords = dataEntries[0].correlatedRecords;
       const imageKeys = Object.keys(correlatedRecords);
       if (imageKeys.length === 0) return false;
-      
+
       let expandedCount = 0;
       imageKeys.forEach((imageKey) => {
         const recordKey = `correlated-${imageKey}`;
@@ -87,7 +87,7 @@ export const useContainerExpansion = (dataEntries) => {
       });
       return expandedCount === imageKeys.length;
     }
-    
+
     // Fallback to old format counting (shouldn't be used anymore)
     if (dataEntries.length === 0) return false;
     let totalContainers = 0;

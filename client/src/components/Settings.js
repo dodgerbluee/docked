@@ -6,7 +6,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import "./Settings.css";
 import { useSettings } from "../hooks/useSettings";
-import { SETTINGS_TABS } from "../constants/settings";
 import SettingsHeader from "./settings/components/SettingsHeader";
 import SettingsTabs from "./settings/components/SettingsTabs";
 

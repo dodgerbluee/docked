@@ -312,4 +312,3 @@ module.exports = {
   associateImages,
   getAssociatedImages,
 };
-

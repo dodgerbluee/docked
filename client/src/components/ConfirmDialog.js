@@ -128,11 +128,7 @@ function ConfirmDialog({
           </button>
           <button
             type="button"
-            className={
-              variant === "danger"
-                ? styles.dangerConfirmButton
-                : styles.confirmButton
-            }
+            className={variant === "danger" ? styles.dangerConfirmButton : styles.confirmButton}
             onClick={onConfirm}
           >
             {confirmLabel}

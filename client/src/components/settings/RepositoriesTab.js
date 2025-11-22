@@ -1,10 +1,8 @@
 import React, { useState } from "react";
-import PropTypes from "prop-types";
 import { Plus } from "lucide-react";
 import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import Button from "../ui/Button";
 import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
 import AddRepositoryAccessTokenModal from "../AddRepositoryAccessTokenModal";
 import GitHubIcon from "../icons/GitHubIcon";
@@ -65,7 +63,8 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Manage Repository Access Tokens</h3>
       <p className={styles.description}>
-        Manage your repository access tokens for GitHub and GitLab. Add, edit, or remove tokens below.
+        Manage your repository access tokens for GitHub and GitLab. Add, edit, or remove tokens
+        below.
       </p>
 
       <div className={styles.repositoryTokensSection}>
@@ -140,4 +139,3 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
 RepositoriesTab.propTypes = {};
 
 export default RepositoriesTab;
-

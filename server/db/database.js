@@ -294,25 +294,25 @@ function initializeDatabase() {
             } else {
               logger.info("Repository access tokens table ready");
               // Add name column if it doesn't exist (migration for existing databases)
-              db.run(
-                "ALTER TABLE repository_access_tokens ADD COLUMN name TEXT",
-                (alterErr) => {
-                  // Ignore error if column already exists
-                  if (alterErr && !alterErr.message.includes("duplicate column")) {
-                    logger.debug("Name column may already exist or migration not needed:", alterErr.message);
-                  } else {
-                    // If column was just added, set default names for existing tokens
-                    db.run(
-                      "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
-                      (updateErr) => {
-                        if (updateErr) {
-                          logger.debug("Error setting default names:", updateErr.message);
-                        }
+              db.run("ALTER TABLE repository_access_tokens ADD COLUMN name TEXT", (alterErr) => {
+                // Ignore error if column already exists
+                if (alterErr && !alterErr.message.includes("duplicate column")) {
+                  logger.debug(
+                    "Name column may already exist or migration not needed:",
+                    alterErr.message
+                  );
+                } else {
+                  // If column was just added, set default names for existing tokens
+                  db.run(
+                    "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
+                    (updateErr) => {
+                      if (updateErr) {
+                        logger.debug("Error setting default names:", updateErr.message);
                       }
-                    );
-                  }
+                    }
+                  );
                 }
-              );
+              });
               // Create indexes for repository_access_tokens table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_repo_tokens_user_id ON repository_access_tokens(user_id)",
@@ -371,7 +371,10 @@ function initializeDatabase() {
                 (alterErr) => {
                   // Ignore error if column already exists
                   if (alterErr && !alterErr.message.includes("duplicate column")) {
-                    logger.debug("Repository token ID column may already exist or migration not needed:", alterErr.message);
+                    logger.debug(
+                      "Repository token ID column may already exist or migration not needed:",
+                      alterErr.message
+                    );
                   }
                 }
               );
@@ -477,14 +480,20 @@ function initializeDatabase() {
                 (alterErr) => {
                   // Ignore error if column already exists
                   if (alterErr && !alterErr.message.includes("duplicate column")) {
-                    logger.debug("Repository token ID column may already exist or migration not needed:", alterErr.message);
+                    logger.debug(
+                      "Repository token ID column may already exist or migration not needed:",
+                      alterErr.message
+                    );
                   } else {
                     // Add foreign key constraint if column was just created
                     db.run(
                       "CREATE INDEX IF NOT EXISTS idx_deployed_images_repository_token_id ON deployed_images(repository_token_id)",
                       (idxErr) => {
                         if (idxErr && !idxErr.message.includes("already exists")) {
-                          logger.debug("Index for repository_token_id may already exist:", idxErr.message);
+                          logger.debug(
+                            "Index for repository_token_id may already exist:",
+                            idxErr.message
+                          );
                         }
                       }
                     );
@@ -522,15 +531,15 @@ function initializeDatabase() {
             } else {
               logger.info("Registry image versions table ready");
               // Add provider column if it doesn't exist (migration for existing databases)
-              db.run(
-                "ALTER TABLE registry_image_versions ADD COLUMN provider TEXT",
-                (alterErr) => {
-                  // Ignore error if column already exists
-                  if (alterErr && !alterErr.message.includes("duplicate column")) {
-                    logger.debug("Provider column may already exist or migration not needed:", alterErr.message);
-                  }
+              db.run("ALTER TABLE registry_image_versions ADD COLUMN provider TEXT", (alterErr) => {
+                // Ignore error if column already exists
+                if (alterErr && !alterErr.message.includes("duplicate column")) {
+                  logger.debug(
+                    "Provider column may already exist or migration not needed:",
+                    alterErr.message
+                  );
                 }
-              );
+              });
               // Create indexes for registry_image_versions table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_user_id ON registry_image_versions(user_id)",
@@ -1705,7 +1714,7 @@ function upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenI
       reject(new Error("Database not initialized"));
       return;
     }
-    
+
     if (tokenId) {
       // Update existing token
       db.run(
@@ -1821,7 +1830,16 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
               user_id, image_repo, image_tag, image_digest, image_created_date,
               registry, namespace, repository, first_seen, last_seen, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            [userId, imageRepo, imageTag, imageDigest, imageCreatedDate, registry, namespace, repository || imageRepo],
+            [
+              userId,
+              imageRepo,
+              imageTag,
+              imageDigest,
+              imageCreatedDate,
+              registry,
+              namespace,
+              repository || imageRepo,
+            ],
             function (insertErr) {
               if (insertErr) {
                 reject(insertErr);
@@ -2575,14 +2593,17 @@ function upsertContainerWithVersion(
                     } = versionData;
 
                     // Log before inserting registry version
-                    logger.debug(`Inserting registry image version for ${imageRepo}:${currentTag}`, {
-                      registry: vRegistry,
-                      provider: vProvider,
-                      latestDigest: latestDigest ? latestDigest.substring(0, 12) + "..." : null,
-                      latestVersion: latestVersion,
-                      latestTag: latestTag,
-                      existsInRegistry: existsInRegistry,
-                    });
+                    logger.debug(
+                      `Inserting registry image version for ${imageRepo}:${currentTag}`,
+                      {
+                        registry: vRegistry,
+                        provider: vProvider,
+                        latestDigest: latestDigest ? latestDigest.substring(0, 12) + "..." : null,
+                        latestVersion: latestVersion,
+                        latestTag: latestTag,
+                        existsInRegistry: existsInRegistry,
+                      }
+                    );
 
                     db.run(
                       `INSERT OR REPLACE INTO registry_image_versions (
@@ -2605,13 +2626,18 @@ function upsertContainerWithVersion(
                       ],
                       function (versionErr) {
                         if (versionErr) {
-                          logger.error(`Error inserting registry image version for ${imageRepo}:${currentTag}:`, versionErr);
+                          logger.error(
+                            `Error inserting registry image version for ${imageRepo}:${currentTag}:`,
+                            versionErr
+                          );
                           db.run("ROLLBACK");
                           reject(versionErr);
                           return;
                         }
-                        
-                        logger.debug(`Successfully inserted registry image version for ${imageRepo}:${currentTag} (ID: ${this.lastID})`);
+
+                        logger.debug(
+                          `Successfully inserted registry image version for ${imageRepo}:${currentTag} (ID: ${this.lastID})`
+                        );
 
                         // All succeeded - commit transaction
                         db.run("COMMIT", (commitErr) => {
@@ -2966,7 +2992,10 @@ function cleanupStalePortainerContainers(daysOld = 7) {
                 // Clean up orphaned images for each user
                 const cleanupPromises = (userRows || []).map((row) =>
                   cleanupOrphanedDeployedImages(row.user_id).catch((cleanupErr) => {
-                    logger.warn(`Error cleaning up orphaned images for user ${row.user_id}:`, cleanupErr);
+                    logger.warn(
+                      `Error cleaning up orphaned images for user ${row.user_id}:`,
+                      cleanupErr
+                    );
                   })
                 );
                 Promise.all(cleanupPromises)
@@ -3001,28 +3030,36 @@ function clearUserContainerData(userId) {
           reject(err1);
         } else {
           // Delete orphaned deployed images
-          db.run(`DELETE FROM deployed_images WHERE user_id = ? AND id NOT IN (SELECT DISTINCT deployed_image_id FROM containers WHERE user_id = ? AND deployed_image_id IS NOT NULL)`, [userId, userId], (err2) => {
-            if (err2) {
-              db.run("ROLLBACK");
-              reject(err2);
-            } else {
-              // Delete registry versions (keep ones checked recently - within 7 days)
-              db.run(`DELETE FROM registry_image_versions WHERE user_id = ? AND last_checked < datetime('now', '-7 days')`, [userId], (err3) => {
-                if (err3) {
-                  db.run("ROLLBACK");
-                  reject(err3);
-                } else {
-                  db.run("COMMIT", (commitErr) => {
-                    if (commitErr) {
-                      reject(commitErr);
+          db.run(
+            `DELETE FROM deployed_images WHERE user_id = ? AND id NOT IN (SELECT DISTINCT deployed_image_id FROM containers WHERE user_id = ? AND deployed_image_id IS NOT NULL)`,
+            [userId, userId],
+            (err2) => {
+              if (err2) {
+                db.run("ROLLBACK");
+                reject(err2);
+              } else {
+                // Delete registry versions (keep ones checked recently - within 7 days)
+                db.run(
+                  `DELETE FROM registry_image_versions WHERE user_id = ? AND last_checked < datetime('now', '-7 days')`,
+                  [userId],
+                  (err3) => {
+                    if (err3) {
+                      db.run("ROLLBACK");
+                      reject(err3);
                     } else {
-                      resolve();
+                      db.run("COMMIT", (commitErr) => {
+                        if (commitErr) {
+                          reject(commitErr);
+                        } else {
+                          resolve();
+                        }
+                      });
                     }
-                  });
-                }
-              });
+                  }
+                );
+              }
             }
-          });
+          );
         }
       });
     });
@@ -3600,17 +3637,13 @@ function getTrackedAppById(id, userId) {
       reject(new Error("Database not initialized"));
       return;
     }
-    db.get(
-      "SELECT * FROM tracked_apps WHERE id = ? AND user_id = ?",
-      [id, userId],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
-        }
+    db.get("SELECT * FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
       }
-    );
+    });
   });
 }
 

@@ -12,6 +12,7 @@
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
     "prettier": "^3.2.5",
     "semver": "^7.6.0"
   },

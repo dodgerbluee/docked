@@ -18,12 +18,8 @@ export function useDiscordSettings(isAuthenticated, authToken) {
   const hasAuth =
     isAuthenticated !== undefined
       ? isAuthenticated
-      : !!(
-          axios.defaults.headers.common["Authorization"] ||
-          localStorage.getItem("authToken")
-        );
-  const effectiveToken =
-    authToken !== undefined ? authToken : localStorage.getItem("authToken");
+      : !!(axios.defaults.headers.common["Authorization"] || localStorage.getItem("authToken"));
+  const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
 
   const fetchDiscordWebhooks = useCallback(async () => {
     if (!hasAuth || !effectiveToken) return;

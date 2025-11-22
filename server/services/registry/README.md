@@ -72,6 +72,7 @@ All providers implement intelligent rate limiting:
 - **GitHub Releases**: 5,000 requests/hour (with token)
 
 The service automatically:
+
 - Adds delays between requests
 - Detects rate limit errors (429)
 - Falls back to alternative providers when rate limited
@@ -226,12 +227,14 @@ registryService.clearCache("nginx", "latest");
 ### From `dockerRegistryService`
 
 **Before:**
+
 ```javascript
 const dockerRegistryService = require("./dockerRegistryService");
 const result = await dockerRegistryService.getLatestImageDigest("nginx", "latest", userId);
 ```
 
 **After:**
+
 ```javascript
 const registryService = require("./services/registry");
 const result = await registryService.getLatestDigest("nginx", "latest", { userId });
@@ -258,6 +261,7 @@ const result = await registryService.getLatestDigest("nginx", "latest", { userId
 ### Rate Limit Errors
 
 If you're hitting rate limits:
+
 1. Configure authentication (Docker Hub credentials, GitHub token, etc.)
 2. Reduce request frequency
 3. Enable fallback (GitHub Releases) for known repos
@@ -265,6 +269,7 @@ If you're hitting rate limits:
 ### Provider Not Found
 
 If a provider isn't found:
+
 1. Check if the image repo format is correct
 2. Verify the provider is registered in `RegistryManager`
 3. Check provider's `canHandle()` method
@@ -272,7 +277,7 @@ If a provider isn't found:
 ### Fallback Not Working
 
 If fallback isn't working:
+
 1. Ensure `githubRepo` is provided in options
 2. Verify `useFallback: true` (default)
 3. Check if GitHub Releases API is accessible
-

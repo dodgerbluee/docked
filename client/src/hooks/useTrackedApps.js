@@ -24,12 +24,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
   const hasAuth =
     isAuthenticated !== undefined
       ? isAuthenticated
-      : !!(
-          axios.defaults.headers.common["Authorization"] ||
-          localStorage.getItem("authToken")
-        );
-  const effectiveToken =
-    authToken !== undefined ? authToken : localStorage.getItem("authToken");
+      : !!(axios.defaults.headers.common["Authorization"] || localStorage.getItem("authToken"));
+  const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
   const [trackedApps, setTrackedApps] = useState([]);
   const [trackedAppError, setTrackedAppError] = useState("");
   const [trackedAppSuccess, setTrackedAppSuccess] = useState("");

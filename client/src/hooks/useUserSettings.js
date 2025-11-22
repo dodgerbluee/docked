@@ -6,11 +6,7 @@ import { API_BASE_URL } from "../utils/api";
  * useUserSettings Hook
  * Manages user information, username, and password updates
  */
-export function useUserSettings({
-  username,
-  onUsernameUpdate,
-  onPasswordUpdateSuccess,
-}) {
+export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSuccess }) {
   const [userInfo, setUserInfo] = useState(null);
   const [newUsername, setNewUsername] = useState("");
   const [usernamePassword, setUsernamePassword] = useState("");
@@ -146,13 +142,7 @@ export function useUserSettings({
         setPasswordLoading(false);
       }
     },
-    [
-      newPassword,
-      confirmPassword,
-      currentPassword,
-      onPasswordUpdateSuccess,
-      fetchUserInfo,
-    ]
+    [newPassword, confirmPassword, currentPassword, onPasswordUpdateSuccess, fetchUserInfo]
   );
 
   return {

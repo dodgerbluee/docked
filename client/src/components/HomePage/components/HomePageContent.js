@@ -263,7 +263,9 @@ const HomePageContent = ({
                     onSetContentTab={setContentTab}
                   />
                 )}
-                {!disableTrackedAppsPage && activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                {!disableTrackedAppsPage &&
+                  activeTab === TAB_NAMES.TRACKED_APPS &&
+                  renderTrackedApps()}
                 {activeTab === TAB_NAMES.ADMIN && (
                   <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
                 )}

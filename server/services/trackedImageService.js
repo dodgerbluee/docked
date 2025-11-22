@@ -1,7 +1,7 @@
 /**
  * Tracked App Service
  * Handles update checking for tracked apps (Docker, GitHub, and GitLab)
- * 
+ *
  * Uses the unified registry service with automatic provider selection
  * and fallback strategies for robust update detection.
  */

@@ -1,6 +1,6 @@
 /**
  * GitHub Container Registry (GHCR) Provider
- * 
+ *
  * Implements GHCR Registry API v2 for fetching image digests
  * and metadata. Uses GitHub token for authentication.
  */
@@ -58,7 +58,7 @@ class GHCRProvider extends RegistryProvider {
    */
   async _tryGitHubReleasesFallback(imageRepo, tag, options) {
     const githubRepo = options.githubRepo || this._extractGitHubRepo(imageRepo);
-    
+
     if (!githubRepo) {
       logger.debug(`Cannot use GitHub Releases fallback for ${imageRepo}: no GitHub repo found`);
       return null;
@@ -67,19 +67,25 @@ class GHCRProvider extends RegistryProvider {
     try {
       const GitHubReleasesProvider = require("./GitHubReleasesProvider");
       const fallbackProvider = new GitHubReleasesProvider();
-      
-      logger.info(`Trying GitHub Releases fallback for GHCR image: ${imageRepo}:${tag} (repo: ${githubRepo})`);
+
+      logger.info(
+        `Trying GitHub Releases fallback for GHCR image: ${imageRepo}:${tag} (repo: ${githubRepo})`
+      );
       const result = await fallbackProvider.getLatestDigest(imageRepo, tag, {
         userId: options.userId,
         githubRepo,
       });
-      
+
       if (result) {
-        logger.info(`GitHub Releases fallback succeeded for ${imageRepo}:${tag} - latest version: ${result.tag}`);
+        logger.info(
+          `GitHub Releases fallback succeeded for ${imageRepo}:${tag} - latest version: ${result.tag}`
+        );
       } else {
-        logger.debug(`GitHub Releases fallback returned null for ${imageRepo}:${tag} (repo: ${githubRepo})`);
+        logger.debug(
+          `GitHub Releases fallback returned null for ${imageRepo}:${tag} (repo: ${githubRepo})`
+        );
       }
-      
+
       return result;
     } catch (error) {
       logger.warn(`GitHub Releases fallback failed for ${imageRepo}:${tag}:`, error.message);
@@ -98,7 +104,7 @@ class GHCRProvider extends RegistryProvider {
       logger.debug(`[GHCR] Cache hit for ${imageRepo}:${tag}`);
       return cached;
     }
-    
+
     logger.debug(`[GHCR] Cache miss for ${imageRepo}:${tag}, fetching with crane/skopeo`);
 
     // Skip if tag contains digest
@@ -110,19 +116,24 @@ class GHCRProvider extends RegistryProvider {
     try {
       // Build full image reference
       const imageRef = `${imageRepo}:${tag}`;
-      
+
       // Use crane/skopeo to get digest (no authentication needed!)
       logger.debug(`[GHCR] Getting digest for ${imageRef} using crane/skopeo`);
       const digest = await getImageDigest(imageRef);
-      
+
       if (digest) {
         const result = { digest, tag };
-        
+
         // Cache the result
         digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-        
-        this.logOperation("getLatestDigest", imageRepo, { tag, digest: digest.substring(0, 12) + "..." });
-        logger.info(`[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`);
+
+        this.logOperation("getLatestDigest", imageRepo, {
+          tag,
+          digest: digest.substring(0, 12) + "...",
+        });
+        logger.info(
+          `[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`
+        );
         return result;
       }
 
@@ -132,7 +143,9 @@ class GHCRProvider extends RegistryProvider {
       if (fallbackResult) {
         // Cache the fallback result
         digestCache.set(cacheKey, fallbackResult, config.cache.digestCacheTTL);
-        logger.info(`[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`);
+        logger.info(
+          `[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`
+        );
         return {
           ...fallbackResult,
           provider: "github-releases",
@@ -140,10 +153,15 @@ class GHCRProvider extends RegistryProvider {
         };
       }
 
-      logger.warn(`[GHCR] Failed to get digest for ${imageRepo}:${tag} - crane/skopeo failed and no fallback available`);
+      logger.warn(
+        `[GHCR] Failed to get digest for ${imageRepo}:${tag} - crane/skopeo failed and no fallback available`
+      );
       return null;
     } catch (error) {
-      logger.warn(`[GHCR] Error fetching digest for ${imageRepo}:${tag}, trying GitHub Releases fallback:`, error.message);
+      logger.warn(
+        `[GHCR] Error fetching digest for ${imageRepo}:${tag}, trying GitHub Releases fallback:`,
+        error.message
+      );
       const fallbackResult = await this._tryGitHubReleasesFallback(imageRepo, tag, options);
       if (fallbackResult) {
         logger.info(`[GHCR] Using GitHub Releases fallback after error for ${imageRepo}:${tag}`);
@@ -153,8 +171,11 @@ class GHCRProvider extends RegistryProvider {
           isFallback: true,
         };
       }
-      
-      logger.error(`[GHCR] Error fetching digest for ${imageRepo}:${tag} and fallback also failed:`, error.message);
+
+      logger.error(
+        `[GHCR] Error fetching digest for ${imageRepo}:${tag} and fallback also failed:`,
+        error.message
+      );
       return null;
     }
   }
@@ -202,4 +223,3 @@ class GHCRProvider extends RegistryProvider {
 }
 
 module.exports = GHCRProvider;
-

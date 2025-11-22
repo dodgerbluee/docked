@@ -1,9 +1,9 @@
 /**
  * Registry Manager
- * 
+ *
  * Centralized registry management with automatic provider selection,
  * fallback strategies, and unified API for all registry operations.
- * 
+ *
  * Features:
  * - Automatic provider detection based on image repository
  * - Fallback chain: Primary Registry → GitHub Releases → Cached Data
@@ -23,15 +23,15 @@ class RegistryManager {
   constructor() {
     // Register all providers (order matters - more specific first)
     this.providers = [
-      new GHCRProvider(),      // ghcr.io - most specific
-      new GitLabProvider(),    // registry.gitlab.com - specific
-      new GCRProvider(),       // gcr.io - specific (with Docker Hub fallback)
+      new GHCRProvider(), // ghcr.io - most specific
+      new GitLabProvider(), // registry.gitlab.com - specific
+      new GCRProvider(), // gcr.io - specific (with Docker Hub fallback)
       new DockerHubProvider(), // docker.io or plain repos - default/catch-all
     ];
-    
+
     // Fallback provider (used when primary fails)
     this.fallbackProvider = new GitHubReleasesProvider();
-    
+
     // Provider cache: imageRepo -> provider
     this.providerCache = new Map();
   }
@@ -56,7 +56,7 @@ class RegistryManager {
     }
 
     // Default to Docker Hub if no specific provider found
-    const dockerHubProvider = this.providers.find(p => p.getName() === "dockerhub");
+    const dockerHubProvider = this.providers.find((p) => p.getName() === "dockerhub");
     if (dockerHubProvider) {
       this.providerCache.set(imageRepo, dockerHubProvider);
       return dockerHubProvider;
@@ -67,12 +67,12 @@ class RegistryManager {
 
   /**
    * Get latest image digest with automatic fallback
-   * 
+   *
    * Fallback strategy:
    * 1. Try primary registry provider
    * 2. If rate limited or fails, try GitHub Releases (if repo mapping exists)
    * 3. Return null if all fail
-   * 
+   *
    * @param {string} imageRepo - Image repository
    * @param {string} tag - Image tag (default: 'latest')
    * @param {Object} options - Options
@@ -94,7 +94,7 @@ class RegistryManager {
     try {
       // Try primary provider first
       const result = await provider.getLatestDigest(imageRepo, tag, { userId, imageRepo });
-      
+
       if (result) {
         // Use provider from result if set (for fallback cases), otherwise use provider name
         const resultProvider = result.provider || provider.getName();
@@ -123,7 +123,7 @@ class RegistryManager {
     } catch (error) {
       // Handle rate limit or other errors
       const handledError = provider.handleError(error);
-      
+
       // If rate limited or error, try fallback
       if (useFallback && (provider.isRateLimitError(handledError) || handledError)) {
         logger.debug(`Primary provider failed for ${imageRepo}:${tag}, trying fallback`, {
@@ -161,7 +161,7 @@ class RegistryManager {
         logger.info(`Using GitHub Releases fallback for ${imageRepo}:${tag}`, {
           latestVersion: result.tag,
         });
-        
+
         return {
           ...result,
           provider: this.fallbackProvider.getName(),
@@ -236,7 +236,7 @@ class RegistryManager {
 
   /**
    * Compare current and latest digests/versions to determine if update is available
-   * 
+   *
    * @param {string} currentDigest - Current image digest (or tag if digest unavailable)
    * @param {string} currentTag - Current image tag
    * @param {Object} latestInfo - Latest info from getLatestDigest
@@ -333,4 +333,3 @@ module.exports = {
   RegistryManager,
   getRegistryManager,
 };
-

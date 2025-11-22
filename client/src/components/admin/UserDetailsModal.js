@@ -24,7 +24,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
   const [error, setError] = useState(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [role, setRole] = useState("");
-  const [instanceAdmin, setInstanceAdmin] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(false);
   const [roleUpdateError, setRoleUpdateError] = useState(null);
   const [roleUpdateSuccess, setRoleUpdateSuccess] = useState(null);
@@ -37,13 +36,10 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
       // Initialize role state
       if (user.instanceAdmin) {
         setRole("Instance Admin");
-        setInstanceAdmin(true);
       } else if (user.role === "Administrator") {
         setRole("Admin");
-        setInstanceAdmin(false);
       } else {
         setRole("Member");
-        setInstanceAdmin(false);
       }
     } else {
       setStats(null);
@@ -55,6 +51,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
       }
       setAvatarUrl(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user]);
 
   const fetchUserAvatar = async () => {
@@ -148,7 +145,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
     if (!selectedOption) return;
     const selectedRole = selectedOption.value;
     setRole(selectedRole);
-    setInstanceAdmin(selectedRole === "Instance Admin");
   };
 
   const handleSaveRole = async () => {
@@ -183,7 +179,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
       if (response.data.success) {
         // Update local state to reflect the new role
         setRole(role);
-        setInstanceAdmin(actualInstanceAdmin);
         setRoleUpdateSuccess("Role updated successfully");
         setTimeout(() => setRoleUpdateSuccess(null), 3000);
         if (onUserUpdated) {
@@ -194,16 +189,10 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
       }
     } catch (err) {
       console.error("Error updating user role:", err);
-      setRoleUpdateError(
-        err.response?.data?.error || err.message || "Failed to update user role"
-      );
+      setRoleUpdateError(err.response?.data?.error || err.message || "Failed to update user role");
     } finally {
       setUpdatingRole(false);
     }
-  };
-
-  const getRoleDisplay = () => {
-    return role || "Member";
   };
 
   const getRoleBadge = () => {
@@ -384,4 +373,3 @@ UserDetailsModal.propTypes = {
 };
 
 export default UserDetailsModal;
-

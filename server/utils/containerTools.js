@@ -1,9 +1,9 @@
 /**
  * Container Tools Utility
- * 
+ *
  * Provides functions to interact with container registries using
  * command-line tools like crane and skopeo.
- * 
+ *
  * These tools avoid the need for:
  * - GitHub tokens/PATs
  * - GitHub Apps
@@ -74,13 +74,10 @@ async function getDigestWithCrane(imageRef) {
 async function getDigestWithSkopeo(imageRef) {
   try {
     // skopeo inspect returns JSON, we need to parse it
-    const { stdout, stderr } = await execAsync(
-      `skopeo inspect --no-tags docker://${imageRef}`,
-      {
-        timeout: 30000, // 30 second timeout
-        maxBuffer: 1024 * 1024, // 1MB buffer
-      }
-    );
+    const { stdout, stderr } = await execAsync(`skopeo inspect --no-tags docker://${imageRef}`, {
+      timeout: 30000, // 30 second timeout
+      maxBuffer: 1024 * 1024, // 1MB buffer
+    });
 
     if (stderr && !stderr.includes("Getting image source")) {
       logger.debug(`[skopeo] stderr for ${imageRef}:`, stderr);
@@ -134,7 +131,9 @@ async function getImageDigest(imageRef) {
 
   // Neither tool available or both failed
   if (!craneAvailable && !skopeoAvailable) {
-    logger.warn(`[containerTools] Neither crane nor skopeo is available. Please install one of them.`);
+    logger.warn(
+      `[containerTools] Neither crane nor skopeo is available. Please install one of them.`
+    );
   }
 
   return null;
@@ -146,4 +145,3 @@ module.exports = {
   getDigestWithSkopeo,
   isCommandAvailable,
 };
-

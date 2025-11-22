@@ -538,7 +538,9 @@ body.dark-mode .gitlabIconLink:hover {
   justify-content: center;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: color 0.2s, transform 0.2s;
+  transition:
+    color 0.2s,
+    transform 0.2s;
   cursor: pointer;
   width: 18px;
   height: 18px;

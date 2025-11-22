@@ -138,12 +138,5 @@ export const useBatchPolling = ({
     const interval = setInterval(checkBatchRuns, 5000);
 
     return () => clearInterval(interval);
-  }, [
-    isAuthenticated,
-    authToken,
-    setLastPullTime,
-    batchConfig,
-    fetchContainers,
-    fetchTrackedApps,
-  ]);
+  }, [isAuthenticated, authToken, setLastPullTime, batchConfig, fetchContainers, fetchTrackedApps]);
 };

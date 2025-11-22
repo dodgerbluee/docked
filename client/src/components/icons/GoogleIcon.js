@@ -26,4 +26,3 @@ function GoogleIcon({ size = 18, ...props }) {
 }
 
 export default GoogleIcon;
-

@@ -120,8 +120,9 @@ const SummaryPage = ({
             <div className={styles.disabledMessage}>
               <h3 className={styles.disabledMessageTitle}>Both Pages Disabled</h3>
               <p className={styles.disabledMessageText}>
-                Both the Portainer and Tracked Apps pages are currently disabled. To re-enable them, go to{" "}
-                <strong>Settings</strong> and uncheck the "Disable Portainer Page" and "Disable Tracked Apps Page" options.
+                Both the Portainer and Tracked Apps pages are currently disabled. To re-enable them,
+                go to <strong>Settings</strong> and uncheck the "Disable Portainer Page" and
+                "Disable Tracked Apps Page" options.
               </p>
             </div>
           </div>
@@ -207,7 +208,9 @@ const SummaryPage = ({
             )}
 
             {!disableTrackedAppsPage && (
-              <div className={`${styles.trackedAppsSummary} ${!disablePortainerPage ? styles.trackedAppsSummaryWithDivider : ""}`}>
+              <div
+                className={`${styles.trackedAppsSummary} ${!disablePortainerPage ? styles.trackedAppsSummaryWithDivider : ""}`}
+              >
                 <h3 className={styles.sectionTitle}>Tracked Apps Summary</h3>
                 <div className={styles.summaryStats}>
                   <StatCard

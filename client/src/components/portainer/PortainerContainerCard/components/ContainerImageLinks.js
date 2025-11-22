@@ -22,7 +22,17 @@ import styles from "../../PortainerContainerCard.module.css";
  * @param {string} props.googleUrl - Google Container Registry URL
  * @param {string} props.imageName - Image name
  */
-const ContainerImageLinks = ({ isDocker, isGitHub, isGitLab, isGoogle, dockerHubUrl, githubUrl, gitlabUrl, googleUrl, imageName }) => {
+const ContainerImageLinks = ({
+  isDocker,
+  isGitHub,
+  isGitLab,
+  isGoogle,
+  dockerHubUrl,
+  githubUrl,
+  gitlabUrl,
+  googleUrl,
+  imageName,
+}) => {
   if (!imageName || (!isDocker && !isGitHub && !isGitLab && !isGoogle)) {
     return null;
   }

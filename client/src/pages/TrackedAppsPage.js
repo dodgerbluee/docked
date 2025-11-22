@@ -26,7 +26,12 @@ import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsC
  * @param {Function} props.onEditTrackedApp - Handler for editing tracked apps (to refresh App.js state)
  * @param {Function} props.onNavigateToSettings - Handler for navigating to Settings page
  */
-function TrackedAppsPage({ onDeleteTrackedApp, onUpgradeTrackedApp, onEditTrackedApp, onNavigateToSettings }) {
+function TrackedAppsPage({
+  onDeleteTrackedApp,
+  onUpgradeTrackedApp,
+  onEditTrackedApp,
+  onNavigateToSettings,
+}) {
   const {
     trackedApps,
     trackedAppError,

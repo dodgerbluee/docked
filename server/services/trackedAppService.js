@@ -1,7 +1,7 @@
 /**
  * Tracked App Service
  * Handles update checking for tracked apps (Docker, GitHub, and GitLab)
- * 
+ *
  * Uses the unified registry service with automatic provider selection
  * and fallback strategies for robust update detection.
  */
@@ -76,7 +76,12 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
       throw error;
     }
 
-    if (response.status !== 200 || !response.data || !response.data.results || response.data.results.length === 0) {
+    if (
+      response.status !== 200 ||
+      !response.data ||
+      !response.data.results ||
+      response.data.results.length === 0
+    ) {
       logger.warn(`No tags found for ${imageRepo} from Docker Hub API`);
       return null;
     }
@@ -84,10 +89,15 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
     // Get the latest tag (first result is typically the most recent)
     const latestTagInfo = response.data.results[0];
     const latestTag = latestTagInfo.name;
-    
+
     // Get digest from tag info - prefer main digest, fallback to first image digest
     let latestDigest = latestTagInfo.digest;
-    if (!latestDigest && latestTagInfo.images && Array.isArray(latestTagInfo.images) && latestTagInfo.images.length > 0) {
+    if (
+      !latestDigest &&
+      latestTagInfo.images &&
+      Array.isArray(latestTagInfo.images) &&
+      latestTagInfo.images.length > 0
+    ) {
       latestDigest = latestTagInfo.images[0].digest;
     }
 
@@ -104,14 +114,14 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
       if (!digest) return null;
       return digest.replace(/^sha256:/, "").toLowerCase();
     };
-    
+
     const normalizedLatestDigest = normalizeDigest(latestDigest);
 
     // Find all tags that share the same SHA/digest
     // Look for version tags (not "latest") that have the same digest
     let latestVersion = null;
     let latestVersionPublishDate = null;
-    
+
     // First, check if the latest tag itself is a version tag (not "latest")
     if (latestTag && latestTag !== "latest") {
       latestVersion = latestTag;
@@ -126,11 +136,12 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
           if (tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "") {
             latestVersion = tagInfo.name.trim();
             // Get publish date for this version tag
-            latestVersionPublishDate = tagInfo.tag_last_pushed || tagInfo.last_updated || latestPublishDate;
+            latestVersionPublishDate =
+              tagInfo.tag_last_pushed || tagInfo.last_updated || latestPublishDate;
             break;
           }
         }
-        
+
         // Also check individual image digests
         if (tagInfo.images && Array.isArray(tagInfo.images)) {
           for (const image of tagInfo.images) {
@@ -139,7 +150,8 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
               if (tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "") {
                 latestVersion = tagInfo.name.trim();
                 // Get publish date for this version tag
-                latestVersionPublishDate = tagInfo.tag_last_pushed || tagInfo.last_updated || latestPublishDate;
+                latestVersionPublishDate =
+                  tagInfo.tag_last_pushed || tagInfo.last_updated || latestPublishDate;
                 break;
               }
             }
@@ -150,7 +162,9 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
     }
 
     // Normalize digest format for return (ensure it starts with sha256:)
-    const normalizedDigest = latestDigest.startsWith("sha256:") ? latestDigest : `sha256:${latestDigest}`;
+    const normalizedDigest = latestDigest.startsWith("sha256:")
+      ? latestDigest
+      : `sha256:${latestDigest}`;
 
     return {
       latestTag: latestTag,
@@ -232,7 +246,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
       };
       const normalizedCurrent = normalizeVersion(trackedApp.current_version);
       const normalizedLatest = normalizeVersion(latestVersion);
-      
+
       // Only consider it an update if normalized versions are different and both are valid
       if (normalizedCurrent !== "" && normalizedLatest !== "") {
         hasUpdate = normalizedCurrent !== normalizedLatest;
@@ -281,10 +295,14 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   // Get publish date for current version (non-blocking - don't fail if this errors)
   if (trackedApp.current_version && trackedApp.current_version !== "latest") {
     try {
-      currentVersionPublishDate = await registryService.getTagPublishDate(repo, trackedApp.current_version, {
-        userId,
-        githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback
-      });
+      currentVersionPublishDate = await registryService.getTagPublishDate(
+        repo,
+        trackedApp.current_version,
+        {
+          userId,
+          githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback
+        }
+      );
     } catch (error) {
       // Don't fail the entire update check if publish date fetch fails
       currentVersionPublishDate = null;

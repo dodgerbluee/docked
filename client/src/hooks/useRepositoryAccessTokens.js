@@ -37,48 +37,55 @@ export function useRepositoryAccessTokens({ activeSection }) {
     }
   }, [activeSection, fetchTokens]);
 
-  const createOrUpdateToken = useCallback(async (provider, name, accessToken, tokenId = null) => {
-    try {
-      setLoading(true);
-      setError("");
-      const response = await axios.post(`${API_BASE_URL}/api/repository-access-tokens`, {
-        provider,
-        name,
-        accessToken,
-        tokenId,
-      });
-      if (response.data.success) {
-        await fetchTokens();
-        return { success: true, id: response.data.id };
+  const createOrUpdateToken = useCallback(
+    async (provider, name, accessToken, tokenId = null) => {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await axios.post(`${API_BASE_URL}/api/repository-access-tokens`, {
+          provider,
+          name,
+          accessToken,
+          tokenId,
+        });
+        if (response.data.success) {
+          await fetchTokens();
+          return { success: true, id: response.data.id };
+        }
+        return { success: false, error: response.data.error || "Failed to save token" };
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || "Failed to save repository access token";
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
+      } finally {
+        setLoading(false);
       }
-      return { success: false, error: response.data.error || "Failed to save token" };
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || "Failed to save repository access token";
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchTokens]);
+    },
+    [fetchTokens]
+  );
 
-  const deleteToken = useCallback(async (id) => {
-    try {
-      setLoading(true);
-      setError("");
-      const response = await axios.delete(`${API_BASE_URL}/api/repository-access-tokens/${id}`);
-      if (response.data.success) {
-        await fetchTokens();
-        return { success: true };
+  const deleteToken = useCallback(
+    async (id) => {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await axios.delete(`${API_BASE_URL}/api/repository-access-tokens/${id}`);
+        if (response.data.success) {
+          await fetchTokens();
+          return { success: true };
+        }
+        return { success: false, error: response.data.error || "Failed to delete token" };
+      } catch (err) {
+        const errorMessage =
+          err.response?.data?.error || "Failed to delete repository access token";
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
+      } finally {
+        setLoading(false);
       }
-      return { success: false, error: response.data.error || "Failed to delete token" };
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || "Failed to delete repository access token";
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchTokens]);
+    },
+    [fetchTokens]
+  );
 
   return {
     tokens,
@@ -89,4 +96,3 @@ export function useRepositoryAccessTokens({ activeSection }) {
     deleteToken,
   };
 }
-

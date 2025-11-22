@@ -86,7 +86,9 @@ async function getAllContainersWithUpdates(
             }
           } catch (parseError) {
             // Fallback to simple split if parsing fails
-            const imageParts = app.image_name.includes(":") ? app.image_name.split(":") : [app.image_name];
+            const imageParts = app.image_name.includes(":")
+              ? app.image_name.split(":")
+              : [app.image_name];
             const imageRepo = imageParts[0];
             trackedAppsMap.set(imageRepo, {
               source_type: app.source_type,
@@ -133,7 +135,7 @@ async function getAllContainersWithUpdates(
           if (c.hasUpdate && c.imageRepo) {
             // Try exact match first
             let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
-            
+
             // If no exact match, try normalizing the container's imageRepo
             if (!trackedAppInfo && c.imageName) {
               try {
@@ -144,7 +146,7 @@ async function getAllContainersWithUpdates(
                 // If parsing fails, continue without match
               }
             }
-            
+
             if (trackedAppInfo) {
               if (trackedAppInfo.source_type === "github") {
                 updateSourceType = "github";
@@ -155,7 +157,7 @@ async function getAllContainersWithUpdates(
               }
             }
           }
-          
+
           // Also check if provider is gitlab (from registry detection)
           if (!updateSourceType && c.provider === "gitlab") {
             updateSourceType = "gitlab";
@@ -409,7 +411,7 @@ async function getAllContainersWithUpdates(
             if (updateInfo.hasUpdate && updateInfo.imageRepo) {
               // Try exact match first
               let trackedAppInfo = trackedAppsMap.get(updateInfo.imageRepo);
-              
+
               // If no exact match, try normalizing the container's imageRepo
               if (!trackedAppInfo) {
                 try {
@@ -420,7 +422,7 @@ async function getAllContainersWithUpdates(
                   // If parsing fails, continue without match
                 }
               }
-              
+
               if (trackedAppInfo) {
                 if (trackedAppInfo.source_type === "github") {
                   updateSourceType = "github";
@@ -431,7 +433,7 @@ async function getAllContainersWithUpdates(
                 }
               }
             }
-            
+
             // Also check if provider is gitlab (from registry detection)
             if (!updateSourceType && updateInfo.provider === "gitlab") {
               updateSourceType = "gitlab";
@@ -469,7 +471,10 @@ async function getAllContainersWithUpdates(
               updateGitLabRepo: updateGitLabRepo, // GitLab repo URL if update comes from GitLab-tracked app
               // Flag: container was checked (has provider) but no digest was returned
               // This means a registry_image_versions entry exists but latest_digest is NULL
-              noDigest: updateInfo.provider !== null && !updateInfo.latestDigest && !updateInfo.latestDigestFull,
+              noDigest:
+                updateInfo.provider !== null &&
+                !updateInfo.latestDigest &&
+                !updateInfo.latestDigestFull,
             };
 
             // Save to normalized tables for persistence across restarts
@@ -480,7 +485,9 @@ async function getAllContainersWithUpdates(
                 const dockerRegistryService = require("./dockerRegistryService");
 
                 // Extract tag from imageName
-                const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
+                const imageParts = imageName.includes(":")
+                  ? imageName.split(":")
+                  : [imageName, "latest"];
                 const imageTag = imageParts[1];
 
                 // Determine registry from provider or imageRepo
@@ -520,57 +527,73 @@ async function getAllContainersWithUpdates(
 
                 // Prepare version data (only latest_* fields, no current_*)
                 // Include version data if we have either digest OR version/tag (for GitHub Releases fallback)
-                const hasVersionInfo = updateInfo.latestDigestFull || updateInfo.latestTag || updateInfo.newVersion;
-                const versionData = updateInfo.imageRepo && hasVersionInfo
-                  ? {
-                      registry: registry,
-                      provider: updateInfo.provider || null, // Track which provider was used (dockerhub, ghcr, gitlab, github-releases, etc.)
-                      namespace: namespace,
-                      repository: repository,
-                      currentTag: imageTag, // Tag we're checking
-                      latestTag: updateInfo.latestTag || imageTag,
-                      latestVersion: updateInfo.newVersion || updateInfo.latestTag, // Use latestTag if newVersion is null (for GitHub Releases)
-                      latestDigest: updateInfo.latestDigestFull || null, // May be null for GitHub Releases
-                      latestPublishDate: updateInfo.latestPublishDate,
-                      existsInRegistry: updateInfo.existsInRegistry || updateInfo.existsInDockerHub || false,
-                    }
-                  : null;
+                const hasVersionInfo =
+                  updateInfo.latestDigestFull || updateInfo.latestTag || updateInfo.newVersion;
+                const versionData =
+                  updateInfo.imageRepo && hasVersionInfo
+                    ? {
+                        registry: registry,
+                        provider: updateInfo.provider || null, // Track which provider was used (dockerhub, ghcr, gitlab, github-releases, etc.)
+                        namespace: namespace,
+                        repository: repository,
+                        currentTag: imageTag, // Tag we're checking
+                        latestTag: updateInfo.latestTag || imageTag,
+                        latestVersion: updateInfo.newVersion || updateInfo.latestTag, // Use latestTag if newVersion is null (for GitHub Releases)
+                        latestDigest: updateInfo.latestDigestFull || null, // May be null for GitHub Releases
+                        latestPublishDate: updateInfo.latestPublishDate,
+                        existsInRegistry:
+                          updateInfo.existsInRegistry || updateInfo.existsInDockerHub || false,
+                      }
+                    : null;
 
                 // Log version data creation for debugging
                 if (updateInfo.imageRepo) {
-                  logger.info(`[REGISTRY_VERSION_DEBUG] Preparing version data for ${updateInfo.imageRepo}:${imageTag}`, {
-                    hasVersionInfo,
-                    hasDigest: !!updateInfo.latestDigestFull,
-                    hasTag: !!updateInfo.latestTag,
-                    hasVersion: !!updateInfo.newVersion,
-                    provider: updateInfo.provider,
-                    isFallback: updateInfo.isFallback,
-                    versionDataCreated: !!versionData,
-                    latestTag: updateInfo.latestTag,
-                    latestVersion: updateInfo.newVersion,
-                    latestDigest: updateInfo.latestDigestFull ? updateInfo.latestDigestFull.substring(0, 12) + "..." : null,
-                    currentTag: imageTag,
-                    updateInfoKeys: Object.keys(updateInfo),
-                  });
-                  
-                  if (!versionData) {
-                    logger.warn(`[REGISTRY_VERSION_DEBUG] No version data created for ${updateInfo.imageRepo}:${imageTag} - missing required info`, {
-                      imageRepo: updateInfo.imageRepo,
-                      imageTag: imageTag,
-                      latestDigestFull: updateInfo.latestDigestFull,
+                  logger.info(
+                    `[REGISTRY_VERSION_DEBUG] Preparing version data for ${updateInfo.imageRepo}:${imageTag}`,
+                    {
+                      hasVersionInfo,
+                      hasDigest: !!updateInfo.latestDigestFull,
+                      hasTag: !!updateInfo.latestTag,
+                      hasVersion: !!updateInfo.newVersion,
+                      provider: updateInfo.provider,
+                      isFallback: updateInfo.isFallback,
+                      versionDataCreated: !!versionData,
                       latestTag: updateInfo.latestTag,
-                      newVersion: updateInfo.newVersion,
-                      hasVersionInfo: hasVersionInfo,
-                      condition: `updateInfo.imageRepo && hasVersionInfo`,
-                      imageRepoExists: !!updateInfo.imageRepo,
-                    });
+                      latestVersion: updateInfo.newVersion,
+                      latestDigest: updateInfo.latestDigestFull
+                        ? updateInfo.latestDigestFull.substring(0, 12) + "..."
+                        : null,
+                      currentTag: imageTag,
+                      updateInfoKeys: Object.keys(updateInfo),
+                    }
+                  );
+
+                  if (!versionData) {
+                    logger.warn(
+                      `[REGISTRY_VERSION_DEBUG] No version data created for ${updateInfo.imageRepo}:${imageTag} - missing required info`,
+                      {
+                        imageRepo: updateInfo.imageRepo,
+                        imageTag: imageTag,
+                        latestDigestFull: updateInfo.latestDigestFull,
+                        latestTag: updateInfo.latestTag,
+                        newVersion: updateInfo.newVersion,
+                        hasVersionInfo: hasVersionInfo,
+                        condition: `updateInfo.imageRepo && hasVersionInfo`,
+                        imageRepoExists: !!updateInfo.imageRepo,
+                      }
+                    );
                   } else {
-                    logger.info(`[REGISTRY_VERSION_DEBUG] Version data created successfully for ${updateInfo.imageRepo}:${imageTag}`, {
-                      registry: versionData.registry,
-                      latestTag: versionData.latestTag,
-                      latestVersion: versionData.latestVersion,
-                      latestDigest: versionData.latestDigest ? versionData.latestDigest.substring(0, 12) + "..." : null,
-                    });
+                    logger.info(
+                      `[REGISTRY_VERSION_DEBUG] Version data created successfully for ${updateInfo.imageRepo}:${imageTag}`,
+                      {
+                        registry: versionData.registry,
+                        latestTag: versionData.latestTag,
+                        latestVersion: versionData.latestVersion,
+                        latestDigest: versionData.latestDigest
+                          ? versionData.latestDigest.substring(0, 12) + "..."
+                          : null,
+                      }
+                    );
                   }
                 }
 
@@ -611,16 +634,14 @@ async function getAllContainersWithUpdates(
               throw error;
             }
             // If a single container fails, log it but return a basic container object
-            const containerName = container.Names[0]?.replace("/", "") || container.Id.substring(0, 12);
-            logger.warn(
-              `Error checking updates for container ${containerName}:`,
-              {
-                containerName,
-                image: container.Image,
-                error: error.message,
-                stack: process.env.DEBUG ? error.stack : undefined,
-              }
-            );
+            const containerName =
+              container.Names[0]?.replace("/", "") || container.Id.substring(0, 12);
+            logger.warn(`Error checking updates for container ${containerName}:`, {
+              containerName,
+              image: container.Image,
+              error: error.message,
+              stack: process.env.DEBUG ? error.stack : undefined,
+            });
             // Return a basic container object without update info
             // Try to check if image exists in Docker Hub even if update check failed
             let existsInDockerHub = false;
@@ -689,13 +710,15 @@ async function getAllContainersWithUpdates(
                 instanceId: instance.id,
               }
             );
-            
+
             // Clean up orphaned deployed images after container deletion
             try {
               const { cleanupOrphanedDeployedImages } = require("../db/database");
               const orphanedImages = await cleanupOrphanedDeployedImages(userId);
               if (orphanedImages > 0) {
-                logger.debug(`Cleaned up ${orphanedImages} orphaned deployed image(s) for ${instanceName}`);
+                logger.debug(
+                  `Cleaned up ${orphanedImages} orphaned deployed image(s) for ${instanceName}`
+                );
               }
             } catch (cleanupErr) {
               logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
@@ -706,14 +729,16 @@ async function getAllContainersWithUpdates(
           logger.warn("Error cleaning up deleted containers:", { error: cleanupError });
         }
       }
-      
+
       // Clean up orphaned registry versions after all instances processed
       if (userId && instanceIndex === instancesToProcess.length - 1) {
         try {
           const { cleanupOrphanedRegistryVersions } = require("../db/database");
           const orphanedVersions = await cleanupOrphanedRegistryVersions(userId);
           if (orphanedVersions > 0) {
-            logger.debug(`Cleaned up ${orphanedVersions} orphaned registry version(s) for user ${userId}`);
+            logger.debug(
+              `Cleaned up ${orphanedVersions} orphaned registry version(s) for user ${userId}`
+            );
           }
         } catch (cleanupErr) {
           logger.warn("Error cleaning up orphaned registry versions:", cleanupErr);
@@ -777,7 +802,7 @@ async function getAllContainersWithUpdates(
           ? c.imageName.split(":")
           : [c.imageName, "latest"];
         const currentTag = imageParts[1];
-        
+
         // Check if this container's update comes from a GitHub/GitLab-tracked app
         let updateSourceType = null;
         let updateGitHubRepo = null;
@@ -785,7 +810,7 @@ async function getAllContainersWithUpdates(
         if (c.hasUpdate && c.imageRepo) {
           // Try exact match first
           let trackedAppInfo = trackedAppsMap.get(c.imageRepo);
-          
+
           // If no exact match, try normalizing the container's imageRepo
           if (!trackedAppInfo && c.imageName) {
             try {
@@ -796,7 +821,7 @@ async function getAllContainersWithUpdates(
               // If parsing fails, continue without match
             }
           }
-          
+
           if (trackedAppInfo) {
             if (trackedAppInfo.source_type === "github") {
               updateSourceType = "github";
@@ -807,12 +832,12 @@ async function getAllContainersWithUpdates(
             }
           }
         }
-        
+
         // Also check if provider is gitlab (from registry detection)
         if (!updateSourceType && c.provider === "gitlab") {
           updateSourceType = "gitlab";
         }
-        
+
         return {
           id: c.containerId,
           name: c.containerName,
@@ -1345,7 +1370,7 @@ async function getContainersFromPortainer(userId = null) {
             const parsed = imageRepoParser.parseImageName(container.image || "");
             // Use parsed.imageRepo which includes registry prefix if not docker.io
             const imageRepo = parsed.imageRepo || container.image?.split(":")[0] || "";
-            
+
             // Extract tag from parsed result (already handles incomplete SHA256)
             let imageTag = parsed.tag || "latest";
 
@@ -1359,7 +1384,7 @@ async function getContainersFromPortainer(userId = null) {
               lscr: "docker.io", // lscr.io images are also on Docker Hub
             };
             const registry = registryMap[registryInfo.type] || "docker.io";
-            
+
             // Map registry type to provider
             const providerMap = {
               dockerhub: "dockerhub",
@@ -1369,7 +1394,7 @@ async function getContainersFromPortainer(userId = null) {
               lscr: "dockerhub", // lscr.io images are on Docker Hub
             };
             const provider = providerMap[registryInfo.type] || null;
-            
+
             let namespace = null;
             let repository = parsed.repository || imageRepo;
             if (registry !== "docker.io" && imageRepo.includes("/")) {

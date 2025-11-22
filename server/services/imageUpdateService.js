@@ -1,7 +1,7 @@
 /**
  * Image Update Service
  * Handles checking for Docker image updates
- * 
+ *
  * Uses the unified registry service with automatic provider selection
  * and fallback strategies for robust update detection.
  */
@@ -128,10 +128,12 @@ async function checkImageUpdates(
     latestDigest = latestImageInfo.digest;
     // For GitHub Releases fallback, use version if digest is null
     latestTag = latestImageInfo.tag || latestImageInfo.version || currentTag;
-    
+
     // Log when using fallback to help debug
     if (latestImageInfo.isFallback && !latestDigest) {
-      logger.debug(`Using GitHub Releases fallback for ${repo}:${currentTag} - version: ${latestTag}, digest: null`);
+      logger.debug(
+        `Using GitHub Releases fallback for ${repo}:${currentTag} - version: ${latestTag}, digest: null`
+      );
     }
 
     // Use registry service's hasUpdate method for consistent comparison
@@ -221,7 +223,7 @@ async function checkImageUpdates(
   // Determine if image exists in registry based on whether we got a valid response
   // If latestImageInfo is not null, the image exists in the registry
   const existsInRegistry = latestImageInfo !== null;
-  
+
   // For backward compatibility, also set existsInDockerHub
   // (though it may now refer to other registries too)
   const existsInDockerHub = existsInRegistry;

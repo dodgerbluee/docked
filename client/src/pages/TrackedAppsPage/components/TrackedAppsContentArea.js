@@ -233,11 +233,7 @@ const TrackedAppsContentArea = ({
             <div className={styles.emptyStateMessage}>
               <p className={styles.emptyStateText}>
                 No tracked apps configured.{" "}
-                <button
-                  type="button"
-                  onClick={onAddNew}
-                  className={styles.emptyStateLink}
-                >
+                <button type="button" onClick={onAddNew} className={styles.emptyStateLink}>
                   Add a tracked app
                 </button>
                 {" or "}

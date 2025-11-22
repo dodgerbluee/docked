@@ -271,10 +271,22 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
 // Settings routes
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
-router.get("/settings/disable-portainer-page", asyncHandler(settingsController.getDisablePortainerPageHandler));
-router.post("/settings/disable-portainer-page", asyncHandler(settingsController.setDisablePortainerPageHandler));
-router.get("/settings/disable-tracked-apps-page", asyncHandler(settingsController.getDisableTrackedAppsPageHandler));
-router.post("/settings/disable-tracked-apps-page", asyncHandler(settingsController.setDisableTrackedAppsPageHandler));
+router.get(
+  "/settings/disable-portainer-page",
+  asyncHandler(settingsController.getDisablePortainerPageHandler)
+);
+router.post(
+  "/settings/disable-portainer-page",
+  asyncHandler(settingsController.setDisablePortainerPageHandler)
+);
+router.get(
+  "/settings/disable-tracked-apps-page",
+  asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
+);
+router.post(
+  "/settings/disable-tracked-apps-page",
+  asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
+);
 router.get(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
@@ -285,18 +297,12 @@ router.post(
 );
 
 // Repository access token routes
-router.get(
-  "/repository-access-tokens",
-  asyncHandler(repositoryAccessTokenController.getTokens)
-);
+router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
 router.get(
   "/repository-access-tokens/:provider",
   asyncHandler(repositoryAccessTokenController.getTokenByProvider)
 );
-router.post(
-  "/repository-access-tokens",
-  asyncHandler(repositoryAccessTokenController.upsertToken)
-);
+router.post("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.upsertToken));
 router.delete(
   "/repository-access-tokens/:id",
   asyncHandler(repositoryAccessTokenController.deleteToken)

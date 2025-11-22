@@ -129,11 +129,8 @@ function HomePage({
   toggleStack,
   discordWebhooks = [],
 }) {
-  const {
-    disablePortainerPage,
-    disableTrackedAppsPage,
-    refreshSettings,
-  } = usePageVisibilitySettings();
+  const { disablePortainerPage, disableTrackedAppsPage, refreshSettings } =
+    usePageVisibilitySettings();
 
   // Listen for settings updates and refresh
   React.useEffect(() => {
@@ -141,9 +138,9 @@ function HomePage({
       refreshSettings();
     };
 
-    window.addEventListener('pageVisibilitySettingsUpdated', handleSettingsUpdate);
+    window.addEventListener("pageVisibilitySettingsUpdated", handleSettingsUpdate);
     return () => {
-      window.removeEventListener('pageVisibilitySettingsUpdated', handleSettingsUpdate);
+      window.removeEventListener("pageVisibilitySettingsUpdated", handleSettingsUpdate);
     };
   }, [refreshSettings]);
 

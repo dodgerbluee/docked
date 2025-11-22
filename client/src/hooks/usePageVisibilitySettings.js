@@ -76,4 +76,3 @@ export function usePageVisibilitySettings() {
     refreshSettings: fetchSettings,
   };
 }
-

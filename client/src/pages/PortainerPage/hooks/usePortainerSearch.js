@@ -29,7 +29,7 @@ export const usePortainerSearch = (groupedStacks, selectedImageSourceFilters = n
           ...stack,
           containers: stack.containers.filter((container) => {
             const provider = container.provider;
-            
+
             // Map provider to filter values
             if (provider === "dockerhub") {
               return selectedImageSourceFilters.has(PORTAINER_IMAGE_SOURCE_FILTERS.DOCKERHUB);
@@ -40,7 +40,7 @@ export const usePortainerSearch = (groupedStacks, selectedImageSourceFilters = n
             } else if (provider === "gcr") {
               return selectedImageSourceFilters.has(PORTAINER_IMAGE_SOURCE_FILTERS.GOOGLE);
             }
-            
+
             // If provider is not set or unknown, only show if no filters are selected
             // (when filters are active, hide unknown providers)
             return selectedImageSourceFilters.size === 0;

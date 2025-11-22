@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import Modal from "../ui/Modal";
@@ -18,18 +18,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && token) {
-      fetchContainers();
-      fetchAssociatedImages();
-    } else {
-      setContainers([]);
-      setSelectedImages(new Set());
-      setError(null);
-    }
-  }, [isOpen, token]);
-
-  const fetchAssociatedImages = async () => {
+  const fetchAssociatedImages = useCallback(async () => {
     if (!token) return;
 
     try {
@@ -43,9 +32,9 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       // Don't show error for this - just start with empty selection
       setSelectedImages(new Set());
     }
-  };
+  }, [token]);
 
-  const fetchContainers = async () => {
+  const fetchContainers = useCallback(async () => {
     if (!token) return;
 
     setLoading(true);
@@ -58,7 +47,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
       // Filter containers by registry matching the token provider
       const filteredContainers = allContainers.filter((container) => {
         const imageRepo = container.imageRepo || container.image || "";
-        
+
         if (token.provider === "github") {
           // Match GitHub Container Registry (ghcr.io)
           return imageRepo.startsWith("ghcr.io/");
@@ -97,7 +86,18 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (isOpen && token) {
+      fetchContainers();
+      fetchAssociatedImages();
+    } else {
+      setContainers([]);
+      setSelectedImages(new Set());
+      setError(null);
+    }
+  }, [isOpen, token, fetchContainers, fetchAssociatedImages]);
 
   const handleImageToggle = (imageRepo) => {
     setSelectedImages((prev) => {
@@ -127,9 +127,12 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
 
     try {
       // TODO: Implement API endpoint for associating images with tokens
-      await axios.post(`${API_BASE_URL}/api/repository-access-tokens/${token.id}/associate-images`, {
-        imageRepos: Array.from(selectedImages),
-      });
+      await axios.post(
+        `${API_BASE_URL}/api/repository-access-tokens/${token.id}/associate-images`,
+        {
+          imageRepos: Array.from(selectedImages),
+        }
+      );
 
       onClose();
     } catch (err) {
@@ -164,7 +167,8 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
         ) : containers.length === 0 ? (
           <div className={styles.emptyContainer}>
             <p className={styles.emptyText}>
-              No {token.provider === "github" ? "GitHub" : "GitLab"} images found in your containers.
+              No {token.provider === "github" ? "GitHub" : "GitLab"} images found in your
+              containers.
             </p>
           </div>
         ) : (
@@ -173,12 +177,7 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
               <p className={styles.description}>
                 Select images that should use this token when checking for updates.
               </p>
-              <Button
-                onClick={handleSelectAll}
-                variant="outline"
-                size="sm"
-                disabled={saving}
-              >
+              <Button onClick={handleSelectAll} variant="outline" size="sm" disabled={saving}>
                 {selectedImages.size === containers.length ? "Deselect All" : "Select All"}
               </Button>
             </div>
@@ -241,4 +240,3 @@ AssociateImagesModal.propTypes = {
 };
 
 export default AssociateImagesModal;
-

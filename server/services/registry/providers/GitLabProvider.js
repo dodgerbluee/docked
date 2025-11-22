@@ -1,6 +1,6 @@
 /**
  * GitLab Container Registry Provider
- * 
+ *
  * Implements GitLab Container Registry API v2 for fetching image digests
  * and metadata. Uses GitLab token for authentication.
  */
@@ -41,7 +41,7 @@ class GitLabProvider extends RegistryProvider {
       try {
         const { getRepositoryAccessTokenById } = require("../../../db/database");
         const db = require("../../../db/database").db;
-        
+
         if (db) {
           // Get deployed image to find repository_token_id
           // We need to check any tag/digest combination, so we'll query by image_repo
@@ -164,7 +164,10 @@ class GitLabProvider extends RegistryProvider {
       const repository = repoParts.join("/");
 
       // Get auth token (pass imageRepo in options so getCredentials can look up associated token)
-      const token = await this._getAuthToken(namespace, repository, options.userId, { ...options, imageRepo });
+      const token = await this._getAuthToken(namespace, repository, options.userId, {
+        ...options,
+        imageRepo,
+      });
       if (!token) {
         logger.error(`Failed to get authentication token for ${namespace}/${repository}`);
         return null;
@@ -173,7 +176,8 @@ class GitLabProvider extends RegistryProvider {
       // Request manifest
       const registryUrl = `https://registry.gitlab.com/v2/${namespace}/${repository}/manifests/${tag}`;
       const headers = {
-        Accept: "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json",
+        Accept:
+          "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json",
         Authorization: `Bearer ${token}`,
       };
 
@@ -202,11 +206,14 @@ class GitLabProvider extends RegistryProvider {
       if (response.status === 200 && response.headers["docker-content-digest"]) {
         const digest = response.headers["docker-content-digest"];
         const result = { digest, tag };
-        
+
         // Cache the result
         digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-        
-        this.logOperation("getLatestDigest", imageRepo, { tag, digest: digest.substring(0, 12) + "..." });
+
+        this.logOperation("getLatestDigest", imageRepo, {
+          tag,
+          digest: digest.substring(0, 12) + "...",
+        });
         return result;
       }
 
@@ -269,4 +276,3 @@ class GitLabProvider extends RegistryProvider {
 }
 
 module.exports = GitLabProvider;
-
