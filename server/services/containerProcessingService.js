@@ -1,6 +1,6 @@
 /**
  * Container Processing Service
- * 
+ *
  * Handles processing containers from Portainer instances, including fetching details,
  * checking updates, and formatting container data.
  * Extracted from containerQueryService to improve modularity.
@@ -127,8 +127,7 @@ async function processContainer(
       throw error;
     }
     // If a single container fails, log it but return a basic container object
-    const containerName =
-      container.Names[0]?.replace("/", "") || container.Id.substring(0, 12);
+    const containerName = container.Names[0]?.replace("/", "") || container.Id.substring(0, 12);
     logger.warn(`Error checking updates for container ${containerName}:`, {
       containerName,
       image: container.Image,
@@ -319,11 +318,14 @@ async function processContainerBasic(
           providesNetwork: providesNetwork || false,
         });
       } catch (saveError) {
-        logger.warn(`Failed to save container ${container.Names[0]?.replace("/", "")} to database`, {
-          error: saveError,
-          containerId: container.Id,
-          instanceId: instance.id,
-        });
+        logger.warn(
+          `Failed to save container ${container.Names[0]?.replace("/", "")} to database`,
+          {
+            error: saveError,
+            containerId: container.Id,
+            instanceId: instance.id,
+          }
+        );
       }
     }
 
@@ -392,4 +394,3 @@ module.exports = {
   processContainer,
   processContainerBasic,
 };
-

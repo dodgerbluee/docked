@@ -1,6 +1,6 @@
 /**
  * Settings Database Module
- * 
+ *
  * Handles all settings-related database operations including:
  * - User-specific settings
  * - System-wide settings
@@ -72,17 +72,13 @@ function getSystemSetting(key) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.get(
-        "SELECT value FROM settings WHERE key = ? AND user_id = 0",
-        [key],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row ? row.value : null);
-          }
+      db.get("SELECT value FROM settings WHERE key = ? AND user_id = 0", [key], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row ? row.value : null);
         }
-      );
+      });
     } catch (err) {
       reject(err);
     }
@@ -122,4 +118,3 @@ module.exports = {
   getSystemSetting,
   setSystemSetting,
 };
-

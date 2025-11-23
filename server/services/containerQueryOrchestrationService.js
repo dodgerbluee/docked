@@ -1,12 +1,16 @@
 /**
  * Container Query Orchestration Service
- * 
+ *
  * Handles high-level orchestration logic for container queries, including
  * instance fetching and filtering.
  * Extracted from containerQueryService to improve modularity.
  */
 
-const { getAllPortainerInstances, getAllPortainerInstancesForUsers, getAllUsers } = require("../db/index");
+const {
+  getAllPortainerInstances,
+  getAllPortainerInstancesForUsers,
+  getAllUsers,
+} = require("../db/index");
 
 /**
  * Get Portainer instances to process
@@ -39,4 +43,3 @@ async function getPortainerInstancesToProcess(userId, filterPortainerUrl = null)
 module.exports = {
   getPortainerInstancesToProcess,
 };
-

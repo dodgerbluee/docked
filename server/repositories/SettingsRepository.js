@@ -50,4 +50,3 @@ class SettingsRepository extends BaseRepository {
 }
 
 module.exports = SettingsRepository;
-

@@ -1,7 +1,7 @@
 /**
  * Portainer API Service
  * Handles all interactions with Portainer instances
- * 
+ *
  * @module services/portainerService
  * @typedef {Object} PortainerInstance
  * @property {number} id - Instance ID
@@ -29,7 +29,6 @@ const getAuthHeaders = authService.getAuthHeaders;
 const getIpFallbackConfig = ipFallbackService.getIpFallbackConfig;
 const createAxiosConfig = ipFallbackService.createAxiosConfig;
 const requestWithIpFallback = ipFallbackService.requestWithIpFallback;
-
 
 /**
  * Get all endpoints (Docker environments) for a specific Portainer instance

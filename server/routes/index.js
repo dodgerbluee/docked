@@ -380,10 +380,7 @@ router.delete("/containers/data", asyncHandler(containerController.clearContaine
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  "/containers/batch-upgrade",
-  asyncHandler(containerController.batchUpgradeContainers)
-);
+router.post("/containers/batch-upgrade", asyncHandler(containerController.batchUpgradeContainers));
 
 /**
  * @swagger

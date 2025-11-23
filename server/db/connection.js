@@ -1,6 +1,6 @@
 /**
  * Database Connection Module
- * 
+ *
  * Handles SQLite database connection, initialization, and operation queuing.
  * Provides a unified API for database access across the application.
  */
@@ -871,7 +871,7 @@ async function initializeDatabase() {
     });
 
     logger.info("Database initialization completed");
-    
+
     // Run migrations after schema is created
     try {
       const { runMigrations } = require("./migrations");
@@ -978,4 +978,3 @@ module.exports = {
   isConnected,
   DB_PATH,
 };
-

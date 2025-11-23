@@ -1,6 +1,6 @@
 /**
  * Registry Database Module
- * 
+ *
  * Handles all registry-related database operations including:
  * - Docker Hub credentials
  * - Repository access tokens (GitHub, GitLab)
@@ -358,4 +358,3 @@ module.exports = {
   associateImagesWithToken,
   getAssociatedImagesForToken,
 };
-

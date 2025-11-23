@@ -27,11 +27,7 @@ function validate(validations) {
         .map((e) => e.path);
 
       // Throw ValidationError to be caught by error handler
-      throw new ValidationError(
-        errorMessages.join(", "),
-        missingFields,
-        errors.array()
-      );
+      throw new ValidationError(errorMessages.join(", "), missingFields, errors.array());
     }
 
     next();
@@ -104,10 +100,7 @@ const commonValidations = {
     .withMessage("password must be at least 8 characters"),
 
   // Pagination validation
-  page: query("page")
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage("page must be a positive integer"),
+  page: query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer"),
 
   limit: query("limit")
     .optional()
@@ -115,9 +108,7 @@ const commonValidations = {
     .withMessage("limit must be between 1 and 100"),
 
   // User ID validation
-  userId: param("userId")
-    .isInt({ min: 1 })
-    .withMessage("userId must be a positive integer"),
+  userId: param("userId").isInt({ min: 1 }).withMessage("userId must be a positive integer"),
 };
 
 /**
@@ -140,28 +131,16 @@ const validationChains = {
     commonValidations.portainerName,
     commonValidations.portainerInstanceUrl,
     commonValidations.authType,
-    body("api_key")
-      .optional()
-      .isString()
-      .withMessage("api_key must be a string"),
-    body("username")
-      .optional()
-      .isString()
-      .withMessage("username must be a string"),
-    body("password")
-      .optional()
-      .isString()
-      .withMessage("password must be a string"),
+    body("api_key").optional().isString().withMessage("api_key must be a string"),
+    body("username").optional().isString().withMessage("username must be a string"),
+    body("password").optional().isString().withMessage("password must be a string"),
   ],
 
   // User creation/update
   user: [
     commonValidations.username,
     commonValidations.password,
-    body("email")
-      .optional()
-      .isEmail()
-      .withMessage("email must be a valid email address"),
+    body("email").optional().isEmail().withMessage("email must be a valid email address"),
     body("role")
       .optional()
       .isIn(["Administrator", "User"])
@@ -177,4 +156,3 @@ module.exports = {
   commonValidations,
   validationChains,
 };
-

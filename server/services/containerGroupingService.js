@@ -1,6 +1,6 @@
 /**
  * Container Grouping Service
- * 
+ *
  * Handles grouping of containers by stack and Portainer instance.
  * Extracted from containerQueryService to improve modularity.
  */
@@ -114,4 +114,3 @@ module.exports = {
   groupContainersByStackWithUnstacked,
   groupContainersByPortainerInstance,
 };
-

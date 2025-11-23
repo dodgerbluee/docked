@@ -1,6 +1,6 @@
 /**
  * Portainer Instances Database Module
- * 
+ *
  * Handles all Portainer instance-related database operations including:
  * - Portainer instance CRUD operations
  * - Instance ordering
@@ -303,4 +303,3 @@ module.exports = {
   deletePortainerInstance,
   updatePortainerInstanceOrder,
 };
-

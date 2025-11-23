@@ -1,6 +1,6 @@
 /**
  * Portainer IP Fallback Service
- * 
+ *
  * Handles IP-based URL fallback for Portainer API requests when DNS is unavailable
  * (e.g., during nginx-proxy-manager upgrades). Extracted from portainerService to improve modularity.
  */
@@ -152,4 +152,3 @@ module.exports = {
   requestWithIpFallback,
   normalizeUrlForStorage,
 };
-

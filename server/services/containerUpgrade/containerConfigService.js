@@ -1,6 +1,6 @@
 /**
  * Container Configuration Service
- * 
+ *
  * Handles cleaning and preparing container configuration for recreation,
  * including HostConfig cleaning and NetworkingConfig preparation.
  * Extracted from containerUpgradeService to improve modularity.
@@ -16,7 +16,7 @@ const logger = require("../../utils/logger");
  */
 function cleanHostConfig(hostConfig, containerName) {
   const cleanHostConfig = { ...hostConfig };
-  
+
   // Remove container-specific file paths
   delete cleanHostConfig.ContainerIDFile;
   // Remove Docker-managed paths that contain old container IDs
@@ -34,7 +34,7 @@ function cleanHostConfig(hostConfig, containerName) {
   const networkMode = cleanHostConfig.NetworkMode || "";
   const isSharedNetworkMode =
     networkMode && (networkMode.startsWith("service:") || networkMode.startsWith("container:"));
-  
+
   if (isSharedNetworkMode) {
     // Remove port bindings - they conflict with shared network modes
     // Ports are exposed on the service/container being shared, not this one
@@ -121,7 +121,13 @@ function prepareNetworkingConfig(containerDetails, isSharedNetworkMode) {
  * @param {boolean} isSharedNetworkMode - Whether container uses shared network mode
  * @returns {Object} - Container configuration ready for Docker API createContainer call
  */
-function buildContainerConfig(containerDetails, newImageName, cleanHostConfig, networkingConfig, isSharedNetworkMode) {
+function buildContainerConfig(
+  containerDetails,
+  newImageName,
+  cleanHostConfig,
+  networkingConfig,
+  isSharedNetworkMode
+) {
   // Build container config, only including defined values
   const containerConfig = {
     Image: newImageName,
@@ -177,10 +183,7 @@ function prepareContainerConfig(containerDetails, newImageName, containerName) {
     labels["com.docker.compose.project"] || labels["com.docker.stack.namespace"] || null;
 
   // Clean HostConfig
-  const hostConfigResult = cleanHostConfig(
-    containerDetails.HostConfig,
-    containerName
-  );
+  const hostConfigResult = cleanHostConfig(containerDetails.HostConfig, containerName);
   const { cleanHostConfig, isSharedNetworkMode } = hostConfigResult;
 
   // Prepare NetworkingConfig
@@ -208,4 +211,3 @@ module.exports = {
   buildContainerConfig,
   prepareContainerConfig,
 };
-

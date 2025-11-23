@@ -1,6 +1,6 @@
 /**
  * Container Notification Service
- * 
+ *
  * Handles Discord notifications for newly detected container updates.
  * Extracted from containerQueryService to improve modularity.
  */
@@ -53,8 +53,7 @@ function shouldNotifyContainerUpdate(container, previousContainer) {
   } else if (previousContainer.hasUpdate && container.hasUpdate) {
     // Both had updates - check if the latest version/digest changed
     const previousLatestDigest = previousContainer.latestDigest || null;
-    const currentLatestDigest =
-      container.latestDigest || container.latestDigestFull || null;
+    const currentLatestDigest = container.latestDigest || container.latestDigestFull || null;
     const previousLatestVersion = previousContainer.latestVersion || null;
     const currentLatestVersion =
       container.latestVersion || container.newVersion || container.latestTag || null;
@@ -216,4 +215,3 @@ module.exports = {
   shouldNotifyContainerUpdate,
   normalizeDigest,
 };
-

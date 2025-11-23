@@ -66,4 +66,3 @@ module.exports = {
     RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
   },
 };
-

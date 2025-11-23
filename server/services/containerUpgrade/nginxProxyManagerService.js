@@ -1,6 +1,6 @@
 /**
  * Nginx Proxy Manager Service
- * 
+ *
  * Handles special logic for upgrading nginx-proxy-manager containers,
  * including IP address fallback to ensure Portainer API calls work
  * when nginx goes down during upgrade.
@@ -95,4 +95,3 @@ module.exports = {
   isNginxProxyManager,
   getIpBasedPortainerUrl,
 };
-

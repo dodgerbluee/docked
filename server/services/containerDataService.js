@@ -1,6 +1,6 @@
 /**
  * Container Data Service
- * 
+ *
  * Handles container data operations like counting unused images and merging container data.
  * Extracted from containerQueryService to improve modularity.
  */
@@ -131,4 +131,3 @@ module.exports = {
   mergeContainerData,
   buildPortainerInstancesArray,
 };
-

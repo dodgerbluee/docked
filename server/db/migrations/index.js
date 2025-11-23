@@ -1,13 +1,13 @@
 /**
  * Database Migrations
- * 
+ *
  * This module handles database schema migrations in a versioned, safe manner.
  * Migrations are automatically discovered from files in this directory and
  * applied in order. Applied migrations are tracked to prevent duplicate execution.
- * 
+ *
  * Migration files should follow the pattern: XXXX_description.js
  * Where XXXX is a zero-padded 4-digit version number.
- * 
+ *
  * See README.md in this directory for migration creation guidelines.
  */
 
@@ -25,7 +25,7 @@ async function getCurrentVersion() {
     return new Promise((resolve, reject) => {
       try {
         const db = getDatabase();
-        
+
         // Check if migrations table exists
         db.get(
           "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
@@ -34,12 +34,12 @@ async function getCurrentVersion() {
             if (err) {
               return reject(err);
             }
-            
+
             if (!row) {
               // No migrations table, schema version is 0
               return resolve(0);
             }
-            
+
             // Get the latest migration version
             db.get(
               "SELECT MAX(version) as version FROM schema_migrations",
@@ -129,32 +129,29 @@ async function createMigrationsTable() {
 function loadMigrations() {
   const migrationsDir = __dirname;
   const migrations = [];
-  
+
   try {
     // Read all files in the migrations directory
-    const files = fs.readdirSync(migrationsDir)
+    const files = fs
+      .readdirSync(migrationsDir)
       .filter((file) => {
         // Only include .js files, exclude index.js, helpers.js, README.md
-        return (
-          file.endsWith(".js") &&
-          file !== "index.js" &&
-          file !== "helpers.js"
-        );
+        return file.endsWith(".js") && file !== "index.js" && file !== "helpers.js";
       })
       .sort(); // Natural sort handles 0001, 0002, 0010, etc. correctly
-    
+
     // Load each migration file
     for (const file of files) {
       try {
         const filePath = path.join(migrationsDir, file);
         const migration = require(filePath);
-        
+
         // Validate migration structure
         if (!migration.version || !migration.name || typeof migration.up !== "function") {
           logger.warn(`Invalid migration file ${file}: missing version, name, or up function`);
           continue;
         }
-        
+
         // Extract version from filename for validation
         const filenameVersion = parseInt(file.match(/^(\d+)/)?.[1]);
         if (filenameVersion && filenameVersion !== migration.version) {
@@ -162,7 +159,7 @@ function loadMigrations() {
             `Migration file ${file} version mismatch: filename suggests ${filenameVersion}, but migration has ${migration.version}`
           );
         }
-        
+
         migrations.push({
           version: migration.version,
           name: migration.name,
@@ -174,10 +171,10 @@ function loadMigrations() {
         // Continue loading other migrations even if one fails
       }
     }
-    
+
     // Sort by version number to ensure correct execution order
     migrations.sort((a, b) => a.version - b.version);
-    
+
     logger.info(`Loaded ${migrations.length} migration(s) from files`);
     return migrations;
   } catch (err) {
@@ -194,32 +191,36 @@ async function runMigrations() {
   try {
     // Create migrations table if it doesn't exist
     await createMigrationsTable();
-    
+
     // Get current version
     const currentVersion = await getCurrentVersion();
     logger.info(`Current database schema version: ${currentVersion}`);
-    
+
     // Discover and load all migrations
     const allMigrations = loadMigrations();
-    
+
     if (allMigrations.length === 0) {
       logger.warn("No migration files found");
       return;
     }
-    
+
     // Filter to only pending migrations
     const pendingMigrations = allMigrations.filter((m) => m.version > currentVersion);
-    
+
     if (pendingMigrations.length === 0) {
       logger.info("No pending migrations");
       return;
     }
-    
-    logger.info(`Found ${pendingMigrations.length} pending migration(s) out of ${allMigrations.length} total`);
-    
+
+    logger.info(
+      `Found ${pendingMigrations.length} pending migration(s) out of ${allMigrations.length} total`
+    );
+
     // Run each migration in order
     for (const migration of pendingMigrations) {
-      logger.info(`Running migration ${migration.version}: ${migration.name} (${migration.filename})`);
+      logger.info(
+        `Running migration ${migration.version}: ${migration.name} (${migration.filename})`
+      );
       try {
         await migration.up();
         await recordMigration(migration.version, migration.name);
@@ -229,7 +230,7 @@ async function runMigrations() {
         throw new Error(`Migration ${migration.version} failed: ${err.message}`);
       }
     }
-    
+
     const newVersion = await getCurrentVersion();
     logger.info(`Database schema updated to version: ${newVersion}`);
   } catch (err) {

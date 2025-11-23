@@ -1,6 +1,6 @@
 /**
  * Users Database Module
- * 
+ *
  * Handles all user-related database operations including:
  * - User CRUD operations
  * - Password management
@@ -425,4 +425,3 @@ module.exports = {
   verifyAndClearToken,
   getAllUsers,
 };
-

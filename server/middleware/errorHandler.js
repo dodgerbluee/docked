@@ -40,16 +40,11 @@ function errorHandler(err, req, res, next) {
 
   // Handle custom error classes
   if (err instanceof ValidationError) {
-    return sendErrorResponse(
-      res,
-      err.message,
-      err.statusCode,
-      {
-        errorCode: err.errorCode,
-        missingFields: err.missingFields,
-        details: process.env.NODE_ENV === "development" ? err.details : undefined,
-      }
-    );
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      missingFields: err.missingFields,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
   }
 
   if (err instanceof NotFoundError) {

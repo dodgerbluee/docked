@@ -1,6 +1,6 @@
 /**
  * Portainer Authentication Service
- * 
+ *
  * Handles authentication with Portainer instances, including token management
  * and credential fetching. Extracted from portainerService to improve modularity.
  */
@@ -10,7 +10,11 @@ const { URL } = require("url");
 const { getAllPortainerInstances } = require("../../db/index");
 const logger = require("../../utils/logger");
 const { validateUrlForSSRF } = require("../../utils/validation");
-const { getIpFallbackConfig, requestWithIpFallback, normalizeUrlForStorage } = require("./ipFallbackService");
+const {
+  getIpFallbackConfig,
+  requestWithIpFallback,
+  normalizeUrlForStorage,
+} = require("./ipFallbackService");
 
 // Store auth tokens per Portainer instance
 const authTokens = new Map();
@@ -458,4 +462,3 @@ module.exports = {
   storeTokenForBothUrls,
   normalizeUrlForStorage,
 };
-

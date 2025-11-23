@@ -5,15 +5,18 @@ This directory contains database schema migrations. Each migration is a separate
 ## Migration File Naming
 
 Migrations must follow this naming pattern:
+
 ```
 XXXX_description.js
 ```
 
 Where:
+
 - `XXXX` is a 4-digit zero-padded version number (e.g., `0001`, `0002`, `0010`)
 - `description` is a short, descriptive name using underscores (e.g., `add_user_email`, `create_indexes`)
 
 Examples:
+
 - `0001_initial_baseline.js`
 - `0002_add_user_email.js`
 - `0003_create_container_indexes.js`
@@ -27,6 +30,7 @@ Examples:
    - `up`: Async function that applies the migration
 
 Example:
+
 ```javascript
 // server/db/migrations/0002_add_user_email.js
 const { addColumnIfNotExists } = require("./helpers");
@@ -54,6 +58,7 @@ Use helper functions from `helpers.js` to make migrations more readable:
 ## Migration Execution
 
 Migrations are automatically discovered and executed in order by `index.js`:
+
 1. Migrations are loaded from this directory
 2. Sorted by version number (from filename)
 3. Only pending migrations (version > current DB version) are executed
@@ -73,9 +78,9 @@ Migrations are automatically discovered and executed in order by `index.js`:
 ```javascript
 /**
  * Migration X: Description
- * 
+ *
  * Brief description of what this migration does.
- * 
+ *
  * Version: X
  * Date: YYYY-MM-DD
  */
@@ -89,10 +94,10 @@ module.exports = {
   up: async () => {
     // Migration logic here
     logger.info("Migration X: Description - starting");
-    
+
     // Use helpers for common operations
     await helperFunction(...);
-    
+
     logger.info("Migration X: Description - completed");
   },
 };
@@ -101,8 +106,8 @@ module.exports = {
 ## Rollback
 
 Currently, this migration system only supports "up" migrations (forward). To rollback:
+
 1. Restore from a database backup
 2. Or create a new migration that reverses the changes
 
 Future enhancement: Add `down` migration support for reversible migrations.
-

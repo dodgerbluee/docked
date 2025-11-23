@@ -54,4 +54,3 @@ class DeployedImageRepository extends BaseRepository {
 }
 
 module.exports = DeployedImageRepository;
-
