@@ -9,7 +9,7 @@
 const dockerRegistryService = require("./dockerRegistryService");
 const registryService = require("./registry");
 const logger = require("../utils/logger");
-const { getDockerHubImageVersion } = require("../db/database");
+const { getDockerHubImageVersion } = require("../db/index");
 
 /**
  * Check if an image has updates available

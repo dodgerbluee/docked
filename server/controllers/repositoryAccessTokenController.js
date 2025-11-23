@@ -11,7 +11,7 @@ const {
   deleteRepositoryAccessToken,
   associateImagesWithToken,
   getAssociatedImagesForToken,
-} = require("../db/database");
+} = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
 const logger = require("../utils/logger");
 

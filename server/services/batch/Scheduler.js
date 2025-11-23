@@ -4,7 +4,7 @@
  * retries, error handling, and concurrent execution support
  */
 
-const { getBatchConfig, getLatestBatchRunByJobType, getAllUsers } = require("../../db/database");
+const { getBatchConfig, getLatestBatchRunByJobType, getAllUsers } = require("../../db/index");
 const BatchLogger = require("./Logger");
 const { setLogLevel: setBatchLogLevel } = require("./Logger");
 

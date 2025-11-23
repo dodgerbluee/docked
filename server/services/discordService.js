@@ -14,7 +14,7 @@ const logger = require("../utils/logger");
 
 // Lazy load database functions to avoid initialization issues
 function getDatabase() {
-  return require("../db/database");
+  return require("../db/index");
 }
 
 // Discord webhook rate limits: 30 requests per 60 seconds per webhook

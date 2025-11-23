@@ -4,7 +4,7 @@
  * Supports backward compatibility with legacy base64 tokens
  */
 
-const { getUserByUsername, getUserById } = require("../db/database");
+const { getUserByUsername, getUserById } = require("../db/index");
 const { verifyToken } = require("../utils/jwt");
 
 /**

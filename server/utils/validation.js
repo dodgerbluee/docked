@@ -8,10 +8,17 @@
  * @param {string[]} requiredFields - Array of required field names
  * @returns {Object|null} - Error object if validation fails, null otherwise
  */
+/**
+ * Validates that required fields are present in request body
+ * @param {Object} body - Request body
+ * @param {string[]} requiredFields - Array of required field names
+ * @returns {Object|null} - Standardized error object if validation fails, null otherwise
+ */
 function validateRequiredFields(body, requiredFields) {
   const missing = requiredFields.filter((field) => !body[field]);
   if (missing.length > 0) {
     return {
+      success: false,
       error: `Missing required fields: ${missing.join(", ")}`,
       missingFields: missing,
     };

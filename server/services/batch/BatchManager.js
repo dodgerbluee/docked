@@ -9,7 +9,7 @@ const {
   updateBatchRun,
   checkAndAcquireBatchJobLock,
   cleanupStaleBatchJobs,
-} = require("../../db/database");
+} = require("../../db/index");
 const BatchLogger = require("./Logger");
 const Scheduler = require("./Scheduler");
 const logger = require("../../utils/logger");

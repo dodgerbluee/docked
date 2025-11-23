@@ -12,7 +12,7 @@ const {
   getLatestBatchRunsByJobType,
   getRecentBatchRuns,
   getBatchRunById,
-} = require("../db/database");
+} = require("../db/index");
 const batchSystem = require("../services/batch");
 const {
   setLogLevel: setBatchLogLevel,

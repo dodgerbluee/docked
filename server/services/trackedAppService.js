@@ -10,7 +10,7 @@ const dockerRegistryService = require("./dockerRegistryService");
 const registryService = require("./registry");
 const githubService = require("./githubService");
 const gitlabService = require("./gitlabService");
-const { updateTrackedApp } = require("../db/database");
+const { updateTrackedApp } = require("../db/index");
 const logger = require("../utils/logger");
 const axios = require("axios");
 const { getDockerHubCreds } = require("../utils/dockerHubCreds");
@@ -792,7 +792,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
   // Get token from repository_access_tokens if repository_token_id is set, otherwise use gitlab_token (backward compatibility)
   let gitlabToken = null;
   if (trackedApp.repository_token_id) {
-    const { getRepositoryAccessTokenById } = require("../db/database");
+    const { getRepositoryAccessTokenById } = require("../db/index");
     const tokenRecord = await getRepositoryAccessTokenById(
       trackedApp.repository_token_id,
       trackedApp.user_id

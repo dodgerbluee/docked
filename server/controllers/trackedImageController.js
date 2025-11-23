@@ -10,12 +10,12 @@ const {
   createTrackedApp,
   updateTrackedApp,
   deleteTrackedApp,
-} = require("../db/database");
+} = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
 const trackedAppService = require("../services/trackedAppService");
 const githubService = require("../services/githubService");
 const gitlabService = require("../services/gitlabService");
-const { clearLatestVersionsForAllTrackedApps } = require("../db/database");
+const { clearLatestVersionsForAllTrackedApps } = require("../db/index");
 
 /**
  * Get all tracked apps

@@ -15,7 +15,7 @@ function getDiscordService() {
 let database = null;
 function getDatabase() {
   if (!database) {
-    database = require("../db/database");
+    database = require("../db/index");
   }
   return database;
 }

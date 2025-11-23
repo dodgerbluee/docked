@@ -1,11 +1,23 @@
 /**
  * Error handling middleware
+ * Handles all application errors with consistent response format
  */
 
 const logger = require("../utils/logger");
+const { sendErrorResponse } = require("../utils/responseHelpers");
+const {
+  ValidationError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+  ConflictError,
+  RateLimitExceededError,
+  AppError,
+} = require("../utils/errors");
 
 /**
  * Global error handler middleware
+ * Recognizes custom error classes and formats responses accordingly
  * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -22,24 +34,81 @@ function errorHandler(err, req, res, next) {
     ip: req.ip,
     userId: req.user?.id,
     requestId: req.requestId,
-    statusCode: err.status || err.statusCode || 500,
+    statusCode: err.statusCode || err.status || 500,
+    errorCode: err.errorCode,
   });
 
-  // Default error
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || "Internal server error";
+  // Handle custom error classes
+  if (err instanceof ValidationError) {
+    return sendErrorResponse(
+      res,
+      err.message,
+      err.statusCode,
+      {
+        errorCode: err.errorCode,
+        missingFields: err.missingFields,
+        details: process.env.NODE_ENV === "development" ? err.details : undefined,
+      }
+    );
+  }
 
-  // Don't leak error details in production
-  const errorResponse = {
-    success: false,
-    error: message,
+  if (err instanceof NotFoundError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      resource: err.resource,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  if (err instanceof UnauthorizedError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  if (err instanceof ForbiddenError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  if (err instanceof ConflictError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  if (err instanceof RateLimitExceededError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  if (err instanceof AppError) {
+    return sendErrorResponse(res, err.message, err.statusCode, {
+      errorCode: err.errorCode,
+      details: process.env.NODE_ENV === "development" ? err.details : undefined,
+    });
+  }
+
+  // Handle unknown errors
+  const status = err.statusCode || err.status || 500;
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : err.message || "Internal server error";
+
+  sendErrorResponse(res, message, status, {
+    errorCode: "INTERNAL_ERROR",
     ...(process.env.NODE_ENV === "development" && {
       stack: err.stack,
       details: err.details,
     }),
-  };
-
-  res.status(status).json(errorResponse);
+  });
 }
 
 /**
