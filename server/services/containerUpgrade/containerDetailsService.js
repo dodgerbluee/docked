@@ -1,6 +1,6 @@
 /**
  * Container Details Service
- * 
+ *
  * Handles fetching container details with proper error handling, authentication retry,
  * and nginx proxy manager IP fallback support.
  * Extracted from containerUpgradeService to improve modularity.
@@ -322,4 +322,3 @@ module.exports = {
   normalizeContainerId,
   fetchContainerDetails,
 };
-

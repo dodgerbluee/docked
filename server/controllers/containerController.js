@@ -196,8 +196,7 @@ async function pullContainers(req, res, next) {
 
       // Check if credentials exist to customize message
       const userId = req.user?.id;
-      let message =
-        "Registry rate limit exceeded. Please wait a few minutes before trying again.";
+      let message = "Registry rate limit exceeded. Please wait a few minutes before trying again.";
       if (userId) {
         const { getDockerHubCreds } = require("../utils/dockerHubCreds");
         const creds = await getDockerHubCreds(userId);

@@ -2,7 +2,7 @@
  * Docker Hub Image Version Repository
  * Handles all Docker Hub image version-related database operations
  * Wraps domain module functions to provide repository pattern interface
- * 
+ *
  * @deprecated This repository is for backward compatibility. New code should use RegistryImageVersionRepository.
  */
 
@@ -19,7 +19,11 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @returns {Promise<number>} - ID of the record
    */
   async upsert(userId, imageRepo, versionData) {
-    return await dockerHubImageVersionsDb.upsertDockerHubImageVersion(userId, imageRepo, versionData);
+    return await dockerHubImageVersionsDb.upsertDockerHubImageVersion(
+      userId,
+      imageRepo,
+      versionData
+    );
   }
 
   /**
@@ -73,4 +77,3 @@ class DockerHubImageVersionRepository extends BaseRepository {
 }
 
 module.exports = DockerHubImageVersionRepository;
-

@@ -114,10 +114,7 @@ class UserRepository extends BaseRepository {
     updates.push("updated_at = CURRENT_TIMESTAMP");
     params.push(id);
 
-    await this.execute(
-      `UPDATE users SET ${updates.join(", ")} WHERE id = ?`,
-      params
-    );
+    await this.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
 
     // Invalidate cache
     BaseRepository.invalidateCache("users:");
@@ -216,4 +213,3 @@ class UserRepository extends BaseRepository {
 }
 
 module.exports = UserRepository;
-

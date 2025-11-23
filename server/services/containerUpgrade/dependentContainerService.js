@@ -1,6 +1,6 @@
 /**
  * Dependent Container Service
- * 
+ *
  * Handles finding, stopping, and restarting containers that depend on
  * the container being upgraded (via network_mode or stack relationships).
  * Extracted from containerUpgradeService to improve modularity.
@@ -85,11 +85,7 @@ async function findDependentContainers(
  * @param {Array<Object>} dependentContainers - Array of dependent containers
  * @returns {Promise<void>}
  */
-async function stopAndRemoveDependentContainers(
-  portainerUrl,
-  endpointId,
-  dependentContainers
-) {
+async function stopAndRemoveDependentContainers(portainerUrl, endpointId, dependentContainers) {
   if (dependentContainers.length === 0) {
     return;
   }
@@ -114,9 +110,7 @@ async function stopAndRemoveDependentContainers(
         await portainerService.stopContainer(portainerUrl, endpointId, container.id);
         logger.info(`    ${container.name} stopped`);
       } catch (stopErr) {
-        logger.debug(
-          `   Container ${container.name} may already be stopped: ${stopErr.message}`
-        );
+        logger.debug(`   Container ${container.name} may already be stopped: ${stopErr.message}`);
       }
 
       // Now remove it completely
@@ -230,4 +224,3 @@ module.exports = {
   stopAndRemoveDependentContainers,
   findContainersToRestart,
 };
-

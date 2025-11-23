@@ -1,10 +1,10 @@
 /**
  * Migration 1: Initial Schema Baseline
- * 
+ *
  * This migration establishes the baseline version for the current schema.
  * The actual schema is created in initializeDatabase() before migrations run.
  * All future schema changes should be added as new migrations.
- * 
+ *
  * Version: 1
  * Date: 2025-01-27
  */
@@ -20,4 +20,3 @@ module.exports = {
     logger.info("Migration 1: Initial schema baseline (schema created in initializeDatabase)");
   },
 };
-

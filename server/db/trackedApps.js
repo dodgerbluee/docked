@@ -1,6 +1,6 @@
 /**
  * Tracked Apps Database Module
- * 
+ *
  * Handles all tracked app-related database operations including:
  * - Tracked app CRUD operations
  * - Version tracking
@@ -45,13 +45,17 @@ function getTrackedAppById(id, userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.get("SELECT * FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
+      db.get(
+        "SELECT * FROM tracked_apps WHERE id = ? AND user_id = ?",
+        [id, userId],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row || null);
+          }
         }
-      });
+      );
     } catch (err) {
       reject(err);
     }
@@ -286,4 +290,3 @@ module.exports = {
   deleteTrackedApp,
   clearLatestVersionsForAllTrackedApps,
 };
-

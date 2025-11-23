@@ -1,9 +1,9 @@
 /**
  * Repositories - Unified API
- * 
+ *
  * This module provides a unified API for all repository operations.
  * It exports singleton instances of all repositories.
- * 
+ *
  * Usage:
  *   const repositories = require('./repositories');
  *   const user = await repositories.user.findByUsername('admin');
@@ -39,7 +39,7 @@ const registryImageVersion = new RegistryImageVersionRepository();
 module.exports = {
   // Base class for creating custom repositories
   BaseRepository,
-  
+
   // Repository instances
   portainerInstance,
   user,
@@ -52,7 +52,7 @@ module.exports = {
   settings,
   deployedImage,
   registryImageVersion,
-  
+
   // Aliases for convenience
   portainer: portainerInstance,
   users: user,
@@ -65,4 +65,3 @@ module.exports = {
   deployedImages: deployedImage,
   registryImageVersions: registryImageVersion,
 };
-

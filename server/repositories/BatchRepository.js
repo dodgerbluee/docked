@@ -121,4 +121,3 @@ class BatchRepository extends BaseRepository {
 }
 
 module.exports = BatchRepository;
-

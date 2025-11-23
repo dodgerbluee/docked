@@ -1,6 +1,6 @@
 /**
  * Container Persistence Service
- * 
+ *
  * Handles saving container data to the database, including version information.
  * Extracted from containerQueryService to improve modularity.
  */
@@ -239,4 +239,3 @@ module.exports = {
   prepareVersionData,
   saveContainerToDatabase,
 };
-

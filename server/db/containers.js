@@ -1,6 +1,6 @@
 /**
  * Containers Database Module
- * 
+ *
  * Handles all container-related database operations including:
  * - Container CRUD operations
  * - Container cleanup operations
@@ -699,4 +699,3 @@ module.exports = {
   cleanupStalePortainerContainers,
   clearUserContainerData,
 };
-

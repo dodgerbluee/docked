@@ -16,7 +16,7 @@ function responseFormatter(req, res, next) {
   const originalJson = res.json.bind(res);
 
   // Override json method to ensure consistent format
-  res.json = function(data) {
+  res.json = function (data) {
     // If response already has success field, assume it's properly formatted
     if (data && typeof data === "object" && "success" in data) {
       return originalJson(data);
@@ -43,4 +43,3 @@ function responseFormatter(req, res, next) {
 }
 
 module.exports = responseFormatter;
-

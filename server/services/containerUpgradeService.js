@@ -473,13 +473,7 @@ async function upgradeSingleContainer(
 }
 
 // Legacy function for batch upgrades - kept for backward compatibility
-async function upgradeContainers(
-  portainerUrl,
-  endpointId,
-  containerIds,
-  imageName,
-  userId = null
-) {
+async function upgradeContainers(portainerUrl, endpointId, containerIds, imageName, userId = null) {
   const results = [];
   const errors = [];
 

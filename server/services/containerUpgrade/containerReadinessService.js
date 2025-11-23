@@ -1,6 +1,6 @@
 /**
  * Container Readiness Service
- * 
+ *
  * Handles checking if a container is ready after creation/upgrade,
  * including health checks and stability checks.
  * Extracted from containerUpgradeService to improve modularity.
@@ -292,4 +292,3 @@ module.exports = {
   waitForContainerReady,
   waitForContainerStop,
 };
-

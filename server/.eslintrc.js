@@ -20,10 +20,7 @@ module.exports = {
     "no-var": "error",
 
     // Function length and complexity
-    "max-lines-per-function": [
-      "warn",
-      { max: 50, skipBlankLines: true, skipComments: true },
-    ],
+    "max-lines-per-function": ["warn", { max: 50, skipBlankLines: true, skipComments: true }],
     complexity: ["warn", 10],
 
     // Error handling

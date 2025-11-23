@@ -47,4 +47,3 @@ class RegistryImageVersionRepository extends BaseRepository {
 }
 
 module.exports = RegistryImageVersionRepository;
-

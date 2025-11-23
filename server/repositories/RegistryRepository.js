@@ -118,4 +118,3 @@ class RegistryRepository extends BaseRepository {
 }
 
 module.exports = RegistryRepository;
-

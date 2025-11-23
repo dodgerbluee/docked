@@ -1,6 +1,6 @@
 /**
  * Batch Database Module
- * 
+ *
  * Handles all batch job-related database operations including:
  * - Batch configuration
  * - Batch run tracking
@@ -62,7 +62,11 @@ function getBatchConfig(userId, jobType = null) {
               });
               // Default values if not configured
               if (!configs["docker-hub-pull"]) {
-                configs["docker-hub-pull"] = { enabled: false, intervalMinutes: 60, updatedAt: null };
+                configs["docker-hub-pull"] = {
+                  enabled: false,
+                  intervalMinutes: 60,
+                  updatedAt: null,
+                };
               }
               if (!configs["tracked-apps-check"]) {
                 configs["tracked-apps-check"] = {
@@ -438,13 +442,17 @@ function getBatchRunById(runId, userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.get("SELECT * FROM batch_runs WHERE id = ? AND user_id = ?", [runId, userId], (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row || null);
+      db.get(
+        "SELECT * FROM batch_runs WHERE id = ? AND user_id = ?",
+        [runId, userId],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row || null);
+          }
         }
-      });
+      );
     } catch (err) {
       reject(err);
     }
@@ -568,4 +576,3 @@ module.exports = {
   getLatestBatchRunByJobType,
   getLatestBatchRunsByJobType,
 };
-

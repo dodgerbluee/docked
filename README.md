@@ -212,6 +212,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
+### Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=dodgerbluee/docked&type=Date)](https://star-history.com/#dodgerbluee/docked&Date)
+
 ## License
 
 MIT

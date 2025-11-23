@@ -80,4 +80,3 @@ class TrackedAppRepository extends BaseRepository {
 }
 
 module.exports = TrackedAppRepository;
-

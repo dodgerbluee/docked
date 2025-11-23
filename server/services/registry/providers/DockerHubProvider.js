@@ -59,7 +59,6 @@ class DockerHubProvider extends RegistryProvider {
     return repo;
   }
 
-
   async getLatestDigest(imageRepo, tag = "latest", options = {}) {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `${normalizedRepo}:${tag}`;
@@ -106,7 +105,9 @@ class DockerHubProvider extends RegistryProvider {
       // Priority 1: Try using crane/skopeo (uses OCI Distribution Spec registry protocol, not Docker Hub REST API)
       // This is the primary method - uses standard registry protocol directly via command-line tools
       const { getImageDigest } = require("../../../utils/containerTools");
-      logger.debug(`[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`);
+      logger.debug(
+        `[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`
+      );
       const digest = await getImageDigest(imageRef);
 
       if (digest) {
@@ -135,9 +136,7 @@ class DockerHubProvider extends RegistryProvider {
       }
 
       // If crane/skopeo failed, return null (no Docker Hub API fallback)
-      logger.warn(
-        `[Registry] ⚠️ crane/skopeo failed for ${imageRef}, no digest available`
-      );
+      logger.warn(`[Registry] ⚠️ crane/skopeo failed for ${imageRef}, no digest available`);
 
       return null;
     } catch (error) {

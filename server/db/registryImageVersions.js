@@ -1,6 +1,6 @@
 /**
  * Registry Image Versions Database Module
- * 
+ *
  * Handles all registry image version-related database operations including:
  * - Registry image version tracking (latest available in registries)
  * - Version cleanup operations
@@ -135,4 +135,3 @@ module.exports = {
   getRegistryImageVersion,
   cleanupOrphanedRegistryVersions,
 };
-

@@ -1,6 +1,6 @@
 /**
  * Discord Database Module
- * 
+ *
  * Handles all Discord webhook-related database operations including:
  * - Discord webhook CRUD operations
  * - Notification deduplication tracking
@@ -27,9 +27,10 @@ function getAllDiscordWebhooks(userId) {
             return;
           }
           const hasUserId = !!colRow;
-          const query = hasUserId && userId
-            ? "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks WHERE user_id = ? ORDER BY created_at DESC"
-            : "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks ORDER BY created_at DESC";
+          const query =
+            hasUserId && userId
+              ? "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks WHERE user_id = ? ORDER BY created_at DESC"
+              : "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks ORDER BY created_at DESC";
           const params = hasUserId && userId ? [userId] : [];
 
           db.all(query, params, (err, rows) => {
@@ -350,4 +351,3 @@ module.exports = {
   hasDiscordNotificationBeenSent,
   recordDiscordNotificationSent,
 };
-

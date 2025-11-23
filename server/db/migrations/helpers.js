@@ -1,9 +1,9 @@
 /**
  * Migration Helper Functions
- * 
+ *
  * Shared utility functions for writing database migrations.
  * These helpers make migrations more readable and reduce boilerplate.
- * 
+ *
  * Usage in migrations:
  *   const { addColumnIfNotExists, columnExists } = require("./helpers");
  */
@@ -52,22 +52,19 @@ async function addColumnIfNotExists(tableName, columnName, columnDefinition) {
     logger.debug(`Column ${tableName}.${columnName} already exists, skipping`);
     return;
   }
-  
+
   return queueDatabaseOperation(() => {
     return new Promise((resolve, reject) => {
       try {
         const db = getDatabase();
-        db.run(
-          `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`,
-          (err) => {
-            if (err) {
-              logger.error(`Error adding column ${tableName}.${columnName}:`, { error: err });
-              return reject(err);
-            }
-            logger.info(`Added column ${tableName}.${columnName}`);
-            resolve();
+        db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`, (err) => {
+          if (err) {
+            logger.error(`Error adding column ${tableName}.${columnName}:`, { error: err });
+            return reject(err);
           }
-        );
+          logger.info(`Added column ${tableName}.${columnName}`);
+          resolve();
+        });
       } catch (err) {
         reject(err);
       }
@@ -143,7 +140,7 @@ async function createIndexIfNotExists(indexName, tableName, columns, unique = fa
     logger.debug(`Index ${indexName} already exists, skipping`);
     return;
   }
-  
+
   return queueDatabaseOperation(() => {
     return new Promise((resolve, reject) => {
       try {
@@ -200,4 +197,3 @@ module.exports = {
   createIndexIfNotExists,
   executeSql,
 };
-

@@ -73,7 +73,11 @@ async function getAllContainersWithUpdates(
         // Format containers to match expected structure
         const formattedContainers = normalizedContainers.map((c) => {
           const instance = instanceMap.get(c.portainerInstanceId);
-          return containerFormattingService.formatContainerFromDatabase(c, instance, trackedAppsMap);
+          return containerFormattingService.formatContainerFromDatabase(
+            c,
+            instance,
+            trackedAppsMap
+          );
         });
 
         // Group containers by stack
@@ -132,10 +136,11 @@ async function getAllContainersWithUpdates(
   const allContainers = [];
 
   // Get Portainer instances to process
-  const instancesToProcess = await containerQueryOrchestrationService.getPortainerInstancesToProcess(
-    userId,
-    filterPortainerUrl
-  );
+  const instancesToProcess =
+    await containerQueryOrchestrationService.getPortainerInstancesToProcess(
+      userId,
+      filterPortainerUrl
+    );
 
   if (instancesToProcess.length === 0) {
     // Only log warning, not every time
@@ -153,10 +158,8 @@ async function getAllContainersWithUpdates(
   }
 
   // Get portainerInstances for result building (unfiltered)
-  const portainerInstances = await containerQueryOrchestrationService.getPortainerInstancesToProcess(
-    userId,
-    null
-  );
+  const portainerInstances =
+    await containerQueryOrchestrationService.getPortainerInstancesToProcess(userId, null);
 
   // If filtering by specific instance, get existing data from normalized tables to merge with
   let existingContainers = null;
@@ -491,14 +494,13 @@ async function getContainersFromPortainer(userId = null) {
   const unusedImagesCount = unusedImages.length;
 
   // Group containers by Portainer instance
-  const portainerInstancesArray = containerGroupingService.groupContainersByPortainerInstance(
-    allContainers,
-    portainerInstances
-  ).map((instance) => ({
-    ...instance,
-    withUpdates: [], // No registry data
-    upToDate: instance.containers, // All are "up to date" since we don't check
-  }));
+  const portainerInstancesArray = containerGroupingService
+    .groupContainersByPortainerInstance(allContainers, portainerInstances)
+    .map((instance) => ({
+      ...instance,
+      withUpdates: [], // No registry data
+      upToDate: instance.containers, // All are "up to date" since we don't check
+    }));
 
   const result = {
     grouped: true,

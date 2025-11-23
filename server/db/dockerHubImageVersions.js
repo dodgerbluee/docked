@@ -1,10 +1,10 @@
 /**
  * Docker Hub Image Versions Database Module
- * 
+ *
  * Handles all Docker Hub image version-related database operations including:
  * - Docker Hub image version tracking (deprecated, use registryImageVersions)
  * - Version updates and queries
- * 
+ *
  * @deprecated This module is for backward compatibility. New code should use registryImageVersions.
  */
 
@@ -300,4 +300,3 @@ module.exports = {
   getDockerHubImagesWithUpdates,
   markDockerHubImageUpToDate,
 };
-

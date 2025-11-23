@@ -1219,7 +1219,7 @@ async function importUserConfig(req, res, next) {
           configData.generalSettings;
 
         if (colorScheme) {
-          await setSetting("color_scheme", colorScheme);
+          await setSetting("color_scheme", colorScheme, user.id);
         }
 
         if (logLevel) {
@@ -1227,7 +1227,11 @@ async function importUserConfig(req, res, next) {
         }
 
         if (refreshingTogglesEnabled !== undefined) {
-          await setSetting("refreshing_toggles_enabled", refreshingTogglesEnabled.toString());
+          await setSetting(
+            "refreshing_toggles_enabled",
+            refreshingTogglesEnabled.toString(),
+            user.id
+          );
         }
 
         if (batchConfig) {
@@ -1772,6 +1776,43 @@ async function createUserWithConfig(req, res, next) {
             `Tracked image "${image.name}": ${error.message || "Failed to import"}`
           );
         }
+      }
+    }
+
+    // Import general settings (color scheme, log level, refreshing toggles, batch config)
+    // This can be done independently of credentials
+    if (configData && configData.generalSettings) {
+      try {
+        const { colorScheme, logLevel, refreshingTogglesEnabled, batchConfig } =
+          configData.generalSettings;
+
+        if (colorScheme) {
+          await setSetting("color_scheme", colorScheme, user.id);
+        }
+
+        if (logLevel) {
+          await setSystemSetting("log_level", logLevel);
+        }
+
+        if (refreshingTogglesEnabled !== undefined) {
+          await setSetting(
+            "refreshing_toggles_enabled",
+            refreshingTogglesEnabled.toString(),
+            user.id
+          );
+        }
+
+        // Import batch configuration
+        if (batchConfig) {
+          for (const [jobType, config] of Object.entries(batchConfig)) {
+            await updateBatchConfig(user.id, jobType, config.enabled, config.intervalMinutes);
+          }
+          results.generalSettings = { imported: true, batchConfig: true };
+        } else {
+          results.generalSettings = { imported: true };
+        }
+      } catch (error) {
+        results.errors.push(`General settings: ${error.message || "Failed to import"}`);
       }
     }
 

@@ -1,6 +1,6 @@
 /**
  * Deployed Images Database Module
- * 
+ *
  * Handles all deployed image-related database operations including:
  * - Deployed image tracking (what containers are actually using)
  * - Image cleanup operations
@@ -154,4 +154,3 @@ module.exports = {
   getDeployedImage,
   cleanupOrphanedDeployedImages,
 };
-

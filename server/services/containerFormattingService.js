@@ -1,6 +1,6 @@
 /**
  * Container Formatting Service
- * 
+ *
  * Handles formatting and transformation of container data between different representations.
  * Extracted from containerQueryService to improve modularity.
  */
@@ -263,4 +263,3 @@ module.exports = {
   formatContainerFromDatabase,
   formatContainerFromPortainer,
 };
-

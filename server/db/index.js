@@ -1,9 +1,9 @@
 /**
  * Database Module - Unified API
- * 
+ *
  * This module provides a unified API for all database operations.
  * It re-exports functions from domain-specific modules and the connection module.
- * 
+ *
  * Usage:
  *   const db = require('./db');
  *   const user = await db.getUserByUsername('admin');
@@ -122,8 +122,7 @@ module.exports = {
   ...deployedImages,
   ...registryImageVersions,
   ...dockerHubImageVersions,
-  
+
   // Utility functions
   getRawDatabaseRecords,
 };
-

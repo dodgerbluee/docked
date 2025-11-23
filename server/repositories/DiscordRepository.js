@@ -111,9 +111,12 @@ class DiscordRepository extends BaseRepository {
    * @returns {Promise<void>}
    */
   async recordNotificationSent(userId, deduplicationKey, notificationType) {
-    return await discordDb.recordDiscordNotificationSent(userId, deduplicationKey, notificationType);
+    return await discordDb.recordDiscordNotificationSent(
+      userId,
+      deduplicationKey,
+      notificationType
+    );
   }
 }
 
 module.exports = DiscordRepository;
-

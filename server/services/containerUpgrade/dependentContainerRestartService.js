@@ -1,6 +1,6 @@
 /**
  * Dependent Container Restart Service
- * 
+ *
  * Handles finding and restarting containers that depend on an upgraded container
  * after the upgrade is complete. This includes:
  * - Finding dependent containers (network_mode and stack relationships)
@@ -204,15 +204,19 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
  * @param {string} cleanContainerName - Clean container name
  * @returns {Promise<{verifiedName: string, isRunning: boolean}>}
  */
-async function verifyUpgradedContainer(workingPortainerUrl, endpointId, newContainerId, cleanContainerName) {
+async function verifyUpgradedContainer(
+  workingPortainerUrl,
+  endpointId,
+  newContainerId,
+  cleanContainerName
+) {
   try {
     const verifiedNewContainerDetails = await portainerService.getContainerDetails(
       workingPortainerUrl,
       endpointId,
       newContainerId
     );
-    const verifiedName =
-      verifiedNewContainerDetails.Name?.replace("/", "") || cleanContainerName;
+    const verifiedName = verifiedNewContainerDetails.Name?.replace("/", "") || cleanContainerName;
 
     const containerState = verifiedNewContainerDetails.State?.Status || "";
     const tunnelIsRunning = containerState === "running";
@@ -276,9 +280,7 @@ async function recreateNetworkModeContainer(
   newContainerId
 ) {
   const containerNetworkMode = containerDetails.HostConfig?.NetworkMode || "";
-  logger.info(
-    `    Recreating ${container.name} (original network_mode: ${containerNetworkMode})`
-  );
+  logger.info(`    Recreating ${container.name} (original network_mode: ${containerNetworkMode})`);
 
   const networkModeType = containerNetworkMode.startsWith("service:") ? "service" : "container";
   logger.info(
@@ -452,9 +454,7 @@ async function recreateNetworkModeContainer(
     );
 
     if (existingContainer) {
-      logger.warn(
-        `     Container ${containerName} already exists, removing it first...`
-      );
+      logger.warn(`     Container ${containerName} already exists, removing it first...`);
       try {
         await portainerService.stopContainer(portainerUrl, endpointId, existingContainer.Id);
       } catch (stopErr) {
@@ -700,4 +700,3 @@ module.exports = {
   recreateNetworkModeContainer,
   restartDependentContainers,
 };
-
