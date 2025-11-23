@@ -58,16 +58,15 @@ function getIpFallbackConfig(ipUrl, originalUrl, existingConfig = {}) {
     Host: originalUrlObj.host, // e.g., "toybox.dbluee.net:9443"
   };
 
-  // Disable SSL verification for IP addresses
-  // This is safe because:
-  // 1. We're only doing this for user-configured Portainer instances
-  // 2. The IP address comes from the database (user-provided)
-  // 3. We validate the URL for SSRF attacks
-  if (ipUrlObj.protocol === "https:") {
-    config.httpsAgent = new https.Agent({
-      rejectUnauthorized: false,
-    });
-  }
+  // SSL certificate validation for IP addresses
+  // Note: We do NOT disable certificate validation (rejectUnauthorized: false) as this creates
+  // a security vulnerability (man-in-the-middle attacks).
+  // The URL is validated for SSRF attacks before this function is called.
+  // If a Portainer instance uses a self-signed certificate with an IP address, users should:
+  // 1. Configure the trusted CA certificate via the 'ca' option in https.Agent (future enhancement)
+  // 2. Or use HTTP instead of HTTPS for IP-based access
+  // 3. Or use the domain name instead of IP address (recommended)
+  // We use default certificate validation (rejectUnauthorized: true) - no httpsAgent needed
 
   return config;
 }

@@ -417,6 +417,11 @@ async function authenticatePortainer(
               Object.keys(format)
             );
             try {
+              // SSRF protection - validate portainerUrl before making request
+              const ssrfValidation = validateUrlForSSRF(portainerUrl, true);
+              if (!ssrfValidation.valid) {
+                throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+              }
               const altResponse = await axios.post(`${portainerUrl}/api/auth`, format, {
                 headers: {
                   "Content-Type": "application/json",
