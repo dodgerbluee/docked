@@ -11,8 +11,9 @@ const {
   validateContainerArray,
 } = require("../utils/validation");
 const { RateLimitExceededError } = require("../utils/retry");
-const { getAllPortainerInstances, getPortainerContainersWithUpdates } = require("../db/database");
+const { getAllPortainerInstances, getPortainerContainersWithUpdates } = require("../db/index");
 const logger = require("../utils/logger");
+const { sendErrorResponse, sendValidationErrorResponse } = require("../utils/responseHelpers");
 
 /**
  * Get all containers with update status
@@ -33,17 +34,17 @@ async function getContainers(req, res, next) {
     const portainerOnly = req.query.portainerOnly === "true";
 
     if (portainerOnly) {
-      // Fetch from Portainer without Docker Hub checks
+      // Fetch from Portainer without registry checks
       const result = await containerService.getContainersFromPortainer(userId);
       res.json(result);
       return;
     }
 
-    // IMPORTANT: Never call Docker Hub here - only return cached data or fetch from Portainer
-    // Docker Hub is ONLY called via /api/containers/pull endpoint (manual pull or batch process)
+    // IMPORTANT: Never call registries here - only return cached data or fetch from Portainer
+    // Registry checks are ONLY done via /api/containers/pull endpoint (manual pull or batch process)
     const cached = await containerService.getAllContainersWithUpdates(false, null, userId);
 
-    // If cache is empty or has no containers, fetch from Portainer only (NO Docker Hub)
+    // If cache is empty or has no containers, fetch from Portainer only (NO registry checks)
     if (!cached || !cached.containers || cached.containers.length === 0) {
       logger.info("No cached container data found, fetching from Portainer only", {
         module: "containerController",
@@ -51,7 +52,7 @@ async function getContainers(req, res, next) {
         source: "portainer-only",
       });
       const portainerResult = await containerService.getContainersFromPortainer(userId);
-      // Docker Hub data can be added later via "Pull" button or batch process
+      // Registry update data can be added later via "Pull" button or batch process
       logger.info("Fetched Portainer-only container data", {
         module: "containerController",
         operation: "getContainers",
@@ -78,7 +79,7 @@ async function getContainers(req, res, next) {
       // Fetch fresh data from Portainer (includes network mode detection)
       const portainerResult = await containerService.getContainersFromPortainer(userId);
 
-      // Merge Portainer network mode flags into cached data (preserve Docker Hub update info)
+      // Merge Portainer network mode flags into cached data (preserve registry update info)
       const portainerContainersMap = new Map();
       portainerResult.containers.forEach((c) => {
         portainerContainersMap.set(c.id, c);
@@ -111,7 +112,7 @@ async function getContainers(req, res, next) {
       return;
     }
 
-    // Return cached data (may contain Docker Hub info from previous pull, but no new Docker Hub calls)
+    // Return cached data (may contain registry update info from previous pull, but no new registry calls)
     res.json(cached);
   } catch (error) {
     // If there's an error, try fetching from Portainer only as fallback
@@ -145,8 +146,8 @@ async function getContainers(req, res, next) {
 }
 
 /**
- * Pull fresh container data from Docker Hub
- * Fetches fresh data from Portainer and Docker Hub
+ * Pull fresh container data from registries
+ * Fetches fresh data from Portainer and checks for updates in container registries
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -161,15 +162,14 @@ async function pullContainers(req, res, next) {
       });
     }
     const { portainerUrl } = req.body;
-    logger.info("Pull request received - fetching container data from Docker Hub", {
+    logger.info("Pull request received - fetching container data from registries", {
       module: "containerController",
       operation: "pullContainers",
       portainerUrl: portainerUrl || "all-instances",
-      note: "This is the ONLY endpoint that calls Docker Hub",
     });
 
-    // Force refresh - this is the ONLY place that should call Docker Hub
-    // Called by: 1) Manual "Pull from Docker Hub" button, 2) Batch process, 3) After adding new instance
+    // Force refresh - checks for updates in container registries
+    // Called by: 1) Manual "Pull" button, 2) Batch process, 3) After adding new instance
     const result = await containerService.getAllContainersWithUpdates(true, portainerUrl, userId);
 
     logger.info("Container data pull completed successfully", {
@@ -187,7 +187,7 @@ async function pullContainers(req, res, next) {
   } catch (error) {
     // Handle rate limit exceeded errors specially
     if (error.isRateLimitExceeded || error instanceof RateLimitExceededError) {
-      logger.warn("Docker Hub rate limit exceeded - not updating container data", {
+      logger.warn("Registry rate limit exceeded - not updating container data", {
         module: "containerController",
         operation: "pullContainers",
         error: error,
@@ -197,27 +197,27 @@ async function pullContainers(req, res, next) {
       // Check if credentials exist to customize message
       const userId = req.user?.id;
       let message =
-        "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
+        "Registry rate limit exceeded. Please wait a few minutes before trying again.";
       if (userId) {
         const { getDockerHubCreds } = require("../utils/dockerHubCreds");
         const creds = await getDockerHubCreds(userId);
         if (!creds.username || !creds.token) {
-          message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+          message += " Or configure registry credentials in Settings for higher rate limits.";
         }
       } else {
-        message += " Or configure Docker Hub credentials in Settings for higher rate limits.";
+        message += " Or configure registry credentials in Settings for higher rate limits.";
       }
 
       // Return error without updating container data
       return res.status(429).json({
         success: false,
-        error: error.message || "Docker Hub rate limit exceeded",
+        error: error.message || "Registry rate limit exceeded",
         rateLimitExceeded: true,
         message: message,
       });
     }
 
-    logger.error("Error pulling container data from Docker Hub", {
+    logger.error("Error pulling container data from registries", {
       module: "containerController",
       operation: "pullContainers",
       error: error,
@@ -252,25 +252,14 @@ async function upgradeContainer(req, res, next) {
     const { containerId } = req.params;
     const { endpointId, imageName, portainerUrl } = req.body;
 
-    // Validate input
-    if (!isValidContainerId(containerId)) {
-      return res.status(400).json({ error: "Invalid container ID" });
-    }
-
-    const validationError = validateRequiredFields({ endpointId, imageName, portainerUrl }, [
-      "endpointId",
-      "imageName",
-      "portainerUrl",
-    ]);
-    if (validationError) {
-      return res.status(400).json(validationError);
-    }
+    // Note: Input validation is now handled by validation middleware
+    // All validation (containerId, endpointId, imageName, portainerUrl) is handled in routes
 
     // Get instance credentials from database for this user
     const instances = await getAllPortainerInstances(userId);
     const instance = instances.find((inst) => inst.url === portainerUrl);
     if (!instance) {
-      return res.status(404).json({ error: "Portainer instance not found" });
+      return sendErrorResponse(res, "Portainer instance not found", 404);
     }
 
     await portainerService.authenticatePortainer(
@@ -645,7 +634,7 @@ async function getContainerData(req, res, next) {
     }
 
     // Get ALL containers with joined deployed images and registry versions
-    const { getPortainerContainersWithUpdates } = require("../db/database");
+    const { getPortainerContainersWithUpdates } = require("../db/index");
     const allContainers = await getPortainerContainersWithUpdates(userId);
     const userInstances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
@@ -659,7 +648,7 @@ async function getContainerData(req, res, next) {
       return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
     };
 
-    // Format containers for display (include Portainer data even if no Docker Hub data)
+    // Format containers for display (include Portainer data even if no registry update data)
     // Also preserve portainerInstanceId for grouping
     const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
@@ -833,7 +822,7 @@ async function getContainerData(req, res, next) {
  * @returns {Promise<Object>} - Raw database records organized by table
  */
 async function getRawDatabaseRecords(userId) {
-  const { getRawDatabaseRecords: getRawRecords } = require("../db/database");
+  const { getRawDatabaseRecords: getRawRecords } = require("../db/index");
   return await getRawRecords(userId);
 }
 
@@ -852,7 +841,7 @@ async function clearContainerData(req, res, next) {
         error: "Authentication required",
       });
     }
-    const { clearUserContainerData } = require("../db/database");
+    const { clearUserContainerData } = require("../db/index");
     await clearUserContainerData(userId);
     logger.info("User container data cleared", {
       module: "containerController",

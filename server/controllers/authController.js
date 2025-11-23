@@ -6,6 +6,7 @@
 const axios = require("axios");
 const logger = require("../utils/logger");
 const { validateRequiredFields, isValidEmail } = require("../utils/validation");
+const { sendErrorResponse, sendValidationErrorResponse } = require("../utils/responseHelpers");
 const {
   getUserByUsername,
   getUserById,
@@ -37,7 +38,7 @@ const {
   updateBatchConfig,
   setSetting,
   setSystemSetting,
-} = require("../db/database");
+} = require("../db/index");
 const {
   validateRegistrationCode,
   clearRegistrationCode,
@@ -370,7 +371,7 @@ async function verifyToken(req, res, next) {
       const decoded = verifyJWT(token);
 
       // Verify user still exists
-      const { getUserById } = require("../db/database");
+      const { getUserById } = require("../db/index");
       const user = await getUserById(decoded.userId);
       if (!user) {
         return res.status(401).json({
@@ -393,7 +394,7 @@ async function verifyToken(req, res, next) {
         const userId = parseInt(parts[0]);
         const username = parts[1];
 
-        const { getUserById } = require("../db/database");
+        const { getUserById } = require("../db/index");
         const user = await getUserById(userId);
         if (!user) {
           const userByUsername = await getUserByUsername(username);

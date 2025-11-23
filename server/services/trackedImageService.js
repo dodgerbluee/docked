@@ -10,7 +10,7 @@ const dockerRegistryService = require("./dockerRegistryService");
 const registryService = require("./registry");
 const githubService = require("./githubService");
 const gitlabService = require("./gitlabService");
-const { updateTrackedApp } = require("../db/database");
+const { updateTrackedApp } = require("../db/index");
 const logger = require("../utils/logger");
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;

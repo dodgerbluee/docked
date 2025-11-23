@@ -6,7 +6,7 @@
 const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
 const { validateImageArray } = require("../utils/validation");
-const { getAllPortainerInstances } = require("../db/database");
+const { getAllPortainerInstances } = require("../db/index");
 const logger = require("../utils/logger");
 
 /**

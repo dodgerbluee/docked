@@ -30,6 +30,7 @@ const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
+const responseFormatter = require("./middleware/responseFormatter");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
 const { initializeRegistrationCode } = require("./utils/registrationCode");
@@ -38,7 +39,7 @@ logger.debug("Starting server module load", { module: "server" });
 
 let databaseModule;
 try {
-  databaseModule = require("./db/database");
+  databaseModule = require("./db/index");
   logger.debug("Database module loaded", { module: "server" });
 } catch (dbError) {
   process.stderr.write(`[SERVER.JS] ERROR loading database: ${dbError}\n`);
@@ -138,6 +139,9 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Request logging middleware (after body parsing to capture request data)
 app.use(requestLogger);
+
+// Response formatter middleware (ensures consistent response format)
+app.use(responseFormatter);
 
 // Rate limiting - DISABLED for all API endpoints
 // We only rate limit Docker Hub requests, not our own API

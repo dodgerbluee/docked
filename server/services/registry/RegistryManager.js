@@ -93,7 +93,10 @@ class RegistryManager {
 
     try {
       // Try primary provider first
-      const result = await provider.getLatestDigest(imageRepo, tag, { userId, imageRepo });
+      const result = await provider.getLatestDigest(imageRepo, tag, {
+        userId,
+        imageRepo,
+      });
 
       if (result) {
         // Use provider from result if set (for fallback cases), otherwise use provider name

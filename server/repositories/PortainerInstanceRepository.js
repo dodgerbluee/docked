@@ -4,7 +4,7 @@
  */
 
 const BaseRepository = require("./BaseRepository");
-const { NotFoundError } = require("../domain/errors");
+const { NotFoundError } = require("../utils/errors");
 
 class PortainerInstanceRepository extends BaseRepository {
   /**

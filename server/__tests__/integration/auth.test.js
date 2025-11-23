@@ -4,7 +4,7 @@
 
 const request = require("supertest");
 const app = require("../../server");
-const { getUserByUsername, updatePassword } = require("../../db/database");
+const { getUserByUsername, updatePassword } = require("../../db/index");
 const bcrypt = require("bcrypt");
 
 describe("Authentication API", () => {
@@ -14,7 +14,7 @@ describe("Authentication API", () => {
 
   beforeAll(async () => {
     // Create a test admin user if it doesn't exist
-    const { createUser, getUserByUsername } = require("../../db/database");
+    const { createUser, getUserByUsername } = require("../../db/index");
     try {
       const existingUser = await getUserByUsername(testUsername);
       if (!existingUser) {

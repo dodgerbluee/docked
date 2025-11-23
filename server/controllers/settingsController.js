@@ -3,7 +3,7 @@
  * Handles HTTP requests for application settings
  */
 
-const { getSetting, setSetting } = require("../db/database");
+const { getSetting, setSetting } = require("../db/index");
 const logger = require("../utils/logger");
 
 const COLOR_SCHEME_KEY = "color_scheme";

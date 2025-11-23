@@ -39,8 +39,8 @@ class GitLabProvider extends RegistryProvider {
     // First, try to get token from associated repository access token
     if (userId && imageRepo) {
       try {
-        const { getRepositoryAccessTokenById } = require("../../../db/database");
-        const db = require("../../../db/database").db;
+        const { getRepositoryAccessTokenById, getDatabase } = require("../../../db/index");
+        const db = getDatabase();
 
         if (db) {
           // Get deployed image to find repository_token_id

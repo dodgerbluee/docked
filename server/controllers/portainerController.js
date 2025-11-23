@@ -10,7 +10,7 @@ const {
   updatePortainerInstance,
   deletePortainerInstance,
   updatePortainerInstanceOrder,
-} = require("../db/database");
+} = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
 const portainerService = require("../services/portainerService");
 const logger = require("../utils/logger");

@@ -4,7 +4,7 @@
  * Note: Environment variables are no longer used. Configure credentials through the Settings UI.
  */
 
-const { getDockerHubCredentials } = require("../db/database");
+const { getDockerHubCredentials } = require("../db/index");
 const logger = require("./logger");
 
 // Cache credentials in memory to avoid DB queries on every request
