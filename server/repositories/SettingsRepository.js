@@ -14,8 +14,8 @@ class SettingsRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<string|null>} - Setting value or null
    */
-  async get(key, userId) {
-    return await settingsDb.getSetting(key, userId);
+  get(key, userId) {
+    return settingsDb.getSetting(key, userId);
   }
 
   /**
@@ -25,8 +25,8 @@ class SettingsRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async set(key, value, userId) {
-    return await settingsDb.setSetting(key, value, userId);
+  set(key, value, userId) {
+    return settingsDb.setSetting(key, value, userId);
   }
 
   /**
@@ -34,8 +34,8 @@ class SettingsRepository extends BaseRepository {
    * @param {string} key - Setting key
    * @returns {Promise<string|null>} - Setting value or null
    */
-  async getSystem(key) {
-    return await settingsDb.getSystemSetting(key);
+  getSystem(key) {
+    return settingsDb.getSystemSetting(key);
   }
 
   /**
@@ -44,8 +44,8 @@ class SettingsRepository extends BaseRepository {
    * @param {string} value - Setting value
    * @returns {Promise<void>}
    */
-  async setSystem(key, value) {
-    return await settingsDb.setSystemSetting(key, value);
+  setSystem(key, value) {
+    return settingsDb.setSystemSetting(key, value);
   }
 }
 

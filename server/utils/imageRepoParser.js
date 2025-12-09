@@ -4,6 +4,99 @@
  */
 
 /**
+ * Clean image name by removing incomplete SHA256 digests
+ * @param {string} imageName - Image name to clean
+ * @returns {string} - Cleaned image name
+ */
+function cleanImageName(imageName) {
+  if (imageName.includes("@sha256") && !imageName.includes("@sha256:")) {
+    return imageName.replace("@sha256", "");
+  }
+  return imageName;
+}
+
+/**
+ * Extract tag and name without tag from image name
+ * @param {string} cleanedImageName - Cleaned image name
+ * @returns {Object} - { tag, nameWithoutTag }
+ */
+function extractTag(cleanedImageName) {
+  const parts = cleanedImageName.split(":");
+  const tag = parts.length > 1 ? parts[parts.length - 1] : "latest";
+  const nameWithoutTag = parts.slice(0, -1).join(":") || parts[0];
+  return { tag, nameWithoutTag };
+}
+
+/**
+ * Extract registry and path from image name
+ * @param {string} nameWithoutTag - Image name without tag
+ * @returns {Object} - { registry, path }
+ */
+function extractRegistry(nameWithoutTag) {
+  const knownRegistries = ["ghcr.io", "gcr.io", "quay.io", "registry.gitlab.com", "docker.io"];
+  for (const knownReg of knownRegistries) {
+    if (nameWithoutTag.startsWith(`${knownReg}/`)) {
+      return {
+        registry: knownReg,
+        path: nameWithoutTag.substring(knownReg.length + 1),
+      };
+    }
+  }
+
+  // Check for explicit docker.io/library or docker.io/user
+  if (nameWithoutTag.startsWith("docker.io/")) {
+    return {
+      registry: "docker.io",
+      path: nameWithoutTag.substring("docker.io/".length),
+    };
+  }
+
+  return { registry: "docker.io", path: nameWithoutTag };
+}
+
+/**
+ * Extract namespace and repository from path
+ * @param {string} path - Path component
+ * @param {string} registry - Registry name
+ * @returns {Object} - { namespace, repository }
+ */
+function extractNamespaceAndRepo(path, registry) {
+  const pathParts = path.split("/");
+  if (pathParts.length > 1) {
+    return {
+      namespace: pathParts[0],
+      repository: pathParts.slice(1).join("/"),
+    };
+  }
+  if (registry === "docker.io") {
+    return { namespace: null, repository: pathParts[0] };
+  }
+  return { namespace: null, repository: path };
+}
+
+/**
+ * Build image repository identifier
+ * @param {string} repository - Repository name
+ * @param {string} registry - Registry name
+ * @param {string|null} namespace - Namespace or null
+ * @returns {string} - Image repository identifier
+ */
+function buildImageRepo(repository, registry, namespace) {
+  if (registry !== "docker.io") {
+    // For non-docker.io registries, include namespace if present
+    // e.g., ghcr.io/blakeblackshear/frigate (not ghcr.io/frigate)
+    if (namespace) {
+      return `${registry}/${namespace}/${repository}`;
+    }
+    return `${registry}/${repository}`;
+  }
+  if (namespace) {
+    return `${namespace}/${repository}`;
+  }
+  return repository;
+}
+
+/**
  * Parse image name to extract repository components
  * @param {string} imageName - Full image name (e.g., "nginx:latest", "library/nginx:1.21", "ghcr.io/user/repo:tag")
  * @returns {Object} - { imageRepo, registry, namespace, repository, tag }
@@ -13,61 +106,11 @@ function parseImageName(imageName) {
     throw new Error("Invalid image name provided");
   }
 
-  // Handle incomplete SHA256 digests (e.g., "image:tag@sha256" without hash)
-  // Remove incomplete digest markers
-  let cleanedImageName = imageName;
-  if (cleanedImageName.includes("@sha256") && !cleanedImageName.includes("@sha256:")) {
-    // Remove incomplete @sha256 marker
-    cleanedImageName = cleanedImageName.replace("@sha256", "");
-  }
-
-  // Split by colon to separate tag
-  const parts = cleanedImageName.split(":");
-  const tag = parts.length > 1 ? parts[parts.length - 1] : "latest";
-  const nameWithoutTag = parts.slice(0, -1).join(":") || parts[0];
-
-  // Check for registry (contains a dot or is a known registry)
-  let registry = "docker.io";
-  let path = nameWithoutTag;
-
-  // Known registries
-  const knownRegistries = ["ghcr.io", "gcr.io", "quay.io", "registry.gitlab.com", "docker.io"];
-  for (const knownReg of knownRegistries) {
-    if (nameWithoutTag.startsWith(knownReg + "/")) {
-      registry = knownReg;
-      path = nameWithoutTag.substring(knownReg.length + 1);
-      break;
-    }
-  }
-
-  // Check for explicit docker.io/library or docker.io/user
-  if (nameWithoutTag.startsWith("docker.io/")) {
-    registry = "docker.io";
-    path = nameWithoutTag.substring("docker.io/".length);
-  }
-
-  // Split path into namespace and repository
-  const pathParts = path.split("/");
-  let namespace = null;
-  let repository = path;
-
-  if (pathParts.length > 1) {
-    namespace = pathParts[0];
-    repository = pathParts.slice(1).join("/");
-  } else if (registry === "docker.io") {
-    // Docker Hub official images don't have a namespace prefix
-    // e.g., "nginx" -> namespace: null, repository: "nginx"
-    namespace = null;
-    repository = pathParts[0];
-  }
-
-  // Build image_repo (without tag) - this is the key for our database
-  let imageRepo = repository;
-  if (registry !== "docker.io") {
-    imageRepo = `${registry}/${repository}`;
-  } else if (namespace) {
-    imageRepo = `${namespace}/${repository}`;
-  }
+  const cleanedImageName = cleanImageName(imageName);
+  const { tag, nameWithoutTag } = extractTag(cleanedImageName);
+  const { registry, path } = extractRegistry(nameWithoutTag);
+  const { namespace, repository } = extractNamespaceAndRepo(path, registry);
+  const imageRepo = buildImageRepo(repository, registry, namespace);
 
   return {
     imageRepo,

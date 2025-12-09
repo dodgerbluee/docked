@@ -17,18 +17,20 @@ function groupContainersByStack(containers, defaultStackName = "Standalone") {
   }
 
   // Group containers by stack
-  const groupedByStack = containers.reduce((acc, container) => {
+  const groupedByStack = containers.reduce((accumulator, container) => {
     const stackName = container.stackName || defaultStackName;
-    if (!acc[stackName]) {
-      acc[stackName] = [];
+    if (!accumulator[stackName]) {
+      accumulator[stackName] = [];
     }
-    acc[stackName].push(container);
-    return acc;
+
+
+    accumulator[stackName].push(container);
+    return accumulator;
   }, {});
 
   // Convert to array format with stack names
-  const groupedContainers = Object.keys(groupedByStack).map((stackName) => ({
-    stackName: stackName,
+  const groupedContainers = Object.keys(groupedByStack).map(stackName => ({
+    stackName,
     containers: groupedByStack[stackName],
   }));
 
@@ -67,9 +69,9 @@ function groupContainersByStackWithUnstacked(containers, unstackedName = "Unstac
     }
   }
 
-  const stacks = Array.from(stacksMap.entries()).map(([name, containers]) => ({
+  const stacks = Array.from(stacksMap.entries()).map(([name, stackContainers]) => ({
     name,
-    containers,
+    containers: stackContainers,
   }));
 
   if (unstackedContainers.length > 0) {
@@ -96,15 +98,15 @@ function groupContainersByPortainerInstance(containers, portainerInstances) {
     return [];
   }
 
-  return portainerInstances.map((instance) => {
-    const instanceContainers = containers.filter((c) => c.portainerUrl === instance.url);
+  return portainerInstances.map(instance => {
+    const instanceContainers = containers.filter(c => c.portainerUrl === instance.url);
     return {
       name: instance.name || new URL(instance.url).hostname,
       url: instance.url,
       id: instance.id,
       containers: instanceContainers,
-      withUpdates: instanceContainers.filter((c) => c.hasUpdate === true),
-      upToDate: instanceContainers.filter((c) => c.hasUpdate === false),
+      withUpdates: instanceContainers.filter(c => c.hasUpdate === true),
+      upToDate: instanceContainers.filter(c => c.hasUpdate === false),
     };
   });
 }

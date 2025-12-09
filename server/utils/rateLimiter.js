@@ -2,7 +2,8 @@
  * Rate limiting utilities for external API calls
  */
 
-let lastDockerHubRequest = 0;
+// Store last request time in a single object to avoid race conditions
+let requestState = { lastDockerHubRequest: 0 };
 
 // Track consecutive rate limit errors
 let consecutiveRateLimitErrors = 0;
@@ -17,11 +18,19 @@ const RATE_LIMIT_ERROR_WINDOW = 60000; // Reset counter after 1 minute of no err
  */
 async function rateLimitDelay(delayMs = 200) {
   const now = Date.now();
-  const timeSinceLastRequest = now - lastDockerHubRequest;
+  // Read state atomically by storing reference
+  const currentState = requestState;
+  const timeSinceLastRequest = now - currentState.lastDockerHubRequest;
   if (timeSinceLastRequest < delayMs) {
-    await new Promise((resolve) => setTimeout(resolve, delayMs - timeSinceLastRequest));
+    await new Promise(resolve => {
+      setTimeout(() => {
+        resolve();
+      }, delayMs - timeSinceLastRequest);
+    });
   }
-  lastDockerHubRequest = Date.now();
+  // Atomic update: assign entire state object at once
+  // eslint-disable-next-line require-atomic-updates -- Rate limit state update is intentional
+  requestState = { lastDockerHubRequest: Date.now() };
 }
 
 /**

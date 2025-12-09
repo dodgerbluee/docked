@@ -23,13 +23,13 @@ module.exports = {
   getSchedulerStatus: () => batchSystem.getStatus(),
   // Note: These functions are deprecated and require userId parameter
   // They should not be used directly - use the batch system scheduler instead
-  runDockerHubPull: (userId) => {
+  runDockerHubPull: userId => {
     if (!userId) {
       throw new Error("userId is required for runDockerHubPull");
     }
     return batchSystem.executeJob(userId, "docker-hub-pull");
   },
-  runTrackedAppsCheck: (userId) => {
+  runTrackedAppsCheck: userId => {
     if (!userId) {
       throw new Error("userId is required for runTrackedAppsCheck");
     }

@@ -26,7 +26,7 @@ function getAllDiscordWebhooks(userId) {
             reject(colErr);
             return;
           }
-          const hasUserId = !!colRow;
+          const hasUserId = Boolean(colRow);
           const query =
             hasUserId && userId
               ? "SELECT id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, created_at, updated_at FROM discord_webhooks WHERE user_id = ? ORDER BY created_at DESC"
@@ -40,7 +40,7 @@ function getAllDiscordWebhooks(userId) {
               resolve(rows || []);
             }
           });
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -66,7 +66,7 @@ function getDiscordWebhookById(id) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -76,18 +76,20 @@ function getDiscordWebhookById(id) {
 
 /**
  * Create a new Discord webhook
- * @param {number} userId - User ID
- * @param {string} webhookUrl - Webhook URL
- * @param {string} serverName - Server name (optional)
- * @param {string} channelName - Channel name (optional)
- * @param {boolean} enabled - Whether webhook is enabled
- * @param {string} name - Webhook name (optional)
- * @param {string} avatarUrl - Avatar URL (optional)
- * @param {string} guildId - Guild ID (optional)
- * @param {string} channelId - Channel ID (optional)
+ * @param {Object} params - Parameters object
+ * @param {number} params.userId - User ID
+ * @param {string} params.webhookUrl - Webhook URL
+ * @param {string} [params.serverName] - Server name (optional)
+ * @param {string} [params.channelName] - Channel name (optional)
+ * @param {boolean} [params.enabled=true] - Whether webhook is enabled
+ * @param {string} [params.name] - Webhook name (optional)
+ * @param {string} [params.avatarUrl] - Avatar URL (optional)
+ * @param {string} [params.guildId] - Guild ID (optional)
+ * @param {string} [params.channelId] - Channel ID (optional)
  * @returns {Promise<number>} - ID of created webhook
  */
-function createDiscordWebhook(
+// eslint-disable-next-line max-lines-per-function -- Database function with comprehensive webhook creation logic
+function createDiscordWebhook({
   userId,
   webhookUrl,
   serverName = null,
@@ -96,8 +98,9 @@ function createDiscordWebhook(
   name = null,
   avatarUrl = null,
   guildId = null,
-  channelId = null
-) {
+  channelId = null,
+}) {
+  // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive webhook creation logic
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -110,7 +113,7 @@ function createDiscordWebhook(
             reject(colErr);
             return;
           }
-          const hasUserId = !!colRow;
+          const hasUserId = Boolean(colRow);
           const insertQuery =
             hasUserId && userId
               ? "INSERT INTO discord_webhooks (user_id, webhook_url, server_name, channel_name, name, avatar_url, guild_id, channel_id, enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
@@ -118,26 +121,26 @@ function createDiscordWebhook(
           const insertParams =
             hasUserId && userId
               ? [
-                  userId,
-                  webhookUrl,
-                  serverName,
-                  channelName,
-                  name,
-                  avatarUrl,
-                  guildId,
-                  channelId,
-                  enabled ? 1 : 0,
-                ]
+                userId,
+                webhookUrl,
+                serverName,
+                channelName,
+                name,
+                avatarUrl,
+                guildId,
+                channelId,
+                enabled ? 1 : 0,
+              ]
               : [
-                  webhookUrl,
-                  serverName,
-                  channelName,
-                  name,
-                  avatarUrl,
-                  guildId,
-                  channelId,
-                  enabled ? 1 : 0,
-                ];
+                webhookUrl,
+                serverName,
+                channelName,
+                name,
+                avatarUrl,
+                guildId,
+                channelId,
+                enabled ? 1 : 0,
+              ];
 
           db.run(insertQuery, insertParams, function (err) {
             if (err) {
@@ -146,7 +149,7 @@ function createDiscordWebhook(
               resolve(this.lastID);
             }
           });
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -160,7 +163,9 @@ function createDiscordWebhook(
  * @param {Object} updateData - Data to update
  * @returns {Promise<void>}
  */
+// eslint-disable-next-line max-lines-per-function -- Discord webhook update requires comprehensive database operations
 function updateDiscordWebhook(id, updateData) {
+  // eslint-disable-next-line max-lines-per-function, complexity -- Promise callback requires comprehensive update logic
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -210,7 +215,7 @@ function updateDiscordWebhook(id, updateData) {
 
       const sql = `UPDATE discord_webhooks SET ${fields.join(", ")} WHERE id = ?`;
 
-      db.run(sql, values, function (err) {
+      db.run(sql, values, err => {
         if (err) {
           reject(err);
         } else {
@@ -232,7 +237,7 @@ function deleteDiscordWebhook(id) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run("DELETE FROM discord_webhooks WHERE id = ?", [id], function (err) {
+      db.run("DELETE FROM discord_webhooks WHERE id = ?", [id], err => {
         if (err) {
           reject(err);
         } else {
@@ -263,7 +268,7 @@ function getEnabledDiscordWebhooks(userId) {
             reject(colErr);
             return;
           }
-          const hasUserId = !!colRow;
+          const hasUserId = Boolean(colRow);
           const query =
             hasUserId && userId
               ? "SELECT id, webhook_url, server_name, channel_name, name FROM discord_webhooks WHERE enabled = 1 AND user_id = ?"
@@ -277,7 +282,7 @@ function getEnabledDiscordWebhooks(userId) {
               resolve(rows || []);
             }
           });
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -302,9 +307,9 @@ function hasDiscordNotificationBeenSent(userId, deduplicationKey) {
           if (err) {
             reject(err);
           } else {
-            resolve(!!row);
+            resolve(Boolean(row));
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -327,13 +332,13 @@ function recordDiscordNotificationSent(userId, deduplicationKey, notificationTyp
       db.run(
         "INSERT OR IGNORE INTO discord_notifications_sent (user_id, deduplication_key, notification_type) VALUES (?, ?, ?)",
         [userId, deduplicationKey, notificationType],
-        (err) => {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);

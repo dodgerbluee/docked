@@ -13,7 +13,7 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - User object or null
    */
   async findByUsername(username) {
-    return await this.findOne("SELECT * FROM users WHERE username = ?", [username]);
+    return this.findOne("SELECT * FROM users WHERE username = ?", [username]);
   }
 
   /**
@@ -22,9 +22,9 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - User object or null (without password)
    */
   async findById(id) {
-    return await this.findOne(
+    return this.findOne(
       "SELECT id, username, email, role, instance_admin, created_at, updated_at, last_login FROM users WHERE id = ?",
-      [id]
+      [id],
     );
   }
 
@@ -34,7 +34,7 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - User object or null (with password_hash)
    */
   async findByIdWithPassword(id) {
-    return await this.findOne("SELECT * FROM users WHERE id = ?", [id]);
+    return this.findOne("SELECT * FROM users WHERE id = ?", [id]);
   }
 
   /**
@@ -43,7 +43,7 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - User object or null (with password_hash)
    */
   async findByUsernameWithPassword(username) {
-    return await this.findByUsername(username);
+    return this.findByUsername(username);
   }
 
   /**
@@ -51,10 +51,10 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Array>} - Array of users (without passwords)
    */
   async findAll() {
-    return await super.findAll(
+    return super.findAll(
       "SELECT id, username, email, role, instance_admin, created_at, updated_at, last_login FROM users ORDER BY created_at ASC",
       [],
-      { cache: true, cacheKey: "users:all" }
+      { cache: true, cacheKey: "users:all" },
     );
   }
 
@@ -73,7 +73,7 @@ class UserRepository extends BaseRepository {
 
     const result = await this.execute(
       "INSERT INTO users (username, email, password_hash, role, instance_admin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-      [username, email, passwordHash, role, instanceAdmin ? 1 : 0]
+      [username, email, passwordHash, role, instanceAdmin ? 1 : 0],
     );
 
     // Invalidate cache
@@ -129,7 +129,7 @@ class UserRepository extends BaseRepository {
   async updatePassword(id, passwordHash) {
     await this.execute(
       "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [passwordHash, id]
+      [passwordHash, id],
     );
 
     // Invalidate cache
@@ -145,7 +145,7 @@ class UserRepository extends BaseRepository {
   async updatePasswordByUsername(username, passwordHash) {
     await this.execute(
       "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
-      [passwordHash, username]
+      [passwordHash, username],
     );
 
     // Invalidate cache
@@ -160,7 +160,7 @@ class UserRepository extends BaseRepository {
   async updateLastLogin(id) {
     await this.execute(
       "UPDATE users SET last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [id]
+      [id],
     );
   }
 
@@ -182,8 +182,8 @@ class UserRepository extends BaseRepository {
    * @param {string} hashedPassword - Hashed password from database
    * @returns {Promise<boolean>} - True if password matches
    */
-  async verifyPassword(plainPassword, hashedPassword) {
-    return await bcrypt.compare(plainPassword, hashedPassword);
+  verifyPassword(plainPassword, hashedPassword) {
+    return bcrypt.compare(plainPassword, hashedPassword);
   }
 
   /**
@@ -191,8 +191,8 @@ class UserRepository extends BaseRepository {
    * @param {string} plainPassword - Plain text password
    * @returns {Promise<string>} - Hashed password
    */
-  async hashPassword(plainPassword) {
-    return await bcrypt.hash(plainPassword, 10);
+  hashPassword(plainPassword) {
+    return bcrypt.hash(plainPassword, 10);
   }
 
   /**
@@ -201,13 +201,13 @@ class UserRepository extends BaseRepository {
    * @returns {Promise<Object>} - User statistics
    */
   async getStats(userId) {
-    return await this.findOne(
+    return this.findOne(
       `SELECT 
         (SELECT COUNT(*) FROM portainer_instances WHERE user_id = ?) as portainer_instances_count,
         (SELECT COUNT(*) FROM containers WHERE user_id = ?) as containers_count,
         (SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?) as tracked_apps_count,
         (SELECT COUNT(*) FROM discord_webhooks WHERE user_id = ?) as discord_webhooks_count`,
-      [userId, userId, userId, userId]
+      [userId, userId, userId, userId],
     );
   }
 }

@@ -27,7 +27,7 @@ class GitHubReleasesProvider extends RegistryProvider {
 
   canHandle(imageRepo, options = {}) {
     // Only handle if we have a GitHub repo mapping
-    return !!options.githubRepo;
+    return Boolean(options.githubRepo);
   }
 
   /**
@@ -81,22 +81,83 @@ class GitHubReleasesProvider extends RegistryProvider {
     return n1.localeCompare(n2);
   }
 
-  async getLatestDigest(imageRepo, tag = "latest", options = {}) {
-    // This provider can return digests if the image is on GHCR and we have a release tag
-    // It first gets the release tag, then tries to fetch the digest from GHCR using that tag
-    const githubRepo = options.githubRepo || this._extractGitHubRepo(imageRepo);
+  /**
+   * Try to get digest from GHCR for a release tag
+   * @param {string} imageRepo - Image repository
+   * @param {string} releaseTag - Release tag
+   * @param {Object} latestRelease - Latest release object
+   * @param {Object} options - Options
+   * @returns {Promise<Object|null>} - Result with digest or null
+   */
+  async _tryGetDigestFromGHCR(imageRepo, releaseTag, latestRelease, options) {
+    if (!imageRepo.startsWith("ghcr.io/")) {
+      return null;
+    }
 
+    try {
+      logger.info(
+        `[GitHub Releases] Attempting to get digest from GHCR for ${imageRepo}:${releaseTag} (using release tag from GitHub)`,
+      );
+      const digest = await this._getDigestFromGHCR(imageRepo, releaseTag, options);
+
+      if (digest) {
+        logger.info(
+          `[GitHub Releases] Successfully got digest from GHCR for ${imageRepo}:${releaseTag} - ${digest.substring(0, 12)}...`,
+        );
+        return {
+          digest,
+          tag: releaseTag,
+          version: releaseTag,
+          publishDate: latestRelease.published_at,
+          isFallback: false,
+          source: "ghcr",
+          provider: "ghcr",
+        };
+      }
+      logger.debug(
+        `[GitHub Releases] GHCR returned no digest for ${imageRepo}:${releaseTag}, using version-only result`,
+      );
+    } catch (ghcrError) {
+      logger.debug(
+        `[GitHub Releases] Failed to get digest from GHCR for ${imageRepo}:${releaseTag}:`,
+        ghcrError.message,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Build version-only result (no digest available)
+   * @param {string} imageRepo - Image repository
+   * @param {string} releaseTag - Release tag
+   * @param {Object} latestRelease - Latest release object
+   * @returns {Object} - Version-only result
+   */
+  _buildVersionOnlyResult(imageRepo, releaseTag, latestRelease) {
+    logger.debug(
+      `[GitHub Releases] Returning version-only result for ${imageRepo} - tag: ${releaseTag}`,
+    );
+    return {
+      digest: null,
+      tag: releaseTag,
+      version: releaseTag,
+      publishDate: latestRelease.published_at,
+      isFallback: true,
+      source: "github-releases",
+    };
+  }
+
+  async getLatestDigest(imageRepo, tag = "latest", options = {}) {
+    const githubRepo = options.githubRepo || this._extractGitHubRepo(imageRepo);
     if (!githubRepo) {
       return null;
     }
 
     try {
       this.logOperation("getLatestRelease", imageRepo, { githubRepo, tag });
-
-      // Get latest release from GitHub
       const latestRelease = await githubService.getLatestRelease(githubRepo);
 
-      if (!latestRelease || !latestRelease.tag_name) {
+      if (!latestRelease?.tag_name) {
         logger.debug(`[GitHub Releases] No release found for ${githubRepo}`);
         return null;
       }
@@ -104,58 +165,12 @@ class GitHubReleasesProvider extends RegistryProvider {
       const releaseTag = latestRelease.tag_name;
       logger.info(`[GitHub Releases] Found latest release ${releaseTag} for ${githubRepo}`);
 
-      // If this is a GHCR image, try to get the digest from GHCR using the release tag
-      // This is a "smart fallback" - we got the version from GitHub Releases, now try to get the digest from GHCR
-      if (imageRepo.startsWith("ghcr.io/")) {
-        try {
-          logger.info(
-            `[GitHub Releases] Attempting to get digest from GHCR for ${imageRepo}:${releaseTag} (using release tag from GitHub)`
-          );
-          const digest = await this._getDigestFromGHCR(imageRepo, releaseTag, options);
-
-          if (digest) {
-            logger.info(
-              `[GitHub Releases] Successfully got digest from GHCR for ${imageRepo}:${releaseTag} - ${digest.substring(0, 12)}...`
-            );
-            return {
-              digest: digest,
-              tag: releaseTag,
-              version: releaseTag,
-              publishDate: latestRelease.published_at,
-              isFallback: false, // We got the digest from GHCR, so not really a fallback
-              source: "ghcr",
-              provider: "ghcr",
-            };
-          } else {
-            logger.debug(
-              `[GitHub Releases] GHCR returned no digest for ${imageRepo}:${releaseTag}, using version-only result`
-            );
-          }
-        } catch (ghcrError) {
-          logger.debug(
-            `[GitHub Releases] Failed to get digest from GHCR for ${imageRepo}:${releaseTag}:`,
-            ghcrError.message
-          );
-          // Continue with version-only result
-        }
+      const digestResult = await this._tryGetDigestFromGHCR(imageRepo, releaseTag, latestRelease, options);
+      if (digestResult) {
+        return digestResult;
       }
 
-      // Return version info (no digest available)
-      // This happens when:
-      // 1. Image is not on GHCR
-      // 2. GHCR doesn't have the release tag
-      // 3. GHCR authentication fails
-      logger.debug(
-        `[GitHub Releases] Returning version-only result for ${imageRepo} - tag: ${releaseTag}`
-      );
-      return {
-        digest: null, // No digest available
-        tag: releaseTag,
-        version: releaseTag,
-        publishDate: latestRelease.published_at,
-        isFallback: true,
-        source: "github-releases",
-      };
+      return this._buildVersionOnlyResult(imageRepo, releaseTag, latestRelease);
     } catch (error) {
       if (this.isRateLimitError(error)) {
         throw error;
@@ -214,7 +229,7 @@ class GitHubReleasesProvider extends RegistryProvider {
     try {
       const release = await githubService.getLatestRelease(githubRepo);
       return release !== null;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }
@@ -234,7 +249,7 @@ class GitHubReleasesProvider extends RegistryProvider {
    * This is used when we have a release tag from GitHub and want to get the actual digest
    * @private
    */
-  async _getDigestFromGHCR(imageRepo, tag, options = {}) {
+  async _getDigestFromGHCR(imageRepo, tag, _options = {}) {
     try {
       // Build full image reference
       const imageRef = `${imageRepo}:${tag}`;
@@ -244,7 +259,7 @@ class GitHubReleasesProvider extends RegistryProvider {
 
       if (digest) {
         logger.info(
-          `[GitHub Releases] Successfully got digest from GHCR for ${imageRef} - ${digest.substring(0, 12)}...`
+          `[GitHub Releases] Successfully got digest from GHCR for ${imageRef} - ${digest.substring(0, 12)}...`,
         );
         return digest;
       }
@@ -254,7 +269,7 @@ class GitHubReleasesProvider extends RegistryProvider {
     } catch (error) {
       logger.debug(
         `[GitHub Releases] Error getting digest from GHCR for ${imageRepo}:${tag}:`,
-        error.message
+        error.message,
       );
       return null;
     }

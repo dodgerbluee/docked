@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
+import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 
 /**
  * Custom hook for managing notification state and logic
@@ -86,8 +87,11 @@ export const useNotifications = (containers, trackedApps, instanceAdmin = false)
     }
   }, [dismissedVersionUpdateNotification]);
 
-  // Filter containers with updates
-  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
+  // Filter containers with updates - compute hasUpdate on-the-fly for accuracy
+  const containersWithUpdates = useMemo(
+    () => containers.filter((c) => computeHasUpdate(c)),
+    [containers]
+  );
 
   // Filter out dismissed notifications, but show again if version has changed
   const activeContainersWithUpdates = useMemo(

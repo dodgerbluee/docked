@@ -197,6 +197,12 @@ body.dark-mode .roleBadgeMember:hover {
   padding: 10px 20px !important;
   font-size: 1rem;
   min-height: 42px;
+  gap: 12px !important; /* Increased gap between icon and text */
+}
+
+/* Fix icon spacing for action buttons */
+.actionButton svg {
+  margin-right: 0 !important; /* Override negative margin from iconLeft */
 }
 
 .actionButton:hover:not(:disabled) {

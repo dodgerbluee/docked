@@ -14,8 +14,8 @@ class BatchRepository extends BaseRepository {
    * @param {string} [jobType] - Optional job type. If null, returns all configs.
    * @returns {Promise<Object|null>} - Batch configuration(s) or null
    */
-  async getConfig(userId, jobType = null) {
-    return await batchDb.getBatchConfig(userId, jobType);
+  getConfig(userId, jobType = null) {
+    return batchDb.getBatchConfig(userId, jobType);
   }
 
   /**
@@ -26,8 +26,8 @@ class BatchRepository extends BaseRepository {
    * @param {number} intervalMinutes - Interval in minutes between batch runs
    * @returns {Promise<void>}
    */
-  async updateConfig(userId, jobType, enabled, intervalMinutes) {
-    return await batchDb.updateBatchConfig(userId, jobType, enabled, intervalMinutes);
+  updateConfig(userId, jobType, enabled, intervalMinutes) {
+    return batchDb.updateBatchConfig(userId, jobType, enabled, intervalMinutes);
   }
 
   /**
@@ -36,16 +36,16 @@ class BatchRepository extends BaseRepository {
    * @param {string} jobType - Job type
    * @returns {Promise<boolean>} - True if lock was acquired, false if already locked
    */
-  async checkAndAcquireLock(userId, jobType) {
-    return await batchDb.checkAndAcquireBatchJobLock(userId, jobType);
+  checkAndAcquireLock(userId, jobType) {
+    return batchDb.checkAndAcquireBatchJobLock(userId, jobType);
   }
 
   /**
    * Cleanup stale batch jobs
    * @returns {Promise<number>} - Number of jobs cleaned up
    */
-  async cleanupStale() {
-    return await batchDb.cleanupStaleBatchJobs();
+  cleanupStale() {
+    return batchDb.cleanupStaleBatchJobs();
   }
 
   /**
@@ -56,8 +56,8 @@ class BatchRepository extends BaseRepository {
    * @param {boolean} [isManual=false] - Whether this is a manual run
    * @returns {Promise<number>} - ID of created batch run
    */
-  async createRun(userId, status = "running", jobType = "docker-hub-pull", isManual = false) {
-    return await batchDb.createBatchRun(userId, status, jobType, isManual);
+  createRun(userId, status = "running", jobType = "docker-hub-pull", isManual = false) {
+    return batchDb.createBatchRun(userId, status, jobType, isManual);
   }
 
   /**
@@ -67,8 +67,8 @@ class BatchRepository extends BaseRepository {
    * @param {Object} updateData - Update data
    * @returns {Promise<void>}
    */
-  async updateRun(runId, userId, updateData) {
-    return await batchDb.updateBatchRun(runId, userId, updateData);
+  updateRun(runId, userId, updateData) {
+    return batchDb.updateBatchRun(runId, userId, updateData);
   }
 
   /**
@@ -77,8 +77,8 @@ class BatchRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object|null>} - Batch run or null
    */
-  async findRunById(runId, userId) {
-    return await batchDb.getBatchRunById(runId, userId);
+  findRunById(runId, userId) {
+    return batchDb.getBatchRunById(runId, userId);
   }
 
   /**
@@ -87,8 +87,8 @@ class BatchRepository extends BaseRepository {
    * @param {number} [limit=50] - Maximum number of runs to return
    * @returns {Promise<Array>} - Array of batch runs
    */
-  async findRecentRuns(userId, limit = 50) {
-    return await batchDb.getRecentBatchRuns(userId, limit);
+  findRecentRuns(userId, limit = 50) {
+    return batchDb.getRecentBatchRuns(userId, limit);
   }
 
   /**
@@ -96,8 +96,8 @@ class BatchRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object|null>} - Latest batch run or null
    */
-  async findLatestRun(userId) {
-    return await batchDb.getLatestBatchRun(userId);
+  findLatestRun(userId) {
+    return batchDb.getLatestBatchRun(userId);
   }
 
   /**
@@ -106,8 +106,8 @@ class BatchRepository extends BaseRepository {
    * @param {string} jobType - Job type
    * @returns {Promise<Object|null>} - Latest batch run or null
    */
-  async findLatestRunByJobType(userId, jobType) {
-    return await batchDb.getLatestBatchRunByJobType(userId, jobType);
+  findLatestRunByJobType(userId, jobType) {
+    return batchDb.getLatestBatchRunByJobType(userId, jobType);
   }
 
   /**
@@ -115,8 +115,8 @@ class BatchRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object>} - Map of jobType -> latest batch run
    */
-  async findLatestRunsByJobType(userId) {
-    return await batchDb.getLatestBatchRunsByJobType(userId);
+  findLatestRunsByJobType(userId) {
+    return batchDb.getLatestBatchRunsByJobType(userId);
   }
 }
 

@@ -13,7 +13,7 @@ const {
   getAssociatedImagesForToken,
 } = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
-const logger = require("../utils/logger");
+// const logger = require("../utils/logger"); // Unused
 
 /**
  * Get all repository access tokens for a user
@@ -31,7 +31,7 @@ async function getTokens(req, res, next) {
       });
     }
     const tokens = await getAllRepositoryAccessTokens(userId);
-    res.json({
+    return res.json({
       success: true,
       tokens,
     });
@@ -73,7 +73,7 @@ async function getTokenByProvider(req, res, next) {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       token,
     });
@@ -88,6 +88,7 @@ async function getTokenByProvider(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex token upsert logic
 async function upsertToken(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -146,7 +147,7 @@ async function upsertToken(req, res, next) {
         provider,
         name.trim(),
         existingToken.access_token,
-        tokenId
+        tokenId,
       );
       return res.json({
         success: true,
@@ -160,10 +161,10 @@ async function upsertToken(req, res, next) {
       provider,
       name.trim(),
       accessToken.trim(),
-      tokenId || null
+      tokenId || null,
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: "Repository access token saved successfully",
       id,
@@ -199,7 +200,7 @@ async function deleteToken(req, res, next) {
 
     // Check if token exists
     const tokens = await getAllRepositoryAccessTokens(userId);
-    const token = tokens.find((t) => t.id === parseInt(id));
+    const token = tokens.find(t => t.id === parseInt(id, 10));
 
     if (!token) {
       return res.status(404).json({
@@ -208,9 +209,9 @@ async function deleteToken(req, res, next) {
       });
     }
 
-    await deleteRepositoryAccessToken(parseInt(id), userId);
+    await deleteRepositoryAccessToken(parseInt(id, 10), userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Repository access token deleted successfully",
     });
@@ -239,7 +240,7 @@ async function associateImages(req, res, next) {
     const { imageRepos } = req.body;
 
     // Validate token exists
-    const token = await getRepositoryAccessTokenById(parseInt(id), userId);
+    const token = await getRepositoryAccessTokenById(parseInt(id, 10), userId);
     if (!token) {
       return res.status(404).json({
         success: false,
@@ -255,9 +256,9 @@ async function associateImages(req, res, next) {
       });
     }
 
-    await associateImagesWithToken(userId, parseInt(id), imageRepos);
+    await associateImagesWithToken(userId, parseInt(id, 10), imageRepos);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Images associated with token successfully",
     });
@@ -285,7 +286,7 @@ async function getAssociatedImages(req, res, next) {
     const { id } = req.params;
 
     // Validate token exists
-    const token = await getRepositoryAccessTokenById(parseInt(id), userId);
+    const token = await getRepositoryAccessTokenById(parseInt(id, 10), userId);
     if (!token) {
       return res.status(404).json({
         success: false,
@@ -293,9 +294,9 @@ async function getAssociatedImages(req, res, next) {
       });
     }
 
-    const imageRepos = await getAssociatedImagesForToken(userId, parseInt(id));
+    const imageRepos = await getAssociatedImagesForToken(userId, parseInt(id, 10));
 
-    res.json({
+    return res.json({
       success: true,
       imageRepos,
     });

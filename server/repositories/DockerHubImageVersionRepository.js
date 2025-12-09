@@ -18,11 +18,11 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @param {Object} versionData - Version data to store
    * @returns {Promise<number>} - ID of the record
    */
-  async upsert(userId, imageRepo, versionData) {
-    return await dockerHubImageVersionsDb.upsertDockerHubImageVersion(
+  upsert(userId, imageRepo, versionData) {
+    return dockerHubImageVersionsDb.upsertDockerHubImageVersion(
       userId,
       imageRepo,
-      versionData
+      versionData,
     );
   }
 
@@ -33,8 +33,8 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @param {string} currentTag - Current tag (optional, for backward compatibility)
    * @returns {Promise<Object|null>} - Version info or null
    */
-  async findByUserAndRepo(userId, imageRepo, currentTag = null) {
-    return await dockerHubImageVersionsDb.getDockerHubImageVersion(userId, imageRepo, currentTag);
+  findByUserAndRepo(userId, imageRepo, currentTag = null) {
+    return dockerHubImageVersionsDb.getDockerHubImageVersion(userId, imageRepo, currentTag);
   }
 
   /**
@@ -43,8 +43,8 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @param {Array<string>} imageRepos - Array of image repositories
    * @returns {Promise<Array>} - Array of version info objects
    */
-  async findByUserAndRepos(userId, imageRepos) {
-    return await dockerHubImageVersionsDb.getDockerHubImageVersionsBatch(userId, imageRepos);
+  findByUserAndRepos(userId, imageRepos) {
+    return dockerHubImageVersionsDb.getDockerHubImageVersionsBatch(userId, imageRepos);
   }
 
   /**
@@ -52,8 +52,8 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Array>} - Array of images with updates
    */
-  async findWithUpdates(userId) {
-    return await dockerHubImageVersionsDb.getDockerHubImagesWithUpdates(userId);
+  findWithUpdates(userId) {
+    return dockerHubImageVersionsDb.getDockerHubImagesWithUpdates(userId);
   }
 
   /**
@@ -65,13 +65,13 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @param {string} currentTag - Current tag (optional)
    * @returns {Promise<void>}
    */
-  async markUpToDate(userId, imageRepo, latestDigest, latestVersion, currentTag = null) {
-    return await dockerHubImageVersionsDb.markDockerHubImageUpToDate(
+  markUpToDate(userId, imageRepo, latestDigest, latestVersion, currentTag = null) {
+    return dockerHubImageVersionsDb.markDockerHubImageUpToDate(
       userId,
       imageRepo,
       latestDigest,
       latestVersion,
-      currentTag
+      currentTag,
     );
   }
 }

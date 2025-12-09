@@ -6,8 +6,11 @@ import { API_BASE_URL } from "../utils/api";
  * Custom hook for authentication state and operations
  */
 export const useAuth = () => {
-  // Start with false - we'll validate on mount
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Start with true if token exists - trust localStorage initially for better UX
+  // Token will be validated in background, and backend validates all requests
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem("authToken");
+  });
   const [isValidating, setIsValidating] = useState(true);
   const [authToken, setAuthToken] = useState(() => {
     const token = localStorage.getItem("authToken");
@@ -55,6 +58,7 @@ export const useAuth = () => {
 
       if (!token) {
         setIsValidating(false);
+        setIsAuthenticated(false);
         return;
       }
 
@@ -85,9 +89,19 @@ export const useAuth = () => {
           handleLogout();
         }
       } catch (error) {
-        // Token invalid or user doesn't exist - clear storage
-        console.warn("Token validation failed:", error.response?.status);
-        handleLogout();
+        // Only clear on 401 (unauthorized) - network errors shouldn't log out
+        // If it's a 401, the token is actually invalid
+        if (error.response?.status === 401) {
+          console.warn("Token validation failed - unauthorized:", error.response?.status);
+          handleLogout();
+        } else {
+          // Network error or other issue - keep user logged in, just log the error
+          // The backend will validate the token on actual API calls, and the axios
+          // interceptor will catch 401s and log out if the token is truly invalid
+          console.warn("Token validation error (non-fatal, keeping session):", error.message);
+          // Keep isAuthenticated as true since we have a token in localStorage
+          // The user can still use the app, validation will retry on next refresh
+        }
       } finally {
         setIsValidating(false);
       }

@@ -5,8 +5,8 @@
  * Extracted from containerQueryService to improve modularity.
  */
 
-const logger = require("../utils/logger");
 const imageRepoParser = require("../utils/imageRepoParser");
+const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
 /**
  * Build a map of tracked apps for quick lookup by imageRepo
@@ -20,14 +20,16 @@ function buildTrackedAppsMap(trackedApps) {
     return trackedAppsMap;
   }
 
-  trackedApps.forEach((app) => {
+  // eslint-disable-next-line complexity -- Tracked app matching requires multiple conditional checks
+  trackedApps.forEach(app => {
     if (app.image_name && (app.source_type === "github" || app.source_type === "gitlab")) {
       // Use the same parser to normalize imageRepo for consistent matching
       try {
         const parsed = imageRepoParser.parseImageName(app.image_name);
-        const imageRepo = parsed.imageRepo;
+        const { imageRepo } = parsed;
         // Map all GitHub/GitLab-tracked apps (not just those with has_update)
         // The container's update detection is independent
+
         trackedAppsMap.set(imageRepo, {
           source_type: app.source_type,
           github_repo: app.github_repo,
@@ -46,12 +48,13 @@ function buildTrackedAppsMap(trackedApps) {
             });
           }
         }
-      } catch (parseError) {
+      } catch (_parseError) {
         // Fallback to simple split if parsing fails
         const imageParts = app.image_name.includes(":")
           ? app.image_name.split(":")
           : [app.image_name];
         const imageRepo = imageParts[0];
+
         trackedAppsMap.set(imageRepo, {
           source_type: app.source_type,
           github_repo: app.github_repo,
@@ -72,12 +75,16 @@ function buildTrackedAppsMap(trackedApps) {
  * @param {string} provider - Provider from registry detection (optional)
  * @returns {Object} - Object with updateSourceType, updateGitHubRepo, updateGitLabRepo
  */
+// eslint-disable-next-line complexity -- Update source type determination requires multiple conditional checks
 function determineUpdateSourceType(container, trackedAppsMap, imageName = null, provider = null) {
   let updateSourceType = null;
   let updateGitHubRepo = null;
   let updateGitLabRepo = null;
 
-  if (container.hasUpdate && container.imageRepo) {
+  // Compute hasUpdate if not already present
+  const hasUpdate = container.hasUpdate !== undefined ? container.hasUpdate : computeHasUpdate(container);
+  
+  if (hasUpdate && container.imageRepo) {
     // Try exact match first
     let trackedAppInfo = trackedAppsMap.get(container.imageRepo);
 
@@ -86,7 +93,7 @@ function determineUpdateSourceType(container, trackedAppsMap, imageName = null, 
       try {
         const parsed = imageRepoParser.parseImageName(imageName);
         trackedAppInfo = trackedAppsMap.get(parsed.imageRepo);
-      } catch (parseError) {
+      } catch (_parseError) {
         // If parsing fails, continue without match
       }
     }
@@ -94,9 +101,11 @@ function determineUpdateSourceType(container, trackedAppsMap, imageName = null, 
     if (trackedAppInfo) {
       if (trackedAppInfo.source_type === "github") {
         updateSourceType = "github";
+
         updateGitHubRepo = trackedAppInfo.github_repo;
       } else if (trackedAppInfo.source_type === "gitlab") {
         updateSourceType = "gitlab";
+
         updateGitLabRepo = trackedAppInfo.gitlab_repo;
       }
     }
@@ -121,6 +130,7 @@ function determineUpdateSourceType(container, trackedAppsMap, imageName = null, 
  * @param {Map<string, Object>} trackedAppsMap - Map of tracked apps (optional)
  * @returns {Object} - Formatted container object
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Container formatting requires comprehensive data transformation
 function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = null) {
   // Extract tag from imageName (format: repo:tag)
   const imageParts = dbContainer.imageName.includes(":")
@@ -138,14 +148,16 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
       dbContainer,
       trackedAppsMap,
       dbContainer.imageName,
-      dbContainer.provider
+      dbContainer.provider,
     );
-    updateSourceType = sourceInfo.updateSourceType;
-    updateGitHubRepo = sourceInfo.updateGitHubRepo;
-    updateGitLabRepo = sourceInfo.updateGitLabRepo;
+    const { updateSourceType: sourceType, updateGitHubRepo: githubRepo, updateGitLabRepo: gitlabRepo } = sourceInfo;
+    updateSourceType = sourceType;
+    updateGitHubRepo = githubRepo;
+    updateGitLabRepo = gitlabRepo;
   }
 
-  return {
+  // Build container object first, then compute hasUpdate
+  const container = {
     id: dbContainer.containerId,
     name: dbContainer.containerName,
     image: dbContainer.imageName,
@@ -154,8 +166,7 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
     endpointId: dbContainer.endpointId,
     portainerUrl: instance ? instance.url : null,
     portainerName: instance ? instance.name : null,
-    hasUpdate: dbContainer.hasUpdate || false,
-    currentTag: currentTag,
+    currentTag,
     currentVersion: currentTag,
     currentDigest: dbContainer.currentDigest,
     latestTag: dbContainer.latestTag || currentTag,
@@ -167,33 +178,40 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
     currentImageCreated: dbContainer.imageCreatedDate,
     imageRepo: dbContainer.imageRepo,
     stackName: dbContainer.stackName,
-    existsInDockerHub: dbContainer.latestDigest ? true : false,
+    existsInDockerHub: Boolean(dbContainer.latestDigest),
     usesNetworkMode: dbContainer.usesNetworkMode || false,
     providesNetwork: dbContainer.providesNetwork || false,
     provider: dbContainer.provider || null, // Provider used to get version info (dockerhub, ghcr, gitlab, github-releases, etc.)
-    updateSourceType: updateSourceType,
-    updateGitHubRepo: updateGitHubRepo,
-    updateGitLabRepo: updateGitLabRepo,
+    updateSourceType,
+    updateGitHubRepo,
+    updateGitLabRepo,
     noDigest: dbContainer.noDigest || false, // Flag: container was checked but no digest was returned
     lastChecked: dbContainer.lastChecked || null, // When the registry was last checked for this image
   };
+
+  // Compute hasUpdate on-the-fly from digests
+  container.hasUpdate = computeHasUpdate(container);
+
+  return container;
 }
 
 /**
  * Format a container from Portainer API response to frontend format
- * @param {Object} container - Container from Portainer API
- * @param {Object} updateInfo - Update information from imageUpdateService
- * @param {Object} instance - Portainer instance object
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {string} stackName - Stack name (optional)
- * @param {string} currentImageCreated - Image creation date (optional)
- * @param {boolean} usesNetworkMode - Whether container uses network mode (optional)
- * @param {boolean} providesNetwork - Whether container provides network (optional)
- * @param {Map<string, Object>} trackedAppsMap - Map of tracked apps (optional)
+ * @param {Object} params - Parameters object
+ * @param {Object} params.container - Container from Portainer API
+ * @param {Object} params.updateInfo - Update information from imageUpdateService
+ * @param {Object} params.instance - Portainer instance object
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} [params.stackName] - Stack name (optional)
+ * @param {string} [params.currentImageCreated] - Image creation date (optional)
+ * @param {boolean} [params.usesNetworkMode=false] - Whether container uses network mode (optional)
+ * @param {boolean} [params.providesNetwork=false] - Whether container provides network (optional)
+ * @param {Map<string, Object>} [params.trackedAppsMap] - Map of tracked apps (optional)
  * @returns {Object} - Formatted container object
  */
-function formatContainerFromPortainer(
+// eslint-disable-next-line max-lines-per-function, complexity -- Container formatting requires complex transformation logic
+function formatContainerFromPortainer({
   container,
   updateInfo,
   instance,
@@ -203,8 +221,8 @@ function formatContainerFromPortainer(
   currentImageCreated = null,
   usesNetworkMode = false,
   providesNetwork = false,
-  trackedAppsMap = null
-) {
+  trackedAppsMap = null,
+}) {
   // Determine update source type if tracked apps map is provided
   let updateSourceType = null;
   let updateGitHubRepo = null;
@@ -215,23 +233,24 @@ function formatContainerFromPortainer(
       updateInfo,
       trackedAppsMap,
       updateInfo.imageName || container.Image,
-      updateInfo.provider
+      updateInfo.provider,
     );
-    updateSourceType = sourceInfo.updateSourceType;
-    updateGitHubRepo = sourceInfo.updateGitHubRepo;
-    updateGitLabRepo = sourceInfo.updateGitLabRepo;
+    const { updateSourceType: sourceType, updateGitHubRepo: githubRepo, updateGitLabRepo: gitlabRepo } = sourceInfo;
+    updateSourceType = sourceType;
+    updateGitHubRepo = githubRepo;
+    updateGitLabRepo = gitlabRepo;
   }
 
-  return {
+  // Build container object first, then compute hasUpdate
+  const containerObj = {
     id: container.Id,
     name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
     image: updateInfo?.imageName || container.Image || "unknown",
     status: container.Status,
     state: container.State,
-    endpointId: endpointId,
-    portainerUrl: portainerUrl,
+    endpointId,
+    portainerUrl,
     portainerName: instance ? instance.name : null,
-    hasUpdate: updateInfo?.hasUpdate || false,
     currentTag: updateInfo?.currentTag || null,
     currentVersion: updateInfo?.currentVersion || null,
     currentDigest: updateInfo?.currentDigest || null,
@@ -242,19 +261,24 @@ function formatContainerFromPortainer(
     latestDigestFull: updateInfo?.latestDigestFull || null,
     latestPublishDate: updateInfo?.latestPublishDate || null,
     currentVersionPublishDate: updateInfo?.currentVersionPublishDate || null,
-    currentImageCreated: currentImageCreated,
+    currentImageCreated,
     imageRepo: updateInfo?.imageRepo || null,
-    stackName: stackName,
+    stackName,
     existsInDockerHub: updateInfo?.existsInDockerHub || false,
     usesNetworkMode: usesNetworkMode || false,
     providesNetwork: providesNetwork || false,
     provider: updateInfo?.provider || null,
-    updateSourceType: updateSourceType,
-    updateGitHubRepo: updateGitHubRepo,
-    updateGitLabRepo: updateGitLabRepo,
+    updateSourceType,
+    updateGitHubRepo,
+    updateGitLabRepo,
     noDigest: updateInfo?.noDigest || false,
     lastChecked: updateInfo?.lastChecked || null,
   };
+
+  // Compute hasUpdate on-the-fly from digests
+  containerObj.hasUpdate = computeHasUpdate(containerObj);
+
+  return containerObj;
 }
 
 module.exports = {

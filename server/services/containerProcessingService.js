@@ -16,17 +16,19 @@ const dockerRegistryService = require("./dockerRegistryService");
 
 /**
  * Process a single container from Portainer
- * @param {Object} container - Container object from Portainer API
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {Object} instance - Portainer instance object
- * @param {string} instanceName - Instance name
- * @param {Object} containerNetworkModes - Network mode relationships
- * @param {number} userId - User ID (optional)
- * @param {Map<string, Object>} trackedAppsMap - Map of tracked apps (optional)
+ * @param {Object} params - Parameters object
+ * @param {Object} params.container - Container object from Portainer API
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {Object} params.instance - Portainer instance object
+ * @param {string} params.instanceName - Instance name
+ * @param {Object} params.containerNetworkModes - Network mode relationships
+ * @param {number} [params.userId] - User ID (optional)
+ * @param {Map<string, Object>} [params.trackedAppsMap] - Map of tracked apps (optional)
  * @returns {Promise<Object>} - Formatted container data
  */
-async function processContainer(
+// eslint-disable-next-line max-lines-per-function, complexity -- Container processing requires comprehensive data handling
+async function processContainer({
   container,
   portainerUrl,
   endpointId,
@@ -34,13 +36,13 @@ async function processContainer(
   instanceName,
   containerNetworkModes,
   userId = null,
-  trackedAppsMap = null
-) {
+  trackedAppsMap = null,
+}) {
   try {
     const details = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      container.Id
+      container.Id,
     );
     const imageName = details.Config.Image;
 
@@ -50,7 +52,7 @@ async function processContainer(
       details,
       portainerUrl,
       endpointId,
-      userId
+      userId,
     );
 
     // Extract stack name from labels
@@ -64,7 +66,7 @@ async function processContainer(
     // Check if container provides network (other containers depend on it via network_mode)
     const providesNetwork = networkModeService.containerProvidesNetwork(
       container,
-      containerNetworkModes
+      containerNetworkModes,
     );
 
     // Get image creation date by inspecting the image
@@ -75,7 +77,7 @@ async function processContainer(
         const imageDetails = await portainerService.getImageDetails(
           portainerUrl,
           endpointId,
-          imageId
+          imageId,
         );
         if (imageDetails.Created) {
           currentImageCreated = imageDetails.Created;
@@ -87,27 +89,27 @@ async function processContainer(
     }
 
     // Format container data using formatting service
-    const containerData = containerFormattingService.formatContainerFromPortainer(
+    const containerData = containerFormattingService.formatContainerFromPortainer({
       container,
       updateInfo,
-      { name: instanceName, url: portainerUrl },
+      instance: { name: instanceName, url: portainerUrl },
       portainerUrl,
       endpointId,
       stackName,
       currentImageCreated,
       usesNetworkMode,
       providesNetwork,
-      trackedAppsMap
-    );
+      trackedAppsMap,
+    });
 
     // Save to normalized tables for persistence across restarts
     // Extract tag from imageName for persistence service
     const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
     const imageTag = imageParts[1];
 
-    await containerPersistenceService.saveContainerToDatabase(
+    await containerPersistenceService.saveContainerToDatabase({
       userId,
-      instance.id,
+      portainerInstanceId: instance.id,
       container,
       containerData,
       updateInfo,
@@ -117,8 +119,8 @@ async function processContainer(
       endpointId,
       currentImageCreated,
       usesNetworkMode,
-      providesNetwork
-    );
+      providesNetwork,
+    });
 
     return containerData;
   } catch (error) {
@@ -142,7 +144,7 @@ async function processContainer(
       const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
       const repo = imageParts[0];
       existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo, userId);
-    } catch (error) {
+    } catch (_error) {
       // Silently continue - assume false if check fails
       existsInDockerHub = false;
     }
@@ -153,8 +155,8 @@ async function processContainer(
       image: container.Image || "unknown",
       status: container.Status,
       state: container.State,
-      endpointId: endpointId,
-      portainerUrl: portainerUrl,
+      endpointId,
+      portainerUrl,
       portainerName: instanceName,
       hasUpdate: false,
       currentTag: null,
@@ -168,7 +170,7 @@ async function processContainer(
       latestPublishDate: null,
       imageRepo: null,
       stackName: null,
-      existsInDockerHub: existsInDockerHub,
+      existsInDockerHub,
     };
   }
 }
@@ -176,29 +178,31 @@ async function processContainer(
 /**
  * Process containers from a Portainer instance (without update checks)
  * Used by getContainersFromPortainer for basic container information
- * @param {Object} container - Container object from Portainer API
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {Object} instance - Portainer instance object
- * @param {string} instanceName - Instance name
- * @param {Object} containerNetworkModes - Network mode relationships
- * @param {number} userId - User ID (optional)
+ * @param {Object} params - Parameters object
+ * @param {Object} params.container - Container object from Portainer API
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {Object} params.instance - Portainer instance object
+ * @param {string} params.instanceName - Instance name
+ * @param {Object} params.containerNetworkModes - Network mode relationships
+ * @param {number} [params.userId] - User ID (optional)
  * @returns {Promise<Object>} - Formatted container data (without update info)
  */
-async function processContainerBasic(
+// eslint-disable-next-line max-lines-per-function, complexity -- Container processing requires comprehensive basic processing
+async function processContainerBasic({
   container,
   portainerUrl,
   endpointId,
   instance,
   instanceName,
   containerNetworkModes,
-  userId = null
-) {
+  userId = null,
+}) {
   try {
     const details = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      container.Id
+      container.Id,
     );
     const imageName = details.Config.Image;
     const imageId = details.Image || "";
@@ -210,7 +214,7 @@ async function processContainerBasic(
         details,
         imageName,
         portainerUrl,
-        endpointId
+        endpointId,
       );
     } catch (digestError) {
       // Fallback to extracting from Image field if getCurrentImageDigest fails
@@ -220,7 +224,7 @@ async function processContainerBasic(
         currentDigest = `sha256:${imageId}`;
       }
       logger.debug(
-        `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`
+        `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`,
       );
     }
 
@@ -247,7 +251,7 @@ async function processContainerBasic(
     // Check if container provides network
     const providesNetwork = networkModeService.containerProvidesNetwork(
       container,
-      containerNetworkModes
+      containerNetworkModes,
     );
 
     // Get image creation date
@@ -257,7 +261,7 @@ async function processContainerBasic(
         const imageDetails = await portainerService.getImageDetails(
           portainerUrl,
           endpointId,
-          imageId
+          imageId,
         );
         if (imageDetails.Created) {
           currentImageCreated = imageDetails.Created;
@@ -280,7 +284,7 @@ async function processContainerBasic(
       registry = parsed.registry;
       namespace = parsed.namespace;
       repository = parsed.repository;
-    } catch (parseError) {
+    } catch (_parseError) {
       // Fallback to simple split if parsing fails
       imageRepo = imageParts[0];
       registry = "docker.io";
@@ -302,18 +306,18 @@ async function processContainerBasic(
         await upsertContainer(userId, instance.id, {
           containerId: container.Id,
           containerName: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
-          endpointId: endpointId,
-          imageName: imageName,
-          imageRepo: imageRepo,
-          imageTag: imageTag,
+          endpointId,
+          imageName,
+          imageRepo,
+          imageTag,
           status: container.Status,
           state: container.State,
-          stackName: stackName,
+          stackName,
           currentDigest: currentDigest || null,
           imageCreatedDate: currentImageCreated || null,
-          registry: registry,
-          namespace: namespace,
-          repository: repository,
+          registry,
+          namespace,
+          repository,
           usesNetworkMode: usesNetworkMode || false,
           providesNetwork: providesNetwork || false,
         });
@@ -324,7 +328,7 @@ async function processContainerBasic(
             error: saveError,
             containerId: container.Id,
             instanceId: instance.id,
-          }
+          },
         );
       }
     }
@@ -335,11 +339,11 @@ async function processContainerBasic(
       image: imageName,
       status: container.Status,
       state: container.State,
-      endpointId: endpointId,
-      portainerUrl: portainerUrl,
+      endpointId,
+      portainerUrl,
       portainerName: instanceName,
       hasUpdate: false, // No registry check
-      currentDigest: currentDigest, // Full digest (sha256:...)
+      currentDigest, // Full digest (sha256:...)
       currentTag: imageTag,
       currentVersion: imageTag,
       latestTag: null,
@@ -349,9 +353,9 @@ async function processContainerBasic(
       latestDigestFull: null,
       latestPublishDate: null,
       currentVersionPublishDate: null,
-      currentImageCreated: currentImageCreated,
-      imageRepo: imageRepo,
-      stackName: stackName,
+      currentImageCreated,
+      imageRepo,
+      stackName,
       existsInDockerHub: false, // Unknown without registry check
       usesNetworkMode: usesNetworkMode || false,
       providesNetwork: providesNetwork || false,
@@ -368,8 +372,8 @@ async function processContainerBasic(
       image: container.Image || "unknown",
       status: container.Status,
       state: container.State,
-      endpointId: endpointId,
-      portainerUrl: portainerUrl,
+      endpointId,
+      portainerUrl,
       portainerName: instanceName,
       hasUpdate: false,
       currentTag: null,

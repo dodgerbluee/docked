@@ -2,11 +2,11 @@
  * Authentication Controller
  * Handles user authentication with database
  */
-
+/* eslint-disable max-lines -- Large controller file with comprehensive authentication logic */
 const axios = require("axios");
 const logger = require("../utils/logger");
 const { validateRequiredFields, isValidEmail } = require("../utils/validation");
-const { sendErrorResponse, sendValidationErrorResponse } = require("../utils/responseHelpers");
+// const { sendErrorResponse, sendValidationErrorResponse } = require("../utils/responseHelpers"); // Unused
 const {
   getUserByUsername,
   getUserById,
@@ -57,79 +57,106 @@ const fs = require("fs");
 const path = require("path");
 
 /**
+ * Validate registration input
+ * @param {string} username - Username to validate
+ * @param {string} password - Password to validate
+ * @param {string} confirmPassword - Password confirmation
+ * @param {string} email - Email to validate (optional)
+ * @returns {Object|null} Error object or null if valid
+ */
+function validateRegistrationInput(username, password, confirmPassword, email) {
+  const validationError = validateRequiredFields({ username, password }, [
+    "username",
+    "password",
+  ]);
+  if (validationError) {
+    return validationError;
+  }
+
+  if (password !== confirmPassword) {
+    return {
+      success: false,
+      error: "Passwords do not match",
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      success: false,
+      error: "Password must be at least 8 characters long",
+    };
+  }
+
+  if (username.length < 3) {
+    return {
+      success: false,
+      error: "Username must be at least 3 characters long",
+    };
+  }
+
+  if (email && email.trim() !== "") {
+    if (!isValidEmail(email.trim())) {
+      return {
+        success: false,
+        error: "Invalid email format",
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate registration code for first user
+ * @param {boolean} isFirstUser - Whether this is the first user
+ * @param {string} registrationCode - Registration code to validate
+ * @returns {Object|null} Error object or null if valid
+ */
+function validateRegistrationCodeForFirstUser(isFirstUser, registrationCode) {
+  if (!isFirstUser) {
+    return null;
+  }
+
+  if (!registrationCode) {
+    return {
+      success: false,
+      error: "Registration code is required for the first user",
+    };
+  }
+
+  if (!validateRegistrationCode(registrationCode)) {
+    return {
+      success: false,
+      error: "Invalid registration code",
+    };
+  }
+
+  return null;
+}
+
+/**
  * Register endpoint
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+
 async function register(req, res, next) {
   try {
     const { username, password, confirmPassword, email, registrationCode } = req.body;
 
-    // Validate input
-    const validationError = validateRequiredFields({ username, password }, [
-      "username",
-      "password",
-    ]);
-    if (validationError) {
-      return res.status(400).json(validationError);
+    const inputError = validateRegistrationInput(username, password, confirmPassword, email);
+    if (inputError) {
+      return res.status(400).json(inputError);
     }
 
-    // Check if this is the first user
     const isFirstUser = !(await hasAnyUsers());
 
-    // If this is the first user, require registration code
-    if (isFirstUser) {
-      if (!registrationCode) {
-        return res.status(400).json({
-          success: false,
-          error: "Registration code is required for the first user",
-        });
-      }
-
-      if (!validateRegistrationCode(registrationCode)) {
-        return res.status(401).json({
-          success: false,
-          error: "Invalid registration code",
-        });
-      }
+    const codeError = validateRegistrationCodeForFirstUser(isFirstUser, registrationCode);
+    if (codeError) {
+      return res.status(codeError.error === "Invalid registration code" ? 401 : 400).json(codeError);
     }
 
-    // Validate password confirmation
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        error: "Passwords do not match",
-      });
-    }
-
-    // Validate password length
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: "Password must be at least 8 characters long",
-      });
-    }
-
-    // Validate username length
-    if (username.length < 3) {
-      return res.status(400).json({
-        success: false,
-        error: "Username must be at least 3 characters long",
-      });
-    }
-
-    // Validate email format if provided
-    if (email && email.trim() !== "") {
-      if (!isValidEmail(email.trim())) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid email format",
-        });
-      }
-    }
-
-    // Check if user already exists
     const existingUser = await getUserByUsername(username);
     if (existingUser) {
       return res.status(400).json({
@@ -138,21 +165,19 @@ async function register(req, res, next) {
       });
     }
 
-    // Create new user - mark as instance_admin if first user
     await createUser(
       username,
       password,
       email || null,
       "Administrator",
-      isFirstUser // instance_admin = true for first user
+      isFirstUser,
     );
 
-    // Clear registration code after first user is created
     if (isFirstUser) {
       clearRegistrationCode();
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "User created successfully",
     });
@@ -173,18 +198,19 @@ async function register(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+
 async function checkRegistrationCodeRequired(req, res, next) {
   try {
     const hasUsers = await hasAnyUsers();
     const codeActive = isRegistrationCodeActive();
 
-    res.json({
+    return res.json({
       success: true,
       requiresCode: !hasUsers,
       codeActive,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
@@ -210,7 +236,7 @@ async function generateRegistrationCodeEndpoint(req, res, next) {
     const { initializeRegistrationCode } = require("../utils/registrationCode");
     initializeRegistrationCode();
 
-    res.json({
+    return res.json({
       success: true,
       message: "Registration code generated and logged to container logs",
     });
@@ -226,12 +252,12 @@ async function generateRegistrationCodeEndpoint(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function verifyRegistrationCode(req, res, next) {
+function verifyRegistrationCode(req, res, next) {
   try {
     const { registrationCode } = req.body;
 
     logger.info("[authController] verifyRegistrationCode called", {
-      hasCode: !!registrationCode,
+      hasCode: Boolean(registrationCode),
       codeLength: registrationCode?.length,
     });
 
@@ -243,8 +269,8 @@ async function verifyRegistrationCode(req, res, next) {
       });
     }
 
-    const { isRegistrationCodeActive } = require("../utils/registrationCode");
-    const codeActive = isRegistrationCodeActive();
+    const { isRegistrationCodeActive: isRegistrationCodeActiveLocal } = require("../utils/registrationCode");
+    const codeActive = isRegistrationCodeActiveLocal();
     logger.info("[authController] Registration code status", { codeActive });
 
     if (!codeActive) {
@@ -260,17 +286,16 @@ async function verifyRegistrationCode(req, res, next) {
 
     if (isValid) {
       logger.info("[authController] Registration code verified successfully");
-      res.json({
+      return res.json({
         success: true,
         message: "Registration code is valid",
       });
-    } else {
-      logger.warn("[authController] Invalid registration code provided");
-      res.status(401).json({
-        success: false,
-        error: "Invalid registration code",
-      });
     }
+    logger.warn("[authController] Invalid registration code provided");
+    return res.status(401).json({
+      success: false,
+      error: "Invalid registration code",
+    });
   } catch (error) {
     logger.error("[authController] Error verifying registration code:", error);
     next(error);
@@ -283,6 +308,7 @@ async function verifyRegistrationCode(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex login logic with validation
 async function login(req, res, next) {
   try {
     const { username, password } = req.body;
@@ -336,7 +362,7 @@ async function login(req, res, next) {
       logger.warn("Failed to update last login timestamp:", { error: err });
     }
 
-    res.json({
+    return res.json({
       success: true,
       token,
       refreshToken,
@@ -355,6 +381,7 @@ async function login(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex token verification logic
 async function verifyToken(req, res, next) {
   try {
     const token = req.headers.authorization?.replace("Bearer ", "");
@@ -371,8 +398,8 @@ async function verifyToken(req, res, next) {
       const decoded = verifyJWT(token);
 
       // Verify user still exists
-      const { getUserById } = require("../db/index");
-      const user = await getUserById(decoded.userId);
+      const { getUserById: getUserByIdLocal } = require("../db/index");
+      const user = await getUserByIdLocal(decoded.userId);
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -380,22 +407,22 @@ async function verifyToken(req, res, next) {
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         username: user.username,
         role: user.role,
         instanceAdmin: user.instance_admin === 1,
       });
-    } catch (jwtError) {
+    } catch (_jwtError) {
       // Try legacy token format for backward compatibility
       try {
         const decoded = Buffer.from(token, "base64").toString("utf-8");
         const parts = decoded.split(":");
-        const userId = parseInt(parts[0]);
+        const userId = parseInt(parts[0], 10);
         const username = parts[1];
 
-        const { getUserById } = require("../db/index");
-        const user = await getUserById(userId);
+        const { getUserById: getUserByIdLocal } = require("../db/index");
+        const user = await getUserByIdLocal(userId);
         if (!user) {
           const userByUsername = await getUserByUsername(username);
           if (!userByUsername) {
@@ -412,13 +439,13 @@ async function verifyToken(req, res, next) {
           });
         }
 
-        res.json({
+        return res.json({
           success: true,
           username: user.username,
           role: user.role,
           instanceAdmin: user.instance_admin === 1,
         });
-      } catch (legacyError) {
+      } catch (_legacyError) {
         return res.status(401).json({
           success: false,
           error: "Invalid token",
@@ -436,6 +463,7 @@ async function verifyToken(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex password update logic
 async function updateUserPassword(req, res, next) {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -491,7 +519,7 @@ async function updateUserPassword(req, res, next) {
     // Update password
     await updatePassword(username, newPassword);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Password updated successfully",
     });
@@ -525,7 +553,7 @@ async function getCurrentUser(req, res, next) {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       user: {
         username: user.username,
@@ -546,6 +574,7 @@ async function getCurrentUser(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex username update logic with validation
 async function updateUserUsername(req, res, next) {
   try {
     const { newUsername, password } = req.body;
@@ -617,19 +646,19 @@ async function updateUserUsername(req, res, next) {
 
     // Generate new JWT token with updated username but same user ID
     // This ensures authentication continues to work after username change
-    const { generateToken, generateRefreshToken } = require("../utils/jwt");
-    const newToken = generateToken({
-      userId: userId,
+    const { generateToken: generateTokenLocal, generateRefreshToken: generateRefreshTokenLocal } = require("../utils/jwt");
+    const newToken = generateTokenLocal({
+      userId,
       username: newUsername.trim(),
       role: user.role,
     });
-    const newRefreshToken = generateRefreshToken({
-      userId: userId,
+    const newRefreshToken = generateRefreshTokenLocal({
+      userId,
       username: newUsername.trim(),
       role: user.role,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: "Username updated successfully",
       newUsername: newUsername.trim(),
@@ -666,11 +695,11 @@ async function getDockerHubCreds(req, res, next) {
     }
 
     // Return username but mask token for security
-    res.json({
+    return res.json({
       success: true,
       credentials: {
         username: credentials.username,
-        hasToken: !!credentials.token,
+        hasToken: Boolean(credentials.token),
         updated_at: credentials.updated_at,
       },
     });
@@ -712,7 +741,7 @@ async function validateDockerHubCreds(req, res, next) {
         scope: "repository:library/alpine:pull", // Use a public repo for validation
       };
 
-      const response = await axios.get(authUrl, {
+      const _response = await axios.get(authUrl, {
         params,
         auth: {
           username: username.trim(),
@@ -722,7 +751,7 @@ async function validateDockerHubCreds(req, res, next) {
       });
 
       // If we get here, authentication succeeded
-      res.json({
+      return res.json({
         success: true,
         message: "Docker Hub credentials validated successfully",
       });
@@ -751,6 +780,7 @@ async function validateDockerHubCreds(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line complexity -- Complex credential update logic
 async function updateDockerHubCreds(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -791,7 +821,7 @@ async function updateDockerHubCreds(req, res, next) {
     // Clear cache so new credentials are used immediately
     clearCache();
 
-    res.json({
+    return res.json({
       success: true,
       message: "Docker Hub credentials updated successfully",
     });
@@ -820,7 +850,7 @@ async function deleteDockerHubCreds(req, res, next) {
     // Clear cache so credentials are removed immediately
     clearCache();
 
-    res.json({
+    return res.json({
       success: true,
       message: "Docker Hub credentials deleted successfully",
     });
@@ -835,7 +865,7 @@ async function deleteDockerHubCreds(req, res, next) {
  * @param {number} userId - User ID
  * @param {string} oldUsername - Old username (for finding avatar directory)
  */
-async function migrateAvatarFromUsername(userId, oldUsername) {
+function migrateAvatarFromUsername(userId, oldUsername) {
   try {
     const DATA_DIR = process.env.DATA_DIR || "/data";
     const AVATARS_DIR = path.join(DATA_DIR, "avatars");
@@ -870,7 +900,7 @@ async function migrateAvatarFromUsername(userId, oldUsername) {
 
       // Copy all recent avatar files
       const recentFiles = fs.readdirSync(oldRecentDir);
-      recentFiles.forEach((file) => {
+      recentFiles.forEach(file => {
         const oldFilePath = path.join(oldRecentDir, file);
         const newFilePath = path.join(newRecentDir, file);
         if (fs.statSync(oldFilePath).isFile() && file.endsWith(".jpg")) {
@@ -879,12 +909,10 @@ async function migrateAvatarFromUsername(userId, oldUsername) {
       });
     }
 
-    const logger = require("../utils/logger");
     logger.info(
-      `Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`
+      `Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`,
     );
   } catch (err) {
-    const logger = require("../utils/logger");
     logger.error("Error migrating avatar during username update:", err);
     // Don't throw - migration failure shouldn't break username update
   }
@@ -896,6 +924,7 @@ async function migrateAvatarFromUsername(userId, oldUsername) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex export logic with multiple data sources
 async function exportUserConfig(req, res, next) {
   try {
     const username = req.user?.username;
@@ -946,7 +975,7 @@ async function exportUserConfig(req, res, next) {
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
-      portainerInstances: portainerInstances.map((instance) => ({
+      portainerInstances: portainerInstances.map(instance => ({
         id: instance.id,
         name: instance.name,
         url: instance.url,
@@ -958,12 +987,12 @@ async function exportUserConfig(req, res, next) {
       })),
       dockerHubCredentials: dockerHubCreds
         ? {
-            username: dockerHubCreds.username,
-            created_at: dockerHubCreds.created_at,
-            updated_at: dockerHubCreds.updated_at,
-          }
+          username: dockerHubCreds.username,
+          created_at: dockerHubCreds.created_at,
+          updated_at: dockerHubCreds.updated_at,
+        }
         : null,
-      discordWebhooks: discordWebhooks.map((webhook) => ({
+      discordWebhooks: discordWebhooks.map(webhook => ({
         id: webhook.id,
         server_name: webhook.server_name,
         channel_name: webhook.channel_name,
@@ -975,7 +1004,7 @@ async function exportUserConfig(req, res, next) {
         created_at: webhook.created_at,
         updated_at: webhook.updated_at,
       })),
-      trackedApps: trackedApps.map((image) => ({
+      trackedApps: trackedApps.map(image => ({
         id: image.id,
         name: image.name,
         image_name: image.image_name,
@@ -996,11 +1025,11 @@ async function exportUserConfig(req, res, next) {
         logLevel: logLevel || "info",
         refreshingTogglesEnabled:
           refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
-        batchConfig: batchConfig,
+        batchConfig,
       },
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: exportData,
     });
@@ -1010,11 +1039,302 @@ async function exportUserConfig(req, res, next) {
 }
 
 /**
+ * Build update data object from image config
+ * @param {Object} image - Image configuration object
+ * @returns {Object} Update data object
+ */
+function buildTrackedAppUpdateData(image) {
+  const updateData = {};
+
+  if (image.current_version !== undefined) {
+    updateData.current_version = image.current_version;
+  }
+  if (image.current_digest !== undefined) {
+    updateData.current_digest = image.current_digest;
+  }
+  if (image.latest_version !== undefined) {
+    updateData.latest_version = image.latest_version;
+  }
+  if (image.latest_digest !== undefined) {
+    updateData.latest_digest = image.latest_digest;
+  }
+  if (image.has_update !== undefined) {
+    updateData.has_update = image.has_update;
+  }
+  if (image.current_version_publish_date !== undefined) {
+    updateData.current_version_publish_date = image.current_version_publish_date;
+  }
+  if (image.last_checked !== undefined) {
+    updateData.last_checked = image.last_checked;
+  }
+
+  return updateData;
+}
+
+/**
+ * Import Portainer instances from config
+ * @param {Array} instances - Portainer instances to import
+ * @param {Object} credentials - Credentials object
+ * @param {Object} results - Results object to update
+ * @param {number} userId - User ID
+ * @returns {Promise<void>}
+ */
+// eslint-disable-next-line complexity -- Portainer instance import requires multiple conditional checks
+async function importPortainerInstances(instances, credentials, results, userId) {
+  const { resolveUrlToIp } = require("../utils/dnsResolver");
+
+  for (const instance of instances) {
+    try {
+      const instanceCreds = credentials?.portainerInstances?.find(c => c.url === instance.url);
+
+      if (!instanceCreds) {
+        results.errors.push(
+          `Portainer instance "${instance.name}" (${instance.url}): Missing credentials`,
+        );
+        continue;
+      }
+
+      const ipAddress = await resolveUrlToIp(instance.url);
+      const id = await createPortainerInstance({
+        userId,
+        name: instance.name,
+        url: instance.url,
+        username: instance.auth_type === "password" ? instanceCreds.username || "" : "",
+        password: instance.auth_type === "password" ? instanceCreds.password || "" : "",
+        apiKey: instance.auth_type === "apikey" ? instanceCreds.apiKey || null : null,
+        authType: instance.auth_type || "apikey",
+        ipAddress,
+      });
+
+      results.portainerInstances.push({ id, name: instance.name });
+    } catch (error) {
+      results.errors.push(
+        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Import Docker Hub credentials from config
+ * @param {Object} user - User object
+ * @param {Object} credentials - Credentials object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+async function importDockerHubCredentials(user, credentials, results) {
+  try {
+    await updateDockerHubCredentials(
+      user.id,
+      credentials.dockerHub.username,
+      credentials.dockerHub.token,
+    );
+    results.dockerHubCredentials = { username: credentials.dockerHub.username };
+  } catch (error) {
+    results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
+  }
+}
+
+/**
+ * Import Discord webhooks from config
+ * @param {Array} webhooks - Discord webhooks to import
+ * @param {Object} credentials - Credentials object
+ * @param {Object} user - User object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+// eslint-disable-next-line complexity -- Discord webhook import requires multiple conditional checks
+async function importDiscordWebhooks(webhooks, credentials, user, results) {
+  for (const webhook of webhooks) {
+    try {
+      const webhookCreds = credentials?.discordWebhooks?.find(c => c.id === webhook.id);
+      if (!webhookCreds || !webhookCreds.webhookUrl) {
+        results.errors.push(
+          `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`,
+        );
+        continue;
+      }
+
+      const id = await createDiscordWebhook({
+        userId: user.id,
+        webhookUrl: webhookCreds.webhookUrl,
+        serverName: webhook.server_name,
+        channelName: webhook.channel_name,
+        enabled: webhook.enabled !== undefined ? webhook.enabled : true,
+        name: webhook.name || "Docked",
+        avatarUrl: webhook.avatar_url,
+        guildId: webhook.guild_id,
+        channelId: webhook.channel_id,
+      });
+
+      results.discordWebhooks.push({ id, serverName: webhook.server_name });
+    } catch (error) {
+      results.errors.push(
+        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Import tracked apps from config
+ * @param {Array} apps - Tracked apps to import
+ * @param {Object} user - User object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+async function importTrackedApps(apps, user, results) {
+  for (const image of apps) {
+    try {
+      const id = await createTrackedApp({
+        userId: user.id,
+        name: image.name,
+        imageName: image.image_name,
+        githubRepo: image.github_repo,
+        sourceType: image.source_type || "docker",
+        gitlabToken: image.gitlab_token || null,
+      });
+
+      const updateData = buildTrackedAppUpdateData(image);
+      if (Object.keys(updateData).length > 0) {
+        await updateTrackedApp(id, user.id, updateData);
+      }
+
+      results.trackedApps.push({ id, name: image.name });
+    } catch (error) {
+      results.errors.push(
+        `Tracked image "${image.name}": ${error.message || "Failed to import"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Import Portainer instances by index (for user creation)
+ * @param {Array} instances - Portainer instances to import
+ * @param {Array} instanceCredsArray - Credentials array matching by index
+ * @param {Object} user - User object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+// eslint-disable-next-line complexity -- Portainer instance import requires multiple conditional checks
+async function importPortainerInstancesByIndex(instances, instanceCredsArray, user, results) {
+  const { resolveUrlToIp } = require("../utils/dnsResolver");
+
+  for (let i = 0; i < instances.length; i++) {
+    const instance = instances[i];
+    const instanceCreds = instanceCredsArray[i];
+
+
+    if (!instanceCreds) {
+      results.errors.push(`Portainer instance "${instance.name}": Missing credentials`);
+      continue;
+    }
+
+    try {
+      const ipAddress = await resolveUrlToIp(instance.url);
+
+      const id = await createPortainerInstance({
+        userId: user.id,
+        name: instance.name,
+        url: instance.url,
+        username: instance.auth_type === "password" ? instanceCreds.username || "" : "",
+        password: instance.auth_type === "password" ? instanceCreds.password || "" : "",
+        apiKey: instance.auth_type === "apikey" ? instanceCreds.apiKey || null : null,
+        authType: instance.auth_type || "apikey",
+        ipAddress,
+      });
+
+      results.portainerInstances.push({ id, name: instance.name });
+    } catch (error) {
+      results.errors.push(
+        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Import Discord webhooks by index (for user creation)
+ * @param {Array} webhooks - Discord webhooks to import
+ * @param {Array} webhookCredsArray - Credentials array matching by index
+ * @param {Object} user - User object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+async function importDiscordWebhooksByIndex(webhooks, webhookCredsArray, user, results) {
+  for (let i = 0; i < webhooks.length; i++) {
+    const webhook = webhooks[i];
+    const webhookCreds = webhookCredsArray[i];
+
+    if (!webhookCreds || !webhookCreds.webhookUrl) {
+      results.errors.push(
+        `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`,
+      );
+      continue;
+    }
+
+    try {
+      const id = await createDiscordWebhook({
+        userId: user.id,
+        webhookUrl: webhookCreds.webhookUrl,
+        serverName: webhook.server_name,
+        channelName: webhook.channel_name,
+        enabled: webhook.enabled !== undefined ? webhook.enabled : true,
+        name: webhook.name || "Docked",
+        avatarUrl: webhook.avatar_url,
+        guildId: webhook.guild_id,
+        channelId: webhook.channel_id,
+      });
+
+      results.discordWebhooks.push({ id, serverName: webhook.server_name });
+    } catch (error) {
+      results.errors.push(
+        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Import general settings from config
+ * @param {Object} generalSettings - General settings object
+ * @param {Object} user - User object
+ * @param {Object} results - Results object to update
+ * @returns {Promise<void>}
+ */
+async function importGeneralSettings(generalSettings, user, results) {
+  const { colorScheme, logLevel, refreshingTogglesEnabled, batchConfig } = generalSettings;
+
+  if (colorScheme) {
+    await setSetting("color_scheme", colorScheme, user.id);
+  }
+  if (logLevel) {
+    await setSystemSetting("log_level", logLevel);
+  }
+  if (refreshingTogglesEnabled !== undefined) {
+    await setSetting(
+      "refreshing_toggles_enabled",
+      refreshingTogglesEnabled.toString(),
+      user.id,
+    );
+  }
+  if (batchConfig) {
+    for (const [jobType, config] of Object.entries(batchConfig)) {
+      await updateBatchConfig(user.id, jobType, config.enabled, config.intervalMinutes);
+    }
+  }
+
+  results.generalSettings = { imported: true };
+}
+
+/**
  * Import user configuration from JSON
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex import logic with validation and error handling
 async function importUserConfig(req, res, next) {
   try {
     const username = req.user?.username;
@@ -1037,6 +1357,7 @@ async function importUserConfig(req, res, next) {
     // Check if user already exists (from imported config)
     if (configData.user) {
       const existingUser = await getUserByUsername(configData.user.username);
+
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -1054,49 +1375,6 @@ async function importUserConfig(req, res, next) {
       errors: [],
     };
 
-    // Import Portainer instances (skip if in skippedSteps)
-    if (
-      configData.portainerInstances &&
-      Array.isArray(configData.portainerInstances) &&
-      !skippedSteps.includes("portainer")
-    ) {
-      for (const instance of configData.portainerInstances) {
-        try {
-          // Get credentials for this instance from the credentials object
-          const instanceCreds = credentials?.portainerInstances?.find(
-            (c) => c.url === instance.url
-          );
-
-          if (!instanceCreds) {
-            results.errors.push(
-              `Portainer instance "${instance.name}" (${instance.url}): Missing credentials`
-            );
-            continue;
-          }
-
-          const { resolveUrlToIp } = require("../utils/dnsResolver");
-          const ipAddress = await resolveUrlToIp(instance.url);
-
-          const id = await createPortainerInstance(
-            instance.name,
-            instance.url,
-            instance.auth_type === "password" ? instanceCreds.username || "" : "",
-            instance.auth_type === "password" ? instanceCreds.password || "" : "",
-            instance.auth_type === "apikey" ? instanceCreds.apiKey || null : null,
-            instance.auth_type || "apikey",
-            ipAddress
-          );
-
-          results.portainerInstances.push({ id, name: instance.name });
-        } catch (error) {
-          results.errors.push(
-            `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`
-          );
-        }
-      }
-    }
-
-    // Get the current user for importing webhooks and other user-specific data
     const user = await getUserByUsername(username);
     if (!user) {
       return res.status(404).json({
@@ -1105,148 +1383,43 @@ async function importUserConfig(req, res, next) {
       });
     }
 
-    // Import Docker Hub credentials (skip if in skippedSteps)
+    if (
+      configData.portainerInstances &&
+      Array.isArray(configData.portainerInstances) &&
+      !skippedSteps.includes("portainer")
+    ) {
+      await importPortainerInstances(configData.portainerInstances, credentials, results, user.id);
+    }
+
     if (
       configData.dockerHubCredentials &&
       credentials?.dockerHub &&
       !skippedSteps.includes("dockerhub")
     ) {
-      try {
-        await updateDockerHubCredentials(
-          user.id,
-          credentials.dockerHub.username,
-          credentials.dockerHub.token
-        );
-        results.dockerHubCredentials = { username: credentials.dockerHub.username };
-      } catch (error) {
-        results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
-      }
+      await importDockerHubCredentials(user, credentials, results);
     }
 
-    // Import Discord webhooks (skip if in skippedSteps)
     if (
       configData.discordWebhooks &&
       Array.isArray(configData.discordWebhooks) &&
       !skippedSteps.includes("discord")
     ) {
-      for (const webhook of configData.discordWebhooks) {
-        try {
-          // Get webhook URL from credentials
-          const webhookCreds = credentials?.discordWebhooks?.find((c) => c.id === webhook.id);
-
-          if (!webhookCreds || !webhookCreds.webhookUrl) {
-            results.errors.push(
-              `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`
-            );
-            continue;
-          }
-
-          const id = await createDiscordWebhook(
-            user.id,
-            webhookCreds.webhookUrl,
-            webhook.server_name,
-            webhook.channel_name,
-            webhook.enabled !== undefined ? webhook.enabled : true,
-            webhook.avatar_url,
-            webhook.guild_id,
-            webhook.channel_id,
-            webhook.name || "Docked"
-          );
-
-          results.discordWebhooks.push({ id, serverName: webhook.server_name });
-        } catch (error) {
-          results.errors.push(
-            `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`
-          );
-        }
-      }
+      await importDiscordWebhooks(configData.discordWebhooks, credentials, user, results);
     }
 
-    // Import tracked images
     if (configData.trackedApps && Array.isArray(configData.trackedApps)) {
-      for (const image of configData.trackedApps) {
-        try {
-          const id = await createTrackedApp(
-            user.id,
-            image.name,
-            image.image_name,
-            image.github_repo,
-            image.source_type || "docker",
-            image.gitlab_token || null
-          );
-
-          // Update with version-related fields if they exist
-          const updateData = {};
-          if (image.current_version !== undefined) {
-            updateData.current_version = image.current_version;
-          }
-          if (image.current_digest !== undefined) {
-            updateData.current_digest = image.current_digest;
-          }
-          if (image.latest_version !== undefined) {
-            updateData.latest_version = image.latest_version;
-          }
-          if (image.latest_digest !== undefined) {
-            updateData.latest_digest = image.latest_digest;
-          }
-          if (image.has_update !== undefined) {
-            updateData.has_update = image.has_update;
-          }
-          if (image.current_version_publish_date !== undefined) {
-            updateData.current_version_publish_date = image.current_version_publish_date;
-          }
-          if (image.last_checked !== undefined) {
-            updateData.last_checked = image.last_checked;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            await updateTrackedApp(id, user.id, updateData);
-          }
-
-          results.trackedApps.push({ id, name: image.name });
-        } catch (error) {
-          results.errors.push(
-            `Tracked image "${image.name}": ${error.message || "Failed to import"}`
-          );
-        }
-      }
+      await importTrackedApps(configData.trackedApps, user, results);
     }
 
-    // Import general settings
     if (configData.generalSettings) {
       try {
-        const { colorScheme, logLevel, refreshingTogglesEnabled, batchConfig } =
-          configData.generalSettings;
-
-        if (colorScheme) {
-          await setSetting("color_scheme", colorScheme, user.id);
-        }
-
-        if (logLevel) {
-          await setSystemSetting("log_level", logLevel);
-        }
-
-        if (refreshingTogglesEnabled !== undefined) {
-          await setSetting(
-            "refreshing_toggles_enabled",
-            refreshingTogglesEnabled.toString(),
-            user.id
-          );
-        }
-
-        if (batchConfig) {
-          for (const [jobType, config] of Object.entries(batchConfig)) {
-            await updateBatchConfig(user.id, jobType, config.enabled, config.intervalMinutes);
-          }
-        }
-
-        results.generalSettings = { imported: true };
+        await importGeneralSettings(configData.generalSettings, user, results);
       } catch (error) {
         results.errors.push(`General settings: ${error.message || "Failed to import"}`);
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Configuration imported successfully",
       results,
@@ -1262,6 +1435,7 @@ async function importUserConfig(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex user import logic with validation
 async function importUsers(req, res, next) {
   try {
     const { users } = req.body;
@@ -1302,7 +1476,7 @@ async function importUsers(req, res, next) {
         }
         if (!password) {
           results.errors.push(
-            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`
+            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`,
           );
           continue;
         }
@@ -1320,11 +1494,11 @@ async function importUsers(req, res, next) {
         }
 
         // Validate email format if provided
-        if (email && email.trim() !== "") {
-          if (!isValidEmail(email.trim())) {
-            results.errors.push(`Invalid email format for "${username}"`);
-            continue;
-          }
+        const hasEmail = email && email.trim() !== "";
+        const emailIsInvalid = hasEmail && !isValidEmail(email.trim());
+        if (emailIsInvalid) {
+          results.errors.push(`Invalid email format for "${username}"`);
+          continue;
         }
 
         // Check if user already exists
@@ -1367,16 +1541,16 @@ async function importUsers(req, res, next) {
         }
       } catch (error) {
         results.errors.push(
-          `Error importing user "${userData.username || "unknown"}": ${error.message}`
+          `Error importing user "${userData.username || "unknown"}": ${error.message}`,
         );
       }
     }
 
     logger.info(
-      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`
+      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`,
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: `Imported ${results.imported.length} user(s)`,
       results,
@@ -1393,7 +1567,7 @@ async function importUsers(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function generateInstanceAdminToken(req, res, next) {
+function generateInstanceAdminToken(req, res, next) {
   try {
     const { username } = req.body;
 
@@ -1413,7 +1587,7 @@ async function generateInstanceAdminToken(req, res, next) {
     // Store token temporarily (for users that don't exist yet during import)
     storePendingToken(username, verificationToken);
 
-    res.json({
+    return res.json({
       success: true,
       token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
       message: "Verification token generated and logged to server logs",
@@ -1468,7 +1642,7 @@ async function regenerateInstanceAdminToken(req, res, next) {
     // Log the token
     logVerificationToken(username, verificationToken);
 
-    res.json({
+    return res.json({
       success: true,
       token: verificationToken, // Return token temporarily for import flow (will be passed back when creating user)
       message: "Verification token regenerated and logged to server logs",
@@ -1508,16 +1682,15 @@ async function verifyInstanceAdminToken(req, res, next) {
     const isValid = await verifyAndClearToken(username, token);
 
     if (isValid) {
-      res.json({
+      return res.json({
         success: true,
         message: "Token verified successfully",
       });
-    } else {
-      res.status(401).json({
-        success: false,
-        error: "Invalid token",
-      });
     }
+    return res.status(401).json({
+      success: false,
+      error: "Invalid token",
+    });
   } catch (error) {
     next(error);
   }
@@ -1530,9 +1703,11 @@ async function verifyInstanceAdminToken(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex user creation with config import
 async function createUserWithConfig(req, res, next) {
   try {
     const { userData, configData, credentials, skippedSteps = [], verificationToken } = req.body;
+
 
     if (!userData || !userData.username || !userData.password) {
       return res.status(400).json({
@@ -1582,7 +1757,7 @@ async function createUserWithConfig(req, res, next) {
 
     // Generate verification token if instance admin (unless one was provided)
     let finalVerificationToken = verificationToken;
-    const tokenWasProvided = !!verificationToken;
+    const tokenWasProvided = Boolean(verificationToken);
     if (instanceAdmin && !finalVerificationToken) {
       finalVerificationToken = generateVerificationToken();
     }
@@ -1593,10 +1768,11 @@ async function createUserWithConfig(req, res, next) {
       password,
       email || null,
       role || "Administrator",
-      instanceAdmin || false
+      instanceAdmin || false,
     );
 
     // Set verification token if provided (for instance admins)
+
     if (finalVerificationToken) {
       await updateVerificationToken(username, finalVerificationToken);
     }
@@ -1628,195 +1804,62 @@ async function createUserWithConfig(req, res, next) {
       errors: [],
     };
 
+
     if (configData && credentials) {
-      // Import Portainer instances
       if (
         configData.portainerInstances &&
         Array.isArray(configData.portainerInstances) &&
         !skippedSteps.includes("portainer") &&
         credentials.portainerInstances
       ) {
-        for (let i = 0; i < configData.portainerInstances.length; i++) {
-          const instance = configData.portainerInstances[i];
-          const instanceCreds = credentials.portainerInstances[i];
-
-          if (!instanceCreds) {
-            results.errors.push(`Portainer instance "${instance.name}": Missing credentials`);
-            continue;
-          }
-
-          try {
-            const { resolveUrlToIp } = require("../utils/dnsResolver");
-            const ipAddress = await resolveUrlToIp(instance.url);
-
-            const id = await createPortainerInstance(
-              user.id,
-              instance.name,
-              instance.url,
-              instance.auth_type === "password" ? instanceCreds.username || "" : "",
-              instance.auth_type === "password" ? instanceCreds.password || "" : "",
-              instance.auth_type === "apikey" ? instanceCreds.apiKey || null : null,
-              instance.auth_type || "apikey",
-              ipAddress
-            );
-
-            results.portainerInstances.push({ id, name: instance.name });
-          } catch (error) {
-            results.errors.push(
-              `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`
-            );
-          }
-        }
+        await importPortainerInstancesByIndex(
+          configData.portainerInstances,
+          credentials.portainerInstances,
+          user,
+          results,
+        );
       }
 
-      // Import Docker Hub credentials
+
       if (
         configData.dockerHubCredentials &&
         credentials.dockerHub &&
         !skippedSteps.includes("dockerhub")
       ) {
-        try {
-          await updateDockerHubCredentials(
-            user.id,
-            credentials.dockerHub.username,
-            credentials.dockerHub.token
-          );
-          results.dockerHubCredentials = { username: credentials.dockerHub.username };
-        } catch (error) {
-          results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
-        }
+        await importDockerHubCredentials(user, credentials, results);
       }
 
-      // Import Discord webhooks
+
       if (
         configData.discordWebhooks &&
         Array.isArray(configData.discordWebhooks) &&
         !skippedSteps.includes("discord") &&
         credentials.discordWebhooks
       ) {
-        for (let i = 0; i < configData.discordWebhooks.length; i++) {
-          const webhook = configData.discordWebhooks[i];
-          const webhookCreds = credentials.discordWebhooks[i];
-
-          if (!webhookCreds || !webhookCreds.webhookUrl) {
-            results.errors.push(
-              `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`
-            );
-            continue;
-          }
-
-          try {
-            const id = await createDiscordWebhook(
-              user.id,
-              webhookCreds.webhookUrl,
-              webhook.server_name,
-              webhook.channel_name,
-              webhook.enabled !== undefined ? webhook.enabled : true,
-              webhook.avatar_url,
-              webhook.guild_id,
-              webhook.channel_id,
-              webhook.name || "Docked"
-            );
-
-            results.discordWebhooks.push({ id, serverName: webhook.server_name });
-          } catch (error) {
-            results.errors.push(
-              `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`
-            );
-          }
-        }
+        await importDiscordWebhooksByIndex(
+          configData.discordWebhooks,
+          credentials.discordWebhooks,
+          user,
+          results,
+        );
       }
     }
 
-    // Import tracked images (no credentials needed, just config data)
-    // This can be done independently of credentials
+
     if (configData && configData.trackedApps && Array.isArray(configData.trackedApps)) {
-      for (const image of configData.trackedApps) {
-        try {
-          const id = await createTrackedApp(
-            user.id,
-            image.name,
-            image.image_name,
-            image.github_repo,
-            image.source_type || "docker",
-            image.gitlab_token || null
-          );
-
-          // Update with version-related fields if they exist
-          const updateData = {};
-          if (image.current_version !== undefined) {
-            updateData.current_version = image.current_version;
-          }
-          if (image.current_digest !== undefined) {
-            updateData.current_digest = image.current_digest;
-          }
-          if (image.latest_version !== undefined) {
-            updateData.latest_version = image.latest_version;
-          }
-          if (image.latest_digest !== undefined) {
-            updateData.latest_digest = image.latest_digest;
-          }
-          if (image.has_update !== undefined) {
-            updateData.has_update = image.has_update;
-          }
-          if (image.current_version_publish_date !== undefined) {
-            updateData.current_version_publish_date = image.current_version_publish_date;
-          }
-          if (image.last_checked !== undefined) {
-            updateData.last_checked = image.last_checked;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            await updateTrackedApp(id, user.id, updateData);
-          }
-
-          results.trackedApps.push({ id, name: image.name });
-        } catch (error) {
-          results.errors.push(
-            `Tracked image "${image.name}": ${error.message || "Failed to import"}`
-          );
-        }
-      }
+      await importTrackedApps(configData.trackedApps, user, results);
     }
 
-    // Import general settings (color scheme, log level, refreshing toggles, batch config)
-    // This can be done independently of credentials
+
     if (configData && configData.generalSettings) {
       try {
-        const { colorScheme, logLevel, refreshingTogglesEnabled, batchConfig } =
-          configData.generalSettings;
-
-        if (colorScheme) {
-          await setSetting("color_scheme", colorScheme, user.id);
-        }
-
-        if (logLevel) {
-          await setSystemSetting("log_level", logLevel);
-        }
-
-        if (refreshingTogglesEnabled !== undefined) {
-          await setSetting(
-            "refreshing_toggles_enabled",
-            refreshingTogglesEnabled.toString(),
-            user.id
-          );
-        }
-
-        // Import batch configuration
-        if (batchConfig) {
-          for (const [jobType, config] of Object.entries(batchConfig)) {
-            await updateBatchConfig(user.id, jobType, config.enabled, config.intervalMinutes);
-          }
-          results.generalSettings = { imported: true, batchConfig: true };
-        } else {
-          results.generalSettings = { imported: true };
-        }
+        await importGeneralSettings(configData.generalSettings, user, results);
       } catch (error) {
         results.errors.push(`General settings: ${error.message || "Failed to import"}`);
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `User "${username}" created successfully`,
       results,
@@ -1847,9 +1890,9 @@ async function checkUserExists(req, res, next) {
 
     const user = await getUserByUsername(username);
 
-    res.json({
+    return res.json({
       success: true,
-      exists: !!user,
+      exists: Boolean(user),
       username,
     });
   } catch (error) {
@@ -1871,7 +1914,7 @@ async function getAllUsersEndpoint(req, res, next) {
     }
 
     const users = await getAllUsers();
-    res.json({ success: true, users });
+    return res.json({ success: true, users });
   } catch (error) {
     logger.error("Error getting all users:", error);
     next(error);
@@ -1885,6 +1928,7 @@ async function getAllUsersEndpoint(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex export logic with multiple data sources
 async function exportUsersEndpoint(req, res, next) {
   try {
     // Only instance admins can export all users
@@ -1897,7 +1941,8 @@ async function exportUsersEndpoint(req, res, next) {
     // For each user, export their data in the same format as exportUserConfig
     // Since data is now per-user, we need to fetch it for each user
     const usersExport = await Promise.all(
-      allUsers.map(async (user) => {
+      // eslint-disable-next-line max-lines-per-function -- Complex user data export logic
+      allUsers.map(async user => {
         // Fetch user-specific data
         const [
           portainerInstances,
@@ -1928,7 +1973,7 @@ async function exportUsersEndpoint(req, res, next) {
             created_at: user.createdAt,
             updated_at: user.updatedAt,
           },
-          portainerInstances: portainerInstances.map((instance) => ({
+          portainerInstances: portainerInstances.map(instance => ({
             id: instance.id,
             name: instance.name,
             url: instance.url,
@@ -1940,11 +1985,11 @@ async function exportUsersEndpoint(req, res, next) {
           })),
           dockerHubCredentials: dockerHubCredentials
             ? {
-                username: dockerHubCredentials.username || null,
-                token: dockerHubCredentials.token ? "***configured***" : null,
-              }
+              username: dockerHubCredentials.username || null,
+              token: dockerHubCredentials.token ? "***configured***" : null,
+            }
             : null,
-          discordWebhooks: discordWebhooks.map((webhook) => ({
+          discordWebhooks: discordWebhooks.map(webhook => ({
             id: webhook.id,
             server_name: webhook.serverName || null,
             channel_name: webhook.channelName || null,
@@ -1956,7 +2001,7 @@ async function exportUsersEndpoint(req, res, next) {
             created_at: webhook.createdAt,
             updated_at: webhook.updatedAt,
           })),
-          trackedApps: trackedApps.map((image) => ({
+          trackedApps: trackedApps.map(image => ({
             id: image.id,
             name: image.name,
             image_name: image.image_name,
@@ -1978,10 +2023,10 @@ async function exportUsersEndpoint(req, res, next) {
             logLevel: logLevel || "info",
             refreshingTogglesEnabled:
               refreshingTogglesEnabled === "true" || refreshingTogglesEnabled === true,
-            batchConfig: batchConfig,
+            batchConfig,
           },
         };
-      })
+      }),
     );
 
     const exportData = {
@@ -1989,7 +2034,7 @@ async function exportUsersEndpoint(req, res, next) {
       users: usersExport,
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: exportData,
     });
@@ -2020,8 +2065,8 @@ async function getUserStatsEndpoint(req, res, next) {
       });
     }
 
-    const stats = await getUserStats(parseInt(userId));
-    res.json({ success: true, stats });
+    const stats = await getUserStats(parseInt(userId, 10));
+    return res.json({ success: true, stats });
   } catch (error) {
     logger.error("Error getting user stats:", error);
     next(error);
@@ -2067,7 +2112,7 @@ async function adminUpdateUserPassword(req, res, next) {
     }
 
     // Verify user exists
-    const user = await getUserById(parseInt(userId));
+    const user = await getUserById(parseInt(userId, 10));
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -2076,9 +2121,9 @@ async function adminUpdateUserPassword(req, res, next) {
     }
 
     // Update password
-    await updateUserPasswordById(parseInt(userId), newPassword);
+    await updateUserPasswordById(parseInt(userId, 10), newPassword);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Password updated successfully",
     });
@@ -2094,6 +2139,7 @@ async function adminUpdateUserPassword(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line complexity -- Complex role update logic with validation
 async function adminUpdateUserRole(req, res, next) {
   try {
     // Only instance admins can update other users' roles
@@ -2129,7 +2175,7 @@ async function adminUpdateUserRole(req, res, next) {
     }
 
     // Verify user exists
-    const user = await getUserById(parseInt(userId));
+    const user = await getUserById(parseInt(userId, 10));
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -2141,9 +2187,9 @@ async function adminUpdateUserRole(req, res, next) {
     const newRole = role || user.role;
     const newInstanceAdmin =
       instanceAdmin !== undefined ? instanceAdmin : user.instance_admin === 1;
-    await updateUserRole(parseInt(userId), newRole, newInstanceAdmin);
+    await updateUserRole(parseInt(userId, 10), newRole, newInstanceAdmin);
 
-    res.json({
+    return res.json({
       success: true,
       message: "User role updated successfully",
     });

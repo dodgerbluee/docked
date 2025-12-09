@@ -15,20 +15,17 @@
  */
 
 const axios = require("axios");
-const { URL } = require("url");
 const logger = require("../utils/logger");
-const { validatePathComponent } = require("../utils/validation");
 const authService = require("./portainer/authService");
 const ipFallbackService = require("./portainer/ipFallbackService");
 
 // Re-export auth and IP fallback functions for backward compatibility
-const clearAuthToken = authService.clearAuthToken;
-const storeTokenForBothUrls = authService.storeTokenForBothUrls;
-const authenticatePortainer = authService.authenticatePortainer;
-const getAuthHeaders = authService.getAuthHeaders;
-const getIpFallbackConfig = ipFallbackService.getIpFallbackConfig;
-const createAxiosConfig = ipFallbackService.createAxiosConfig;
-const requestWithIpFallback = ipFallbackService.requestWithIpFallback;
+const { clearAuthToken } = authService;
+const { storeTokenForBothUrls } = authService;
+const { authenticatePortainer } = authService;
+const { getAuthHeaders } = authService;
+const { getIpFallbackConfig } = ipFallbackService;
+const { requestWithIpFallback } = ipFallbackService;
 
 /**
  * Get all endpoints (Docker environments) for a specific Portainer instance
@@ -37,18 +34,19 @@ const requestWithIpFallback = ipFallbackService.requestWithIpFallback;
  */
 async function getEndpoints(portainerUrl) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = {
-        headers: getAuthHeaders(url), // Use url parameter (may be IP URL)
-      };
-      // Merge IP fallback config if using IP address
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(`${url}/api/endpoints`, ipConfig);
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = {
+          headers: getAuthHeaders(url), // Use url parameter (may be IP URL)
+        };
+        // Merge IP fallback config if using IP address
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(`${url}/api/endpoints`, ipConfig);
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getEndpoints(portainerUrl);
     }
     throw error;
@@ -63,18 +61,19 @@ async function getEndpoints(portainerUrl) {
  */
 async function getContainers(portainerUrl, endpointId) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(
-        `${url}/api/endpoints/${endpointId}/docker/containers/json?all=true`,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(
+          `${url}/api/endpoints/${endpointId}/docker/containers/json?all=true`,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getContainers(portainerUrl, endpointId);
     }
     throw error;
@@ -90,18 +89,19 @@ async function getContainers(portainerUrl, endpointId) {
  */
 async function getContainerDetails(portainerUrl, endpointId, containerId) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(
-        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/json`,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(
+          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/json`,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getContainerDetails(portainerUrl, endpointId, containerId);
     }
     throw error;
@@ -116,18 +116,19 @@ async function getContainerDetails(portainerUrl, endpointId, containerId) {
  */
 async function getImages(portainerUrl, endpointId) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(
-        `${url}/api/endpoints/${endpointId}/docker/images/json?all=true`,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(
+          `${url}/api/endpoints/${endpointId}/docker/images/json?all=true`,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getImages(portainerUrl, endpointId);
     }
     throw error;
@@ -143,18 +144,19 @@ async function getImages(portainerUrl, endpointId) {
  */
 async function getImageDetails(portainerUrl, endpointId, imageId) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(
-        `${url}/api/endpoints/${endpointId}/docker/images/${imageId}/json`,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(
+          `${url}/api/endpoints/${endpointId}/docker/images/${imageId}/json`,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getImageDetails(portainerUrl, endpointId, imageId);
     }
     throw error;
@@ -171,18 +173,19 @@ async function getImageDetails(portainerUrl, endpointId, imageId) {
  */
 async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const apiUrl = `${url}/api/endpoints/${endpointId}/docker/images/${imageId}${
-        force ? "?force=true" : ""
-      }`;
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.delete(apiUrl, ipConfig);
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const apiUrl = `${url}/api/endpoints/${endpointId}/docker/images/${imageId}${
+          force ? "?force=true" : ""
+        }`;
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.delete(apiUrl, ipConfig);
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return deleteImage(portainerUrl, endpointId, imageId, force);
     }
     throw error;
@@ -199,40 +202,148 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
  */
 async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = {
-        headers: getAuthHeaders(url),
-        params: {
-          fromImage: imageName.split(":")[0],
-          tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
-        },
-      };
-      // Use originalUrl for Host header if provided, otherwise use portainerUrl
-      const urlForHostHeader = originalUrl || portainerUrl;
-      const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
-      return await axios.post(
-        `${url}/api/endpoints/${endpointId}/docker/images/create`,
-        null,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = {
+          headers: getAuthHeaders(url),
+          params: {
+            fromImage: imageName.split(":")[0],
+            tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
+          },
+        };
+        // Use originalUrl for Host header if provided, otherwise use portainerUrl
+        const urlForHostHeader = originalUrl || portainerUrl;
+        const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+        return axios.post(
+          `${url}/api/endpoints/${endpointId}/docker/images/create`,
+          null,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
       // Pass originalUrl for authentication so it can fetch credentials from database
-      await authenticatePortainer(
+      await authenticatePortainer({
         portainerUrl,
-        null,
-        null,
-        null,
-        "apikey",
-        false,
-        originalUrl || portainerUrl
-      );
+        username: null,
+        password: null,
+        apiKey: null,
+        authType: "apikey",
+        skipCache: false,
+        originalUrl: originalUrl || portainerUrl,
+      });
       return pullImage(portainerUrl, endpointId, imageName, originalUrl);
     }
     throw error;
   }
+}
+
+/**
+ * Check if container is stopped
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<boolean>} - True if stopped
+ */
+async function isContainerStopped(portainerUrl, endpointId, containerId) {
+  try {
+    const details = await getContainerDetails(portainerUrl, endpointId, containerId);
+    const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
+    return status === "exited" || status === "stopped";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Handle connection errors during stop
+ * @param {Error} error - Error object
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<boolean>} - True if handled
+ */
+async function handleStopConnectionError(error, portainerUrl, endpointId, containerId) {
+  const isConnectionError =
+    error.code === "ECONNRESET" ||
+    error.code === "ECONNREFUSED" ||
+    error.message === "socket hang up";
+
+  if (!isConnectionError) {
+    return false;
+  }
+
+  logger.warn(
+    "Connection error during stopContainer, container may have stopped or nginx went down",
+    {
+      module: "portainerService",
+      operation: "stopContainer",
+      containerId: containerId.substring(0, 12),
+      error: error.message,
+      code: error.code,
+    },
+  );
+
+  const stopped = await isContainerStopped(portainerUrl, endpointId, containerId);
+  if (stopped) {
+    logger.debug("Container is stopped despite connection error", {
+      module: "portainerService",
+      operation: "stopContainer",
+      containerId: containerId.substring(0, 12),
+    });
+    return true;
+  }
+
+  logger.warn(
+    "Could not verify container state after connection error, assuming stop succeeded",
+    {
+      module: "portainerService",
+      operation: "stopContainer",
+      containerId: containerId.substring(0, 12),
+    },
+  );
+  return true;
+}
+
+/**
+ * Handle status code errors during stop
+ * @param {Error} error - Error object
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<boolean>} - True if handled
+ */
+async function handleStopStatusError(error, portainerUrl, endpointId, containerId) {
+  if (error.response?.status === 304) {
+    logger.debug("Container already stopped (304 Not Modified)", {
+      module: "portainerService",
+      operation: "stopContainer",
+      containerId: containerId.substring(0, 12),
+    });
+    return true;
+  }
+
+  if (error.response?.status === 409) {
+    const stopped = await isContainerStopped(portainerUrl, endpointId, containerId);
+    if (stopped) {
+      logger.debug("Container already stopped (409 Conflict, but verified stopped)", {
+        module: "portainerService",
+        operation: "stopContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return true;
+    }
+
+    logger.warn("Could not verify container state after 409, assuming stopped", {
+      module: "portainerService",
+      operation: "stopContainer",
+      containerId: containerId.substring(0, 12),
+    });
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -244,97 +355,32 @@ async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null
  */
 async function stopContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.post(
-        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/stop`,
-        null,
-        ipConfig
-      );
-    }, portainerUrl);
+    await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.post(
+          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/stop`,
+          null,
+          ipConfig,
+        );
+      }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return stopContainer(portainerUrl, endpointId, containerId);
     }
-    // Handle connection errors (socket hang up, ECONNRESET) - nginx might have gone down
-    // Retry with IP fallback if available
-    if (
-      error.code === "ECONNRESET" ||
-      error.code === "ECONNREFUSED" ||
-      error.message === "socket hang up"
-    ) {
-      logger.warn(
-        "Connection error during stopContainer, container may have stopped or nginx went down",
-        {
-          module: "portainerService",
-          operation: "stopContainer",
-          containerId: containerId.substring(0, 12),
-          error: error.message,
-          code: error.code,
-        }
-      );
-      // Try to verify if container is actually stopped
-      try {
-        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
-        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
-        if (status === "exited" || status === "stopped") {
-          logger.debug("Container is stopped despite connection error", {
-            module: "portainerService",
-            operation: "stopContainer",
-            containerId: containerId.substring(0, 12),
-          });
-          return; // Container is stopped, which is what we wanted
-        }
-      } catch (checkErr) {
-        // If we can't verify, assume the stop command succeeded before the connection dropped
-        logger.warn(
-          "Could not verify container state after connection error, assuming stop succeeded",
-          {
-            module: "portainerService",
-            operation: "stopContainer",
-            containerId: containerId.substring(0, 12),
-          }
-        );
-        return; // Assume stop succeeded
-      }
+
+    const handled = await handleStopConnectionError(error, portainerUrl, endpointId, containerId);
+    if (handled) {
+      return;
     }
-    // Handle "already stopped" scenarios gracefully
-    // 304 = Not Modified (container already in desired state)
-    // 304 can occur when container is already stopped
-    if (error.response?.status === 304) {
-      logger.debug("Container already stopped (304 Not Modified)", {
-        module: "portainerService",
-        operation: "stopContainer",
-        containerId: containerId.substring(0, 12),
-      });
-      return; // Container is already stopped, which is fine
+
+    const statusHandled = await handleStopStatusError(error, portainerUrl, endpointId, containerId);
+    if (statusHandled) {
+      return;
     }
-    // 409 = Conflict (container might already be stopped or in transition)
-    if (error.response?.status === 409) {
-      // Check if container is actually stopped
-      try {
-        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
-        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
-        if (status === "exited" || status === "stopped") {
-          logger.debug("Container already stopped (409 Conflict, but verified stopped)", {
-            module: "portainerService",
-            operation: "stopContainer",
-            containerId: containerId.substring(0, 12),
-          });
-          return; // Container is already stopped, which is fine
-        }
-      } catch (checkErr) {
-        // If we can't verify, log and continue anyway
-        logger.warn("Could not verify container state after 409, assuming stopped", {
-          module: "portainerService",
-          operation: "stopContainer",
-          containerId: containerId.substring(0, 12),
-        });
-        return;
-      }
-    }
+
     throw error;
   }
 }
@@ -346,19 +392,21 @@ async function stopContainer(portainerUrl, endpointId, containerId) {
  * @param {string} containerId - Container ID
  * @returns {Promise<void>}
  */
+
 async function removeContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.delete(
-        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}`,
-        ipConfig
-      );
-    }, portainerUrl);
+    await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.delete(
+          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}`,
+          ipConfig,
+        );
+      }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return removeContainer(portainerUrl, endpointId, containerId);
     }
     // Handle "already removed" scenarios gracefully
@@ -394,32 +442,89 @@ async function removeContainer(portainerUrl, endpointId, containerId) {
  */
 async function createContainer(portainerUrl, endpointId, containerConfig, containerName) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const apiUrl = `${url}/api/endpoints/${endpointId}/docker/containers/create`;
-      const baseConfig = {
-        headers: getAuthHeaders(url),
-      };
+    const response = await requestWithIpFallback(
+      async url => {
+        const apiUrl = `${url}/api/endpoints/${endpointId}/docker/containers/create`;
+        const baseConfig = {
+          headers: getAuthHeaders(url),
+        };
 
-      // Add name as query parameter if provided
-      if (containerName) {
+        // Add name as query parameter if provided
+        if (containerName) {
         // Remove leading slash if present (Docker API expects name without leading slash)
-        const cleanName = containerName.startsWith("/")
-          ? containerName.substring(1)
-          : containerName;
-        baseConfig.params = { name: cleanName };
-      }
+          const cleanName = containerName.startsWith("/")
+            ? containerName.substring(1)
+            : containerName;
+          baseConfig.params = { name: cleanName };
+        }
 
-      const config = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.post(apiUrl, containerConfig, config);
-    }, portainerUrl);
+        const config = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.post(apiUrl, containerConfig, config);
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return createContainer(portainerUrl, endpointId, containerConfig, containerName);
     }
     throw error;
   }
+}
+
+/**
+ * Check if container is running
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<boolean>} - True if running
+ */
+async function isContainerRunning(portainerUrl, endpointId, containerId) {
+  try {
+    const details = await getContainerDetails(portainerUrl, endpointId, containerId);
+    const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
+    return status === "running";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Handle status code errors during start
+ * @param {Error} error - Error object
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<boolean>} - True if handled
+ */
+async function handleStartStatusError(error, portainerUrl, endpointId, containerId) {
+  if (error.response?.status === 304) {
+    logger.debug("Container already started (304 Not Modified)", {
+      module: "portainerService",
+      operation: "startContainer",
+      containerId: containerId.substring(0, 12),
+    });
+    return true;
+  }
+
+  if (error.response?.status === 409) {
+    const running = await isContainerRunning(portainerUrl, endpointId, containerId);
+    if (running) {
+      logger.debug("Container already running (409 Conflict, but verified running)", {
+        module: "portainerService",
+        operation: "startContainer",
+        containerId: containerId.substring(0, 12),
+      });
+      return true;
+    }
+
+    logger.warn("Could not verify container state after 409", {
+      module: "portainerService",
+      operation: "startContainer",
+      containerId: containerId.substring(0, 12),
+    });
+  }
+
+  return false;
 }
 
 /**
@@ -431,53 +536,27 @@ async function createContainer(portainerUrl, endpointId, containerConfig, contai
  */
 async function startContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(async (url) => {
-      const baseConfig = { headers: getAuthHeaders(url) };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.post(
-        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/start`,
-        null,
-        ipConfig
-      );
-    }, portainerUrl);
+    await requestWithIpFallback(
+      async url => {
+        const baseConfig = { headers: getAuthHeaders(url) };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.post(
+          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/start`,
+          null,
+          ipConfig,
+        );
+      }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return startContainer(portainerUrl, endpointId, containerId);
     }
-    // Handle "already started" scenarios gracefully
-    // 304 = Not Modified (container already running)
-    if (error.response?.status === 304) {
-      logger.debug("Container already started (304 Not Modified)", {
-        module: "portainerService",
-        operation: "startContainer",
-        containerId: containerId.substring(0, 12),
-      });
-      return; // Container is already running, which is fine
+
+    const handled = await handleStartStatusError(error, portainerUrl, endpointId, containerId);
+    if (handled) {
+      return;
     }
-    // 409 = Conflict (container might already be running or in transition)
-    if (error.response?.status === 409) {
-      // Check if container is actually running
-      try {
-        const details = await getContainerDetails(portainerUrl, endpointId, containerId);
-        const status = details.State?.Status || (details.State?.Running ? "running" : "exited");
-        if (status === "running") {
-          logger.debug("Container already running (409 Conflict, but verified running)", {
-            module: "portainerService",
-            operation: "startContainer",
-            containerId: containerId.substring(0, 12),
-          });
-          return; // Container is already running, which is fine
-        }
-      } catch (checkErr) {
-        // If we can't verify, re-throw the original error
-        logger.warn("Could not verify container state after 409", {
-          module: "portainerService",
-          operation: "startContainer",
-          containerId: containerId.substring(0, 12),
-        });
-      }
-    }
+
     throw error;
   }
 }
@@ -492,27 +571,28 @@ async function startContainer(portainerUrl, endpointId, containerId) {
  */
 async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100) {
   try {
-    const response = await requestWithIpFallback(async (url) => {
-      const baseConfig = {
-        headers: getAuthHeaders(url),
-        params: {
-          stdout: 1,
-          stderr: 1,
-          tail: tail,
-          timestamps: 1,
-        },
-        responseType: "text",
-      };
-      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return await axios.get(
-        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/logs`,
-        ipConfig
-      );
-    }, portainerUrl);
+    const response = await requestWithIpFallback(
+      async url => {
+        const baseConfig = {
+          headers: getAuthHeaders(url),
+          params: {
+            stdout: 1,
+            stderr: 1,
+            tail,
+            timestamps: 1,
+          },
+          responseType: "text",
+        };
+        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+        return axios.get(
+          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/logs`,
+          ipConfig,
+        );
+      }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      await authenticatePortainer(portainerUrl);
+      await authenticatePortainer({ portainerUrl });
       return getContainerLogs(portainerUrl, endpointId, containerId, tail);
     }
     throw error;

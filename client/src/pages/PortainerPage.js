@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
+import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 import ErrorModal from "../components/ErrorModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
@@ -127,7 +128,7 @@ function PortainerPage({
       return [];
     }
     return portainerPage.groupedStacks.flatMap((stack) =>
-      stack.containers.filter((c) => c.hasUpdate && !portainerPage.isPortainerContainer(c))
+      stack.containers.filter((c) => computeHasUpdate(c) && !portainerPage.isPortainerContainer(c))
     );
   }, [portainerPage]);
 

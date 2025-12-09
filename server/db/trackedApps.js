@@ -27,7 +27,7 @@ function getAllTrackedApps(userId) {
           } else {
             resolve(rows || []);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -54,7 +54,7 @@ function getTrackedAppById(id, userId) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -83,7 +83,7 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
             } else {
               resolve(row || null);
             }
-          }
+          },
         );
       } else if (imageName) {
         db.get(
@@ -95,7 +95,7 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
             } else {
               resolve(row || null);
             }
-          }
+          },
         );
       } else {
         resolve(null);
@@ -108,24 +108,25 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
 
 /**
  * Create a new tracked app
- * @param {number} userId - User ID
- * @param {string} name - Display name
- * @param {string} imageName - Image name or null for GitHub
- * @param {string} githubRepo - GitHub repo or null for Docker
- * @param {string} sourceType - 'docker', 'github', or 'gitlab'
- * @param {string} gitlabToken - GitLab token (optional, for backward compatibility)
- * @param {number} repositoryTokenId - Repository token ID (optional, preferred over gitlabToken)
+ * @param {Object} params - Parameters object
+ * @param {number} params.userId - User ID
+ * @param {string} params.name - Display name
+ * @param {string} [params.imageName] - Image name or null for GitHub
+ * @param {string} [params.githubRepo] - GitHub repo or null for Docker
+ * @param {string} [params.sourceType='docker'] - 'docker', 'github', or 'gitlab'
+ * @param {string} [params.gitlabToken] - GitLab token (optional, for backward compatibility)
+ * @param {number} [params.repositoryTokenId] - Repository token ID (optional, preferred over gitlabToken)
  * @returns {Promise<number>} - ID of created tracked app
  */
-function createTrackedApp(
+function createTrackedApp({
   userId,
   name,
   imageName = null,
   githubRepo = null,
   sourceType = "docker",
   gitlabToken = null,
-  repositoryTokenId = null
-) {
+  repositoryTokenId = null,
+}) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -138,7 +139,7 @@ function createTrackedApp(
           } else {
             resolve(this.lastID);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -153,7 +154,9 @@ function createTrackedApp(
  * @param {Object} updateData - Data to update
  * @returns {Promise<void>}
  */
+// eslint-disable-next-line max-lines-per-function -- Complex update logic needed for tracked apps
 function updateTrackedApp(id, userId, updateData) {
+  // eslint-disable-next-line complexity, max-lines-per-function -- Arrow function requires multiple conditional checks and comprehensive update logic
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -164,41 +167,54 @@ function updateTrackedApp(id, userId, updateData) {
         fields.push("name = ?");
         values.push(updateData.name);
       }
-      if (updateData.image_name !== undefined) {
+      // Support both camelCase and snake_case for backward compatibility
+      const imageName = updateData.imageName ?? updateData.image_name;
+      if (imageName !== undefined) {
         fields.push("image_name = ?");
-        values.push(updateData.image_name);
+        values.push(imageName);
       }
-      if (updateData.current_version !== undefined) {
+      // Support both camelCase and snake_case for backward compatibility
+      const currentVersion = updateData.currentVersion ?? updateData.current_version;
+      if (currentVersion !== undefined) {
         fields.push("current_version = ?");
-        values.push(updateData.current_version);
+        values.push(currentVersion);
       }
-      if (updateData.current_digest !== undefined) {
+      const currentDigest = updateData.currentDigest ?? updateData.current_digest;
+      if (currentDigest !== undefined) {
         fields.push("current_digest = ?");
-        values.push(updateData.current_digest);
+        values.push(currentDigest);
       }
-      if (updateData.latest_version !== undefined) {
+      const latestVersion = updateData.latestVersion ?? updateData.latest_version;
+      if (latestVersion !== undefined) {
         fields.push("latest_version = ?");
-        values.push(updateData.latest_version);
+        values.push(latestVersion);
       }
-      if (updateData.latest_digest !== undefined) {
+      const latestDigest = updateData.latestDigest ?? updateData.latest_digest;
+      if (latestDigest !== undefined) {
         fields.push("latest_digest = ?");
-        values.push(updateData.latest_digest);
+        values.push(latestDigest);
       }
-      if (updateData.has_update !== undefined) {
+      const hasUpdate = updateData.hasUpdate ?? updateData.has_update;
+      if (hasUpdate !== undefined) {
         fields.push("has_update = ?");
-        values.push(updateData.has_update ? 1 : 0);
+        values.push(hasUpdate ? 1 : 0);
       }
-      if (updateData.last_checked !== undefined) {
+      const lastChecked = updateData.lastChecked ?? updateData.last_checked;
+      if (lastChecked !== undefined) {
         fields.push("last_checked = ?");
-        values.push(updateData.last_checked);
+        values.push(lastChecked);
       }
-      if (updateData.current_version_publish_date !== undefined) {
+      const currentVersionPublishDate =
+        updateData.currentVersionPublishDate ?? updateData.current_version_publish_date;
+      if (currentVersionPublishDate !== undefined) {
         fields.push("current_version_publish_date = ?");
-        values.push(updateData.current_version_publish_date);
+        values.push(currentVersionPublishDate);
       }
-      if (updateData.latest_version_publish_date !== undefined) {
+      const latestVersionPublishDate =
+        updateData.latestVersionPublishDate ?? updateData.latest_version_publish_date;
+      if (latestVersionPublishDate !== undefined) {
         fields.push("latest_version_publish_date = ?");
-        values.push(updateData.latest_version_publish_date);
+        values.push(latestVersionPublishDate);
       }
       if (updateData.gitlab_token !== undefined) {
         fields.push("gitlab_token = ?");
@@ -219,7 +235,7 @@ function updateTrackedApp(id, userId, updateData) {
 
       const sql = `UPDATE tracked_apps SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`;
 
-      db.run(sql, values, function (err) {
+      db.run(sql, values, err => {
         if (err) {
           reject(err);
         } else {
@@ -242,7 +258,7 @@ function deleteTrackedApp(id, userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run("DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], function (err) {
+      db.run("DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], err => {
         if (err) {
           reject(err);
         } else {
@@ -267,13 +283,13 @@ function clearLatestVersionsForAllTrackedApps(userId) {
       db.run(
         "UPDATE tracked_apps SET latest_version = NULL, latest_digest = NULL, has_update = 0, latest_version_publish_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
         [userId],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);

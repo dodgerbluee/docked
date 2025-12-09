@@ -13,8 +13,8 @@ class DiscordRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Array>} - Array of webhook objects
    */
-  async findByUser(userId) {
-    return await discordDb.getAllDiscordWebhooks(userId);
+  findByUser(userId) {
+    return discordDb.getAllDiscordWebhooks(userId);
   }
 
   /**
@@ -22,8 +22,8 @@ class DiscordRepository extends BaseRepository {
    * @param {number} id - Webhook ID
    * @returns {Promise<Object|null>} - Webhook object or null
    */
-  async findById(id) {
-    return await discordDb.getDiscordWebhookById(id);
+  findById(id) {
+    return discordDb.getDiscordWebhookById(id);
   }
 
   /**
@@ -31,8 +31,8 @@ class DiscordRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Array>} - Array of enabled webhook objects
    */
-  async findEnabledByUser(userId) {
-    return await discordDb.getEnabledDiscordWebhooks(userId);
+  findEnabledByUser(userId) {
+    return discordDb.getEnabledDiscordWebhooks(userId);
   }
 
   /**
@@ -49,7 +49,7 @@ class DiscordRepository extends BaseRepository {
    * @param {string} [webhookData.channelId] - Channel ID
    * @returns {Promise<number>} - ID of created webhook
    */
-  async create(userId, webhookData) {
+  create(userId, webhookData) {
     const {
       webhookUrl,
       serverName = null,
@@ -61,7 +61,7 @@ class DiscordRepository extends BaseRepository {
       channelId = null,
     } = webhookData;
 
-    return await discordDb.createDiscordWebhook(
+    return discordDb.createDiscordWebhook(
       userId,
       webhookUrl,
       serverName,
@@ -70,7 +70,7 @@ class DiscordRepository extends BaseRepository {
       name,
       avatarUrl,
       guildId,
-      channelId
+      channelId,
     );
   }
 
@@ -80,8 +80,8 @@ class DiscordRepository extends BaseRepository {
    * @param {Object} updateData - Update data
    * @returns {Promise<void>}
    */
-  async update(id, updateData) {
-    return await discordDb.updateDiscordWebhook(id, updateData);
+  update(id, updateData) {
+    return discordDb.updateDiscordWebhook(id, updateData);
   }
 
   /**
@@ -89,8 +89,8 @@ class DiscordRepository extends BaseRepository {
    * @param {number} id - Webhook ID
    * @returns {Promise<void>}
    */
-  async delete(id) {
-    return await discordDb.deleteDiscordWebhook(id);
+  delete(id) {
+    return discordDb.deleteDiscordWebhook(id);
   }
 
   /**
@@ -99,8 +99,8 @@ class DiscordRepository extends BaseRepository {
    * @param {string} deduplicationKey - Deduplication key
    * @returns {Promise<boolean>} - True if notification was already sent
    */
-  async hasNotificationBeenSent(userId, deduplicationKey) {
-    return await discordDb.hasDiscordNotificationBeenSent(userId, deduplicationKey);
+  hasNotificationBeenSent(userId, deduplicationKey) {
+    return discordDb.hasDiscordNotificationBeenSent(userId, deduplicationKey);
   }
 
   /**
@@ -110,11 +110,11 @@ class DiscordRepository extends BaseRepository {
    * @param {string} notificationType - Notification type (e.g., "tracked-app")
    * @returns {Promise<void>}
    */
-  async recordNotificationSent(userId, deduplicationKey, notificationType) {
-    return await discordDb.recordDiscordNotificationSent(
+  recordNotificationSent(userId, deduplicationKey, notificationType) {
+    return discordDb.recordDiscordNotificationSent(
       userId,
       deduplicationKey,
-      notificationType
+      notificationType,
     );
   }
 }

@@ -56,13 +56,66 @@ class RegistryManager {
     }
 
     // Default to Docker Hub if no specific provider found
-    const dockerHubProvider = this.providers.find((p) => p.getName() === "dockerhub");
+    const dockerHubProvider = this.providers.find(p => p.getName() === "dockerhub");
     if (dockerHubProvider) {
       this.providerCache.set(imageRepo, dockerHubProvider);
       return dockerHubProvider;
     }
 
     return null;
+  }
+
+  /**
+   * Process result from primary provider
+   * @param {Object|null} result - Provider result
+   * @param {RegistryProvider} provider - Provider instance
+   * @param {string} tag - Image tag
+   * @returns {Object|null} - Processed result
+   */
+  _processProviderResult(result, provider, tag) {
+    if (result) {
+      const resultProvider = result.provider || provider.getName();
+      return {
+        ...result,
+        provider: resultProvider,
+        isFallback: result.isFallback || false,
+      };
+    }
+
+    const providerName = provider.getName();
+    if (providerName) {
+      return {
+        digest: null,
+        tag,
+        provider: providerName,
+        isFallback: false,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Handle provider error and try fallback if needed
+   * @param {Error} error - Error object
+   * @param {RegistryProvider} provider - Provider instance
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {Object} options - Options
+   * @returns {Promise<Object|null>} - Fallback result or throws error
+   */
+  async _handleProviderError(error, provider, imageRepo, tag, options) {
+    const handledError = provider.handleError(error);
+    const { useFallback = true, userId, githubRepo } = options;
+
+    if (useFallback && (provider.isRateLimitError(handledError) || handledError)) {
+      logger.debug(`Primary provider failed for ${imageRepo}:${tag}, trying fallback`, {
+        provider: provider.getName(),
+        error: handledError.message,
+      });
+      return this._tryFallback(imageRepo, tag, { userId, githubRepo });
+    }
+
+    throw handledError;
   }
 
   /**
@@ -82,9 +135,6 @@ class RegistryManager {
    * @returns {Promise<Object|null>} - { digest: string, tag: string, isFallback?: boolean } or null
    */
   async getLatestDigest(imageRepo, tag = "latest", options = {}) {
-    const { userId, githubRepo, useFallback = true } = options;
-
-    // Get primary provider
     const provider = this.getProvider(imageRepo);
     if (!provider) {
       logger.warn(`No provider found for image: ${imageRepo}`);
@@ -92,53 +142,13 @@ class RegistryManager {
     }
 
     try {
-      // Try primary provider first
       const result = await provider.getLatestDigest(imageRepo, tag, {
-        userId,
+        userId: options.userId,
         imageRepo,
       });
-
-      if (result) {
-        // Use provider from result if set (for fallback cases), otherwise use provider name
-        const resultProvider = result.provider || provider.getName();
-        return {
-          ...result,
-          provider: resultProvider,
-          isFallback: result.isFallback || false,
-        };
-      }
-
-      // If primary provider returns null (not found), still return provider info if available
-      // This ensures provider is set even when digest lookup fails
-      if (provider) {
-        // Try to get provider from the provider itself (in case it returned null but has provider info)
-        const providerName = provider.getName();
-        if (providerName) {
-          return {
-            digest: null,
-            tag: tag,
-            provider: providerName,
-            isFallback: false,
-          };
-        }
-      }
-      return null;
+      return this._processProviderResult(result, provider, tag);
     } catch (error) {
-      // Handle rate limit or other errors
-      const handledError = provider.handleError(error);
-
-      // If rate limited or error, try fallback
-      if (useFallback && (provider.isRateLimitError(handledError) || handledError)) {
-        logger.debug(`Primary provider failed for ${imageRepo}:${tag}, trying fallback`, {
-          provider: provider.getName(),
-          error: handledError.message,
-        });
-
-        return await this._tryFallback(imageRepo, tag, { userId, githubRepo });
-      }
-
-      // Re-throw if we shouldn't fallback or fallback also fails
-      throw handledError;
+      return this._handleProviderError(error, provider, imageRepo, tag, options);
     }
   }
 
@@ -202,7 +212,7 @@ class RegistryManager {
 
       // Try fallback if primary doesn't support it
       if (this.fallbackProvider.canHandle(imageRepo, { githubRepo })) {
-        return await this.fallbackProvider.getTagPublishDate(imageRepo, tag, {
+        return this.fallbackProvider.getTagPublishDate(imageRepo, tag, {
           userId,
           githubRepo,
         });
@@ -230,7 +240,7 @@ class RegistryManager {
     }
 
     try {
-      return await provider.imageExists(imageRepo, { userId });
+      return provider.imageExists(imageRepo, { userId });
     } catch (error) {
       logger.debug(`Failed to check if image exists: ${imageRepo}:`, error.message);
       return false;
@@ -257,7 +267,7 @@ class RegistryManager {
 
     // Primary method: compare digests
     if (currentDigest && latestInfo.digest) {
-      const normalizeDigest = (digest) => {
+      const normalizeDigest = digest => {
         if (!digest) return null;
         return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
       };

@@ -1,199 +1,143 @@
 # Docked
 
-A modern web application for managing Docker container updates through Portainer integration.
+A modern web application for managing Docker container updates through Portainer integration. Keep your containers up to date with automatic update detection and one-click upgrades.
+
+![Docked](client/public/img/logo.png)
+
+## What is Docked?
+
+Docked connects to your Portainer instances to monitor and manage Docker containers. It automatically detects available image updates and provides a clean interface to upgrade containers with a single click.
+
+Beyond Portainer-managed containers, Docked can also track applications directly from their source repositories. You can monitor applications by adding GitHub or GitLab repositories, and Docked will track new releases even if they aren't published to Docker registries. This is perfect for keeping up with applications that release on GitHub or GitLab but may not immediately update their Docker images.
+
+Perfect for home lab enthusiasts and small teams managing multiple Docker environments who want a unified view of all their application updates.
 
 ## Features
 
-- 🔐 **Secure Authentication**: Login page protects the application
-- 🔍 **Automatic Update Detection**: Scans your Docker containers and identifies available updates
-- 🎨 **Modern UI**: Clean, responsive interface with real-time status updates
-- 🔄 **One-Click Upgrades**: Upgrade containers with a single click
-- 🔌 **Portainer Integration**: Seamlessly connects to your Portainer instance
-- 📦 **Professional Releases**: Automated release process following industry best practices
+- 🔐 **Secure Authentication** - User-based authentication with role management
+- 🔍 **Automatic Update Detection** - Scans containers and identifies available updates
+- 🎨 **Modern UI** - Clean, responsive interface with dark mode support
+- 🔄 **One-Click Upgrades** - Upgrade individual containers or batch process multiple updates
+- 🔌 **Portainer Integration** - Connect multiple Portainer instances
+- 📊 **Tracked Apps** - Monitor applications from Docker registries, GitHub releases, or GitLab releases
+- 🐙 **GitHub Integration** - Track GitHub repositories and get notified of new releases
+- 🦊 **GitLab Integration** - Track GitLab repositories and monitor release versions
+- 🔔 **Notifications** - Stay informed about available updates
+- 📦 **Image Management** - View and clean up unused Docker images
 
-## Prerequisites
+## Quick Start
 
-- Node.js (v18 or higher)
-- npm or yarn
-- Portainer instance running and accessible
-- Docker containers managed by Portainer
+### Docker Compose (Recommended)
 
-## Versioning
+Create a `docker-compose.yml` file:
 
-Docked follows [Semantic Versioning 2.0.0](https://semver.org/):
+```yaml
+services:
+  docked:
+    image: ghcr.io/dodgerbluee/docked:latest
+    container_name: docked
+    restart: unless-stopped
+    ports:
+      - "6969:3000"
+    environment:
+      - TZ=America/Chicago
+      - PORT=3000
+    volumes:
+      - ./data:/data
+```
 
-- **MAJOR** version for incompatible API changes
-- **MINOR** version for new functionality in a backward compatible manner
-- **PATCH** version for backward compatible bug fixes
-
-See [RELEASE.md](RELEASE.md) for details on our release process.
-
-## Installation
-
-1. Clone the repository:
+Start the container:
 
 ```bash
-git clone <repository-url>
+docker-compose up -d
+```
+
+Access the application at `http://localhost:6969`
+
+### Development Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/dodgerbluee/docked.git
 cd docked
 ```
 
-2. Install all dependencies:
-
+2. Install dependencies:
 ```bash
 npm run install-all
 ```
 
-3. Configure the backend:
-
+3. Configure backend:
 ```bash
 cd server
 cp .env.example .env
+# Edit .env with your settings
 ```
 
-Edit `server/.env` with your configuration:
-
-```
-PORT=3001
-
-# Optional: Set custom admin password for the application login
-# Default is "admin" if not set
-ADMIN_PASSWORD=your_admin_password
-```
-
-**Note:** Portainer instances and Docker Hub credentials are now managed through the Settings UI in the application. You no longer need to configure them in the environment file.
-
-## Usage
-
-### Development Mode
-
-Run both frontend and backend concurrently:
-
+4. Run development server:
 ```bash
 npm run dev
 ```
 
-Or run them separately:
+Access at `http://localhost:3000` (frontend) and `http://localhost:3001` (backend API)
 
-**Backend only:**
+## Usage
 
-```bash
-npm run server
-```
+### First Time Setup
 
-**Frontend only:**
+1. Create your first user account on the login page
+2. Add your Portainer instance(s) in Settings to start monitoring Docker containers
+3. Optionally configure Docker Hub credentials for higher API rate limits
+4. Add tracked applications (GitHub/GitLab repos or Docker images) to monitor releases
+5. Start monitoring and upgrading containers
 
-```bash
-npm run client
-```
+### Core Workflow
 
-### Access the Application
+1. **Add Portainer Instances** - Connect your Portainer instances to monitor Docker containers
+2. **Monitor Containers** - View all containers with update status from your Portainer instances
+3. **Track Applications** - Add GitHub or GitLab repositories to monitor applications directly from their source
+   - **GitHub Repos**: Track releases using the format `owner/repo` (e.g., `dodgerbluee/docked`)
+   - **GitLab Repos**: Track releases from GitLab projects (optionally use access tokens for private repos)
+   - **Docker Images**: Track specific Docker images from any registry
+4. **Upgrade** - One-click upgrades for individual containers or batch process multiple updates
+5. **Stay Notified** - Get notifications when tracked applications have new releases
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:3001
+## Screenshots
 
-### Login
-
-When you first access the application, you'll be presented with a login page.
-
-**First-time setup:**
-
-Since no default user is created, you'll need to create your first user account:
-
-1. Click the "Create User" button on the login page
-2. Enter your desired username, password, and optional email
-3. Log in with your newly created credentials
-
-**Note:** For production use, you should:
-
-1. Create a strong password for your first user account
-2. Consider using PostgreSQL or MySQL instead of SQLite for better performance and concurrent access
-3. Use JWT tokens instead of simple base64 tokens
-4. Regularly backup the `server/db/users.db` file
-
-### Database
-
-The application uses SQLite to store user credentials. The database file is located at `server/db/users.db`.
-
-**User Management:**
-
-- Create your first user using the "Create User" button on the login page
-- Additional users can be created by any authenticated user with the "Create User" button
-- Users can change their password in the Settings page after logging in
-
-**Database Recommendations:**
-
-- **SQLite** (current): Good for single-instance deployments, simple setup
-- **PostgreSQL**: Recommended for production, better performance, supports concurrent connections
-- **MySQL**: Alternative to PostgreSQL, also production-ready
-
-## How It Works
-
-1. **Backend** (`server/index.js`):
-   - Authenticates with Portainer API
-   - Fetches all containers from Portainer
-   - Checks for available image updates
-   - Provides REST API endpoints for the frontend
-
-2. **Frontend** (`client/src/App.js`):
-   - Displays containers with available updates
-   - Shows container status and image information
-   - Provides upgrade buttons for containers with updates
-   - Auto-refreshes every 30 seconds
-
-## API Endpoints
-
-- `GET /api/health` - Health check
-- `GET /api/containers` - Get all containers with update status
-- `POST /api/containers/:containerId/upgrade` - Upgrade a specific container
-
-## Upgrade Process
-
-When you click "Upgrade Now" on a container:
-
-1. The container is stopped
-2. The latest image is pulled
-3. The old container is removed
-4. A new container is created with the same configuration
-5. The new container is started
+> Add screenshots of your application here showing the main dashboard, container list, and upgrade interface.
 
 ## Configuration
 
 ### Environment Variables
 
-- `PORT` - Backend server port (default: 3001)
-- `ADMIN_PASSWORD` - Admin password for application login (default: "admin")
+- `PORT` - Application port (default: 3000)
+- `TZ` - Timezone (default: UTC)
+- `DATA_DIR` - Data directory path (default: /data)
 
 ### Application Settings
 
-The following are configured through the Settings UI in the application:
+Configure through the web UI:
+- Portainer instances (URL and API keys)
+- Docker Hub credentials (username and personal access token)
+- User management and preferences
 
-- **Portainer Instances**: Add, edit, and manage Portainer instances with their URLs and credentials
-- **Docker Hub Authentication**: Configure Docker Hub username and Personal Access Token for higher API rate limits (200 requests/6hr vs 100 for anonymous)
+## Architecture
 
-**Note:** Portainer instances and Docker Hub credentials are no longer configured via environment variables. Use the Settings page after logging in.
-
-## Notes
-
-- The current implementation uses a simplified update check. For production use, you may want to enhance the `checkImageUpdates` function to actually query Docker Hub or your registry API to compare image tags/versions.
-- The application uses the first available Portainer endpoint. To support multiple endpoints, you can extend the code.
-
-## Releases
-
-### Latest Release
-
-Check the [Releases](https://github.com/your-org/docked/releases) page for the latest version.
-
-### Upgrade Guide
-
-See [UPGRADE.md](UPGRADE.md) for detailed upgrade instructions.
-
-### Release Process
-
-Our release process follows industry best practices. See [RELEASE.md](RELEASE.md) for details.
+- **Backend**: Node.js/Express REST API
+- **Frontend**: React with modern UI components
+- **Database**: SQLite (can be configured for PostgreSQL/MySQL)
+- **Integration**: Portainer API for container management
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Whether you've found a bug or have a feature suggestion, we'd love to hear from you.
+
+### Reporting Issues
+
+Found a bug or have a recommendation? [Open an issue](https://github.com/dodgerbluee/docked/issues) and let us know!
+
+- Use the [Bug Report](.github/ISSUE_TEMPLATE/bug_report.md) template for defects
+- Use the [Feature Request](.github/ISSUE_TEMPLATE/feature_request.md) template for new ideas
 
 ### Development
 
@@ -201,18 +145,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Run tests (`npm test`)
-5. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/):
-   - `feat:` New feature
-   - `fix:` Bug fix
-   - `docs:` Documentation changes
-   - `style:` Code style changes
-   - `refactor:` Code refactoring
-   - `test:` Adding or updating tests
-   - `chore:` Maintenance tasks
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+5. Commit using [Conventional Commits](https://www.conventionalcommits.org/)
+6. Push and open a Pull Request
 
-### Star history
+## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=dodgerbluee/docked&type=Date)](https://star-history.com/#dodgerbluee/docked&Date)
 

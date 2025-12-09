@@ -13,8 +13,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object|null>} - Docker Hub credentials or null
    */
-  async getDockerHubCredentials(userId) {
-    return await registryDb.getDockerHubCredentials(userId);
+  getDockerHubCredentials(userId) {
+    return registryDb.getDockerHubCredentials(userId);
   }
 
   /**
@@ -24,8 +24,8 @@ class RegistryRepository extends BaseRepository {
    * @param {string} token - Docker Hub personal access token
    * @returns {Promise<void>}
    */
-  async updateDockerHubCredentials(userId, username, token) {
-    return await registryDb.updateDockerHubCredentials(userId, username, token);
+  updateDockerHubCredentials(userId, username, token) {
+    return registryDb.updateDockerHubCredentials(userId, username, token);
   }
 
   /**
@@ -33,8 +33,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async deleteDockerHubCredentials(userId) {
-    return await registryDb.deleteDockerHubCredentials(userId);
+  deleteDockerHubCredentials(userId) {
+    return registryDb.deleteDockerHubCredentials(userId);
   }
 
   /**
@@ -42,8 +42,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Array>} - Array of repository access tokens
    */
-  async findRepositoryAccessTokensByUser(userId) {
-    return await registryDb.getAllRepositoryAccessTokens(userId);
+  findRepositoryAccessTokensByUser(userId) {
+    return registryDb.getAllRepositoryAccessTokens(userId);
   }
 
   /**
@@ -52,8 +52,8 @@ class RegistryRepository extends BaseRepository {
    * @param {string} provider - Provider name (e.g., "github", "gitlab")
    * @returns {Promise<Object|null>} - Repository access token or null
    */
-  async findRepositoryAccessTokenByProvider(userId, provider) {
-    return await registryDb.getRepositoryAccessTokenByProvider(userId, provider);
+  findRepositoryAccessTokenByProvider(userId, provider) {
+    return registryDb.getRepositoryAccessTokenByProvider(userId, provider);
   }
 
   /**
@@ -62,8 +62,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object|null>} - Repository access token or null
    */
-  async findRepositoryAccessTokenById(tokenId, userId) {
-    return await registryDb.getRepositoryAccessTokenById(tokenId, userId);
+  findRepositoryAccessTokenById(tokenId, userId) {
+    return registryDb.getRepositoryAccessTokenById(tokenId, userId);
   }
 
   /**
@@ -75,13 +75,13 @@ class RegistryRepository extends BaseRepository {
    * @param {number} [tokenId] - Token ID (for updates)
    * @returns {Promise<number>} - Token ID
    */
-  async upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenId = null) {
-    return await registryDb.upsertRepositoryAccessToken(
+  upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenId = null) {
+    return registryDb.upsertRepositoryAccessToken(
       userId,
       provider,
       name,
       accessToken,
-      tokenId
+      tokenId,
     );
   }
 
@@ -91,8 +91,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async deleteRepositoryAccessToken(id, userId) {
-    return await registryDb.deleteRepositoryAccessToken(id, userId);
+  deleteRepositoryAccessToken(id, userId) {
+    return registryDb.deleteRepositoryAccessToken(id, userId);
   }
 
   /**
@@ -102,8 +102,8 @@ class RegistryRepository extends BaseRepository {
    * @param {Array<string>} imageRepos - Array of image repository names
    * @returns {Promise<void>}
    */
-  async associateImagesWithToken(userId, tokenId, imageRepos) {
-    return await registryDb.associateImagesWithToken(userId, tokenId, imageRepos);
+  associateImagesWithToken(userId, tokenId, imageRepos) {
+    return registryDb.associateImagesWithToken(userId, tokenId, imageRepos);
   }
 
   /**
@@ -112,8 +112,8 @@ class RegistryRepository extends BaseRepository {
    * @param {number} tokenId - Token ID
    * @returns {Promise<Array>} - Array of associated image repository names
    */
-  async getAssociatedImagesForToken(userId, tokenId) {
-    return await registryDb.getAssociatedImagesForToken(userId, tokenId);
+  getAssociatedImagesForToken(userId, tokenId) {
+    return registryDb.getAssociatedImagesForToken(userId, tokenId);
   }
 }
 

@@ -17,6 +17,7 @@ const { getDatabase } = require("./connection");
  * @returns {Promise<number>} - ID of the record
  */
 function upsertRegistryImageVersion(userId, imageRepo, tag, versionData) {
+  // eslint-disable-next-line complexity -- Registry version upsert requires multiple conditional checks
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -57,7 +58,7 @@ function upsertRegistryImageVersion(userId, imageRepo, tag, versionData) {
           } else {
             resolve(this.lastID);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -87,7 +88,7 @@ function getRegistryImageVersion(userId, imageRepo, tag) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -122,7 +123,7 @@ function cleanupOrphanedRegistryVersions(userId) {
           } else {
             resolve(this.changes);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);

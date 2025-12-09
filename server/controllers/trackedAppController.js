@@ -11,11 +11,164 @@ const {
   updateTrackedApp,
   deleteTrackedApp,
 } = require("../db/index");
-const { validateRequiredFields } = require("../utils/validation");
+// const { validateRequiredFields } = require("../utils/validation"); // Unused
 const trackedAppService = require("../services/trackedAppService");
 const githubService = require("../services/githubService");
 const gitlabService = require("../services/gitlabService");
 const { clearLatestVersionsForAllTrackedApps } = require("../db/index");
+
+/**
+ * Create a tracked GitHub app
+ * @param {number} userId - User ID
+ * @param {string} name - App name
+ * @param {string} githubRepo - GitHub repository
+ * @param {string} currentVersion - Current version (optional)
+ * @param {number} repositoryTokenId - Repository token ID (optional)
+ * @returns {Promise<Object>} - Result with id and message
+ */
+async function createGitHubTrackedApp(userId, name, githubRepo, currentVersion, repositoryTokenId) {
+  const trimmedRepo = githubRepo.trim();
+  const existing = await getTrackedAppByImageName(userId, null, trimmedRepo);
+  if (existing) {
+    return {
+      error: { status: 400, message: "This GitHub repository is already being tracked" },
+    };
+  }
+
+  const id = await createTrackedApp({
+    userId,
+    name: name.trim(),
+    imageName: null,
+    githubRepo: trimmedRepo,
+    sourceType: "github",
+    gitlabToken: null,
+    repositoryTokenId: repositoryTokenId || null,
+  });
+
+  if (currentVersion && currentVersion.trim()) {
+    await updateTrackedApp(id, userId, { current_version: currentVersion.trim() });
+  }
+
+  return { id, message: "GitHub repository tracked successfully" };
+}
+
+/**
+ * Create a tracked GitLab app
+ * @param {number} userId - User ID
+ * @param {string} name - App name
+ * @param {string} gitlabRepo - GitLab repository
+ * @param {string} currentVersion - Current version (optional)
+ * @param {string} gitlabToken - GitLab token (optional)
+ * @param {number} repositoryTokenId - Repository token ID (optional)
+ * @returns {Promise<Object>} - Result with id and message
+ */
+async function createGitLabTrackedApp(
+  userId,
+  name,
+  gitlabRepo,
+  currentVersion,
+  gitlabToken,
+  repositoryTokenId,
+) {
+  const trimmedRepo = gitlabRepo.trim();
+  const existing = await getTrackedAppByImageName(userId, null, trimmedRepo);
+  if (existing) {
+    return {
+      error: { status: 400, message: "This GitLab repository is already being tracked" },
+    };
+  }
+
+  const id = await createTrackedApp({
+    userId,
+    name: name.trim(),
+    imageName: null,
+    githubRepo: trimmedRepo,
+    sourceType: "gitlab",
+    gitlabToken: gitlabToken || null,
+    repositoryTokenId: repositoryTokenId || null,
+  });
+
+  if (currentVersion && currentVersion.trim()) {
+    await updateTrackedApp(id, userId, { current_version: currentVersion.trim() });
+  }
+
+  return { id, message: "GitLab repository tracked successfully" };
+}
+
+/**
+ * Create a tracked Docker app
+ * @param {number} userId - User ID
+ * @param {string} name - App name
+ * @param {string} imageName - Docker image name
+ * @param {string} currentVersion - Current version (optional)
+ * @returns {Promise<Object>} - Result with id and message
+ */
+async function createDockerTrackedApp(userId, name, imageName, currentVersion) {
+  const trimmedImageName = imageName.trim();
+  const existing = await getTrackedAppByImageName(userId, trimmedImageName);
+  if (existing) {
+    return {
+      error: { status: 400, message: "An image with this name is already being tracked" },
+    };
+  }
+
+  const id = await createTrackedApp({
+    userId,
+    name: name.trim(),
+    imageName: trimmedImageName,
+    githubRepo: null,
+    sourceType: "docker",
+  });
+
+  if (currentVersion && currentVersion.trim()) {
+    await updateTrackedApp(id, userId, { current_version: currentVersion.trim() });
+  }
+
+  return { id, message: "Docker image tracked successfully" };
+}
+
+/**
+ * Format a tracked app for API response
+ * @param {Object} image - Tracked app from database
+ * @returns {Object} - Formatted tracked app
+ */
+function formatTrackedAppForResponse(image) {
+  const latestVersion = image.latest_version ? String(image.latest_version) : null;
+  const currentVersionPublishDate = image.current_version_publish_date || null;
+  const latestVersionPublishDate = image.latest_version_publish_date || null;
+
+  // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
+  // This ensures we can show the release date for the latest version
+  const isGitSource = image.source_type === "github" || image.source_type === "gitlab";
+  if (isGitSource && latestVersion) {
+    // Normalize versions for comparison (remove "v" prefix)
+    const normalizeVersion = v => (v ? v.replace(/^v/, "") : "");
+    const normalizedCurrent = normalizeVersion(image.current_version || "");
+    const normalizedLatest = normalizeVersion(latestVersion);
+
+    // If latest version is different from current and has no publish date, we should still show it
+    // but we need to make sure we have the publish date stored
+    // The issue is that latest_version_publish_date should be set when there's an update
+    const versionsDiffer = normalizedCurrent !== normalizedLatest;
+    if (versionsDiffer && !latestVersionPublishDate) {
+      // If we have latest_version but no latest_version_publish_date,
+      // it means the update check didn't properly store it
+      // We should still show the version, but the publish date will be "Not available"
+    }
+  }
+
+  return {
+    ...image,
+    has_update: Boolean(image.has_update), // Convert 0/1 to boolean
+    current_version: image.current_version ? String(image.current_version) : null,
+    latest_version: latestVersion,
+    source_type: image.source_type || "docker", // Default to 'docker' for existing records
+    github_repo: image.github_repo || null,
+    gitlab_token: image.gitlab_token || null,
+    currentVersionPublishDate,
+    latestVersionPublishDate,
+  };
+}
 
 /**
  * Get all tracked apps
@@ -35,42 +188,8 @@ async function getTrackedApps(req, res, next) {
     const images = await getAllTrackedApps(userId);
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
-    const formattedImages = images.map((image) => {
-      const latestVersion = image.latest_version ? String(image.latest_version) : null;
-      const currentVersionPublishDate = image.current_version_publish_date || null;
-      const latestVersionPublishDate = image.latest_version_publish_date || null;
-
-      // For GitHub and GitLab repos, ensure we have publish date for latest version when it's different from current
-      // This ensures we can show the release date for the latest version
-      if ((image.source_type === "github" || image.source_type === "gitlab") && latestVersion) {
-        // Normalize versions for comparison (remove "v" prefix)
-        const normalizeVersion = (v) => (v ? v.replace(/^v/, "") : "");
-        const normalizedCurrent = normalizeVersion(image.current_version || "");
-        const normalizedLatest = normalizeVersion(latestVersion);
-
-        // If latest version is different from current and has no publish date, we should still show it
-        // but we need to make sure we have the publish date stored
-        // The issue is that latest_version_publish_date should be set when there's an update
-        if (normalizedCurrent !== normalizedLatest && !latestVersionPublishDate) {
-          // If we have latest_version but no latest_version_publish_date,
-          // it means the update check didn't properly store it
-          // We should still show the version, but the publish date will be "Not available"
-        }
-      }
-
-      return {
-        ...image,
-        has_update: Boolean(image.has_update), // Convert 0/1 to boolean
-        current_version: image.current_version ? String(image.current_version) : null,
-        latest_version: latestVersion,
-        source_type: image.source_type || "docker", // Default to 'docker' for existing records
-        github_repo: image.github_repo || null,
-        gitlab_token: image.gitlab_token || null,
-        currentVersionPublishDate: currentVersionPublishDate,
-        latestVersionPublishDate: latestVersionPublishDate,
-      };
-    });
-    res.json({
+    const formattedImages = images.map(image => formatTrackedAppForResponse(image));
+    return res.json({
       success: true,
       images: formattedImages,
     });
@@ -95,7 +214,7 @@ async function getTrackedApp(req, res, next) {
       });
     }
     const { id } = req.params;
-    const image = await getTrackedAppById(parseInt(id), userId);
+    const image = await getTrackedAppById(parseInt(id, 10), userId);
 
     if (!image) {
       return res.status(404).json({
@@ -104,9 +223,9 @@ async function getTrackedApp(req, res, next) {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
-      image: image,
+      image,
     });
   } catch (error) {
     next(error);
@@ -128,17 +247,17 @@ async function createTrackedAppEndpoint(req, res, next) {
         error: "Authentication required",
       });
     }
+
     const {
       name,
       imageName,
       githubRepo,
       sourceType,
-      current_version,
+      current_version: currentVersion,
       gitlabToken,
       repositoryTokenId,
     } = req.body;
 
-    // Validate name is required
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
@@ -146,121 +265,55 @@ async function createTrackedAppEndpoint(req, res, next) {
       });
     }
 
-    // Determine source type
     const finalSourceType = sourceType || (githubRepo ? "github" : "docker");
+    let result;
 
     if (finalSourceType === "github") {
-      // Validate GitHub repo
       if (!githubRepo || !githubRepo.trim()) {
         return res.status(400).json({
           success: false,
           error: "GitHub repository is required for GitHub source type",
         });
       }
-
-      // Check if repo already exists
-      const existing = await getTrackedAppByImageName(userId, null, githubRepo.trim());
-      if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: "This GitHub repository is already being tracked",
-        });
-      }
-
-      // Create tracked GitHub repo
-      const id = await createTrackedApp(
-        userId,
-        name.trim(),
-        null,
-        githubRepo.trim(),
-        "github",
-        null,
-        repositoryTokenId || null
-      );
-
-      // Update current_version if provided
-      if (current_version && current_version.trim()) {
-        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
-      }
-
-      res.json({
-        success: true,
-        message: "GitHub repository tracked successfully",
-        id: id,
-      });
+      result = await createGitHubTrackedApp(userId, name, githubRepo, currentVersion, repositoryTokenId);
     } else if (finalSourceType === "gitlab") {
-      // Validate GitLab repo
       if (!githubRepo || !githubRepo.trim()) {
         return res.status(400).json({
           success: false,
           error: "GitLab repository is required for GitLab source type",
         });
       }
-
-      // Check if repo already exists
-      const existing = await getTrackedAppByImageName(userId, null, githubRepo.trim());
-      if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: "This GitLab repository is already being tracked",
-        });
-      }
-
-      // Create tracked GitLab repo
-      const id = await createTrackedApp(
+      result = await createGitLabTrackedApp(
         userId,
-        name.trim(),
-        null,
-        githubRepo.trim(),
-        "gitlab",
-        gitlabToken || null,
-        repositoryTokenId || null
+        name,
+        githubRepo,
+        currentVersion,
+        gitlabToken,
+        repositoryTokenId,
       );
-
-      // Update current_version if provided
-      if (current_version && current_version.trim()) {
-        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
-      }
-
-      res.json({
-        success: true,
-        message: "GitLab repository tracked successfully",
-        id: id,
-      });
     } else {
-      // Docker image
       if (!imageName || !imageName.trim()) {
         return res.status(400).json({
           success: false,
           error: "Image name is required for Docker source type",
         });
       }
+      result = await createDockerTrackedApp(userId, name, imageName, currentVersion);
+    }
 
-      // Check if image name already exists
-      const existing = await getTrackedAppByImageName(userId, imageName.trim());
-      if (existing) {
-        return res.status(400).json({
-          success: false,
-          error: "An image with this name is already being tracked",
-        });
-      }
-
-      // Create tracked app
-      const id = await createTrackedApp(userId, name.trim(), imageName.trim(), null, "docker");
-
-      // Update current_version if provided
-      if (current_version && current_version.trim()) {
-        await updateTrackedApp(id, userId, { current_version: current_version.trim() });
-      }
-
-      res.json({
-        success: true,
-        message: "Tracked app created successfully",
-        id: id,
+    if (result.error) {
+      return res.status(result.error.status).json({
+        success: false,
+        error: result.error.message,
       });
     }
+
+    return res.json({
+      success: true,
+      message: result.message,
+      id: result.id,
+    });
   } catch (error) {
-    // Handle unique constraint violation
     if (error.message.includes("UNIQUE constraint failed")) {
       return res.status(400).json({
         success: false,
@@ -277,6 +330,7 @@ async function createTrackedAppEndpoint(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex tracked app update logic
 async function updateTrackedAppEndpoint(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -287,11 +341,18 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const { name, imageName, current_version, gitlabToken, repositoryTokenId, isUpgrade } =
-      req.body;
+
+    const {
+      name,
+      imageName,
+      current_version: currentVersion,
+      gitlabToken,
+      repositoryTokenId,
+      isUpgrade,
+    } = req.body;
 
     // Check if tracked app exists
-    const existing = await getTrackedAppById(parseInt(id), userId);
+    const existing = await getTrackedAppById(parseInt(id, 10), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -299,8 +360,8 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
 
-    // Validate input - allow current_version updates even if name/imageName not provided
-    if (!name && !imageName && current_version === undefined) {
+    // Validate input - allow currentVersion updates even if name/imageName not provided
+    if (!name && !imageName && currentVersion === undefined) {
       return res.status(400).json({
         success: false,
         error: "At least one field (name, imageName, or current_version) must be provided",
@@ -312,7 +373,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       const trimmedImageName = String(imageName).trim();
       if (trimmedImageName !== existing.image_name) {
         const conflict = await getTrackedAppByImageName(userId, trimmedImageName);
-        if (conflict && conflict.id !== parseInt(id)) {
+        if (conflict && conflict.id !== parseInt(id, 10)) {
           return res.status(400).json({
             success: false,
             error: "An image with this name is already being tracked",
@@ -336,12 +397,12 @@ async function updateTrackedAppEndpoint(req, res, next) {
     if (repositoryTokenId !== undefined) {
       updateData.repository_token_id = repositoryTokenId || null;
     }
-    if (current_version !== undefined && current_version !== null) {
-      const trimmedVersion = String(current_version).trim();
+    if (currentVersion !== undefined && currentVersion !== null) {
+      const trimmedVersion = String(currentVersion).trim();
       updateData.current_version = trimmedVersion;
       // If updating current_version to match latest_version, also update has_update flag
       // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
-      const normalizeVersion = (v) => {
+      const normalizeVersion = v => {
         if (!v) {
           return "";
         }
@@ -352,6 +413,8 @@ async function updateTrackedAppEndpoint(req, res, next) {
       const isImageNameChange =
         imageName && imageName !== null && String(imageName).trim() !== existing.image_name;
       const isExplicitUpgrade = isUpgrade === true;
+
+
       const isCurrentVersionChange = trimmedVersion !== existing.current_version;
 
       if (isImageNameChange || !isExplicitUpgrade) {
@@ -378,11 +441,13 @@ async function updateTrackedAppEndpoint(req, res, next) {
         updateData.has_update = 0;
 
         // If there's a stored latest_version, check if we should sync it
+
         if (existing.latest_version) {
           const normalizedCurrent = normalizeVersion(trimmedVersion);
           const normalizedLatest = normalizeVersion(existing.latest_version);
+          const versionsMatch = normalizedCurrent === normalizedLatest && normalizedCurrent !== "";
 
-          if (normalizedCurrent === normalizedLatest && normalizedCurrent !== "") {
+          if (versionsMatch) {
             // Versions match after normalization - sync latest_version to current_version format
             // This ensures they're in perfect sync and batch checks won't re-detect updates
             updateData.latest_version = trimmedVersion;
@@ -406,19 +471,20 @@ async function updateTrackedAppEndpoint(req, res, next) {
       }
     }
 
-    await updateTrackedApp(parseInt(id), userId, updateData);
+    await updateTrackedApp(parseInt(id, 10), userId, updateData);
 
     // Fetch the updated image to return current state
-    const updatedImage = await getTrackedAppById(parseInt(id), userId);
+    const updatedImage = await getTrackedAppById(parseInt(id, 10), userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Tracked app updated successfully",
+
       image: updatedImage
         ? {
-            ...updatedImage,
-            has_update: Boolean(updatedImage.has_update),
-          }
+          ...updatedImage,
+          has_update: Boolean(updatedImage.has_update),
+        }
         : null,
     });
   } catch (error) {
@@ -451,7 +517,7 @@ async function deleteTrackedAppEndpoint(req, res, next) {
     const { id } = req.params;
 
     // Check if tracked app exists
-    const existing = await getTrackedAppById(parseInt(id), userId);
+    const existing = await getTrackedAppById(parseInt(id, 10), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -460,9 +526,9 @@ async function deleteTrackedAppEndpoint(req, res, next) {
     }
 
     // Delete tracked app
-    await deleteTrackedApp(parseInt(id), userId);
+    await deleteTrackedApp(parseInt(id, 10), userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Tracked app deleted successfully",
     });
@@ -489,9 +555,9 @@ async function checkTrackedAppsUpdates(req, res, next) {
     const images = await getAllTrackedApps(userId);
     const results = await trackedAppService.checkAllTrackedApps(images);
 
-    res.json({
+    return res.json({
       success: true,
-      results: results,
+      results,
     });
   } catch (error) {
     next(error);
@@ -514,7 +580,7 @@ async function checkTrackedAppUpdate(req, res, next) {
       });
     }
     const { id } = req.params;
-    const image = await getTrackedAppById(parseInt(id), userId);
+    const image = await getTrackedAppById(parseInt(id, 10), userId);
 
     if (!image) {
       return res.status(404).json({
@@ -525,9 +591,9 @@ async function checkTrackedAppUpdate(req, res, next) {
 
     const result = await trackedAppService.checkTrackedApp(image);
 
-    res.json({
+    return res.json({
       success: true,
-      result: result,
+      result,
     });
   } catch (error) {
     next(error);
@@ -558,10 +624,10 @@ async function clearGitHubCache(req, res, next) {
     githubService.clearReleaseCache();
     gitlabService.clearReleaseCache();
 
-    res.json({
+    return res.json({
       success: true,
       message: `Cleared latest version data for ${rowsUpdated} tracked app(s)`,
-      rowsUpdated: rowsUpdated,
+      rowsUpdated,
     });
   } catch (error) {
     next(error);

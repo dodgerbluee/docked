@@ -27,7 +27,7 @@ function getSetting(key, userId) {
           } else {
             resolve(row ? row.value : null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -49,13 +49,13 @@ function setSetting(key, value, userId) {
       db.run(
         "INSERT OR REPLACE INTO settings (user_id, key, value, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
         [userId, key, value],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -98,13 +98,13 @@ function setSystemSetting(key, value) {
       db.run(
         "INSERT OR REPLACE INTO settings (user_id, key, value, updated_at) VALUES (0, ?, ?, CURRENT_TIMESTAMP)",
         [key, value],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);

@@ -30,7 +30,8 @@ class BaseRepository {
     return new Promise((resolve, reject) => {
       const db = this.getDb();
       if (!db) {
-        return reject(new Error("Database connection not available"));
+        reject(new Error("Database connection not available"));
+        return;
       }
 
       db.run(query, params, function (err) {
@@ -40,7 +41,8 @@ class BaseRepository {
             error: err.message,
             params: params.length,
           });
-          return reject(err);
+          reject(err);
+          return;
         }
         resolve({ lastID: this.lastID, changes: this.changes });
       });
@@ -66,7 +68,8 @@ class BaseRepository {
     return new Promise((resolve, reject) => {
       const db = this.getDb();
       if (!db) {
-        return reject(new Error("Database connection not available"));
+        reject(new Error("Database connection not available"));
+        return;
       }
 
       db.get(query, params, (err, row) => {
@@ -76,7 +79,8 @@ class BaseRepository {
             error: err.message,
             params: params.length,
           });
-          return reject(err);
+          reject(err);
+          return;
         }
 
         // Cache result if enabled
@@ -111,7 +115,8 @@ class BaseRepository {
     return new Promise((resolve, reject) => {
       const db = this.getDb();
       if (!db) {
-        return reject(new Error("Database connection not available"));
+        reject(new Error("Database connection not available"));
+        return;
       }
 
       db.all(query, params, (err, rows) => {
@@ -121,7 +126,8 @@ class BaseRepository {
             error: err.message,
             params: params.length,
           });
-          return reject(err);
+          reject(err);
+          return;
         }
 
         // Cache result if enabled
@@ -146,20 +152,23 @@ class BaseRepository {
     return new Promise((resolve, reject) => {
       const db = this.getDb();
       if (!db) {
-        return reject(new Error("Database connection not available"));
+        reject(new Error("Database connection not available"));
+        return;
       }
 
       db.serialize(() => {
-        db.run("BEGIN IMMEDIATE TRANSACTION", (err) => {
+        db.run("BEGIN IMMEDIATE TRANSACTION", err => {
           if (err) {
-            return reject(err);
+            reject(err);
+            return;
           }
 
           // Execute callback
           Promise.resolve(callback(this))
-            .then((result) => {
-              db.run("COMMIT", (commitErr) => {
+            .then(result => {
+              db.run("COMMIT", commitErr => {
                 if (commitErr) {
+                  // eslint-disable-next-line max-nested-callbacks -- Transaction rollback requires nested callbacks
                   db.run("ROLLBACK", () => {
                     reject(commitErr);
                   });
@@ -168,7 +177,7 @@ class BaseRepository {
                 }
               });
             })
-            .catch((error) => {
+            .catch(error => {
               db.run("ROLLBACK", () => {
                 reject(error);
               });
@@ -189,7 +198,7 @@ class BaseRepository {
         keysToDelete.push(key);
       }
     }
-    keysToDelete.forEach((key) => cache.delete(key));
+    keysToDelete.forEach(key => cache.delete(key));
     logger.debug(`Invalidated ${keysToDelete.length} cache entries with prefix: ${prefix}`);
   }
 

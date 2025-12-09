@@ -15,7 +15,7 @@ const logger = require("./logger");
 async function resolveUrlToIp(urlString) {
   try {
     const url = new URL(urlString);
-    const hostname = url.hostname;
+    const { hostname } = url;
 
     // Skip resolution for IP addresses
     if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || /^\[?[0-9a-fA-F:]+]?$/.test(hostname)) {
@@ -45,7 +45,6 @@ async function resolveUrlToIp(urlString) {
 function urlWithIp(originalUrl, ipAddress) {
   try {
     const url = new URL(originalUrl);
-    const originalHostname = url.hostname;
 
     // Replace hostname with IP, preserving port if present
     url.hostname = ipAddress;
@@ -68,197 +67,207 @@ function urlWithIp(originalUrl, ipAddress) {
 }
 
 /**
+ * Generate list of test IPs based on proxy IP
+ * @param {string} proxyIp - Proxy IP address
+ * @returns {Array<string>} - Array of test IPs
+ */
+function generateTestIps(proxyIp) {
+  const ipParts = proxyIp.split(".");
+  if (ipParts.length !== 4) {
+    return [];
+  }
+
+  const subnet = ipParts.slice(0, 3).join(".");
+  const proxyLastOctet = parseInt(ipParts[3], 10);
+  const testIps = [];
+  const offsets = [40, 50, 20, 30, 10, 5, 15, 25, 35, 45, 100, 200];
+
+  for (const offset of offsets) {
+    const testIp = `${subnet}.${proxyLastOctet + offset}`;
+    if (testIp !== proxyIp) {
+      testIps.push(testIp);
+    }
+  }
+
+  const commonBackendIps = [
+    `${subnet}.50`,
+    `${subnet}.20`,
+    `${subnet}.30`,
+    `${subnet}.100`,
+    `${subnet}.200`,
+  ];
+
+  for (const ip of commonBackendIps) {
+    if (ip !== proxyIp && !testIps.includes(ip)) {
+      testIps.push(ip);
+    }
+  }
+
+  return testIps;
+}
+
+/**
+ * Build authentication headers
+ * @param {string} authType - Authentication type
+ * @param {string} apiKey - API key
+ * @param {string} _username - Username (unused)
+ * @param {string} _password - Password (unused)
+ * @returns {Object} - Headers object
+ */
+function buildAuthHeaders(authType, apiKey, _username, _password) {
+  if (authType === "apikey" && apiKey) {
+    return {
+      "X-API-Key": apiKey,
+      "Content-Type": "application/json",
+    };
+  }
+  return {
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Test IP with API key authentication
+ * @param {string} testUrl - Test URL
+ * @param {Object} headers - Request headers
+ * @returns {Promise<Object|null>} - Response status or null
+ */
+async function testIpWithApiKey(testUrl, headers) {
+  const axios = require("axios");
+  try {
+    const response = await axios.get(`${testUrl}/api/endpoints`, {
+      headers,
+      timeout: 2000,
+    });
+    if (response.status === 200 || response.status === 401) {
+      return { status: response.status };
+    }
+  } catch (error) {
+    if (error.response) {
+      return { status: error.response.status };
+    }
+  }
+  return null;
+}
+
+/**
+ * Test IP with password authentication
+ * @param {string} testUrl - Test URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @returns {Promise<boolean>} - True if successful
+ */
+async function testIpWithPassword(testUrl, username, password) {
+  const axios = require("axios");
+  try {
+    const authResponse = await axios.post(
+      `${testUrl}/api/auth`,
+      { username, password },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: 2000,
+      },
+    );
+    return Boolean(authResponse.data.jwt || authResponse.data.token);
+  } catch (authErr) {
+    if (authErr.code === "ECONNREFUSED" || authErr.code === "ETIMEDOUT") {
+      return false;
+    }
+    return authErr.response?.status === 401;
+  }
+}
+
+/**
+ * Test a single IP address
+ * @param {string} testIp - IP to test
+ * @param {Object} options - Options object
+ * @param {Array<number>} options.portsToTry - Ports to try
+ * @param {string} options.authType - Authentication type
+ * @param {Object} options.headers - Request headers
+ * @param {string} options.username - Username
+ * @param {string} options.password - Password
+ * @returns {Promise<string|null>} - Detected IP or null
+ */
+async function testIpAddress(testIp, options) {
+  const { portsToTry, authType, headers, username, password } = options;
+  for (const port of portsToTry) {
+    const testProtocol = port === 443 || port === 9443 ? "https:" : "http:";
+    const testUrl = `${testProtocol}//${testIp}:${port}`;
+
+    let result = null;
+    if (authType === "apikey" && headers["X-API-Key"]) {
+      result = await testIpWithApiKey(testUrl, headers);
+    } else if (username && password) {
+      const success = await testIpWithPassword(testUrl, username, password);
+      result = success ? { status: 200 } : null;
+    }
+
+    if (result) {
+      logger.warn(
+        `⚠️  Detected potential backend IP: ${testIp}:${port} (status: ${result.status}). ` +
+          `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+        {
+          detectedIp: testIp,
+          port,
+          status: result.status,
+          warning: "Auto-detected IP may be incorrect - verify manually",
+        },
+      );
+      return testIp;
+    }
+  }
+  return null;
+}
+
+/**
  * Try to detect the actual backend IP when behind a proxy
  * Tests common IPs in the same subnet as the proxy IP
  * @param {string} proxyIp - Proxy IP address (e.g., "192.168.69.10")
  * @param {string} originalUrl - Original URL to test against
- * @param {string} apiKey - API key for authentication (optional)
- * @param {string} username - Username for authentication (optional)
- * @param {string} password - Password for authentication (optional)
- * @param {string} authType - Authentication type
+ * @param {Object} options - Options object
+ * @param {string} options.apiKey - API key for authentication (optional)
+ * @param {string} options.username - Username for authentication (optional)
+ * @param {string} options.password - Password for authentication (optional)
+ * @param {string} options.authType - Authentication type
  * @returns {Promise<string|null>} - Detected backend IP or null
  */
-async function detectBackendIp(
-  proxyIp,
-  originalUrl,
-  apiKey = null,
-  username = null,
-  password = null,
-  authType = "apikey"
-) {
+async function detectBackendIp(proxyIp, originalUrl, options = {}) {
+  const {
+    apiKey = null,
+    username = null,
+    password = null,
+    authType = "apikey",
+  } = options;
+
   try {
-    const axios = require("axios");
-    const originalUrlObj = new URL(originalUrl);
-    const protocol = originalUrlObj.protocol;
-
-    // Extract subnet from proxy IP (e.g., "192.168.69" from "192.168.69.10")
-    const ipParts = proxyIp.split(".");
-    if (ipParts.length !== 4) {
-      return null; // Invalid IP format
-    }
-
-    const subnet = ipParts.slice(0, 3).join(".");
-    const proxyLastOctet = parseInt(ipParts[3]);
-
-    // Generate list of IPs to test:
-    // 1. Common backend IPs (proxy + 40, +50, +20, +30, etc.)
-    // 2. IPs near the proxy IP
-    // NOTE: This is a heuristic and may detect the wrong IP. Users should verify the detected IP.
-    const testIps = [];
-    const offsets = [40, 50, 20, 30, 10, 5, 15, 25, 35, 45, 100, 200];
-
-    for (const offset of offsets) {
-      const testIp = `${subnet}.${proxyLastOctet + offset}`;
-      // Skip the proxy IP itself
-      if (testIp !== proxyIp) {
-        testIps.push(testIp);
-      }
-    }
-
-    // Also try some common backend IPs regardless of proxy IP
-    const commonBackendIps = [
-      `${subnet}.50`,
-      `${subnet}.20`,
-      `${subnet}.30`,
-      `${subnet}.100`,
-      `${subnet}.200`,
-    ];
-
-    for (const ip of commonBackendIps) {
-      if (ip !== proxyIp && !testIps.includes(ip)) {
-        testIps.push(ip);
-      }
+    const testIps = generateTestIps(proxyIp);
+    if (testIps.length === 0) {
+      return null;
     }
 
     logger.debug(`Testing ${testIps.length} potential backend IPs for proxy ${proxyIp}`, {
-      proxyIp: proxyIp,
-      testIps: testIps.slice(0, 10), // Log first 10 to avoid spam
+      proxyIp,
+      testIps: testIps.slice(0, 10),
       note: "This is a heuristic - detected IP may be incorrect. Verify in Settings > Portainer Instances.",
     });
 
-    // Try common Portainer ports
     const portsToTry = [9000, 9443, 80, 443];
+    const headers = buildAuthHeaders(authType, apiKey, username, password);
 
-    // Prepare auth headers
-    const getAuthHeaders = () => {
-      if (authType === "apikey" && apiKey) {
-        return {
-          "X-API-Key": apiKey,
-          "Content-Type": "application/json",
-        };
-      } else if (username && password) {
-        // For password auth, we'd need to authenticate first
-        // For now, just return basic auth structure
-        return {
-          "Content-Type": "application/json",
-        };
-      }
-      return {
-        "Content-Type": "application/json",
-      };
-    };
-
-    // Test each IP and port combination
     for (const testIp of testIps) {
-      for (const port of portsToTry) {
-        const testProtocol = port === 443 || port === 9443 ? "https:" : "http:";
-        const testUrl = `${testProtocol}//${testIp}:${port}`;
-
-        try {
-          // Try to authenticate or make a simple API call
-          if (authType === "apikey" && apiKey) {
-            // Test API key auth
-            const response = await axios.get(`${testUrl}/api/endpoints`, {
-              headers: getAuthHeaders(),
-              timeout: 2000, // Short timeout for testing
-            });
-            // If we get a response (even 401 means the server is there), this might be the backend
-            // WARNING: This is a heuristic - the detected IP might not be the correct Portainer instance
-            if (response.status === 200 || response.status === 401) {
-              logger.warn(
-                `⚠️  Detected potential backend IP: ${testIp}:${port} (status: ${response.status}). ` +
-                  `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
-                {
-                  proxyIp: proxyIp,
-                  detectedIp: testIp,
-                  port: port,
-                  status: response.status,
-                  warning: "Auto-detected IP may be incorrect - verify manually",
-                }
-              );
-              return testIp;
-            }
-          } else if (username && password) {
-            // Try password auth
-            try {
-              const authResponse = await axios.post(
-                `${testUrl}/api/auth`,
-                { username, password },
-                {
-                  headers: { "Content-Type": "application/json" },
-                  timeout: 2000,
-                }
-              );
-              if (authResponse.data.jwt || authResponse.data.token) {
-                logger.warn(
-                  `⚠️  Detected backend IP via authentication: ${testIp}:${port}. ` +
-                    `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
-                  {
-                    proxyIp: proxyIp,
-                    detectedIp: testIp,
-                    port: port,
-                    warning: "Auto-detected IP may be incorrect - verify manually",
-                  }
-                );
-                return testIp;
-              }
-            } catch (authErr) {
-              // If we get 401, the server exists but credentials might be wrong
-              // If we get connection refused, try next IP
-              if (authErr.code === "ECONNREFUSED" || authErr.code === "ETIMEDOUT") {
-                continue;
-              }
-              // 401 means server is there, might be the backend
-              if (authErr.response?.status === 401) {
-                logger.warn(
-                  `⚠️  Detected potential backend IP: ${testIp}:${port} (auth failed but server exists). ` +
-                    `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
-                  {
-                    proxyIp: proxyIp,
-                    detectedIp: testIp,
-                    port: port,
-                    warning: "Auto-detected IP may be incorrect - verify manually",
-                  }
-                );
-                return testIp;
-              }
-            }
-          }
-        } catch (error) {
-          // Connection refused or timeout - not this IP, continue
-          if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
-            continue;
-          }
-          // Other errors might mean the server exists
-          if (error.response) {
-            logger.warn(
-              `⚠️  Detected potential backend IP: ${testIp}:${port} (got response: ${error.response.status}). ` +
-                `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
-              {
-                proxyIp: proxyIp,
-                detectedIp: testIp,
-                port: port,
-                status: error.response.status,
-                warning: "Auto-detected IP may be incorrect - verify manually",
-              }
-            );
-            return testIp;
-          }
-        }
+      const detected = await testIpAddress(testIp, {
+        portsToTry,
+        authType,
+        headers,
+        username,
+        password,
+      });
+      if (detected) {
+        return detected;
       }
     }
 
-    return null; // Could not detect backend IP
+    return null;
   } catch (error) {
     logger.error(`Error detecting backend IP:`, { error });
     return null;

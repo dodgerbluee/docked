@@ -5,7 +5,6 @@
  */
 
 const logger = require("../../utils/logger");
-const { runWithContext } = require("../../utils/logger");
 
 class BatchLogger {
   constructor(jobType = "system", jobId = null) {
@@ -102,13 +101,13 @@ class BatchLogger {
    */
   getFormattedLogs() {
     return this.logs
-      .map((entry) => {
+      .map(entry => {
         const metaStr = Object.keys(entry)
-          .filter((key) => !["timestamp", "level", "jobType", "jobId", "message"].includes(key))
-          .map((key) => `${key}=${JSON.stringify(entry[key])}`)
+          .filter(key => !["timestamp", "level", "jobType", "jobId", "message"].includes(key))
+          .map(key => `${key}=${JSON.stringify(entry[key])}`)
           .join(" ");
         const jobIdStr = entry.jobId ? ` [job:${entry.jobId}]` : "";
-        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? " " + metaStr : ""}`;
+        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? ` ${metaStr}` : ""}`;
       })
       .join("\n");
   }
@@ -133,9 +132,7 @@ class BatchLogger {
 module.exports = BatchLogger;
 // Note: setLogLevel and getLogLevel are now handled by the centralized logger
 // These are kept for backward compatibility but delegate to the centralized logger
-module.exports.setLogLevel = (level) => {
+module.exports.setLogLevel = _level => {
   logger.updateLevel();
 };
-module.exports.getLogLevel = () => {
-  return logger.isDebugEnabled() ? "debug" : "info";
-};
+module.exports.getLogLevel = () => (logger.isDebugEnabled() ? "debug" : "info");

@@ -5,24 +5,25 @@
 
 // Register error handlers IMMEDIATELY before anything else
 // This ensures we catch any errors during module loading
-process.on("uncaughtException", (error) => {
+process.on("uncaughtException", error => {
   process.stderr.write(`[SERVER.JS] UNCAUGHT EXCEPTION (early): ${error.message}\n`);
   process.stderr.write(`[SERVER.JS] Stack: ${error.stack}\n`);
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason, _promise) => {
   process.stderr.write(`[SERVER.JS] UNHANDLED REJECTION (early): ${reason}\n`);
   if (reason instanceof Error) {
     process.stderr.write(`[SERVER.JS] Stack: ${reason.stack}\n`);
   }
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -33,7 +34,6 @@ const requestLogger = require("./middleware/requestLogger");
 const responseFormatter = require("./middleware/responseFormatter");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
-const { initializeRegistrationCode } = require("./utils/registrationCode");
 
 logger.debug("Starting server module load", { module: "server" });
 
@@ -45,9 +45,10 @@ try {
   process.stderr.write(`[SERVER.JS] ERROR loading database: ${dbError}\n`);
   process.stderr.write(`[SERVER.JS] Stack: ${dbError.stack}\n`);
   logger.error("Failed to load database module:", dbError);
+  // eslint-disable-next-line no-process-exit -- Critical initialization error must exit
   process.exit(1);
 }
-const { hasAnyUsers, waitForDatabase } = databaseModule;
+const { waitForDatabase } = databaseModule;
 
 const app = express();
 logger.debug("Express app created", { module: "server" });
@@ -87,26 +88,26 @@ app.use(
     contentSecurityPolicy: shouldDisableCSP
       ? false // Disable CSP on localhost/development for Safari compatibility
       : {
-          directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow blob URLs for avatar images
-            connectSrc: ["'self'"], // Safari doesn't support blob: in connectSrc
-            fontSrc: ["'self'", "data:"],
-            objectSrc: ["'none'"],
-            // Only upgrade to HTTPS if we're actually serving over HTTPS
-            ...(isHTTPS ? { upgradeInsecureRequests: [] } : {}),
-          },
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow blob URLs for avatar images
+          connectSrc: ["'self'"], // Safari doesn't support blob: in connectSrc
+          fontSrc: ["'self'", "data:"],
+          objectSrc: ["'none'"],
+          // Only upgrade to HTTPS if we're actually serving over HTTPS
+          ...(isHTTPS ? { upgradeInsecureRequests: [] } : {}),
         },
+      },
     // Disable HSTS (HTTP Strict Transport Security) when not using HTTPS
     // HSTS forces browsers to always use HTTPS, which breaks localhost development
     strictTransportSecurity: isHTTPS
       ? {
-          maxAge: 31536000,
-          includeSubDomains: true,
-          preload: false,
-        }
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: false,
+      }
       : false,
     crossOriginEmbedderPolicy: false, // Allow embedding for development
     crossOriginResourcePolicy: shouldDisableCSP
@@ -119,7 +120,7 @@ app.use(
       : process.env.NODE_ENV === "production"
         ? { policy: "same-origin" }
         : false,
-  })
+  }),
 );
 
 // Double-check: Remove HSTS header AFTER helmet (in case helmet sets it anyway)
@@ -157,7 +158,7 @@ app.use(
   swaggerUi.setup(swaggerSpec, {
     customCss: ".swagger-ui .topbar { display: none }",
     customSiteTitle: "Docked API Documentation",
-  })
+  }),
 );
 
 // Serve static files from React app
@@ -183,7 +184,8 @@ if (shouldServeStatic) {
       return next();
     }
     // Serve index.html for all other routes (SPA routing)
-    res.sendFile(path.join(publicPath, "index.html"));
+
+    return res.sendFile(path.join(publicPath, "index.html"));
   });
 }
 
@@ -203,6 +205,7 @@ try {
   // Create a dummy batch system to prevent crashes
   batchSystem = {
     start: () => Promise.resolve(),
+    // eslint-disable-next-line no-empty-function -- Dummy implementation for error handling
     stop: () => {},
     executeJob: () => Promise.resolve(),
     getStatus: () => ({ running: false }),
@@ -213,31 +216,32 @@ try {
 
 // Handle unhandled promise rejections (Express 5 compatibility)
 // In Express 5, unhandled rejections can cause crashes
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason, _promise) => {
   logger.error("Unhandled Promise Rejection", {
     module: "server",
     reason:
       reason instanceof Error
         ? {
-            message: reason.message,
-            stack: reason.stack,
-            name: reason.name,
-          }
+          message: reason.message,
+          stack: reason.stack,
+          name: reason.name,
+        }
         : reason,
-    promise: promise,
+    promise: _promise,
   });
   // In test mode, don't exit - let Jest handle it
   // In development, log but don't exit - let nodemon handle restarts
   // In production, exit to prevent undefined behavior
   if (process.env.NODE_ENV === "production") {
     logger.critical("Exiting due to unhandled rejection in production");
+    // eslint-disable-next-line no-process-exit -- Production error handler must exit
     process.exit(1);
   }
   // In test mode, just log - don't exit
 });
 
 // Handle uncaught exceptions
-process.on("uncaughtException", (error) => {
+process.on("uncaughtException", error => {
   logger.critical("Uncaught Exception", {
     module: "server",
     error: {
@@ -247,16 +251,18 @@ process.on("uncaughtException", (error) => {
     },
   });
   // Always exit on uncaught exceptions - these are serious
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
 // Log when process is about to exit
-process.on("exit", (code) => {
+process.on("exit", code => {
   logger.debug(`Process exiting with code ${code}`, { module: "server" });
 });
 
 // Log before exit
 const originalExit = process.exit;
+
 process.exit = function (code) {
   logger.debug(`process.exit(${code}) called`, { module: "server" });
   return originalExit.call(process, code);
@@ -268,7 +274,7 @@ process.exit = function (code) {
 const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
 logger.debug(
   `shouldStartServer: ${shouldStartServer}, require.main === module: ${require.main === module}, NODE_ENV: ${process.env.NODE_ENV}`,
-  { module: "server" }
+  { module: "server" },
 );
 
 if (shouldStartServer) {
@@ -285,6 +291,7 @@ if (shouldStartServer) {
     // Registration code is now generated on-demand when user clicks "Create User"
     // No longer generated on server startup
 
+    // eslint-disable-next-line max-lines-per-function -- Server startup requires comprehensive initialization
     const server = app.listen(config.port, () => {
       logger.info("Server started successfully", {
         module: "server",
@@ -343,7 +350,7 @@ if (shouldStartServer) {
               service: "batch",
             });
           })
-          .catch((err) => {
+          .catch(err => {
             logger.error("Failed to start batch system", {
               module: "server",
               service: "batch",
@@ -354,7 +361,7 @@ if (shouldStartServer) {
       });
     });
 
-    server.on("error", (err) => {
+    server.on("error", err => {
       logger.critical("Server listen error", {
         module: "server",
         error: err,
@@ -368,13 +375,15 @@ if (shouldStartServer) {
         });
       }
       // Exit on listen errors
+      // eslint-disable-next-line no-process-exit -- Critical server error must exit
       process.exit(1);
     });
   } catch (error) {
     logger.critical("Failed to start server", {
       module: "server",
-      error: error,
+      error,
     });
+    // eslint-disable-next-line no-process-exit -- Critical server error must exit
     process.exit(1);
   }
 
@@ -384,6 +393,7 @@ if (shouldStartServer) {
       module: "server",
     });
     batchSystem.stop();
+    // eslint-disable-next-line no-process-exit -- Graceful shutdown requires exit
     process.exit(0);
   });
 
@@ -392,6 +402,7 @@ if (shouldStartServer) {
       module: "server",
     });
     batchSystem.stop();
+    // eslint-disable-next-line no-process-exit -- Graceful shutdown requires exit
     process.exit(0);
   });
 }

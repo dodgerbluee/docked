@@ -47,7 +47,7 @@ function getTables(db) {
         } else {
           resolve(rows || []);
         }
-      }
+      },
     );
   });
 }
@@ -84,7 +84,7 @@ function getIndexes(db, tableName) {
         } else {
           resolve(rows || []);
         }
-      }
+      },
     );
   });
 }
@@ -105,44 +105,29 @@ function getForeignKeys(db, tableName) {
 }
 
 /**
- * Format column type with constraints
- */
-function formatColumn(col) {
-  let result = `**${col.name}**`;
-  result += ` \`${col.type}\``;
-
-  if (col.notnull === 1) {
-    result += " NOT NULL";
-  }
-  if (col.dflt_value !== null) {
-    const defaultValue = col.dflt_value.replace(/^'|'$/g, "");
-    result += ` DEFAULT ${defaultValue}`;
-  }
-  if (col.pk === 1) {
-    result += " (PRIMARY KEY)";
-  }
-
-  return result;
-}
-
-/**
  * Generate markdown documentation
  */
+// eslint-disable-next-line max-lines-per-function -- Documentation generation requires comprehensive processing
 async function generateDocumentation() {
+  // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive documentation generation
   return new Promise((resolve, reject) => {
     // Check if database exists
     if (!fs.existsSync(DB_PATH)) {
       console.error(`Database not found at ${DB_PATH}`);
+
       console.error("Please ensure the database has been initialized.");
+
       process.exit(1);
     }
 
-    const db = new sqlite3.Database(DB_PATH, (err) => {
+    // eslint-disable-next-line max-lines-per-function -- Database initialization callback requires comprehensive error handling
+    const db = new sqlite3.Database(DB_PATH, err => {
       if (err) {
         reject(err);
         return;
       }
 
+      // eslint-disable-next-line complexity -- Async arrow function requires multiple conditional checks for documentation generation
       (async () => {
         try {
           const tables = await getTables(db);
@@ -235,7 +220,7 @@ async function generateDocumentation() {
           doc.push("### User-Centric Design");
           doc.push("");
           doc.push(
-            "The database follows a user-centric design where most tables are scoped to individual users:"
+            "The database follows a user-centric design where most tables are scoped to individual users:",
           );
           doc.push("");
           doc.push("- `users` - Core user accounts");
@@ -243,7 +228,7 @@ async function generateDocumentation() {
           doc.push("- `tracked_apps` - Tracked Docker images per user (via `user_id`)");
           doc.push("- `settings` - User-specific settings (via `user_id`)");
           doc.push(
-            "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)"
+            "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)",
           );
           doc.push("- `docker_hub_credentials` - Docker Hub credentials per user (via `user_id`)");
           doc.push("- `batch_config` - Batch job configurations per user (via `user_id`)");
@@ -252,7 +237,7 @@ async function generateDocumentation() {
           doc.push("### Special Cases");
           doc.push("");
           doc.push(
-            "- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)"
+            "- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)",
           );
           doc.push("");
 
@@ -261,18 +246,21 @@ async function generateDocumentation() {
           if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
           }
-
           fs.writeFileSync(OUTPUT_PATH, doc.join("\n"), "utf8");
+
           console.log(`✅ Schema documentation generated: ${OUTPUT_PATH}`);
+
           console.log(`   Tables documented: ${tables.length}`);
 
-          db.close((err) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
+          db.close(
+            // eslint-disable-next-line no-shadow -- Error parameter shadows outer scope, but needed for callback
+            err => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve();
+              }
+            });
         } catch (error) {
           db.close();
           reject(error);
@@ -288,8 +276,9 @@ if (require.main === module) {
     .then(() => {
       process.exit(0);
     })
-    .catch((error) => {
+    .catch(error => {
       console.error("Error generating schema documentation:", error);
+
       process.exit(1);
     });
 }

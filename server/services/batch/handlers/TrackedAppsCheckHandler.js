@@ -5,7 +5,7 @@
 
 const JobHandler = require("../JobHandler");
 const trackedAppService = require("../../trackedAppService");
-const { getAllTrackedApps, getAllUsers } = require("../../../db/index");
+const { getAllTrackedApps } = require("../../../db/index");
 
 class TrackedAppsCheckHandler extends JobHandler {
   getJobType() {
@@ -56,7 +56,7 @@ class TrackedAppsCheckHandler extends JobHandler {
 
       // Extract metrics
       result.itemsChecked = apps.length;
-      result.itemsUpdated = results.filter((r) => r.hasUpdate).length;
+      result.itemsUpdated = results.filter(r => r.hasUpdate).length;
 
       logger.info("Tracked apps check completed successfully", {
         appsChecked: result.itemsChecked,

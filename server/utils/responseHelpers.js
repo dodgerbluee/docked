@@ -10,7 +10,7 @@
  * @param {Object} [additionalFields={}] - Additional fields to include in response
  * @returns {Object} - Standardized error response object
  */
-function createErrorResponse(message, statusCode = 500, additionalFields = {}) {
+function createErrorResponse(message, _statusCode = 500, additionalFields = {}) {
   return {
     success: false,
     error: message,

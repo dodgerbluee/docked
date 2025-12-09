@@ -5,14 +5,12 @@
 
 // Mock nanoid to avoid ES module issues in tests
 jest.mock("nanoid", () => {
-  const customAlphabet = (alphabet, size) => {
-    return () => {
-      let result = "";
-      for (let i = 0; i < size; i++) {
-        result += alphabet[Math.floor(Math.random() * alphabet.length)];
-      }
-      return result;
-    };
+  const customAlphabet = (alphabet, size) => () => {
+    let result = "";
+    for (let i = 0; i < size; i++) {
+      result += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return result;
   };
   return { customAlphabet };
 });
@@ -21,10 +19,10 @@ jest.mock("nanoid", () => {
 process.env.NODE_ENV = "test";
 
 // Set DATA_DIR to a temporary directory for tests
-process.env.DATA_DIR = process.env.DATA_DIR || require("os").tmpdir() + "/docked-test-data";
+process.env.DATA_DIR = process.env.DATA_DIR || `${require("os").tmpdir()}/docked-test-data`;
 
 // Set LOGS_DIR to a temporary directory for tests
-process.env.LOGS_DIR = process.env.LOGS_DIR || require("os").tmpdir() + "/docked-test-logs";
+process.env.LOGS_DIR = process.env.LOGS_DIR || `${require("os").tmpdir()}/docked-test-logs`;
 
 // Disable console logging during tests to reduce noise
 process.env.DISABLE_CONSOLE_LOGGING = "true";

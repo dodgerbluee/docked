@@ -4,19 +4,19 @@
 
 const request = require("supertest");
 const app = require("../../server");
-const { getUserByUsername, updatePassword } = require("../../db/index");
-const bcrypt = require("bcrypt");
+// const { getUserByUsername, updatePassword } = require("../../db/index"); // Unused
+// const bcrypt = require("bcrypt"); // Unused
 
 describe("Authentication API", () => {
   let authToken;
-  let testUsername = "admin";
-  let testPassword = process.env.ADMIN_PASSWORD || "admin";
+  const testUsername = "admin";
+  const testPassword = process.env.ADMIN_PASSWORD || "admin";
 
   beforeAll(async () => {
     // Create a test admin user if it doesn't exist
-    const { createUser, getUserByUsername } = require("../../db/index");
+    const { createUser, getUserByUsername: getUserByUsernameLocal } = require("../../db/index");
     try {
-      const existingUser = await getUserByUsername(testUsername);
+      const existingUser = await getUserByUsernameLocal(testUsername);
       if (!existingUser) {
         await createUser(testUsername, testPassword, null, "Administrator", true, false);
       }

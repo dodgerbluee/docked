@@ -14,10 +14,10 @@ const {
   getBatchRunById,
 } = require("../db/index");
 const batchSystem = require("../services/batch");
-const {
-  setLogLevel: setBatchLogLevel,
-  getLogLevel: getBatchLogLevel,
-} = require("../services/batch/Logger");
+// const {
+//   setLogLevel: setBatchLogLevel, // Unused
+//   getLogLevel: getBatchLogLevel, // Unused
+// } = require("../services/batch/Logger");
 const { setLogLevel, getLogLevel } = require("../utils/logLevel");
 const logger = require("../utils/logger");
 
@@ -27,7 +27,7 @@ const logger = require("../utils/logger");
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getBatchConfigHandler(req, res, next) {
+async function getBatchConfigHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -37,7 +37,7 @@ async function getBatchConfigHandler(req, res, next) {
       });
     }
     const configs = await getBatchConfig(userId); // Returns all configs for this user
-    res.json({
+    return res.json({
       success: true,
       config: configs, // Return all configs as an object
     });
@@ -56,7 +56,8 @@ async function getBatchConfigHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function updateBatchConfigHandler(req, res, next) {
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex batch config update logic
+async function updateBatchConfigHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -115,7 +116,7 @@ async function updateBatchConfigHandler(req, res, next) {
 
     const updatedConfigs = await getBatchConfig(userId); // Get all configs for this user
 
-    res.json({
+    return res.json({
       success: true,
       config: updatedConfigs,
       message: "Batch configuration updated successfully",
@@ -135,7 +136,7 @@ async function updateBatchConfigHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function createBatchRunHandler(req, res, next) {
+async function createBatchRunHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -146,7 +147,7 @@ async function createBatchRunHandler(req, res, next) {
     }
     const { status, jobType } = req.body;
     const runId = await createBatchRun(userId, status || "running", jobType || "docker-hub-pull");
-    res.json({
+    return res.json({
       success: true,
       runId,
     });
@@ -165,7 +166,7 @@ async function createBatchRunHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function updateBatchRunHandler(req, res, next) {
+async function updateBatchRunHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -174,7 +175,7 @@ async function updateBatchRunHandler(req, res, next) {
         error: "Authentication required",
       });
     }
-    const runId = parseInt(req.params.id);
+    const runId = parseInt(req.params.id, 10);
     if (isNaN(runId)) {
       return res.status(400).json({
         success: false,
@@ -184,17 +185,15 @@ async function updateBatchRunHandler(req, res, next) {
 
     const { status, containersChecked, containersUpdated, errorMessage, logs } = req.body;
 
-    await updateBatchRun(
-      runId,
-      userId,
+    await updateBatchRun(runId, userId, {
       status,
-      containersChecked || 0,
-      containersUpdated || 0,
-      errorMessage || null,
-      logs || null
-    );
+      containersChecked: containersChecked || 0,
+      containersUpdated: containersUpdated || 0,
+      errorMessage: errorMessage || null,
+      logs: logs || null,
+    });
 
-    res.json({
+    return res.json({
       success: true,
       message: "Batch run updated successfully",
     });
@@ -213,7 +212,8 @@ async function updateBatchRunHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getLatestBatchRunHandler(req, res, next) {
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex batch run retrieval logic
+async function getLatestBatchRunHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -229,7 +229,7 @@ async function getLatestBatchRunHandler(req, res, next) {
     logger.debug("Fetching latest batch run", {
       module: "batchController",
       operation: "getLatestBatchRunHandler",
-      byJobType: byJobType,
+      byJobType,
       purpose: byJobType
         ? 'Frontend polling to check for batch job completions (updates "Last scanned" timestamps)'
         : "Fetching single latest batch run",
@@ -245,32 +245,31 @@ async function getLatestBatchRunHandler(req, res, next) {
         runCount: Object.keys(latestRuns || {}).length,
       });
 
-      res.json({
+      return res.json({
         success: true,
         runs: latestRuns,
       });
-    } else {
-      const latestRun = await getLatestBatchRun(userId);
-
-      logger.debug("Latest batch run retrieved", {
-        module: "batchController",
-        operation: "getLatestBatchRunHandler",
-        runId: latestRun?.id,
-        jobType: latestRun?.job_type,
-        status: latestRun?.status,
-      });
-
-      res.json({
-        success: true,
-        run: latestRun,
-      });
     }
+    const latestRun = await getLatestBatchRun(userId);
+
+    logger.debug("Latest batch run retrieved", {
+      module: "batchController",
+      operation: "getLatestBatchRunHandler",
+      runId: latestRun?.id,
+      jobType: latestRun?.job_type,
+      status: latestRun?.status,
+    });
+
+    return res.json({
+      success: true,
+      run: latestRun,
+    });
   } catch (error) {
     logger.error("Error fetching latest batch run", {
       module: "batchController",
       operation: "getLatestBatchRunHandler",
       byJobType: req.query.byJobType === "true",
-      error: error,
+      error,
     });
     res.status(500).json({
       success: false,
@@ -285,7 +284,7 @@ async function getLatestBatchRunHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getRecentBatchRunsHandler(req, res, next) {
+async function getRecentBatchRunsHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -294,9 +293,9 @@ async function getRecentBatchRunsHandler(req, res, next) {
         error: "Authentication required",
       });
     }
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit, 10) || 50;
     const runs = await getRecentBatchRuns(userId, limit);
-    res.json({
+    return res.json({
       success: true,
       runs,
     });
@@ -315,7 +314,7 @@ async function getRecentBatchRunsHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getBatchRunByIdHandler(req, res, next) {
+async function getBatchRunByIdHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -324,7 +323,7 @@ async function getBatchRunByIdHandler(req, res, next) {
         error: "Authentication required",
       });
     }
-    const runId = parseInt(req.params.id);
+    const runId = parseInt(req.params.id, 10);
     if (isNaN(runId)) {
       return res.status(400).json({
         success: false,
@@ -340,7 +339,7 @@ async function getBatchRunByIdHandler(req, res, next) {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       run,
     });
@@ -359,7 +358,7 @@ async function getBatchRunByIdHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function triggerBatchJobHandler(req, res, next) {
+function triggerBatchJobHandler(req, res, _next) {
   try {
     const { jobType } = req.body;
 
@@ -392,14 +391,14 @@ async function triggerBatchJobHandler(req, res, next) {
     // Pass isManual=true to mark this as a manually triggered run
     batchSystem
       .executeJob(userId, jobType, true)
-      .then((result) => {
+      .then(result => {
         logger.info(`✅ Manually triggered job ${jobType} completed for user ${userId}:`, result);
       })
-      .catch((err) => {
+      .catch(err => {
         logger.error(`❌ Manually triggered job ${jobType} failed for user ${userId}:`, err);
       });
 
-    res.json({
+    return res.json({
       success: true,
       message: `Job ${jobType} triggered successfully. Check batch logs for execution details.`,
     });
@@ -418,16 +417,16 @@ async function triggerBatchJobHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getBatchStatusHandler(req, res, next) {
+function getBatchStatusHandler(req, res, _next) {
   try {
     const status = batchSystem.getStatus();
-    res.json({
+    return res.json({
       success: true,
       status,
     });
   } catch (error) {
     logger.error("Error fetching batch status:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch batch status",
     });
@@ -440,7 +439,7 @@ async function getBatchStatusHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getLogLevelHandler(req, res, next) {
+async function getLogLevelHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -452,7 +451,7 @@ async function getLogLevelHandler(req, res, next) {
 
     // Use DB-backed log level (persists across restarts) - system-wide
     const level = await getLogLevel();
-    res.json({
+    return res.json({
       success: true,
       logLevel: level,
     });
@@ -471,7 +470,7 @@ async function getLogLevelHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setLogLevelHandler(req, res, next) {
+async function setLogLevelHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -496,7 +495,7 @@ async function setLogLevelHandler(req, res, next) {
     // Also update the logger's cached level
     logger.updateLevel();
 
-    res.json({
+    return res.json({
       success: true,
       logLevel,
       message: `Log level set to ${logLevel}`,
