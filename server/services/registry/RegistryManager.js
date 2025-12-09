@@ -56,7 +56,7 @@ class RegistryManager {
     }
 
     // Default to Docker Hub if no specific provider found
-    const dockerHubProvider = this.providers.find(p => p.getName() === "dockerhub");
+    const dockerHubProvider = this.providers.find((p) => p.getName() === "dockerhub");
     if (dockerHubProvider) {
       this.providerCache.set(imageRepo, dockerHubProvider);
       return dockerHubProvider;
@@ -267,7 +267,7 @@ class RegistryManager {
 
     // Primary method: compare digests
     if (currentDigest && latestInfo.digest) {
-      const normalizeDigest = digest => {
+      const normalizeDigest = (digest) => {
         if (!digest) return null;
         return digest.startsWith("sha256:") ? digest : `sha256:${digest}`;
       };

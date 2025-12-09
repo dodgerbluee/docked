@@ -100,7 +100,8 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
     try {
       let webhookUrl = formData.webhookUrl.trim();
       // Preserve serverName if it's a non-empty string after trim, otherwise use null
-      let serverName = (formData.serverName && formData.serverName.trim()) ? formData.serverName.trim() : null;
+      let serverName =
+        formData.serverName && formData.serverName.trim() ? formData.serverName.trim() : null;
 
       // If webhook URL is provided and server name is missing, try to fetch webhook info
       if (webhookUrl && !serverName) {

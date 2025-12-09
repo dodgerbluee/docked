@@ -147,7 +147,7 @@ async function upsertToken(req, res, next) {
         provider,
         name.trim(),
         existingToken.access_token,
-        tokenId,
+        tokenId
       );
       return res.json({
         success: true,
@@ -161,7 +161,7 @@ async function upsertToken(req, res, next) {
       provider,
       name.trim(),
       accessToken.trim(),
-      tokenId || null,
+      tokenId || null
     );
 
     return res.json({
@@ -200,7 +200,7 @@ async function deleteToken(req, res, next) {
 
     // Check if token exists
     const tokens = await getAllRepositoryAccessTokens(userId);
-    const token = tokens.find(t => t.id === parseInt(id, 10));
+    const token = tokens.find((t) => t.id === parseInt(id, 10));
 
     if (!token) {
       return res.status(404).json({

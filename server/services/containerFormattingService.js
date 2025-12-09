@@ -21,7 +21,7 @@ function buildTrackedAppsMap(trackedApps) {
   }
 
   // eslint-disable-next-line complexity -- Tracked app matching requires multiple conditional checks
-  trackedApps.forEach(app => {
+  trackedApps.forEach((app) => {
     if (app.image_name && (app.source_type === "github" || app.source_type === "gitlab")) {
       // Use the same parser to normalize imageRepo for consistent matching
       try {
@@ -82,8 +82,9 @@ function determineUpdateSourceType(container, trackedAppsMap, imageName = null, 
   let updateGitLabRepo = null;
 
   // Compute hasUpdate if not already present
-  const hasUpdate = container.hasUpdate !== undefined ? container.hasUpdate : computeHasUpdate(container);
-  
+  const hasUpdate =
+    container.hasUpdate !== undefined ? container.hasUpdate : computeHasUpdate(container);
+
   if (hasUpdate && container.imageRepo) {
     // Try exact match first
     let trackedAppInfo = trackedAppsMap.get(container.imageRepo);
@@ -148,9 +149,13 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
       dbContainer,
       trackedAppsMap,
       dbContainer.imageName,
-      dbContainer.provider,
+      dbContainer.provider
     );
-    const { updateSourceType: sourceType, updateGitHubRepo: githubRepo, updateGitLabRepo: gitlabRepo } = sourceInfo;
+    const {
+      updateSourceType: sourceType,
+      updateGitHubRepo: githubRepo,
+      updateGitLabRepo: gitlabRepo,
+    } = sourceInfo;
     updateSourceType = sourceType;
     updateGitHubRepo = githubRepo;
     updateGitLabRepo = gitlabRepo;
@@ -233,9 +238,13 @@ function formatContainerFromPortainer({
       updateInfo,
       trackedAppsMap,
       updateInfo.imageName || container.Image,
-      updateInfo.provider,
+      updateInfo.provider
     );
-    const { updateSourceType: sourceType, updateGitHubRepo: githubRepo, updateGitLabRepo: gitlabRepo } = sourceInfo;
+    const {
+      updateSourceType: sourceType,
+      updateGitHubRepo: githubRepo,
+      updateGitLabRepo: gitlabRepo,
+    } = sourceInfo;
     updateSourceType = sourceType;
     updateGitHubRepo = githubRepo;
     updateGitLabRepo = gitlabRepo;

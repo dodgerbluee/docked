@@ -18,23 +18,26 @@ const logger = require("../../utils/logger");
  * @returns {Promise<boolean>}
  */
 async function columnExists(tableName, columnName) {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.get(
-        "SELECT name FROM pragma_table_info(?) WHERE name = ?",
-        [tableName, columnName],
-        (err, row) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(Boolean(row));
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.get(
+            "SELECT name FROM pragma_table_info(?) WHERE name = ?",
+            [tableName, columnName],
+            (err, row) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(Boolean(row));
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -51,21 +54,24 @@ async function addColumnIfNotExists(tableName, columnName, columnDefinition) {
     return;
   }
 
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`, err => {
-        if (err) {
-          logger.error(`Error adding column ${tableName}.${columnName}:`, { error: err });
-          return reject(err);
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`, (err) => {
+            if (err) {
+              logger.error(`Error adding column ${tableName}.${columnName}:`, { error: err });
+              return reject(err);
+            }
+            logger.info(`Added column ${tableName}.${columnName}`);
+            resolve();
+          });
+        } catch (err) {
+          reject(err);
         }
-        logger.info(`Added column ${tableName}.${columnName}`);
-        resolve();
-      });
-    } catch (err) {
-      reject(err);
-    }
-  }));
+      })
+  );
 }
 
 /**
@@ -74,23 +80,26 @@ async function addColumnIfNotExists(tableName, columnName, columnDefinition) {
  * @returns {Promise<boolean>}
  */
 async function tableExists(tableName) {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.get(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        [tableName],
-        (err, row) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(Boolean(row));
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.get(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            [tableName],
+            (err, row) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(Boolean(row));
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -99,23 +108,26 @@ async function tableExists(tableName) {
  * @returns {Promise<boolean>}
  */
 async function indexExists(indexName) {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.get(
-        "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
-        [indexName],
-        (err, row) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(Boolean(row));
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.get(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+            [indexName],
+            (err, row) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(Boolean(row));
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -134,25 +146,28 @@ async function createIndexIfNotExists(indexName, tableName, columns, unique = fa
     return;
   }
 
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      const uniqueClause = unique ? "UNIQUE" : "";
-      db.run(
-        `CREATE ${uniqueClause} INDEX IF NOT EXISTS ${indexName} ON ${tableName}(${columns})`,
-        err => {
-          if (err) {
-            logger.error(`Error creating index ${indexName}:`, { error: err });
-            return reject(err);
-          }
-          logger.info(`Created index ${indexName}`);
-          resolve();
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          const uniqueClause = unique ? "UNIQUE" : "";
+          db.run(
+            `CREATE ${uniqueClause} INDEX IF NOT EXISTS ${indexName} ON ${tableName}(${columns})`,
+            (err) => {
+              if (err) {
+                logger.error(`Error creating index ${indexName}:`, { error: err });
+                return reject(err);
+              }
+              logger.info(`Created index ${indexName}`);
+              resolve();
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -162,20 +177,23 @@ async function createIndexIfNotExists(indexName, tableName, columns, unique = fa
  * @returns {Promise<void>}
  */
 async function executeSql(sql, params = []) {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(sql, params, err => {
-        if (err) {
-          logger.error("Error executing SQL:", { sql, params, error: err });
-          return reject(err);
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.run(sql, params, (err) => {
+            if (err) {
+              logger.error("Error executing SQL:", { sql, params, error: err });
+              return reject(err);
+            }
+            resolve();
+          });
+        } catch (err) {
+          reject(err);
         }
-        resolve();
-      });
-    } catch (err) {
-      reject(err);
-    }
-  }));
+      })
+  );
 }
 
 module.exports = {

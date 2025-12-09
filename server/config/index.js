@@ -27,8 +27,8 @@ const config = {
   portainer: {
     urls: (process.env.PORTAINER_URL || process.env.PORTAINER_URLS || "http://localhost:9000")
       .split(",")
-      .map(url => url.trim())
-      .filter(url => url.length > 0),
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0),
     username: process.env.PORTAINER_USERNAME || "admin",
     password: process.env.PORTAINER_PASSWORD ? String(process.env.PORTAINER_PASSWORD) : "",
   },
@@ -50,7 +50,7 @@ const config = {
       standardHeaders: true,
       legacyHeaders: false,
       // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
-      skip: req => {
+      skip: (req) => {
         const isLocalhost = checkIsLocalhost(req);
         // Skip in development OR if accessing via localhost (even in production mode)
         return process.env.NODE_ENV !== "production" || isLocalhost;
@@ -64,17 +64,16 @@ const config = {
       standardHeaders: true,
       legacyHeaders: false,
       // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
-      skip: req => {
+      skip: (req) => {
         const isLocalhost = checkIsLocalhost(req);
         // Skip in development OR if accessing via localhost (even in production mode)
         return process.env.NODE_ENV !== "production" || isLocalhost;
       },
       // Use a custom key generator that works better with proxies
-      keyGenerator: req =>
+      keyGenerator: (req) =>
         // Use the real IP from req.ip (which respects trust proxy setting)
         // Fallback to connection remoteAddress if req.ip is not set
-        req.ip || req.connection?.remoteAddress || "unknown"
-      ,
+        req.ip || req.connection?.remoteAddress || "unknown",
     },
   },
   retry: {
@@ -88,7 +87,7 @@ const config = {
   },
   cors: {
     origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(",").map(origin => origin.trim())
+      ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
       : process.env.NODE_ENV === "production"
         ? ["https://yourdomain.com"] // Update with your production domain
         : true, // Allow all origins in development for Safari compatibility

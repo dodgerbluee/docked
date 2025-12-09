@@ -130,15 +130,17 @@ function matchesByUrl(inst, portainerUrl, originalUrl) {
  * @returns {Object|null} - Matching instance or null
  */
 function findMatchingInstance(instances, portainerUrl, originalUrl) {
-  return instances.find(inst => {
-    try {
-      const _instUrl = new URL(inst.url);
-      const portainerUrlObj = new URL(portainerUrl);
-      return matchesByIp(inst, portainerUrlObj) || matchesByUrl(inst, portainerUrl, originalUrl);
-    } catch {
-      return false;
-    }
-  }) || null;
+  return (
+    instances.find((inst) => {
+      try {
+        const _instUrl = new URL(inst.url);
+        const portainerUrlObj = new URL(portainerUrl);
+        return matchesByIp(inst, portainerUrlObj) || matchesByUrl(inst, portainerUrl, originalUrl);
+      } catch {
+        return false;
+      }
+    }) || null
+  );
 }
 
 /**
@@ -265,24 +267,21 @@ async function validateApiKeyNormal(portainerUrl, urlForHostHeader, apiKey) {
     portainerUrl,
     urlForHostHeader,
   });
-  await requestWithIpFallback(
-    async url => {
-      const baseConfig = {
-        headers: {
-          "X-API-Key": apiKey,
-          "Content-Type": "application/json",
-        },
-      };
-      const ssrfValidation = validateUrlForSSRF(url, true);
-      if (!ssrfValidation.valid) {
-        throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
-      }
-      const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
-      const requestUrl = new URL("/api/endpoints", url);
-      return axios.get(requestUrl.toString(), ipConfig);
-    },
-    portainerUrl,
-  );
+  await requestWithIpFallback(async (url) => {
+    const baseConfig = {
+      headers: {
+        "X-API-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+    };
+    const ssrfValidation = validateUrlForSSRF(url, true);
+    if (!ssrfValidation.valid) {
+      throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+    }
+    const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+    const requestUrl = new URL("/api/endpoints", url);
+    return axios.get(requestUrl.toString(), ipConfig);
+  }, portainerUrl);
 }
 
 /**
@@ -353,11 +352,7 @@ async function authenticatePasswordWithIpUrl(portainerUrl, originalUrl, username
   }
   const ipConfig = getIpFallbackConfig(portainerUrl, originalUrl, baseConfig);
   const url = new URL("/api/auth", portainerUrl);
-  return axios.post(
-    url.toString(),
-    { username, password },
-    ipConfig,
-  );
+  return axios.post(url.toString(), { username, password }, ipConfig);
 }
 
 /**
@@ -369,27 +364,20 @@ async function authenticatePasswordWithIpUrl(portainerUrl, originalUrl, username
  * @returns {Promise<Object>} - Response object
  */
 async function authenticatePasswordNormal(portainerUrl, urlForHostHeader, username, password) {
-  return requestWithIpFallback(
-    async url => {
-      const baseConfig = {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-      const ssrfValidation = validateUrlForSSRF(url, true);
-      if (!ssrfValidation.valid) {
-        throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
-      }
-      const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
-      const requestUrl = new URL("/api/auth", url);
-      return axios.post(
-        requestUrl.toString(),
-        { username, password },
-        ipConfig,
-      );
-    },
-    portainerUrl,
-  );
+  return requestWithIpFallback(async (url) => {
+    const baseConfig = {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    const ssrfValidation = validateUrlForSSRF(url, true);
+    if (!ssrfValidation.valid) {
+      throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+    }
+    const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+    const requestUrl = new URL("/api/auth", url);
+    return axios.post(requestUrl.toString(), { username, password }, ipConfig);
+  }, portainerUrl);
 }
 
 /**
@@ -407,7 +395,7 @@ async function tryAlternativeAuthFormats(portainerUrl) {
   for (const format of altFormats) {
     logger.info(
       `Attempting alternative authentication format for ${portainerUrl}...`,
-      Object.keys(format),
+      Object.keys(format)
     );
     try {
       const ssrfValidation = validateUrlForSSRF(portainerUrl, true);
@@ -430,7 +418,7 @@ async function tryAlternativeAuthFormats(portainerUrl) {
         logger.error(
           `Alternative format failed for ${portainerUrl}:`,
           altError.response.status,
-          altError.response.data,
+          altError.response.data
         );
       }
     }
@@ -477,7 +465,7 @@ async function handlePasswordAuthError(error, portainerUrl) {
   throw new Error(
     `Failed to authenticate with Portainer at ${portainerUrl}: ${
       error.response?.data?.message || error.message
-    }`,
+    }`
   );
 }
 
@@ -490,12 +478,19 @@ async function handlePasswordAuthError(error, portainerUrl) {
  * @param {string} password - Password
  * @returns {Promise<string>} - Authentication token
  */
-async function authenticateWithPassword(portainerUrl, originalUrl, urlForHostHeader, username, password) {
+async function authenticateWithPassword(
+  portainerUrl,
+  originalUrl,
+  urlForHostHeader,
+  username,
+  password
+) {
   const isIpUrl = /^\d+\.\d+\.\d+\.\d+$/.test(new URL(portainerUrl).hostname);
   try {
-    const response = isIpUrl && originalUrl
-      ? await authenticatePasswordWithIpUrl(portainerUrl, originalUrl, username, password)
-      : await authenticatePasswordNormal(portainerUrl, urlForHostHeader, username, password);
+    const response =
+      isIpUrl && originalUrl
+        ? await authenticatePasswordWithIpUrl(portainerUrl, originalUrl, username, password)
+        : await authenticatePasswordNormal(portainerUrl, urlForHostHeader, username, password);
 
     const authToken = extractAuthToken(response, portainerUrl);
     storeAuthToken(portainerUrl, authToken, "password");
@@ -558,7 +553,13 @@ async function authenticatePortainer({
     return authTokens.get(portainerUrl);
   }
 
-  const credentials = await loadCredentialsIfNeeded(portainerUrl, originalUrl, apiKey, username, password);
+  const credentials = await loadCredentialsIfNeeded(
+    portainerUrl,
+    originalUrl,
+    apiKey,
+    username,
+    password
+  );
   const finalAuthType = credentials.authType || authType;
   const finalOriginalUrl = credentials.originalUrl || originalUrl;
 
@@ -566,7 +567,12 @@ async function authenticatePortainer({
     if (!credentials.apiKey) {
       throw new Error("API key is required for API key authentication");
     }
-    return authenticateWithApiKey(portainerUrl, finalOriginalUrl, urlForHostHeader, credentials.apiKey);
+    return authenticateWithApiKey(
+      portainerUrl,
+      finalOriginalUrl,
+      urlForHostHeader,
+      credentials.apiKey
+    );
   }
 
   if (!credentials.username || !credentials.password) {
@@ -578,7 +584,7 @@ async function authenticatePortainer({
     finalOriginalUrl,
     urlForHostHeader,
     credentials.username,
-    credentials.password,
+    credentials.password
   );
 }
 

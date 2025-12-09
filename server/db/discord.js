@@ -40,7 +40,7 @@ function getAllDiscordWebhooks(userId) {
               resolve(rows || []);
             }
           });
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -66,7 +66,7 @@ function getDiscordWebhookById(id) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -121,26 +121,26 @@ function createDiscordWebhook({
           const insertParams =
             hasUserId && userId
               ? [
-                userId,
-                webhookUrl,
-                serverName,
-                channelName,
-                name,
-                avatarUrl,
-                guildId,
-                channelId,
-                enabled ? 1 : 0,
-              ]
+                  userId,
+                  webhookUrl,
+                  serverName,
+                  channelName,
+                  name,
+                  avatarUrl,
+                  guildId,
+                  channelId,
+                  enabled ? 1 : 0,
+                ]
               : [
-                webhookUrl,
-                serverName,
-                channelName,
-                name,
-                avatarUrl,
-                guildId,
-                channelId,
-                enabled ? 1 : 0,
-              ];
+                  webhookUrl,
+                  serverName,
+                  channelName,
+                  name,
+                  avatarUrl,
+                  guildId,
+                  channelId,
+                  enabled ? 1 : 0,
+                ];
 
           db.run(insertQuery, insertParams, function (err) {
             if (err) {
@@ -149,7 +149,7 @@ function createDiscordWebhook({
               resolve(this.lastID);
             }
           });
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -215,7 +215,7 @@ function updateDiscordWebhook(id, updateData) {
 
       const sql = `UPDATE discord_webhooks SET ${fields.join(", ")} WHERE id = ?`;
 
-      db.run(sql, values, err => {
+      db.run(sql, values, (err) => {
         if (err) {
           reject(err);
         } else {
@@ -237,7 +237,7 @@ function deleteDiscordWebhook(id) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run("DELETE FROM discord_webhooks WHERE id = ?", [id], err => {
+      db.run("DELETE FROM discord_webhooks WHERE id = ?", [id], (err) => {
         if (err) {
           reject(err);
         } else {
@@ -282,7 +282,7 @@ function getEnabledDiscordWebhooks(userId) {
               resolve(rows || []);
             }
           });
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -309,7 +309,7 @@ function hasDiscordNotificationBeenSent(userId, deduplicationKey) {
           } else {
             resolve(Boolean(row));
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -332,13 +332,13 @@ function recordDiscordNotificationSent(userId, deduplicationKey, notificationTyp
       db.run(
         "INSERT OR IGNORE INTO discord_notifications_sent (user_id, deduplication_key, notification_type) VALUES (?, ?, ?)",
         [userId, deduplicationKey, notificationType],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);

@@ -15,8 +15,7 @@ const portainerService = require("../portainerService");
  * @returns {boolean}
  */
 function isContainerRunning(details) {
-  const containerStatus =
-    details.State?.Status || (details.State?.Running ? "running" : "unknown");
+  const containerStatus = details.State?.Status || (details.State?.Running ? "running" : "unknown");
   return containerStatus === "running" || details.State?.Running === true;
 }
 
@@ -30,16 +29,9 @@ function isContainerRunning(details) {
  */
 async function handleContainerExit(portainerUrl, endpointId, containerId, details) {
   try {
-    const logs = await portainerService.getContainerLogs(
-      portainerUrl,
-      endpointId,
-      containerId,
-      50,
-    );
+    const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, containerId, 50);
     const exitCode = details.State?.ExitCode || 0;
-    throw new Error(
-      `Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`,
-    );
+    throw new Error(`Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`);
   } catch (_logErr) {
     const exitCode = details.State?.ExitCode || 0;
     throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
@@ -55,12 +47,7 @@ async function handleContainerExit(portainerUrl, endpointId, containerId, detail
  */
 async function handleUnhealthyContainer(portainerUrl, endpointId, containerId) {
   try {
-    const logs = await portainerService.getContainerLogs(
-      portainerUrl,
-      endpointId,
-      containerId,
-      50,
-    );
+    const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, containerId, 50);
     throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
   } catch (_logErr) {
     throw new Error("Container health check failed. Could not retrieve logs.");
@@ -100,7 +87,7 @@ function shouldConsiderReadyWithoutHealthCheck(
   waitTime,
   consecutiveRunningChecks,
   requiredStableChecks,
-  minInitTime,
+  minInitTime
 ) {
   if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
     return true;
@@ -119,8 +106,7 @@ function shouldConsiderReadyWithoutHealthCheck(
  * @returns {boolean} - True if running
  */
 function checkRunningFromDetails(details) {
-  const containerStatus =
-    details.State?.Status || (details.State?.Running ? "running" : "unknown");
+  const containerStatus = details.State?.Status || (details.State?.Running ? "running" : "unknown");
   return containerStatus === "running" || details.State?.Running === true;
 }
 
@@ -138,13 +124,13 @@ async function performFinalReadinessCheck(
   endpointId,
   containerId,
   containerName,
-  maxWaitTime,
+  maxWaitTime
 ) {
   try {
     const details = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      containerId,
+      containerId
     );
     const isRunning = checkRunningFromDetails(details);
     if (isRunning) {
@@ -159,14 +145,14 @@ async function performFinalReadinessCheck(
     const stateInfo =
       details.State?.Status || (details.State ? JSON.stringify(details.State) : "unknown");
     throw new Error(
-      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Current state: ${stateInfo}`,
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Current state: ${stateInfo}`
     );
   } catch (err) {
     if (err.message.includes("Current state")) {
       throw err;
     }
     throw new Error(
-      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`,
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`
     );
   }
 }
@@ -229,7 +215,7 @@ function checkReadinessWithoutHealth({
       waitTime,
       consecutiveRunningChecks,
       requiredStableChecks,
-      minInitTime,
+      minInitTime
     )
   ) {
     const logMessage =
@@ -304,7 +290,7 @@ async function processContainerDetails({
           containerName,
           waitTime: `${waitTime / 1000}s`,
           consecutiveChecks: consecutiveRunningChecks,
-        },
+        }
       );
     }
     return ready;
@@ -359,7 +345,7 @@ async function waitForContainerReady({
   });
 
   while (Date.now() - startTime < maxWaitTime && !isReady) {
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, checkInterval);
@@ -369,7 +355,7 @@ async function waitForContainerReady({
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        containerId,
+        containerId
       );
 
       const waitTime = Date.now() - startTime;
@@ -414,13 +400,13 @@ async function waitForContainerReady({
       endpointId,
       containerId,
       containerName,
-      maxWaitTime,
+      maxWaitTime
     );
   }
 
   if (!isReady) {
     throw new Error(
-      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`,
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`
     );
   }
 }
@@ -465,7 +451,7 @@ async function waitForContainerStop({
   let stopped = false;
   const maxIterations = maxWaitTime / checkInterval;
   for (let i = 0; i < maxIterations; i++) {
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, checkInterval);
@@ -474,7 +460,7 @@ async function waitForContainerStop({
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        containerId,
+        containerId
       );
       if (isContainerStopped(details)) {
         stopped = true;

@@ -44,10 +44,7 @@ const TokenCard = React.memo(function TokenCard({
           />
           {showMenu && (
             <>
-              <div
-                className={styles.menuOverlay}
-                onClick={() => setShowMenu(false)}
-              />
+              <div className={styles.menuOverlay} onClick={() => setShowMenu(false)} />
               <div className={styles.menu}>
                 <button
                   className={styles.menuItem}
@@ -105,4 +102,3 @@ TokenCard.propTypes = {
 };
 
 export default TokenCard;
-

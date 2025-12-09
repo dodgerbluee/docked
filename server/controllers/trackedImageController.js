@@ -32,7 +32,7 @@ function formatTrackedAppForResponse(image) {
   const isGitSource = image.source_type === "github" || image.source_type === "gitlab";
   if (isGitSource && latestVersion) {
     // Normalize versions for comparison (remove "v" prefix)
-    const normalizeVersion = v => (v ? v.replace(/^v/, "") : "");
+    const normalizeVersion = (v) => (v ? v.replace(/^v/, "") : "");
     const normalizedCurrent = normalizeVersion(image.current_version || "");
     const normalizedLatest = normalizeVersion(latestVersion);
 
@@ -78,7 +78,7 @@ async function getTrackedApps(req, res, next) {
     const images = await getAllTrackedApps(userId);
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
-    const formattedImages = images.map(image => formatTrackedAppForResponse(image));
+    const formattedImages = images.map((image) => formatTrackedAppForResponse(image));
     res.json({
       success: true,
       images: formattedImages,
@@ -214,7 +214,7 @@ async function createTrackedAppEndpoint(req, res, next) {
         null,
         githubRepo.trim(),
         "gitlab",
-        gitlabToken || null,
+        gitlabToken || null
       );
 
       // Update current_version if provided
@@ -288,12 +288,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const {
-      name,
-      imageName,
-      current_version: currentVersion,
-      gitlabToken,
-    } = req.body;
+    const { name, imageName, current_version: currentVersion, gitlabToken } = req.body;
 
     // Check if tracked app exists
     const existing = await getTrackedAppById(parseInt(id, 10), userId);
@@ -343,7 +338,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       updateData.current_version = trimmedVersion;
       // If updating current_version to match latest_version, also update has_update flag
       // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
-      const normalizeVersion = v => {
+      const normalizeVersion = (v) => {
         if (!v) {
           return "";
         }
@@ -360,7 +355,6 @@ async function updateTrackedAppEndpoint(req, res, next) {
         const normalizedCurrent = normalizeVersion(trimmedVersion);
 
         const normalizedLatest = normalizeVersion(existing.latest_version);
-
 
         if (normalizedCurrent === normalizedLatest && normalizedCurrent !== "") {
           // Versions match after normalization - sync latest_version to current_version format
@@ -395,9 +389,9 @@ async function updateTrackedAppEndpoint(req, res, next) {
       message: "Tracked app updated successfully",
       image: updatedImage
         ? {
-          ...updatedImage,
-          has_update: Boolean(updatedImage.has_update),
-        }
+            ...updatedImage,
+            has_update: Boolean(updatedImage.has_update),
+          }
         : null,
     });
   } catch (error) {

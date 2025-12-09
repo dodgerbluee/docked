@@ -48,6 +48,3 @@ If applicable, paste relevant logs or error messages here.
 ```bash
 # Paste logs here
 ```
-
-
-

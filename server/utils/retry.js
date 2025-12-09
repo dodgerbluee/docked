@@ -22,7 +22,7 @@ class RateLimitExceededError extends Error {
  * @returns {Promise<void>}
  */
 function createDelay(delayMs) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
     }, delayMs);
@@ -37,7 +37,8 @@ function createDelay(delayMs) {
 async function buildRateLimitMessage(userId) {
   let message =
     "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again.";
-  const needsCredsMessage = " Or configure Docker Hub credentials in Settings for higher rate limits.";
+  const needsCredsMessage =
+    " Or configure Docker Hub credentials in Settings for higher rate limits.";
 
   if (userId) {
     const { getDockerHubCreds } = require("./dockerHubCreds");
@@ -75,7 +76,7 @@ async function handleRateLimitError(error, attempt, maxRetries, userId) {
       logger.warn(
         `⚠️  Rate limited (429) by Docker Hub, waiting ${delay / 1000}s before retry (attempt ${
           attempt + 1
-        }/${maxRetries})`,
+        }/${maxRetries})`
       );
     }
     await createDelay(delay);

@@ -92,11 +92,7 @@ export const useContainerImageInfo = (container) => {
   // Construct GitHub URL based on provider or tracked app info
   const githubUrl = useMemo(() => {
     // If update is from GitHub-tracked app, use the tracked app's GitHub repo URL
-    if (
-      hasUpdate &&
-      container.updateSourceType === "github" &&
-      container.updateGitHubRepo
-    ) {
+    if (hasUpdate && container.updateSourceType === "github" && container.updateGitHubRepo) {
       const repo = container.updateGitHubRepo;
       // Handle both full URLs and owner/repo format
       if (repo.startsWith("http")) {
@@ -121,11 +117,7 @@ export const useContainerImageInfo = (container) => {
   // Construct GitLab URL based on provider or tracked app info
   const gitlabUrl = useMemo(() => {
     // If update is from GitLab-tracked app, use the tracked app's GitLab repo URL
-    if (
-      hasUpdate &&
-      container.updateSourceType === "gitlab" &&
-      container.updateGitLabRepo
-    ) {
+    if (hasUpdate && container.updateSourceType === "gitlab" && container.updateGitLabRepo) {
       return getGitLabRepoUrl(container.updateGitLabRepo);
     }
     // If provider is gitlab, construct GitLab Container Registry URL or repo URL

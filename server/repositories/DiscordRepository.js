@@ -70,7 +70,7 @@ class DiscordRepository extends BaseRepository {
       name,
       avatarUrl,
       guildId,
-      channelId,
+      channelId
     );
   }
 
@@ -111,11 +111,7 @@ class DiscordRepository extends BaseRepository {
    * @returns {Promise<void>}
    */
   recordNotificationSent(userId, deduplicationKey, notificationType) {
-    return discordDb.recordDiscordNotificationSent(
-      userId,
-      deduplicationKey,
-      notificationType,
-    );
+    return discordDb.recordDiscordNotificationSent(userId, deduplicationKey, notificationType);
   }
 }
 

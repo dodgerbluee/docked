@@ -69,7 +69,7 @@ class GHCRProvider extends RegistryProvider {
       const fallbackProvider = new GitHubReleasesProvider();
 
       logger.info(
-        `Trying GitHub Releases fallback for GHCR image: ${imageRepo}:${tag} (repo: ${githubRepo})`,
+        `Trying GitHub Releases fallback for GHCR image: ${imageRepo}:${tag} (repo: ${githubRepo})`
       );
       const result = await fallbackProvider.getLatestDigest(imageRepo, tag, {
         userId: options.userId,
@@ -78,11 +78,11 @@ class GHCRProvider extends RegistryProvider {
 
       if (result) {
         logger.info(
-          `GitHub Releases fallback succeeded for ${imageRepo}:${tag} - latest version: ${result.tag}`,
+          `GitHub Releases fallback succeeded for ${imageRepo}:${tag} - latest version: ${result.tag}`
         );
       } else {
         logger.debug(
-          `GitHub Releases fallback returned null for ${imageRepo}:${tag} (repo: ${githubRepo})`,
+          `GitHub Releases fallback returned null for ${imageRepo}:${tag} (repo: ${githubRepo})`
         );
       }
 
@@ -113,7 +113,7 @@ class GHCRProvider extends RegistryProvider {
         digest: `${digest.substring(0, 12)}...`,
       });
       logger.info(
-        `[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`,
+        `[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`
       );
       return result;
     }
@@ -133,7 +133,7 @@ class GHCRProvider extends RegistryProvider {
     if (fallbackResult) {
       digestCache.set(cacheKey, fallbackResult, config.cache.digestCacheTTL);
       logger.info(
-        `[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`,
+        `[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`
       );
       return {
         ...fallbackResult,
@@ -174,7 +174,7 @@ class GHCRProvider extends RegistryProvider {
     } catch (error) {
       logger.warn(
         `[GHCR] Error fetching digest for ${imageRepo}:${tag}, trying GitHub Releases fallback:`,
-        error.message,
+        error.message
       );
       const fallbackResult = await this._tryFallback(imageRepo, tag, cacheKey, options);
       if (fallbackResult) {
@@ -183,7 +183,7 @@ class GHCRProvider extends RegistryProvider {
 
       logger.error(
         `[GHCR] Error fetching digest for ${imageRepo}:${tag} and fallback also failed:`,
-        error.message,
+        error.message
       );
       return null;
     }

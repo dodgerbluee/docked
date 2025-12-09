@@ -23,7 +23,12 @@ const portainerService = require("../portainerService");
  * @returns {Object} - { matches: boolean, reason: string }
  */
 // eslint-disable-next-line complexity -- Network mode matching requires multiple conditional checks
-function checkNetworkModeMatch(networkMode, cleanContainerName, originalContainerId, newContainerId) {
+function checkNetworkModeMatch(
+  networkMode,
+  cleanContainerName,
+  originalContainerId,
+  newContainerId
+) {
   if (!networkMode) {
     return { matches: false, reason: "" };
   }
@@ -105,7 +110,11 @@ async function processContainerForDependencies({
   }
 
   try {
-    const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.Id);
+    const details = await portainerService.getContainerDetails(
+      portainerUrl,
+      endpointId,
+      container.Id
+    );
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "exited");
     const isRunning = containerStatus === "running";
@@ -116,12 +125,12 @@ async function processContainerForDependencies({
       networkMode,
       cleanContainerName,
       originalContainerId,
-      newContainerId,
+      newContainerId
     );
 
     if (networkMatch.matches) {
       logger.info(
-        `    Found network_mode dependency: ${container.Names[0]?.replace("/", "")} -> ${cleanContainerName} (NetworkMode: ${networkMode.substring(0, 50)}..., matched by ${networkMatch.matchType})`,
+        `    Found network_mode dependency: ${container.Names[0]?.replace("/", "")} -> ${cleanContainerName} (NetworkMode: ${networkMode.substring(0, 50)}..., matched by ${networkMatch.matchType})`
       );
       return {
         id: container.Id,
@@ -211,18 +220,18 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
     const newContainerDetails = await portainerService.getContainerDetails(
       workingPortainerUrl,
       endpointId,
-      newContainerId,
+      newContainerId
     );
     if (newContainerDetails.State?.Health) {
       const healthStatus = newContainerDetails.State.Health.Status;
       if (healthStatus === "starting" || healthStatus === "none") {
         logger.info(
-          "Waiting for upgraded container health check to pass before restarting dependents...",
+          "Waiting for upgraded container health check to pass before restarting dependents..."
         );
         // Wait up to 30 seconds for health check to pass
         let healthReady = false;
         for (let i = 0; i < 15; i++) {
-          await new Promise(resolve => {
+          await new Promise((resolve) => {
             setTimeout(() => {
               resolve();
             }, 2000);
@@ -230,7 +239,7 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
           const currentDetails = await portainerService.getContainerDetails(
             workingPortainerUrl,
             endpointId,
-            newContainerId,
+            newContainerId
           );
           const currentHealth = currentDetails.State?.Health?.Status;
           const isHealthy = currentHealth === "healthy";
@@ -242,7 +251,7 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
         }
         if (!healthReady) {
           logger.warn(
-            "Upgraded container health check not ready, but proceeding with dependent restarts",
+            "Upgraded container health check not ready, but proceeding with dependent restarts"
           );
         }
       } else if (healthStatus === "healthy") {
@@ -250,7 +259,7 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
       }
     } else {
       // No health check, wait a brief moment for container to stabilize
-      await new Promise(resolve => {
+      await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
         }, 2000);
@@ -261,7 +270,7 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
       error: err,
     });
     // Wait a brief moment anyway
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, 2000);
@@ -282,13 +291,13 @@ async function verifyUpgradedContainer(
   workingPortainerUrl,
   endpointId,
   newContainerId,
-  cleanContainerName,
+  cleanContainerName
 ) {
   try {
     const verifiedNewContainerDetails = await portainerService.getContainerDetails(
       workingPortainerUrl,
       endpointId,
-      newContainerId,
+      newContainerId
     );
     const verifiedName = verifiedNewContainerDetails.Name?.replace("/", "") || cleanContainerName;
 
@@ -296,13 +305,13 @@ async function verifyUpgradedContainer(
     const tunnelIsRunning = containerState === "running";
 
     logger.info(
-      `    Verified network container: name=${verifiedName}, ID=${newContainerId.substring(0, 12)}..., running=${tunnelIsRunning}`,
+      `    Verified network container: name=${verifiedName}, ID=${newContainerId.substring(0, 12)}..., running=${tunnelIsRunning}`
     );
 
     // If not running, wait a bit and check again
     if (!tunnelIsRunning) {
       logger.warn(`     Network container ${verifiedName} is not running, waiting...`);
-      await new Promise(resolve => {
+      await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
         }, 3000);
@@ -311,7 +320,7 @@ async function verifyUpgradedContainer(
       const recheckDetails = await portainerService.getContainerDetails(
         workingPortainerUrl,
         endpointId,
-        newContainerId,
+        newContainerId
       );
       const recheckState = recheckDetails.State?.Status || "";
       const isRunning = recheckState === "running";
@@ -324,7 +333,7 @@ async function verifyUpgradedContainer(
 
       if (!isRunning) {
         throw new Error(
-          `Network container ${verifiedName} is not running. Cannot create dependent containers.`,
+          `Network container ${verifiedName} is not running. Cannot create dependent containers.`
         );
       }
 
@@ -335,7 +344,7 @@ async function verifyUpgradedContainer(
   } catch (verifyErr) {
     logger.error(`    Could not verify new container: ${verifyErr.message}`);
     throw new Error(
-      `Failed to verify network container ${cleanContainerName}: ${verifyErr.message}`,
+      `Failed to verify network container ${cleanContainerName}: ${verifyErr.message}`
     );
   }
 }
@@ -382,7 +391,7 @@ function buildCleanHostConfig(originalHostConfig, networkModePrefix, newContaine
     AutoRemove: originalHostConfig.AutoRemove || false,
   };
 
-  Object.keys(cleanHostConfig).forEach(key => {
+  Object.keys(cleanHostConfig).forEach((key) => {
     const value = cleanHostConfig[key];
     if (Array.isArray(value) && value.length === 0) {
       delete cleanHostConfig[key];
@@ -446,7 +455,12 @@ function buildNetworkingConfig(containerDetails, isSharedNetworkMode) {
  * @param {boolean} isSharedNetworkMode - Whether shared network mode
  * @returns {Object} - Container config
  */
-function buildContainerConfig(containerDetails, cleanHostConfig, networkingConfig, isSharedNetworkMode) {
+function buildContainerConfig(
+  containerDetails,
+  cleanHostConfig,
+  networkingConfig,
+  isSharedNetworkMode
+) {
   const containerConfig = {
     Image: containerDetails.Config.Image,
     Cmd: containerDetails.Config.Cmd,
@@ -456,7 +470,11 @@ function buildContainerConfig(containerDetails, cleanHostConfig, networkingConfi
     WorkingDir: containerDetails.Config.WorkingDir,
   };
 
-  if (!isSharedNetworkMode && containerDetails.Config.ExposedPorts && Object.keys(containerDetails.Config.ExposedPorts).length > 0) {
+  if (
+    !isSharedNetworkMode &&
+    containerDetails.Config.ExposedPorts &&
+    Object.keys(containerDetails.Config.ExposedPorts).length > 0
+  ) {
     containerConfig.ExposedPorts = containerDetails.Config.ExposedPorts;
   }
 
@@ -481,7 +499,7 @@ async function removeExistingContainer(portainerUrl, endpointId, containerName) 
   try {
     const existingContainers = await portainerService.getContainers(portainerUrl, endpointId);
     const existingContainer = existingContainers.find(
-      c => c.Names && c.Names.some(name => name.replace("/", "") === containerName),
+      (c) => c.Names && c.Names.some((name) => name.replace("/", "") === containerName)
     );
 
     if (existingContainer) {
@@ -492,7 +510,7 @@ async function removeExistingContainer(portainerUrl, endpointId, containerName) 
         // May already be stopped
       }
       await portainerService.removeContainer(portainerUrl, endpointId, existingContainer.Id);
-      await new Promise(resolve => {
+      await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
         }, 2000);
@@ -529,7 +547,7 @@ async function verifyAndRetryContainer({
     const createdContainerDetails = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      newContainer.Id,
+      newContainer.Id
     );
     const actualNetworkMode = createdContainerDetails.HostConfig?.NetworkMode || "";
 
@@ -539,10 +557,10 @@ async function verifyAndRetryContainer({
     }
 
     logger.error(
-      `    MISMATCH: Created container has NetworkMode="${actualNetworkMode}" but expected "${expectedNetworkMode}"`,
+      `    MISMATCH: Created container has NetworkMode="${actualNetworkMode}" but expected "${expectedNetworkMode}"`
     );
     await portainerService.removeContainer(portainerUrl, endpointId, newContainer.Id);
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, 2000);
@@ -557,13 +575,13 @@ async function verifyAndRetryContainer({
       portainerUrl,
       endpointId,
       retryConfig,
-      containerName,
+      containerName
     );
 
     const retryDetails = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      retryContainer.Id,
+      retryContainer.Id
     );
     const retryNetworkMode = retryDetails.HostConfig?.NetworkMode || "";
     if (retryNetworkMode === expectedNetworkMode) {
@@ -571,7 +589,7 @@ async function verifyAndRetryContainer({
       return retryContainer;
     }
     throw new Error(
-      `Failed to create container with correct NetworkMode. Got "${retryNetworkMode}" instead of "${expectedNetworkMode}"`,
+      `Failed to create container with correct NetworkMode. Got "${retryNetworkMode}" instead of "${expectedNetworkMode}"`
     );
   } catch (verifyErr) {
     logger.warn(`     Could not verify created container NetworkMode: ${verifyErr.message}`);
@@ -595,27 +613,29 @@ async function recreateNetworkModeContainer(
   endpointId,
   container,
   containerDetails,
-  newContainerId,
+  newContainerId
 ) {
   const containerNetworkMode = containerDetails.HostConfig?.NetworkMode || "";
   logger.info(`    Recreating ${container.name} (original network_mode: ${containerNetworkMode})`);
 
   const networkModeType = containerNetworkMode.startsWith("service:") ? "service" : "container";
   logger.info(
-    `   Setting network_mode to: ${networkModeType}:<new-container-id> (${newContainerId.substring(0, 12)}...)`,
+    `   Setting network_mode to: ${networkModeType}:<new-container-id> (${newContainerId.substring(0, 12)}...)`
   );
 
-  const networkModePrefix = containerNetworkMode.startsWith("service:")
-    ? "service:"
-    : "container:";
+  const networkModePrefix = containerNetworkMode.startsWith("service:") ? "service:" : "container:";
 
   const originalHostConfig = containerDetails.HostConfig || {};
   const originalNetworkMode = originalHostConfig.NetworkMode || "";
 
-  const cleanHostConfig = buildCleanHostConfig(originalHostConfig, networkModePrefix, newContainerId);
+  const cleanHostConfig = buildCleanHostConfig(
+    originalHostConfig,
+    networkModePrefix,
+    newContainerId
+  );
 
   logger.info(
-    `    Rebuilt HostConfig from scratch. NetworkMode set to: "${cleanHostConfig.NetworkMode}"`,
+    `    Rebuilt HostConfig from scratch. NetworkMode set to: "${cleanHostConfig.NetworkMode}"`
   );
   logger.info(`    Original NetworkMode was: "${originalNetworkMode}"`);
 
@@ -636,7 +656,7 @@ async function recreateNetworkModeContainer(
     containerDetails,
     cleanHostConfig,
     networkingConfig,
-    updatedIsSharedNetworkMode,
+    updatedIsSharedNetworkMode
   );
 
   const containerName = containerDetails.Name?.replace("/", "") || container.name;
@@ -645,7 +665,7 @@ async function recreateNetworkModeContainer(
   const finalNetworkMode = containerConfig.HostConfig?.NetworkMode || "";
   if (finalNetworkMode !== expectedNetworkMode) {
     logger.warn(
-      `    NetworkMode mismatch: got "${finalNetworkMode}" but expected "${expectedNetworkMode}"`,
+      `    NetworkMode mismatch: got "${finalNetworkMode}" but expected "${expectedNetworkMode}"`
     );
     cleanHostConfig.NetworkMode = expectedNetworkMode;
     containerConfig.HostConfig.NetworkMode = expectedNetworkMode;
@@ -657,7 +677,7 @@ async function recreateNetworkModeContainer(
     portainerUrl,
     endpointId,
     containerConfig,
-    containerName,
+    containerName
   );
 
   const verifiedContainer = await verifyAndRetryContainer({
@@ -689,15 +709,19 @@ async function handleNetworkModeContainers(
   networkModeContainers,
   portainerUrl,
   endpointId,
-  newContainerId,
+  newContainerId
 ) {
   logger.info(
-    `    Getting container details for ${networkModeContainers.length} dependent container(s)...`,
+    `    Getting container details for ${networkModeContainers.length} dependent container(s)...`
   );
   const containerDetailsMap = new Map();
   for (const container of networkModeContainers) {
     try {
-      const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.id);
+      const details = await portainerService.getContainerDetails(
+        portainerUrl,
+        endpointId,
+        container.id
+      );
       containerDetailsMap.set(container.id, details);
     } catch (err) {
       logger.error(`    Failed to get details for ${container.name}: ${err.message}`);
@@ -705,7 +729,7 @@ async function handleNetworkModeContainers(
   }
 
   logger.info(
-    `     Removing ${networkModeContainers.length} dependent container(s) to clear Docker references...`,
+    `     Removing ${networkModeContainers.length} dependent container(s) to clear Docker references...`
   );
   for (const container of networkModeContainers) {
     try {
@@ -715,14 +739,14 @@ async function handleNetworkModeContainers(
     }
   }
 
-  await new Promise(resolve => {
+  await new Promise((resolve) => {
     setTimeout(() => {
       resolve();
     }, 5000);
   });
 
   logger.info(
-    `    Recreating ${networkModeContainers.length} dependent container(s) with new network reference...`,
+    `    Recreating ${networkModeContainers.length} dependent container(s) with new network reference...`
   );
   for (const container of networkModeContainers) {
     try {
@@ -736,7 +760,7 @@ async function handleNetworkModeContainers(
         endpointId,
         container,
         containerDetails,
-        newContainerId,
+        newContainerId
       );
     } catch (err) {
       logger.error(`     Failed to recreate ${container.name}:`, { error: err });
@@ -756,7 +780,7 @@ async function restartSingleContainer(container, portainerUrl, workingPortainerU
   if (container.isRunning) {
     logger.info(`   Restarting ${container.name} (${container.dependencyReason})...`);
     await portainerService.stopContainer(portainerUrl, endpointId, container.id);
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, 1000);
@@ -764,18 +788,18 @@ async function restartSingleContainer(container, portainerUrl, workingPortainerU
     await portainerService.startContainer(portainerUrl, endpointId, container.id);
     logger.info(`    ${container.name} restarted successfully`);
   } else if (container.isStopped) {
-    logger.info(
-      `   Starting ${container.name} (was stopped, ${container.dependencyReason})...`,
-    );
+    logger.info(`   Starting ${container.name} (was stopped, ${container.dependencyReason})...`);
     try {
       await portainerService.startContainer(portainerUrl, endpointId, container.id);
       logger.info(`    ${container.name} started successfully`);
     } catch (_startErr) {
       logger.info(`   Attempting full restart of ${container.name}...`);
-      await portainerService.stopContainer(workingPortainerUrl, endpointId, container.id).catch(() => {
-        // Ignore stop errors
-      });
-      await new Promise(resolve => {
+      await portainerService
+        .stopContainer(workingPortainerUrl, endpointId, container.id)
+        .catch(() => {
+          // Ignore stop errors
+        });
+      await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
         }, 1000);
@@ -828,22 +852,32 @@ async function restartDependentContainers(options) {
     }
 
     logger.info(
-      ` Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter(c => c.isRunning).length} running, ${dependentContainers.filter(c => c.isStopped).length} stopped)`,
+      ` Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter((c) => c.isRunning).length} running, ${dependentContainers.filter((c) => c.isStopped).length} stopped)`
     );
 
     await waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainer.Id);
 
     const networkModeContainers = dependentContainers.filter(
-      c => c.dependencyReason === "network_mode",
+      (c) => c.dependencyReason === "network_mode"
     );
     const otherContainers = dependentContainers.filter(
-      c => c.dependencyReason !== "network_mode",
+      (c) => c.dependencyReason !== "network_mode"
     );
 
-    await verifyUpgradedContainer(workingPortainerUrl, endpointId, newContainer.Id, cleanContainerName);
+    await verifyUpgradedContainer(
+      workingPortainerUrl,
+      endpointId,
+      newContainer.Id,
+      cleanContainerName
+    );
 
     if (networkModeContainers.length > 0) {
-      await handleNetworkModeContainers(networkModeContainers, portainerUrl, endpointId, newContainer.Id);
+      await handleNetworkModeContainers(
+        networkModeContainers,
+        portainerUrl,
+        endpointId,
+        newContainer.Id
+      );
     }
 
     for (const container of otherContainers) {

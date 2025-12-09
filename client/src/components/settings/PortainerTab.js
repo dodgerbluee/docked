@@ -193,7 +193,6 @@ const PortainerTab = React.memo(function PortainerTab({
         cancelText="Cancel"
         variant="danger"
       />
-
     </div>
   );
 });

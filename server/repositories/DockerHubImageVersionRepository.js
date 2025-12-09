@@ -19,11 +19,7 @@ class DockerHubImageVersionRepository extends BaseRepository {
    * @returns {Promise<number>} - ID of the record
    */
   upsert(userId, imageRepo, versionData) {
-    return dockerHubImageVersionsDb.upsertDockerHubImageVersion(
-      userId,
-      imageRepo,
-      versionData,
-    );
+    return dockerHubImageVersionsDb.upsertDockerHubImageVersion(userId, imageRepo, versionData);
   }
 
   /**
@@ -71,7 +67,7 @@ class DockerHubImageVersionRepository extends BaseRepository {
       imageRepo,
       latestDigest,
       latestVersion,
-      currentTag,
+      currentTag
     );
   }
 }

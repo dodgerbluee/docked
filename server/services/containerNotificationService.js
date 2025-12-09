@@ -56,9 +56,7 @@ function hasUpdateDetailsChanged(previousContainer, container) {
 
   // Check if version changed
   const versionChanged =
-    currentLatestVersion &&
-    previousLatestVersion &&
-    currentLatestVersion !== previousLatestVersion;
+    currentLatestVersion && previousLatestVersion && currentLatestVersion !== previousLatestVersion;
 
   return digestChanged || versionChanged;
 }
@@ -106,9 +104,9 @@ function shouldNotifyContainerUpdate(container, previousContainer) {
 async function buildPreviousContainersMap(previousContainers, userId) {
   const previousContainersMap = new Map();
   const userInstances = await getAllPortainerInstances(userId);
-  const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+  const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
-  previousContainers.forEach(container => {
+  previousContainers.forEach((container) => {
     const instance = instanceMap.get(container.portainerInstanceId);
     const portainerUrl = instance ? instance.url : null;
     const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
@@ -136,7 +134,8 @@ function extractContainerVersionInfo(container) {
   return {
     imageName: container.image || "Unknown",
     currentVersion: container.currentVersion || container.currentTag || "Unknown",
-    latestVersion: container.newVersion || container.latestTag || container.latestVersion || "Unknown",
+    latestVersion:
+      container.newVersion || container.latestTag || container.latestVersion || "Unknown",
     currentDigest: container.currentDigest || container.currentDigestFull || "N/A",
     latestDigest: container.latestDigest || container.latestDigestFull || "N/A",
   };
@@ -156,7 +155,8 @@ function logNewlyIdentifiedUpgrade(container, versionInfo, userId, batchLogger) 
     operation: "getAllContainersWithUpdates",
     containerName: container.name,
     imageName,
-    currentDigest: currentDigest.length > 12 ? `${currentDigest.substring(0, 12)}...` : currentDigest,
+    currentDigest:
+      currentDigest.length > 12 ? `${currentDigest.substring(0, 12)}...` : currentDigest,
     latestDigest: latestDigest.length > 12 ? `${latestDigest.substring(0, 12)}...` : latestDigest,
     currentVersion,
     latestVersion,
@@ -210,7 +210,7 @@ async function sendContainerUpdateNotifications(
   allContainers,
   previousContainers,
   userId,
-  batchLogger = null,
+  batchLogger = null
 ) {
   if (!previousContainers || previousContainers.length === 0) {
     return;
@@ -234,7 +234,7 @@ async function sendContainerUpdateNotifications(
       const previousContainer = previousContainersMap.get(key);
       const { shouldNotify, isNewlyIdentified } = shouldNotifyContainerUpdate(
         container,
-        previousContainer,
+        previousContainer
       );
 
       if (isNewlyIdentified) {

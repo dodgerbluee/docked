@@ -31,7 +31,7 @@ async function detectNetworkModes(containers, portainerUrl, endpointId) {
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        container.Id,
+        container.Id
       );
       const networkMode = details.HostConfig?.NetworkMode || "";
 
@@ -54,7 +54,7 @@ async function detectNetworkModes(containers, portainerUrl, endpointId) {
           const dependentContainerName = getContainerName(container);
 
           // Store by all possible identifiers
-          [targetContainerName, targetContainerId, targetContainerShortId].forEach(key => {
+          [targetContainerName, targetContainerId, targetContainerShortId].forEach((key) => {
             if (!containerNetworkModes.has(key)) {
               containerNetworkModes.set(key, []);
             }

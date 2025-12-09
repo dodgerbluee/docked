@@ -47,14 +47,18 @@ async function processContainerForDependency(
   portainerUrl,
   endpointId,
   targetContainerId,
-  cleanContainerName,
+  cleanContainerName
 ) {
   if (container.Id === targetContainerId) {
     return null;
   }
 
   try {
-    const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.Id);
+    const details = await portainerService.getContainerDetails(
+      portainerUrl,
+      endpointId,
+      container.Id
+    );
     const networkMode = details.HostConfig?.NetworkMode || "";
 
     if (matchesNetworkMode(networkMode, cleanContainerName)) {
@@ -86,7 +90,7 @@ async function findDependentContainers(
   portainerUrl,
   endpointId,
   targetContainerId,
-  targetContainerName,
+  targetContainerName
 ) {
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 
@@ -101,7 +105,7 @@ async function findDependentContainers(
         portainerUrl,
         endpointId,
         targetContainerId,
-        cleanContainerName,
+        cleanContainerName
       );
       if (dependent) {
         dependentContainers.push(dependent);
@@ -112,7 +116,7 @@ async function findDependentContainers(
   } catch (err) {
     logger.warn(
       "Could not check for dependent containers before stopping, proceeding anyway:",
-      err.message,
+      err.message
     );
     return [];
   }
@@ -134,16 +138,16 @@ async function stopAndRemoveDependentContainers(portainerUrl, endpointId, depend
   // We must REMOVE them (not just stop) to prevent Docker Compose from auto-recreating them
   // with the old tunnel container ID from docker-compose.yml
   logger.info(
-    `Removing ${dependentContainers.length} dependent container(s) before upgrading main container...`,
+    `Removing ${dependentContainers.length} dependent container(s) before upgrading main container...`
   );
   logger.info(
-    `     Removing (not just stopping) to prevent Docker Compose auto-recreation with old config`,
+    `     Removing (not just stopping) to prevent Docker Compose auto-recreation with old config`
   );
 
   for (const container of dependentContainers) {
     try {
       logger.info(
-        `   Removing ${container.name} (uses network_mode pointing to main container)...`,
+        `   Removing ${container.name} (uses network_mode pointing to main container)...`
       );
       // Stop first, then remove
       try {
@@ -164,7 +168,7 @@ async function stopAndRemoveDependentContainers(portainerUrl, endpointId, depend
 
   // Wait a moment for containers to be fully removed and Docker to clean up
   logger.info("Waiting for dependent containers to be fully removed...");
-  await new Promise(resolve => {
+  await new Promise((resolve) => {
     setTimeout(() => {
       resolve();
     }, 3000);
@@ -216,7 +220,11 @@ async function processContainerForRestart({
   }
 
   try {
-    const details = await portainerService.getContainerDetails(portainerUrl, endpointId, container.Id);
+    const details = await portainerService.getContainerDetails(
+      portainerUrl,
+      endpointId,
+      container.Id
+    );
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "exited");
     const isRunning = containerStatus === "running";
@@ -266,7 +274,7 @@ async function findContainersToRestart(
   endpointId,
   newContainerId,
   targetContainerName,
-  stackName,
+  stackName
 ) {
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 

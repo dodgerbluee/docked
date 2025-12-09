@@ -17,12 +17,7 @@ class RegistryImageVersionRepository extends BaseRepository {
    * @returns {Promise<number>} - ID of the record
    */
   upsert(userId, imageRepo, tag, versionData) {
-    return registryImageVersionsDb.upsertRegistryImageVersion(
-      userId,
-      imageRepo,
-      tag,
-      versionData,
-    );
+    return registryImageVersionsDb.upsertRegistryImageVersion(userId, imageRepo, tag, versionData);
   }
 
   /**

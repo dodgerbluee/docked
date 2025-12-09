@@ -76,13 +76,7 @@ class RegistryRepository extends BaseRepository {
    * @returns {Promise<number>} - Token ID
    */
   upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenId = null) {
-    return registryDb.upsertRepositoryAccessToken(
-      userId,
-      provider,
-      name,
-      accessToken,
-      tokenId,
-    );
+    return registryDb.upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenId);
   }
 
   /**

@@ -24,7 +24,7 @@ class UserRepository extends BaseRepository {
   async findById(id) {
     return this.findOne(
       "SELECT id, username, email, role, instance_admin, created_at, updated_at, last_login FROM users WHERE id = ?",
-      [id],
+      [id]
     );
   }
 
@@ -54,7 +54,7 @@ class UserRepository extends BaseRepository {
     return super.findAll(
       "SELECT id, username, email, role, instance_admin, created_at, updated_at, last_login FROM users ORDER BY created_at ASC",
       [],
-      { cache: true, cacheKey: "users:all" },
+      { cache: true, cacheKey: "users:all" }
     );
   }
 
@@ -73,7 +73,7 @@ class UserRepository extends BaseRepository {
 
     const result = await this.execute(
       "INSERT INTO users (username, email, password_hash, role, instance_admin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-      [username, email, passwordHash, role, instanceAdmin ? 1 : 0],
+      [username, email, passwordHash, role, instanceAdmin ? 1 : 0]
     );
 
     // Invalidate cache
@@ -129,7 +129,7 @@ class UserRepository extends BaseRepository {
   async updatePassword(id, passwordHash) {
     await this.execute(
       "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [passwordHash, id],
+      [passwordHash, id]
     );
 
     // Invalidate cache
@@ -145,7 +145,7 @@ class UserRepository extends BaseRepository {
   async updatePasswordByUsername(username, passwordHash) {
     await this.execute(
       "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
-      [passwordHash, username],
+      [passwordHash, username]
     );
 
     // Invalidate cache
@@ -160,7 +160,7 @@ class UserRepository extends BaseRepository {
   async updateLastLogin(id) {
     await this.execute(
       "UPDATE users SET last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [id],
+      [id]
     );
   }
 
@@ -207,7 +207,7 @@ class UserRepository extends BaseRepository {
         (SELECT COUNT(*) FROM containers WHERE user_id = ?) as containers_count,
         (SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?) as tracked_apps_count,
         (SELECT COUNT(*) FROM discord_webhooks WHERE user_id = ?) as discord_webhooks_count`,
-      [userId, userId, userId, userId],
+      [userId, userId, userId, userId]
     );
   }
 }

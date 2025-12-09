@@ -62,7 +62,7 @@ class GitLabProvider extends RegistryProvider {
             } else {
               resolve(row || null);
             }
-          },
+          }
         );
       });
 
@@ -172,7 +172,7 @@ class GitLabProvider extends RegistryProvider {
         const resp = await axios.get(registryUrl, {
           headers,
           timeout: 10000,
-          validateStatus: status => status < 500,
+          validateStatus: (status) => status < 500,
         });
 
         if (resp.status === 429) {
@@ -186,7 +186,7 @@ class GitLabProvider extends RegistryProvider {
       },
       3,
       1000,
-      userId,
+      userId
     );
   }
 

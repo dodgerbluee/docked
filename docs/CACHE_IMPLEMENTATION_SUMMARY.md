@@ -3,12 +3,14 @@
 ## What Was Built
 
 ### 1. Design Document (`docs/CACHE_AND_UPDATE_DESIGN.md`)
+
 - Defined experience standards (no flickering, immediate accuracy, consistent state)
 - Established architecture with three-layer cache system
 - Created state machine and update detection flow
 - Set success criteria
 
 ### 2. Cache Service (`server/services/cache/containerCacheService.js`)
+
 - **Three-layer caching**:
   - Database Cache (persistent, survives restarts)
   - Memory Cache (30s TTL, reduces API calls)
@@ -18,11 +20,13 @@
 - **Auto-update**: Updates database cache when changes detected
 
 ### 3. Cache Update Service (`server/services/cache/containerCacheUpdateService.js`)
+
 - Handles post-upgrade cache updates
 - Ensures cache is immediately updated after container upgrades
 - Invalidates memory cache to force fresh fetch
 
 ### 4. Integration
+
 - **Backend**: Controller checks for `useNewCache` parameter
 - **Frontend**: All container fetches now use new cache service
 - **Upgrade flow**: Cache updated immediately after upgrades
@@ -30,6 +34,7 @@
 ## How It Works
 
 ### Page Load Flow
+
 1. Check memory cache (if < 30s old, return immediately)
 2. If stale or missing:
    - Fetch fresh Portainer data
@@ -40,6 +45,7 @@
    - Return merged result
 
 ### Upgrade Flow
+
 1. Container upgraded (manual or via app)
 2. Cache update service called immediately
 3. Database cache updated with new digest
@@ -47,6 +53,7 @@
 5. UI reflects change within 2 seconds
 
 ### Change Detection
+
 - Compares `currentDigest` from Portainer vs cache
 - If different, container was manually upgraded
 - Automatically updates cache
@@ -63,12 +70,15 @@
 ## Usage
 
 ### Enable New Cache (Default: Enabled)
+
 The new cache is enabled by default via the `useNewCache=true` parameter in all frontend requests.
 
 ### Environment Variable
+
 Set `USE_NEW_CACHE=true` in environment to enable globally.
 
 ### Manual Override
+
 Add `?useNewCache=false` to API calls to use old system.
 
 ## Testing Checklist
@@ -87,4 +97,3 @@ Add `?useNewCache=false` to API calls to use old system.
 2. Add metrics for cache hit/miss rates
 3. Consider adding WebSocket for real-time updates
 4. Add cache warming on app startup
-

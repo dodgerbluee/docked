@@ -16,7 +16,7 @@ class PortainerInstanceRepository extends BaseRepository {
     return super.findAll(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
       [],
-      { cache: true, cacheKey: "portainer_instances:all" },
+      { cache: true, cacheKey: "portainer_instances:all" }
     );
   }
 
@@ -28,7 +28,7 @@ class PortainerInstanceRepository extends BaseRepository {
   async findById(id) {
     return this.findOne(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances WHERE id = ?",
-      [id],
+      [id]
     );
   }
 
@@ -40,7 +40,7 @@ class PortainerInstanceRepository extends BaseRepository {
   async findByUrl(url) {
     return this.findOne(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances WHERE url = ?",
-      [url],
+      [url]
     );
   }
 
@@ -54,7 +54,7 @@ class PortainerInstanceRepository extends BaseRepository {
 
     // Get max display_order
     const maxOrder = await this.findOne(
-      "SELECT MAX(display_order) as max_order FROM portainer_instances",
+      "SELECT MAX(display_order) as max_order FROM portainer_instances"
     );
     const nextOrder = (maxOrder?.max_order ?? -1) + 1;
 
@@ -65,7 +65,7 @@ class PortainerInstanceRepository extends BaseRepository {
 
     const result = await this.execute(
       "INSERT INTO portainer_instances (name, url, username, password, api_key, auth_type, display_order, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder, ipAddress],
+      [name, url, finalUsername, finalPassword, finalApiKey, authType, nextOrder, ipAddress]
     );
 
     // Invalidate cache after create
@@ -90,7 +90,7 @@ class PortainerInstanceRepository extends BaseRepository {
 
     await this.execute(
       "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, ip_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [name, url, finalUsername, finalPassword, finalApiKey, authType, ipAddress, id],
+      [name, url, finalUsername, finalPassword, finalApiKey, authType, ipAddress, id]
     );
 
     // Invalidate cache after update
@@ -119,7 +119,7 @@ class PortainerInstanceRepository extends BaseRepository {
       for (const { id, displayOrder } of orders) {
         await this.execute(
           "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-          [displayOrder, id],
+          [displayOrder, id]
         );
       }
 

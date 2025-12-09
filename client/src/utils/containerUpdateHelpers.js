@@ -1,6 +1,6 @@
 /**
  * Container Update Helpers (Client)
- * 
+ *
  * Utility functions for computing container update status on-the-fly
  * instead of relying on stored hasUpdate values.
  */
@@ -20,7 +20,7 @@ export function normalizeDigest(digest) {
 /**
  * Compute whether a container has an available update
  * Compares current digest with latest digest
- * 
+ *
  * @param {Object} container - Container object
  * @param {string} [container.currentDigest] - Current container digest
  * @param {string} [container.currentDigestFull] - Current container digest (full)
@@ -44,7 +44,7 @@ export function computeHasUpdate(container) {
   if (currentDigest && latestDigest) {
     const normalizedCurrent = normalizeDigest(currentDigest);
     const normalizedLatest = normalizeDigest(latestDigest);
-    
+
     if (normalizedCurrent && normalizedLatest) {
       return normalizedCurrent !== normalizedLatest;
     }
@@ -54,17 +54,17 @@ export function computeHasUpdate(container) {
   if (container.isFallback || container.provider === "github-releases") {
     const currentVersion = container.currentVersion || container.currentTag;
     const latestVersion = container.latestVersion || container.latestTag;
-    
+
     if (currentVersion && latestVersion) {
       // Normalize versions (remove "v" prefix, case-insensitive)
       const normalizeVersion = (v) => {
         if (!v) return "";
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
-      
+
       const normalizedCurrent = normalizeVersion(currentVersion);
       const normalizedLatest = normalizeVersion(latestVersion);
-      
+
       if (normalizedCurrent && normalizedLatest) {
         return normalizedCurrent !== normalizedLatest;
       }
@@ -78,13 +78,13 @@ export function computeHasUpdate(container) {
 /**
  * Add computed hasUpdate to a container object
  * Returns a new object with computed hasUpdate field
- * 
+ *
  * @param {Object} container - Container object to update
  * @returns {Object} - Container with computed hasUpdate
  */
 export function addComputedHasUpdate(container) {
   if (!container) return container;
-  
+
   return {
     ...container,
     hasUpdate: computeHasUpdate(container),
@@ -93,13 +93,12 @@ export function addComputedHasUpdate(container) {
 
 /**
  * Add computed hasUpdate to an array of containers
- * 
+ *
  * @param {Array<Object>} containers - Array of container objects
  * @returns {Array<Object>} - Array of containers with computed hasUpdate
  */
 export function addComputedHasUpdateToArray(containers) {
   if (!Array.isArray(containers)) return containers;
-  
-  return containers.map(container => addComputedHasUpdate(container));
-}
 
+  return containers.map((container) => addComputedHasUpdate(container));
+}

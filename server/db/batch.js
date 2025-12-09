@@ -44,7 +44,7 @@ function getBatchConfig(userId, jobType = null) {
                 });
               }
             }
-          },
+          }
         );
       } else {
         db.all(
@@ -55,7 +55,7 @@ function getBatchConfig(userId, jobType = null) {
               reject(err);
             } else {
               const configs = {};
-              rows.forEach(row => {
+              rows.forEach((row) => {
                 configs[row.job_type] = {
                   enabled: row.enabled === 1,
                   intervalMinutes: row.interval_minutes,
@@ -79,7 +79,7 @@ function getBatchConfig(userId, jobType = null) {
               }
               resolve(configs);
             }
-          },
+          }
         );
       }
     } catch (err) {
@@ -113,13 +113,13 @@ function updateBatchConfig(userId, jobType, enabled, intervalMinutes) {
         `INSERT OR REPLACE INTO batch_config (user_id, job_type, enabled, interval_minutes, updated_at) 
          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         [userId, jobType, enabled ? 1 : 0, intervalMinutes],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -146,7 +146,7 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
       // eslint-disable-next-line max-lines-per-function -- Database transaction requires comprehensive error handling
       db.serialize(() => {
         // eslint-disable-next-line max-lines-per-function -- Transaction handling requires comprehensive error handling
-        db.run("BEGIN IMMEDIATE TRANSACTION", beginErr => {
+        db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
           if (beginErr) {
             db.run("ROLLBACK");
             reject(beginErr);
@@ -197,7 +197,7 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
                       runningDurationMs,
                       row.id,
                     ],
-                    updateErr => {
+                    (updateErr) => {
                       if (updateErr) {
                         db.run("ROLLBACK");
                         reject(updateErr);
@@ -206,18 +206,18 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
 
                       // Stale job cleaned up - lock acquired
                       // eslint-disable-next-line max-nested-callbacks -- Transaction commit requires nested callbacks
-                      db.run("COMMIT", commitErr => {
+                      db.run("COMMIT", (commitErr) => {
                         if (commitErr) {
                           reject(commitErr);
                         } else {
                           resolve({ isRunning: false, runId: null });
                         }
                       });
-                    },
+                    }
                   );
                 } else {
                   // Job is still running (not stale)
-                  db.run("COMMIT", commitErr => {
+                  db.run("COMMIT", (commitErr) => {
                     if (commitErr) {
                       reject(commitErr);
                     } else {
@@ -228,7 +228,7 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
               } else {
                 // No running job - lock acquired, commit will release it
                 // The actual job record will be created by createBatchRun
-                db.run("COMMIT", commitErr => {
+                db.run("COMMIT", (commitErr) => {
                   if (commitErr) {
                     reject(commitErr);
                   } else {
@@ -236,7 +236,7 @@ function checkAndAcquireBatchJobLock(userId, jobType) {
                   }
                 });
               }
-            },
+            }
           );
         });
       });
@@ -282,7 +282,7 @@ function cleanupStaleBatchJobs() {
           let completed = 0;
           let errors = 0;
 
-          rows.forEach(row => {
+          rows.forEach((row) => {
             const startedAtStr = row.started_at;
             let startedAt;
             if (
@@ -307,7 +307,7 @@ function cleanupStaleBatchJobs() {
                 durationMs,
                 row.id,
               ],
-              updateErr => {
+              (updateErr) => {
                 if (updateErr) {
                   errors++;
                   logger.error(`Failed to cleanup stale batch job ${row.id}:`, updateErr);
@@ -322,10 +322,10 @@ function cleanupStaleBatchJobs() {
                   }
                   resolve(completed);
                 }
-              },
+              }
             );
           });
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -354,7 +354,7 @@ function createBatchRun(userId, status = "running", jobType = "docker-hub-pull",
           } else {
             resolve(this.lastID);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -430,15 +430,15 @@ function updateBatchRun(runId, userId, options = {}) {
               runId,
               userId,
             ],
-            updateErr => {
+            (updateErr) => {
               if (updateErr) {
                 reject(updateErr);
               } else {
                 resolve();
               }
-            },
+            }
           );
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -465,7 +465,7 @@ function getBatchRunById(runId, userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -492,7 +492,7 @@ function getRecentBatchRuns(userId, limit = 50) {
           } else {
             resolve(rows || []);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -518,7 +518,7 @@ function getLatestBatchRun(userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -545,7 +545,7 @@ function getLatestBatchRunByJobType(userId, jobType) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -561,12 +561,12 @@ function getLatestBatchRunByJobType(userId, jobType) {
 function getLatestBatchRunsByJobType(userId) {
   return new Promise((resolve, reject) => {
     const jobTypes = ["docker-hub-pull", "tracked-apps-check"];
-    const promises = jobTypes.map(jobType =>
-      getLatestBatchRunByJobType(userId, jobType).then(run => ({ jobType, run })),
+    const promises = jobTypes.map((jobType) =>
+      getLatestBatchRunByJobType(userId, jobType).then((run) => ({ jobType, run }))
     );
 
     Promise.all(promises)
-      .then(results => {
+      .then((results) => {
         const latestRuns = {};
         results.forEach(({ jobType, run }) => {
           latestRuns[jobType] = run;

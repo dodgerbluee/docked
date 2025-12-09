@@ -56,7 +56,7 @@ function getRawDatabaseRecords(userId) {
         return;
       }
 
-      tables.forEach(tableName => {
+      tables.forEach((tableName) => {
         let query;
         let params = [];
 
@@ -87,7 +87,7 @@ function getRawDatabaseRecords(userId) {
             records[`${tableName}_error`] = err.message;
           } else {
             // Convert SQLite row objects to plain objects
-            records[tableName] = (rows || []).map(row => {
+            records[tableName] = (rows || []).map((row) => {
               const plainRow = {};
               for (const key in row) {
                 plainRow[key] = row[key];

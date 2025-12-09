@@ -96,13 +96,13 @@ class GitHubReleasesProvider extends RegistryProvider {
 
     try {
       logger.info(
-        `[GitHub Releases] Attempting to get digest from GHCR for ${imageRepo}:${releaseTag} (using release tag from GitHub)`,
+        `[GitHub Releases] Attempting to get digest from GHCR for ${imageRepo}:${releaseTag} (using release tag from GitHub)`
       );
       const digest = await this._getDigestFromGHCR(imageRepo, releaseTag, options);
 
       if (digest) {
         logger.info(
-          `[GitHub Releases] Successfully got digest from GHCR for ${imageRepo}:${releaseTag} - ${digest.substring(0, 12)}...`,
+          `[GitHub Releases] Successfully got digest from GHCR for ${imageRepo}:${releaseTag} - ${digest.substring(0, 12)}...`
         );
         return {
           digest,
@@ -115,12 +115,12 @@ class GitHubReleasesProvider extends RegistryProvider {
         };
       }
       logger.debug(
-        `[GitHub Releases] GHCR returned no digest for ${imageRepo}:${releaseTag}, using version-only result`,
+        `[GitHub Releases] GHCR returned no digest for ${imageRepo}:${releaseTag}, using version-only result`
       );
     } catch (ghcrError) {
       logger.debug(
         `[GitHub Releases] Failed to get digest from GHCR for ${imageRepo}:${releaseTag}:`,
-        ghcrError.message,
+        ghcrError.message
       );
     }
     return null;
@@ -135,7 +135,7 @@ class GitHubReleasesProvider extends RegistryProvider {
    */
   _buildVersionOnlyResult(imageRepo, releaseTag, latestRelease) {
     logger.debug(
-      `[GitHub Releases] Returning version-only result for ${imageRepo} - tag: ${releaseTag}`,
+      `[GitHub Releases] Returning version-only result for ${imageRepo} - tag: ${releaseTag}`
     );
     return {
       digest: null,
@@ -165,7 +165,12 @@ class GitHubReleasesProvider extends RegistryProvider {
       const releaseTag = latestRelease.tag_name;
       logger.info(`[GitHub Releases] Found latest release ${releaseTag} for ${githubRepo}`);
 
-      const digestResult = await this._tryGetDigestFromGHCR(imageRepo, releaseTag, latestRelease, options);
+      const digestResult = await this._tryGetDigestFromGHCR(
+        imageRepo,
+        releaseTag,
+        latestRelease,
+        options
+      );
       if (digestResult) {
         return digestResult;
       }
@@ -259,7 +264,7 @@ class GitHubReleasesProvider extends RegistryProvider {
 
       if (digest) {
         logger.info(
-          `[GitHub Releases] Successfully got digest from GHCR for ${imageRef} - ${digest.substring(0, 12)}...`,
+          `[GitHub Releases] Successfully got digest from GHCR for ${imageRef} - ${digest.substring(0, 12)}...`
         );
         return digest;
       }
@@ -269,7 +274,7 @@ class GitHubReleasesProvider extends RegistryProvider {
     } catch (error) {
       logger.debug(
         `[GitHub Releases] Error getting digest from GHCR for ${imageRepo}:${tag}:`,
-        error.message,
+        error.message
       );
       return null;
     }

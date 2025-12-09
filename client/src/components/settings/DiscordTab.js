@@ -46,7 +46,6 @@ const DiscordTab = React.memo(function DiscordTab({
     setShowDiscordModal(true);
   };
 
-
   return (
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Discord Notifications</h3>
@@ -62,18 +61,17 @@ const DiscordTab = React.memo(function DiscordTab({
           <Info size={20} className={styles.infoIcon} />
           <div className={styles.infoText}>
             <strong>How to Set Up Discord Webhooks:</strong> Open your Discord server and go to{" "}
-            <strong>Server Settings</strong> → <strong>Integrations</strong> → <strong>Webhooks</strong>. 
-            Click <strong>"New Webhook"</strong> and customize it: choose the channel, rename it to{" "}
-            <strong><i>Docked</i></strong>, and optionally use the Docked logo as the avatar{" "}
-            (
-            <a
-              href="/img/logo.png"
-              download="docked-logo.png"
-              className={styles.downloadLink}
-            >
+            <strong>Server Settings</strong> → <strong>Integrations</strong> →{" "}
+            <strong>Webhooks</strong>. Click <strong>"New Webhook"</strong> and customize it: choose
+            the channel, rename it to{" "}
+            <strong>
+              <i>Docked</i>
+            </strong>
+            , and optionally use the Docked logo as the avatar (
+            <a href="/img/logo.png" download="docked-logo.png" className={styles.downloadLink}>
               Download Logo
             </a>
-            ). Copy the webhook URL, then click <strong>"Add Webhook"</strong> below and paste it. 
+            ). Copy the webhook URL, then click <strong>"Add Webhook"</strong> below and paste it.
             You can optionally add a server name for easy identification.
           </div>
         </div>
@@ -86,7 +84,11 @@ const DiscordTab = React.memo(function DiscordTab({
               <div className={styles.webhookContent}>
                 <div className={styles.webhookInfo}>
                   <img
-                    src={webhook.avatarUrl || webhook.avatar_url || "https://cdn.discordapp.com/embed/avatars/0.png"}
+                    src={
+                      webhook.avatarUrl ||
+                      webhook.avatar_url ||
+                      "https://cdn.discordapp.com/embed/avatars/0.png"
+                    }
                     alt="Webhook avatar"
                     className={styles.avatar}
                     onError={(e) => {

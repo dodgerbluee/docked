@@ -101,10 +101,10 @@ class BatchLogger {
    */
   getFormattedLogs() {
     return this.logs
-      .map(entry => {
+      .map((entry) => {
         const metaStr = Object.keys(entry)
-          .filter(key => !["timestamp", "level", "jobType", "jobId", "message"].includes(key))
-          .map(key => `${key}=${JSON.stringify(entry[key])}`)
+          .filter((key) => !["timestamp", "level", "jobType", "jobId", "message"].includes(key))
+          .map((key) => `${key}=${JSON.stringify(entry[key])}`)
           .join(" ");
         const jobIdStr = entry.jobId ? ` [job:${entry.jobId}]` : "";
         return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.jobType}]${jobIdStr} ${entry.message}${metaStr ? ` ${metaStr}` : ""}`;
@@ -132,7 +132,7 @@ class BatchLogger {
 module.exports = BatchLogger;
 // Note: setLogLevel and getLogLevel are now handled by the centralized logger
 // These are kept for backward compatibility but delegate to the centralized logger
-module.exports.setLogLevel = _level => {
+module.exports.setLogLevel = (_level) => {
   logger.updateLevel();
 };
 module.exports.getLogLevel = () => (logger.isDebugEnabled() ? "debug" : "info");

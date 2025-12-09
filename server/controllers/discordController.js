@@ -44,7 +44,7 @@ async function getDiscordWebhooks(req, res, next) {
     // This ensures webhook avatars from Discord are always displayed correctly
     // This is important because webhooks should show their Discord avatar, not user avatars
     const discord = getDiscordService();
-    const refreshPromises = webhooks.map(async webhook => {
+    const refreshPromises = webhooks.map(async (webhook) => {
       // If webhook has a URL but no avatar URL, try to fetch it from Discord
       if (webhook.hasWebhook && !webhook.avatarUrl) {
         try {
@@ -76,7 +76,7 @@ async function getDiscordWebhooks(req, res, next) {
     await Promise.allSettled(refreshPromises);
 
     // Map database fields (snake_case) to response format (camelCase)
-    const formattedWebhooks = webhooks.map(webhook => ({
+    const formattedWebhooks = webhooks.map((webhook) => ({
       id: webhook.id,
       webhookUrl: webhook.webhook_url ? "***configured***" : null,
       serverName: webhook.server_name || null,
@@ -190,7 +190,8 @@ async function fetchWebhookInfo(webhookUrl, serverName) {
   let channelId = null;
   // Preserve the user-provided serverName - only use webhookInfo.name if serverName is not provided
   // If serverName is a non-empty string, always preserve it
-  let finalServerName = (serverName && typeof serverName === 'string' && serverName.trim()) ? serverName.trim() : null;
+  let finalServerName =
+    serverName && typeof serverName === "string" && serverName.trim() ? serverName.trim() : null;
 
   try {
     const webhookInfo = await discord.getWebhookInfo(webhookUrl);
@@ -200,7 +201,11 @@ async function fetchWebhookInfo(webhookUrl, serverName) {
       if (!finalServerName && webhookInfo.name) {
         finalServerName = webhookInfo.name;
       }
-      const { avatarUrl: infoAvatarUrl, guildId: infoGuildId, channelId: infoChannelId } = webhookInfo;
+      const {
+        avatarUrl: infoAvatarUrl,
+        guildId: infoGuildId,
+        channelId: infoChannelId,
+      } = webhookInfo;
       if (infoAvatarUrl) {
         avatarUrl = infoAvatarUrl;
       }
@@ -237,7 +242,10 @@ async function createDiscordWebhookEndpoint(req, res, next) {
     const { webhookUrl, serverName, channelName, enabled } = req.body;
 
     // Log received serverName for debugging
-    logger.debug("Creating Discord webhook - received serverName:", { serverName, type: typeof serverName });
+    logger.debug("Creating Discord webhook - received serverName:", {
+      serverName,
+      type: typeof serverName,
+    });
 
     const limitCheck = await checkWebhookLimit(userId);
     if (!limitCheck.isWithinLimit) {
@@ -257,19 +265,28 @@ async function createDiscordWebhookEndpoint(req, res, next) {
 
     // Preserve user-provided serverName - only fetch from Discord if not provided
     // Normalize serverName: preserve non-empty strings, convert empty strings to null
-    const normalizedServerName = (serverName && typeof serverName === 'string' && serverName.trim()) ? serverName.trim() : null;
-    
-    const { avatarUrl, guildId, channelId, serverName: finalServerName } = await fetchWebhookInfo(
-      webhookUrl,
-      normalizedServerName,
-    );
+    const normalizedServerName =
+      serverName && typeof serverName === "string" && serverName.trim() ? serverName.trim() : null;
 
-    logger.debug("After fetchWebhookInfo - finalServerName:", { finalServerName, normalizedServerName });
+    const {
+      avatarUrl,
+      guildId,
+      channelId,
+      serverName: finalServerName,
+    } = await fetchWebhookInfo(webhookUrl, normalizedServerName);
+
+    logger.debug("After fetchWebhookInfo - finalServerName:", {
+      finalServerName,
+      normalizedServerName,
+    });
 
     const { createDiscordWebhook } = getDatabase();
     // Preserve serverName if it's a non-empty string, otherwise use null
-    const finalServerNameToSave = (finalServerName && typeof finalServerName === 'string' && finalServerName.trim()) ? finalServerName.trim() : null;
-    
+    const finalServerNameToSave =
+      finalServerName && typeof finalServerName === "string" && finalServerName.trim()
+        ? finalServerName.trim()
+        : null;
+
     logger.debug("Saving webhook with serverName:", { finalServerNameToSave });
     const id = await createDiscordWebhook({
       userId,
@@ -338,7 +355,10 @@ async function buildWebhookUpdateData(body) {
   const updateData = {};
 
   // Log received serverName for debugging
-  logger.debug("Updating Discord webhook - received serverName:", { serverName, type: typeof serverName });
+  logger.debug("Updating Discord webhook - received serverName:", {
+    serverName,
+    type: typeof serverName,
+  });
 
   if (webhookUrl !== undefined) {
     const error = await processWebhookUrlUpdate(webhookUrl, updateData);
@@ -350,7 +370,8 @@ async function buildWebhookUpdateData(body) {
   if (serverName !== undefined) {
     // Preserve the serverName if it's a non-empty string, otherwise set to null
     // This allows users to clear the serverName by sending an empty string
-    const normalizedServerName = (serverName && typeof serverName === 'string' && serverName.trim()) ? serverName.trim() : null;
+    const normalizedServerName =
+      serverName && typeof serverName === "string" && serverName.trim() ? serverName.trim() : null;
     updateData.serverName = normalizedServerName;
     logger.debug("Updating webhook with serverName:", { normalizedServerName });
   }

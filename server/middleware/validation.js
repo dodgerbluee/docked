@@ -14,16 +14,16 @@ const { ValidationError } = require("../utils/errors");
 function validate(validations) {
   return async (req, res, next) => {
     // Run all validations
-    await Promise.all(validations.map(validation => validation.run(req)));
+    await Promise.all(validations.map((validation) => validation.run(req)));
 
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map(e => e.msg);
+      const errorMessages = errors.array().map((e) => e.msg);
       const missingFields = errors
         .array()
-        .filter(e => e.type === "field")
-        .map(e => e.path);
+        .filter((e) => e.type === "field")
+        .map((e) => e.path);
 
       // Throw ValidationError to be caught by error handler
       throw new ValidationError(errorMessages.join(", "), missingFields, errors.array());
@@ -47,9 +47,10 @@ const commonValidations = {
   endpointId: body("endpointId")
     .notEmpty()
     .withMessage("endpointId is required")
-    .custom(value =>
-      // Accept both string and number
-      typeof value === "string" || typeof value === "number",
+    .custom(
+      (value) =>
+        // Accept both string and number
+        typeof value === "string" || typeof value === "number"
     )
     .withMessage("endpointId must be a string or number"),
 

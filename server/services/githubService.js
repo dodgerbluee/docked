@@ -19,7 +19,7 @@ function parseHttpsUrl(trimmed) {
   const parts = trimmed
     .replace("https://github.com/", "")
     .split("/")
-    .filter(p => p);
+    .filter((p) => p);
   if (parts.length >= 2) {
     return {
       owner: parts[0],
@@ -51,7 +51,7 @@ function parseSshUrl(trimmed) {
  * @returns {Object|null} - { owner, repo } or null
  */
 function parseOwnerRepo(trimmed) {
-  const parts = trimmed.split("/").filter(p => p);
+  const parts = trimmed.split("/").filter((p) => p);
   if (parts.length >= 2) {
     return {
       owner: parts[0],
@@ -124,18 +124,14 @@ async function tryAllReleasesEndpoint(owner, repo, cacheKey) {
   const response = await axios.get(allReleasesUrl, {
     headers,
     timeout: 10000,
-    validateStatus: status => status < 500,
+    validateStatus: (status) => status < 500,
   });
 
   if (response.status === 200 && response.data?.length > 0) {
-    const releases = response.data.filter(r => !r.prerelease && !r.draft);
+    const releases = response.data.filter((r) => !r.prerelease && !r.draft);
     if (releases.length > 0) {
       const latest = releases[0];
-      releaseCache.set(
-        cacheKey,
-        { releases: [latest], timestamp: Date.now() },
-        RELEASE_CACHE_TTL,
-      );
+      releaseCache.set(cacheKey, { releases: [latest], timestamp: Date.now() }, RELEASE_CACHE_TTL);
       return latest;
     }
   }
@@ -161,7 +157,7 @@ function handleGitHubError(error, owner, repo) {
   }
   if (error.response?.status === 403) {
     throw new Error(
-      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable.",
+      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
     );
   }
   throw new Error(`Failed to fetch GitHub releases: ${error.message}`);
@@ -182,11 +178,15 @@ async function fetchLatestRelease(owner, repo, cacheKey) {
     const response = await axios.get(latestUrl, {
       headers,
       timeout: 10000,
-      validateStatus: status => status < 500,
+      validateStatus: (status) => status < 500,
     });
 
     if (response.status === 200 && response.data) {
-      releaseCache.set(cacheKey, { releases: [response.data], timestamp: Date.now() }, RELEASE_CACHE_TTL);
+      releaseCache.set(
+        cacheKey,
+        { releases: [response.data], timestamp: Date.now() },
+        RELEASE_CACHE_TTL
+      );
       return response.data;
     }
 
@@ -252,7 +252,7 @@ function buildGitHubHeadersWithToken() {
  * @returns {Array} - Filtered releases
  */
 function processAndCacheReleases(releases, limit, cacheKey) {
-  const filtered = releases.filter(r => !r.prerelease && !r.draft).slice(0, limit);
+  const filtered = releases.filter((r) => !r.prerelease && !r.draft).slice(0, limit);
   releaseCache.set(cacheKey, { releases: filtered, timestamp: Date.now() }, RELEASE_CACHE_TTL);
   return filtered;
 }
@@ -268,7 +268,7 @@ function handleReleaseByTagError(error) {
   }
   if (error.response?.status === 403) {
     throw new Error(
-      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable.",
+      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
     );
   }
   return null;
@@ -295,7 +295,7 @@ async function getAllReleases(repoInput, limit = 10) {
     const response = await axios.get(url, {
       headers,
       timeout: 10000,
-      validateStatus: status => status < 500,
+      validateStatus: (status) => status < 500,
     });
 
     if (response.status === 200 && response.data) {
@@ -340,7 +340,7 @@ async function getReleaseByTag(repoInput, tagName) {
     const response = await axios.get(url, {
       headers,
       timeout: 10000,
-      validateStatus: status => status < 500,
+      validateStatus: (status) => status < 500,
     });
 
     if (response.status === 200 && response.data) {

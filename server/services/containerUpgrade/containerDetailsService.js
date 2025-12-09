@@ -49,7 +49,12 @@ function isConnectionError(error) {
  * @param {string} containerIdToTry - Container ID to try
  * @returns {Promise<Object>} - Container details
  */
-async function makeDirectIpRequest(workingPortainerUrl, portainerUrl, endpointId, containerIdToTry) {
+async function makeDirectIpRequest(
+  workingPortainerUrl,
+  portainerUrl,
+  endpointId,
+  containerIdToTry
+) {
   const ssrfValidation = validateUrlForSSRF(workingPortainerUrl, true);
   if (!ssrfValidation.valid) {
     throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
@@ -60,17 +65,21 @@ async function makeDirectIpRequest(workingPortainerUrl, portainerUrl, endpointId
 
   if (!endpointValidation.valid || !containerIdValidation.valid) {
     throw new Error(
-      `Invalid path component: ${endpointValidation.error || containerIdValidation.error}`,
+      `Invalid path component: ${endpointValidation.error || containerIdValidation.error}`
     );
   }
 
   const url = new URL(
     `/api/endpoints/${endpointValidation.sanitized}/docker/containers/${containerIdValidation.sanitized}/json`,
-    workingPortainerUrl,
+    workingPortainerUrl
   );
 
   const baseConfig = { headers: portainerService.getAuthHeaders(workingPortainerUrl) };
-  const ipConfig = portainerService.getIpFallbackConfig(workingPortainerUrl, portainerUrl, baseConfig);
+  const ipConfig = portainerService.getIpFallbackConfig(
+    workingPortainerUrl,
+    portainerUrl,
+    baseConfig
+  );
   const response = await axios.get(url.toString(), ipConfig);
   return response.data;
 }
@@ -89,7 +98,7 @@ async function tryFetchWithFallback(
   workingPortainerUrl,
   endpointId,
   containerIdToTry,
-  isNginxProxyManager,
+  isNginxProxyManager
 ) {
   if (isNginxProxyManager) {
     try {
@@ -147,8 +156,7 @@ async function authenticateWithInstance(instance, portainerUrl, workingPortainer
       });
 
       const authHeaders = portainerService.getAuthHeaders(workingPortainerUrl);
-      const token =
-        authHeaders["X-API-Key"] || authHeaders.Authorization?.replace("Bearer ", "");
+      const token = authHeaders["X-API-Key"] || authHeaders.Authorization?.replace("Bearer ", "");
       if (token) {
         portainerService.storeTokenForBothUrls(workingPortainerUrl, portainerUrl, token, authType);
       }
@@ -172,7 +180,7 @@ async function retryFetchAfterAuth(
   workingPortainerUrl,
   endpointId,
   containerIdToTry,
-  isNginxProxyManager,
+  isNginxProxyManager
 ) {
   if (isNginxProxyManager) {
     try {
@@ -204,23 +212,23 @@ async function fetchContainerDetails(
   workingPortainerUrl,
   endpointId,
   containerId,
-  isNginxProxyManager,
+  isNginxProxyManager
 ) {
   // eslint-disable-next-line max-lines-per-function -- Container fetching with retry requires comprehensive error handling
-  const fetchWithRetry = async containerIdToTry => {
+  const fetchWithRetry = async (containerIdToTry) => {
     try {
       return tryFetchWithFallback(
         portainerUrl,
         workingPortainerUrl,
         endpointId,
         containerIdToTry,
-        isNginxProxyManager,
+        isNginxProxyManager
       );
     } catch (error) {
       if (error.response?.status === 401) {
         try {
           const instances = await getAllPortainerInstances();
-          const instance = instances.find(inst => inst.url === portainerUrl);
+          const instance = instances.find((inst) => inst.url === portainerUrl);
 
           if (instance) {
             await authenticateWithInstance(instance, portainerUrl, workingPortainerUrl);
@@ -255,7 +263,7 @@ async function fetchContainerDetails(
             workingPortainerUrl,
             endpointId,
             containerIdToTry,
-            isNginxProxyManager,
+            isNginxProxyManager
           );
         } catch (authError) {
           logger.error("Authentication retry failed", {
@@ -291,7 +299,7 @@ async function fetchContainerDetails(
         if (shortError.response?.status === 404) {
           throw new Error(
             `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
-              `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`,
+              `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
           );
         }
         throw shortError;
@@ -300,7 +308,7 @@ async function fetchContainerDetails(
       // Already tried shortened version or it's the same, provide helpful error
       throw new Error(
         `Container not found. It may have been deleted, stopped, or the container ID is incorrect. ` +
-          `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`,
+          `Please refresh the container list and try again. Container ID: ${containerId.substring(0, 12)}...`
       );
     } else {
       // Re-throw other errors
@@ -326,7 +334,7 @@ async function getContainerDetailsWithNormalization(
   workingPortainerUrl,
   endpointId,
   containerId,
-  isNginxProxyManager,
+  isNginxProxyManager
 ) {
   // fetchContainerDetails now returns both containerDetails and workingContainerId
   return fetchContainerDetails(
@@ -334,7 +342,7 @@ async function getContainerDetailsWithNormalization(
     workingPortainerUrl,
     endpointId,
     containerId,
-    isNginxProxyManager,
+    isNginxProxyManager
   );
 }
 

@@ -39,9 +39,12 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
     setTokenModalOpen(true);
   }, []);
 
-  const handleTokenSave = useCallback(async (provider, name, accessToken, tokenId) => {
-    return await createOrUpdateToken(provider, name, accessToken, tokenId);
-  }, [createOrUpdateToken]);
+  const handleTokenSave = useCallback(
+    async (provider, name, accessToken, tokenId) => {
+      return await createOrUpdateToken(provider, name, accessToken, tokenId);
+    },
+    [createOrUpdateToken]
+  );
 
   const handleTokenDeleteClick = useCallback((tokenId) => {
     setTokenDeleteConfirm({ isOpen: true, tokenId });
@@ -77,7 +80,8 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
           <div className={styles.titleSection}>
             <h2 className={styles.title}>Repository Access Tokens</h2>
             <p className={styles.subtitle}>
-              Manage tokens for GitHub and GitLab to enable update checking for your container images
+              Manage tokens for GitHub and GitLab to enable update checking for your container
+              images
             </p>
           </div>
         </div>
@@ -88,8 +92,9 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
         <div className={styles.infoContent}>
           <Info size={20} className={styles.infoIcon} />
           <div className={styles.infoText}>
-            <strong>How it works:</strong> Add access tokens for GitHub Container Registry (GHCR) or GitLab Container Registry. 
-            Then associate these tokens with your container images to enable automatic update detection for private repositories.
+            <strong>How it works:</strong> Add access tokens for GitHub Container Registry (GHCR) or
+            GitLab Container Registry. Then associate these tokens with your container images to
+            enable automatic update detection for private repositories.
           </div>
         </div>
       </Card>
@@ -156,4 +161,3 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
 RepositoriesTab.propTypes = {};
 
 export default RepositoriesTab;
-

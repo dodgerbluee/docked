@@ -66,14 +66,12 @@ class DockerHubProvider extends RegistryProvider {
    * @returns {Object} - { cleanedTag, cachedResult }
    */
   _cleanTagAndCheckCache(tag, normalizedRepo) {
-    if (!tag || (!tag.includes("@sha256") || tag.includes("@sha256:"))) {
+    if (!tag || !tag.includes("@sha256") || tag.includes("@sha256:")) {
       return { cleanedTag: tag, cachedResult: null };
     }
 
     const cleanedTag = tag.replace("@sha256", "");
-    logger.debug(
-      `[Registry] Stripped incomplete @sha256 marker from tag: ${tag} -> ${cleanedTag}`,
-    );
+    logger.debug(`[Registry] Stripped incomplete @sha256 marker from tag: ${tag} -> ${cleanedTag}`);
 
     const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
     const cleanedCached = digestCache.get(cleanedCacheKey);
@@ -111,7 +109,7 @@ class DockerHubProvider extends RegistryProvider {
     const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag } = params;
     const { getImageDigest } = require("../../../utils/containerTools");
     logger.debug(
-      `[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`,
+      `[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`
     );
     const digest = await getImageDigest(imageRef);
 
@@ -138,7 +136,7 @@ class DockerHubProvider extends RegistryProvider {
       digest: `${digest.substring(0, 12)}...`,
     });
     logger.info(
-      `[Registry] ✅ Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo (registry protocol) - ${digest.substring(0, 12)}...`,
+      `[Registry] ✅ Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo (registry protocol) - ${digest.substring(0, 12)}...`
     );
     return result;
   }

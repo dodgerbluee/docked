@@ -132,7 +132,7 @@ async function getImageDigest(imageRef) {
   // Neither tool available or both failed
   if (!craneAvailable && !skopeoAvailable) {
     logger.warn(
-      `[containerTools] Neither crane nor skopeo is available. Please install one of them.`,
+      `[containerTools] Neither crane nor skopeo is available. Please install one of them.`
     );
   }
 

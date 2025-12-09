@@ -65,10 +65,7 @@ const path = require("path");
  * @returns {Object|null} Error object or null if valid
  */
 function validateRegistrationInput(username, password, confirmPassword, email) {
-  const validationError = validateRequiredFields({ username, password }, [
-    "username",
-    "password",
-  ]);
+  const validationError = validateRequiredFields({ username, password }, ["username", "password"]);
   if (validationError) {
     return validationError;
   }
@@ -154,7 +151,9 @@ async function register(req, res, next) {
 
     const codeError = validateRegistrationCodeForFirstUser(isFirstUser, registrationCode);
     if (codeError) {
-      return res.status(codeError.error === "Invalid registration code" ? 401 : 400).json(codeError);
+      return res
+        .status(codeError.error === "Invalid registration code" ? 401 : 400)
+        .json(codeError);
     }
 
     const existingUser = await getUserByUsername(username);
@@ -165,13 +164,7 @@ async function register(req, res, next) {
       });
     }
 
-    await createUser(
-      username,
-      password,
-      email || null,
-      "Administrator",
-      isFirstUser,
-    );
+    await createUser(username, password, email || null, "Administrator", isFirstUser);
 
     if (isFirstUser) {
       clearRegistrationCode();
@@ -269,7 +262,9 @@ function verifyRegistrationCode(req, res, next) {
       });
     }
 
-    const { isRegistrationCodeActive: isRegistrationCodeActiveLocal } = require("../utils/registrationCode");
+    const {
+      isRegistrationCodeActive: isRegistrationCodeActiveLocal,
+    } = require("../utils/registrationCode");
     const codeActive = isRegistrationCodeActiveLocal();
     logger.info("[authController] Registration code status", { codeActive });
 
@@ -646,7 +641,10 @@ async function updateUserUsername(req, res, next) {
 
     // Generate new JWT token with updated username but same user ID
     // This ensures authentication continues to work after username change
-    const { generateToken: generateTokenLocal, generateRefreshToken: generateRefreshTokenLocal } = require("../utils/jwt");
+    const {
+      generateToken: generateTokenLocal,
+      generateRefreshToken: generateRefreshTokenLocal,
+    } = require("../utils/jwt");
     const newToken = generateTokenLocal({
       userId,
       username: newUsername.trim(),
@@ -900,7 +898,7 @@ function migrateAvatarFromUsername(userId, oldUsername) {
 
       // Copy all recent avatar files
       const recentFiles = fs.readdirSync(oldRecentDir);
-      recentFiles.forEach(file => {
+      recentFiles.forEach((file) => {
         const oldFilePath = path.join(oldRecentDir, file);
         const newFilePath = path.join(newRecentDir, file);
         if (fs.statSync(oldFilePath).isFile() && file.endsWith(".jpg")) {
@@ -910,7 +908,7 @@ function migrateAvatarFromUsername(userId, oldUsername) {
     }
 
     logger.info(
-      `Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`,
+      `Migrated avatar from username directory (${oldUsername}) to user ID directory (${userId})`
     );
   } catch (err) {
     logger.error("Error migrating avatar during username update:", err);
@@ -975,7 +973,7 @@ async function exportUserConfig(req, res, next) {
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
-      portainerInstances: portainerInstances.map(instance => ({
+      portainerInstances: portainerInstances.map((instance) => ({
         id: instance.id,
         name: instance.name,
         url: instance.url,
@@ -987,12 +985,12 @@ async function exportUserConfig(req, res, next) {
       })),
       dockerHubCredentials: dockerHubCreds
         ? {
-          username: dockerHubCreds.username,
-          created_at: dockerHubCreds.created_at,
-          updated_at: dockerHubCreds.updated_at,
-        }
+            username: dockerHubCreds.username,
+            created_at: dockerHubCreds.created_at,
+            updated_at: dockerHubCreds.updated_at,
+          }
         : null,
-      discordWebhooks: discordWebhooks.map(webhook => ({
+      discordWebhooks: discordWebhooks.map((webhook) => ({
         id: webhook.id,
         server_name: webhook.server_name,
         channel_name: webhook.channel_name,
@@ -1004,7 +1002,7 @@ async function exportUserConfig(req, res, next) {
         created_at: webhook.created_at,
         updated_at: webhook.updated_at,
       })),
-      trackedApps: trackedApps.map(image => ({
+      trackedApps: trackedApps.map((image) => ({
         id: image.id,
         name: image.name,
         image_name: image.image_name,
@@ -1085,11 +1083,11 @@ async function importPortainerInstances(instances, credentials, results, userId)
 
   for (const instance of instances) {
     try {
-      const instanceCreds = credentials?.portainerInstances?.find(c => c.url === instance.url);
+      const instanceCreds = credentials?.portainerInstances?.find((c) => c.url === instance.url);
 
       if (!instanceCreds) {
         results.errors.push(
-          `Portainer instance "${instance.name}" (${instance.url}): Missing credentials`,
+          `Portainer instance "${instance.name}" (${instance.url}): Missing credentials`
         );
         continue;
       }
@@ -1109,7 +1107,7 @@ async function importPortainerInstances(instances, credentials, results, userId)
       results.portainerInstances.push({ id, name: instance.name });
     } catch (error) {
       results.errors.push(
-        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`,
+        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`
       );
     }
   }
@@ -1127,7 +1125,7 @@ async function importDockerHubCredentials(user, credentials, results) {
     await updateDockerHubCredentials(
       user.id,
       credentials.dockerHub.username,
-      credentials.dockerHub.token,
+      credentials.dockerHub.token
     );
     results.dockerHubCredentials = { username: credentials.dockerHub.username };
   } catch (error) {
@@ -1147,10 +1145,10 @@ async function importDockerHubCredentials(user, credentials, results) {
 async function importDiscordWebhooks(webhooks, credentials, user, results) {
   for (const webhook of webhooks) {
     try {
-      const webhookCreds = credentials?.discordWebhooks?.find(c => c.id === webhook.id);
+      const webhookCreds = credentials?.discordWebhooks?.find((c) => c.id === webhook.id);
       if (!webhookCreds || !webhookCreds.webhookUrl) {
         results.errors.push(
-          `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`,
+          `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`
         );
         continue;
       }
@@ -1170,7 +1168,7 @@ async function importDiscordWebhooks(webhooks, credentials, user, results) {
       results.discordWebhooks.push({ id, serverName: webhook.server_name });
     } catch (error) {
       results.errors.push(
-        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`,
+        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`
       );
     }
   }
@@ -1202,9 +1200,7 @@ async function importTrackedApps(apps, user, results) {
 
       results.trackedApps.push({ id, name: image.name });
     } catch (error) {
-      results.errors.push(
-        `Tracked image "${image.name}": ${error.message || "Failed to import"}`,
-      );
+      results.errors.push(`Tracked image "${image.name}": ${error.message || "Failed to import"}`);
     }
   }
 }
@@ -1224,7 +1220,6 @@ async function importPortainerInstancesByIndex(instances, instanceCredsArray, us
   for (let i = 0; i < instances.length; i++) {
     const instance = instances[i];
     const instanceCreds = instanceCredsArray[i];
-
 
     if (!instanceCreds) {
       results.errors.push(`Portainer instance "${instance.name}": Missing credentials`);
@@ -1248,7 +1243,7 @@ async function importPortainerInstancesByIndex(instances, instanceCredsArray, us
       results.portainerInstances.push({ id, name: instance.name });
     } catch (error) {
       results.errors.push(
-        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`,
+        `Portainer instance "${instance.name}": ${error.message || "Failed to import"}`
       );
     }
   }
@@ -1269,7 +1264,7 @@ async function importDiscordWebhooksByIndex(webhooks, webhookCredsArray, user, r
 
     if (!webhookCreds || !webhookCreds.webhookUrl) {
       results.errors.push(
-        `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`,
+        `Discord webhook "${webhook.server_name || webhook.id}": Missing webhook URL`
       );
       continue;
     }
@@ -1290,7 +1285,7 @@ async function importDiscordWebhooksByIndex(webhooks, webhookCredsArray, user, r
       results.discordWebhooks.push({ id, serverName: webhook.server_name });
     } catch (error) {
       results.errors.push(
-        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`,
+        `Discord webhook "${webhook.server_name || webhook.id}": ${error.message || "Failed to import"}`
       );
     }
   }
@@ -1313,11 +1308,7 @@ async function importGeneralSettings(generalSettings, user, results) {
     await setSystemSetting("log_level", logLevel);
   }
   if (refreshingTogglesEnabled !== undefined) {
-    await setSetting(
-      "refreshing_toggles_enabled",
-      refreshingTogglesEnabled.toString(),
-      user.id,
-    );
+    await setSetting("refreshing_toggles_enabled", refreshingTogglesEnabled.toString(), user.id);
   }
   if (batchConfig) {
     for (const [jobType, config] of Object.entries(batchConfig)) {
@@ -1476,7 +1467,7 @@ async function importUsers(req, res, next) {
         }
         if (!password) {
           results.errors.push(
-            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`,
+            `User "${username}" is missing a password. Passwords are required for user creation and are not included in exported configurations for security reasons.`
           );
           continue;
         }
@@ -1541,13 +1532,13 @@ async function importUsers(req, res, next) {
         }
       } catch (error) {
         results.errors.push(
-          `Error importing user "${userData.username || "unknown"}": ${error.message}`,
+          `Error importing user "${userData.username || "unknown"}": ${error.message}`
         );
       }
     }
 
     logger.info(
-      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`,
+      `📦 Import complete: ${results.imported.length} imported, ${results.verificationTokens.length} tokens generated`
     );
 
     return res.json({
@@ -1708,7 +1699,6 @@ async function createUserWithConfig(req, res, next) {
   try {
     const { userData, configData, credentials, skippedSteps = [], verificationToken } = req.body;
 
-
     if (!userData || !userData.username || !userData.password) {
       return res.status(400).json({
         success: false,
@@ -1768,7 +1758,7 @@ async function createUserWithConfig(req, res, next) {
       password,
       email || null,
       role || "Administrator",
-      instanceAdmin || false,
+      instanceAdmin || false
     );
 
     // Set verification token if provided (for instance admins)
@@ -1804,7 +1794,6 @@ async function createUserWithConfig(req, res, next) {
       errors: [],
     };
 
-
     if (configData && credentials) {
       if (
         configData.portainerInstances &&
@@ -1816,10 +1805,9 @@ async function createUserWithConfig(req, res, next) {
           configData.portainerInstances,
           credentials.portainerInstances,
           user,
-          results,
+          results
         );
       }
-
 
       if (
         configData.dockerHubCredentials &&
@@ -1828,7 +1816,6 @@ async function createUserWithConfig(req, res, next) {
       ) {
         await importDockerHubCredentials(user, credentials, results);
       }
-
 
       if (
         configData.discordWebhooks &&
@@ -1840,16 +1827,14 @@ async function createUserWithConfig(req, res, next) {
           configData.discordWebhooks,
           credentials.discordWebhooks,
           user,
-          results,
+          results
         );
       }
     }
 
-
     if (configData && configData.trackedApps && Array.isArray(configData.trackedApps)) {
       await importTrackedApps(configData.trackedApps, user, results);
     }
-
 
     if (configData && configData.generalSettings) {
       try {
@@ -1942,7 +1927,7 @@ async function exportUsersEndpoint(req, res, next) {
     // Since data is now per-user, we need to fetch it for each user
     const usersExport = await Promise.all(
       // eslint-disable-next-line max-lines-per-function -- Complex user data export logic
-      allUsers.map(async user => {
+      allUsers.map(async (user) => {
         // Fetch user-specific data
         const [
           portainerInstances,
@@ -1973,7 +1958,7 @@ async function exportUsersEndpoint(req, res, next) {
             created_at: user.createdAt,
             updated_at: user.updatedAt,
           },
-          portainerInstances: portainerInstances.map(instance => ({
+          portainerInstances: portainerInstances.map((instance) => ({
             id: instance.id,
             name: instance.name,
             url: instance.url,
@@ -1985,11 +1970,11 @@ async function exportUsersEndpoint(req, res, next) {
           })),
           dockerHubCredentials: dockerHubCredentials
             ? {
-              username: dockerHubCredentials.username || null,
-              token: dockerHubCredentials.token ? "***configured***" : null,
-            }
+                username: dockerHubCredentials.username || null,
+                token: dockerHubCredentials.token ? "***configured***" : null,
+              }
             : null,
-          discordWebhooks: discordWebhooks.map(webhook => ({
+          discordWebhooks: discordWebhooks.map((webhook) => ({
             id: webhook.id,
             server_name: webhook.serverName || null,
             channel_name: webhook.channelName || null,
@@ -2001,7 +1986,7 @@ async function exportUsersEndpoint(req, res, next) {
             created_at: webhook.createdAt,
             updated_at: webhook.updatedAt,
           })),
-          trackedApps: trackedApps.map(image => ({
+          trackedApps: trackedApps.map((image) => ({
             id: image.id,
             name: image.name,
             image_name: image.image_name,
@@ -2026,7 +2011,7 @@ async function exportUsersEndpoint(req, res, next) {
             batchConfig,
           },
         };
-      }),
+      })
     );
 
     const exportData = {
