@@ -176,12 +176,20 @@ async function getRecentAvatar(req, res, next) {
       });
     }
 
+    // Use resolvedPath (validated and safe) instead of avatarPath for file operations
     // If avatar doesn't exist, try migrating from username directory
-    if (!fs.existsSync(avatarPath)) {
+    if (!fs.existsSync(resolvedPath)) {
       await migrateAvatarFromUsername(userId, req.user.username);
+      // Re-check after migration
+      if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({
+          success: false,
+          error: "Avatar not found",
+        });
+      }
     }
-    if (fs.existsSync(avatarPath)) {
-      return res.sendFile(avatarPath);
+    if (fs.existsSync(resolvedPath)) {
+      return res.sendFile(resolvedPath);
     }
     return res.status(404).json({
       success: false,
