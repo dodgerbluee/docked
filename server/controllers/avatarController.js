@@ -364,7 +364,31 @@ function getAvatarByUserId(req, res, next) {
       });
     }
 
-    const avatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
+    // Security: Validate userId is a valid number and doesn't contain path traversal
+    const userIdNum = parseInt(userId, 10);
+    if (isNaN(userIdNum) || userIdNum <= 0 || userIdNum.toString() !== userId) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
+      });
+    }
+
+    // Security: Construct path and verify it's within AVATARS_DIR to prevent path traversal
+    const userDir = path.join(AVATARS_DIR, userIdNum.toString());
+    const avatarPath = path.join(userDir, "avatar.jpg");
+    
+    // Resolve to absolute path and verify it's within AVATARS_DIR
+    const resolvedPath = path.resolve(avatarPath);
+    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    
+    // Ensure the resolved path is within AVATARS_DIR (prevents ../ attacks)
+    if (!resolvedPath.startsWith(resolvedAvatarsDir + path.sep) && resolvedPath !== resolvedAvatarsDir) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid path",
+      });
+    }
+
     if (fs.existsSync(avatarPath)) {
       return res.sendFile(avatarPath);
     }
@@ -396,8 +420,40 @@ function getAvatarByUserId(req, res, next) {
  */
 function migrateAvatarFromUsername(userId, username) {
   try {
+    // Security: Validate username doesn't contain path traversal
+    if (!username || typeof username !== "string") {
+      return;
+    }
+    
+    // Security: Validate username is safe (alphanumeric, dash, underscore only)
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      logger.warn(`Skipping avatar migration for unsafe username: ${username}`);
+      return;
+    }
+
     const oldAvatarDir = path.join(AVATARS_DIR, username);
     const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
+    
+    // Security: Verify paths are within AVATARS_DIR
+    const resolvedOldDir = path.resolve(oldAvatarDir);
+    const resolvedNewDir = path.resolve(newAvatarDir);
+    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    
+    if (
+      !resolvedOldDir.startsWith(resolvedAvatarsDir + path.sep) &&
+      resolvedOldDir !== resolvedAvatarsDir
+    ) {
+      logger.warn(`Skipping avatar migration - old path outside AVATARS_DIR: ${resolvedOldDir}`);
+      return;
+    }
+    
+    if (
+      !resolvedNewDir.startsWith(resolvedAvatarsDir + path.sep) &&
+      resolvedNewDir !== resolvedAvatarsDir
+    ) {
+      logger.warn(`Skipping avatar migration - new path outside AVATARS_DIR: ${resolvedNewDir}`);
+      return;
+    }
 
     // If old directory doesn't exist, nothing to migrate
     if (!fs.existsSync(oldAvatarDir)) {
