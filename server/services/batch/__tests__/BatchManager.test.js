@@ -22,8 +22,7 @@ describe("BatchManager", () => {
     getDisplayName() {
       return this.displayName;
     }
-
-    async execute(context) {
+    async execute(_context) {
       return {
         itemsChecked: 5,
         itemsUpdated: 1,
@@ -100,9 +99,10 @@ describe("BatchManager", () => {
       const handler = new MockJobHandler("test-job", "Test Job");
       batchManager.registerHandler(handler);
 
-      // Mock database functions
-      const mockCreateBatchRun = jest.fn().mockResolvedValue(1);
-      const mockUpdateBatchRun = jest.fn().mockResolvedValue();
+      // Mock database functions (not used in this test, but kept for future use)
+
+      const _mockCreateBatchRun = jest.fn().mockResolvedValue(1);
+      const _mockUpdateBatchRun = jest.fn().mockResolvedValue();
 
       // We can't easily mock the database here, so we'll test the structure
       // In integration tests, we'll test the full flow

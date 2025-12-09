@@ -23,6 +23,7 @@ function generateRequestId() {
  * Request logging middleware
  * Logs request start, completion, and errors with requestId
  */
+// eslint-disable-next-line max-lines-per-function -- Request logger requires comprehensive logging logic
 function requestLogger(req, res, next) {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -42,6 +43,7 @@ function requestLogger(req, res, next) {
   };
 
   // Run request handler with context
+  // eslint-disable-next-line max-lines-per-function -- Request logging requires comprehensive context handling
   logger.withContext(context, () => {
     // Skip verbose logging for frequent polling endpoints
     const isPollingEndpoint = req.path === "/api/batch/runs/latest" && req.method === "GET";
@@ -74,9 +76,8 @@ function requestLogger(req, res, next) {
           ip: context.ip,
           userId: context.userId,
         });
-      }
-      // Log slow requests (>1 second) at INFO level
-      else if (duration > 1000) {
+      } else if (duration > 1000) {
+        // Log slow requests (>1 second) at INFO level
         logger.info("Slow request completed", {
           method: req.method,
           url: req.url,
@@ -86,18 +87,16 @@ function requestLogger(req, res, next) {
           ip: context.ip,
           userId: context.userId,
         });
-      }
-      // Log polling endpoints at DEBUG level only
-      else if (isPollingEndpoint) {
+      } else if (isPollingEndpoint) {
+        // Log polling endpoints at DEBUG level only
         logger.debug("Polling request completed", {
           method: req.method,
           path: req.path,
           statusCode: res.statusCode,
           duration: `${duration}ms`,
         });
-      }
-      // Log other requests at DEBUG level
-      else {
+      } else {
+        // Log other requests at DEBUG level
         logger.debug("Request completed", {
           method: req.method,
           url: req.url,

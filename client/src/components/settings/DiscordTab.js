@@ -1,5 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import PropTypes from "prop-types";
+import { Info } from "lucide-react";
 import DiscordWebhookModal from "../DiscordWebhookModal";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
@@ -23,7 +24,6 @@ const DiscordTab = React.memo(function DiscordTab({
   handleDeleteDiscordWebhook,
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, webhookId: null });
-  const downloadLinkRef = useRef(null);
 
   const handleDeleteClick = (webhookId) => {
     setDeleteConfirm({ isOpen: true, webhookId });
@@ -46,12 +46,6 @@ const DiscordTab = React.memo(function DiscordTab({
     setShowDiscordModal(true);
   };
 
-  const handleDownloadLogo = () => {
-    if (downloadLinkRef.current) {
-      downloadLinkRef.current.click();
-    }
-  };
-
   return (
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Discord Notifications</h3>
@@ -62,6 +56,27 @@ const DiscordTab = React.memo(function DiscordTab({
 
       {discordSuccess && <Alert variant="info">{discordSuccess}</Alert>}
 
+      <Card variant="secondary" padding="md" className={styles.infoBanner}>
+        <div className={styles.infoContent}>
+          <Info size={20} className={styles.infoIcon} />
+          <div className={styles.infoText}>
+            <strong>How to Set Up Discord Webhooks:</strong> Open your Discord server and go to{" "}
+            <strong>Server Settings</strong> → <strong>Integrations</strong> →{" "}
+            <strong>Webhooks</strong>. Click <strong>"New Webhook"</strong> and customize it: choose
+            the channel, rename it to{" "}
+            <strong>
+              <i>Docked</i>
+            </strong>
+            , and optionally use the Docked logo as the avatar (
+            <a href="/img/logo.png" download="docked-logo.png" className={styles.downloadLink}>
+              Download Logo
+            </a>
+            ). Copy the webhook URL, then click <strong>"Add Webhook"</strong> below and paste it.
+            You can optionally add a server name for easy identification.
+          </div>
+        </div>
+      </Card>
+
       {discordWebhooks.length > 0 && (
         <div className={styles.webhooksList}>
           {discordWebhooks.map((webhook) => (
@@ -69,13 +84,18 @@ const DiscordTab = React.memo(function DiscordTab({
               <div className={styles.webhookContent}>
                 <div className={styles.webhookInfo}>
                   <img
-                    src={webhook.avatarUrl || webhook.avatar_url || "/img/default-avatar.jpg"}
+                    src={
+                      webhook.avatarUrl ||
+                      webhook.avatar_url ||
+                      "https://cdn.discordapp.com/embed/avatars/0.png"
+                    }
                     alt="Webhook avatar"
                     className={styles.avatar}
                     onError={(e) => {
-                      // Fallback to default avatar if image fails to load
-                      if (e.target.src !== "/img/default-avatar.jpg") {
-                        e.target.src = "/img/default-avatar.jpg";
+                      // Fallback to Discord's default webhook avatar if image fails to load
+                      const discordDefault = "https://cdn.discordapp.com/embed/avatars/0.png";
+                      if (e.target.src !== discordDefault) {
+                        e.target.src = discordDefault;
                       }
                     }}
                   />
@@ -126,59 +146,6 @@ const DiscordTab = React.memo(function DiscordTab({
           Maximum of 3 webhooks reached. Remove an existing webhook to add a new one.
         </p>
       )}
-
-      <Card variant="default" padding="md" className={styles.instructionsCard}>
-        <h4 className={styles.instructionsTitle}>How to Set Up Discord Webhooks</h4>
-        <ol className={styles.instructionsList}>
-          <li>Open your Discord server</li>
-          <li>
-            Go to <strong>Server Settings</strong> → <strong>Integrations</strong> →{" "}
-            <strong>Webhooks</strong>
-          </li>
-          <li>
-            Click <strong>"New Webhook"</strong>
-          </li>
-          <li>
-            Open and customize the webhook details:
-            <ul className={styles.instructionsSubList}>
-              <li>Choose the channel where you want notifications</li>
-              <li>
-                Rename it{" "}
-                <strong>
-                  <i>Docked</i>
-                </strong>
-              </li>
-              <li>
-                Use the Docked logo as the webhook avatar
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleDownloadLogo}
-                  className={styles.downloadButton}
-                >
-                  Download Logo
-                </Button>
-                <a
-                  ref={downloadLinkRef}
-                  href="/img/logo.png"
-                  download="docked-logo.png"
-                  style={{ display: "none" }}
-                  aria-hidden="true"
-                  aria-label="Download logo"
-                >
-                  Download Logo
-                </a>
-              </li>
-            </ul>
-          </li>
-          <li>Copy the webhook URL</li>
-          <li>
-            Click <strong>"Add Webhook"</strong> above and paste the URL
-          </li>
-          <li>Optionally add a server name for easy identification</li>
-        </ol>
-      </Card>
 
       <DiscordWebhookModal
         isOpen={showDiscordModal}

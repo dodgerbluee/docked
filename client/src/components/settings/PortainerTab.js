@@ -5,11 +5,7 @@ import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
-import { useRepositoryAccessTokens } from "../../hooks/useRepositoryAccessTokens";
 import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
-import { getProviderIcon, getProviderLabel } from "../../utils/providerHelpers";
-import { SETTINGS_TABS } from "../../constants/settings";
-import AssociateImagesModal from "./AssociateImagesModal";
 import PageVisibilitySection from "./components/PageVisibilitySection";
 import styles from "./PortainerTab.module.css";
 
@@ -27,12 +23,6 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
-  const [associateImagesModalOpen, setAssociateImagesModalOpen] = useState(false);
-  const [selectedToken, setSelectedToken] = useState(null);
-
-  const { tokens, loading: tokensLoading } = useRepositoryAccessTokens({
-    activeSection: SETTINGS_TABS.PORTAINER,
-  });
 
   const {
     disablePortainerPage: initialDisablePortainerPage,
@@ -66,22 +56,12 @@ const PortainerTab = React.memo(function PortainerTab({
     }
   }, [onClearPortainerData]);
 
-  const handleAssociateImages = useCallback((token) => {
-    setSelectedToken(token);
-    setAssociateImagesModalOpen(true);
-  }, []);
-
   const handleDeleteClose = useCallback(() => {
     setDeleteConfirm({ isOpen: false, instanceId: null });
   }, []);
 
   const handlePortainerConfirmClose = useCallback(() => {
     setPortainerConfirm(false);
-  }, []);
-
-  const handleAssociateModalClose = useCallback(() => {
-    setAssociateImagesModalOpen(false);
-    setSelectedToken(null);
   }, []);
 
   const handleEditInstanceClick = useCallback(
@@ -170,62 +150,15 @@ const PortainerTab = React.memo(function PortainerTab({
         variant="danger"
       />
 
-      <div className={styles.repositoryTokensSection}>
-        <div className={styles.sectionHeader}>
-          <h4 className={styles.sectionTitle}>Repositories</h4>
-        </div>
-        {tokensLoading ? (
-          <div className={styles.emptyState}>
-            <p className={styles.emptyText}>Loading repositories...</p>
-          </div>
-        ) : tokens.length === 0 ? (
-          <Card variant="default" padding="md" className={styles.emptyTokenCard}>
-            <p className={styles.emptyText}>
-              No repository access tokens configured. Add tokens on the{" "}
-              <strong>Repositories</strong> tab to associate them with your container images.
-            </p>
-          </Card>
-        ) : (
-          <div className={styles.tokensGrid}>
-            {tokens.map((token) => {
-              const IconComponent = getProviderIcon(token.provider);
-              return (
-                <Card key={token.id} variant="default" padding="md" className={styles.tokenCard}>
-                  <div className={styles.tokenContent}>
-                    <div className={styles.tokenInfo}>
-                      <div className={styles.tokenHeader}>
-                        <span className={styles.tokenIcon}>
-                          <IconComponent size={18} />
-                        </span>
-                        <strong className={styles.tokenProvider}>
-                          {token.name || getProviderLabel(token.provider)}
-                        </strong>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAssociateImages(token)}
-                      disabled={tokensLoading}
-                    >
-                      Associate Images
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <div className={styles.sectionDivider} />
 
       <PageVisibilitySection
         initialDisabled={initialDisablePortainerPage}
         onUpdate={updateDisablePortainerPage}
         onRefresh={refreshSettings}
         title="Page Visibility"
-        checkboxLabel="Disable Portainer Page"
-        checkboxNote="This will disable the functionality of the Portainer page. The Portainer tab will be hidden from the home page navigation."
+        checkboxLabel="Display Portainer Page"
+        checkboxNote="When enabled, the Portainer page will be visible. When disabled, the Portainer tab will be hidden from the home page navigation."
       />
 
       <div className={styles.dataManagement}>
@@ -259,12 +192,6 @@ const PortainerTab = React.memo(function PortainerTab({
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"
-      />
-
-      <AssociateImagesModal
-        isOpen={associateImagesModalOpen}
-        onClose={handleAssociateModalClose}
-        token={selectedToken}
       />
     </div>
   );

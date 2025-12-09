@@ -5,8 +5,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
+import { Power, PowerOff } from "lucide-react";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import ToggleButton from "../../ui/ToggleButton";
 import styles from "./PageVisibilitySection.module.css";
 
 /**
@@ -35,8 +37,14 @@ const PageVisibilitySection = React.memo(function PageVisibilitySection({
     setLocalDisabled(initialDisabled);
   }, [initialDisabled]);
 
-  const handleChange = useCallback((e) => {
-    setLocalDisabled(e.target.checked);
+  const toggleOptions = [
+    { value: "on", label: "On", icon: Power },
+    { value: "off", label: "Off", icon: PowerOff },
+  ];
+
+  const handleToggleChange = useCallback((value) => {
+    // Convert "on"/"off" to boolean (disabled is true when "off", false when "on")
+    setLocalDisabled(value === "off");
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -66,17 +74,15 @@ const PageVisibilitySection = React.memo(function PageVisibilitySection({
         <h4 className={styles.sectionTitle}>{title}</h4>
       </div>
       <Card variant="default" padding="md" className={styles.visibilityCard}>
-        <div className={styles.checkboxContainer}>
-          <label className={styles.checkboxLabel}>
-            <input
-              type="checkbox"
-              checked={localDisabled}
-              onChange={handleChange}
-              className={styles.checkbox}
-            />
-            <span className={styles.checkboxText}>{checkboxLabel}</span>
-          </label>
-          {checkboxNote && <p className={styles.checkboxNote}>{checkboxNote}</p>}
+        <div className={styles.toggleContainer}>
+          <label className={styles.toggleLabel}>{checkboxLabel}</label>
+          <ToggleButton
+            options={toggleOptions}
+            value={localDisabled ? "off" : "on"}
+            onChange={handleToggleChange}
+            className={styles.toggle}
+          />
+          {checkboxNote && <p className={styles.toggleNote}>{checkboxNote}</p>}
         </div>
         <div className={styles.formActions}>
           <Button
@@ -86,7 +92,7 @@ const PageVisibilitySection = React.memo(function PageVisibilitySection({
             disabled={saving || !hasChanges}
             className={styles.saveButton}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </Card>

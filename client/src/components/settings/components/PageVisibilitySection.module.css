@@ -17,47 +17,55 @@
   margin-bottom: 1rem;
 }
 
-.checkboxContainer {
+.toggleContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 1rem;
 }
 
-.checkboxLabel {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox {
-  margin-top: 0.125rem;
-  cursor: pointer;
-  width: 1.125rem;
-  height: 1.125rem;
-  flex-shrink: 0;
-}
-
-.checkboxText {
+.toggleLabel {
+  color: var(--text-primary);
   font-size: 0.9375rem;
   font-weight: 500;
-  color: var(--text-primary);
-  line-height: 1.5;
+  margin: 0;
 }
 
-.checkboxNote {
-  margin-top: 0.5rem;
-  margin-left: 1.875rem;
-  font-size: 0.875rem;
+.toggle {
+  width: fit-content;
+}
+
+.toggleNote {
   color: var(--text-secondary);
+  font-size: 0.875rem;
   line-height: 1.5;
+  margin: 0;
 }
 
 .formActions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  margin-top: 8px;
 }
 
 .saveButton {
-  min-width: 80px;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.saveButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .saveButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .saveButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
 }

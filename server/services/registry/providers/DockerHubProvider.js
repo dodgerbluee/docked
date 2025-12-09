@@ -1,15 +1,12 @@
 /**
- * Docker Hub Registry Provider
+ * Container Registry Provider (docker.io compatible)
  *
- * Implements Docker Hub Registry API v2 for fetching image digests
+ * Implements OCI Distribution Spec registry protocol for fetching image digests
  * and metadata. Supports both anonymous and authenticated requests.
+ * Works with docker.io registry and other OCI-compliant registries.
  */
 
-const axios = require("axios");
 const RegistryProvider = require("../RegistryProvider");
-const { getDockerHubCreds } = require("../../../utils/dockerHubCreds");
-const { rateLimitDelay } = require("../../../utils/rateLimiter");
-const { retryWithBackoff } = require("../../../utils/retry");
 const config = require("../../../config");
 const Cache = require("../../../utils/cache");
 const logger = require("../../../utils/logger");
@@ -28,7 +25,7 @@ class DockerHubProvider extends RegistryProvider {
   }
 
   canHandle(imageRepo) {
-    // Handle docker.io, registry-1.docker.io, or plain repos (assumed Docker Hub)
+    // Handle docker.io, registry-1.docker.io, or plain repos (assumed docker.io registry)
     if (
       imageRepo.startsWith("docker.io/") ||
       imageRepo.startsWith("registry-1.docker.io/") ||
@@ -36,11 +33,11 @@ class DockerHubProvider extends RegistryProvider {
     ) {
       return true;
     }
-    // If it has a slash and no registry prefix, assume Docker Hub
+    // If it has a slash and no registry prefix, assume docker.io registry
     if (imageRepo.includes("/") && !imageRepo.includes(".") && !imageRepo.startsWith("ghcr.io/")) {
       return true;
     }
-    // lscr.io images are also on Docker Hub
+    // lscr.io images are also on docker.io registry
     if (imageRepo.startsWith("lscr.io/")) {
       return true;
     }
@@ -54,7 +51,7 @@ class DockerHubProvider extends RegistryProvider {
       .replace(/^registry-1\.docker\.io\//, "")
       .replace(/^registry\.docker\.io\//, "");
 
-    // lscr.io images are also on Docker Hub under the same name
+    // lscr.io images are also on docker.io registry under the same name
     if (imageRepo.startsWith("lscr.io/")) {
       repo = imageRepo.replace("lscr.io/", "");
     }
@@ -62,89 +59,129 @@ class DockerHubProvider extends RegistryProvider {
     return repo;
   }
 
-  async getCredentials(userId) {
-    if (!userId) {
-      return {};
+  /**
+   * Clean tag by removing incomplete SHA256 markers
+   * @param {string} tag - Original tag
+   * @param {string} normalizedRepo - Normalized repository
+   * @returns {Object} - { cleanedTag, cachedResult }
+   */
+  _cleanTagAndCheckCache(tag, normalizedRepo) {
+    if (!tag || !tag.includes("@sha256") || tag.includes("@sha256:")) {
+      return { cleanedTag: tag, cachedResult: null };
     }
-    return await getDockerHubCreds(userId);
-  }
 
-  async getRateLimitDelay(options = {}) {
-    const creds = await this.getCredentials(options.userId);
-    // Authenticated: 500ms, Anonymous: 1000ms
-    return creds.token && creds.username ? 500 : 1000;
+    const cleanedTag = tag.replace("@sha256", "");
+    logger.debug(`[Registry] Stripped incomplete @sha256 marker from tag: ${tag} -> ${cleanedTag}`);
+
+    const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
+    const cleanedCached = digestCache.get(cleanedCacheKey);
+    if (cleanedCached) {
+      const cacheKey = `${normalizedRepo}:${tag}`;
+      digestCache.set(cacheKey, cleanedCached, config.cache.digestCacheTTL);
+      return { cleanedTag, cachedResult: cleanedCached };
+    }
+
+    return { cleanedTag, cachedResult: null };
   }
 
   /**
-   * Get Docker Registry API v2 token for authentication
-   * @private
+   * Get digest using crane/skopeo
+   * @param {string} imageRef - Image reference
+   * @param {string} imageRepo - Image repository
+   * @param {string} cleanedTag - Cleaned tag
+   * @param {string} cacheKey - Cache key
+   * @param {string} normalizedRepo - Normalized repository
+   * @param {string} originalTag - Original tag
+   * @returns {Promise<Object|null>} - Result object or null
    */
-  async _getAuthToken(namespace, repository, userId) {
-    try {
-      const authUrl = "https://auth.docker.io/token";
-      const params = {
-        service: "registry.docker.io",
-        scope: `repository:${namespace}/${repository}:pull`,
-      };
+  /**
+   * Get digest with crane/skopeo
+   * @param {Object} params - Parameters object
+   * @param {string} params.imageRef - Image reference
+   * @param {string} params.imageRepo - Image repository
+   * @param {string} params.cleanedTag - Cleaned tag
+   * @param {string} params.cacheKey - Cache key
+   * @param {string} params.normalizedRepo - Normalized repository
+   * @param {string} params.originalTag - Original tag
+   * @returns {Promise<Object|null>} - Result or null
+   */
+  async _getDigestWithCraneSkopeo(params) {
+    const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag } = params;
+    const { getImageDigest } = require("../../../utils/containerTools");
+    logger.debug(
+      `[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`
+    );
+    const digest = await getImageDigest(imageRef);
 
-      const requestConfig = {
-        params,
-        timeout: 10000,
-      };
-
-      const creds = await this.getCredentials(userId);
-      if (creds.token && creds.username) {
-        requestConfig.auth = {
-          username: creds.username,
-          password: creds.token,
-        };
-        this.logOperation("authenticate", `${namespace}/${repository}`, { authenticated: true });
-      }
-
-      const response = await axios.get(authUrl, requestConfig);
-      return response.data?.token || null;
-    } catch (error) {
-      logger.error(
-        `Error getting Docker Registry token for ${namespace}/${repository}:`,
-        error.message
-      );
+    if (!digest) {
+      logger.warn(`[Registry] ⚠️ crane/skopeo failed for ${imageRef}, no digest available`);
       return null;
     }
+
+    const result = {
+      digest,
+      tag: cleanedTag,
+      provider: "dockerhub",
+      method: "crane-skopeo",
+    };
+
+    digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+    if (cleanedTag !== originalTag) {
+      const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
+      digestCache.set(cleanedCacheKey, result, config.cache.digestCacheTTL);
+    }
+
+    this.logOperation("getLatestDigest (crane-skopeo)", imageRepo, {
+      tag: cleanedTag,
+      digest: `${digest.substring(0, 12)}...`,
+    });
+    logger.info(
+      `[Registry] ✅ Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo (registry protocol) - ${digest.substring(0, 12)}...`
+    );
+    return result;
   }
 
-  async getLatestDigest(imageRepo, tag = "latest", options = {}) {
+  /**
+   * Handle error in getLatestDigest
+   * @param {Error} error - Error object
+   * @param {string} imageRepo - Image repository
+   * @param {string} cleanedTag - Cleaned tag
+   * @returns {null}
+   */
+  _handleGetLatestDigestError(error, imageRepo, cleanedTag) {
+    if (this.isRateLimitError(error)) {
+      throw error;
+    }
+    if (error.response?.status !== 404) {
+      logger.error(`Error fetching digest for ${imageRepo}:${cleanedTag}:`, {
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        imageRepo,
+        tag: cleanedTag,
+      });
+    } else {
+      logger.debug(`Image ${imageRepo}:${cleanedTag} not found in registry (404 in catch)`);
+    }
+    return null;
+  }
+
+  async getLatestDigest(imageRepo, tag = "latest", _options = {}) {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `${normalizedRepo}:${tag}`;
 
-    // Check cache with original tag
     const cached = digestCache.get(cacheKey);
     if (cached) {
       this.logOperation("getLatestDigest (cached)", imageRepo, { tag });
       return cached;
     }
 
-    // Handle incomplete SHA256 digests (e.g., "tag@sha256" without hash)
-    // Strip incomplete digest markers before processing
-    let cleanedTag = tag;
-    if (tag && tag.includes("@sha256") && !tag.includes("@sha256:")) {
-      // Remove incomplete @sha256 marker
-      cleanedTag = tag.replace("@sha256", "");
-      logger.debug(
-        `[DockerHub] Stripped incomplete @sha256 marker from tag: ${tag} -> ${cleanedTag}`
-      );
-
-      // Also check cache with cleaned tag (in case it was cached with cleaned tag)
-      const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
-      const cleanedCached = digestCache.get(cleanedCacheKey);
-      if (cleanedCached) {
-        // Cache with original tag key for future lookups
-        digestCache.set(cacheKey, cleanedCached, config.cache.digestCacheTTL);
-        this.logOperation("getLatestDigest (cached)", imageRepo, { tag: cleanedTag });
-        return cleanedCached;
-      }
+    const { cleanedTag, cachedResult } = this._cleanTagAndCheckCache(tag, normalizedRepo);
+    if (cachedResult) {
+      this.logOperation("getLatestDigest (cached)", imageRepo, { tag: cleanedTag });
+      return cachedResult;
     }
 
-    // Skip if tag contains complete digest
     if (cleanedTag && cleanedTag.includes("@sha256:")) {
       this.logOperation("getLatestDigest (skipped)", imageRepo, {
         reason: "tag contains complete digest",
@@ -153,213 +190,23 @@ class DockerHubProvider extends RegistryProvider {
     }
 
     try {
-      // First, try using crane/skopeo (works for public images, uses registry protocol)
-      // This bypasses API complexity and rate limits are handled by Docker Hub's registry limits
-      const { getImageDigest } = require("../../../utils/containerTools");
       const imageRef = `${normalizedRepo}:${cleanedTag}`;
-      logger.debug(`[DockerHub] Trying to get digest for ${imageRef} using crane/skopeo`);
-      const digest = await getImageDigest(imageRef);
-
-      if (digest) {
-        const result = {
-          digest,
-          tag: cleanedTag,
-          provider: "dockerhub",
-        };
-
-        // Cache the result with both original and cleaned tag keys
-        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-        if (cleanedTag !== tag) {
-          const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
-          digestCache.set(cleanedCacheKey, result, config.cache.digestCacheTTL);
-        }
-
-        this.logOperation("getLatestDigest", imageRepo, {
-          tag: cleanedTag,
-          digest: digest.substring(0, 12) + "...",
-        });
-        logger.info(
-          `[DockerHub] Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo - ${digest.substring(0, 12)}...`
-        );
-        return result;
-      }
-
-      // If crane/skopeo failed, try API approach
-      logger.debug(`[DockerHub] crane/skopeo failed for ${imageRef}, trying API approach`);
-
-      // Rate limit delay
-      const delay = await this.getRateLimitDelay(options);
-      await rateLimitDelay(delay);
-
-      // Parse namespace and repository
-      let namespace = "library";
-      let repository = normalizedRepo;
-
-      if (normalizedRepo.includes("/")) {
-        const parts = normalizedRepo.split("/");
-        namespace = parts[0];
-        repository = parts.slice(1).join("/");
-      }
-
-      // Get auth token
-      const token = await this._getAuthToken(namespace, repository, options.userId);
-      if (!token) {
-        logger.error(`Failed to get authentication token for ${namespace}/${repository}`);
-        return null;
-      }
-
-      // Request manifest - accept both manifest list (multi-arch) and regular manifest (single-arch)
-      const registryUrl = `https://registry-1.docker.io/v2/${namespace}/${repository}/manifests/${cleanedTag}`;
-      const headers = {
-        Accept:
-          "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json,application/vnd.docker.distribution.manifest.v1+json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await retryWithBackoff(
-        async () => {
-          const resp = await axios.get(registryUrl, {
-            headers,
-            timeout: 10000,
-            validateStatus: (status) => status < 500,
-          });
-
-          if (resp.status === 429) {
-            const error = new Error("Rate limited by Docker Hub");
-            error.response = { status: 429 };
-            error.isRateLimitExceeded = true;
-            throw error;
-          }
-
-          return resp;
-        },
-        3,
-        1000,
-        options.userId
-      );
-
-      if (response.status === 200 && response.headers["docker-content-digest"]) {
-        const digest = response.headers["docker-content-digest"];
-        const result = {
-          digest,
-          tag: cleanedTag,
-          provider: "dockerhub", // Explicitly set provider
-        };
-
-        // Cache the result with both original and cleaned tag keys
-        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-        if (cleanedTag !== tag) {
-          const cleanedCacheKey = `${normalizedRepo}:${cleanedTag}`;
-          digestCache.set(cleanedCacheKey, result, config.cache.digestCacheTTL);
-        }
-
-        this.logOperation("getLatestDigest", imageRepo, {
-          tag: cleanedTag,
-          digest: digest.substring(0, 12) + "...",
-        });
-        logger.debug(
-          `[DockerHub] Successfully got digest for ${imageRepo}:${cleanedTag} via API - ${digest.substring(0, 12)}...`
-        );
-        return result;
-      }
-
-      // If we got a 200 but no digest header, log it for debugging
-      if (response.status === 200 && !response.headers["docker-content-digest"]) {
-        logger.warn(
-          `Docker Hub returned 200 for ${imageRepo}:${cleanedTag} but no docker-content-digest header. Content-Type: ${response.headers["content-type"]}`
-        );
-      }
-
-      // Log detailed error information for debugging
-      if (response.status !== 200 && response.status !== 404) {
-        logger.warn(
-          `Failed to get digest for ${imageRepo}:${cleanedTag} (status: ${response.status})`,
-          {
-            imageRepo,
-            tag: cleanedTag,
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          }
-        );
-      } else if (response.status === 404) {
-        logger.debug(`Image ${imageRepo}:${cleanedTag} not found on Docker Hub (404)`);
-      }
-
-      return null;
+      return this._getDigestWithCraneSkopeo({
+        imageRef,
+        imageRepo,
+        cleanedTag,
+        cacheKey,
+        normalizedRepo,
+        originalTag: tag,
+      });
     } catch (error) {
-      if (this.isRateLimitError(error)) {
-        throw error;
-      }
-      if (error.response?.status !== 404) {
-        logger.error(`Error fetching digest for ${imageRepo}:${cleanedTag}:`, {
-          error: error.message,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          imageRepo,
-          tag: cleanedTag,
-        });
-      } else {
-        logger.debug(`Image ${imageRepo}:${cleanedTag} not found on Docker Hub (404 in catch)`);
-      }
-      return null;
+      return this._handleGetLatestDigestError(error, imageRepo, cleanedTag);
     }
   }
-
-  async getTagPublishDate(imageRepo, tag, options = {}) {
-    const normalizedRepo = this.normalizeRepo(imageRepo);
-    const cacheKey = `publishDate:${normalizedRepo}:${tag}`;
-
-    // Check cache
-    const cached = digestCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    try {
-      const delay = await this.getRateLimitDelay(options);
-      await rateLimitDelay(delay);
-
-      let namespace = "library";
-      let repository = normalizedRepo;
-
-      if (normalizedRepo.includes("/")) {
-        const parts = normalizedRepo.split("/");
-        namespace = parts[0];
-        repository = parts.slice(1).join("/");
-      }
-
-      const hubApiUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags/${tag}/`;
-      const headers = {
-        "User-Agent": "Docked/1.0",
-      };
-
-      const creds = await this.getCredentials(options.userId);
-      if (creds.token && creds.username) {
-        headers.Authorization = `Basic ${Buffer.from(`${creds.username}:${creds.token}`).toString("base64")}`;
-      }
-
-      const response = await axios.get(hubApiUrl, {
-        headers,
-        timeout: 10000,
-        validateStatus: (status) => status < 500,
-      });
-
-      if (response.status === 200 && response.data) {
-        const publishDate = response.data.tag_last_pushed || response.data.last_updated;
-        if (publishDate) {
-          digestCache.set(cacheKey, publishDate, config.cache.digestCacheTTL);
-          return publishDate;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      if (error.response?.status !== 404) {
-        logger.error(`Error fetching publish date for ${imageRepo}:${tag}:`, error.message);
-      }
-      return null;
-    }
+  async getTagPublishDate(imageRepo, tag, _options = {}) {
+    // Publish date requires Docker Hub REST API which we no longer use
+    // Return null as we're using registry protocol instead
+    return null;
   }
 
   async imageExists(imageRepo, options = {}) {
@@ -384,14 +231,14 @@ class DockerHubProvider extends RegistryProvider {
       }
 
       return false;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }
 
   handleError(error) {
     if (this.isRateLimitError(error)) {
-      const rateLimitError = new Error("Docker Hub rate limit exceeded");
+      const rateLimitError = new Error("Registry rate limit exceeded");
       rateLimitError.isRateLimitExceeded = true;
       rateLimitError.originalError = error;
       return rateLimitError;

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
+import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
 
 /**
  * Custom hook for managing container data fetching and state
@@ -33,14 +34,21 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   }, []);
 
   const fetchContainers = useCallback(
-    async (showLoading = true, instanceUrl = null, portainerOnly = false) => {
+    async (
+      showLoading = true,
+      instanceUrl = null,
+      portainerOnly = false,
+      refreshUpdates = false
+    ) => {
       try {
         // Track loading state for specific instance if provided
         if (instanceUrl) {
           setLoadingInstances((prev) => new Set(prev).add(instanceUrl));
         } else {
           // Only show loading if explicitly requested (e.g., on pull) or if we have no data
-          if (showLoading && containers.length === 0) {
+          // When refreshUpdates is true, we're refreshing to detect manual upgrades, so don't show loading
+          // to avoid flickering - the data will update quickly
+          if (showLoading && containers.length === 0 && !refreshUpdates) {
             setLoading(true);
           }
         }
@@ -49,31 +57,39 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           instanceUrl
             ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
             : portainerOnly
-              ? "🔄 Fetching containers from Portainer"
+              ? refreshUpdates
+                ? "🔄 Fetching containers from Portainer and re-evaluating update status..."
+                : "🔄 Fetching containers from Portainer"
               : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
         );
 
         // Backend will automatically fetch from Portainer if no cache exists
         // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
-        const url =
-          instanceUrl || portainerOnly
-            ? `${API_BASE_URL}/api/containers?portainerOnly=true`
-            : `${API_BASE_URL}/api/containers`;
+        // If refreshUpdates is true, also re-evaluate update status
+        // Use new cache service for better experience
+        const params = new URLSearchParams();
+        params.append("useNewCache", "true"); // Enable new cache service
+        if (instanceUrl || portainerOnly) {
+          params.append("portainerOnly", "true");
+        }
+        if (refreshUpdates) {
+          params.append("refreshUpdates", "true");
+        }
+        if (instanceUrl) {
+          params.append("portainerUrl", instanceUrl);
+        }
+        const url = `${API_BASE_URL}/api/containers${params.toString() ? `?${params.toString()}` : ""}`;
         const response = await axios.get(url);
 
         // Handle both grouped and flat response formats
         if (response.data.grouped && response.data.stacks) {
           // Preserve hasUpdate:false for containers that were successfully updated
+          // Use the helper function which computes hasUpdate on-the-fly
           const apiContainers = response.data.containers || [];
-          const updatedContainers = apiContainers.map((apiContainer) => {
-            if (successfullyUpdatedContainersRef?.current?.has(apiContainer.id)) {
-              if (!apiContainer.hasUpdate) {
-                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-              }
-              return { ...apiContainer, hasUpdate: false };
-            }
-            return apiContainer;
-          });
+          const updatedContainers = updateContainersWithPreservedState(
+            apiContainers,
+            successfullyUpdatedContainersRef
+          );
           setContainers(updatedContainers);
           setStacks(response.data.stacks || []);
           // Only update unused images count if we haven't just deleted images
@@ -163,13 +179,12 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           // Backward compatibility: treat as flat array
           const apiContainers = Array.isArray(response.data) ? response.data : [];
           const updatedContainers = apiContainers.map((apiContainer) => {
-            if (successfullyUpdatedContainersRef?.current?.has(apiContainer.id)) {
-              if (!apiContainer.hasUpdate) {
-                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-              }
-              return { ...apiContainer, hasUpdate: false };
-            }
-            return apiContainer;
+            // Use the helper function which computes hasUpdate on-the-fly
+            const updated = updateContainersWithPreservedState(
+              [apiContainer],
+              successfullyUpdatedContainersRef
+            );
+            return updated[0] || apiContainer;
           });
           setContainers(updatedContainers);
           setStacks([]);

@@ -20,7 +20,7 @@ function getLogLevelModule() {
   if (!logLevelModule) {
     try {
       logLevelModule = require("./logLevel");
-    } catch (err) {
+    } catch (_err) {
       // If logLevel not available yet, return a fallback
       return {
         getCachedLogLevel: () => (process.env.NODE_ENV === "production" ? "info" : "debug"),
@@ -32,9 +32,17 @@ function getLogLevelModule() {
 
 // Create logs directory if it doesn't exist
 const logsDir = process.env.LOGS_DIR || path.join(__dirname, "../../logs");
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
+// Use async fs operations to avoid sync methods
+(async () => {
+  try {
+    await fs.promises.mkdir(logsDir, { recursive: true });
+  } catch (err) {
+    // Ignore error if directory already exists
+    if (err.code !== "EEXIST") {
+      console.error("[logger] Error creating logs directory:", err.message);
+    }
+  }
+})();
 
 // Sensitive field patterns to redact
 const SENSITIVE_PATTERNS = [
@@ -50,9 +58,74 @@ const SENSITIVE_PATTERNS = [
   /refresh[_-]?token/gi,
 ];
 
-// Redact sensitive information from objects
+/**
+ * Check if a string contains sensitive patterns
+ * @param {string} str - String to check
+ * @returns {boolean} - True if sensitive
+ */
+function isStringSensitive(str) {
+  for (const pattern of SENSITIVE_PATTERNS) {
+    if (pattern.test(str)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if a key matches sensitive patterns
+ * @param {string} key - Key to check
+ * @returns {boolean} - True if sensitive
+ */
+function isKeySensitive(key) {
+  for (const pattern of SENSITIVE_PATTERNS) {
+    if (pattern.test(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Redact string value
+ * @param {string} str - String to redact
+ * @returns {string} - Redacted string
+ */
+function redactString(str) {
+  return isStringSensitive(str) ? "[REDACTED]" : str;
+}
+
+/**
+ * Redact array values
+ * @param {Array} arr - Array to redact
+ * @param {number} depth - Current depth
+ * @returns {Array} - Redacted array
+ */
+function redactArray(arr, depth) {
+  return arr.map((item) => redactSensitive(item, depth + 1));
+}
+
+/**
+ * Redact object values
+ * @param {Object} obj - Object to redact
+ * @param {number} depth - Current depth
+ * @returns {Object} - Redacted object
+ */
+function redactObject(obj, depth) {
+  const redacted = {};
+  for (const [key, value] of Object.entries(obj)) {
+    redacted[key] = isKeySensitive(key) ? "[REDACTED]" : redactSensitive(value, depth + 1);
+  }
+  return redacted;
+}
+
+/**
+ * Redact sensitive information from objects
+ * @param {*} obj - Object to redact
+ * @param {number} depth - Current depth (prevents infinite recursion)
+ * @returns {*} - Redacted object
+ */
 function redactSensitive(obj, depth = 0) {
-  // Prevent infinite recursion
   if (depth > 10) {
     return "[MAX_DEPTH_REACHED]";
   }
@@ -62,38 +135,15 @@ function redactSensitive(obj, depth = 0) {
   }
 
   if (typeof obj === "string") {
-    // Check if string contains sensitive patterns
-    for (const pattern of SENSITIVE_PATTERNS) {
-      if (pattern.test(obj)) {
-        return "[REDACTED]";
-      }
-    }
-    return obj;
+    return redactString(obj);
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => redactSensitive(item, depth + 1));
+    return redactArray(obj, depth);
   }
 
   if (typeof obj === "object") {
-    const redacted = {};
-    for (const [key, value] of Object.entries(obj)) {
-      // Check if key matches sensitive patterns
-      let isSensitive = false;
-      for (const pattern of SENSITIVE_PATTERNS) {
-        if (pattern.test(key)) {
-          isSensitive = true;
-          break;
-        }
-      }
-
-      if (isSensitive) {
-        redacted[key] = "[REDACTED]";
-      } else {
-        redacted[key] = redactSensitive(value, depth + 1);
-      }
-    }
-    return redacted;
+    return redactObject(obj, depth);
   }
 
   return obj;
@@ -130,21 +180,30 @@ function createChildLogger(additionalContext = {}) {
   const baseContext = getContext();
   const mergedContext = { ...baseContext, ...additionalContext };
 
+  // Use lazy reference to logger to avoid use-before-define
   return {
     info: (message, metadata = {}) => {
-      return logger.info(message, { ...mergedContext, ...metadata });
+      const context = getContext();
+      getWinstonLogger().info(message, { ...context, ...mergedContext, ...metadata });
     },
     debug: (message, metadata = {}) => {
-      return logger.debug(message, { ...mergedContext, ...metadata });
+      if (!isDebugEnabled()) {
+        return;
+      }
+      const context = getContext();
+      getWinstonLogger().debug(message, { ...context, ...mergedContext, ...metadata });
     },
     warn: (message, metadata = {}) => {
-      return logger.warn(message, { ...mergedContext, ...metadata });
+      const context = getContext();
+      getWinstonLogger().warn(message, { ...context, ...mergedContext, ...metadata });
     },
     error: (message, metadata = {}) => {
-      return logger.error(message, { ...mergedContext, ...metadata });
+      const context = getContext();
+      getWinstonLogger().error(message, { ...context, ...mergedContext, ...metadata });
     },
     critical: (message, metadata = {}) => {
-      return logger.critical(message, { ...mergedContext, ...metadata });
+      const context = getContext();
+      getWinstonLogger().error(message, { ...context, ...mergedContext, ...metadata });
     },
     child: (moreContext) => createChildLogger({ ...mergedContext, ...moreContext }),
   };
@@ -158,28 +217,26 @@ const structuredFormat = winston.format.combine(
     // Extract context from metadata
     const context = getContext();
 
-    // Merge context into log entry
-    info.requestId = info.requestId || context.requestId;
-    info.userId = info.userId || context.userId;
-    info.jobId = info.jobId || context.jobId;
-    info.batchId = info.batchId || context.batchId;
-    info.module = info.module || context.module || "unknown";
-    info.service = info.service || context.service;
+    // Create new object instead of mutating parameter
+    const formattedInfo = {
+      ...info,
+      requestId: info.requestId || context.requestId,
+      userId: info.userId || context.userId,
+      jobId: info.jobId || context.jobId,
+      batchId: info.batchId || context.batchId,
+      module: info.module || context.module || "unknown",
+      service: info.service || context.service,
+    };
 
     // Redact sensitive information
-    if (info.metadata) {
-      info.metadata = redactSensitive(info.metadata);
+    if (formattedInfo.metadata) {
+      formattedInfo.metadata = redactSensitive(formattedInfo.metadata);
     }
-    if (info.error) {
-      info.error = redactSensitive(info.error);
+    if (formattedInfo.error) {
+      formattedInfo.error = redactSensitive(formattedInfo.error);
     }
 
-    // Ensure standard fields
-    info.timestamp = info.timestamp;
-    info.level = info.level;
-    info.message = info.message;
-
-    return info;
+    return formattedInfo;
   })(),
   winston.format.json()
 );
@@ -207,7 +264,7 @@ const consoleFormat = winston.format.combine(
         contextParts.push(`[batch:${batchId}]`);
       }
 
-      const contextStr = contextParts.length > 0 ? contextParts.join(" ") + " " : "";
+      const contextStr = contextParts.length > 0 ? `${contextParts.join(" ")} ` : "";
       let msg = `${timestamp} [${level}] ${contextStr}${message}`;
 
       // Add metadata if present (excluding standard fields)
@@ -245,6 +302,16 @@ const consoleFormat = winston.format.combine(
   )
 );
 
+// Lazy getter for winstonLogger to avoid use-before-define
+let winstonLoggerInstance = null;
+function getWinstonLogger() {
+  if (!winstonLoggerInstance) {
+    // This should never happen in practice, but provides a fallback
+    throw new Error("Winston logger not initialized");
+  }
+  return winstonLoggerInstance;
+}
+
 // Determine log level from environment or database
 function getEffectiveLogLevel() {
   // Check environment variable first
@@ -256,7 +323,7 @@ function getEffectiveLogLevel() {
   try {
     const logLevel = getLogLevelModule();
     return logLevel.getCachedLogLevel();
-  } catch (err) {
+  } catch (_err) {
     // Default to info if database not ready
     return process.env.NODE_ENV === "production" ? "info" : "debug";
   }
@@ -266,7 +333,7 @@ function getEffectiveLogLevel() {
 // Use environment variable for initial level to avoid circular dependency during init
 const initialLogLevel =
   process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug");
-const winstonLogger = winston.createLogger({
+winstonLoggerInstance = winston.createLogger({
   level: initialLogLevel,
   format: structuredFormat,
   defaultMeta: {
@@ -312,7 +379,7 @@ const winstonLogger = winston.createLogger({
 // Logs need to go to stdout/stderr to be visible in docker logs
 // In production, we can disable with DISABLE_CONSOLE_LOGGING=true if needed
 if (process.env.DISABLE_CONSOLE_LOGGING !== "true") {
-  winstonLogger.add(
+  getWinstonLogger().add(
     new winston.transports.Console({
       format: consoleFormat,
     })
@@ -322,10 +389,12 @@ if (process.env.DISABLE_CONSOLE_LOGGING !== "true") {
 // Update log level dynamically
 function updateLogLevel() {
   const newLevel = getEffectiveLogLevel();
-  winstonLogger.level = newLevel;
-  winstonLogger.transports.forEach((transport) => {
+  const logger = getWinstonLogger();
+  logger.level = newLevel;
+  logger.transports.forEach((transport) => {
     if (transport.level) {
       // Only update if transport has a specific level
+      // Note: Winston requires direct property mutation
       transport.level = newLevel;
     }
   });
@@ -339,11 +408,11 @@ if (process.env.NODE_ENV !== "test" && typeof jest === "undefined") {
     try {
       updateLogLevel();
       // Log that logger is initialized (this helps verify logging is working)
-      winstonLogger.info("Logger initialized", {
+      getWinstonLogger().info("Logger initialized", {
         module: "logger",
         initialLevel: initialLogLevel,
-        currentLevel: winstonLogger.level,
-        transports: winstonLogger.transports.map((t) => t.constructor.name),
+        currentLevel: getWinstonLogger().level,
+        transports: getWinstonLogger().transports.map((t) => t.constructor.name),
       });
     } catch (err) {
       // Log initialization error to console as fallback
@@ -374,7 +443,7 @@ const logger = {
    */
   info: (message, metadata = {}) => {
     const context = getContext();
-    winstonLogger.info(message, {
+    getWinstonLogger().info(message, {
       ...context,
       ...metadata,
     });
@@ -404,7 +473,7 @@ const logger = {
       }
     }
 
-    winstonLogger.debug(message, {
+    getWinstonLogger().debug(message, {
       ...context,
       ...metadata,
     });
@@ -417,7 +486,7 @@ const logger = {
    */
   warn: (message, metadata = {}) => {
     const context = getContext();
-    winstonLogger.warn(message, {
+    getWinstonLogger().warn(message, {
       ...context,
       ...metadata,
     });
@@ -454,7 +523,7 @@ const logger = {
       };
     }
 
-    winstonLogger.error(message, {
+    getWinstonLogger().error(message, {
       ...context,
       ...errorMetadata,
     });
@@ -467,7 +536,7 @@ const logger = {
    */
   critical: (message, metadata = {}) => {
     const context = getContext();
-    winstonLogger.error(message, {
+    getWinstonLogger().error(message, {
       ...context,
       ...metadata,
       level: "critical", // Override level for critical
@@ -510,7 +579,7 @@ if (
   const updateTimer = setInterval(() => {
     try {
       updateLogLevel();
-    } catch (err) {
+    } catch (_err) {
       // Silently fail - don't log errors about log level updates
     }
   }, 5000);

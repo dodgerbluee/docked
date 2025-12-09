@@ -24,8 +24,6 @@ const NotificationMenu = ({
   onDismissTrackedAppNotification,
   onDismissVersionUpdateNotification,
 }) => {
-  // Get enabled webhooks (show icons even if avatarUrl is missing)
-  const enabledWebhooks = discordWebhooks.filter((webhook) => webhook.enabled);
   return (
     <div className="notification-menu">
       <div className="notification-menu-header">
@@ -90,31 +88,6 @@ const NotificationMenu = ({
                       <div className="notification-item-title">{container.name}</div>
                       <div className="notification-item-subtitle">Update available</div>
                     </div>
-                    {enabledWebhooks.length > 0 && (
-                      <div className="notification-webhook-avatars">
-                        {enabledWebhooks.slice(0, 3).map((webhook) => {
-                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
-                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
-                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
-                          return (
-                            <img
-                              key={webhook.id}
-                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
-                              alt={webhook.name || "Webhook avatar"}
-                              className="notification-webhook-avatar"
-                              onError={(e) => {
-                                // Use default avatar if webhook avatar fails to load
-                                // Never use user avatar - this should always be webhook avatar or default
-                                if (e.target.src !== "/img/default-avatar.jpg") {
-                                  e.target.src = "/img/default-avatar.jpg";
-                                }
-                              }}
-                              title={webhook.name || webhook.serverName || "Discord webhook"}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <button
@@ -172,31 +145,6 @@ const NotificationMenu = ({
                         Update available: {image.latest_version}
                       </div>
                     </div>
-                    {enabledWebhooks.length > 0 && (
-                      <div className="notification-webhook-avatars">
-                        {enabledWebhooks.slice(0, 3).map((webhook) => {
-                          // IMPORTANT: Always use webhook avatar from Discord, never user avatar
-                          // webhook.avatarUrl comes from Discord's webhook avatar, not the user's Docked avatar
-                          const webhookAvatarUrl = webhook.avatarUrl || webhook.avatar_url;
-                          return (
-                            <img
-                              key={webhook.id}
-                              src={webhookAvatarUrl || "/img/default-avatar.jpg"}
-                              alt={webhook.name || "Webhook avatar"}
-                              className="notification-webhook-avatar"
-                              onError={(e) => {
-                                // Use default avatar if webhook avatar fails to load
-                                // Never use user avatar - this should always be webhook avatar or default
-                                if (e.target.src !== "/img/default-avatar.jpg") {
-                                  e.target.src = "/img/default-avatar.jpg";
-                                }
-                              }}
-                              title={webhook.name || webhook.serverName || "Discord webhook"}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <button
