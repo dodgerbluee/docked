@@ -12,6 +12,20 @@
  *     description: Docker image management
  *   - name: Portainer
  *     description: Portainer instance management
+ *   - name: Tracked Apps
+ *     description: Tracked application management
+ *   - name: Discord
+ *     description: Discord webhook management
+ *   - name: Batch
+ *     description: Batch job management
+ *   - name: Settings
+ *     description: User and application settings
+ *   - name: Images
+ *     description: Docker image management
+ *   - name: Repository Tokens
+ *     description: Repository access token management
+ *   - name: Logs
+ *     description: Application log management
  */
 
 const express = require("express");
@@ -30,6 +44,8 @@ const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
+const { validate, validationChains } = require("../middleware/validation");
+const { param } = require("express-validator");
 
 const router = express.Router();
 
@@ -56,6 +72,15 @@ const repositoryAssociatedImagesRateLimiter = rateLimit({
 const associateImagesLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // Limit each IP to 10 requests per minute
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Auth routes rate limiter: 20 requests per 15 minutes per IP (for sensitive auth operations)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -164,20 +189,27 @@ router.post(
   asyncHandler(authController.generateRegistrationCodeEndpoint)
 );
 router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
-router.post("/auth/register", asyncHandler(authController.register));
-router.post("/auth/login", asyncHandler(authController.login));
-router.post("/auth/import-users", asyncHandler(authController.importUsers));
-router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
+router.post("/auth/register", authLimiter, asyncHandler(authController.register));
+router.post("/auth/login", authLimiter, asyncHandler(authController.login));
+router.post("/auth/import-users", authLimiter, asyncHandler(authController.importUsers));
+router.post(
+  "/auth/create-user-with-config",
+  authLimiter,
+  asyncHandler(authController.createUserWithConfig)
+);
 router.post(
   "/auth/generate-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.generateInstanceAdminToken)
 );
 router.post(
   "/auth/regenerate-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.regenerateInstanceAdminToken)
 );
 router.post(
   "/auth/verify-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.verifyInstanceAdminToken)
 );
 
@@ -227,26 +259,408 @@ router.post("/docker-hub/credentials", asyncHandler(authController.updateDockerH
 router.delete("/docker-hub/credentials", asyncHandler(authController.deleteDockerHubCreds));
 
 // Container routes
+/**
+ * @swagger
+ * /containers:
+ *   get:
+ *     summary: Get all containers with update information
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: portainerUrl
+ *         schema:
+ *           type: string
+ *         description: Filter by Portainer instance URL (optional)
+ *     responses:
+ *       200:
+ *         description: List of containers with update information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 containers:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Container'
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/containers", asyncHandler(containerController.getContainers));
+
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
+
+/**
+ * @swagger
+ * /containers/pull:
+ *   post:
+ *     summary: Pull latest container data from Portainer instances
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Container data pulled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ */
 router.post("/containers/pull", asyncHandler(containerController.pullContainers));
+
+/**
+ * @swagger
+ * /containers/data:
+ *   get:
+ *     summary: Get raw container data for export
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Raw container data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       401:
+ *         description: Unauthorized
+ *   delete:
+ *     summary: Clear all container data for current user
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Container data cleared successfully
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/containers/data", asyncHandler(containerController.getContainerData));
 router.delete("/containers/data", asyncHandler(containerController.clearContainerData));
+
+/**
+ * @swagger
+ * /containers/batch-upgrade:
+ *   post:
+ *     summary: Upgrade multiple containers in batch
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - containerIds
+ *               - imageName
+ *             properties:
+ *               containerIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["abc123", "def456"]
+ *               imageName:
+ *                 type: string
+ *                 example: "nginx:latest"
+ *     responses:
+ *       200:
+ *         description: Batch upgrade completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 results:
+ *                   type: array
+ *                 errors:
+ *                   type: array
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
 router.post("/containers/batch-upgrade", asyncHandler(containerController.batchUpgradeContainers));
-router.post("/containers/:containerId/upgrade", asyncHandler(containerController.upgradeContainer));
+
+/**
+ * @swagger
+ * /containers/{containerId}/upgrade:
+ *   post:
+ *     summary: Upgrade a single container
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: containerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Container ID (minimum 12 characters)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - imageName
+ *             properties:
+ *               imageName:
+ *                 type: string
+ *                 example: "nginx:latest"
+ *               portainerUrl:
+ *                 type: string
+ *                 example: "http://portainer:9000"
+ *               endpointId:
+ *                 type: string
+ *                 example: "1"
+ *     responses:
+ *       200:
+ *         description: Container upgraded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 containerId:
+ *                   type: string
+ *                 containerName:
+ *                   type: string
+ *                 oldImage:
+ *                   type: string
+ *                 newImage:
+ *                   type: string
+ *       400:
+ *         description: Invalid request or validation error
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Container not found
+ */
+router.post(
+  "/containers/:containerId/upgrade",
+  validate([
+    param("containerId")
+      .isString()
+      .isLength({ min: 12 })
+      .withMessage("containerId must be at least 12 characters"),
+    ...validationChains.containerUpgrade,
+  ]),
+  asyncHandler(containerController.upgradeContainer)
+);
 
 // Image routes
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", asyncHandler(imageController.deleteImages));
 
 // Portainer instance routes
+/**
+ * @swagger
+ * /portainer/instances:
+ *   get:
+ *     summary: Get all Portainer instances for current user
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of Portainer instances
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 instances:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       url:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     summary: Create a new Portainer instance
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - url
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 example: "http://portainer:9000"
+ *               name:
+ *                 type: string
+ *                 example: "Local Portainer"
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               apiKey:
+ *                 type: string
+ *               authType:
+ *                 type: string
+ *                 enum: [apikey, basic]
+ *                 default: apikey
+ *     responses:
+ *       201:
+ *         description: Portainer instance created
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/portainer/instances", asyncHandler(portainerController.getInstances));
-router.get("/portainer/instances/:id", asyncHandler(portainerController.getInstance));
 router.post("/portainer/instances", asyncHandler(portainerController.createInstance));
+
+/**
+ * @swagger
+ * /portainer/instances/{id}:
+ *   get:
+ *     summary: Get a specific Portainer instance
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Portainer instance ID
+ *     responses:
+ *       200:
+ *         description: Portainer instance details
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Instance not found
+ *   put:
+ *     summary: Update a Portainer instance
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               apiKey:
+ *                 type: string
+ *               authType:
+ *                 type: string
+ *                 enum: [apikey, basic]
+ *     responses:
+ *       200:
+ *         description: Instance updated successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Instance not found
+ *   delete:
+ *     summary: Delete a Portainer instance
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Instance deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Instance not found
+ */
+router.get("/portainer/instances/:id", asyncHandler(portainerController.getInstance));
 router.put("/portainer/instances/:id", asyncHandler(portainerController.updateInstance));
-router.post("/portainer/instances/reorder", asyncHandler(portainerController.updateInstanceOrder));
 router.delete("/portainer/instances/:id", asyncHandler(portainerController.deleteInstance));
+
+/**
+ * @swagger
+ * /portainer/instances/reorder:
+ *   post:
+ *     summary: Update the display order of Portainer instances
+ *     tags: [Portainer]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - orders
+ *             properties:
+ *               orders:
+ *                 type: object
+ *                 additionalProperties:
+ *                   type: integer
+ *                 example: { "1": 0, "2": 1, "3": 2 }
+ *     responses:
+ *       200:
+ *         description: Order updated successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/portainer/instances/reorder", asyncHandler(portainerController.updateInstanceOrder));
 
 // Avatar routes
 router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));
@@ -256,7 +670,11 @@ router.get(
   asyncHandler(avatarController.getAvatarByUserId)
 );
 router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
-router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
+router.get(
+  "/avatars/recent/:filename",
+  avatarLimiter,
+  asyncHandler(avatarController.getRecentAvatar)
+);
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
 router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
 router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
@@ -276,16 +694,199 @@ router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandle
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
+
+/**
+ * @swagger
+ * /tracked-apps:
+ *   get:
+ *     summary: Get all tracked applications
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of tracked applications
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 trackedApps:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     summary: Create a new tracked application
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *               imageName:
+ *                 type: string
+ *               githubRepo:
+ *                 type: string
+ *               sourceType:
+ *                 type: string
+ *                 enum: [docker, github]
+ *     responses:
+ *       201:
+ *         description: Tracked app created
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
 router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
+
+/**
+ * @swagger
+ * /tracked-apps/check-updates:
+ *   post:
+ *     summary: Check for updates for all tracked applications
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Update check completed
+ *       401:
+ *         description: Unauthorized
+ */
 router.post(
   "/tracked-apps/check-updates",
   asyncHandler(trackedAppController.checkTrackedAppsUpdates)
 );
+
+/**
+ * @swagger
+ * /tracked-apps/cache:
+ *   delete:
+ *     summary: Clear GitHub cache for tracked apps
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Cache cleared successfully
+ *       401:
+ *         description: Unauthorized
+ */
 router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitHubCache));
+
+/**
+ * @swagger
+ * /tracked-apps/{id}:
+ *   get:
+ *     summary: Get a specific tracked application
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Tracked app details
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tracked app not found
+ *   put:
+ *     summary: Update a tracked application
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               imageName:
+ *                 type: string
+ *               githubRepo:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tracked app updated
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tracked app not found
+ *   delete:
+ *     summary: Delete a tracked application
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Tracked app deleted
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tracked app not found
+ */
 router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
 router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
 router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
+
+/**
+ * @swagger
+ * /tracked-apps/{id}/check-update:
+ *   post:
+ *     summary: Check for updates for a specific tracked application
+ *     tags: [Tracked Apps]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Update check completed
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tracked app not found
+ */
 router.post(
   "/tracked-apps/:id/check-update",
   asyncHandler(trackedAppController.checkTrackedAppUpdate)
@@ -302,8 +903,88 @@ router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookIn
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
 // Settings routes
+/**
+ * @swagger
+ * /settings/color-scheme:
+ *   get:
+ *     summary: Get user's color scheme preference
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Color scheme preference
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 colorScheme:
+ *                   type: string
+ *                   enum: [light, dark, auto]
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     summary: Set user's color scheme preference
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - colorScheme
+ *             properties:
+ *               colorScheme:
+ *                 type: string
+ *                 enum: [light, dark, auto]
+ *     responses:
+ *       200:
+ *         description: Color scheme updated
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
+
+/**
+ * @swagger
+ * /settings/disable-portainer-page:
+ *   get:
+ *     summary: Get whether Portainer page is disabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Portainer page disabled status
+ *   post:
+ *     summary: Set whether Portainer page is disabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - disabled
+ *             properties:
+ *               disabled:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Setting updated
+ */
 router.get(
   "/settings/disable-portainer-page",
   asyncHandler(settingsController.getDisablePortainerPageHandler)
@@ -312,6 +993,38 @@ router.post(
   "/settings/disable-portainer-page",
   asyncHandler(settingsController.setDisablePortainerPageHandler)
 );
+
+/**
+ * @swagger
+ * /settings/disable-tracked-apps-page:
+ *   get:
+ *     summary: Get whether Tracked Apps page is disabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tracked Apps page disabled status
+ *   post:
+ *     summary: Set whether Tracked Apps page is disabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - disabled
+ *             properties:
+ *               disabled:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Setting updated
+ */
 router.get(
   "/settings/disable-tracked-apps-page",
   asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
@@ -320,6 +1033,38 @@ router.post(
   "/settings/disable-tracked-apps-page",
   asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
 );
+
+/**
+ * @swagger
+ * /settings/refreshing-toggles-enabled:
+ *   get:
+ *     summary: Get whether refreshing toggles are enabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Refreshing toggles enabled status
+ *   post:
+ *     summary: Set whether refreshing toggles are enabled
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - enabled
+ *             properties:
+ *               enabled:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Setting updated
+ */
 router.get(
   "/settings/refreshing-toggles-enabled",
   asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)

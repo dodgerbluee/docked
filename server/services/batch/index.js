@@ -64,9 +64,9 @@ function stop() {
  * @param {string} jobType - The type of the job to execute.
  * @param {boolean} isManual - Whether this run was manually triggered (default: false)
  */
-async function executeJob(userId, jobType, isManual = false) {
+function executeJob(userId, jobType, isManual = false) {
   const manager = getBatchManager();
-  return await manager.executeJob(userId, jobType, isManual);
+  return manager.executeJob(userId, jobType, isManual);
 }
 
 /**

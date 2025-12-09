@@ -51,8 +51,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
         onUpdate={updateDisableTrackedAppsPage}
         onRefresh={refreshSettings}
         title="Page Visibility"
-        checkboxLabel="Disable Tracked Apps Page"
-        checkboxNote="This will disable the functionality of the Tracked Apps page. The Tracked Apps tab will be hidden from the home page navigation."
+        checkboxLabel="Display Tracked Apps Page"
+        checkboxNote="When enabled, the Tracked Apps page will be visible. When disabled, the Tracked Apps tab will be hidden from the home page navigation."
       />
 
       <div className={styles.dataManagement}>

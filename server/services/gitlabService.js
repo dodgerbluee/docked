@@ -4,13 +4,80 @@
  */
 
 const axios = require("axios");
-const config = require("../config");
 const Cache = require("../utils/cache");
 const logger = require("../utils/logger");
 
 // Cache for GitLab releases (key: owner/repo, value: { releases, timestamp })
 const releaseCache = new Cache();
 const RELEASE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Parse HTTPS GitLab URL
+ * @param {string} trimmed - Trimmed input string
+ * @returns {Object|null} - { owner, repo, baseUrl } or null
+ */
+function parseGitLabHttps(trimmed) {
+  const urlMatch = trimmed.match(/^https:\/\/(?<host>[^/]+)\/(?<path>.+)$/);
+  if (!urlMatch) {
+    return null;
+  }
+
+  const baseUrl = `https://${urlMatch.groups.host}`;
+  const path = urlMatch.groups.path.replace(/\/$/, "").replace(/\.git$/, "");
+  const parts = path.split("/").filter((p) => p);
+  if (parts.length >= 2) {
+    return {
+      owner: parts[0],
+      repo: parts.slice(1).join("/"),
+      baseUrl,
+    };
+  }
+  return null;
+}
+
+/**
+ * Parse SSH GitLab URL
+ * @param {string} trimmed - Trimmed input string
+ * @returns {Object|null} - { owner, repo, baseUrl } or null
+ */
+function parseGitLabSsh(trimmed) {
+  const match = trimmed.match(/^git@(?<host>[^:]+):(?<path>.+)\.git$/);
+  if (!match) {
+    return null;
+  }
+
+  const { host, path: pathMatch } = match.groups;
+  const baseUrl = host === "gitlab.com" ? "https://gitlab.com" : `https://${host}`;
+  const parts = pathMatch.split("/").filter((p) => p);
+  if (parts.length >= 2) {
+    return {
+      owner: parts[0],
+      repo: parts.slice(1).join("/"),
+      baseUrl,
+    };
+  }
+  return null;
+}
+
+/**
+ * Parse owner/repo format
+ * @param {string} trimmed - Trimmed input string
+ * @returns {Object|null} - { owner, repo, baseUrl } or null
+ */
+function parseGitLabOwnerRepo(trimmed) {
+  const parts = trimmed.split("/").filter((p) => p);
+  if (parts.length >= 2) {
+    return {
+      owner: parts[0],
+      repo: parts
+        .slice(1)
+        .join("/")
+        .replace(/\.git$/, ""),
+      baseUrl: "https://gitlab.com",
+    };
+  }
+  return null;
+}
 
 /**
  * Parse GitLab repository URL or owner/repo string
@@ -24,59 +91,114 @@ function parseGitLabRepo(repoInput) {
   }
 
   const trimmed = repoInput.trim();
-
-  // Handle GitLab URL formats:
-  // https://gitlab.com/owner/repo
-  // https://gitlab.com/owner/repo/
-  // https://custom-gitlab.com/owner/repo
-  // git@gitlab.com:owner/repo.git
-  // owner/repo (assumes gitlab.com)
-  let owner,
-    repo,
-    baseUrl = "https://gitlab.com";
+  let result = null;
 
   if (trimmed.startsWith("https://")) {
-    // Extract base URL and path
-    const urlMatch = trimmed.match(/^https:\/\/([^\/]+)\/(.+)$/);
-    if (urlMatch) {
-      baseUrl = `https://${urlMatch[1]}`;
-      const path = urlMatch[2].replace(/\/$/, "").replace(/\.git$/, "");
-      const parts = path.split("/").filter((p) => p);
-      if (parts.length >= 2) {
-        owner = parts[0];
-        repo = parts.slice(1).join("/"); // Support nested groups
-      }
-    }
+    result = parseGitLabHttps(trimmed);
   } else if (trimmed.startsWith("git@")) {
-    // git@gitlab.com:owner/repo.git or git@custom-gitlab.com:owner/repo.git
-    const match = trimmed.match(/^git@([^:]+):(.+)\.git$/);
-    if (match) {
-      const host = match[1];
-      baseUrl = host === "gitlab.com" ? "https://gitlab.com" : `https://${host}`;
-      const path = match[2];
-      const parts = path.split("/").filter((p) => p);
-      if (parts.length >= 2) {
-        owner = parts[0];
-        repo = parts.slice(1).join("/");
-      }
-    }
+    result = parseGitLabSsh(trimmed);
   } else if (trimmed.includes("/")) {
-    // Assume owner/repo format (defaults to gitlab.com)
-    const parts = trimmed.split("/").filter((p) => p);
-    if (parts.length >= 2) {
-      owner = parts[0];
-      repo = parts
-        .slice(1)
-        .join("/")
-        .replace(/\.git$/, "");
-    }
+    result = parseGitLabOwnerRepo(trimmed);
   }
 
-  if (owner && repo) {
-    return { owner: owner.trim(), repo: repo.trim(), baseUrl: baseUrl.trim() };
+  if (result && result.owner && result.repo) {
+    return {
+      owner: result.owner.trim(),
+      repo: result.repo.trim(),
+      baseUrl: result.baseUrl.trim(),
+    };
   }
 
   return null;
+}
+
+/**
+ * Build GitLab API headers
+ * @param {string} token - Optional token
+ * @returns {Object} - Headers object
+ */
+function buildGitLabHeaders(token) {
+  const headers = {
+    Accept: "application/json",
+    "User-Agent": "Docked/1.0",
+  };
+
+  const gitlabToken = token || process.env.GITLAB_TOKEN;
+  if (gitlabToken) {
+    headers.Authorization = `Bearer ${gitlabToken}`;
+    logger.debug(
+      `[GitLab] Using GitLab token for authentication${token ? " (from repository config)" : " (from environment)"}`
+    );
+  } else {
+    logger.debug(`[GitLab] No GitLab token found, using unauthenticated request`);
+  }
+
+  return headers;
+}
+
+/**
+ * Map GitLab release to GitHub-like structure
+ * @param {Object} latest - GitLab release object
+ * @param {string} baseUrl - Base URL
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @returns {Object} - Mapped release
+ */
+function mapGitLabRelease(latest, baseUrl, owner, repo) {
+  return {
+    tag_name: latest.tag_name,
+    name: latest.name || latest.tag_name,
+    published_at: latest.released_at,
+    html_url: latest._links?.self || `${baseUrl}/${owner}/${repo}/-/releases/${latest.tag_name}`,
+    body: latest.description || "",
+  };
+}
+
+/**
+ * Process GitLab API response
+ * @param {Object} response - API response
+ * @param {string} baseUrl - Base URL
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} cacheKey - Cache key
+ * @returns {Object|null} - Mapped release or null
+ */
+function processGitLabResponse(response, baseUrl, owner, repo, cacheKey) {
+  if (response.status !== 200) {
+    logger.warn(`[GitLab] Non-200 response status: ${response.status}`);
+    logger.warn(`[GitLab] Response data:`, JSON.stringify(response.data));
+    if (response.status === 403 || response.status === 401) {
+      logger.warn(`[GitLab] Access denied. Repository may be private or require authentication.`);
+      logger.warn(
+        `[GitLab] Consider setting GITLAB_TOKEN environment variable for private repositories.`
+      );
+    }
+    return null;
+  }
+
+  if (!Array.isArray(response.data) || response.data.length === 0) {
+    if (response.data && !Array.isArray(response.data)) {
+      logger.warn(`[GitLab] Response data is not an array:`, JSON.stringify(response.data));
+    } else {
+      logger.warn(`[GitLab] No releases found for ${owner}/${repo}`);
+    }
+    return null;
+  }
+
+  const latest = response.data[0];
+  logger.info(
+    `[GitLab] Latest release tag_name: ${latest.tag_name}, name: ${latest.name}, released_at: ${latest.released_at}`
+  );
+
+  const mappedRelease = mapGitLabRelease(latest, baseUrl, owner, repo);
+  logger.info(`[GitLab] Mapped release:`, JSON.stringify(mappedRelease, null, 2));
+
+  releaseCache.set(
+    cacheKey,
+    { releases: [mappedRelease], timestamp: Date.now() },
+    RELEASE_CACHE_TTL
+  );
+  return mappedRelease;
 }
 
 /**
@@ -86,6 +208,38 @@ function parseGitLabRepo(repoInput) {
  * @param {string} token - Optional GitLab token for authentication
  * @returns {Promise<Object|null>} - Latest release info or null
  */
+/**
+ * Handle GitLab API error
+ * @param {Error} error - Error object
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @returns {never}
+ */
+// eslint-disable-next-line complexity -- Error handling requires multiple conditional checks for different error types
+function handleGitLabError(error, owner, repo) {
+  logger.error(`[GitLab] Error in getLatestRelease for ${owner}/${repo}:`, { error });
+  if (error.response) {
+    logger.error(`[GitLab] Error response status: ${error.response.status}`);
+    logger.error(`[GitLab] Error response data:`, JSON.stringify(error.response.data));
+  }
+
+  if (error.response?.status === 404) {
+    throw new Error(`Repository ${owner}/${repo} not found or has no releases`);
+  }
+  if (error.response?.status === 403 || error.response?.status === 401) {
+    const errorMsg = error.response?.data?.message || "Access denied";
+    throw new Error(
+      `GitLab API access denied (${error.response.status}): ${errorMsg}. Consider setting GITLAB_TOKEN environment variable for private repos.`
+    );
+  }
+  if (error.response?.status === 429) {
+    throw new Error(
+      "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
+    );
+  }
+  throw new Error(`Failed to fetch GitLab releases: ${error.message}`);
+}
+
 async function getLatestRelease(repoInput, token = null) {
   logger.info(`[GitLab] getLatestRelease called with: ${repoInput}`);
   const repoInfo = parseGitLabRepo(repoInput);
@@ -98,151 +252,103 @@ async function getLatestRelease(repoInput, token = null) {
   logger.info(`[GitLab] Parsed repo - owner: ${owner}, repo: ${repo}, baseUrl: ${baseUrl}`);
   const cacheKey = `gitlab:${baseUrl}:${owner}/${repo}`;
 
-  // Check cache first
   const cached = releaseCache.get(cacheKey);
-  if (cached && cached.releases && cached.releases.length > 0) {
+  if (cached?.releases?.length > 0) {
     logger.info(
       `[GitLab] Returning cached release for ${owner}/${repo}: ${cached.releases[0].tag_name}`
     );
-    return cached.releases[0]; // Return latest (first) release
+    return cached.releases[0];
   }
 
   try {
-    // GitLab API endpoint for releases
-    // Format: https://gitlab.com/api/v4/projects/{owner}%2F{repo}/releases
-    // Note: GitLab requires URL encoding for the project path (owner/repo)
     const encodedProject = encodeURIComponent(`${owner}/${repo}`);
     const releasesUrl = `${baseUrl}/api/v4/projects/${encodedProject}/releases`;
     logger.info(`[GitLab] Fetching releases from: ${releasesUrl}`);
 
-    const headers = {
-      Accept: "application/json",
-      "User-Agent": "Docked/1.0",
-    };
+    const headers = buildGitLabHeaders(token);
 
-    // Add GitLab token if available (prefer provided token, then env var)
-    const gitlabToken = token || process.env.GITLAB_TOKEN;
-    if (gitlabToken) {
-      headers["Authorization"] = `Bearer ${gitlabToken}`;
-      logger.debug(
-        `[GitLab] Using GitLab token for authentication${token ? " (from repository config)" : " (from environment)"}`
-      );
-    } else {
-      logger.debug(`[GitLab] No GitLab token found, using unauthenticated request`);
-    }
+    const response = await axios.get(releasesUrl, {
+      headers,
+      timeout: 10000,
+      validateStatus: (status) => status < 500,
+      params: {
+        per_page: 10,
+        order_by: "released_at",
+        sort: "desc",
+      },
+    });
 
-    let response;
-    try {
-      response = await axios.get(releasesUrl, {
-        headers,
-        timeout: 10000,
-        validateStatus: (status) => status < 500,
-        params: {
-          per_page: 10,
-          order_by: "released_at",
-          sort: "desc",
-        },
-      });
-      logger.info(`[GitLab] API response status: ${response.status}`);
-    } catch (err) {
-      logger.error(`[GitLab] API request error:`, { error: err });
-      if (err.response) {
-        logger.error(`[GitLab] Response status: ${err.response.status}`);
-        logger.error(`[GitLab] Response headers:`, JSON.stringify(err.response.headers));
-        logger.error(`[GitLab] Response data:`, JSON.stringify(err.response.data));
-      }
-      throw err;
-    }
-
-    // Log response details for non-200 status codes
-    if (response.status !== 200) {
-      logger.warn(`[GitLab] Non-200 response status: ${response.status}`);
-      logger.warn(`[GitLab] Response data:`, JSON.stringify(response.data));
-      if (response.status === 403 || response.status === 401) {
-        logger.warn(`[GitLab] Access denied. Repository may be private or require authentication.`);
-        logger.warn(
-          `[GitLab] Consider setting GITLAB_TOKEN environment variable for private repositories.`
-        );
-      }
-    }
-
-    logger.info(
-      `[GitLab] Response data length: ${response.data ? (Array.isArray(response.data) ? response.data.length : "not an array") : 0}`
-    );
+    logger.info(`[GitLab] API response status: ${response.status}`);
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
       logger.info(`[GitLab] First release data:`, JSON.stringify(response.data[0], null, 2));
-    } else if (response.data && !Array.isArray(response.data)) {
-      logger.warn(`[GitLab] Response data is not an array:`, JSON.stringify(response.data));
     }
 
-    if (
-      response.status === 200 &&
-      response.data &&
-      Array.isArray(response.data) &&
-      response.data.length > 0
-    ) {
-      // Filter out pre-releases if needed (GitLab doesn't have a prerelease flag like GitHub)
-      // For now, we'll take the first release (most recent)
-      const latest = response.data[0];
-      logger.info(
-        `[GitLab] Latest release tag_name: ${latest.tag_name}, name: ${latest.name}, released_at: ${latest.released_at}`
-      );
-
-      // GitLab release structure:
-      // {
-      //   tag_name: "v1.0.0",
-      //   name: "Release v1.0.0",
-      //   released_at: "2024-01-01T00:00:00Z",
-      //   ...
-      // }
-      // We'll map it to a GitHub-like structure for compatibility
-      const mappedRelease = {
-        tag_name: latest.tag_name,
-        name: latest.name || latest.tag_name,
-        published_at: latest.released_at,
-        html_url:
-          latest._links?.self || `${baseUrl}/${owner}/${repo}/-/releases/${latest.tag_name}`,
-        body: latest.description || "",
-      };
-
-      logger.info(`[GitLab] Mapped release:`, JSON.stringify(mappedRelease, null, 2));
-
-      // Cache the result
-      releaseCache.set(
-        cacheKey,
-        { releases: [mappedRelease], timestamp: Date.now() },
-        RELEASE_CACHE_TTL
-      );
-      return mappedRelease;
-    } else if (response.status === 200 && (!response.data || response.data.length === 0)) {
-      logger.warn(`[GitLab] No releases found for ${owner}/${repo}`);
-    } else {
-      logger.warn(`[GitLab] Unexpected response status ${response.status} for ${owner}/${repo}`);
-    }
-
-    return null;
+    return processGitLabResponse(response, baseUrl, owner, repo, cacheKey);
   } catch (error) {
-    logger.error(`[GitLab] Error in getLatestRelease for ${owner}/${repo}:`, { error });
-    if (error.response) {
-      logger.error(`[GitLab] Error response status: ${error.response.status}`);
-      logger.error(`[GitLab] Error response data:`, JSON.stringify(error.response.data));
-    }
-    if (error.response?.status === 404) {
-      throw new Error(`Repository ${owner}/${repo} not found or has no releases`);
-    }
-    if (error.response?.status === 403 || error.response?.status === 401) {
-      const errorMsg = error.response?.data?.message || "Access denied";
-      throw new Error(
-        `GitLab API access denied (${error.response.status}): ${errorMsg}. Consider setting GITLAB_TOKEN environment variable for private repos.`
-      );
-    }
-    if (error.response?.status === 429) {
-      throw new Error(
-        "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
-      );
-    }
-    throw new Error(`Failed to fetch GitLab releases: ${error.message}`);
+    return handleGitLabError(error, owner, repo);
   }
+}
+
+/**
+ * Build GitLab headers with optional token
+ * @param {string} token - Optional token
+ * @returns {Object} - Headers object
+ */
+function buildGitLabHeadersWithToken(token) {
+  const headers = {
+    Accept: "application/json",
+    "User-Agent": "Docked/1.0",
+  };
+
+  const gitlabToken = token || process.env.GITLAB_TOKEN;
+  if (gitlabToken) {
+    headers.Authorization = `Bearer ${gitlabToken}`;
+  }
+
+  return headers;
+}
+
+/**
+ * Process and cache GitLab releases
+ * @param {Object} params - Parameters object
+ * @param {Array} params.releases - Raw releases
+ * @param {number} params.limit - Limit
+ * @param {string} params.baseUrl - Base URL
+ * @param {string} params.owner - Owner
+ * @param {string} params.repo - Repository
+ * @param {string} params.cacheKey - Cache key
+ * @returns {Array} - Mapped releases
+ */
+function processAndCacheGitLabReleases({ releases, limit, baseUrl, owner, repo, cacheKey }) {
+  const mapped = releases
+    .slice(0, limit)
+    .map((latest) => mapGitLabRelease(latest, baseUrl, owner, repo));
+  releaseCache.set(cacheKey, { releases: mapped, timestamp: Date.now() }, RELEASE_CACHE_TTL);
+  return mapped;
+}
+
+/**
+ * Handle GitLab getAllReleases error
+ * @param {Error} error - Error object
+ * @param {string} owner - Owner
+ * @param {string} repo - Repository
+ * @returns {never}
+ */
+function handleGetAllReleasesError(error, owner, repo) {
+  if (error.response?.status === 404) {
+    throw new Error(`Repository ${owner}/${repo} not found`);
+  }
+  if (error.response?.status === 403 || error.response?.status === 401) {
+    throw new Error(
+      "GitLab API access denied. Consider setting GITLAB_TOKEN environment variable."
+    );
+  }
+  if (error.response?.status === 429) {
+    throw new Error(
+      "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
+    );
+  }
+  throw new Error(`Failed to fetch GitLab releases: ${error.message}`);
 }
 
 /**
@@ -261,7 +367,6 @@ async function getAllReleases(repoInput, limit = 10, token = null) {
   const { owner, repo, baseUrl } = repoInfo;
   const cacheKey = `gitlab:${baseUrl}:${owner}/${repo}:all`;
 
-  // Check cache first
   const cached = releaseCache.get(cacheKey);
   if (cached && cached.releases) {
     return cached.releases.slice(0, limit);
@@ -270,16 +375,7 @@ async function getAllReleases(repoInput, limit = 10, token = null) {
   try {
     const encodedProject = encodeURIComponent(`${owner}/${repo}`);
     const url = `${baseUrl}/api/v4/projects/${encodedProject}/releases`;
-
-    const headers = {
-      Accept: "application/json",
-      "User-Agent": "Docked/1.0",
-    };
-
-    const gitlabToken = token || process.env.GITLAB_TOKEN;
-    if (gitlabToken) {
-      headers["Authorization"] = `Bearer ${gitlabToken}`;
-    }
+    const headers = buildGitLabHeadersWithToken(token);
 
     const response = await axios.get(url, {
       headers,
@@ -293,36 +389,19 @@ async function getAllReleases(repoInput, limit = 10, token = null) {
     });
 
     if (response.status === 200 && response.data) {
-      const releases = response.data.slice(0, limit).map((latest) => ({
-        tag_name: latest.tag_name,
-        name: latest.name || latest.tag_name,
-        published_at: latest.released_at,
-        html_url:
-          latest._links?.self || `${baseUrl}/${owner}/${repo}/-/releases/${latest.tag_name}`,
-        body: latest.description || "",
-      }));
-
-      // Cache the result
-      releaseCache.set(cacheKey, { releases, timestamp: Date.now() }, RELEASE_CACHE_TTL);
-      return releases;
+      return processAndCacheGitLabReleases({
+        releases: response.data,
+        limit,
+        baseUrl,
+        owner,
+        repo,
+        cacheKey,
+      });
     }
 
     return [];
   } catch (error) {
-    if (error.response?.status === 404) {
-      throw new Error(`Repository ${owner}/${repo} not found`);
-    }
-    if (error.response?.status === 403 || error.response?.status === 401) {
-      throw new Error(
-        "GitLab API access denied. Consider setting GITLAB_TOKEN environment variable."
-      );
-    }
-    if (error.response?.status === 429) {
-      throw new Error(
-        "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
-      );
-    }
-    throw new Error(`Failed to fetch GitLab releases: ${error.message}`);
+    return handleGetAllReleasesError(error, owner, repo);
   }
 }
 
@@ -333,6 +412,28 @@ async function getAllReleases(repoInput, limit = 10, token = null) {
  * @param {string} token - Optional GitLab token for authentication
  * @returns {Promise<Object|null>} - Release info or null
  */
+/**
+ * Handle GitLab release by tag error
+ * @param {Error} error - Error object
+ * @returns {null}
+ */
+function handleReleaseByTagError(error) {
+  if (error.response?.status === 404) {
+    return null;
+  }
+  if (error.response?.status === 403 || error.response?.status === 401) {
+    throw new Error(
+      "GitLab API access denied. Consider setting GITLAB_TOKEN environment variable."
+    );
+  }
+  if (error.response?.status === 429) {
+    throw new Error(
+      "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
+    );
+  }
+  return null;
+}
+
 async function getReleaseByTag(repoInput, tagName, token = null) {
   const repoInfo = parseGitLabRepo(repoInput);
   if (!repoInfo) {
@@ -346,7 +447,6 @@ async function getReleaseByTag(repoInput, tagName, token = null) {
   const { owner, repo, baseUrl } = repoInfo;
   const cacheKey = `gitlab:${baseUrl}:${owner}/${repo}:${tagName}`;
 
-  // Check cache first
   const cached = releaseCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -355,16 +455,7 @@ async function getReleaseByTag(repoInput, tagName, token = null) {
   try {
     const encodedProject = encodeURIComponent(`${owner}/${repo}`);
     const url = `${baseUrl}/api/v4/projects/${encodedProject}/releases/${encodeURIComponent(tagName)}`;
-
-    const headers = {
-      Accept: "application/json",
-      "User-Agent": "Docked/1.0",
-    };
-
-    const gitlabToken = token || process.env.GITLAB_TOKEN;
-    if (gitlabToken) {
-      headers["Authorization"] = `Bearer ${gitlabToken}`;
-    }
+    const headers = buildGitLabHeadersWithToken(token);
 
     const response = await axios.get(url, {
       headers,
@@ -373,39 +464,14 @@ async function getReleaseByTag(repoInput, tagName, token = null) {
     });
 
     if (response.status === 200 && response.data) {
-      const latest = response.data;
-      const mappedRelease = {
-        tag_name: latest.tag_name,
-        name: latest.name || latest.tag_name,
-        published_at: latest.released_at,
-        html_url:
-          latest._links?.self || `${baseUrl}/${owner}/${repo}/-/releases/${latest.tag_name}`,
-        body: latest.description || "",
-      };
-
-      // Cache the result
+      const mappedRelease = mapGitLabRelease(response.data, baseUrl, owner, repo);
       releaseCache.set(cacheKey, mappedRelease, RELEASE_CACHE_TTL);
       return mappedRelease;
     }
 
     return null;
   } catch (error) {
-    if (error.response?.status === 404) {
-      // Release not found - return null
-      return null;
-    }
-    if (error.response?.status === 403 || error.response?.status === 401) {
-      throw new Error(
-        "GitLab API access denied. Consider setting GITLAB_TOKEN environment variable."
-      );
-    }
-    if (error.response?.status === 429) {
-      throw new Error(
-        "GitLab API rate limit exceeded. Consider setting GITLAB_TOKEN environment variable."
-      );
-    }
-    // Don't throw for other errors, just return null
-    return null;
+    return handleReleaseByTagError(error);
   }
 }
 
@@ -414,8 +480,8 @@ async function getReleaseByTag(repoInput, tagName, token = null) {
  */
 function clearReleaseCache() {
   releaseCache.clear();
-  const logger = require("../utils/logger");
-  logger.info("🗑️ GitLab release cache cleared");
+  const loggerInstance = require("../utils/logger");
+  loggerInstance.info("🗑️ GitLab release cache cleared");
 }
 
 module.exports = {

@@ -14,7 +14,7 @@ describe("JobHandler", () => {
       return "Test Job";
     }
 
-    async execute(context) {
+    async execute(_context) {
       return {
         itemsChecked: 10,
         itemsUpdated: 2,

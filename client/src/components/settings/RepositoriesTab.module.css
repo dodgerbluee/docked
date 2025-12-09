@@ -34,6 +34,14 @@
   font-weight: 600;
 }
 
+.sectionDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 20px 0;
+  max-width: 800px;
+}
+
 .tokensGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -68,6 +76,12 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.tokenActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .tokenInfo {

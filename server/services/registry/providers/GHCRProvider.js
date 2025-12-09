@@ -33,7 +33,7 @@ class GHCRProvider extends RegistryProvider {
     return imageRepo.replace(/^ghcr\.io\//, "");
   }
 
-  async getRateLimitDelay(options = {}) {
+  getRateLimitDelay(_options = {}) {
     // No rate limiting needed with crane/skopeo - they handle it internally
     return 0;
   }
@@ -93,11 +93,61 @@ class GHCRProvider extends RegistryProvider {
     }
   }
 
+  /**
+   * Try to get digest using crane/skopeo
+   * @param {string} imageRef - Full image reference
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {string} cacheKey - Cache key
+   * @returns {Promise<Object|null>} - Result object or null
+   */
+  async _tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey) {
+    logger.debug(`[GHCR] Getting digest for ${imageRef} using crane/skopeo`);
+    const digest = await getImageDigest(imageRef);
+
+    if (digest) {
+      const result = { digest, tag };
+      digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+      this.logOperation("getLatestDigest", imageRepo, {
+        tag,
+        digest: `${digest.substring(0, 12)}...`,
+      });
+      logger.info(
+        `[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`
+      );
+      return result;
+    }
+    return null;
+  }
+
+  /**
+   * Try GitHub Releases fallback
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {string} cacheKey - Cache key
+   * @param {Object} options - Options
+   * @returns {Promise<Object|null>} - Fallback result or null
+   */
+  async _tryFallback(imageRepo, tag, cacheKey, options) {
+    const fallbackResult = await this._tryGitHubReleasesFallback(imageRepo, tag, options);
+    if (fallbackResult) {
+      digestCache.set(cacheKey, fallbackResult, config.cache.digestCacheTTL);
+      logger.info(
+        `[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`
+      );
+      return {
+        ...fallbackResult,
+        provider: "github-releases",
+        isFallback: true,
+      };
+    }
+    return null;
+  }
+
   async getLatestDigest(imageRepo, tag = "latest", options = {}) {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `ghcr:${normalizedRepo}:${tag}`;
 
-    // Check cache
     const cached = digestCache.get(cacheKey);
     if (cached) {
       this.logOperation("getLatestDigest (cached)", imageRepo, { tag });
@@ -107,69 +157,28 @@ class GHCRProvider extends RegistryProvider {
 
     logger.debug(`[GHCR] Cache miss for ${imageRepo}:${tag}, fetching with crane/skopeo`);
 
-    // Skip if tag contains digest
     if (tag && tag.includes("@sha256")) {
       this.logOperation("getLatestDigest (skipped)", imageRepo, { reason: "tag contains digest" });
       return null;
     }
 
     try {
-      // Build full image reference
       const imageRef = `${imageRepo}:${tag}`;
-
-      // Use crane/skopeo to get digest (no authentication needed!)
-      logger.debug(`[GHCR] Getting digest for ${imageRef} using crane/skopeo`);
-      const digest = await getImageDigest(imageRef);
-
-      if (digest) {
-        const result = { digest, tag };
-
-        // Cache the result
-        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-
-        this.logOperation("getLatestDigest", imageRepo, {
-          tag,
-          digest: digest.substring(0, 12) + "...",
-        });
-        logger.info(
-          `[GHCR] Successfully got digest for ${imageRepo}:${tag} - ${digest.substring(0, 12)}...`
-        );
+      const result = await this._tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey);
+      if (result) {
         return result;
       }
 
-      // If crane/skopeo failed, try GitHub Releases fallback
       logger.debug(`[GHCR] crane/skopeo failed for ${imageRef}, trying GitHub Releases fallback`);
-      const fallbackResult = await this._tryGitHubReleasesFallback(imageRepo, tag, options);
-      if (fallbackResult) {
-        // Cache the fallback result
-        digestCache.set(cacheKey, fallbackResult, config.cache.digestCacheTTL);
-        logger.info(
-          `[GHCR] Using GitHub Releases fallback for ${imageRepo}:${tag} - version: ${fallbackResult.tag || fallbackResult.version}`
-        );
-        return {
-          ...fallbackResult,
-          provider: "github-releases",
-          isFallback: true,
-        };
-      }
-
-      logger.warn(
-        `[GHCR] Failed to get digest for ${imageRepo}:${tag} - crane/skopeo failed and no fallback available`
-      );
-      return null;
+      return this._tryFallback(imageRepo, tag, cacheKey, options);
     } catch (error) {
       logger.warn(
         `[GHCR] Error fetching digest for ${imageRepo}:${tag}, trying GitHub Releases fallback:`,
         error.message
       );
-      const fallbackResult = await this._tryGitHubReleasesFallback(imageRepo, tag, options);
+      const fallbackResult = await this._tryFallback(imageRepo, tag, cacheKey, options);
       if (fallbackResult) {
-        logger.info(`[GHCR] Using GitHub Releases fallback after error for ${imageRepo}:${tag}`);
-        return {
-          ...fallbackResult,
-          provider: "github-releases",
-          isFallback: true,
-        };
+        return fallbackResult;
       }
 
       logger.error(
@@ -180,7 +189,7 @@ class GHCRProvider extends RegistryProvider {
     }
   }
 
-  async getTagPublishDate(imageRepo, tag, options = {}) {
+  getTagPublishDate(imageRepo, tag, _options = {}) {
     // GHCR doesn't have a public API for tag publish dates
     // We could potentially use GitHub API if we know the repo, but that's handled by fallback
     return null;
@@ -190,7 +199,7 @@ class GHCRProvider extends RegistryProvider {
     try {
       const digest = await this.getLatestDigest(imageRepo, "latest", options);
       return digest !== null;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }

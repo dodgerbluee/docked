@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { calculateTrackedAppsStats } from "../utils/trackedAppsStats";
+import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 
 /**
  * Custom hook to calculate summary statistics for the Summary page
@@ -21,9 +22,16 @@ export const useSummaryStats = ({
   dismissedTrackedAppNotifications = new Map(),
 }) => {
   // Calculate containers with updates and up to date
-  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
+  // Compute hasUpdate on-the-fly for accuracy
+  const containersWithUpdates = useMemo(
+    () => containers.filter((c) => computeHasUpdate(c)),
+    [containers]
+  );
 
-  const containersUpToDate = useMemo(() => containers.filter((c) => !c.hasUpdate), [containers]);
+  const containersUpToDate = useMemo(
+    () => containers.filter((c) => !computeHasUpdate(c)),
+    [containers]
+  );
 
   // Calculate unused images per Portainer instance (match by URL)
   const unusedImagesByPortainer = useMemo(() => {

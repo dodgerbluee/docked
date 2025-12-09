@@ -10,7 +10,7 @@ describe("Containers API", () => {
 
   beforeAll(async () => {
     // Create a test admin user if it doesn't exist
-    const { createUser, getUserByUsername } = require("../../db/database");
+    const { createUser, getUserByUsername } = require("../../db/index");
     const testUsername = "admin";
     const testPassword = process.env.ADMIN_PASSWORD || "admin";
     try {

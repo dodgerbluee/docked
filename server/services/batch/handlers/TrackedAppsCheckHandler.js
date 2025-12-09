@@ -5,7 +5,7 @@
 
 const JobHandler = require("../JobHandler");
 const trackedAppService = require("../../trackedAppService");
-const { getAllTrackedApps, getAllUsers } = require("../../../db/database");
+const { getAllTrackedApps } = require("../../../db/index");
 
 class TrackedAppsCheckHandler extends JobHandler {
   getJobType() {

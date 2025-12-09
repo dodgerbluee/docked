@@ -17,7 +17,7 @@ const { getRegistryManager } = require("./RegistryManager");
  */
 async function getLatestDigest(imageRepo, tag = "latest", options = {}) {
   const manager = getRegistryManager();
-  return await manager.getLatestDigest(imageRepo, tag, options);
+  return manager.getLatestDigest(imageRepo, tag, options);
 }
 
 /**
@@ -29,7 +29,7 @@ async function getLatestDigest(imageRepo, tag = "latest", options = {}) {
  */
 async function getTagPublishDate(imageRepo, tag, options = {}) {
   const manager = getRegistryManager();
-  return await manager.getTagPublishDate(imageRepo, tag, options);
+  return manager.getTagPublishDate(imageRepo, tag, options);
 }
 
 /**
@@ -40,7 +40,7 @@ async function getTagPublishDate(imageRepo, tag, options = {}) {
  */
 async function imageExists(imageRepo, options = {}) {
   const manager = getRegistryManager();
-  return await manager.imageExists(imageRepo, options);
+  return manager.imageExists(imageRepo, options);
 }
 
 /**

@@ -2,7 +2,7 @@
  * HomePage content component
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
 import RateLimitError from "../../ErrorDisplay/RateLimitError";
@@ -141,6 +141,37 @@ const HomePageContent = ({
       />
     );
   }, [fetchTrackedApps, setActiveTab, setSettingsTab]);
+
+  // Track previous tab to detect navigation
+  const previousTabRef = useRef(activeTab);
+
+  // Automatically refresh containers when navigating to Portainer or Summary tabs
+  // This ensures containers are refreshed and update status is re-evaluated
+  useEffect(() => {
+    const previousTab = previousTabRef.current;
+    const currentTab = activeTab;
+
+    // Only refresh if we're navigating TO Portainer or Summary (not FROM them)
+    // This prevents unnecessary refreshes when already on those tabs
+    if (
+      previousTab !== currentTab &&
+      (currentTab === TAB_NAMES.PORTAINER || currentTab === TAB_NAMES.SUMMARY)
+    ) {
+      // Refresh containers with update status re-evaluation
+      // This fetches fresh data from Portainer and re-checks if updates are still needed
+      if (fetchContainers) {
+        // Use a small delay to avoid refreshing too frequently during rapid navigation
+        // But don't delay too much - we want fresh data quickly
+        const timeoutId = setTimeout(() => {
+          fetchContainers(false, null, true, true); // showLoading=false, instanceUrl=null, portainerOnly=true, refreshUpdates=true
+        }, 100); // Reduced delay from 300ms to 100ms for faster refresh
+
+        return () => clearTimeout(timeoutId);
+      }
+    }
+
+    previousTabRef.current = currentTab;
+  }, [activeTab, fetchContainers]);
 
   return (
     <div className="container">

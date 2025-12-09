@@ -27,7 +27,7 @@ class RegistryProvider {
    * @param {string} imageRepo - Image repository (e.g., 'library/nginx', 'ghcr.io/owner/repo')
    * @returns {boolean} - True if this provider can handle the image
    */
-  canHandle(imageRepo) {
+  canHandle(_imageRepo) {
     throw new Error("canHandle() must be implemented by subclass");
   }
 
@@ -39,7 +39,7 @@ class RegistryProvider {
    * @param {number} options.userId - User ID for authentication
    * @returns {Promise<Object|null>} - { digest: string, tag: string } or null if not found
    */
-  async getLatestDigest(imageRepo, tag = "latest", options = {}) {
+  async getLatestDigest(_imageRepo, _tag = "latest", _options = {}) {
     throw new Error("getLatestDigest() must be implemented by subclass");
   }
 
@@ -51,7 +51,7 @@ class RegistryProvider {
    * @param {number} options.userId - User ID for authentication
    * @returns {Promise<string|null>} - ISO date string or null
    */
-  async getTagPublishDate(imageRepo, tag, options = {}) {
+  async getTagPublishDate(_imageRepo, _tag, _options = {}) {
     throw new Error("getTagPublishDate() must be implemented by subclass");
   }
 
@@ -62,7 +62,7 @@ class RegistryProvider {
    * @param {number} options.userId - User ID for authentication
    * @returns {Promise<boolean>} - True if image exists
    */
-  async imageExists(imageRepo, options = {}) {
+  async imageExists(_imageRepo, _options = {}) {
     throw new Error("imageExists() must be implemented by subclass");
   }
 
@@ -71,7 +71,7 @@ class RegistryProvider {
    * @param {number} userId - User ID
    * @returns {Promise<Object>} - { username?: string, token?: string, password?: string }
    */
-  async getCredentials(userId) {
+  async getCredentials(_userId) {
     // Default: no credentials
     return {};
   }
@@ -89,7 +89,7 @@ class RegistryProvider {
    * @param {Object} options - Options including userId for credential check
    * @returns {Promise<number>} - Delay in milliseconds
    */
-  async getRateLimitDelay(options = {}) {
+  async getRateLimitDelay(_options = {}) {
     // Default: 1000ms delay
     return 1000;
   }

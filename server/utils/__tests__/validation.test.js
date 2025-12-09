@@ -106,7 +106,7 @@ describe("Validation Utilities", () => {
     it("should return null for valid container array", () => {
       const containers = [
         {
-          containerId: "cont1",
+          containerId: "abc123def456", // At least 12 characters required
           endpointId: 1,
           imageName: "nginx:latest",
           portainerUrl: "http://localhost:9000",
@@ -120,10 +120,15 @@ describe("Validation Utilities", () => {
     });
 
     it("should return error for containers with missing fields", () => {
-      const containers = [{ containerId: "cont1" }];
+      const containers = [{ containerId: "abc123def456" }];
       const result = validateContainerArray(containers);
       expect(result).not.toBeNull();
-      expect(result.error).toContain("containerId, endpointId, imageName, and portainerUrl");
+      expect(result.error).toContain("Validation failed");
+      expect(result.errors).toBeDefined();
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].error).toContain(
+        "containerId, endpointId, imageName, and portainerUrl"
+      );
     });
   });
 });

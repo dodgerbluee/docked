@@ -4,7 +4,6 @@
  */
 
 const BaseRepository = require("./BaseRepository");
-const { NotFoundError } = require("../domain/errors");
 
 class PortainerInstanceRepository extends BaseRepository {
   /**
@@ -14,7 +13,7 @@ class PortainerInstanceRepository extends BaseRepository {
   async findAll() {
     // Note: Migrations should ensure all columns exist on startup
     // If you see "no such column" errors, check that migrations ran successfully
-    return await super.findAll(
+    return super.findAll(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances ORDER BY display_order ASC, created_at ASC",
       [],
       { cache: true, cacheKey: "portainer_instances:all" }
@@ -27,7 +26,7 @@ class PortainerInstanceRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - Portainer instance or null
    */
   async findById(id) {
-    return await this.findOne(
+    return this.findOne(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances WHERE id = ?",
       [id]
     );
@@ -39,7 +38,7 @@ class PortainerInstanceRepository extends BaseRepository {
    * @returns {Promise<Object|null>} - Portainer instance or null
    */
   async findByUrl(url) {
-    return await this.findOne(
+    return this.findOne(
       "SELECT id, name, url, username, password, api_key, auth_type, display_order, ip_address, created_at, updated_at FROM portainer_instances WHERE url = ?",
       [url]
     );
@@ -116,11 +115,11 @@ class PortainerInstanceRepository extends BaseRepository {
    * @returns {Promise<void>}
    */
   async updateOrder(orders) {
-    return await this.transaction(async () => {
-      for (const { id, display_order } of orders) {
+    return this.transaction(async () => {
+      for (const { id, displayOrder } of orders) {
         await this.execute(
           "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-          [display_order, id]
+          [displayOrder, id]
         );
       }
 
