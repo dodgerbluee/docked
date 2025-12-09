@@ -189,10 +189,10 @@ router.post(
   asyncHandler(authController.generateRegistrationCodeEndpoint)
 );
 router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
-router.post("/auth/register", asyncHandler(authController.register));
+router.post("/auth/register", authLimiter, asyncHandler(authController.register));
 router.post("/auth/login", authLimiter, asyncHandler(authController.login));
-router.post("/auth/import-users", asyncHandler(authController.importUsers));
-router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
+router.post("/auth/import-users", authLimiter, asyncHandler(authController.importUsers));
+router.post("/auth/create-user-with-config", authLimiter, asyncHandler(authController.createUserWithConfig));
 router.post(
   "/auth/generate-instance-admin-token",
   authLimiter,
@@ -666,7 +666,7 @@ router.get(
   asyncHandler(avatarController.getAvatarByUserId)
 );
 router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
-router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
+router.get("/avatars/recent/:filename", avatarLimiter, asyncHandler(avatarController.getRecentAvatar));
 router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
 router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
 router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));

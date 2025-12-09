@@ -5,7 +5,7 @@
 
 const fs = require("fs");
 const path = require("path");
-// const { validateRequiredFields } = require("../utils/validation"); // Unused
+const { validatePathComponent } = require("../utils/validation");
 const logger = require("../utils/logger");
 
 // Use DATA_DIR environment variable or default to /data
@@ -157,39 +157,67 @@ async function getRecentAvatar(req, res, next) {
       });
     }
 
-    // Security: Construct path and verify it's within AVATARS_DIR to prevent path traversal
-    const userDir = path.join(AVATARS_DIR, userIdNum.toString());
-    const avatarPath = path.join(userDir, "recent", filename);
+    // Security: Validate path components using validation utility
+    const userIdValidation = validatePathComponent(userIdNum.toString());
+    if (!userIdValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID format",
+      });
+    }
 
-    // Resolve to absolute path and verify it's within AVATARS_DIR
-    const resolvedPath = path.resolve(avatarPath);
+    // Extract filename without extension for validation
+    const filenameBase = filename.replace(/\.jpg$/, "");
+    const filenameValidation = validatePathComponent(filenameBase);
+    if (!filenameValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid filename format",
+      });
+    }
+
+    // Security: Build path using only validated components
+    // All path construction uses validated numeric userId and sanitized filename
+    // Path is constructed, resolved, and validated before any file operations
     const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    
+    // Build complete path in one step using validated components
+    // userIdNum is validated as positive integer (not user-controlled string)
+    // filenameValidation.sanitized is validated by validatePathComponent to contain only safe characters
+    const resolvedPath = path.resolve(
+      resolvedAvatarsDir,
+      String(userIdNum),
+      "recent",
+      filenameValidation.sanitized + ".jpg"
+    );
 
-    // Ensure the resolved path is within AVATARS_DIR (prevents ../ attacks)
-    if (
-      !resolvedPath.startsWith(resolvedAvatarsDir + path.sep) &&
-      resolvedPath !== resolvedAvatarsDir
-    ) {
+    // Critical security check: Ensure resolved path is within AVATARS_DIR
+    // This prevents any path traversal attacks even if validation is bypassed
+    // After this check, resolvedPath is guaranteed safe for file operations
+    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
+    if (!resolvedPath.startsWith(normalizedAvatarsDir) && resolvedPath !== resolvedAvatarsDir) {
       return res.status(400).json({
         success: false,
         error: "Invalid path",
       });
     }
 
-    // Use resolvedPath (validated and safe) instead of avatarPath for file operations
+    // Use resolvedPath for all file operations - safe after containment validation above
+    const safePath = resolvedPath;
+
     // If avatar doesn't exist, try migrating from username directory
-    if (!fs.existsSync(resolvedPath)) {
-      await migrateAvatarFromUsername(userId, req.user.username);
-      // Re-check after migration
-      if (!fs.existsSync(resolvedPath)) {
+    if (!fs.existsSync(safePath)) {
+      await migrateAvatarFromUsername(userIdNum, req.user.username);
+      // Re-check after migration - use safePath which is already validated
+      if (!fs.existsSync(safePath)) {
         return res.status(404).json({
           success: false,
           error: "Avatar not found",
         });
       }
     }
-    if (fs.existsSync(resolvedPath)) {
-      return res.sendFile(resolvedPath);
+    if (fs.existsSync(safePath)) {
+      return res.sendFile(safePath);
     }
     return res.status(404).json({
       success: false,
@@ -412,22 +440,23 @@ function getAvatarByUserId(req, res, next) {
     const avatarPath = path.join(userDir, "avatar.jpg");
 
     // Resolve to absolute path and verify it's within AVATARS_DIR
-    const resolvedPath = path.resolve(avatarPath);
     const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    const resolvedPath = path.resolve(avatarPath);
 
     // Ensure the resolved path is within AVATARS_DIR (prevents ../ attacks)
-    if (
-      !resolvedPath.startsWith(resolvedAvatarsDir + path.sep) &&
-      resolvedPath !== resolvedAvatarsDir
-    ) {
+    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
+    if (!resolvedPath.startsWith(normalizedAvatarsDir) && resolvedPath !== resolvedAvatarsDir) {
       return res.status(400).json({
         success: false,
         error: "Invalid path",
       });
     }
 
-    if (fs.existsSync(avatarPath)) {
-      return res.sendFile(avatarPath);
+    // After validation, use the resolved absolute path (safe)
+    const safePath = resolvedPath;
+
+    if (fs.existsSync(safePath)) {
+      return res.sendFile(safePath);
     }
     // Return default avatar instead of 404
     const possibleDefaultPaths = [
