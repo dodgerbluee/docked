@@ -23,7 +23,7 @@ async function countUnusedImages(portainerUrl, endpointId) {
 
     // Get all used image IDs (normalize to handle both full and shortened IDs)
     const usedIds = new Set();
-    const normalizeImageId = (id) => {
+    const normalizeImageId = id => {
       const cleanId = id.replace(/^sha256:/, "");
       return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
     };
@@ -32,7 +32,7 @@ async function countUnusedImages(portainerUrl, endpointId) {
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        container.Id
+        container.Id,
       );
       if (details.Image) {
         usedIds.add(details.Image);
@@ -71,7 +71,7 @@ async function mergeContainerData(
   existingContainers,
   userId,
   filterPortainerUrl,
-  trackedAppsMap = null
+  trackedAppsMap = null,
 ) {
   if (!filterPortainerUrl || !existingContainers) {
     return allContainers;
@@ -79,15 +79,15 @@ async function mergeContainerData(
 
   // Get user instances to map portainerInstanceId to URL
   const userInstances = await getAllPortainerInstances(userId);
-  const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
-  const instanceUrlMap = new Map(userInstances.map((inst) => [inst.url, inst.id]));
+  const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+  const instanceUrlMap = new Map(userInstances.map(inst => [inst.url, inst.id]));
   const filteredInstanceId = instanceUrlMap.get(filterPortainerUrl);
 
   // Remove containers from the filtered instance from existing data
   // Format existing containers to match allContainers structure
   const otherContainers = existingContainers
-    .filter((c) => c.portainerInstanceId !== filteredInstanceId)
-    .map((c) => {
+    .filter(c => c.portainerInstanceId !== filteredInstanceId)
+    .map(c => {
       const instance = instanceMap.get(c.portainerInstanceId);
       return containerFormattingService.formatContainerFromDatabase(c, instance, trackedAppsMap);
     });
@@ -103,24 +103,24 @@ async function mergeContainerData(
  * @returns {Array<Object>} - Portainer instances with container data
  */
 function buildPortainerInstancesArray(allContainers, portainerInstances) {
-  return portainerInstances.map((instance) => {
+  return portainerInstances.map(instance => {
     const portainerUrl = instance.url || instance;
     const instanceName =
       instance.name ||
       (typeof instance === "string" ? new URL(instance).hostname : new URL(portainerUrl).hostname);
 
     // Get containers for this instance
-    const instanceContainers = allContainers.filter((c) => c.portainerUrl === portainerUrl);
-    const withUpdates = instanceContainers.filter((c) => c.hasUpdate);
-    const upToDate = instanceContainers.filter((c) => !c.hasUpdate);
+    const instanceContainers = allContainers.filter(c => c.portainerUrl === portainerUrl);
+    const withUpdates = instanceContainers.filter(c => c.hasUpdate);
+    const upToDate = instanceContainers.filter(c => !c.hasUpdate);
 
     return {
       id: instance.id,
       name: instanceName,
       url: portainerUrl,
       containers: instanceContainers,
-      withUpdates: withUpdates,
-      upToDate: upToDate,
+      withUpdates,
+      upToDate,
       totalContainers: instanceContainers.length,
     };
   });

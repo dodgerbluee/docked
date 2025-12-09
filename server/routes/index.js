@@ -44,7 +44,7 @@ const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
-const { validate, validationChains, commonValidations } = require("../middleware/validation");
+const { validate, validationChains } = require("../middleware/validation");
 const { param } = require("express-validator");
 
 const router = express.Router();
@@ -171,13 +171,13 @@ router.get("/version/latest-release", versionController.getLatestRelease);
  */
 router.get(
   "/auth/registration-code-required",
-  asyncHandler(authController.checkRegistrationCodeRequired)
+  asyncHandler(authController.checkRegistrationCodeRequired),
 );
 // Auth routes (public - no authentication required)
 router.get("/auth/check-user-exists", asyncHandler(authController.checkUserExists));
 router.post(
   "/auth/generate-registration-code",
-  asyncHandler(authController.generateRegistrationCodeEndpoint)
+  asyncHandler(authController.generateRegistrationCodeEndpoint),
 );
 router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
 router.post("/auth/register", asyncHandler(authController.register));
@@ -186,15 +186,15 @@ router.post("/auth/import-users", asyncHandler(authController.importUsers));
 router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
 router.post(
   "/auth/generate-instance-admin-token",
-  asyncHandler(authController.generateInstanceAdminToken)
+  asyncHandler(authController.generateInstanceAdminToken),
 );
 router.post(
   "/auth/regenerate-instance-admin-token",
-  asyncHandler(authController.regenerateInstanceAdminToken)
+  asyncHandler(authController.regenerateInstanceAdminToken),
 );
 router.post(
   "/auth/verify-instance-admin-token",
-  asyncHandler(authController.verifyInstanceAdminToken)
+  asyncHandler(authController.verifyInstanceAdminToken),
 );
 
 /**
@@ -217,7 +217,7 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
 router.post(
   "/docker-hub/credentials/validate",
-  asyncHandler(authController.validateDockerHubCreds)
+  asyncHandler(authController.validateDockerHubCreds),
 );
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 
@@ -449,7 +449,7 @@ router.post(
       .withMessage("containerId must be at least 12 characters"),
     ...validationChains.containerUpgrade,
   ]),
-  asyncHandler(containerController.upgradeContainer)
+  asyncHandler(containerController.upgradeContainer),
 );
 
 // Image routes
@@ -651,7 +651,7 @@ router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));
 router.get(
   "/avatars/user/:userId",
   avatarLimiter,
-  asyncHandler(avatarController.getAvatarByUserId)
+  asyncHandler(avatarController.getAvatarByUserId),
 );
 router.get("/avatars/recent", avatarLimiter, asyncHandler(avatarController.getRecentAvatars));
 router.get("/avatars/recent/:filename", asyncHandler(avatarController.getRecentAvatar));
@@ -749,7 +749,7 @@ router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp)
  */
 router.post(
   "/tracked-apps/check-updates",
-  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
+  asyncHandler(trackedAppController.checkTrackedAppsUpdates),
 );
 
 /**
@@ -869,7 +869,7 @@ router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrack
  */
 router.post(
   "/tracked-apps/:id/check-update",
-  asyncHandler(trackedAppController.checkTrackedAppUpdate)
+  asyncHandler(trackedAppController.checkTrackedAppUpdate),
 );
 
 // Discord notification routes
@@ -967,11 +967,11 @@ router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSc
  */
 router.get(
   "/settings/disable-portainer-page",
-  asyncHandler(settingsController.getDisablePortainerPageHandler)
+  asyncHandler(settingsController.getDisablePortainerPageHandler),
 );
 router.post(
   "/settings/disable-portainer-page",
-  asyncHandler(settingsController.setDisablePortainerPageHandler)
+  asyncHandler(settingsController.setDisablePortainerPageHandler),
 );
 
 /**
@@ -1007,11 +1007,11 @@ router.post(
  */
 router.get(
   "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
+  asyncHandler(settingsController.getDisableTrackedAppsPageHandler),
 );
 router.post(
   "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
+  asyncHandler(settingsController.setDisableTrackedAppsPageHandler),
 );
 
 /**
@@ -1047,37 +1047,37 @@ router.post(
  */
 router.get(
   "/settings/refreshing-toggles-enabled",
-  asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
+  asyncHandler(settingsController.getRefreshingTogglesEnabledHandler),
 );
 router.post(
   "/settings/refreshing-toggles-enabled",
-  asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
+  asyncHandler(settingsController.setRefreshingTogglesEnabledHandler),
 );
 
 // Repository access token routes
 router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
 router.get(
   "/repository-access-tokens/:provider",
-  asyncHandler(repositoryAccessTokenController.getTokenByProvider)
+  asyncHandler(repositoryAccessTokenController.getTokenByProvider),
 );
 router.post("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.upsertToken));
 router.delete(
   "/repository-access-tokens/:id",
-  asyncHandler(repositoryAccessTokenController.deleteToken)
+  asyncHandler(repositoryAccessTokenController.deleteToken),
 );
 
 router.get(
   "/repository-access-tokens/:id/associated-images",
   repositoryAssociatedImagesRateLimiter,
   authenticate,
-  asyncHandler(repositoryAccessTokenController.getAssociatedImages)
+  asyncHandler(repositoryAccessTokenController.getAssociatedImages),
 );
 
 router.post(
   "/repository-access-tokens/:id/associate-images",
   associateImagesLimiter,
   authenticate,
-  asyncHandler(repositoryAccessTokenController.associateImages)
+  asyncHandler(repositoryAccessTokenController.associateImages),
 );
 
 // Logs routes

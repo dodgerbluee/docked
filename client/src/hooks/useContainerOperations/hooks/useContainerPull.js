@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
+import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
 
 /**
  * Hook for container pull operations
@@ -61,18 +62,18 @@ export const useContainerPull = ({
         );
 
         try {
-          const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
+          // When pulling, fetch cached data WITH refreshUpdates=true to get fresh Portainer data
+          // This ensures we show the correct hasUpdate status (detects manual upgrades)
+          // instead of showing stale cached hasUpdate values
+          // Use new cache service for better experience
+          const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers?useNewCache=true&portainerOnly=true&refreshUpdates=true`);
           if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
             const apiContainers = cachedResponse.data.containers || [];
-            const updatedContainers = apiContainers.map((apiContainer) => {
-              if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-                if (!apiContainer.hasUpdate) {
-                  successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-                }
-                return { ...apiContainer, hasUpdate: false };
-              }
-              return apiContainer;
-            });
+            // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
+            const updatedContainers = updateContainersWithPreservedState(
+              apiContainers,
+              successfullyUpdatedContainersRef
+            );
             setContainers(updatedContainers);
             setStacks(cachedResponse.data.stacks || []);
             setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
@@ -96,15 +97,12 @@ export const useContainerPull = ({
 
         if (response.data.grouped && response.data.stacks) {
           const apiContainers = response.data.containers || [];
-          const updatedContainers = apiContainers.map((apiContainer) => {
-            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-              if (!apiContainer.hasUpdate) {
-                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-              }
-              return { ...apiContainer, hasUpdate: false };
-            }
-            return apiContainer;
-          });
+          // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
+          // This ensures all containers have correct hasUpdate status even after pull
+          const updatedContainers = updateContainersWithPreservedState(
+            apiContainers,
+            successfullyUpdatedContainersRef
+          );
           setContainers(updatedContainers);
           setStacks(response.data.stacks || []);
           setUnusedImagesCount(response.data.unusedImagesCount || 0);
@@ -122,15 +120,11 @@ export const useContainerPull = ({
           }
         } else {
           const apiContainers = Array.isArray(response.data) ? response.data : [];
-          const updatedContainers = apiContainers.map((apiContainer) => {
-            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-              if (!apiContainer.hasUpdate) {
-                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-              }
-              return { ...apiContainer, hasUpdate: false };
-            }
-            return apiContainer;
-          });
+          // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly
+          const updatedContainers = updateContainersWithPreservedState(
+            apiContainers,
+            successfullyUpdatedContainersRef
+          );
           setContainers(updatedContainers);
           setStacks([]);
           setUnusedImagesCount(0);

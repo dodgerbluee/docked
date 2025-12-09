@@ -27,7 +27,7 @@ function getAllPortainerInstances(userId) {
           } else {
             resolve(rows || []);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -62,7 +62,7 @@ function getAllPortainerInstancesForUsers(userIds) {
           } else {
             resolve(rows || []);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -89,7 +89,7 @@ function getPortainerInstanceById(id, userId) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -99,17 +99,19 @@ function getPortainerInstanceById(id, userId) {
 
 /**
  * Create a new Portainer instance
- * @param {number} userId - User ID
- * @param {string} name - Instance name
- * @param {string} url - Portainer URL
- * @param {string} username - Username
- * @param {string} password - Password
- * @param {string} apiKey - API key (for API key auth)
- * @param {string} authType - Authentication type
- * @param {string} ipAddress - IP address (optional)
+ * @param {Object} params - Parameters object
+ * @param {number} params.userId - User ID
+ * @param {string} params.name - Instance name
+ * @param {string} params.url - Portainer URL
+ * @param {string} params.username - Username
+ * @param {string} params.password - Password
+ * @param {string} [params.apiKey] - API key (for API key auth)
+ * @param {string} [params.authType='password'] - Authentication type
+ * @param {string} [params.ipAddress] - IP address (optional)
  * @returns {Promise<number>} - ID of created instance
  */
-function createPortainerInstance(
+// eslint-disable-next-line max-lines-per-function -- Database function with comprehensive instance creation logic
+function createPortainerInstance({
   userId,
   name,
   url,
@@ -117,8 +119,8 @@ function createPortainerInstance(
   password,
   apiKey = null,
   authType = "password",
-  ipAddress = null
-) {
+  ipAddress = null,
+}) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -155,9 +157,9 @@ function createPortainerInstance(
               } else {
                 resolve(this.lastID);
               }
-            }
+            },
           );
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -167,18 +169,19 @@ function createPortainerInstance(
 
 /**
  * Update a Portainer instance
- * @param {number} id - Instance ID
- * @param {number} userId - User ID
- * @param {string} name - Instance name
- * @param {string} url - Portainer URL
- * @param {string} username - Username
- * @param {string} password - Password
- * @param {string} apiKey - API key (for API key auth)
- * @param {string} authType - Authentication type
- * @param {string} ipAddress - IP address (optional)
+ * @param {Object} params - Parameters object
+ * @param {number} params.id - Instance ID
+ * @param {number} params.userId - User ID
+ * @param {string} params.name - Instance name
+ * @param {string} params.url - Portainer URL
+ * @param {string} params.username - Username
+ * @param {string} params.password - Password
+ * @param {string} [params.apiKey] - API key (for API key auth)
+ * @param {string} [params.authType='password'] - Authentication type
+ * @param {string} [params.ipAddress] - IP address (optional)
  * @returns {Promise<void>}
  */
-function updatePortainerInstance(
+function updatePortainerInstance({
   id,
   userId,
   name,
@@ -187,8 +190,8 @@ function updatePortainerInstance(
   password,
   apiKey = null,
   authType = "password",
-  ipAddress = null
-) {
+  ipAddress = null,
+}) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -199,13 +202,13 @@ function updatePortainerInstance(
       db.run(
         "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, ip_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
         [name, url, finalUsername, finalPassword, finalApiKey, authType, ipAddress, id, userId],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -226,13 +229,13 @@ function deletePortainerInstance(id, userId) {
       db.run(
         "DELETE FROM portainer_instances WHERE id = ? AND user_id = ?",
         [id, userId],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -254,14 +257,14 @@ function updatePortainerInstanceOrder(userId, orders) {
         db.run("BEGIN TRANSACTION");
 
         const stmt = db.prepare(
-          "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?"
+          "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
         );
 
         let completed = 0;
         let hasError = false;
 
         orders.forEach(({ id, display_order }) => {
-          stmt.run([display_order, id, userId], (err) => {
+          stmt.run([display_order, id, userId], err => {
             if (err && !hasError) {
               hasError = true;
               db.run("ROLLBACK");
@@ -269,12 +272,13 @@ function updatePortainerInstanceOrder(userId, orders) {
             } else {
               completed++;
               if (completed === orders.length && !hasError) {
-                stmt.finalize((finalizeErr) => {
+                stmt.finalize(finalizeErr => {
                   if (finalizeErr) {
                     db.run("ROLLBACK");
                     reject(finalizeErr);
                   } else {
-                    db.run("COMMIT", (commitErr) => {
+                    // eslint-disable-next-line max-nested-callbacks -- Transaction commit requires nested callbacks
+                    db.run("COMMIT", commitErr => {
                       if (commitErr) {
                         reject(commitErr);
                       } else {

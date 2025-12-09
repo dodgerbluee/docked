@@ -15,8 +15,8 @@ class ContainerRepository extends BaseRepository {
    * @param {Object} containerData - Container data
    * @returns {Promise<number>} - ID of the record
    */
-  async upsert(userId, portainerInstanceId, containerData) {
-    return await containerDb.upsertContainer(userId, portainerInstanceId, containerData);
+  upsert(userId, portainerInstanceId, containerData) {
+    return containerDb.upsertContainer(userId, portainerInstanceId, containerData);
   }
 
   /**
@@ -27,12 +27,12 @@ class ContainerRepository extends BaseRepository {
    * @param {Object} versionData - Version data
    * @returns {Promise<Object>} - Result with containerId, deployedImageId, registryVersionId
    */
-  async upsertWithVersion(userId, portainerInstanceId, containerData, versionData) {
-    return await containerDb.upsertContainerWithVersion(
+  upsertWithVersion(userId, portainerInstanceId, containerData, versionData) {
+    return containerDb.upsertContainerWithVersion(
       userId,
       portainerInstanceId,
       containerData,
-      versionData
+      versionData,
     );
   }
 
@@ -42,8 +42,8 @@ class ContainerRepository extends BaseRepository {
    * @param {string|null} portainerUrl - Optional filter by Portainer URL
    * @returns {Promise<Array>} - Array of containers
    */
-  async findByUser(userId, portainerUrl = null) {
-    return await containerDb.getPortainerContainers(userId, portainerUrl);
+  findByUser(userId, portainerUrl = null) {
+    return containerDb.getPortainerContainers(userId, portainerUrl);
   }
 
   /**
@@ -52,8 +52,8 @@ class ContainerRepository extends BaseRepository {
    * @param {string|null} portainerUrl - Optional filter
    * @returns {Promise<Array>} - Containers with update info
    */
-  async findByUserWithUpdates(userId, portainerUrl = null) {
-    return await containerDb.getPortainerContainersWithUpdates(userId, portainerUrl);
+  findByUserWithUpdates(userId, portainerUrl = null) {
+    return containerDb.getPortainerContainersWithUpdates(userId, portainerUrl);
   }
 
   /**
@@ -62,8 +62,8 @@ class ContainerRepository extends BaseRepository {
    * @param {number} portainerInstanceId - Portainer instance ID
    * @returns {Promise<void>}
    */
-  async deleteByInstance(userId, portainerInstanceId) {
-    return await containerDb.deletePortainerContainersForInstance(userId, portainerInstanceId);
+  deleteByInstance(userId, portainerInstanceId) {
+    return containerDb.deletePortainerContainersForInstance(userId, portainerInstanceId);
   }
 
   /**
@@ -73,11 +73,11 @@ class ContainerRepository extends BaseRepository {
    * @param {Array<string>} containerIds - List of container IDs to keep
    * @returns {Promise<void>}
    */
-  async deleteNotInList(userId, portainerInstanceId, containerIds) {
-    return await containerDb.deletePortainerContainersNotInList(
+  deleteNotInList(userId, portainerInstanceId, containerIds) {
+    return containerDb.deletePortainerContainersNotInList(
       userId,
       portainerInstanceId,
-      containerIds
+      containerIds,
     );
   }
 
@@ -86,8 +86,8 @@ class ContainerRepository extends BaseRepository {
    * @param {number} daysOld - Number of days old (default: 7)
    * @returns {Promise<number>} - Number of containers deleted
    */
-  async cleanupStale(daysOld = 7) {
-    return await containerDb.cleanupStalePortainerContainers(daysOld);
+  cleanupStale(daysOld = 7) {
+    return containerDb.cleanupStalePortainerContainers(daysOld);
   }
 
   /**
@@ -95,8 +95,8 @@ class ContainerRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async clearByUser(userId) {
-    return await containerDb.clearUserContainerData(userId);
+  clearByUser(userId) {
+    return containerDb.clearUserContainerData(userId);
   }
 }
 

@@ -14,6 +14,7 @@ const dockerRegistryService = require("./dockerRegistryService");
  * @param {string} imageName - Full image name (repo:tag)
  * @returns {Object|null} - Version data object or null if no version info available
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Version data preparation requires comprehensive parsing logic
 function prepareVersionData(updateInfo, imageName) {
   if (!updateInfo || !updateInfo.imageRepo) {
     return null;
@@ -67,10 +68,10 @@ function prepareVersionData(updateInfo, imageName) {
   }
 
   const versionData = {
-    registry: registry,
+    registry,
     provider: updateInfo.provider || null, // Track which provider was used (dockerhub, ghcr, gitlab, github-releases, etc.)
-    namespace: namespace,
-    repository: repository,
+    namespace,
+    repository,
     currentTag: imageTag, // Tag we're checking
     latestTag: updateInfo.latestTag || imageTag,
     latestVersion: updateInfo.newVersion || updateInfo.latestTag, // Use latestTag if newVersion is null (for GitHub Releases)
@@ -85,20 +86,20 @@ function prepareVersionData(updateInfo, imageName) {
       `[REGISTRY_VERSION_DEBUG] Preparing version data for ${updateInfo.imageRepo}:${imageTag}`,
       {
         hasVersionInfo,
-        hasDigest: !!updateInfo.latestDigestFull,
-        hasTag: !!updateInfo.latestTag,
-        hasVersion: !!updateInfo.newVersion,
+        hasDigest: Boolean(updateInfo.latestDigestFull),
+        hasTag: Boolean(updateInfo.latestTag),
+        hasVersion: Boolean(updateInfo.newVersion),
         provider: updateInfo.provider,
         isFallback: updateInfo.isFallback,
-        versionDataCreated: !!versionData,
+        versionDataCreated: Boolean(versionData),
         latestTag: updateInfo.latestTag,
         latestVersion: updateInfo.newVersion,
         latestDigest: updateInfo.latestDigestFull
-          ? updateInfo.latestDigestFull.substring(0, 12) + "..."
+          ? `${updateInfo.latestDigestFull.substring(0, 12)}...`
           : null,
         currentTag: imageTag,
         updateInfoKeys: Object.keys(updateInfo),
-      }
+      },
     );
 
     if (!versionData) {
@@ -106,14 +107,14 @@ function prepareVersionData(updateInfo, imageName) {
         `[REGISTRY_VERSION_DEBUG] No version data created for ${updateInfo.imageRepo}:${imageTag} - missing required info`,
         {
           imageRepo: updateInfo.imageRepo,
-          imageTag: imageTag,
+          imageTag,
           latestDigestFull: updateInfo.latestDigestFull,
           latestTag: updateInfo.latestTag,
           newVersion: updateInfo.newVersion,
-          hasVersionInfo: hasVersionInfo,
+          hasVersionInfo,
           condition: `updateInfo.imageRepo && hasVersionInfo`,
-          imageRepoExists: !!updateInfo.imageRepo,
-        }
+          imageRepoExists: Boolean(updateInfo.imageRepo),
+        },
       );
     } else {
       logger.info(
@@ -123,9 +124,9 @@ function prepareVersionData(updateInfo, imageName) {
           latestTag: versionData.latestTag,
           latestVersion: versionData.latestVersion,
           latestDigest: versionData.latestDigest
-            ? versionData.latestDigest.substring(0, 12) + "..."
+            ? `${versionData.latestDigest.substring(0, 12)}...`
             : null,
-        }
+        },
       );
     }
   }
@@ -135,21 +136,23 @@ function prepareVersionData(updateInfo, imageName) {
 
 /**
  * Save container and version data to database
- * @param {number} userId - User ID
- * @param {number} portainerInstanceId - Portainer instance ID
- * @param {Object} container - Container object from Portainer API
- * @param {Object} containerData - Formatted container data
- * @param {Object} updateInfo - Update information from imageUpdateService
- * @param {string} imageName - Full image name
- * @param {string} imageTag - Image tag
- * @param {string} stackName - Stack name
- * @param {string} endpointId - Endpoint ID
- * @param {string} currentImageCreated - Image creation date
- * @param {boolean} usesNetworkMode - Whether container uses network mode
- * @param {boolean} providesNetwork - Whether container provides network
+ * @param {Object} params - Parameters object
+ * @param {number} params.userId - User ID
+ * @param {number} params.portainerInstanceId - Portainer instance ID
+ * @param {Object} params.container - Container object from Portainer API
+ * @param {Object} params.containerData - Formatted container data
+ * @param {Object} params.updateInfo - Update information from imageUpdateService
+ * @param {string} params.imageName - Full image name
+ * @param {string} params.imageTag - Image tag
+ * @param {string} params.stackName - Stack name
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} params.currentImageCreated - Image creation date
+ * @param {boolean} params.usesNetworkMode - Whether container uses network mode
+ * @param {boolean} params.providesNetwork - Whether container provides network
  * @returns {Promise<void>}
  */
-async function saveContainerToDatabase(
+// eslint-disable-next-line max-lines-per-function, complexity -- Container persistence requires comprehensive database operations
+async function saveContainerToDatabase({
   userId,
   portainerInstanceId,
   container,
@@ -161,8 +164,8 @@ async function saveContainerToDatabase(
   endpointId,
   currentImageCreated,
   usesNetworkMode,
-  providesNetwork
-) {
+  providesNetwork,
+}) {
   if (!userId || !portainerInstanceId) {
     return;
   }
@@ -212,22 +215,22 @@ async function saveContainerToDatabase(
       {
         containerId: container.Id,
         containerName: containerData.name,
-        endpointId: endpointId,
-        imageName: imageName,
+        endpointId,
+        imageName,
         imageRepo: updateInfo?.imageRepo,
-        imageTag: imageTag,
+        imageTag,
         status: container.Status,
         state: container.State,
-        stackName: stackName,
+        stackName,
         currentDigest: updateInfo?.currentDigestFull,
         imageCreatedDate: currentImageCreated,
-        registry: registry,
-        namespace: namespace,
-        repository: repository,
+        registry,
+        namespace,
+        repository,
         usesNetworkMode: usesNetworkMode || false,
         providesNetwork: providesNetwork || false,
       },
-      versionData
+      versionData,
     );
   } catch (dbError) {
     // Don't fail the entire fetch if database save fails

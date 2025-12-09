@@ -32,7 +32,9 @@ const logger = require("../utils/logger");
  * @param {number} userId - User ID
  * @returns {Promise<Object>} - Raw database records organized by table
  */
+// eslint-disable-next-line max-lines-per-function -- Database record retrieval requires comprehensive query logic
 function getRawDatabaseRecords(userId) {
+  // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive record processing
   return new Promise((resolve, reject) => {
     try {
       const db = connection.getDatabase();
@@ -54,7 +56,7 @@ function getRawDatabaseRecords(userId) {
         return;
       }
 
-      tables.forEach((tableName) => {
+      tables.forEach(tableName => {
         let query;
         let params = [];
 
@@ -85,7 +87,7 @@ function getRawDatabaseRecords(userId) {
             records[`${tableName}_error`] = err.message;
           } else {
             // Convert SQLite row objects to plain objects
-            records[tableName] = (rows || []).map((row) => {
+            records[tableName] = (rows || []).map(row => {
               const plainRow = {};
               for (const key in row) {
                 plainRow[key] = row[key];

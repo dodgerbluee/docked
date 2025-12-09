@@ -15,7 +15,7 @@
  * @returns {Object|null} - Standardized error object if validation fails, null otherwise
  */
 function validateRequiredFields(body, requiredFields) {
-  const missing = requiredFields.filter((field) => !body[field]);
+  const missing = requiredFields.filter(field => !body[field]);
   if (missing.length > 0) {
     return {
       success: false,
@@ -48,6 +48,31 @@ function isValidEndpointId(endpointId) {
 }
 
 /**
+ * Check if string contains path traversal patterns
+ * @param {string} str - String to check
+ * @returns {boolean} - True if contains traversal patterns
+ */
+function containsPathTraversal(str) {
+  return (
+    str.includes("..") ||
+    str.includes("/") ||
+    str.includes("\\") ||
+    str.includes("%2e") ||
+    str.includes("%2f") ||
+    str.includes("%5c")
+  );
+}
+
+/**
+ * Check if string is valid alphanumeric with allowed characters
+ * @param {string} str - String to check
+ * @returns {boolean} - True if valid
+ */
+function isValidAlphanumeric(str) {
+  return /^[a-zA-Z0-9_-]+$/.test(str);
+}
+
+/**
  * Validates and sanitizes a path component to prevent path traversal attacks
  * @param {string|number} pathComponent - Path component to validate
  * @returns {Object} - { valid: boolean, sanitized?: string, error?: string }
@@ -60,29 +85,14 @@ function validatePathComponent(pathComponent) {
     };
   }
 
-  // Convert to string for validation
   const str = String(pathComponent);
 
-  // Block path traversal attempts
   if (
-    str.includes("..") ||
-    str.includes("/") ||
-    str.includes("\\") ||
-    str.includes("%2e") ||
-    str.includes("%2f") ||
-    str.includes("%5c") ||
+    containsPathTraversal(str) ||
     str.trim() !== str ||
-    str.length === 0
+    str.length === 0 ||
+    !isValidAlphanumeric(str)
   ) {
-    return {
-      valid: false,
-      error: "Path component contains invalid characters",
-    };
-  }
-
-  // Additional check: ensure it's alphanumeric with allowed characters (for IDs)
-  // Allow alphanumeric, hyphens, underscores (common in IDs)
-  if (!/^[a-zA-Z0-9_-]+$/.test(str)) {
     return {
       valid: false,
       error: "Path component contains invalid characters",
@@ -122,6 +132,154 @@ function isValidPortainerUrl(url) {
 }
 
 /**
+ * Check if hostname is localhost or localhost variant
+ * @param {string} hostname - Hostname to check
+ * @returns {boolean} - True if localhost
+ */
+function isLocalhost(hostname) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "0.0.0.0" ||
+    hostname.startsWith("127.") ||
+    hostname === "[::1]"
+  );
+}
+
+/**
+ * Check if IP is in 10.0.0.0/8 range
+ * @param {number[]} octets - IP octets
+ * @returns {Object|null} - Error object if private, null otherwise
+ */
+function check10Range(octets) {
+  if (octets[0] === 10) {
+    return { valid: false, error: "Private IP addresses (10.x.x.x) are not allowed" };
+  }
+  return null;
+}
+
+/**
+ * Check if IP is in 172.16.0.0/12 range
+ * @param {number[]} octets - IP octets
+ * @returns {Object|null} - Error object if private, null otherwise
+ */
+function check172Range(octets) {
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) {
+    return { valid: false, error: "Private IP addresses (172.16-31.x.x) are not allowed" };
+  }
+  return null;
+}
+
+/**
+ * Check if IP is in 192.168.0.0/16 range
+ * @param {number[]} octets - IP octets
+ * @returns {Object|null} - Error object if private, null otherwise
+ */
+function check192Range(octets) {
+  if (octets[0] === 192 && octets[1] === 168) {
+    return { valid: false, error: "Private IP addresses (192.168.x.x) are not allowed" };
+  }
+  return null;
+}
+
+/**
+ * Check if IP is link-local or multicast
+ * @param {number[]} octets - IP octets
+ * @returns {Object|null} - Error object if private, null otherwise
+ */
+function checkSpecialRanges(octets) {
+  if (octets[0] === 169 && octets[1] === 254) {
+    return { valid: false, error: "Link-local addresses (169.254.x.x) are not allowed" };
+  }
+  if (octets[0] >= 224 && octets[0] <= 239) {
+    return { valid: false, error: "Multicast addresses are not allowed" };
+  }
+  return null;
+}
+
+/**
+ * Check if IPv4 address is in private range
+ * @param {number[]} octets - IP octets
+ * @returns {Object|null} - Error object if private, null otherwise
+ */
+function checkPrivateIPv4(octets) {
+  return (
+    check10Range(octets) ||
+    check172Range(octets) ||
+    check192Range(octets) ||
+    checkSpecialRanges(octets)
+  );
+}
+
+/**
+ * Validate IPv4 address
+ * @param {string} hostname - Hostname to validate
+ * @param {boolean} allowPrivateIPs - Whether to allow private IPs
+ * @returns {Object|null} - Error object if invalid, null otherwise
+ */
+function validateIPv4(hostname, allowPrivateIPs) {
+  // Use named capture groups
+  const ipv4Regex = /^(?<octet1>\d{1,3})\.(?<octet2>\d{1,3})\.(?<octet3>\d{1,3})\.(?<octet4>\d{1,3})$/;
+  const ipv4Match = hostname.match(ipv4Regex);
+
+  if (!ipv4Match) {
+    return null;
+  }
+
+  const octets = [
+    Number(ipv4Match.groups.octet1),
+    Number(ipv4Match.groups.octet2),
+    Number(ipv4Match.groups.octet3),
+    Number(ipv4Match.groups.octet4),
+  ];
+
+  // Validate IP range (0-255)
+  if (octets.some(octet => octet > 255)) {
+    return { valid: false, error: "Invalid IP address format" };
+  }
+
+  // Block private IP ranges unless explicitly allowed
+  if (!allowPrivateIPs) {
+    const privateCheck = checkPrivateIPv4(octets);
+    if (privateCheck) {
+      return privateCheck;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate IPv6 address
+ * @param {string} hostname - Hostname to validate
+ * @param {boolean} allowPrivateIPs - Whether to allow private IPs
+ * @returns {Object|null} - Error object if invalid, null otherwise
+ */
+function validateIPv6(hostname, allowPrivateIPs) {
+  if (!hostname.includes(":")) {
+    return null;
+  }
+
+  // Block IPv6 localhost
+  if (
+    hostname === "[::1]" ||
+    hostname === "::1" ||
+    hostname.startsWith("[::ffff:127.") ||
+    hostname.startsWith("::ffff:127.")
+  ) {
+    return { valid: false, error: "IPv6 localhost addresses are not allowed" };
+  }
+
+  // Block IPv6 private ranges (fc00::/7) unless allowed
+  if (!allowPrivateIPs && (hostname.startsWith("[fc") || hostname.startsWith("fc"))) {
+    return { valid: false, error: "IPv6 private addresses (fc00::/7) are not allowed" };
+  }
+
+  return null;
+}
+
+/**
  * Validates that a URL is safe from SSRF attacks
  * Blocks private/internal IP addresses and localhost
  * @param {string} url - URL to validate
@@ -143,14 +301,7 @@ function validateUrlForSSRF(url, allowPrivateIPs = false) {
     const hostname = parsed.hostname.toLowerCase();
 
     // Block localhost and variants
-    if (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1" ||
-      hostname === "0.0.0.0" ||
-      hostname.startsWith("127.") ||
-      hostname === "[::1]"
-    ) {
+    if (isLocalhost(hostname)) {
       return {
         valid: false,
         error: "Localhost addresses are not allowed",
@@ -158,86 +309,15 @@ function validateUrlForSSRF(url, allowPrivateIPs = false) {
     }
 
     // Check for IPv4 addresses
-    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-    const ipv4Match = hostname.match(ipv4Regex);
-
-    if (ipv4Match) {
-      const octets = ipv4Match.slice(1, 5).map(Number);
-
-      // Validate IP range (0-255)
-      if (octets.some((octet) => octet > 255)) {
-        return {
-          valid: false,
-          error: "Invalid IP address format",
-        };
-      }
-
-      // Block private IP ranges unless explicitly allowed
-      if (!allowPrivateIPs) {
-        // 10.0.0.0/8
-        if (octets[0] === 10) {
-          return {
-            valid: false,
-            error: "Private IP addresses (10.x.x.x) are not allowed",
-          };
-        }
-
-        // 172.16.0.0/12
-        if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) {
-          return {
-            valid: false,
-            error: "Private IP addresses (172.16-31.x.x) are not allowed",
-          };
-        }
-
-        // 192.168.0.0/16
-        if (octets[0] === 192 && octets[1] === 168) {
-          return {
-            valid: false,
-            error: "Private IP addresses (192.168.x.x) are not allowed",
-          };
-        }
-
-        // 169.254.0.0/16 (link-local)
-        if (octets[0] === 169 && octets[1] === 254) {
-          return {
-            valid: false,
-            error: "Link-local addresses (169.254.x.x) are not allowed",
-          };
-        }
-
-        // 224.0.0.0/4 (multicast)
-        if (octets[0] >= 224 && octets[0] <= 239) {
-          return {
-            valid: false,
-            error: "Multicast addresses are not allowed",
-          };
-        }
-      }
+    const ipv4Error = validateIPv4(hostname, allowPrivateIPs);
+    if (ipv4Error) {
+      return ipv4Error;
     }
 
-    // Check for IPv6 addresses (basic check)
-    if (hostname.includes(":")) {
-      // Block IPv6 localhost
-      if (
-        hostname === "[::1]" ||
-        hostname === "::1" ||
-        hostname.startsWith("[::ffff:127.") ||
-        hostname.startsWith("::ffff:127.")
-      ) {
-        return {
-          valid: false,
-          error: "IPv6 localhost addresses are not allowed",
-        };
-      }
-
-      // Block IPv6 private ranges (fc00::/7) unless allowed
-      if (!allowPrivateIPs && (hostname.startsWith("[fc") || hostname.startsWith("fc"))) {
-        return {
-          valid: false,
-          error: "IPv6 private addresses (fc00::/7) are not allowed",
-        };
-      }
+    // Check for IPv6 addresses
+    const ipv6Error = validateIPv6(hostname, allowPrivateIPs);
+    if (ipv6Error) {
+      return ipv6Error;
     }
 
     return { valid: true };
@@ -281,18 +361,54 @@ function validateContainerArray(containers) {
     return { error: "containers array is required and must not be empty" };
   }
 
-  for (const container of containers) {
+  const errors = [];
+
+  for (let i = 0; i < containers.length; i++) {
+    const container = containers[i];
+    const containerName = container.containerName || container.name || `Container ${i + 1}`;
+
+    // Check for missing required fields
     if (
       !container.containerId ||
       !container.endpointId ||
       !container.imageName ||
       !container.portainerUrl
     ) {
-      return {
+      errors.push({
+        containerName,
+        containerId: container.containerId || "missing",
         error: "Each container must have containerId, endpointId, imageName, and portainerUrl",
-        invalidContainer: container,
-      };
+      });
+      continue;
     }
+
+    // Validate containerId type and length (must be at least 12 characters)
+    if (typeof container.containerId !== "string") {
+      errors.push({
+        containerName,
+        containerId: String(container.containerId),
+        error: `Invalid containerId type: expected string, got ${typeof container.containerId}`,
+      });
+      continue;
+    }
+
+    // Trim whitespace and check length
+    const trimmedContainerId = container.containerId.trim();
+    if (trimmedContainerId.length < 12) {
+      errors.push({
+        containerName,
+        containerId: trimmedContainerId,
+        error: `Invalid value, containerId is required and must be at least 12 characters (received: "${trimmedContainerId}", length: ${trimmedContainerId.length})`,
+      });
+      continue;
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      error: `Validation failed for ${errors.length} container(s)`,
+      errors,
+    };
   }
 
   return null;

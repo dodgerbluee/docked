@@ -60,6 +60,7 @@ class BatchManager {
    * @param {boolean} isManual - Whether this is a manual run
    * @returns {Promise<Object>} - Execution result
    */
+  // eslint-disable-next-line max-lines-per-function, complexity -- Job execution requires comprehensive orchestration
   async executeJob(userId, jobType, isManual = false) {
     const handler = this.getHandler(jobType);
     if (!handler) {
@@ -73,7 +74,7 @@ class BatchManager {
     const lockCheck = await checkAndAcquireBatchJobLock(userId, jobType);
     if (lockCheck.isRunning) {
       throw new Error(
-        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`
+        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`,
       );
     }
 
@@ -82,7 +83,7 @@ class BatchManager {
       throw new Error(`Job ${jobType} is already running for user ${userId}`);
     }
 
-    const logger = new BatchLogger(jobType);
+    const batchLogger = new BatchLogger(jobType);
     let runId = null;
 
     try {
@@ -96,7 +97,7 @@ class BatchManager {
 
       // Execute the job
       logger.info("Starting job execution", { userId });
-      const result = await handler.execute({ logger, userId });
+      const result = await handler.execute({ logger: batchLogger, userId });
 
       // Update batch run as completed
       logger.info("Job execution completed successfully", {
@@ -105,15 +106,13 @@ class BatchManager {
         userId,
       });
 
-      await updateBatchRun(
-        runId,
-        userId,
-        "completed",
-        result.itemsChecked || 0,
-        result.itemsUpdated || 0,
-        null,
-        logger.getFormattedLogs()
-      );
+      await updateBatchRun(runId, userId, {
+        status: "completed",
+        containersChecked: result.itemsChecked || 0,
+        containersUpdated: result.itemsUpdated || 0,
+        errorMessage: null,
+        logs: batchLogger.getFormattedLogs(),
+      });
 
       // Update scheduler's last run time
       this.scheduler.updateLastRunTime(userId, jobType, Date.now());
@@ -125,7 +124,7 @@ class BatchManager {
         success: true,
         itemsChecked: result.itemsChecked || 0,
         itemsUpdated: result.itemsUpdated || 0,
-        logs: logger.getLogs(),
+        logs: batchLogger.getLogs(),
       };
     } catch (err) {
       const errorMessage = err.message || `Failed to execute job: ${jobType}`;
@@ -139,15 +138,13 @@ class BatchManager {
       // Update batch run as failed
       if (runId) {
         try {
-          await updateBatchRun(
-            runId,
-            userId,
-            "failed",
-            0,
-            0,
+          await updateBatchRun(runId, userId, {
+            status: "failed",
+            containersChecked: 0,
+            containersUpdated: 0,
             errorMessage,
-            logger.getFormattedLogs()
-          );
+            logs: batchLogger.getFormattedLogs(),
+          });
           logger.info("Batch run marked as failed", { runId, userId });
         } catch (updateErr) {
           logger.error("Failed to update batch run status", {

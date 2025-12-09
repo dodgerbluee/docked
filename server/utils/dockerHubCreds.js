@@ -8,8 +8,8 @@ const { getDockerHubCredentials } = require("../db/index");
 const logger = require("./logger");
 
 // Cache credentials in memory to avoid DB queries on every request
-let cachedCreds = null;
-let cacheTimestamp = 0;
+// Store cache as a single object to avoid race conditions
+let cache = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
@@ -25,31 +25,34 @@ async function getDockerHubCreds(userId) {
   }
 
   // Check cache first (cache key includes userId)
-  const cacheKey = `dockerhub_creds_${userId}`;
   const now = Date.now();
-  if (cachedCreds && cachedCreds.userId === userId && now - cacheTimestamp < CACHE_TTL) {
-    return { username: cachedCreds.username, token: cachedCreds.token };
+  // Read cache atomically by storing reference
+  const currentCache = cache;
+  if (currentCache && currentCache.userId === userId && now - currentCache.timestamp < CACHE_TTL) {
+    return { username: currentCache.username, token: currentCache.token };
   }
 
   try {
     // Get credentials from database
     const dbCreds = await getDockerHubCredentials(userId);
     if (dbCreds && dbCreds.username && dbCreds.token) {
-      cachedCreds = {
-        userId: userId,
+      // Atomic update: assign entire cache object at once
+      // eslint-disable-next-line require-atomic-updates -- Cache update is intentional
+      cache = {
+        userId,
         username: dbCreds.username,
         token: dbCreds.token,
+        timestamp: now,
       };
-      cacheTimestamp = now;
       return { username: dbCreds.username, token: dbCreds.token };
     }
   } catch (error) {
     logger.error("Error fetching Docker Hub credentials from database:", { error });
   }
 
-  // No credentials available
-  cachedCreds = { userId: userId, username: null, token: null };
-  cacheTimestamp = now;
+  // No credentials available - atomic update
+  // eslint-disable-next-line require-atomic-updates -- Cache update is intentional
+  cache = { userId, username: null, token: null, timestamp: now };
   return { username: null, token: null };
 }
 
@@ -58,8 +61,7 @@ async function getDockerHubCreds(userId) {
  * Call this after updating credentials in the database
  */
 function clearCache() {
-  cachedCreds = null;
-  cacheTimestamp = 0;
+  cache = null;
 }
 
 module.exports = {

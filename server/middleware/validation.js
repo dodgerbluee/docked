@@ -4,7 +4,6 @@
  */
 
 const { body, param, query, validationResult } = require("express-validator");
-const { sendValidationErrorResponse } = require("../utils/responseHelpers");
 const { ValidationError } = require("../utils/errors");
 
 /**
@@ -15,16 +14,16 @@ const { ValidationError } = require("../utils/errors");
 function validate(validations) {
   return async (req, res, next) => {
     // Run all validations
-    await Promise.all(validations.map((validation) => validation.run(req)));
+    await Promise.all(validations.map(validation => validation.run(req)));
 
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map((e) => e.msg);
+      const errorMessages = errors.array().map(e => e.msg);
       const missingFields = errors
         .array()
-        .filter((e) => e.type === "field")
-        .map((e) => e.path);
+        .filter(e => e.type === "field")
+        .map(e => e.path);
 
       // Throw ValidationError to be caught by error handler
       throw new ValidationError(errorMessages.join(", "), missingFields, errors.array());
@@ -48,10 +47,10 @@ const commonValidations = {
   endpointId: body("endpointId")
     .notEmpty()
     .withMessage("endpointId is required")
-    .custom((value) => {
+    .custom(value =>
       // Accept both string and number
-      return typeof value === "string" || typeof value === "number";
-    })
+      typeof value === "string" || typeof value === "number",
+    )
     .withMessage("endpointId must be a string or number"),
 
   // Image name validation
@@ -59,6 +58,7 @@ const commonValidations = {
     .isString()
     .notEmpty()
     .withMessage("imageName is required")
+    // eslint-disable-next-line prefer-named-capture-group -- Simple regex, named group not needed
     .matches(/^[a-zA-Z0-9._/-]+(:[a-zA-Z0-9._/-]+)?$/)
     .withMessage("imageName must be a valid Docker image name"),
 
@@ -116,11 +116,8 @@ const commonValidations = {
  */
 const validationChains = {
   // Container upgrade validation
+  // Note: containerId is validated as a path parameter, not in the body
   containerUpgrade: [
-    body("containerId")
-      .isString()
-      .isLength({ min: 12 })
-      .withMessage("containerId is required and must be at least 12 characters"),
     commonValidations.endpointId,
     commonValidations.imageName,
     commonValidations.portainerUrl,

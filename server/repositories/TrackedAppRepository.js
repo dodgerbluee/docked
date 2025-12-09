@@ -13,8 +13,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Array>} - Array of tracked apps
    */
-  async findByUser(userId) {
-    return await trackedAppsDb.getAllTrackedApps(userId);
+  findByUser(userId) {
+    return trackedAppsDb.getAllTrackedApps(userId);
   }
 
   /**
@@ -23,8 +23,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<Object|null>} - Tracked app or null
    */
-  async findById(id, userId) {
-    return await trackedAppsDb.getTrackedAppById(id, userId);
+  findById(id, userId) {
+    return trackedAppsDb.getTrackedAppById(id, userId);
   }
 
   /**
@@ -34,8 +34,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {string} githubRepo - GitHub repo (or null for Docker)
    * @returns {Promise<Object|null>} - Tracked app or null
    */
-  async findByImageName(userId, imageName = null, githubRepo = null) {
-    return await trackedAppsDb.getTrackedAppByImageName(userId, imageName, githubRepo);
+  findByImageName(userId, imageName = null, githubRepo = null) {
+    return trackedAppsDb.getTrackedAppByImageName(userId, imageName, githubRepo);
   }
 
   /**
@@ -44,8 +44,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {Object} appData - Tracked app data
    * @returns {Promise<number>} - ID of created tracked app
    */
-  async create(userId, appData) {
-    return await trackedAppsDb.createTrackedApp(userId, appData);
+  create(userId, appData) {
+    return trackedAppsDb.createTrackedApp(userId, appData);
   }
 
   /**
@@ -55,8 +55,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {Object} updateData - Update data
    * @returns {Promise<void>}
    */
-  async update(id, userId, updateData) {
-    return await trackedAppsDb.updateTrackedApp(id, userId, updateData);
+  update(id, userId, updateData) {
+    return trackedAppsDb.updateTrackedApp(id, userId, updateData);
   }
 
   /**
@@ -65,8 +65,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async delete(id, userId) {
-    return await trackedAppsDb.deleteTrackedApp(id, userId);
+  delete(id, userId) {
+    return trackedAppsDb.deleteTrackedApp(id, userId);
   }
 
   /**
@@ -74,8 +74,8 @@ class TrackedAppRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<void>}
    */
-  async clearLatestVersions(userId) {
-    return await trackedAppsDb.clearLatestVersionsForAllTrackedApps(userId);
+  clearLatestVersions(userId) {
+    return trackedAppsDb.clearLatestVersionsForAllTrackedApps(userId);
   }
 }
 

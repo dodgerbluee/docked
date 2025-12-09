@@ -18,7 +18,9 @@ const { getDatabase } = require("./connection");
  * @param {Object} versionData - Version data to store
  * @returns {Promise<number>} - ID of the record
  */
+// eslint-disable-next-line max-lines-per-function -- DockerHub image version upsert requires comprehensive database operations
 function upsertDockerHubImageVersion(userId, imageRepo, versionData) {
+  // eslint-disable-next-line max-lines-per-function, complexity -- Promise callback requires comprehensive upsert logic
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -72,7 +74,7 @@ function upsertDockerHubImageVersion(userId, imageRepo, versionData) {
           } else {
             resolve(this.lastID);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -94,7 +96,7 @@ function getDockerHubImageVersion(userId, imageRepo, currentTag = null) {
 
       // If tag is provided, use it in the query (new constraint)
       // If not provided, try to find any record for the repo (backward compatibility)
-      let query, params;
+      let query; let params;
       if (currentTag !== null && currentTag !== undefined) {
         query = `SELECT * FROM docker_hub_image_versions WHERE user_id = ? AND image_repo = ? AND current_tag = ?`;
         params = [userId, imageRepo, currentTag];
@@ -166,7 +168,7 @@ function getDockerHubImageVersionsBatch(userId, imageRepos) {
             reject(err);
           } else {
             const versionMap = new Map();
-            rows.forEach((row) => {
+            rows.forEach(row => {
               versionMap.set(row.image_repo, {
                 id: row.id,
                 userId: row.user_id,
@@ -192,7 +194,7 @@ function getDockerHubImageVersionsBatch(userId, imageRepos) {
             });
             resolve(versionMap);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -216,7 +218,7 @@ function getDockerHubImagesWithUpdates(userId) {
           if (err) {
             reject(err);
           } else {
-            const versions = rows.map((row) => ({
+            const versions = rows.map(row => ({
               id: row.id,
               userId: row.user_id,
               imageName: row.image_name,
@@ -240,7 +242,7 @@ function getDockerHubImagesWithUpdates(userId) {
             }));
             resolve(versions);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -264,7 +266,7 @@ function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, cu
 
       // If currentTag is provided, use it in WHERE clause (new constraint)
       // Otherwise, try to match by version (backward compatibility)
-      let query, params;
+      let query; let params;
       if (currentTag !== null && currentTag !== undefined) {
         query = `UPDATE docker_hub_image_versions 
                  SET current_digest = ?, current_version = ?, latest_digest = ?, 
@@ -280,7 +282,7 @@ function markDockerHubImageUpToDate(userId, imageRepo, newDigest, newVersion, cu
         params = [newDigest, newVersion, newDigest, newVersion, userId, imageRepo, newVersion];
       }
 
-      db.run(query, params, function (err) {
+      db.run(query, params, err => {
         if (err) {
           reject(err);
         } else {

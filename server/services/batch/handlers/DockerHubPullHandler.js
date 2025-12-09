@@ -22,6 +22,7 @@ class DockerHubPullHandler extends JobHandler {
     };
   }
 
+  // eslint-disable-next-line max-lines-per-function, complexity -- DockerHub pull execution requires comprehensive processing
   async execute(context) {
     const { logger, userId } = context;
     const result = {
@@ -45,12 +46,12 @@ class DockerHubPullHandler extends JobHandler {
         true,
         null,
         userId,
-        logger
+        logger,
       );
 
       // Extract metrics
       result.itemsChecked = serviceResult.containers?.length || 0;
-      result.itemsUpdated = serviceResult.containers?.filter((c) => c.hasUpdate).length || 0;
+      result.itemsUpdated = serviceResult.containers?.filter(c => c.hasUpdate).length || 0;
 
       logger.info("Docker Hub pull completed successfully", {
         containersChecked: result.itemsChecked,
@@ -64,7 +65,7 @@ class DockerHubPullHandler extends JobHandler {
       if (err.isRateLimitExceeded && err.partialResults) {
         // Partial results available - return them instead of failing completely
         result.itemsChecked = err.processedCount || err.partialResults.length || 0;
-        result.itemsUpdated = err.partialResults.filter((c) => c.hasUpdate).length || 0;
+        result.itemsUpdated = err.partialResults.filter(c => c.hasUpdate).length || 0;
         result.partialSuccess = true;
         result.retryAfter = err.retryAfter;
 

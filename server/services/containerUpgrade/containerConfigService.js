@@ -15,6 +15,7 @@ const logger = require("../../utils/logger");
  * @returns {Object} - Cleaned HostConfig ready for container creation
  */
 function cleanHostConfig(hostConfig, containerName) {
+  // eslint-disable-next-line no-shadow -- Local variable shadows parameter intentionally
   const cleanHostConfig = { ...hostConfig };
 
   // Remove container-specific file paths
@@ -42,8 +43,8 @@ function cleanHostConfig(hostConfig, containerName) {
       logger.info("Removing PortBindings (conflicts with shared network mode)", {
         module: "containerUpgradeService",
         operation: "cleanHostConfig",
-        containerName: containerName,
-        networkMode: networkMode,
+        containerName,
+        networkMode,
       });
       delete cleanHostConfig.PortBindings;
     }
@@ -71,10 +72,11 @@ function cleanHostConfig(hostConfig, containerName) {
  * @param {boolean} isSharedNetworkMode - Whether container uses shared network mode
  * @returns {Object|undefined} - NetworkingConfig ready for container creation, or undefined
  */
+// eslint-disable-next-line complexity -- Networking config preparation requires multiple conditional checks
 function prepareNetworkingConfig(containerDetails, isSharedNetworkMode) {
   // Clean NetworkingConfig - Docker API expects specific format
   // BUT: Containers using network_mode: service:* or container:* don't have their own network config
-  let networkingConfig = undefined;
+  let networkingConfig;
 
   if (!isSharedNetworkMode && containerDetails.NetworkSettings?.Networks) {
     const networks = containerDetails.NetworkSettings.Networks;
@@ -121,12 +123,13 @@ function prepareNetworkingConfig(containerDetails, isSharedNetworkMode) {
  * @param {boolean} isSharedNetworkMode - Whether container uses shared network mode
  * @returns {Object} - Container configuration ready for Docker API createContainer call
  */
+// eslint-disable-next-line complexity -- Container config building requires multiple conditional checks
 function buildContainerConfig(
   containerDetails,
   newImageName,
-  cleanHostConfig,
+  cleanedHostConfig,
   networkingConfig,
-  isSharedNetworkMode
+  isSharedNetworkMode,
 ) {
   // Build container config, only including defined values
   const containerConfig = {
@@ -149,8 +152,8 @@ function buildContainerConfig(
   ) {
     containerConfig.ExposedPorts = containerDetails.Config.ExposedPorts;
   }
-  if (cleanHostConfig && Object.keys(cleanHostConfig).length > 0) {
-    containerConfig.HostConfig = cleanHostConfig;
+  if (cleanedHostConfig && Object.keys(cleanedHostConfig).length > 0) {
+    containerConfig.HostConfig = cleanedHostConfig;
   }
   if (containerDetails.Config.Labels && Object.keys(containerDetails.Config.Labels).length > 0) {
     containerConfig.Labels = containerDetails.Config.Labels;
@@ -184,7 +187,7 @@ function prepareContainerConfig(containerDetails, newImageName, containerName) {
 
   // Clean HostConfig
   const hostConfigResult = cleanHostConfig(containerDetails.HostConfig, containerName);
-  const { cleanHostConfig, isSharedNetworkMode } = hostConfigResult;
+  const { cleanHostConfig: cleanedHostConfig, isSharedNetworkMode } = hostConfigResult;
 
   // Prepare NetworkingConfig
   const networkingConfig = prepareNetworkingConfig(containerDetails, isSharedNetworkMode);
@@ -193,9 +196,9 @@ function prepareContainerConfig(containerDetails, newImageName, containerName) {
   const containerConfig = buildContainerConfig(
     containerDetails,
     newImageName,
-    cleanHostConfig,
+    cleanedHostConfig,
     networkingConfig,
-    isSharedNetworkMode
+    isSharedNetworkMode,
   );
 
   return {

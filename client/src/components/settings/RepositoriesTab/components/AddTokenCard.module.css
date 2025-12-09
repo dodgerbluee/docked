@@ -1,0 +1,90 @@
+.addTokenCard {
+  border: 2px dashed var(--border-color) !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-primary) !important;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addTokenCard:hover,
+.addTokenCard:focus {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-secondary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+body.dark-mode .addTokenCard:hover,
+body.dark-mode .addTokenCard:focus {
+  border-color: var(--dodger-blue-light) !important;
+}
+
+.addTokenCard:focus {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  width: 100%;
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  transition: all 0.2s ease;
+}
+
+.addTokenCard:hover .iconWrapper,
+.addTokenCard:focus .iconWrapper {
+  background: var(--dodger-blue);
+  transform: scale(1.05);
+}
+
+body.dark-mode .addTokenCard:hover .iconWrapper,
+body.dark-mode .addTokenCard:focus .iconWrapper {
+  background: var(--dodger-blue-light);
+}
+
+.plusIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.addTokenCard:hover .plusIcon,
+.addTokenCard:focus .plusIcon {
+  color: white;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.description {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+

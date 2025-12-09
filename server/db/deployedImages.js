@@ -17,7 +17,9 @@ const { getDatabase } = require("./connection");
  * @param {Object} options - Additional options (imageCreatedDate, registry, namespace, repository)
  * @returns {Promise<number>} - ID of the deployed image record
  */
+// eslint-disable-next-line max-lines-per-function -- Deployed image upsert requires comprehensive database operations
 function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options = {}) {
+  // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive database logic
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -47,13 +49,13 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
                SET last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                WHERE id = ?`,
               [row.id],
-              (updateErr) => {
+              updateErr => {
                 if (updateErr) {
                   reject(updateErr);
                 } else {
                   resolve(row.id);
                 }
-              }
+              },
             );
           } else {
             // Insert new record
@@ -78,10 +80,10 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
                 } else {
                   resolve(this.lastID);
                 }
-              }
+              },
             );
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -112,7 +114,7 @@ function getDeployedImage(userId, imageRepo, imageTag, imageDigest) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -141,7 +143,7 @@ function cleanupOrphanedDeployedImages(userId) {
           } else {
             resolve(this.changes);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);

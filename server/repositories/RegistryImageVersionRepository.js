@@ -16,12 +16,12 @@ class RegistryImageVersionRepository extends BaseRepository {
    * @param {Object} versionData - Version data
    * @returns {Promise<number>} - ID of the record
    */
-  async upsert(userId, imageRepo, tag, versionData) {
-    return await registryImageVersionsDb.upsertRegistryImageVersion(
+  upsert(userId, imageRepo, tag, versionData) {
+    return registryImageVersionsDb.upsertRegistryImageVersion(
       userId,
       imageRepo,
       tag,
-      versionData
+      versionData,
     );
   }
 
@@ -32,8 +32,8 @@ class RegistryImageVersionRepository extends BaseRepository {
    * @param {string} tag - Image tag
    * @returns {Promise<Object|null>} - Registry image version or null
    */
-  async findByUserAndImage(userId, imageRepo, tag) {
-    return await registryImageVersionsDb.getRegistryImageVersion(userId, imageRepo, tag);
+  findByUserAndImage(userId, imageRepo, tag) {
+    return registryImageVersionsDb.getRegistryImageVersion(userId, imageRepo, tag);
   }
 
   /**
@@ -41,8 +41,8 @@ class RegistryImageVersionRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<number>} - Number of versions cleaned up
    */
-  async cleanupOrphaned(userId) {
-    return await registryImageVersionsDb.cleanupOrphanedRegistryVersions(userId);
+  cleanupOrphaned(userId) {
+    return registryImageVersionsDb.cleanupOrphanedRegistryVersions(userId);
   }
 }
 

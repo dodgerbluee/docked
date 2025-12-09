@@ -51,7 +51,7 @@ function getUserById(id) {
           } else {
             resolve(row || null);
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -66,7 +66,7 @@ function getUserById(id) {
  * @returns {Promise<boolean>} - True if password matches
  */
 async function verifyPassword(plainPassword, hashedPassword) {
-  return await bcrypt.compare(plainPassword, hashedPassword);
+  return bcrypt.compare(plainPassword, hashedPassword);
 }
 
 /**
@@ -83,13 +83,13 @@ async function updatePassword(username, newPassword) {
       db.run(
         "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
         [passwordHash, username],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -111,13 +111,13 @@ async function updateUserPasswordById(userId, newPassword) {
       db.run(
         "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         [passwordHash, userId],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -139,13 +139,13 @@ function updateUserRole(userId, role, instanceAdmin) {
       db.run(
         "UPDATE users SET role = ?, instance_admin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         [role, instanceAdmin ? 1 : 0, userId],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -170,7 +170,7 @@ function getUserStats(userId) {
             (err, row) => {
               if (err) rejectCount(err);
               else resolveCount(row?.count || 0);
-            }
+            },
           );
         }),
         new Promise((resolveCount, rejectCount) => {
@@ -180,7 +180,7 @@ function getUserStats(userId) {
             (err, row) => {
               if (err) rejectCount(err);
               else resolveCount(row?.count || 0);
-            }
+            },
           );
         }),
       ])
@@ -210,13 +210,13 @@ async function updateUsername(oldUsername, newUsername) {
       db.run(
         "UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
         [newUsername, oldUsername],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -236,13 +236,13 @@ function updateLastLogin(username) {
       db.run(
         "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?",
         [username],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -255,33 +255,31 @@ function updateLastLogin(username) {
  * @returns {Promise<Array>} - Array of user objects
  */
 function getAllUsers() {
-  return queueDatabaseOperation(() => {
-    return new Promise((resolve, reject) => {
-      try {
-        const db = getDatabase();
-        // Use SELECT * to handle missing columns gracefully (for migration compatibility)
-        db.all("SELECT * FROM users ORDER BY created_at ASC", [], (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            const users = rows.map((row) => ({
-              id: row.id,
-              username: row.username,
-              email: row.email || null,
-              role: row.role || "Administrator",
-              instanceAdmin: row.instance_admin === 1,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-              lastLogin: row.last_login || null,
-            }));
-            resolve(users);
-          }
-        });
-      } catch (err) {
-        reject(err);
-      }
-    });
-  });
+  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      // Use SELECT * to handle missing columns gracefully (for migration compatibility)
+      db.all("SELECT * FROM users ORDER BY created_at ASC", [], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const users = rows.map(row => ({
+            id: row.id,
+            username: row.username,
+            email: row.email || null,
+            role: row.role || "Administrator",
+            instanceAdmin: row.instance_admin === 1,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            lastLogin: row.last_login || null,
+          }));
+          resolve(users);
+        }
+      });
+    } catch (err) {
+      reject(err);
+    }
+  }));
 }
 
 /**
@@ -323,7 +321,7 @@ async function createUser(
   password,
   email = null,
   role = "Administrator",
-  instanceAdmin = false
+  instanceAdmin = false,
 ) {
   const passwordHash = await bcrypt.hash(password, 10);
   return new Promise((resolve, reject) => {
@@ -332,13 +330,13 @@ async function createUser(
       db.run(
         "INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin) VALUES (?, ?, ?, ?, ?, ?)",
         [username, passwordHash, email, role, 1, instanceAdmin ? 1 : 0],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -359,13 +357,13 @@ function updateVerificationToken(username, token) {
       db.run(
         "UPDATE users SET verification_token = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
         [token, username],
-        function (err) {
+        err => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        }
+        },
       );
     } catch (err) {
       reject(err);
@@ -393,13 +391,13 @@ function verifyAndClearToken(username, token) {
           db.run(
             "UPDATE users SET verification_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
             [username],
-            (updateErr) => {
+            updateErr => {
               if (updateErr) {
                 reject(updateErr);
               } else {
                 resolve(true);
               }
-            }
+            },
           );
         }
       });

@@ -5,8 +5,6 @@
  * (e.g., during nginx-proxy-manager upgrades). Extracted from portainerService to improve modularity.
  */
 
-const axios = require("axios");
-const https = require("https");
 const { URL } = require("url");
 const { urlWithIp } = require("../../utils/dnsResolver");
 const logger = require("../../utils/logger");
@@ -83,6 +81,61 @@ function createAxiosConfig(url, originalUrl, baseConfig = {}) {
 }
 
 /**
+ * Check if error is DNS-related
+ * @param {Error} error - Error object
+ * @returns {boolean} - True if DNS error
+ */
+function isDnsError(error) {
+  return (
+    error.code === "ENOTFOUND" ||
+    error.code === "ECONNREFUSED" ||
+    error.code === "ETIMEDOUT" ||
+    error.code === "ERR_NETWORK" ||
+    error.message?.includes("getaddrinfo") ||
+    (!error.response && error.request)
+  );
+}
+
+/**
+ * Try IP fallback for DNS errors
+ * @param {Function} requestFn - Request function
+ * @param {string} portainerUrl - Original URL
+ * @param {Error} originalError - Original error
+ * @returns {Promise<any>} - Response data
+ */
+async function tryIpFallback(requestFn, portainerUrl, originalError) {
+  logger.info("DNS resolution failed, attempting IP fallback", {
+    portainerUrl,
+    error: originalError.message,
+  });
+
+  try {
+    const ipUrl = await urlWithIp(portainerUrl);
+    if (!ipUrl || ipUrl === portainerUrl) {
+      throw originalError;
+    }
+
+    logger.info("Using IP fallback for Portainer request", {
+      originalUrl: portainerUrl,
+      ipUrl,
+    });
+
+    const ssrfValidation = validateUrlForSSRF(ipUrl, true);
+    if (!ssrfValidation.valid) {
+      throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
+    }
+
+    return requestFn(ipUrl);
+  } catch (ipError) {
+    logger.warn("IP fallback also failed", {
+      originalUrl: portainerUrl,
+      ipError: ipError.message,
+    });
+    throw originalError;
+  }
+}
+
+/**
  * Make a request with automatic IP fallback if DNS fails
  * @param {Function} requestFn - Function that makes the axios request (receives URL as parameter)
  * @param {string} portainerUrl - Original Portainer URL
@@ -90,58 +143,12 @@ function createAxiosConfig(url, originalUrl, baseConfig = {}) {
  */
 async function requestWithIpFallback(requestFn, portainerUrl) {
   try {
-    // Try with original URL first
-    return await requestFn(portainerUrl);
+    return requestFn(portainerUrl);
   } catch (error) {
-    // Check if error is DNS-related
-    const isDnsError =
-      error.code === "ENOTFOUND" ||
-      error.code === "ECONNREFUSED" ||
-      error.code === "ETIMEDOUT" ||
-      error.code === "ERR_NETWORK" ||
-      error.message?.includes("getaddrinfo") ||
-      (!error.response && error.request);
-
-    if (!isDnsError) {
-      // Not a DNS error, re-throw
+    if (!isDnsError(error)) {
       throw error;
     }
-
-    // DNS failed - try IP fallback
-    logger.info("DNS resolution failed, attempting IP fallback", {
-      portainerUrl: portainerUrl,
-      error: error.message,
-    });
-
-    try {
-      // Resolve IP address from URL
-      const ipUrl = await urlWithIp(portainerUrl);
-      if (!ipUrl || ipUrl === portainerUrl) {
-        // No IP available or same as original, throw original error
-        throw error;
-      }
-
-      logger.info("Using IP fallback for Portainer request", {
-        originalUrl: portainerUrl,
-        ipUrl: ipUrl,
-      });
-
-      // Validate URL for SSRF (allow private IPs for user-configured Portainer instances)
-      const ssrfValidation = validateUrlForSSRF(ipUrl, true);
-      if (!ssrfValidation.valid) {
-        throw new Error(`SSRF validation failed: ${ssrfValidation.error}`);
-      }
-
-      // Try request with IP URL
-      return await requestFn(ipUrl);
-    } catch (ipError) {
-      // IP fallback also failed - throw original error
-      logger.warn("IP fallback also failed", {
-        originalUrl: portainerUrl,
-        ipError: ipError.message,
-      });
-      throw error;
-    }
+    return tryIpFallback(requestFn, portainerUrl, error);
   }
 }
 

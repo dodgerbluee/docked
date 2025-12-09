@@ -23,7 +23,8 @@ const {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-function errorHandler(err, req, res, next) {
+// eslint-disable-next-line max-lines-per-function, complexity -- Error handler requires comprehensive error processing logic
+function errorHandler(err, req, res, _next) {
   // Log error with context
   logger.error("Request error", {
     module: "errorHandler",
@@ -97,7 +98,7 @@ function errorHandler(err, req, res, next) {
       ? "Internal server error"
       : err.message || "Internal server error";
 
-  sendErrorResponse(res, message, status, {
+  return sendErrorResponse(res, message, status, {
     errorCode: "INTERNAL_ERROR",
     ...(process.env.NODE_ENV === "development" && {
       stack: err.stack,

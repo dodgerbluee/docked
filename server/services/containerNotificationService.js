@@ -33,56 +33,169 @@ function normalizeDigest(digest) {
 }
 
 /**
+ * Check if update details changed between previous and current container
+ * @param {Object} previousContainer - Previous container data
+ * @param {Object} container - Current container data
+ * @returns {boolean} - True if update details changed
+ */
+function hasUpdateDetailsChanged(previousContainer, container) {
+  const previousLatestDigest = previousContainer.latestDigest || null;
+  const currentLatestDigest = container.latestDigest || container.latestDigestFull || null;
+  const previousLatestVersion = previousContainer.latestVersion || null;
+  const currentLatestVersion =
+    container.latestVersion || container.newVersion || container.latestTag || null;
+
+  const normalizedPreviousDigest = normalizeDigest(previousLatestDigest);
+  const normalizedCurrentDigest = normalizeDigest(currentLatestDigest);
+
+  // Check if digest changed
+  const digestChanged =
+    normalizedCurrentDigest &&
+    normalizedPreviousDigest &&
+    normalizedCurrentDigest !== normalizedPreviousDigest;
+
+  // Check if version changed
+  const versionChanged =
+    currentLatestVersion &&
+    previousLatestVersion &&
+    currentLatestVersion !== previousLatestVersion;
+
+  return digestChanged || versionChanged;
+}
+
+/**
  * Check if a container update should trigger a notification
  * @param {Object} container - Current container data
  * @param {Object} previousContainer - Previous container data (from database)
  * @returns {Object} - Object with shouldNotify and isNewlyIdentified flags
  */
 function shouldNotifyContainerUpdate(container, previousContainer) {
-  let shouldNotify = false;
-  let isNewlyIdentified = false;
+  // Compute hasUpdate for both containers to ensure accuracy
+  const currentHasUpdate = computeHasUpdate(container);
+  const previousHasUpdate = previousContainer ? computeHasUpdate(previousContainer) : false;
 
+  // New container with update - always notify
   if (!previousContainer) {
-    // New container with update - always notify
-    shouldNotify = true;
-    isNewlyIdentified = true;
-  } else if (!previousContainer.hasUpdate && container.hasUpdate) {
-    // Container previously had no update, now has update - new update detected
-    shouldNotify = true;
-    isNewlyIdentified = true;
-  } else if (previousContainer.hasUpdate && container.hasUpdate) {
-    // Both had updates - check if the latest version/digest changed
-    const previousLatestDigest = previousContainer.latestDigest || null;
-    const currentLatestDigest = container.latestDigest || container.latestDigestFull || null;
-    const previousLatestVersion = previousContainer.latestVersion || null;
-    const currentLatestVersion =
-      container.latestVersion || container.newVersion || container.latestTag || null;
+    return { shouldNotify: currentHasUpdate, isNewlyIdentified: currentHasUpdate };
+  }
 
-    const normalizedPreviousDigest = normalizeDigest(previousLatestDigest);
-    const normalizedCurrentDigest = normalizeDigest(currentLatestDigest);
+  // Container previously had no update, now has update - new update detected
+  if (!previousHasUpdate && currentHasUpdate) {
+    return { shouldNotify: true, isNewlyIdentified: true };
+  }
 
-    // Notify if digest or version changed (newer update available)
-    // Only notify if both values exist and are different
-    if (
-      normalizedCurrentDigest &&
-      normalizedPreviousDigest &&
-      normalizedCurrentDigest !== normalizedPreviousDigest
-    ) {
-      shouldNotify = true;
-      isNewlyIdentified = true;
-    } else if (
-      currentLatestVersion &&
-      previousLatestVersion &&
-      currentLatestVersion !== previousLatestVersion
-    ) {
-      shouldNotify = true;
-      isNewlyIdentified = true;
+  // Both had updates - check if the latest version/digest changed
+  if (previousHasUpdate && currentHasUpdate) {
+    const detailsChanged = hasUpdateDetailsChanged(previousContainer, container);
+    if (detailsChanged) {
+      return { shouldNotify: true, isNewlyIdentified: true };
     }
     // If neither changed, don't notify (same update still available)
     // Also don't notify if one is null and the other isn't (data inconsistency, not a new update)
   }
 
-  return { shouldNotify, isNewlyIdentified };
+  return { shouldNotify: false, isNewlyIdentified: false };
+}
+
+/**
+ * Build a map of previous containers by unique identifier
+ * @param {Array<Object>} previousContainers - Previous containers from database
+ * @param {number} userId - User ID
+ * @returns {Promise<Map<string, Object>>} - Map of previous containers
+ */
+async function buildPreviousContainersMap(previousContainers, userId) {
+  const previousContainersMap = new Map();
+  const userInstances = await getAllPortainerInstances(userId);
+  const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+
+  previousContainers.forEach(container => {
+    const instance = instanceMap.get(container.portainerInstanceId);
+    const portainerUrl = instance ? instance.url : null;
+    const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
+
+    previousContainersMap.set(key, {
+      name: container.containerName,
+      portainerUrl,
+      endpointId: container.endpointId,
+      hasUpdate: computeHasUpdate(container), // Compute on-the-fly
+      latestDigest: normalizeDigest(container.latestDigest),
+      latestVersion: container.latestVersion || container.latestTag || null,
+      currentDigest: normalizeDigest(container.currentDigest),
+    });
+  });
+
+  return previousContainersMap;
+}
+
+/**
+ * Extract container version and digest information
+ * @param {Object} container - Container object
+ * @returns {Object} - Extracted version and digest info
+ */
+function extractContainerVersionInfo(container) {
+  return {
+    imageName: container.image || "Unknown",
+    currentVersion: container.currentVersion || container.currentTag || "Unknown",
+    latestVersion: container.newVersion || container.latestTag || container.latestVersion || "Unknown",
+    currentDigest: container.currentDigest || container.currentDigestFull || "N/A",
+    latestDigest: container.latestDigest || container.latestDigestFull || "N/A",
+  };
+}
+
+/**
+ * Log a newly identified upgrade
+ * @param {Object} container - Container object
+ * @param {Object} versionInfo - Version and digest information
+ * @param {number} userId - User ID
+ * @param {Object} batchLogger - Optional batch logger
+ */
+function logNewlyIdentifiedUpgrade(container, versionInfo, userId, batchLogger) {
+  const { imageName, currentVersion, latestVersion, currentDigest, latestDigest } = versionInfo;
+  const logData = {
+    module: "containerQueryService",
+    operation: "getAllContainersWithUpdates",
+    containerName: container.name,
+    imageName,
+    currentDigest: currentDigest.length > 12 ? `${currentDigest.substring(0, 12)}...` : currentDigest,
+    latestDigest: latestDigest.length > 12 ? `${latestDigest.substring(0, 12)}...` : latestDigest,
+    currentVersion,
+    latestVersion,
+    portainerUrl: container.portainerUrl || "Unknown",
+    endpointId: container.endpointId || "Unknown",
+    userId: userId || "batch",
+  };
+
+  const logMessage = `Newly identified upgrade: ${container.name} (${imageName}) - ${currentVersion} → ${latestVersion}`;
+  if (batchLogger) {
+    batchLogger.info(logMessage, logData);
+  } else {
+    logger.info("Newly identified upgrade detected", logData);
+  }
+}
+
+/**
+ * Queue a Discord notification for a container update
+ * @param {Object} discord - Discord service
+ * @param {Object} container - Container object
+ * @param {Object} versionInfo - Version and digest information
+ * @param {number} userId - User ID
+ */
+async function queueContainerNotification(discord, container, versionInfo, userId) {
+  const { imageName, currentVersion, latestVersion, latestDigest } = versionInfo;
+  await discord.queueNotification({
+    id: container.id,
+    name: container.name,
+    imageName,
+    githubRepo: null,
+    sourceType: "docker",
+    currentVersion,
+    latestVersion,
+    latestDigest: container.latestDigest || container.latestDigestFull || null,
+    latestVersionPublishDate: container.latestPublishDate || null,
+    releaseUrl: null,
+    notificationType: "portainer-container",
+    userId,
+  });
 }
 
 /**
@@ -97,7 +210,7 @@ async function sendContainerUpdateNotifications(
   allContainers,
   previousContainers,
   userId,
-  batchLogger = null
+  batchLogger = null,
 ) {
   if (!previousContainers || previousContainers.length === 0) {
     return;
@@ -109,103 +222,32 @@ async function sendContainerUpdateNotifications(
       return;
     }
 
-    // Create a map of previous containers by unique identifier
-    // Use combination of name, portainerUrl, and endpointId for uniqueness
-    // (Name is more stable than ID, which changes after upgrades)
-    const previousContainersMap = new Map();
-    const userInstances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+    const previousContainersMap = await buildPreviousContainersMap(previousContainers, userId);
 
-    previousContainers.forEach((container) => {
-      // Get portainerUrl from instance
-      const instance = instanceMap.get(container.portainerInstanceId);
-      const portainerUrl = instance ? instance.url : null;
-      // Use name as primary key since container IDs change after upgrades
-      const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
-
-      previousContainersMap.set(key, {
-        name: container.containerName,
-        portainerUrl: portainerUrl,
-        endpointId: container.endpointId,
-        hasUpdate: container.hasUpdate || false,
-        latestDigest: normalizeDigest(container.latestDigest),
-        latestVersion: container.latestVersion || container.latestTag || null,
-        currentDigest: normalizeDigest(container.currentDigest),
-      });
-    });
-
-    // Check each new container for newly detected updates
     for (const container of allContainers) {
-      if (container.hasUpdate) {
-        // Match by name (more stable than ID which changes after upgrades)
-        const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
-        const previousContainer = previousContainersMap.get(key);
+      // Compute hasUpdate on-the-fly
+      if (!computeHasUpdate(container)) {
+        continue;
+      }
 
-        const { shouldNotify, isNewlyIdentified } = shouldNotifyContainerUpdate(
-          container,
-          previousContainer
-        );
+      const key = `${container.name}-${container.portainerUrl}-${container.endpointId}`;
+      const previousContainer = previousContainersMap.get(key);
+      const { shouldNotify, isNewlyIdentified } = shouldNotifyContainerUpdate(
+        container,
+        previousContainer,
+      );
 
-        // Log all newly identified upgrades (regardless of Discord notification)
-        if (isNewlyIdentified) {
-          const imageName = container.image || "Unknown";
-          const currentVersion = container.currentVersion || container.currentTag || "Unknown";
-          const latestVersion =
-            container.newVersion || container.latestTag || container.latestVersion || "Unknown";
-          const currentDigest = container.currentDigest || container.currentDigestFull || "N/A";
-          const latestDigest = container.latestDigest || container.latestDigestFull || "N/A";
+      if (isNewlyIdentified) {
+        const versionInfo = extractContainerVersionInfo(container);
+        logNewlyIdentifiedUpgrade(container, versionInfo, userId, batchLogger);
+      }
 
-          const logData = {
-            module: "containerQueryService",
-            operation: "getAllContainersWithUpdates",
-            containerName: container.name,
-            imageName: imageName,
-            currentDigest:
-              currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest,
-            latestDigest:
-              latestDigest.length > 12 ? latestDigest.substring(0, 12) + "..." : latestDigest,
-            currentVersion: currentVersion,
-            latestVersion: latestVersion,
-            portainerUrl: container.portainerUrl || "Unknown",
-            endpointId: container.endpointId || "Unknown",
-            userId: userId || "batch",
-          };
-
-          // Use batch logger if available (for batch job logs), otherwise use regular logger
-          const logMessage = `Newly identified upgrade: ${container.name} (${imageName}) - ${currentVersion} → ${latestVersion}`;
-          if (batchLogger) {
-            batchLogger.info(logMessage, logData);
-          } else {
-            logger.info("Newly identified upgrade detected", logData);
-          }
-        }
-
-        if (shouldNotify) {
-          // Format container data for notification
-          const imageName = container.image || "Unknown";
-          const currentVersion = container.currentVersion || container.currentTag || "Unknown";
-          const latestVersion =
-            container.newVersion || container.latestTag || container.latestVersion || "Unknown";
-
-          await discord.queueNotification({
-            id: container.id,
-            name: container.name,
-            imageName: imageName,
-            githubRepo: null,
-            sourceType: "docker",
-            currentVersion: currentVersion,
-            latestVersion: latestVersion,
-            latestDigest: container.latestDigest || container.latestDigestFull || null,
-            latestVersionPublishDate: container.latestPublishDate || null,
-            releaseUrl: null, // Containers don't have release URLs
-            notificationType: "portainer-container",
-            userId: userId,
-          });
-        }
+      if (shouldNotify) {
+        const versionInfo = extractContainerVersionInfo(container);
+        await queueContainerNotification(discord, container, versionInfo, userId);
       }
     }
   } catch (error) {
-    // Don't fail the update check if notification fails
     logger.error("Error sending Discord notifications for container updates:", error);
   }
 }

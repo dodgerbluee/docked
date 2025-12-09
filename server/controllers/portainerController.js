@@ -22,6 +22,7 @@ const { resolveUrlToIp } = require("../utils/dnsResolver");
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex instance validation logic
 async function validateInstance(req, res, next) {
   try {
     const { url, username, password, apiKey, authType = "apikey" } = req.body;
@@ -52,7 +53,7 @@ async function validateInstance(req, res, next) {
           error: "URL must use http:// or https://",
         });
       }
-    } catch (err) {
+    } catch (_err) {
       return res.status(400).json({
         success: false,
         error: "Invalid URL format",
@@ -61,17 +62,17 @@ async function validateInstance(req, res, next) {
 
     // Test authentication - skip cache to ensure we validate the actual credentials provided
     try {
-      await portainerService.authenticatePortainer(
-        url.trim(),
-        username || null,
-        password || null,
-        apiKey || null,
+      await portainerService.authenticatePortainer({
+        portainerUrl: url.trim(),
+        username: username || null,
+        password: password || null,
+        apiKey: apiKey || null,
         authType,
-        true // skipCache = true for validation
-      );
+        skipCache: true, // skipCache = true for validation
+      });
 
       // If we get here, authentication succeeded
-      res.json({
+      return res.json({
         success: true,
         message: "Authentication successful",
       });
@@ -105,8 +106,9 @@ async function getInstances(req, res, next) {
     }
     const instances = await getAllPortainerInstances(userId);
     // Don't return passwords or API keys in the response
-    const safeInstances = instances.map(({ password, api_key, ...rest }) => rest);
-    res.json({
+
+    const safeInstances = instances.map(({ password: _password, api_key: _apiKey, ...rest }) => rest);
+    return res.json({
       success: true,
       instances: safeInstances,
     });
@@ -131,7 +133,7 @@ async function getInstance(req, res, next) {
       });
     }
     const { id } = req.params;
-    const instance = await getPortainerInstanceById(parseInt(id), userId);
+    const instance = await getPortainerInstanceById(parseInt(id, 10), userId);
 
     if (!instance) {
       return res.status(404).json({
@@ -141,8 +143,9 @@ async function getInstance(req, res, next) {
     }
 
     // Don't return password or API key in the response
-    const { password, api_key, ...safeInstance } = instance;
-    res.json({
+
+    const { password: _password, api_key: _apiKey, ...safeInstance } = instance;
+    return res.json({
       success: true,
       instance: safeInstance,
     });
@@ -157,6 +160,7 @@ async function getInstance(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex instance creation logic
 async function createInstance(req, res, next) {
   try {
     const { name, url, username, password, apiKey, authType = "apikey" } = req.body;
@@ -193,7 +197,7 @@ async function createInstance(req, res, next) {
           error: "URL must use http:// or https://",
         });
       }
-    } catch (err) {
+    } catch (_err) {
       return res.status(400).json({
         success: false,
         error: "Invalid URL format",
@@ -211,7 +215,7 @@ async function createInstance(req, res, next) {
         module: "portainerController",
         operation: "createInstance",
         url: url.trim(),
-        ipAddress: ipAddress,
+        ipAddress,
         note: "This IP will be used for fallback when DNS is unavailable (e.g., during nginx upgrades)",
       });
     } else {
@@ -233,18 +237,18 @@ async function createInstance(req, res, next) {
 
     // Create instance
     // For API key auth, pass empty strings for username/password to satisfy NOT NULL constraints
-    const id = await createPortainerInstance(
+    const id = await createPortainerInstance({
       userId,
-      instanceName,
-      url.trim(),
-      authType === "apikey" ? "" : username ? username.trim() : "",
-      authType === "apikey" ? "" : password || "",
-      apiKey || null,
+      name: instanceName,
+      url: url.trim(),
+      username: authType === "apikey" ? "" : username ? username.trim() : "",
+      password: authType === "apikey" ? "" : password || "",
+      apiKey: apiKey || null,
       authType,
-      ipAddress
-    );
+      ipAddress,
+    });
 
-    res.json({
+    return res.json({
       success: true,
       message: "Portainer instance created successfully",
       id,
@@ -267,6 +271,7 @@ async function createInstance(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex instance update logic
 async function updateInstance(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -280,7 +285,7 @@ async function updateInstance(req, res, next) {
     const { name, url, username, password, apiKey, authType } = req.body;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id), userId);
+    const existing = await getPortainerInstanceById(parseInt(id, 10), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -325,7 +330,7 @@ async function updateInstance(req, res, next) {
           error: "URL must use http:// or https://",
         });
       }
-    } catch (err) {
+    } catch (_err) {
       return res.status(400).json({
         success: false,
         error: "Invalid URL format",
@@ -352,7 +357,7 @@ async function updateInstance(req, res, next) {
         ipAddress = resolvedIp;
       } else {
         logger.warn(
-          `Failed to resolve ${url.trim()} to IP address - keeping existing IP (${existing.ip_address || "none"}) if available`
+          `Failed to resolve ${url.trim()} to IP address - keeping existing IP (${existing.ip_address || "none"}) if available`,
         );
       }
     }
@@ -380,19 +385,19 @@ async function updateInstance(req, res, next) {
     // Update instance
     // For API key auth, use empty strings for username/password to satisfy NOT NULL constraints
     // For password auth, use null for API key to clear it
-    await updatePortainerInstance(
-      parseInt(id),
+    await updatePortainerInstance({
+      id: parseInt(id, 10),
       userId,
-      instanceName,
-      url.trim(),
-      finalAuthType === "apikey" ? "" : username ? username.trim() : "",
-      passwordToUse || "",
-      apiKeyToUse,
-      finalAuthType,
-      ipAddress
-    );
+      name: instanceName,
+      url: url.trim(),
+      username: finalAuthType === "apikey" ? "" : username ? username.trim() : "",
+      password: passwordToUse || "",
+      apiKey: apiKeyToUse,
+      authType: finalAuthType,
+      ipAddress,
+    });
 
-    res.json({
+    return res.json({
       success: true,
       message: "Portainer instance updated successfully",
     });
@@ -426,7 +431,7 @@ async function deleteInstance(req, res, next) {
     const { id } = req.params;
 
     // Check if instance exists
-    const existing = await getPortainerInstanceById(parseInt(id), userId);
+    const existing = await getPortainerInstanceById(parseInt(id, 10), userId);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -438,16 +443,16 @@ async function deleteInstance(req, res, next) {
     const deletedInstanceUrl = existing.url;
 
     // Normalize URL for comparison (remove trailing slash, lowercase)
-    const normalizeUrl = (url) => {
+    const normalizeUrl = url => {
       if (!url) {
         return "";
       }
       return url.trim().replace(/\/+$/, "").toLowerCase();
     };
-    const normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
+    const _normalizedDeletedUrl = normalizeUrl(deletedInstanceUrl);
 
     // Delete instance
-    await deletePortainerInstance(parseInt(id), userId);
+    await deletePortainerInstance(parseInt(id, 10), userId);
 
     // Containers are automatically deleted from normalized tables via CASCADE
     // when the portainer instance is deleted, so no manual cleanup needed
@@ -457,10 +462,10 @@ async function deleteInstance(req, res, next) {
         module: "portainerController",
         operation: "deleteInstance",
         instanceUrl: deletedInstanceUrl,
-      }
+      },
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: "Portainer instance deleted successfully",
     });
@@ -505,7 +510,7 @@ async function updateInstanceOrder(req, res, next) {
 
     await updatePortainerInstanceOrder(userId, orders);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Portainer instance order updated successfully",
     });

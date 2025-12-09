@@ -271,6 +271,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/tracked-apps/check-updates`);
       if (response.data.success) {
+        // Wait a moment for database updates to complete before fetching
+        await new Promise((resolve) => setTimeout(resolve, 500));
         await fetchTrackedApps();
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately

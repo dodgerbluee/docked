@@ -5,13 +5,30 @@
 
 require("dotenv").config({ quiet: true });
 
+/**
+ * Checks if the request is from localhost
+ * @param {Object} req - Express request object
+ * @returns {boolean} - True if request is from localhost
+ */
+function checkIsLocalhost(req) {
+  const ip = req.ip || req.connection?.remoteAddress || "";
+  const hostname = req.hostname || req.get("host") || "";
+  return (
+    ip === "::1" ||
+    ip === "127.0.0.1" ||
+    ip === "::ffff:127.0.0.1" ||
+    hostname.includes("localhost") ||
+    hostname.includes("127.0.0.1")
+  );
+}
+
 const config = {
   port: process.env.PORT || 3001,
   portainer: {
     urls: (process.env.PORTAINER_URL || process.env.PORTAINER_URLS || "http://localhost:9000")
       .split(",")
-      .map((url) => url.trim())
-      .filter((url) => url.length > 0),
+      .map(url => url.trim())
+      .filter(url => url.length > 0),
     username: process.env.PORTAINER_USERNAME || "admin",
     password: process.env.PORTAINER_PASSWORD ? String(process.env.PORTAINER_PASSWORD) : "",
   },
@@ -33,15 +50,8 @@ const config = {
       standardHeaders: true,
       legacyHeaders: false,
       // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
-      skip: (req) => {
-        const ip = req.ip || req.connection?.remoteAddress || "";
-        const hostname = req.hostname || req.get("host") || "";
-        const isLocalhost =
-          ip === "::1" ||
-          ip === "127.0.0.1" ||
-          ip === "::ffff:127.0.0.1" ||
-          hostname.includes("localhost") ||
-          hostname.includes("127.0.0.1");
+      skip: req => {
+        const isLocalhost = checkIsLocalhost(req);
         // Skip in development OR if accessing via localhost (even in production mode)
         return process.env.NODE_ENV !== "production" || isLocalhost;
       },
@@ -54,24 +64,17 @@ const config = {
       standardHeaders: true,
       legacyHeaders: false,
       // Skip rate limiting for localhost (IPv4, IPv6, or hostname)
-      skip: (req) => {
-        const ip = req.ip || req.connection?.remoteAddress || "";
-        const hostname = req.hostname || req.get("host") || "";
-        const isLocalhost =
-          ip === "::1" ||
-          ip === "127.0.0.1" ||
-          ip === "::ffff:127.0.0.1" ||
-          hostname.includes("localhost") ||
-          hostname.includes("127.0.0.1");
+      skip: req => {
+        const isLocalhost = checkIsLocalhost(req);
         // Skip in development OR if accessing via localhost (even in production mode)
         return process.env.NODE_ENV !== "production" || isLocalhost;
       },
       // Use a custom key generator that works better with proxies
-      keyGenerator: (req) => {
+      keyGenerator: req =>
         // Use the real IP from req.ip (which respects trust proxy setting)
         // Fallback to connection remoteAddress if req.ip is not set
-        return req.ip || req.connection?.remoteAddress || "unknown";
-      },
+        req.ip || req.connection?.remoteAddress || "unknown"
+      ,
     },
   },
   retry: {
@@ -85,7 +88,7 @@ const config = {
   },
   cors: {
     origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+      ? process.env.CORS_ORIGIN.split(",").map(origin => origin.trim())
       : process.env.NODE_ENV === "production"
         ? ["https://yourdomain.com"] // Update with your production domain
         : true, // Allow all origins in development for Safari compatibility

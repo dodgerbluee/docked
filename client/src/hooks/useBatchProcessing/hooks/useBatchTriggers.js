@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../constants/api";
 import { handleDockerHubError } from "../../../utils/apiErrorHandler";
+import { updateContainersWithPreservedState } from "../../../utils/containerStateHelpers";
 
 /**
  * Hook for batch trigger operations
@@ -65,15 +66,10 @@ export const useBatchTriggers = ({
         const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
         if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
           const apiContainers = cachedResponse.data.containers || [];
-          const updatedContainers = apiContainers.map((apiContainer) => {
-            if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-              if (!apiContainer.hasUpdate) {
-                successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-              }
-              return { ...apiContainer, hasUpdate: false };
-            }
-            return apiContainer;
-          });
+          const updatedContainers = updateContainersWithPreservedState(
+            apiContainers,
+            successfullyUpdatedContainersRef
+          );
           setContainers(updatedContainers);
           setStacks(cachedResponse.data.stacks || []);
           setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
@@ -126,15 +122,10 @@ export const useBatchTriggers = ({
 
       if (response.data.grouped && response.data.stacks) {
         const apiContainers = response.data.containers || [];
-        const updatedContainers = apiContainers.map((apiContainer) => {
-          if (successfullyUpdatedContainersRef.current.has(apiContainer.id)) {
-            if (!apiContainer.hasUpdate) {
-              successfullyUpdatedContainersRef.current.delete(apiContainer.id);
-            }
-            return { ...apiContainer, hasUpdate: false };
-          }
-          return apiContainer;
-        });
+        const updatedContainers = updateContainersWithPreservedState(
+          apiContainers,
+          successfullyUpdatedContainersRef
+        );
         setContainers(updatedContainers);
         setStacks(response.data.stacks || []);
         setUnusedImagesCount(response.data.unusedImagesCount || 0);

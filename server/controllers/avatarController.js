@@ -5,7 +5,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { validateRequiredFields } = require("../utils/validation");
+// const { validateRequiredFields } = require("../utils/validation"); // Unused
 const logger = require("../utils/logger");
 
 // Use DATA_DIR environment variable or default to /data
@@ -40,36 +40,29 @@ async function getAvatar(req, res, next) {
     if (!fs.existsSync(avatarPath)) {
       await migrateAvatarFromUsername(userId, req.user.username);
     }
-
     if (fs.existsSync(avatarPath)) {
       // Return the avatar file
-      res.sendFile(avatarPath);
-    } else {
-      // Return default avatar instead of 404
-      // This prevents frontend errors when avatar doesn't exist
-      // Try multiple possible locations for default avatar
-      const possibleDefaultPaths = [
-        path.join(__dirname, "../../client/public/img/default-avatar.jpg"),
-        path.join(__dirname, "../../public/img/default-avatar.jpg"),
-        path.join(process.cwd(), "client/public/img/default-avatar.jpg"),
-        path.join(process.cwd(), "public/img/default-avatar.jpg"),
-      ];
+      return res.sendFile(avatarPath);
+    }
+    // Return default avatar instead of 404
+    // This prevents frontend errors when avatar doesn't exist
+    // Try multiple possible locations for default avatar
+    const possibleDefaultPaths = [
+      path.join(__dirname, "../../client/public/img/default-avatar.jpg"),
+      path.join(__dirname, "../../public/img/default-avatar.jpg"),
+      path.join(process.cwd(), "client/public/img/default-avatar.jpg"),
+      path.join(process.cwd(), "public/img/default-avatar.jpg"),
+    ];
 
-      let defaultAvatarSent = false;
-      for (const defaultPath of possibleDefaultPaths) {
-        if (fs.existsSync(defaultPath)) {
-          res.sendFile(defaultPath);
-          defaultAvatarSent = true;
-          break;
-        }
-      }
-
-      if (!defaultAvatarSent) {
-        // If no default avatar found, return 204 No Content
-        // Frontend will handle this and use its own default
-        res.status(204).end();
+    for (const defaultPath of possibleDefaultPaths) {
+      if (fs.existsSync(defaultPath)) {
+        return res.sendFile(defaultPath);
       }
     }
+
+    // If no default avatar found, return 204 No Content
+    // Frontend will handle this and use its own default
+    return res.status(204).end();
   } catch (err) {
     next(err);
   }
@@ -97,7 +90,6 @@ async function getRecentAvatars(req, res, next) {
     if (!fs.existsSync(recentAvatarsDir)) {
       await migrateAvatarFromUsername(userId, req.user.username);
     }
-
     if (!fs.existsSync(recentAvatarsDir)) {
       return res.json({
         success: true,
@@ -108,8 +100,8 @@ async function getRecentAvatars(req, res, next) {
     // Get all avatar files, sorted by modification time (newest first)
     const files = fs
       .readdirSync(recentAvatarsDir)
-      .filter((file) => file.endsWith(".jpg"))
-      .map((file) => {
+      .filter(file => file.endsWith(".jpg"))
+      .map(file => {
         const filePath = path.join(recentAvatarsDir, file);
         return {
           filename: file,
@@ -119,9 +111,9 @@ async function getRecentAvatars(req, res, next) {
       })
       .sort((a, b) => b.mtime - a.mtime)
       .slice(0, 3) // Keep only 3 most recent
-      .map((file) => `/api/avatars/recent/${file.filename}`);
+      .map(file => `/api/avatars/recent/${file.filename}`);
 
-    res.json({
+    return res.json({
       success: true,
       avatars: files,
     });
@@ -146,7 +138,7 @@ async function getRecentAvatar(req, res, next) {
       });
     }
 
-    const filename = req.params.filename;
+    const { filename } = req.params;
 
     // Security: ensure filename is safe (only alphanumeric, dash, underscore)
     if (!/^[a-zA-Z0-9_-]+\.jpg$/.test(filename)) {
@@ -162,15 +154,13 @@ async function getRecentAvatar(req, res, next) {
     if (!fs.existsSync(avatarPath)) {
       await migrateAvatarFromUsername(userId, req.user.username);
     }
-
     if (fs.existsSync(avatarPath)) {
-      res.sendFile(avatarPath);
-    } else {
-      res.status(404).json({
-        success: false,
-        error: "Avatar not found",
-      });
+      return res.sendFile(avatarPath);
     }
+    return res.status(404).json({
+      success: false,
+      error: "Avatar not found",
+    });
   } catch (err) {
     next(err);
   }
@@ -182,7 +172,8 @@ async function getRecentAvatar(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function uploadAvatar(req, res, next) {
+// eslint-disable-next-line max-lines-per-function -- Complex avatar upload logic with validation
+function uploadAvatar(req, res, next) {
   try {
     const userId = req.user.id;
     if (!userId) {
@@ -216,7 +207,6 @@ async function uploadAvatar(req, res, next) {
     // Ensure user's avatar directory exists (using user ID)
     const userAvatarDir = path.join(AVATARS_DIR, userId.toString());
     const recentAvatarsDir = path.join(userAvatarDir, "recent");
-
     if (!fs.existsSync(userAvatarDir)) {
       fs.mkdirSync(userAvatarDir, { recursive: true });
     }
@@ -236,8 +226,8 @@ async function uploadAvatar(req, res, next) {
     // Clean up old recent avatars (keep only 3 most recent)
     const recentFiles = fs
       .readdirSync(recentAvatarsDir)
-      .filter((file) => file.endsWith(".jpg"))
-      .map((file) => {
+      .filter(file => file.endsWith(".jpg"))
+      .map(file => {
         const filePath = path.join(recentAvatarsDir, file);
         return {
           filename: file,
@@ -249,16 +239,16 @@ async function uploadAvatar(req, res, next) {
 
     // Delete files beyond the 3 most recent
     if (recentFiles.length > 3) {
-      recentFiles.slice(3).forEach((file) => {
+      recentFiles.slice(3).forEach(file => {
         fs.unlinkSync(file.path);
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Avatar uploaded successfully",
       avatarUrl: `/api/avatars`,
-      recentAvatars: recentFiles.slice(0, 3).map((file) => `/api/avatars/recent/${file.filename}`),
+      recentAvatars: recentFiles.slice(0, 3).map(file => `/api/avatars/recent/${file.filename}`),
     });
   } catch (err) {
     next(err);
@@ -271,7 +261,7 @@ async function uploadAvatar(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setCurrentAvatar(req, res, next) {
+function setCurrentAvatar(req, res, next) {
   try {
     const userId = req.user.id;
     if (!userId) {
@@ -300,7 +290,6 @@ async function setCurrentAvatar(req, res, next) {
 
     const recentAvatarPath = path.join(AVATARS_DIR, userId.toString(), "recent", filename);
     const currentAvatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
-
     if (!fs.existsSync(recentAvatarPath)) {
       return res.status(404).json({
         success: false,
@@ -311,7 +300,7 @@ async function setCurrentAvatar(req, res, next) {
     // Copy recent avatar to current avatar
     fs.copyFileSync(recentAvatarPath, currentAvatarPath);
 
-    res.json({
+    return res.json({
       success: true,
       message: "Avatar set as current",
       avatarUrl: `/api/avatars`,
@@ -327,7 +316,7 @@ async function setCurrentAvatar(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function deleteAvatar(req, res, next) {
+function deleteAvatar(req, res, next) {
   try {
     const userId = req.user.id;
     if (!userId) {
@@ -338,12 +327,11 @@ async function deleteAvatar(req, res, next) {
     }
 
     const avatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
-
     if (fs.existsSync(avatarPath)) {
       fs.unlinkSync(avatarPath);
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Avatar deleted successfully",
     });
@@ -358,7 +346,7 @@ async function deleteAvatar(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getAvatarByUserId(req, res, next) {
+function getAvatarByUserId(req, res, next) {
   try {
     // Only instance admins can view other users' avatars
     if (!req.user?.instanceAdmin) {
@@ -377,31 +365,24 @@ async function getAvatarByUserId(req, res, next) {
     }
 
     const avatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
-
     if (fs.existsSync(avatarPath)) {
-      res.sendFile(avatarPath);
-    } else {
-      // Return default avatar instead of 404
-      const possibleDefaultPaths = [
-        path.join(__dirname, "../../client/public/img/default-avatar.jpg"),
-        path.join(__dirname, "../../public/img/default-avatar.jpg"),
-        path.join(process.cwd(), "client/public/img/default-avatar.jpg"),
-        path.join(process.cwd(), "public/img/default-avatar.jpg"),
-      ];
+      return res.sendFile(avatarPath);
+    }
+    // Return default avatar instead of 404
+    const possibleDefaultPaths = [
+      path.join(__dirname, "../../client/public/img/default-avatar.jpg"),
+      path.join(__dirname, "../../public/img/default-avatar.jpg"),
+      path.join(process.cwd(), "client/public/img/default-avatar.jpg"),
+      path.join(process.cwd(), "public/img/default-avatar.jpg"),
+    ];
 
-      let defaultAvatarSent = false;
-      for (const defaultPath of possibleDefaultPaths) {
-        if (fs.existsSync(defaultPath)) {
-          res.sendFile(defaultPath);
-          defaultAvatarSent = true;
-          break;
-        }
-      }
-
-      if (!defaultAvatarSent) {
-        res.status(204).end();
+    for (const defaultPath of possibleDefaultPaths) {
+      if (fs.existsSync(defaultPath)) {
+        return res.sendFile(defaultPath);
       }
     }
+
+    return res.status(204).end();
   } catch (err) {
     next(err);
   }
@@ -413,7 +394,7 @@ async function getAvatarByUserId(req, res, next) {
  * @param {number} userId - User ID
  * @param {string} username - Current username (for finding old directory)
  */
-async function migrateAvatarFromUsername(userId, username) {
+function migrateAvatarFromUsername(userId, username) {
   try {
     const oldAvatarDir = path.join(AVATARS_DIR, username);
     const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
@@ -446,7 +427,7 @@ async function migrateAvatarFromUsername(userId, username) {
 
       // Copy all recent avatar files
       const recentFiles = fs.readdirSync(oldRecentDir);
-      recentFiles.forEach((file) => {
+      recentFiles.forEach(file => {
         const oldFilePath = path.join(oldRecentDir, file);
         const newFilePath = path.join(newRecentDir, file);
         if (fs.statSync(oldFilePath).isFile() && file.endsWith(".jpg")) {
@@ -456,7 +437,7 @@ async function migrateAvatarFromUsername(userId, username) {
     }
 
     logger.info(
-      `Migrated avatar from username directory (${username}) to user ID directory (${userId})`
+      `Migrated avatar from username directory (${username}) to user ID directory (${userId})`,
     );
   } catch (err) {
     logger.error("Error migrating avatar:", err);

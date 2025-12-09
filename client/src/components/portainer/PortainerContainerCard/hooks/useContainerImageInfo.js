@@ -14,6 +14,7 @@ import {
 } from "../utils/containerImageParsing";
 import { getDockerHubRepoUrl } from "../../../../utils/formatters";
 import { showToast } from "../../../../utils/toast";
+import { computeHasUpdate } from "../../../../utils/containerUpdateHelpers";
 
 /**
  * Hook to manage container image information
@@ -85,11 +86,14 @@ export const useContainerImageInfo = (container) => {
     return false;
   }, [container.provider, container.existsInDockerHub, isGitHub, isGitLab, isGoogle]);
 
+  // Compute hasUpdate on-the-fly
+  const hasUpdate = useMemo(() => computeHasUpdate(container), [container]);
+
   // Construct GitHub URL based on provider or tracked app info
   const githubUrl = useMemo(() => {
     // If update is from GitHub-tracked app, use the tracked app's GitHub repo URL
     if (
-      container.hasUpdate &&
+      hasUpdate &&
       container.updateSourceType === "github" &&
       container.updateGitHubRepo
     ) {
@@ -107,7 +111,7 @@ export const useContainerImageInfo = (container) => {
     // Otherwise, try to get from container image (ghcr.io pattern)
     return getGitHubContainerUrl(container.image);
   }, [
-    container.hasUpdate,
+    hasUpdate,
     container.updateSourceType,
     container.updateGitHubRepo,
     container.provider,
@@ -118,7 +122,7 @@ export const useContainerImageInfo = (container) => {
   const gitlabUrl = useMemo(() => {
     // If update is from GitLab-tracked app, use the tracked app's GitLab repo URL
     if (
-      container.hasUpdate &&
+      hasUpdate &&
       container.updateSourceType === "gitlab" &&
       container.updateGitLabRepo
     ) {
@@ -137,7 +141,7 @@ export const useContainerImageInfo = (container) => {
     // Otherwise, try to get from container image (registry.gitlab.com pattern)
     return getGitLabContainerUrl(container.image);
   }, [
-    container.hasUpdate,
+    hasUpdate,
     container.updateSourceType,
     container.updateGitLabRepo,
     container.provider,

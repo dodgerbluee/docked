@@ -36,14 +36,12 @@ class GCRProvider extends RegistryProvider {
     // Remove gcr.io/ prefix
     return imageRepo.replace(/^gcr\.io\//, "");
   }
-
-  async getCredentials(userId) {
+  async getCredentials(_userId) {
     // GCR typically requires service account credentials
     // For now, we'll try anonymous access, then fall back to Docker Hub
     return {};
   }
-
-  async getRateLimitDelay(options = {}) {
+  async getRateLimitDelay(_options = {}) {
     // GCR has similar rate limits to Docker Hub
     return 1000;
   }
@@ -52,7 +50,7 @@ class GCRProvider extends RegistryProvider {
    * Get GCR authentication token (try anonymous first for public images)
    * @private
    */
-  async _getAuthToken(namespace, repository, userId) {
+  async _getAuthToken(namespace, repository, _userId) {
     try {
       // GCR/Artifact Registry uses OAuth2 token service
       // For public images, we can get an anonymous token
@@ -118,274 +116,315 @@ class GCRProvider extends RegistryProvider {
     }
   }
 
+  /**
+   * Try to get digest using crane/skopeo
+   * @param {string} imageRef - Full image reference
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {string} cacheKey - Cache key
+   * @returns {Promise<Object|null>} - Result object or null
+   */
+  async _tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey) {
+    logger.debug(`[GCR] Trying to get digest for ${imageRef} using crane/skopeo`);
+    const digest = await getImageDigest(imageRef);
+
+    if (!digest) {
+      return null;
+    }
+
+    const result = {
+      digest,
+      tag,
+      provider: "gcr",
+    };
+
+    digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+    this.logOperation("getLatestDigest", imageRepo, {
+      tag,
+      digest: `${digest.substring(0, 12)}...`,
+    });
+    logger.info(
+      `[GCR] Successfully got digest for ${imageRepo}:${tag} using crane/skopeo - ${digest.substring(0, 12)}...`,
+    );
+    return result;
+  }
+
+  /**
+   * Parse GCR repository into project and repository
+   * @param {string} normalizedRepo - Normalized repository
+   * @returns {Object|null} - { project, repository } or null
+   */
+  _parseGcrRepo(normalizedRepo) {
+    if (!normalizedRepo.includes("/")) {
+      return null;
+    }
+    const [project, ...repoParts] = normalizedRepo.split("/");
+    return {
+      project,
+      repository: repoParts.join("/"),
+    };
+  }
+
+  /**
+   * Request manifest from GCR API
+   * @param {string} registryUrl - Registry URL
+   * @param {Object} headers - Request headers
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} - Response object
+   */
+  async _requestGcrManifest(registryUrl, headers, imageRepo, tag, userId) {
+    return retryWithBackoff(
+      async () => {
+        const resp = await axios.get(registryUrl, {
+          headers,
+          timeout: 10000,
+          validateStatus: status => status < 500,
+        });
+
+        if (resp.status === 429) {
+          const error = new Error("Rate limited by GCR");
+          error.response = { status: 429 };
+          error.isRateLimitExceeded = true;
+          throw error;
+        }
+
+        if (resp.status !== 200) {
+          logger.debug(
+            `GCR returned status ${resp.status} for ${imageRepo}:${tag}${headers.Authorization ? " (authenticated)" : " (anonymous)"}`,
+          );
+        }
+
+        return resp;
+      },
+      3,
+      1000,
+      userId,
+    );
+  }
+
+  /**
+   * Handle successful GCR API response
+   * @param {Object} response - Response object
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {string} cacheKey - Cache key
+   * @returns {Object|null} - Result object or null
+   */
+  _handleGcrSuccess(response, imageRepo, tag, cacheKey) {
+    if (response.status === 200 && response.headers["docker-content-digest"]) {
+      const digest = response.headers["docker-content-digest"];
+      const result = {
+        digest,
+        tag,
+        provider: "gcr",
+      };
+
+      digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+      this.logOperation("getLatestDigest", imageRepo, {
+        tag,
+        digest: `${digest.substring(0, 12)}...`,
+      });
+      return result;
+    }
+    return null;
+  }
+
+  /**
+   * Try Docker Hub fallback with GCR provider info
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {string} cacheKey - Cache key
+   * @param {Object} options - Options
+   * @param {number} status - Response status
+   * @returns {Promise<Object|null>} - Result object or null
+   */
+  async _tryDockerHubFallbackWithGcr(imageRepo, tag, cacheKey, options, status) {
+    if (status === 404 || status === 403) {
+      logger.warn(
+        `GCR image ${imageRepo}:${tag} may not be accessible (status ${status} - GCR is deprecated, project may need migration to Artifact Registry, or image may be private)`,
+      );
+    }
+
+    const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
+    if (!fallbackResult) {
+      return null;
+    }
+
+    const result = {
+      ...fallbackResult,
+      provider: "gcr",
+      isFallback: true,
+    };
+    digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
+    logger.info(
+      `Using Docker Hub fallback for GCR image ${imageRepo}:${tag} (keeping provider as gcr for icon)`,
+    );
+    return result;
+  }
+
+  /**
+   * Handle GCR API error and try fallback
+   * @param {Error} error - Error object
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Image tag
+   * @param {Object} options - Options
+   * @returns {Promise<Object>} - Result object
+   */
+  async _handleGcrError(error, imageRepo, tag, options) {
+    if (error.response?.status === 403 || error.response?.status === 401) {
+      logger.warn(
+        `GCR authentication/access error for ${imageRepo}:${tag} - GCR is deprecated, project may need migration to Artifact Registry`,
+      );
+    }
+
+    const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
+    if (fallbackResult) {
+      return {
+        ...fallbackResult,
+        provider: "gcr",
+        isFallback: true,
+      };
+    }
+
+    logger.warn(
+      `Failed to get digest for GCR image ${imageRepo}:${tag} - GCR may be deprecated or inaccessible, and Docker Hub fallback also failed`,
+    );
+    return {
+      digest: null,
+      tag,
+      provider: "gcr",
+      isFallback: false,
+    };
+  }
+
+  /**
+   * Try API approach for GCR
+   * @param {string} imageRepo - Image repository
+   * @param {string} tag - Tag
+   * @param {string} normalizedRepo - Normalized repository
+   * @param {string} cacheKey - Cache key
+   * @param {Object} options - Options
+   * @returns {Promise<Object|null>} - Result or null
+   */
+  // eslint-disable-next-line max-lines-per-function -- GCR API approach requires comprehensive error handling
+  async _tryGcrApiApproach(imageRepo, tag, normalizedRepo, cacheKey, options) {
+    const delay = await this.getRateLimitDelay(options);
+    await rateLimitDelay(delay);
+
+    const repoInfo = this._parseGcrRepo(normalizedRepo);
+    if (!repoInfo) {
+      logger.warn(`Invalid GCR repo format: ${normalizedRepo} (expected project/repo)`);
+      const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
+      return fallbackResult
+        ? { ...fallbackResult, provider: "gcr", isFallback: true }
+        : { digest: null, tag, provider: "gcr", isFallback: false };
+    }
+
+    const token = await this._getAuthToken(repoInfo.project, repoInfo.repository, options.userId);
+    const registryUrl = `https://gcr.io/v2/${repoInfo.project}/${repoInfo.repository}/manifests/${tag}`;
+    const headers = {
+      Accept:
+        "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json",
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      logger.debug(`Using authenticated request for GCR image ${imageRepo}:${tag}`);
+    } else {
+      logger.debug(`Attempting anonymous access for GCR image ${imageRepo}:${tag}`);
+    }
+
+    const response = await this._requestGcrManifest(
+      registryUrl,
+      headers,
+      imageRepo,
+      tag,
+      options.userId,
+    );
+
+    const successResult = this._handleGcrSuccess(response, imageRepo, tag, cacheKey);
+    if (successResult) {
+      return successResult;
+    }
+
+    if (response.status !== 200) {
+      const fallbackResult = await this._tryDockerHubFallbackWithGcr(
+        imageRepo,
+        tag,
+        cacheKey,
+        options,
+        response.status,
+      );
+      if (fallbackResult) {
+        return fallbackResult;
+      }
+
+      logger.warn(
+        `GCR returned status ${response.status} for ${imageRepo}:${tag} and Docker Hub fallback also failed - returning provider info without digest`,
+      );
+      return {
+        digest: null,
+        tag,
+        provider: "gcr",
+        isFallback: false,
+      };
+    }
+
+    return null;
+  }
+
   async getLatestDigest(imageRepo, tag = "latest", options = {}) {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `gcr:${normalizedRepo}:${tag}`;
 
-    // Check cache
     const cached = digestCache.get(cacheKey);
     if (cached) {
       this.logOperation("getLatestDigest (cached)", imageRepo, { tag });
       return cached;
     }
 
-    // Skip if tag contains digest
     if (tag && tag.includes("@sha256")) {
       this.logOperation("getLatestDigest (skipped)", imageRepo, { reason: "tag contains digest" });
       return null;
     }
 
-    // Note: GCR is deprecated and will be shut down March 18, 2025
-    // Many GCR images are also available on Docker Hub, so we'll try Docker Hub fallback
     logger.debug(
-      `Attempting to get digest from GCR for ${imageRepo}:${tag} (Note: GCR is deprecated)`
+      `Attempting to get digest from GCR for ${imageRepo}:${tag} (Note: GCR is deprecated)`,
     );
 
     try {
-      // First, try using crane/skopeo (works for public images without authentication)
-      // This is the same approach used by GHCR provider
       const imageRef = `${imageRepo}:${tag}`;
-      logger.debug(`[GCR] Trying to get digest for ${imageRef} using crane/skopeo`);
-      const digest = await getImageDigest(imageRef);
-
-      if (digest) {
-        const result = {
-          digest,
-          tag,
-          provider: "gcr",
-        };
-
-        // Cache the result
-        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-
-        this.logOperation("getLatestDigest", imageRepo, {
-          tag,
-          digest: digest.substring(0, 12) + "...",
-        });
-        logger.info(
-          `[GCR] Successfully got digest for ${imageRepo}:${tag} using crane/skopeo - ${digest.substring(0, 12)}...`
-        );
-        return result;
+      const craneResult = await this._tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey);
+      if (craneResult) {
+        return craneResult;
       }
 
-      // If crane/skopeo failed, try API approach (for private images or if tools unavailable)
       logger.debug(`[GCR] crane/skopeo failed for ${imageRef}, trying API approach`);
-
-      // Rate limit delay
-      const delay = await this.getRateLimitDelay(options);
-      await rateLimitDelay(delay);
-
-      // GCR uses project/repo format
-      if (!normalizedRepo.includes("/")) {
-        logger.warn(`Invalid GCR repo format: ${normalizedRepo} (expected project/repo)`);
-        // Try Docker Hub fallback
-        const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
-        if (fallbackResult) {
-          return {
-            ...fallbackResult,
-            provider: "gcr",
-            isFallback: true,
-          };
-        }
-        return {
-          digest: null,
-          tag: tag,
-          provider: "gcr",
-          isFallback: false,
-        };
-      }
-
-      const [project, ...repoParts] = normalizedRepo.split("/");
-      const repository = repoParts.join("/");
-
-      // Try to get auth token (anonymous access works for public images)
-      const token = await this._getAuthToken(project, repository, options.userId);
-
-      // Request manifest - try with token if available, otherwise try anonymous
-      const registryUrl = `https://gcr.io/v2/${project}/${repository}/manifests/${tag}`;
-      const headers = {
-        Accept:
-          "application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json",
-      };
-
-      // Add authorization header only if we have a token
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-        logger.debug(`Using authenticated request for GCR image ${imageRepo}:${tag}`);
-      } else {
-        // Try anonymous access for public images
-        logger.debug(`Attempting anonymous access for GCR image ${imageRepo}:${tag}`);
-      }
-
-      const response = await retryWithBackoff(
-        async () => {
-          const resp = await axios.get(registryUrl, {
-            headers,
-            timeout: 10000,
-            validateStatus: (status) => status < 500,
-          });
-
-          if (resp.status === 429) {
-            const error = new Error("Rate limited by GCR");
-            error.response = { status: 429 };
-            error.isRateLimitExceeded = true;
-            throw error;
-          }
-
-          // Log response status for debugging
-          if (resp.status !== 200) {
-            logger.debug(
-              `GCR returned status ${resp.status} for ${imageRepo}:${tag}${token ? " (authenticated)" : " (anonymous)"}`
-            );
-          }
-
-          // If 401 (unauthorized) or 403 (forbidden), try Docker Hub fallback
-          // 404 means image not found, also try fallback
-          if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
-            logger.debug(
-              `GCR returned ${resp.status} for ${imageRepo}:${tag}, will try Docker Hub fallback`
-            );
-            // Don't return here - let the code below handle the fallback
-          }
-
-          return resp;
-        },
-        3,
-        1000,
-        options.userId
-      );
-
-      if (response.status === 200 && response.headers["docker-content-digest"]) {
-        const digest = response.headers["docker-content-digest"];
-        const result = {
-          digest,
-          tag,
-          provider: "gcr", // Set provider to GCR
-        };
-
-        // Cache the result
-        digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-
-        this.logOperation("getLatestDigest", imageRepo, {
-          tag,
-          digest: digest.substring(0, 12) + "...",
-        });
-        return result;
-      }
-
-      // If GCR failed (401, 404, 403, or other errors), try Docker Hub fallback
-      if (
-        response.status === 401 ||
-        response.status === 403 ||
-        response.status === 404 ||
-        response.status !== 200
-      ) {
-        logger.debug(
-          `GCR returned ${response.status} for ${imageRepo}:${tag}, trying Docker Hub fallback`
-        );
-        // Log warning about GCR deprecation if we get 404 or 403 (permission errors)
-        if (response.status === 404 || response.status === 403) {
-          logger.warn(
-            `GCR image ${imageRepo}:${tag} may not be accessible (status ${response.status} - GCR is deprecated, project may need migration to Artifact Registry, or image may be private)`
-          );
-        }
-        const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
-        if (fallbackResult) {
-          // Cache with GCR key but keep provider as "gcr" so the Google icon shows
-          // even though we're using Docker Hub for the digest
-          const result = {
-            ...fallbackResult,
-            provider: "gcr", // Keep as GCR so icon shows correctly
-            isFallback: true, // But mark that we used Docker Hub fallback
-          };
-          digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
-          logger.info(
-            `Using Docker Hub fallback for GCR image ${imageRepo}:${tag} (keeping provider as gcr for icon)`
-          );
-          return result;
-        }
-
-        // If Docker Hub fallback also failed, still return provider info so filtering works
-        logger.warn(
-          `GCR returned status ${response.status} for ${imageRepo}:${tag} and Docker Hub fallback also failed - returning provider info without digest`
-        );
-        return {
-          digest: null,
-          tag: tag,
-          provider: "gcr",
-          isFallback: false,
-        };
-      }
-
-      return null;
+      return this._tryGcrApiApproach(imageRepo, tag, normalizedRepo, cacheKey, options);
     } catch (error) {
       if (this.isRateLimitError(error)) {
         throw error;
       }
 
-      // On error, try Docker Hub fallback
-      if (error.response?.status !== 404) {
-        logger.debug(
-          `GCR error for ${imageRepo}:${tag}, trying Docker Hub fallback:`,
-          error.message
-        );
-        // Log warning about potential GCR deprecation issues
-        if (error.response?.status === 403 || error.response?.status === 401) {
-          logger.warn(
-            `GCR authentication/access error for ${imageRepo}:${tag} - GCR is deprecated, project may need migration to Artifact Registry`
-          );
-        }
-        const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
-        if (fallbackResult) {
-          // Keep provider as "gcr" so the Google icon shows, even though digest comes from Docker Hub
-          return {
-            ...fallbackResult,
-            provider: "gcr",
-            isFallback: true,
-          };
-        }
-      } else {
-        // 404 specifically - image not found in GCR
-        logger.debug(`GCR image ${imageRepo}:${tag} not found (404), trying Docker Hub fallback`);
-        const fallbackResult = await this._tryDockerHubFallback(imageRepo, tag, options);
-        if (fallbackResult) {
-          // Keep provider as "gcr" so the Google icon shows
-          return {
-            ...fallbackResult,
-            provider: "gcr",
-            isFallback: true,
-          };
-        }
-      }
-
-      logger.warn(
-        `Failed to get digest for GCR image ${imageRepo}:${tag} - GCR may be deprecated or inaccessible, and Docker Hub fallback also failed`
-      );
-      // Even if we can't get a digest, return an object with provider set so the icon shows
-      // This allows the container to be filtered correctly even without digest
-      return {
-        digest: null,
-        tag: tag,
-        provider: "gcr",
-        isFallback: false,
-      };
+      return this._handleGcrError(error, imageRepo, tag, options);
     }
   }
-
   async getTagPublishDate(imageRepo, tag, options = {}) {
     // GCR doesn't have a public API for tag publish dates
     // Try Docker Hub fallback
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const DockerHubProvider = require("./DockerHubProvider");
     const dockerHubProvider = new DockerHubProvider();
-    return await dockerHubProvider.getTagPublishDate(normalizedRepo, tag, options);
+    return dockerHubProvider.getTagPublishDate(normalizedRepo, tag, options);
   }
 
   async imageExists(imageRepo, options = {}) {
     try {
       const digest = await this.getLatestDigest(imageRepo, "latest", options);
       return digest !== null;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }

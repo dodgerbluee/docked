@@ -21,13 +21,13 @@ class DeployedImageRepository extends BaseRepository {
    * @param {string} [options.repository] - Repository
    * @returns {Promise<number>} - ID of the record
    */
-  async upsert(userId, imageRepo, imageTag, imageDigest, options = {}) {
-    return await deployedImagesDb.upsertDeployedImage(
+  upsert(userId, imageRepo, imageTag, imageDigest, options = {}) {
+    return deployedImagesDb.upsertDeployedImage(
       userId,
       imageRepo,
       imageTag,
       imageDigest,
-      options
+      options,
     );
   }
 
@@ -39,8 +39,8 @@ class DeployedImageRepository extends BaseRepository {
    * @param {string} imageDigest - Image digest
    * @returns {Promise<Object|null>} - Deployed image or null
    */
-  async findByUserAndImage(userId, imageRepo, imageTag, imageDigest) {
-    return await deployedImagesDb.getDeployedImage(userId, imageRepo, imageTag, imageDigest);
+  findByUserAndImage(userId, imageRepo, imageTag, imageDigest) {
+    return deployedImagesDb.getDeployedImage(userId, imageRepo, imageTag, imageDigest);
   }
 
   /**
@@ -48,8 +48,8 @@ class DeployedImageRepository extends BaseRepository {
    * @param {number} userId - User ID
    * @returns {Promise<number>} - Number of images cleaned up
    */
-  async cleanupOrphaned(userId) {
-    return await deployedImagesDb.cleanupOrphanedDeployedImages(userId);
+  cleanupOrphaned(userId) {
+    return deployedImagesDb.cleanupOrphanedDeployedImages(userId);
   }
 }
 

@@ -10,19 +10,333 @@ const logger = require("../../utils/logger");
 const portainerService = require("../portainerService");
 
 /**
- * Wait for container to be ready after creation
+ * Check if container is running
+ * @param {Object} details - Container details
+ * @returns {boolean}
+ */
+function isContainerRunning(details) {
+  const containerStatus =
+    details.State?.Status || (details.State?.Running ? "running" : "unknown");
+  return containerStatus === "running" || details.State?.Running === true;
+}
+
+/**
+ * Handle container exit error
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @param {Object} details - Container details
+ * @returns {Promise<never>}
+ */
+async function handleContainerExit(portainerUrl, endpointId, containerId, details) {
+  try {
+    const logs = await portainerService.getContainerLogs(
+      portainerUrl,
+      endpointId,
+      containerId,
+      50,
+    );
+    const exitCode = details.State?.ExitCode || 0;
+    throw new Error(
+      `Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`,
+    );
+  } catch (_logErr) {
+    const exitCode = details.State?.ExitCode || 0;
+    throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
+  }
+}
+
+/**
+ * Handle unhealthy container
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string} endpointId - Endpoint ID
+ * @param {string} containerId - Container ID
+ * @returns {Promise<never>}
+ */
+async function handleUnhealthyContainer(portainerUrl, endpointId, containerId) {
+  try {
+    const logs = await portainerService.getContainerLogs(
+      portainerUrl,
+      endpointId,
+      containerId,
+      50,
+    );
+    throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
+  } catch (_logErr) {
+    throw new Error("Container health check failed. Could not retrieve logs.");
+  }
+}
+
+/**
+ * Check if container should be considered ready based on health check
+ * @param {Object} details - Container details
+ * @param {number} waitTime - Time waited so far
+ * @param {number} consecutiveRunningChecks - Consecutive running checks
+ * @returns {boolean}
+ */
+function shouldConsiderReadyWithHealthCheck(details, waitTime, consecutiveRunningChecks) {
+  const healthStatus = details.State?.Health?.Status;
+  if (healthStatus === "healthy") {
+    return true;
+  }
+  if (healthStatus === "unhealthy") {
+    return false;
+  }
+  // Status is 'starting' or 'none'
+  return waitTime >= 30000 && consecutiveRunningChecks >= 5;
+}
+
+/**
+ * Check if container should be considered ready without health check
+ * @param {string} imageName - Image name
+ * @param {number} waitTime - Time waited so far
+ * @param {number} consecutiveRunningChecks - Consecutive running checks
+ * @param {number} requiredStableChecks - Required stable checks
+ * @param {number} minInitTime - Minimum initialization time
+ * @returns {boolean}
+ */
+function shouldConsiderReadyWithoutHealthCheck(
+  imageName,
+  waitTime,
+  consecutiveRunningChecks,
+  requiredStableChecks,
+  minInitTime,
+) {
+  if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
+    return true;
+  }
+  if (waitTime >= 5000 && consecutiveRunningChecks >= 2) {
+    const isLikelyDatabase =
+      /postgres|mysql|mariadb|redis|mongodb|couchdb|influxdb|elasticsearch/i.test(imageName);
+    return !isLikelyDatabase;
+  }
+  return false;
+}
+
+/**
+ * Check if container is running from details
+ * @param {Object} details - Container details
+ * @returns {boolean} - True if running
+ */
+function checkRunningFromDetails(details) {
+  const containerStatus =
+    details.State?.Status || (details.State?.Running ? "running" : "unknown");
+  return containerStatus === "running" || details.State?.Running === true;
+}
+
+/**
+ * Perform final readiness check
  * @param {string} portainerUrl - Portainer URL
  * @param {string} endpointId - Endpoint ID
  * @param {string} containerId - Container ID
  * @param {string} containerName - Container name
- * @param {string} imageName - Image name (for database detection)
- * @param {number} maxWaitTime - Maximum wait time in milliseconds (default: 120000 = 2 minutes)
- * @param {number} checkInterval - Check interval in milliseconds (default: 2000 = 2 seconds)
- * @param {number} requiredStableChecks - Required consecutive stable checks (default: 3)
+ * @param {number} maxWaitTime - Maximum wait time
+ * @returns {Promise<boolean>}
+ */
+async function performFinalReadinessCheck(
+  portainerUrl,
+  endpointId,
+  containerId,
+  containerName,
+  maxWaitTime,
+) {
+  try {
+    const details = await portainerService.getContainerDetails(
+      portainerUrl,
+      endpointId,
+      containerId,
+    );
+    const isRunning = checkRunningFromDetails(details);
+    if (isRunning) {
+      logger.warn("Timeout reached but container is running, considering it ready", {
+        module: "containerUpgradeService",
+        operation: "waitForContainerReady",
+        containerName,
+        waitTime: `${maxWaitTime / 1000}s`,
+      });
+      return true;
+    }
+    const stateInfo =
+      details.State?.Status || (details.State ? JSON.stringify(details.State) : "unknown");
+    throw new Error(
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Current state: ${stateInfo}`,
+    );
+  } catch (err) {
+    if (err.message.includes("Current state")) {
+      throw err;
+    }
+    throw new Error(
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`,
+    );
+  }
+}
+
+/**
+ * Check container health status
+ * @param {Object} params - Parameters object
+ * @param {Object} params.details - Container details
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} params.containerId - Container ID
+ * @param {number} params.waitTime - Time waited
+ * @param {number} params.consecutiveRunningChecks - Consecutive running checks
+ * @returns {Promise<boolean>} - True if ready
+ */
+async function checkHealthStatus({
+  details,
+  portainerUrl,
+  endpointId,
+  containerId,
+  waitTime,
+  consecutiveRunningChecks,
+}) {
+  const healthStatus = details.State.Health.Status;
+  if (healthStatus === "healthy") {
+    return true;
+  }
+  if (healthStatus === "unhealthy") {
+    await handleUnhealthyContainer(portainerUrl, endpointId, containerId);
+    return false;
+  }
+  return shouldConsiderReadyWithHealthCheck(details, waitTime, consecutiveRunningChecks);
+}
+
+/**
+ * Check container readiness without health check
+ * @param {Object} params - Parameters object
+ * @param {Object} params.details - Container details
+ * @param {string} params.imageName - Image name
+ * @param {number} params.waitTime - Time waited
+ * @param {number} params.consecutiveRunningChecks - Consecutive running checks
+ * @param {number} params.requiredStableChecks - Required stable checks
+ * @param {number} params.checkInterval - Check interval
+ * @param {string} params.containerName - Container name
+ * @returns {boolean} - True if ready
+ */
+function checkReadinessWithoutHealth({
+  details,
+  imageName,
+  waitTime,
+  consecutiveRunningChecks,
+  requiredStableChecks,
+  checkInterval,
+  containerName,
+}) {
+  const minInitTime = 15000;
+  if (
+    shouldConsiderReadyWithoutHealthCheck(
+      imageName,
+      waitTime,
+      consecutiveRunningChecks,
+      requiredStableChecks,
+      minInitTime,
+    )
+  ) {
+    const logMessage =
+      waitTime >= minInitTime
+        ? "Container is running and stable"
+        : "Container is running and stable (non-database service)";
+    logger.info(logMessage, {
+      module: "containerUpgradeService",
+      operation: "waitForContainerReady",
+      containerName,
+      stableTime: `${(consecutiveRunningChecks * checkInterval) / 1000}s`,
+      waitTime: `${waitTime / 1000}s`,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Process container details during readiness check
+ * @param {Object} params - Parameters object
+ * @param {Object} params.details - Container details
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} params.containerId - Container ID
+ * @param {string} params.containerName - Container name
+ * @param {string} params.imageName - Image name
+ * @param {number} params.waitTime - Time waited
+ * @param {number} params.consecutiveRunningChecks - Consecutive running checks
+ * @param {number} params.requiredStableChecks - Required stable checks
+ * @param {number} params.checkInterval - Check interval
+ * @returns {Promise<boolean>} - True if ready
+ */
+// eslint-disable-next-line max-lines-per-function -- Container processing requires comprehensive readiness check
+async function processContainerDetails({
+  details,
+  portainerUrl,
+  endpointId,
+  containerId,
+  containerName,
+  imageName,
+  waitTime,
+  consecutiveRunningChecks,
+  requiredStableChecks,
+  checkInterval,
+}) {
+  const isRunning = isContainerRunning(details);
+  if (!isRunning) {
+    const containerStatus =
+      details.State?.Status || (details.State?.Running ? "running" : "unknown");
+    if (containerStatus === "exited") {
+      await handleContainerExit(portainerUrl, endpointId, containerId, details);
+    }
+    return false;
+  }
+
+  if (details.State?.Health) {
+    const ready = await checkHealthStatus({
+      details,
+      portainerUrl,
+      endpointId,
+      containerId,
+      waitTime,
+      consecutiveRunningChecks,
+    });
+    if (ready) {
+      logger.info(
+        "Health check still starting but container is running stably, considering ready",
+        {
+          module: "containerUpgradeService",
+          operation: "waitForContainerReady",
+          containerName,
+          waitTime: `${waitTime / 1000}s`,
+          consecutiveChecks: consecutiveRunningChecks,
+        },
+      );
+    }
+    return ready;
+  }
+
+  return checkReadinessWithoutHealth({
+    details,
+    imageName,
+    waitTime,
+    consecutiveRunningChecks,
+    requiredStableChecks,
+    checkInterval,
+    containerName,
+  });
+}
+
+/**
+ * Wait for container to be ready after creation
+ * @param {Object} options - Options object
+ * @param {string} options.portainerUrl - Portainer URL
+ * @param {string} options.endpointId - Endpoint ID
+ * @param {string} options.containerId - Container ID
+ * @param {string} options.containerName - Container name
+ * @param {string} options.imageName - Image name (for database detection)
+ * @param {number} options.maxWaitTime - Maximum wait time in milliseconds (default: 120000 = 2 minutes)
+ * @param {number} options.checkInterval - Check interval in milliseconds (default: 2000 = 2 seconds)
+ * @param {number} options.requiredStableChecks - Required consecutive stable checks (default: 3)
  * @returns {Promise<void>}
  * @throws {Error} If container doesn't become ready within timeout
  */
-async function waitForContainerReady(
+// eslint-disable-next-line max-lines-per-function, complexity -- Container readiness waiting requires comprehensive health check logic
+async function waitForContainerReady({
   portainerUrl,
   endpointId,
   containerId,
@@ -30,8 +344,8 @@ async function waitForContainerReady(
   imageName,
   maxWaitTime = 120000,
   checkInterval = 2000,
-  requiredStableChecks = 3
-) {
+  requiredStableChecks = 3,
+}) {
   const startTime = Date.now();
   let isReady = false;
   let consecutiveRunningChecks = 0;
@@ -39,236 +353,134 @@ async function waitForContainerReady(
   logger.info("Waiting for container to be ready", {
     module: "containerUpgradeService",
     operation: "waitForContainerReady",
-    containerName: containerName,
+    containerName,
     containerId: containerId.substring(0, 12),
     maxWaitTime: `${maxWaitTime / 1000}s`,
   });
 
   while (Date.now() - startTime < maxWaitTime && !isReady) {
-    await new Promise((resolve) => setTimeout(resolve, checkInterval));
+    await new Promise(resolve => {
+      setTimeout(() => {
+        resolve();
+      }, checkInterval);
+    });
 
     try {
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        containerId
+        containerId,
       );
 
-      // Docker API returns State as an object with Status property
-      const containerStatus =
-        details.State?.Status || (details.State?.Running ? "running" : "unknown");
-      const isRunning = containerStatus === "running" || details.State?.Running === true;
+      const waitTime = Date.now() - startTime;
+      const ready = await processContainerDetails({
+        details,
+        portainerUrl,
+        endpointId,
+        containerId,
+        containerName,
+        imageName,
+        waitTime,
+        consecutiveRunningChecks,
+        requiredStableChecks,
+        checkInterval,
+      });
 
-      if (!isRunning) {
-        consecutiveRunningChecks = 0; // Reset counter if not running
-
-        if (containerStatus === "exited") {
-          // Container exited - get logs for debugging
-          try {
-            const logs = await portainerService.getContainerLogs(
-              portainerUrl,
-              endpointId,
-              containerId,
-              50
-            );
-            const exitCode = details.State?.ExitCode || 0;
-            throw new Error(
-              `Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`
-            );
-          } catch (logErr) {
-            const exitCode = details.State?.ExitCode || 0;
-            throw new Error(`Container exited with code ${exitCode}. Could not retrieve logs.`);
-          }
-        }
-        continue; // Still starting up
-      }
-
-      // Container is running - increment counter
-      consecutiveRunningChecks++;
-
-      // Check health status if health check is configured
-      if (details.State?.Health) {
-        const healthStatus = details.State.Health.Status;
-        if (healthStatus === "healthy") {
-          isReady = true;
+      if (ready) {
+        if (details.State?.Health?.Status === "healthy") {
           logger.info("Container health check passed", {
             module: "containerUpgradeService",
             operation: "waitForContainerReady",
-            containerName: containerName,
-            waitTime: `${(Date.now() - startTime) / 1000}s`,
-          });
-          break;
-        } else if (healthStatus === "unhealthy") {
-          try {
-            const logs = await portainerService.getContainerLogs(
-              portainerUrl,
-              endpointId,
-              containerId,
-              50
-            );
-            throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
-          } catch (logErr) {
-            throw new Error("Container health check failed. Could not retrieve logs.");
-          }
-        }
-        // Status is 'starting' or 'none', continue waiting
-        // However, if container has been running for a while and health check is still starting,
-        // consider it ready (some containers never report healthy but work fine)
-        const waitTime = Date.now() - startTime;
-        if (waitTime >= 30000 && consecutiveRunningChecks >= 5) {
-          // Container has been running for 30+ seconds with 5+ stable checks
-          // and health check is still starting - likely a container that doesn't properly report health
-          logger.info(
-            "Health check still starting but container is running stably, considering ready",
-            {
-              module: "containerUpgradeService",
-              operation: "waitForContainerReady",
-              containerName: containerName,
-              waitTime: `${waitTime / 1000}s`,
-              consecutiveChecks: consecutiveRunningChecks,
-            }
-          );
-          isReady = true;
-          break;
-        }
-        // For health checks, we'll wait up to maxWaitTime
-      } else {
-        // No health check configured - use stability check instead
-        // For databases and services, wait a minimum time for initialization
-        const waitTime = Date.now() - startTime;
-        const minInitTime = 15000; // Wait at least 15 seconds for initialization (databases need this)
-
-        if (waitTime >= minInitTime && consecutiveRunningChecks >= requiredStableChecks) {
-          // Container has been running stably for required checks
-          isReady = true;
-          logger.info("Container is running and stable", {
-            module: "containerUpgradeService",
-            operation: "waitForContainerReady",
-            containerName: containerName,
-            stableTime: `${(consecutiveRunningChecks * checkInterval) / 1000}s`,
+            containerName,
             waitTime: `${waitTime / 1000}s`,
           });
-          break;
         }
-
-        // If we've waited a reasonable time and container is running, consider it ready
-        // This handles containers that start quickly (non-databases)
-        if (waitTime >= 5000 && consecutiveRunningChecks >= 2) {
-          // Check if this looks like a database container (common database image names)
-          const isLikelyDatabase =
-            /postgres|mysql|mariadb|redis|mongodb|couchdb|influxdb|elasticsearch/i.test(imageName);
-          if (!isLikelyDatabase) {
-            // Not a database, and it's been running stably - consider it ready
-            isReady = true;
-            logger.info("Container is running and stable (non-database service)", {
-              module: "containerUpgradeService",
-              operation: "waitForContainerReady",
-              containerName: containerName,
-              waitTime: `${waitTime / 1000}s`,
-            });
-            break;
-          }
-          // For databases, continue waiting for minInitTime
-        }
+        isReady = true;
+        break;
       }
+
+      consecutiveRunningChecks++;
     } catch (err) {
       if (err.message.includes("exited") || err.message.includes("health check")) {
         throw err;
       }
-      // Continue waiting on other errors
-      consecutiveRunningChecks = 0; // Reset on error
+      consecutiveRunningChecks = 0;
     }
   }
 
   if (!isReady) {
-    // Final check - if container is running, consider it ready even if we hit timeout
-    try {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        containerId
-      );
-      // Docker API returns State as an object with Status property
-      const containerStatus =
-        details.State?.Status || (details.State?.Running ? "running" : "unknown");
-      const isRunning = containerStatus === "running" || details.State?.Running === true;
-      if (isRunning) {
-        logger.warn("Timeout reached but container is running, considering it ready", {
-          module: "containerUpgradeService",
-          operation: "waitForContainerReady",
-          containerName: containerName,
-          waitTime: `${maxWaitTime / 1000}s`,
-        });
-        isReady = true;
-      } else {
-        // Format state info for error message
-        const stateInfo =
-          containerStatus || (details.State ? JSON.stringify(details.State) : "unknown");
-        throw new Error(
-          `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Current state: ${stateInfo}`
-        );
-      }
-    } catch (err) {
-      if (err.message.includes("Current state")) {
-        throw err;
-      }
-      // If we can't check, throw the timeout error
-      throw new Error(
-        `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`
-      );
-    }
+    isReady = await performFinalReadinessCheck(
+      portainerUrl,
+      endpointId,
+      containerId,
+      containerName,
+      maxWaitTime,
+    );
   }
 
   if (!isReady) {
     throw new Error(
-      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`
+      `Container did not become ready within timeout period (${maxWaitTime / 1000}s). Container may have failed to start.`,
     );
   }
 }
 
 /**
+ * Check if container is stopped
+ * @param {Object} details - Container details
+ * @returns {boolean} - True if stopped
+ */
+function isContainerStopped(details) {
+  const containerStatus =
+    details.State?.Status || (details.State?.Running === false ? "exited" : "unknown");
+  return containerStatus === "exited" || containerStatus === "stopped";
+}
+
+/**
  * Wait for container to stop
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {string} containerId - Container ID
- * @param {string} containerName - Container name
- * @param {number} maxWaitTime - Maximum wait time in milliseconds (default: 10000 = 10 seconds)
- * @param {number} checkInterval - Check interval in milliseconds (default: 500 = 0.5 seconds)
+ * @param {Object} options - Options object
+ * @param {string} options.portainerUrl - Portainer URL
+ * @param {string} options.endpointId - Endpoint ID
+ * @param {string} options.containerId - Container ID
+ * @param {string} options.containerName - Container name
+ * @param {number} options.maxWaitTime - Maximum wait time in milliseconds (default: 10000 = 10 seconds)
+ * @param {number} options.checkInterval - Check interval in milliseconds (default: 500 = 0.5 seconds)
  * @returns {Promise<boolean>} - True if stopped, false if timeout
  */
-async function waitForContainerStop(
+async function waitForContainerStop({
   portainerUrl,
   endpointId,
   containerId,
   containerName,
   maxWaitTime = 10000,
-  checkInterval = 500
-) {
+  checkInterval = 500,
+}) {
   logger.debug("Waiting for container to stop", {
     module: "containerUpgradeService",
     operation: "waitForContainerStop",
-    containerName: containerName,
+    containerName,
     usingUrl: portainerUrl,
   });
 
   let stopped = false;
-  for (let i = 0; i < maxWaitTime / checkInterval; i++) {
-    await new Promise((resolve) => setTimeout(resolve, checkInterval));
+  const maxIterations = maxWaitTime / checkInterval;
+  for (let i = 0; i < maxIterations; i++) {
+    await new Promise(resolve => {
+      setTimeout(() => {
+        resolve();
+      }, checkInterval);
+    });
     try {
       const details = await portainerService.getContainerDetails(
         portainerUrl,
         endpointId,
-        containerId
+        containerId,
       );
-      // Docker API returns State as an object with Status property
-      const containerStatus =
-        details.State?.Status || (details.State?.Running === false ? "exited" : "unknown");
-      if (containerStatus === "exited" || containerStatus === "stopped") {
+      if (isContainerStopped(details)) {
         stopped = true;
         break;
       }
     } catch (err) {
-      // Container might be removed already
       if (err.response?.status === 404) {
         stopped = true;
         break;
@@ -280,7 +492,7 @@ async function waitForContainerStop(
     logger.warn("Container did not stop within timeout, proceeding anyway", {
       module: "containerUpgradeService",
       operation: "waitForContainerStop",
-      containerName: containerName,
+      containerName,
       containerId: containerId.substring(0, 12),
     });
   }

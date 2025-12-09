@@ -20,6 +20,7 @@ const logger = require("../utils/logger");
  * @returns {string} environment - Current NODE_ENV
  * @returns {boolean} isDevBuild - Whether this is a local development build
  */
+// eslint-disable-next-line complexity -- Complex version detection logic
 const getVersion = (req, res) => {
   try {
     const isDevelopment = process.env.NODE_ENV !== "production";
@@ -71,7 +72,7 @@ const getVersion = (req, res) => {
       version: null,
       environment: process.env.NODE_ENV || "development",
     });
-  } catch (error) {
+  } catch (_error) {
     // On error, return null version (graceful degradation)
     return res.json({
       version: null,
@@ -91,6 +92,7 @@ const getVersion = (req, res) => {
  * @returns {Object|null} latestVersion - Latest release info or null
  * @returns {string|null} error - Error message if request failed
  */
+// eslint-disable-next-line complexity -- Complex release checking logic
 const getLatestRelease = async (req, res) => {
   const GITHUB_REPO = "dodgerbluee/docked";
 
@@ -131,10 +133,10 @@ const getLatestRelease = async (req, res) => {
         message: error?.message,
         response: error?.response
           ? {
-              status: error.response.status,
-              statusText: error.response.statusText,
-              headers: error.response.headers,
-            }
+            status: error.response.status,
+            statusText: error.response.statusText,
+            headers: error.response.headers,
+          }
           : null,
       },
     });

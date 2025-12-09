@@ -16,10 +16,13 @@ const logsDir = process.env.LOGS_DIR || path.join(__dirname, "../../logs");
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getLogsHandler(req, res, next) {
+
+
+// eslint-disable-next-line max-lines-per-function, complexity -- Complex log retrieval logic
+function getLogsHandler(req, res, _next) {
   try {
-    const lines = parseInt(req.query.lines) || 500; // Default to last 500 lines
-    const since = parseInt(req.query.since); // Line count to fetch after (for incremental updates)
+    const lines = parseInt(req.query.lines, 10) || 500; // Default to last 500 lines
+    const since = parseInt(req.query.since, 10); // Line count to fetch after (for incremental updates)
     const logFile = req.query.file || "combined.log"; // Default to combined.log (Winston's combined log)
 
     const logFilePath = path.join(logsDir, logFile);
@@ -86,16 +89,16 @@ async function getLogsHandler(req, res, next) {
       newLines = returnedLines;
     }
 
-    res.json({
+    return res.json({
       success: true,
       logs: recentLines,
-      totalLines: totalLines,
-      returnedLines: returnedLines,
-      newLines: newLines,
+      totalLines,
+      returnedLines,
+      newLines,
     });
   } catch (error) {
     logger.error("Error fetching logs:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch logs",
     });
