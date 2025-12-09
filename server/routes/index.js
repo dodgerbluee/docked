@@ -190,11 +190,12 @@ router.post(
 );
 router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
 router.post("/auth/register", asyncHandler(authController.register));
-router.post("/auth/login", asyncHandler(authController.login));
+router.post("/auth/login", authLimiter, asyncHandler(authController.login));
 router.post("/auth/import-users", asyncHandler(authController.importUsers));
 router.post("/auth/create-user-with-config", asyncHandler(authController.createUserWithConfig));
 router.post(
   "/auth/generate-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.generateInstanceAdminToken)
 );
 router.post(
