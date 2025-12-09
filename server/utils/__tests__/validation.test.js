@@ -126,7 +126,9 @@ describe("Validation Utilities", () => {
       expect(result.error).toContain("Validation failed");
       expect(result.errors).toBeDefined();
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].error).toContain("containerId, endpointId, imageName, and portainerUrl");
+      expect(result.errors[0].error).toContain(
+        "containerId, endpointId, imageName, and portainerUrl"
+      );
     });
   });
 });

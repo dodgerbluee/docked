@@ -148,7 +148,33 @@ async function getRecentAvatar(req, res, next) {
       });
     }
 
-    const avatarPath = path.join(AVATARS_DIR, userId.toString(), "recent", filename);
+    // Security: Validate userId is a valid number
+    const userIdNum = parseInt(userId, 10);
+    if (isNaN(userIdNum) || userIdNum <= 0 || userIdNum.toString() !== userId.toString()) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
+      });
+    }
+
+    // Security: Construct path and verify it's within AVATARS_DIR to prevent path traversal
+    const userDir = path.join(AVATARS_DIR, userIdNum.toString());
+    const avatarPath = path.join(userDir, "recent", filename);
+
+    // Resolve to absolute path and verify it's within AVATARS_DIR
+    const resolvedPath = path.resolve(avatarPath);
+    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+
+    // Ensure the resolved path is within AVATARS_DIR (prevents ../ attacks)
+    if (
+      !resolvedPath.startsWith(resolvedAvatarsDir + path.sep) &&
+      resolvedPath !== resolvedAvatarsDir
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid path",
+      });
+    }
 
     // If avatar doesn't exist, try migrating from username directory
     if (!fs.existsSync(avatarPath)) {
@@ -376,13 +402,16 @@ function getAvatarByUserId(req, res, next) {
     // Security: Construct path and verify it's within AVATARS_DIR to prevent path traversal
     const userDir = path.join(AVATARS_DIR, userIdNum.toString());
     const avatarPath = path.join(userDir, "avatar.jpg");
-    
+
     // Resolve to absolute path and verify it's within AVATARS_DIR
     const resolvedPath = path.resolve(avatarPath);
     const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
-    
+
     // Ensure the resolved path is within AVATARS_DIR (prevents ../ attacks)
-    if (!resolvedPath.startsWith(resolvedAvatarsDir + path.sep) && resolvedPath !== resolvedAvatarsDir) {
+    if (
+      !resolvedPath.startsWith(resolvedAvatarsDir + path.sep) &&
+      resolvedPath !== resolvedAvatarsDir
+    ) {
       return res.status(400).json({
         success: false,
         error: "Invalid path",
@@ -424,7 +453,7 @@ function migrateAvatarFromUsername(userId, username) {
     if (!username || typeof username !== "string") {
       return;
     }
-    
+
     // Security: Validate username is safe (alphanumeric, dash, underscore only)
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
       logger.warn(`Skipping avatar migration for unsafe username: ${username}`);
@@ -433,12 +462,12 @@ function migrateAvatarFromUsername(userId, username) {
 
     const oldAvatarDir = path.join(AVATARS_DIR, username);
     const newAvatarDir = path.join(AVATARS_DIR, userId.toString());
-    
+
     // Security: Verify paths are within AVATARS_DIR
     const resolvedOldDir = path.resolve(oldAvatarDir);
     const resolvedNewDir = path.resolve(newAvatarDir);
     const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
-    
+
     if (
       !resolvedOldDir.startsWith(resolvedAvatarsDir + path.sep) &&
       resolvedOldDir !== resolvedAvatarsDir
@@ -446,7 +475,7 @@ function migrateAvatarFromUsername(userId, username) {
       logger.warn(`Skipping avatar migration - old path outside AVATARS_DIR: ${resolvedOldDir}`);
       return;
     }
-    
+
     if (
       !resolvedNewDir.startsWith(resolvedAvatarsDir + path.sep) &&
       resolvedNewDir !== resolvedAvatarsDir

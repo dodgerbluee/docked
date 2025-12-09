@@ -77,6 +77,15 @@ const associateImagesLimiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+// Auth routes rate limiter: 20 requests per 15 minutes per IP (for sensitive auth operations)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
 /**
  * @swagger
  * /health:
@@ -190,10 +199,12 @@ router.post(
 );
 router.post(
   "/auth/regenerate-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.regenerateInstanceAdminToken)
 );
 router.post(
   "/auth/verify-instance-admin-token",
+  authLimiter,
   asyncHandler(authController.verifyInstanceAdminToken)
 );
 
