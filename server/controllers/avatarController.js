@@ -180,7 +180,7 @@ async function getRecentAvatar(req, res, next) {
     // All path construction uses validated numeric userId and sanitized filename
     // Path is constructed, resolved, and validated before any file operations
     const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
-    
+
     // Build complete path in one step using validated components
     // userIdNum is validated as positive integer (not user-controlled string)
     // filenameValidation.sanitized is validated by validatePathComponent to contain only safe characters
