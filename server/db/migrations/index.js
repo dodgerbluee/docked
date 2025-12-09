@@ -21,43 +21,46 @@ const { getDatabase, queueDatabaseOperation } = require("../connection");
  * @returns {Promise<number>} - Current schema version (0 if no migrations table exists)
  */
 async function getCurrentVersion() {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
 
-      // Check if migrations table exists
-      db.get(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
-        [],
-        (err, row) => {
-          if (err) {
-            return reject(err);
-          }
-
-          if (!row) {
-            // No migrations table, schema version is 0
-            return resolve(0);
-          }
-
-          // Get the latest migration version
+          // Check if migrations table exists
           db.get(
-            "SELECT MAX(version) as version FROM schema_migrations",
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
             [],
-
-            // eslint-disable-next-line no-shadow -- Error parameter shadows outer scope, but needed for callback
-            (err, versionRow) => {
+            (err, row) => {
               if (err) {
                 return reject(err);
               }
-              resolve(versionRow?.version || 0);
-            },
+
+              if (!row) {
+                // No migrations table, schema version is 0
+                return resolve(0);
+              }
+
+              // Get the latest migration version
+              db.get(
+                "SELECT MAX(version) as version FROM schema_migrations",
+                [],
+
+                // eslint-disable-next-line no-shadow -- Error parameter shadows outer scope, but needed for callback
+                (err, versionRow) => {
+                  if (err) {
+                    return reject(err);
+                  }
+                  resolve(versionRow?.version || 0);
+                }
+              );
+            }
           );
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -67,25 +70,28 @@ async function getCurrentVersion() {
  * @returns {Promise<void>}
  */
 async function recordMigration(version, name) {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(
-        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-        [version, name],
-        err => {
-          if (err) {
-            logger.error("Error recording migration:", { version, name, error: err });
-            return reject(err);
-          }
-          logger.info(`Migration ${version}: ${name} recorded`);
-          resolve();
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.run(
+            "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            [version, name],
+            (err) => {
+              if (err) {
+                logger.error("Error recording migration:", { version, name, error: err });
+                return reject(err);
+              }
+              logger.info(`Migration ${version}: ${name} recorded`);
+              resolve();
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -93,29 +99,32 @@ async function recordMigration(version, name) {
  * @returns {Promise<void>}
  */
 async function createMigrationsTable() {
-  return queueDatabaseOperation(() => new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(
-        `CREATE TABLE IF NOT EXISTS schema_migrations (
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.run(
+            `CREATE TABLE IF NOT EXISTS schema_migrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version INTEGER NOT NULL UNIQUE,
             name TEXT NOT NULL,
             applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )`,
-        err => {
-          if (err) {
-            logger.error("Error creating migrations table:", { error: err });
-            return reject(err);
-          }
-          logger.info("Migrations table ready");
-          resolve();
-        },
-      );
-    } catch (err) {
-      reject(err);
-    }
-  }));
+            (err) => {
+              if (err) {
+                logger.error("Error creating migrations table:", { error: err });
+                return reject(err);
+              }
+              logger.info("Migrations table ready");
+              resolve();
+            }
+          );
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
 }
 
 /**
@@ -130,9 +139,10 @@ function loadMigrations() {
     // Read all files in the migrations directory
     const files = fs
       .readdirSync(migrationsDir)
-      .filter(file =>
-        // Only include .js files, exclude index.js, helpers.js, README.md
-        file.endsWith(".js") && file !== "index.js" && file !== "helpers.js",
+      .filter(
+        (file) =>
+          // Only include .js files, exclude index.js, helpers.js, README.md
+          file.endsWith(".js") && file !== "index.js" && file !== "helpers.js"
       )
       .sort(); // Natural sort handles 0001, 0002, 0010, etc. correctly
 
@@ -153,7 +163,7 @@ function loadMigrations() {
         const filenameVersion = parseInt(file.match(/^(\d+)/)?.[1], 10);
         if (filenameVersion && filenameVersion !== migration.version) {
           logger.warn(
-            `Migration file ${file} version mismatch: filename suggests ${filenameVersion}, but migration has ${migration.version}`,
+            `Migration file ${file} version mismatch: filename suggests ${filenameVersion}, but migration has ${migration.version}`
           );
         }
 
@@ -202,7 +212,7 @@ async function runMigrations() {
     }
 
     // Filter to only pending migrations
-    const pendingMigrations = allMigrations.filter(m => m.version > currentVersion);
+    const pendingMigrations = allMigrations.filter((m) => m.version > currentVersion);
 
     if (pendingMigrations.length === 0) {
       logger.info("No pending migrations");
@@ -210,13 +220,13 @@ async function runMigrations() {
     }
 
     logger.info(
-      `Found ${pendingMigrations.length} pending migration(s) out of ${allMigrations.length} total`,
+      `Found ${pendingMigrations.length} pending migration(s) out of ${allMigrations.length} total`
     );
 
     // Run each migration in order
     for (const migration of pendingMigrations) {
       logger.info(
-        `Running migration ${migration.version}: ${migration.name} (${migration.filename})`,
+        `Running migration ${migration.version}: ${migration.name} (${migration.filename})`
       );
       try {
         await migration.up();

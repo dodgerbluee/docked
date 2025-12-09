@@ -27,8 +27,7 @@ function isNginxProxyManager(imageName) {
  * @returns {string} - IP-based URL
  */
 function buildIpUrl(originalUrl, ipAddress) {
-  const originalPort =
-    originalUrl.port || (originalUrl.protocol === "https:" ? "9443" : "9000");
+  const originalPort = originalUrl.port || (originalUrl.protocol === "https:" ? "9443" : "9000");
   return `${originalUrl.protocol}//${ipAddress}:${originalPort}`;
 }
 
@@ -53,7 +52,7 @@ function logIpUrlUsage(workingPortainerUrl, portainerUrl, ipAddress, instance) {
       instanceId: instance.id,
       warning:
         "  If upgrade fails, verify the IP address in Settings > Portainer Instances matches the actual Portainer server IP",
-    },
+    }
   );
 
   logger.warn(
@@ -66,7 +65,7 @@ function logIpUrlUsage(workingPortainerUrl, portainerUrl, ipAddress, instance) {
       storedIpAddress: ipAddress,
       instanceName: instance.name,
       instanceId: instance.id,
-    },
+    }
   );
 }
 
@@ -78,7 +77,7 @@ function logIpUrlUsage(workingPortainerUrl, portainerUrl, ipAddress, instance) {
 async function getIpBasedPortainerUrl(portainerUrl) {
   try {
     const instances = await getAllPortainerInstances();
-    const instance = instances.find(inst => inst.url === portainerUrl);
+    const instance = instances.find((inst) => inst.url === portainerUrl);
 
     if (instance && instance.ip_address) {
       const originalUrl = new URL(portainerUrl);
@@ -94,7 +93,7 @@ async function getIpBasedPortainerUrl(portainerUrl) {
     }
 
     logger.warn(
-      `No IP address cached for Portainer instance ${portainerUrl}, upgrade may fail if DNS is unavailable`,
+      `No IP address cached for Portainer instance ${portainerUrl}, upgrade may fail if DNS is unavailable`
     );
     return {
       workingUrl: portainerUrl,

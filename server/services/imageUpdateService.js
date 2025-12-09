@@ -68,18 +68,17 @@ async function getStoredVersionInfo(userId, repo, currentTag) {
  * @returns {Promise<string|null>} - Current digest
  */
 async function getCurrentDigest(options) {
-  const { containerDetails, imageName, portainerUrl, endpointId, storedVersionInfo, repo } = options;
+  const { containerDetails, imageName, portainerUrl, endpointId, storedVersionInfo, repo } =
+    options;
   if (containerDetails) {
     const digest = await dockerRegistryService.getCurrentImageDigest(
       containerDetails,
       imageName,
       portainerUrl,
-      endpointId,
+      endpointId
     );
     if (process.env.DEBUG && digest) {
-      logger.debug(
-        `Got current digest from container for ${repo}: ${digest.substring(0, 12)}...`,
-      );
+      logger.debug(`Got current digest from container for ${repo}: ${digest.substring(0, 12)}...`);
     }
     if (digest) {
       return digest;
@@ -89,7 +88,7 @@ async function getCurrentDigest(options) {
   if (storedVersionInfo?.currentDigest) {
     if (process.env.DEBUG) {
       logger.debug(
-        `Using stored current digest from database as fallback for ${repo}: ${storedVersionInfo.currentDigest.substring(0, 12)}...`,
+        `Using stored current digest from database as fallback for ${repo}: ${storedVersionInfo.currentDigest.substring(0, 12)}...`
       );
     }
     return storedVersionInfo.currentDigest;
@@ -190,7 +189,7 @@ function determineUpdateWithStoredInfo(
   currentTag,
   latestImageInfo,
   latestDigest,
-  currentDigest,
+  currentDigest
 ) {
   if (
     storedVersionInfo &&
@@ -218,7 +217,7 @@ function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, store
 
   if (latestImageInfo.isFallback && !latestDigest) {
     logger.debug(
-      `Using GitHub Releases fallback for ${latestImageInfo.provider || "unknown"}:${currentTag} - version: ${latestTag}, digest: null`,
+      `Using GitHub Releases fallback for ${latestImageInfo.provider || "unknown"}:${currentTag} - version: ${latestTag}, digest: null`
     );
   }
 
@@ -226,7 +225,7 @@ function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, store
 
   if (process.env.DEBUG) {
     logger.debug(
-      `Comparing - currentDigest=${currentDigest ? `${currentDigest.substring(0, 12)}...` : "null"}, latestDigest=${latestDigest ? `${latestDigest.substring(0, 12)}...` : "null"}, hasUpdate=${hasUpdate}, isFallback=${latestImageInfo.isFallback || false}`,
+      `Comparing - currentDigest=${currentDigest ? `${currentDigest.substring(0, 12)}...` : "null"}, latestDigest=${latestDigest ? `${latestDigest.substring(0, 12)}...` : "null"}, hasUpdate=${hasUpdate}, isFallback=${latestImageInfo.isFallback || false}`
     );
   }
 
@@ -235,7 +234,7 @@ function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, store
     currentTag,
     latestImageInfo,
     latestDigest,
-    currentDigest,
+    currentDigest
   );
   if (storedUpdate !== null) {
     hasUpdate = storedUpdate;
@@ -290,7 +289,7 @@ async function checkImageUpdates(
   containerDetails = null,
   portainerUrl = null,
   endpointId = null,
-  userId = null,
+  userId = null
 ) {
   const { repo, currentTag } = extractImageInfo(imageName);
   const storedVersionInfo = await getStoredVersionInfo(userId, repo, currentTag);
@@ -321,7 +320,7 @@ async function checkImageUpdates(
     latestImageInfo,
     currentDigest,
     currentTag,
-    storedVersionInfo,
+    storedVersionInfo
   );
 
   const latestPublishDate = await getPublishDate(repo, latestTag, hasUpdate, userId);

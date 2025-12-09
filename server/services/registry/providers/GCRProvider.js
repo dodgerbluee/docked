@@ -144,7 +144,7 @@ class GCRProvider extends RegistryProvider {
       digest: `${digest.substring(0, 12)}...`,
     });
     logger.info(
-      `[GCR] Successfully got digest for ${imageRepo}:${tag} using crane/skopeo - ${digest.substring(0, 12)}...`,
+      `[GCR] Successfully got digest for ${imageRepo}:${tag} using crane/skopeo - ${digest.substring(0, 12)}...`
     );
     return result;
   }
@@ -180,7 +180,7 @@ class GCRProvider extends RegistryProvider {
         const resp = await axios.get(registryUrl, {
           headers,
           timeout: 10000,
-          validateStatus: status => status < 500,
+          validateStatus: (status) => status < 500,
         });
 
         if (resp.status === 429) {
@@ -192,7 +192,7 @@ class GCRProvider extends RegistryProvider {
 
         if (resp.status !== 200) {
           logger.debug(
-            `GCR returned status ${resp.status} for ${imageRepo}:${tag}${headers.Authorization ? " (authenticated)" : " (anonymous)"}`,
+            `GCR returned status ${resp.status} for ${imageRepo}:${tag}${headers.Authorization ? " (authenticated)" : " (anonymous)"}`
           );
         }
 
@@ -200,7 +200,7 @@ class GCRProvider extends RegistryProvider {
       },
       3,
       1000,
-      userId,
+      userId
     );
   }
 
@@ -243,7 +243,7 @@ class GCRProvider extends RegistryProvider {
   async _tryDockerHubFallbackWithGcr(imageRepo, tag, cacheKey, options, status) {
     if (status === 404 || status === 403) {
       logger.warn(
-        `GCR image ${imageRepo}:${tag} may not be accessible (status ${status} - GCR is deprecated, project may need migration to Artifact Registry, or image may be private)`,
+        `GCR image ${imageRepo}:${tag} may not be accessible (status ${status} - GCR is deprecated, project may need migration to Artifact Registry, or image may be private)`
       );
     }
 
@@ -259,7 +259,7 @@ class GCRProvider extends RegistryProvider {
     };
     digestCache.set(cacheKey, result, config.cache.digestCacheTTL);
     logger.info(
-      `Using Docker Hub fallback for GCR image ${imageRepo}:${tag} (keeping provider as gcr for icon)`,
+      `Using Docker Hub fallback for GCR image ${imageRepo}:${tag} (keeping provider as gcr for icon)`
     );
     return result;
   }
@@ -275,7 +275,7 @@ class GCRProvider extends RegistryProvider {
   async _handleGcrError(error, imageRepo, tag, options) {
     if (error.response?.status === 403 || error.response?.status === 401) {
       logger.warn(
-        `GCR authentication/access error for ${imageRepo}:${tag} - GCR is deprecated, project may need migration to Artifact Registry`,
+        `GCR authentication/access error for ${imageRepo}:${tag} - GCR is deprecated, project may need migration to Artifact Registry`
       );
     }
 
@@ -289,7 +289,7 @@ class GCRProvider extends RegistryProvider {
     }
 
     logger.warn(
-      `Failed to get digest for GCR image ${imageRepo}:${tag} - GCR may be deprecated or inaccessible, and Docker Hub fallback also failed`,
+      `Failed to get digest for GCR image ${imageRepo}:${tag} - GCR may be deprecated or inaccessible, and Docker Hub fallback also failed`
     );
     return {
       digest: null,
@@ -341,7 +341,7 @@ class GCRProvider extends RegistryProvider {
       headers,
       imageRepo,
       tag,
-      options.userId,
+      options.userId
     );
 
     const successResult = this._handleGcrSuccess(response, imageRepo, tag, cacheKey);
@@ -355,14 +355,14 @@ class GCRProvider extends RegistryProvider {
         tag,
         cacheKey,
         options,
-        response.status,
+        response.status
       );
       if (fallbackResult) {
         return fallbackResult;
       }
 
       logger.warn(
-        `GCR returned status ${response.status} for ${imageRepo}:${tag} and Docker Hub fallback also failed - returning provider info without digest`,
+        `GCR returned status ${response.status} for ${imageRepo}:${tag} and Docker Hub fallback also failed - returning provider info without digest`
       );
       return {
         digest: null,
@@ -391,7 +391,7 @@ class GCRProvider extends RegistryProvider {
     }
 
     logger.debug(
-      `Attempting to get digest from GCR for ${imageRepo}:${tag} (Note: GCR is deprecated)`,
+      `Attempting to get digest from GCR for ${imageRepo}:${tag} (Note: GCR is deprecated)`
     );
 
     try {

@@ -67,7 +67,7 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
     const response = await axios.get(hubApiUrl, {
       headers,
       timeout: 10000,
-      validateStatus: status => status < 500,
+      validateStatus: (status) => status < 500,
     });
 
     if (response.status === 429) {
@@ -111,7 +111,7 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
     const latestPublishDate = latestTagInfo.tag_last_pushed || latestTagInfo.last_updated || null;
 
     // Normalize digest format for comparison (remove sha256: prefix and compare)
-    const normalizeDigest = digest => {
+    const normalizeDigest = (digest) => {
       if (!digest) return null;
       return digest.replace(/^sha256:/, "").toLowerCase();
     };
@@ -134,7 +134,8 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
         const tagDigest = normalizeDigest(tagInfo.digest);
         if (tagDigest === normalizedLatestDigest) {
           // Found a tag with matching digest
-          const isValidVersionTag = tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "";
+          const isValidVersionTag =
+            tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "";
           if (isValidVersionTag) {
             latestVersion = tagInfo.name.trim();
             // Get publish date for this version tag
@@ -155,7 +156,8 @@ async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
             continue;
           }
 
-          const isValidTagName = tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "";
+          const isValidTagName =
+            tagInfo.name && tagInfo.name !== "latest" && tagInfo.name.trim() !== "";
           if (!isValidTagName) {
             continue;
           }
@@ -253,7 +255,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
     } else if (trackedApp.current_version && latestVersion) {
       // Compare versions if we have both stored and latest versions
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
-      const normalizeVersion = v => {
+      const normalizeVersion = (v) => {
         if (!v) return "";
         return String(v).replace(/^v/i, "").trim().toLowerCase();
       };
@@ -277,7 +279,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   }
 
   // Format digest for display (shortened version)
-  const formatDigest = digest => {
+  const formatDigest = (digest) => {
     if (!digest) {
       return null;
     }
@@ -314,7 +316,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
         {
           userId,
           githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback
-        },
+        }
       );
     } catch (_error) {
       // Don't fail the entire update check if publish date fetch fails
@@ -513,7 +515,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
       // Compare with current version to determine if update is available
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
       // This must match the normalization in trackedAppController.js
-      const normalizeVersion = v => {
+      const normalizeVersion = (v) => {
         if (!v) {
           return "";
         }
@@ -529,10 +531,11 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
         if (bothVersionsExist) {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          const versionsMatchButHasUpdate = normalizedCurrent === normalizedLatest && trackedApp.has_update;
+          const versionsMatchButHasUpdate =
+            normalizedCurrent === normalizedLatest && trackedApp.has_update;
           if (versionsMatchButHasUpdate) {
             logger.debug(
-              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`,
+              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
           }
         } else {
@@ -552,24 +555,18 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
           const fetchCurrentVersionRelease = async () => {
             try {
               const currentVersionTag = trackedApp.current_version;
-              let release = await githubService.getReleaseByTag(
-                githubRepo,
-                currentVersionTag,
-              );
+              let release = await githubService.getReleaseByTag(githubRepo, currentVersionTag);
 
               // If not found and doesn't start with "v", try with "v" prefix
               const needsVPrefix = !release && !currentVersionTag.startsWith("v");
               const needsNoVPrefix = !release && currentVersionTag.startsWith("v");
               if (needsVPrefix) {
-                release = await githubService.getReleaseByTag(
-                  githubRepo,
-                  `v${currentVersionTag}`,
-                );
+                release = await githubService.getReleaseByTag(githubRepo, `v${currentVersionTag}`);
               } else if (needsNoVPrefix) {
                 // If not found and starts with "v", try without "v" prefix
                 release = await githubService.getReleaseByTag(
                   githubRepo,
-                  currentVersionTag.substring(1),
+                  currentVersionTag.substring(1)
                 );
               }
               return release;
@@ -589,7 +586,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
             // Non-blocking - if we can't get current version release, continue
             logger.error(
               `Error fetching current version release for ${githubRepo}:${trackedApp.current_version}:`,
-              err.message,
+              err.message
             );
           }
         }
@@ -641,7 +638,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
   // Update current version if we don't have one yet
   let currentVersionToStore = trackedApp.current_version;
   // Normalize versions for comparison (must match normalization in checkGitHubTrackedApp)
-  const normalizeVersionForComparison = v => {
+  const normalizeVersionForComparison = (v) => {
     if (!v) {
       return "";
     }
@@ -822,7 +819,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
     const { getRepositoryAccessTokenById } = require("../db/index");
     const tokenRecord = await getRepositoryAccessTokenById(
       trackedApp.repository_token_id,
-      trackedApp.user_id,
+      trackedApp.user_id
     );
     if (tokenRecord && tokenRecord.provider === "gitlab") {
       gitlabToken = tokenRecord.access_token;
@@ -840,11 +837,11 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
   try {
     // Get latest release from GitLab - ONLY use this for latest version
     logger.info(
-      `[TrackedImage] Checking GitLab repo: ${gitlabRepo}${gitlabToken ? " (with token)" : ""}`,
+      `[TrackedImage] Checking GitLab repo: ${gitlabRepo}${gitlabToken ? " (with token)" : ""}`
     );
     latestRelease = await gitlabService.getLatestRelease(gitlabRepo, gitlabToken);
     logger.info(
-      `[TrackedImage] GitLab release result: ${latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"}`,
+      `[TrackedImage] GitLab release result: ${latestRelease ? JSON.stringify(latestRelease, null, 2) : "null"}`
     );
 
     // Set latestVersion if we have a release with a tag_name
@@ -855,7 +852,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
       // Compare with current version to determine if update is available
       // Normalize versions for comparison (remove "v" prefix, case-insensitive, trim)
       // This must match the normalization in trackedAppController.js
-      const normalizeVersion = v => {
+      const normalizeVersion = (v) => {
         if (!v) {
           return "";
         }
@@ -871,10 +868,11 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
         if (bothVersionsExist) {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          const versionsMatchButHasUpdate = normalizedCurrent === normalizedLatest && trackedApp.has_update;
+          const versionsMatchButHasUpdate =
+            normalizedCurrent === normalizedLatest && trackedApp.has_update;
           if (versionsMatchButHasUpdate) {
             logger.debug(
-              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`,
+              `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
           }
         } else {
@@ -897,7 +895,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
               let release = await gitlabService.getReleaseByTag(
                 gitlabRepo,
                 currentVersionTag,
-                gitlabToken,
+                gitlabToken
               );
 
               // If not found and doesn't start with "v", try with "v" prefix
@@ -907,14 +905,14 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
                 release = await gitlabService.getReleaseByTag(
                   gitlabRepo,
                   `v${currentVersionTag}`,
-                  gitlabToken,
+                  gitlabToken
                 );
               } else if (needsNoVPrefix) {
                 // If not found and starts with "v", try without "v" prefix
                 release = await gitlabService.getReleaseByTag(
                   gitlabRepo,
                   currentVersionTag.substring(1),
-                  gitlabToken,
+                  gitlabToken
                 );
               }
               return release;
@@ -934,7 +932,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
             // Non-blocking - if we can't get current version release, continue
             logger.error(
               `Error fetching current version release for ${gitlabRepo}:${trackedApp.current_version}:`,
-              err.message,
+              err.message
             );
           }
         }
@@ -991,7 +989,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
   // Update current version if we don't have one yet
   let currentVersionToStore = trackedApp.current_version;
   // Normalize versions for comparison (must match normalization in checkGitLabTrackedApp)
-  const normalizeVersionForComparison = v => {
+  const normalizeVersionForComparison = (v) => {
     if (!v) {
       return "";
     }

@@ -23,13 +23,12 @@ function groupContainersByStack(containers, defaultStackName = "Standalone") {
       accumulator[stackName] = [];
     }
 
-
     accumulator[stackName].push(container);
     return accumulator;
   }, {});
 
   // Convert to array format with stack names
-  const groupedContainers = Object.keys(groupedByStack).map(stackName => ({
+  const groupedContainers = Object.keys(groupedByStack).map((stackName) => ({
     stackName,
     containers: groupedByStack[stackName],
   }));
@@ -98,15 +97,15 @@ function groupContainersByPortainerInstance(containers, portainerInstances) {
     return [];
   }
 
-  return portainerInstances.map(instance => {
-    const instanceContainers = containers.filter(c => c.portainerUrl === instance.url);
+  return portainerInstances.map((instance) => {
+    const instanceContainers = containers.filter((c) => c.portainerUrl === instance.url);
     return {
       name: instance.name || new URL(instance.url).hostname,
       url: instance.url,
       id: instance.id,
       containers: instanceContainers,
-      withUpdates: instanceContainers.filter(c => c.hasUpdate === true),
-      upToDate: instanceContainers.filter(c => c.hasUpdate === false),
+      withUpdates: instanceContainers.filter((c) => c.hasUpdate === true),
+      upToDate: instanceContainers.filter((c) => c.hasUpdate === false),
     };
   });
 }

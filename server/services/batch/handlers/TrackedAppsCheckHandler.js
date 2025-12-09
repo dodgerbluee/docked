@@ -56,7 +56,7 @@ class TrackedAppsCheckHandler extends JobHandler {
 
       // Extract metrics
       result.itemsChecked = apps.length;
-      result.itemsUpdated = results.filter(r => r.hasUpdate).length;
+      result.itemsUpdated = results.filter((r) => r.hasUpdate).length;
 
       logger.info("Tracked apps check completed successfully", {
         appsChecked: result.itemsChecked,

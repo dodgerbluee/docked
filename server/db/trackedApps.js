@@ -27,7 +27,7 @@ function getAllTrackedApps(userId) {
           } else {
             resolve(rows || []);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -54,7 +54,7 @@ function getTrackedAppById(id, userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -83,7 +83,7 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
             } else {
               resolve(row || null);
             }
-          },
+          }
         );
       } else if (imageName) {
         db.get(
@@ -95,7 +95,7 @@ function getTrackedAppByImageName(userId, imageName = null, githubRepo = null) {
             } else {
               resolve(row || null);
             }
-          },
+          }
         );
       } else {
         resolve(null);
@@ -139,7 +139,7 @@ function createTrackedApp({
           } else {
             resolve(this.lastID);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -235,7 +235,7 @@ function updateTrackedApp(id, userId, updateData) {
 
       const sql = `UPDATE tracked_apps SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`;
 
-      db.run(sql, values, err => {
+      db.run(sql, values, (err) => {
         if (err) {
           reject(err);
         } else {
@@ -258,7 +258,7 @@ function deleteTrackedApp(id, userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run("DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], err => {
+      db.run("DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", [id, userId], (err) => {
         if (err) {
           reject(err);
         } else {
@@ -283,13 +283,13 @@ function clearLatestVersionsForAllTrackedApps(userId) {
       db.run(
         "UPDATE tracked_apps SET latest_version = NULL, latest_digest = NULL, has_update = 0, latest_version_publish_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
         [userId],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);

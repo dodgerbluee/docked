@@ -99,7 +99,7 @@ function prepareVersionData(updateInfo, imageName) {
           : null,
         currentTag: imageTag,
         updateInfoKeys: Object.keys(updateInfo),
-      },
+      }
     );
 
     if (!versionData) {
@@ -114,7 +114,7 @@ function prepareVersionData(updateInfo, imageName) {
           hasVersionInfo,
           condition: `updateInfo.imageRepo && hasVersionInfo`,
           imageRepoExists: Boolean(updateInfo.imageRepo),
-        },
+        }
       );
     } else {
       logger.info(
@@ -126,7 +126,7 @@ function prepareVersionData(updateInfo, imageName) {
           latestDigest: versionData.latestDigest
             ? `${versionData.latestDigest.substring(0, 12)}...`
             : null,
-        },
+        }
       );
     }
   }
@@ -230,7 +230,7 @@ async function saveContainerToDatabase({
         usesNetworkMode: usesNetworkMode || false,
         providesNetwork: providesNetwork || false,
       },
-      versionData,
+      versionData
     );
   } catch (dbError) {
     // Don't fail the entire fetch if database save fails

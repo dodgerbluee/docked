@@ -17,7 +17,6 @@ const logsDir = process.env.LOGS_DIR || path.join(__dirname, "../../logs");
  * @param {Function} next - Express next function
  */
 
-
 // eslint-disable-next-line max-lines-per-function, complexity -- Complex log retrieval logic
 function getLogsHandler(req, res, _next) {
   try {

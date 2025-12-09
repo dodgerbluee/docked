@@ -107,7 +107,9 @@ async function getInstances(req, res, next) {
     const instances = await getAllPortainerInstances(userId);
     // Don't return passwords or API keys in the response
 
-    const safeInstances = instances.map(({ password: _password, api_key: _apiKey, ...rest }) => rest);
+    const safeInstances = instances.map(
+      ({ password: _password, api_key: _apiKey, ...rest }) => rest
+    );
     return res.json({
       success: true,
       instances: safeInstances,
@@ -357,7 +359,7 @@ async function updateInstance(req, res, next) {
         ipAddress = resolvedIp;
       } else {
         logger.warn(
-          `Failed to resolve ${url.trim()} to IP address - keeping existing IP (${existing.ip_address || "none"}) if available`,
+          `Failed to resolve ${url.trim()} to IP address - keeping existing IP (${existing.ip_address || "none"}) if available`
         );
       }
     }
@@ -443,7 +445,7 @@ async function deleteInstance(req, res, next) {
     const deletedInstanceUrl = existing.url;
 
     // Normalize URL for comparison (remove trailing slash, lowercase)
-    const normalizeUrl = url => {
+    const normalizeUrl = (url) => {
       if (!url) {
         return "";
       }
@@ -462,7 +464,7 @@ async function deleteInstance(req, res, next) {
         module: "portainerController",
         operation: "deleteInstance",
         instanceUrl: deletedInstanceUrl,
-      },
+      }
     );
 
     return res.json({

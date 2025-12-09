@@ -27,7 +27,7 @@ function getAllPortainerInstances(userId) {
           } else {
             resolve(rows || []);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -62,7 +62,7 @@ function getAllPortainerInstancesForUsers(userIds) {
           } else {
             resolve(rows || []);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -89,7 +89,7 @@ function getPortainerInstanceById(id, userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -157,9 +157,9 @@ function createPortainerInstance({
               } else {
                 resolve(this.lastID);
               }
-            },
+            }
           );
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -202,13 +202,13 @@ function updatePortainerInstance({
       db.run(
         "UPDATE portainer_instances SET name = ?, url = ?, username = ?, password = ?, api_key = ?, auth_type = ?, ip_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
         [name, url, finalUsername, finalPassword, finalApiKey, authType, ipAddress, id, userId],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -229,13 +229,13 @@ function deletePortainerInstance(id, userId) {
       db.run(
         "DELETE FROM portainer_instances WHERE id = ? AND user_id = ?",
         [id, userId],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -257,14 +257,14 @@ function updatePortainerInstanceOrder(userId, orders) {
         db.run("BEGIN TRANSACTION");
 
         const stmt = db.prepare(
-          "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+          "UPDATE portainer_instances SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?"
         );
 
         let completed = 0;
         let hasError = false;
 
         orders.forEach(({ id, display_order }) => {
-          stmt.run([display_order, id, userId], err => {
+          stmt.run([display_order, id, userId], (err) => {
             if (err && !hasError) {
               hasError = true;
               db.run("ROLLBACK");
@@ -272,13 +272,13 @@ function updatePortainerInstanceOrder(userId, orders) {
             } else {
               completed++;
               if (completed === orders.length && !hasError) {
-                stmt.finalize(finalizeErr => {
+                stmt.finalize((finalizeErr) => {
                   if (finalizeErr) {
                     db.run("ROLLBACK");
                     reject(finalizeErr);
                   } else {
                     // eslint-disable-next-line max-nested-callbacks -- Transaction commit requires nested callbacks
-                    db.run("COMMIT", commitErr => {
+                    db.run("COMMIT", (commitErr) => {
                       if (commitErr) {
                         reject(commitErr);
                       } else {

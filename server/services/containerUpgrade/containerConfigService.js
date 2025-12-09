@@ -129,7 +129,7 @@ function buildContainerConfig(
   newImageName,
   cleanedHostConfig,
   networkingConfig,
-  isSharedNetworkMode,
+  isSharedNetworkMode
 ) {
   // Build container config, only including defined values
   const containerConfig = {
@@ -198,7 +198,7 @@ function prepareContainerConfig(containerDetails, newImageName, containerName) {
     newImageName,
     cleanedHostConfig,
     networkingConfig,
-    isSharedNetworkMode,
+    isSharedNetworkMode
   );
 
   return {

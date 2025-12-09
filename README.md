@@ -57,17 +57,20 @@ Access the application at `http://localhost:6969`
 ### Development Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/dodgerbluee/docked.git
 cd docked
 ```
 
 2. Install dependencies:
+
 ```bash
 npm run install-all
 ```
 
 3. Configure backend:
+
 ```bash
 cd server
 cp .env.example .env
@@ -75,6 +78,7 @@ cp .env.example .env
 ```
 
 4. Run development server:
+
 ```bash
 npm run dev
 ```
@@ -117,6 +121,7 @@ Access at `http://localhost:3000` (frontend) and `http://localhost:3001` (backen
 ### Application Settings
 
 Configure through the web UI:
+
 - Portainer instances (URL and API keys)
 - Docker Hub credentials (username and personal access token)
 - User management and preferences

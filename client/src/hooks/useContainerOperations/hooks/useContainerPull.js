@@ -66,7 +66,9 @@ export const useContainerPull = ({
           // This ensures we show the correct hasUpdate status (detects manual upgrades)
           // instead of showing stale cached hasUpdate values
           // Use new cache service for better experience
-          const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers?useNewCache=true&portainerOnly=true&refreshUpdates=true`);
+          const cachedResponse = await axios.get(
+            `${API_BASE_URL}/api/containers?useNewCache=true&portainerOnly=true&refreshUpdates=true`
+          );
           if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
             const apiContainers = cachedResponse.data.containers || [];
             // Use updateContainersWithPreservedState to recompute hasUpdate on-the-fly

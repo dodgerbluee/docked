@@ -68,7 +68,7 @@ async function createGitLabTrackedApp(
   gitlabRepo,
   currentVersion,
   gitlabToken,
-  repositoryTokenId,
+  repositoryTokenId
 ) {
   const trimmedRepo = gitlabRepo.trim();
   const existing = await getTrackedAppByImageName(userId, null, trimmedRepo);
@@ -142,7 +142,7 @@ function formatTrackedAppForResponse(image) {
   const isGitSource = image.source_type === "github" || image.source_type === "gitlab";
   if (isGitSource && latestVersion) {
     // Normalize versions for comparison (remove "v" prefix)
-    const normalizeVersion = v => (v ? v.replace(/^v/, "") : "");
+    const normalizeVersion = (v) => (v ? v.replace(/^v/, "") : "");
     const normalizedCurrent = normalizeVersion(image.current_version || "");
     const normalizedLatest = normalizeVersion(latestVersion);
 
@@ -188,7 +188,7 @@ async function getTrackedApps(req, res, next) {
     const images = await getAllTrackedApps(userId);
     // Ensure proper data types - convert has_update from integer to boolean
     // and ensure version strings are properly formatted
-    const formattedImages = images.map(image => formatTrackedAppForResponse(image));
+    const formattedImages = images.map((image) => formatTrackedAppForResponse(image));
     return res.json({
       success: true,
       images: formattedImages,
@@ -275,7 +275,13 @@ async function createTrackedAppEndpoint(req, res, next) {
           error: "GitHub repository is required for GitHub source type",
         });
       }
-      result = await createGitHubTrackedApp(userId, name, githubRepo, currentVersion, repositoryTokenId);
+      result = await createGitHubTrackedApp(
+        userId,
+        name,
+        githubRepo,
+        currentVersion,
+        repositoryTokenId
+      );
     } else if (finalSourceType === "gitlab") {
       if (!githubRepo || !githubRepo.trim()) {
         return res.status(400).json({
@@ -289,7 +295,7 @@ async function createTrackedAppEndpoint(req, res, next) {
         githubRepo,
         currentVersion,
         gitlabToken,
-        repositoryTokenId,
+        repositoryTokenId
       );
     } else {
       if (!imageName || !imageName.trim()) {
@@ -402,7 +408,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       updateData.current_version = trimmedVersion;
       // If updating current_version to match latest_version, also update has_update flag
       // Normalize versions for comparison (remove "v" prefix) to handle cases like "v0.107.69" vs "0.107.69"
-      const normalizeVersion = v => {
+      const normalizeVersion = (v) => {
         if (!v) {
           return "";
         }
@@ -413,7 +419,6 @@ async function updateTrackedAppEndpoint(req, res, next) {
       const isImageNameChange =
         imageName && imageName !== null && String(imageName).trim() !== existing.image_name;
       const isExplicitUpgrade = isUpgrade === true;
-
 
       const isCurrentVersionChange = trimmedVersion !== existing.current_version;
 
@@ -482,9 +487,9 @@ async function updateTrackedAppEndpoint(req, res, next) {
 
       image: updatedImage
         ? {
-          ...updatedImage,
-          has_update: Boolean(updatedImage.has_update),
-        }
+            ...updatedImage,
+            has_update: Boolean(updatedImage.has_update),
+          }
         : null,
     });
   } catch (error) {

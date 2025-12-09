@@ -27,7 +27,7 @@ function getDockerHubCredentials(userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -50,13 +50,13 @@ function updateDockerHubCredentials(userId, username, token) {
         `INSERT OR REPLACE INTO docker_hub_credentials (user_id, username, token, updated_at) 
          VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
         [userId, username, token],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -73,7 +73,7 @@ function deleteDockerHubCredentials(userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run("DELETE FROM docker_hub_credentials WHERE user_id = ?", [userId], err => {
+      db.run("DELETE FROM docker_hub_credentials WHERE user_id = ?", [userId], (err) => {
         if (err) {
           reject(err);
         } else {
@@ -109,7 +109,7 @@ function getAllRepositoryAccessTokens(userId) {
             }));
             resolve(safeTokens);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -142,7 +142,7 @@ function getRepositoryAccessTokenByProvider(userId, provider) {
               resolve({ ...rest, has_token: Boolean(access_token) });
             }
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -169,7 +169,7 @@ function getRepositoryAccessTokenById(tokenId, userId) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -198,13 +198,13 @@ function upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenI
            SET name = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP
            WHERE id = ? AND user_id = ?`,
           [name, accessToken, tokenId, userId],
-          err => {
+          (err) => {
             if (err) {
               reject(err);
             } else {
               resolve(tokenId);
             }
-          },
+          }
         );
       } else {
         // Insert new token
@@ -218,7 +218,7 @@ function upsertRepositoryAccessToken(userId, provider, name, accessToken, tokenI
             } else {
               resolve(this.lastID);
             }
-          },
+          }
         );
       }
     } catch (err) {
@@ -240,13 +240,13 @@ function deleteRepositoryAccessToken(id, userId) {
       db.run(
         "DELETE FROM repository_access_tokens WHERE id = ? AND user_id = ?",
         [id, userId],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             resolve();
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -274,13 +274,13 @@ function associateImagesWithToken(userId, tokenId, imageRepos) {
            SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
            WHERE user_id = ? AND repository_token_id = ?`,
           [userId, tokenId],
-          err => {
+          (err) => {
             if (err) {
               reject(err);
             } else {
               resolve();
             }
-          },
+          }
         );
         return;
       }
@@ -291,7 +291,7 @@ function associateImagesWithToken(userId, tokenId, imageRepos) {
          SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
          WHERE user_id = ? AND repository_token_id = ?`,
         [userId, tokenId],
-        clearErr => {
+        (clearErr) => {
           if (clearErr) {
             reject(clearErr);
             return;
@@ -304,15 +304,15 @@ function associateImagesWithToken(userId, tokenId, imageRepos) {
              SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ? AND image_repo IN (${placeholders})`,
             [tokenId, userId, ...imageRepos],
-            updateErr => {
+            (updateErr) => {
               if (updateErr) {
                 reject(updateErr);
               } else {
                 resolve();
               }
-            },
+            }
           );
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -337,9 +337,9 @@ function getAssociatedImagesForToken(userId, tokenId) {
           if (err) {
             reject(err);
           } else {
-            resolve((rows || []).map(row => row.image_repo));
+            resolve((rows || []).map((row) => row.image_repo));
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);

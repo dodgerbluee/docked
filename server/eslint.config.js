@@ -140,7 +140,10 @@ module.exports = [
       "no-multiple-empty-lines": ["error", { max: 2, maxEOF: 1, maxBOF: 0 }],
       "no-whitespace-before-property": "error",
       "space-before-blocks": "error",
-      "space-before-function-paren": ["error", { anonymous: "always", named: "never", asyncArrow: "always" }],
+      "space-before-function-paren": [
+        "error",
+        { anonymous: "always", named: "never", asyncArrow: "always" },
+      ],
       "space-in-parens": ["error", "never"],
       "space-infix-ops": "error",
       "space-unary-ops": ["error", { words: true, nonwords: false }],
@@ -232,7 +235,10 @@ module.exports = [
       "no-underscore-dangle": "off", // Allow _ prefix for unused vars
       "no-unneeded-ternary": "warn",
       "no-useless-escape": "error",
-      "no-warning-comments": ["warn", { terms: ["todo", "fixme", "xxx", "hack"], location: "start" }],
+      "no-warning-comments": [
+        "warn",
+        { terms: ["todo", "fixme", "xxx", "hack"], location: "start" },
+      ],
       "prefer-exponentiation-operator": "error",
       "prefer-object-has-own": "error",
       "wrap-iife": ["error", "inside"],
@@ -272,4 +278,3 @@ module.exports = [
     },
   },
 ];
-

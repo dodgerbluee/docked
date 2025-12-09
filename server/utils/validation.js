@@ -15,7 +15,7 @@
  * @returns {Object|null} - Standardized error object if validation fails, null otherwise
  */
 function validateRequiredFields(body, requiredFields) {
-  const missing = requiredFields.filter(field => !body[field]);
+  const missing = requiredFields.filter((field) => !body[field]);
   if (missing.length > 0) {
     return {
       success: false,
@@ -220,7 +220,8 @@ function checkPrivateIPv4(octets) {
  */
 function validateIPv4(hostname, allowPrivateIPs) {
   // Use named capture groups
-  const ipv4Regex = /^(?<octet1>\d{1,3})\.(?<octet2>\d{1,3})\.(?<octet3>\d{1,3})\.(?<octet4>\d{1,3})$/;
+  const ipv4Regex =
+    /^(?<octet1>\d{1,3})\.(?<octet2>\d{1,3})\.(?<octet3>\d{1,3})\.(?<octet4>\d{1,3})$/;
   const ipv4Match = hostname.match(ipv4Regex);
 
   if (!ipv4Match) {
@@ -235,7 +236,7 @@ function validateIPv4(hostname, allowPrivateIPs) {
   ];
 
   // Validate IP range (0-255)
-  if (octets.some(octet => octet > 255)) {
+  if (octets.some((octet) => octet > 255)) {
     return { valid: false, error: "Invalid IP address format" };
   }
 

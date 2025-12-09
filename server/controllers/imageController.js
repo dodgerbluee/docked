@@ -71,15 +71,15 @@ async function deleteImages(req, res, next) {
     }
 
     logger.info(
-      `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`,
+      `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
     // Get user's instances once to avoid repeated DB queries
     const instances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
+    const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Delete images in parallel
-    const deletePromises = uniqueImages.map(async image => {
+    const deletePromises = uniqueImages.map(async (image) => {
       const { id, portainerUrl, endpointId } = image;
       try {
         const instance = instanceMap.get(portainerUrl);
@@ -89,7 +89,6 @@ async function deleteImages(req, res, next) {
             error: `Portainer instance not found: ${portainerUrl}`,
           };
         }
-
 
         await portainerService.authenticatePortainer({
           portainerUrl,
@@ -110,7 +109,7 @@ async function deleteImages(req, res, next) {
     });
 
     const deleteResults = await Promise.allSettled(deletePromises);
-    deleteResults.forEach(result => {
+    deleteResults.forEach((result) => {
       if (result.status === "fulfilled") {
         if (result.value.success) {
           results.push(result.value);

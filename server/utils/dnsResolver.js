@@ -166,7 +166,7 @@ async function testIpWithPassword(testUrl, username, password) {
       {
         headers: { "Content-Type": "application/json" },
         timeout: 2000,
-      },
+      }
     );
     return Boolean(authResponse.data.jwt || authResponse.data.token);
   } catch (authErr) {
@@ -211,7 +211,7 @@ async function testIpAddress(testIp, options) {
           port,
           status: result.status,
           warning: "Auto-detected IP may be incorrect - verify manually",
-        },
+        }
       );
       return testIp;
     }
@@ -232,12 +232,7 @@ async function testIpAddress(testIp, options) {
  * @returns {Promise<string|null>} - Detected backend IP or null
  */
 async function detectBackendIp(proxyIp, originalUrl, options = {}) {
-  const {
-    apiKey = null,
-    username = null,
-    password = null,
-    authType = "apikey",
-  } = options;
+  const { apiKey = null, username = null, password = null, authType = "apikey" } = options;
 
   try {
     const testIps = generateTestIps(proxyIp);

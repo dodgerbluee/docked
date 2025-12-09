@@ -258,53 +258,67 @@ export const usePortainerUpgrade = ({
   );
 
   // Handle batch upgrade success callback
-  const handleBatchUpgradeSuccess = useCallback((response) => {
-    const successCount = response.data?.results?.length || 0;
-    const errorCount = response.data?.errors?.length || 0;
+  const handleBatchUpgradeSuccess = useCallback(
+    (response) => {
+      const successCount = response.data?.results?.length || 0;
+      const errorCount = response.data?.errors?.length || 0;
 
-    // Extract successfully upgraded container names and IDs for filtering
-    const successfulContainerNames = new Set();
-    const successfulContainerIds = new Set();
-    const successfulNewContainerIds = new Set();
+      // Extract successfully upgraded container names and IDs for filtering
+      const successfulContainerNames = new Set();
+      const successfulContainerIds = new Set();
+      const successfulNewContainerIds = new Set();
 
-    response.data?.results?.forEach((r) => {
-      if (r.containerName) {
-        successfulContainerNames.add(r.containerName);
+      response.data?.results?.forEach((r) => {
+        if (r.containerName) {
+          successfulContainerNames.add(r.containerName);
+        }
+        if (r.containerId) {
+          successfulContainerIds.add(r.containerId);
+        }
+        if (r.newContainerId) {
+          successfulNewContainerIds.add(r.newContainerId);
+        }
+      });
+
+      // Remove successfully upgraded containers from the page
+      // Match by name (which stays the same) or by old/new container IDs
+      // This ensures containers are removed from the UI when the modal closes, similar to single upgrades
+      if (
+        onContainersUpdate &&
+        (successfulContainerNames.size > 0 ||
+          successfulContainerIds.size > 0 ||
+          successfulNewContainerIds.size > 0)
+      ) {
+        onContainersUpdate((prevContainers) =>
+          prevContainers.filter((c) => {
+            // Check if this container was successfully upgraded
+            const matchesName = successfulContainerNames.has(c.name);
+            const matchesOldId = successfulContainerIds.has(c.id);
+            const matchesNewId = successfulNewContainerIds.has(c.id);
+            const matchesIdPrefix =
+              Array.from(successfulContainerIds).some(
+                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
+              ) ||
+              Array.from(successfulNewContainerIds).some(
+                (id) => c.id?.substring(0, 12) === id?.substring(0, 12)
+              );
+
+            // Filter out successfully upgraded containers (they'll reappear with new IDs after refresh)
+            return !(matchesName || matchesOldId || matchesNewId || matchesIdPrefix);
+          })
+        );
       }
-      if (r.containerId) {
-        successfulContainerIds.add(r.containerId);
+
+      if (errorCount === 0) {
+        toast.success(
+          `Batch upgrade completed! Successfully upgraded ${successCount} container(s).`
+        );
+      } else if (successCount > 0) {
+        toast.success(`Successfully upgraded ${successCount} container(s).`);
       }
-      if (r.newContainerId) {
-        successfulNewContainerIds.add(r.newContainerId);
-      }
-    });
-
-    // Remove successfully upgraded containers from the page
-    // Match by name (which stays the same) or by old/new container IDs
-    // This ensures containers are removed from the UI when the modal closes, similar to single upgrades
-    if (onContainersUpdate && (successfulContainerNames.size > 0 || successfulContainerIds.size > 0 || successfulNewContainerIds.size > 0)) {
-      onContainersUpdate((prevContainers) =>
-        prevContainers.filter((c) => {
-          // Check if this container was successfully upgraded
-          const matchesName = successfulContainerNames.has(c.name);
-          const matchesOldId = successfulContainerIds.has(c.id);
-          const matchesNewId = successfulNewContainerIds.has(c.id);
-          const matchesIdPrefix = 
-            Array.from(successfulContainerIds).some((id) => c.id?.substring(0, 12) === id?.substring(0, 12)) ||
-            Array.from(successfulNewContainerIds).some((id) => c.id?.substring(0, 12) === id?.substring(0, 12));
-
-          // Filter out successfully upgraded containers (they'll reappear with new IDs after refresh)
-          return !(matchesName || matchesOldId || matchesNewId || matchesIdPrefix);
-        })
-      );
-    }
-
-    if (errorCount === 0) {
-      toast.success(`Batch upgrade completed! Successfully upgraded ${successCount} container(s).`);
-    } else if (successCount > 0) {
-      toast.success(`Successfully upgraded ${successCount} container(s).`);
-    }
-  }, [onContainersUpdate]);
+    },
+    [onContainersUpdate]
+  );
 
   return {
     upgrading,

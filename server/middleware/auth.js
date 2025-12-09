@@ -42,7 +42,6 @@ async function authenticate(req, res, next) {
 
         // Store user info in request
 
-
         // eslint-disable-next-line require-atomic-updates -- Express middleware pattern requires setting req.user
         req.user = {
           id: user.id,

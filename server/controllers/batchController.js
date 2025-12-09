@@ -391,10 +391,10 @@ function triggerBatchJobHandler(req, res, _next) {
     // Pass isManual=true to mark this as a manually triggered run
     batchSystem
       .executeJob(userId, jobType, true)
-      .then(result => {
+      .then((result) => {
         logger.info(`✅ Manually triggered job ${jobType} completed for user ${userId}:`, result);
       })
-      .catch(err => {
+      .catch((err) => {
         logger.error(`❌ Manually triggered job ${jobType} failed for user ${userId}:`, err);
       });
 

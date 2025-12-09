@@ -34,15 +34,14 @@ const { requestWithIpFallback } = ipFallbackService;
  */
 async function getEndpoints(portainerUrl) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = {
-          headers: getAuthHeaders(url), // Use url parameter (may be IP URL)
-        };
-        // Merge IP fallback config if using IP address
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(`${url}/api/endpoints`, ipConfig);
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = {
+        headers: getAuthHeaders(url), // Use url parameter (may be IP URL)
+      };
+      // Merge IP fallback config if using IP address
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(`${url}/api/endpoints`, ipConfig);
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -61,15 +60,14 @@ async function getEndpoints(portainerUrl) {
  */
 async function getContainers(portainerUrl, endpointId) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(
-          `${url}/api/endpoints/${endpointId}/docker/containers/json?all=true`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(
+        `${url}/api/endpoints/${endpointId}/docker/containers/json?all=true`,
+        ipConfig
+      );
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -89,15 +87,14 @@ async function getContainers(portainerUrl, endpointId) {
  */
 async function getContainerDetails(portainerUrl, endpointId, containerId) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(
-          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/json`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(
+        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/json`,
+        ipConfig
+      );
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -116,15 +113,11 @@ async function getContainerDetails(portainerUrl, endpointId, containerId) {
  */
 async function getImages(portainerUrl, endpointId) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(
-          `${url}/api/endpoints/${endpointId}/docker/images/json?all=true`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(`${url}/api/endpoints/${endpointId}/docker/images/json?all=true`, ipConfig);
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -144,15 +137,14 @@ async function getImages(portainerUrl, endpointId) {
  */
 async function getImageDetails(portainerUrl, endpointId, imageId) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(
-          `${url}/api/endpoints/${endpointId}/docker/images/${imageId}/json`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(
+        `${url}/api/endpoints/${endpointId}/docker/images/${imageId}/json`,
+        ipConfig
+      );
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -173,15 +165,14 @@ async function getImageDetails(portainerUrl, endpointId, imageId) {
  */
 async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const apiUrl = `${url}/api/endpoints/${endpointId}/docker/images/${imageId}${
-          force ? "?force=true" : ""
-        }`;
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.delete(apiUrl, ipConfig);
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const apiUrl = `${url}/api/endpoints/${endpointId}/docker/images/${imageId}${
+        force ? "?force=true" : ""
+      }`;
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.delete(apiUrl, ipConfig);
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -202,24 +193,19 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
  */
 async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = {
-          headers: getAuthHeaders(url),
-          params: {
-            fromImage: imageName.split(":")[0],
-            tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
-          },
-        };
-        // Use originalUrl for Host header if provided, otherwise use portainerUrl
-        const urlForHostHeader = originalUrl || portainerUrl;
-        const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
-        return axios.post(
-          `${url}/api/endpoints/${endpointId}/docker/images/create`,
-          null,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = {
+        headers: getAuthHeaders(url),
+        params: {
+          fromImage: imageName.split(":")[0],
+          tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
+        },
+      };
+      // Use originalUrl for Host header if provided, otherwise use portainerUrl
+      const urlForHostHeader = originalUrl || portainerUrl;
+      const ipConfig = getIpFallbackConfig(url, urlForHostHeader, baseConfig);
+      return axios.post(`${url}/api/endpoints/${endpointId}/docker/images/create`, null, ipConfig);
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -282,7 +268,7 @@ async function handleStopConnectionError(error, portainerUrl, endpointId, contai
       containerId: containerId.substring(0, 12),
       error: error.message,
       code: error.code,
-    },
+    }
   );
 
   const stopped = await isContainerStopped(portainerUrl, endpointId, containerId);
@@ -295,14 +281,11 @@ async function handleStopConnectionError(error, portainerUrl, endpointId, contai
     return true;
   }
 
-  logger.warn(
-    "Could not verify container state after connection error, assuming stop succeeded",
-    {
-      module: "portainerService",
-      operation: "stopContainer",
-      containerId: containerId.substring(0, 12),
-    },
-  );
+  logger.warn("Could not verify container state after connection error, assuming stop succeeded", {
+    module: "portainerService",
+    operation: "stopContainer",
+    containerId: containerId.substring(0, 12),
+  });
   return true;
 }
 
@@ -355,16 +338,15 @@ async function handleStopStatusError(error, portainerUrl, endpointId, containerI
  */
 async function stopContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.post(
-          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/stop`,
-          null,
-          ipConfig,
-        );
-      }, portainerUrl);
+    await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.post(
+        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/stop`,
+        null,
+        ipConfig
+      );
+    }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
       await authenticatePortainer({ portainerUrl });
@@ -395,15 +377,14 @@ async function stopContainer(portainerUrl, endpointId, containerId) {
 
 async function removeContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.delete(
-          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.delete(
+        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}`,
+        ipConfig
+      );
+    }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
       await authenticatePortainer({ portainerUrl });
@@ -442,25 +423,24 @@ async function removeContainer(portainerUrl, endpointId, containerId) {
  */
 async function createContainer(portainerUrl, endpointId, containerConfig, containerName) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const apiUrl = `${url}/api/endpoints/${endpointId}/docker/containers/create`;
-        const baseConfig = {
-          headers: getAuthHeaders(url),
-        };
+    const response = await requestWithIpFallback(async (url) => {
+      const apiUrl = `${url}/api/endpoints/${endpointId}/docker/containers/create`;
+      const baseConfig = {
+        headers: getAuthHeaders(url),
+      };
 
-        // Add name as query parameter if provided
-        if (containerName) {
+      // Add name as query parameter if provided
+      if (containerName) {
         // Remove leading slash if present (Docker API expects name without leading slash)
-          const cleanName = containerName.startsWith("/")
-            ? containerName.substring(1)
-            : containerName;
-          baseConfig.params = { name: cleanName };
-        }
+        const cleanName = containerName.startsWith("/")
+          ? containerName.substring(1)
+          : containerName;
+        baseConfig.params = { name: cleanName };
+      }
 
-        const config = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.post(apiUrl, containerConfig, config);
-      }, portainerUrl);
+      const config = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.post(apiUrl, containerConfig, config);
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -536,16 +516,15 @@ async function handleStartStatusError(error, portainerUrl, endpointId, container
  */
 async function startContainer(portainerUrl, endpointId, containerId) {
   try {
-    await requestWithIpFallback(
-      async url => {
-        const baseConfig = { headers: getAuthHeaders(url) };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.post(
-          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/start`,
-          null,
-          ipConfig,
-        );
-      }, portainerUrl);
+    await requestWithIpFallback(async (url) => {
+      const baseConfig = { headers: getAuthHeaders(url) };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.post(
+        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/start`,
+        null,
+        ipConfig
+      );
+    }, portainerUrl);
   } catch (error) {
     if (error.response?.status === 401) {
       await authenticatePortainer({ portainerUrl });
@@ -571,24 +550,23 @@ async function startContainer(portainerUrl, endpointId, containerId) {
  */
 async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100) {
   try {
-    const response = await requestWithIpFallback(
-      async url => {
-        const baseConfig = {
-          headers: getAuthHeaders(url),
-          params: {
-            stdout: 1,
-            stderr: 1,
-            tail,
-            timestamps: 1,
-          },
-          responseType: "text",
-        };
-        const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-        return axios.get(
-          `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/logs`,
-          ipConfig,
-        );
-      }, portainerUrl);
+    const response = await requestWithIpFallback(async (url) => {
+      const baseConfig = {
+        headers: getAuthHeaders(url),
+        params: {
+          stdout: 1,
+          stderr: 1,
+          tail,
+          timestamps: 1,
+        },
+        responseType: "text",
+      };
+      const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
+      return axios.get(
+        `${url}/api/endpoints/${endpointId}/docker/containers/${containerId}/logs`,
+        ipConfig
+      );
+    }, portainerUrl);
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {

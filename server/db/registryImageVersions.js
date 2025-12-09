@@ -58,7 +58,7 @@ function upsertRegistryImageVersion(userId, imageRepo, tag, versionData) {
           } else {
             resolve(this.lastID);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -88,7 +88,7 @@ function getRegistryImageVersion(userId, imageRepo, tag) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -123,7 +123,7 @@ function cleanupOrphanedRegistryVersions(userId) {
           } else {
             resolve(this.changes);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);

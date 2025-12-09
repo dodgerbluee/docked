@@ -94,13 +94,13 @@ async function processDatabaseQueue() {
 // Create database connection synchronously but handle errors gracefully
 let db;
 try {
-  db = new sqlite3.Database(DB_PATH, err => {
+  db = new sqlite3.Database(DB_PATH, (err) => {
     dbConnectionAttempts++;
 
     // Prevent multiple connection attempts
     if (dbConnectionAttempts > MAX_CONNECTION_ATTEMPTS) {
       logger.warn(
-        `Database connection callback called ${dbConnectionAttempts} times. Ignoring subsequent calls.`,
+        `Database connection callback called ${dbConnectionAttempts} times. Ignoring subsequent calls.`
       );
       return;
     }
@@ -129,7 +129,7 @@ try {
 
   // Handle database errors to prevent crashes
   if (db) {
-    db.on("error", err => {
+    db.on("error", (err) => {
       logger.error("Database error:", { error: err });
       logger.error("Stack:", { error: err });
       // Don't throw - just log the error
@@ -147,7 +147,7 @@ try {
     get: () => {},
     // eslint-disable-next-line no-empty-function -- Dummy implementation for error handling
     all: () => {},
-    serialize: cb => {
+    serialize: (cb) => {
       if (cb) cb();
     },
     // eslint-disable-next-line no-empty-function -- Dummy implementation for error handling
@@ -194,7 +194,7 @@ async function initializeDatabase() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating users table:", { error: err });
             } else {
@@ -202,14 +202,14 @@ async function initializeDatabase() {
               // Create indexes for users table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating username index:", { error: idxErr });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create portainer_instances table
@@ -229,7 +229,7 @@ async function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, url)
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating portainer_instances table:", { error: err });
             } else {
@@ -238,7 +238,7 @@ async function initializeDatabase() {
               // Note: user_id index may fail if table exists without user_id column (migration will fix this)
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_portainer_user_id ON portainer_instances(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (
                     idxErr &&
                     !idxErr.message.includes("already exists") &&
@@ -247,29 +247,29 @@ async function initializeDatabase() {
                     logger.error("Error creating user_id index:", { error: idxErr });
                   } else if (idxErr && idxErr.message.includes("no such column")) {
                     logger.debug(
-                      "user_id column doesn't exist yet - index will be created after migration",
+                      "user_id column doesn't exist yet - index will be created after migration"
                     );
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating portainer URL index:", { error: idxErr });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating display_order index:", { error: idxErr });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create docker_hub_credentials table (per user)
@@ -283,13 +283,13 @@ async function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id)
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating docker_hub_credentials table:", { error: err });
             } else {
               logger.info("Docker Hub credentials table ready");
             }
-          },
+          }
         );
 
         // Create repository_access_tokens table
@@ -305,54 +305,54 @@ async function initializeDatabase() {
         UNIQUE(user_id, provider, name),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating repository_access_tokens table:", { error: err });
             } else {
               logger.info("Repository access tokens table ready");
               // Add name column if it doesn't exist (migration for existing databases)
-              db.run("ALTER TABLE repository_access_tokens ADD COLUMN name TEXT", alterErr => {
+              db.run("ALTER TABLE repository_access_tokens ADD COLUMN name TEXT", (alterErr) => {
                 // Ignore error if column already exists
                 if (alterErr && !alterErr.message.includes("duplicate column")) {
                   logger.debug(
                     "Name column may already exist or migration not needed:",
-                    alterErr.message,
+                    alterErr.message
                   );
                 } else {
                   // If column was just added, set default names for existing tokens
                   db.run(
                     "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
-                    updateErr => {
+                    (updateErr) => {
                       if (updateErr) {
                         logger.debug("Error setting default names:", updateErr.message);
                       }
-                    },
+                    }
                   );
                 }
               });
               // Create indexes for repository_access_tokens table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_repo_tokens_user_id ON repository_access_tokens(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating repository_access_tokens user_id index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_repo_tokens_provider ON repository_access_tokens(provider)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating repository_access_tokens provider index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create tracked_apps table
@@ -378,7 +378,7 @@ async function initializeDatabase() {
             UNIQUE(user_id, image_name, github_repo)
       )`,
           // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating tracked_apps table:", { error: err });
             } else {
@@ -386,55 +386,55 @@ async function initializeDatabase() {
               // Add repository_token_id column if it doesn't exist (migration for existing databases)
               db.run(
                 "ALTER TABLE tracked_apps ADD COLUMN repository_token_id INTEGER",
-                alterErr => {
+                (alterErr) => {
                   // Ignore error if column already exists
                   if (alterErr && !alterErr.message.includes("duplicate column")) {
                     logger.debug(
                       "Repository token ID column may already exist or migration not needed:",
-                      alterErr.message,
+                      alterErr.message
                     );
                   }
-                },
+                }
               );
               // Create indexes
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating tracked_apps user_id index:", { error: idxErr });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_tracked_apps_name ON tracked_apps(name)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating tracked_apps name index:", { error: idxErr });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_tracked_apps_image_name ON tracked_apps(image_name)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating tracked_apps image_name index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_tracked_apps_github_repo ON tracked_apps(github_repo)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating tracked_apps github_repo index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create deployed_images table - tracks actual images used by containers
@@ -457,7 +457,7 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
           // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating deployed_images table:", { error: err });
             } else {
@@ -465,62 +465,62 @@ async function initializeDatabase() {
               // Create indexes for deployed_images table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_deployed_images_user_id ON deployed_images(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating deployed_images user_id index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_deployed_images_image_repo ON deployed_images(image_repo)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating deployed_images image_repo index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_deployed_images_last_seen ON deployed_images(last_seen)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating deployed_images last_seen index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               // Add repository_token_id column if it doesn't exist (migration for existing databases)
               db.run(
                 "ALTER TABLE deployed_images ADD COLUMN repository_token_id INTEGER",
-                alterErr => {
+                (alterErr) => {
                   // Ignore error if column already exists
                   if (alterErr && !alterErr.message.includes("duplicate column")) {
                     logger.debug(
                       "Repository token ID column may already exist or migration not needed:",
-                      alterErr.message,
+                      alterErr.message
                     );
                   } else {
                     // Add foreign key constraint if column was just created
                     db.run(
                       "CREATE INDEX IF NOT EXISTS idx_deployed_images_repository_token_id ON deployed_images(repository_token_id)",
-                      idxErr => {
+                      (idxErr) => {
                         if (idxErr && !idxErr.message.includes("already exists")) {
                           logger.debug(
                             "Index for repository_token_id may already exist:",
-                            idxErr.message,
+                            idxErr.message
                           );
                         }
-                      },
+                      }
                     );
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create registry_image_versions table - tracks latest versions available in registries
@@ -544,54 +544,54 @@ async function initializeDatabase() {
         UNIQUE(user_id, image_repo, tag),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating registry_image_versions table:", { error: err });
             } else {
               logger.info("Registry image versions table ready");
               // Add provider column if it doesn't exist (migration for existing databases)
-              db.run("ALTER TABLE registry_image_versions ADD COLUMN provider TEXT", alterErr => {
+              db.run("ALTER TABLE registry_image_versions ADD COLUMN provider TEXT", (alterErr) => {
                 // Ignore error if column already exists
                 if (alterErr && !alterErr.message.includes("duplicate column")) {
                   logger.debug(
                     "Provider column may already exist or migration not needed:",
-                    alterErr.message,
+                    alterErr.message
                   );
                 }
               });
               // Create indexes for registry_image_versions table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_user_id ON registry_image_versions(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating registry_image_versions user_id index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_image_repo ON registry_image_versions(image_repo)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating registry_image_versions image_repo index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_last_checked ON registry_image_versions(last_checked)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating registry_image_versions last_checked index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create containers table (renamed from portainer_containers) to store container state per user
@@ -620,7 +620,7 @@ async function initializeDatabase() {
         FOREIGN KEY (deployed_image_id) REFERENCES deployed_images(id) ON DELETE SET NULL
       )`,
           // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating containers table:", { error: err });
             } else {
@@ -628,56 +628,56 @@ async function initializeDatabase() {
               // Create indexes for containers table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating containers user_id index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(portainer_instance_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating containers instance index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_containers_deployed_image ON containers(deployed_image_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating containers deployed_image_id index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_containers_image_repo ON containers(image_repo)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating containers image_repo index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_containers_last_seen ON containers(last_seen)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating containers last_seen index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create batch_config table (per user, per job type)
@@ -692,13 +692,13 @@ async function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, job_type)
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating batch_config table:", { error: err });
             } else {
               logger.info("Batch config table ready");
             }
-          },
+          }
         );
 
         // Create settings table for application settings
@@ -712,7 +712,7 @@ async function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, key)
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating settings table:", { error: err });
             } else {
@@ -720,19 +720,19 @@ async function initializeDatabase() {
               // Create indexes for settings table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating settings user_id index:", { error: idxErr });
                   }
-                },
+                }
               );
-              db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", idxErr => {
+              db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
                 if (idxErr && !idxErr.message.includes("already exists")) {
                   logger.error("Error creating settings key index:", { error: idxErr });
                 }
               });
             }
-          },
+          }
         );
 
         // Create discord_webhooks table for multiple webhook configurations
@@ -751,7 +751,7 @@ async function initializeDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating discord_webhooks table:", { error: err });
             } else {
@@ -759,7 +759,7 @@ async function initializeDatabase() {
               // Create indexes for discord_webhooks table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_user_id ON discord_webhooks(user_id)",
-                idxErr => {
+                (idxErr) => {
                   // Ignore "no such column" errors - these are expected if table exists from old schema
                   // Migration will handle adding the column and recreating the index
                   if (
@@ -772,23 +772,23 @@ async function initializeDatabase() {
                     });
                   } else if (idxErr && idxErr.message.includes("no such column")) {
                     logger.debug(
-                      "Discord webhooks table exists without user_id column - migration will handle this",
+                      "Discord webhooks table exists without user_id column - migration will handle this"
                     );
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating discord_webhooks enabled index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create batch_runs table to track batch execution history (per user)
@@ -807,7 +807,7 @@ async function initializeDatabase() {
         error_message TEXT,
         logs TEXT
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating batch_runs table:", { error: err });
             } else {
@@ -815,22 +815,22 @@ async function initializeDatabase() {
               // Create indexes for batch_runs table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating batch_runs started_at index:", { error: idxErr });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating batch_runs status index:", { error: idxErr });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
 
         // Create discord_notifications_sent table to persist notification deduplication
@@ -845,7 +845,7 @@ async function initializeDatabase() {
         UNIQUE(user_id, deduplication_key),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          err => {
+          (err) => {
             if (err) {
               logger.error("Error creating discord_notifications_sent table:", { error: err });
             } else {
@@ -853,26 +853,26 @@ async function initializeDatabase() {
               // Create indexes for discord_notifications_sent table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_discord_notifications_user_key ON discord_notifications_sent(user_id, deduplication_key)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating discord_notifications user_key index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_discord_notifications_sent_at ON discord_notifications_sent(sent_at DESC)",
-                idxErr => {
+                (idxErr) => {
                   if (idxErr && !idxErr.message.includes("already exists")) {
                     logger.error("Error creating discord_notifications sent_at index:", {
                       error: idxErr,
                     });
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
@@ -929,7 +929,7 @@ function waitForDatabase(maxRetries = 10, retryDelay = 100) {
             setTimeout(checkTable, retryDelay);
           } else {
             reject(
-              new Error(`Database not ready after ${maxRetries} retries: users table not found`),
+              new Error(`Database not ready after ${maxRetries} retries: users table not found`)
             );
           }
         }
@@ -949,7 +949,7 @@ function closeDatabase() {
       resolve();
       return;
     }
-    db.close(err => {
+    db.close((err) => {
       if (err) {
         reject(err);
       } else {

@@ -49,13 +49,13 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
                SET last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                WHERE id = ?`,
               [row.id],
-              updateErr => {
+              (updateErr) => {
                 if (updateErr) {
                   reject(updateErr);
                 } else {
                   resolve(row.id);
                 }
-              },
+              }
             );
           } else {
             // Insert new record
@@ -80,10 +80,10 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
                 } else {
                   resolve(this.lastID);
                 }
-              },
+              }
             );
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -114,7 +114,7 @@ function getDeployedImage(userId, imageRepo, imageTag, imageDigest) {
           } else {
             resolve(row || null);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -143,7 +143,7 @@ function cleanupOrphanedDeployedImages(userId) {
           } else {
             resolve(this.changes);
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);

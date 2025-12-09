@@ -32,7 +32,7 @@ class ContainerRepository extends BaseRepository {
       userId,
       portainerInstanceId,
       containerData,
-      versionData,
+      versionData
     );
   }
 
@@ -77,7 +77,7 @@ class ContainerRepository extends BaseRepository {
     return containerDb.deletePortainerContainersNotInList(
       userId,
       portainerInstanceId,
-      containerIds,
+      containerIds
     );
   }
 

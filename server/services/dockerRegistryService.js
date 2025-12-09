@@ -80,7 +80,7 @@ function buildTokenRequestConfig(namespace, repository, creds, userId) {
         repository,
         userId,
         hasCredentials: true,
-      },
+      }
     );
   } else {
     logger.debug(
@@ -92,7 +92,7 @@ function buildTokenRequestConfig(namespace, repository, creds, userId) {
         repository,
         userId,
         hasCredentials: false,
-      },
+      }
     );
   }
 
@@ -116,7 +116,7 @@ async function getDockerRegistryToken(namespace, repository, userId = null) {
   } catch (error) {
     logger.error(
       `Error getting Docker Registry token for ${namespace}/${repository}:`,
-      error.message,
+      error.message
     );
     return null;
   }
@@ -153,7 +153,7 @@ async function requestDockerHubManifest(registryUrl, headers, userId) {
       const resp = await axios.get(registryUrl, {
         headers,
         timeout: 10000,
-        validateStatus: status => status < 500,
+        validateStatus: (status) => status < 500,
       });
       if (resp.status === 429) {
         const error = new Error("Rate limited by Docker Hub");
@@ -164,7 +164,7 @@ async function requestDockerHubManifest(registryUrl, headers, userId) {
     },
     3,
     1000,
-    userId,
+    userId
   );
 }
 
@@ -187,9 +187,7 @@ function handleManifestResponse(response, imageRepo, tag, cacheKey) {
     if (response.status === 404 && tag && tag.includes("@sha256")) {
       logger.debug(`      ⏭️  Skipping 404 for ${imageRepo}:${tag} (tag contains digest)`);
     } else {
-      logger.warn(
-        `⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`,
-      );
+      logger.warn(`⚠️  Failed to get digest for ${imageRepo}:${tag} (status: ${response.status})`);
     }
   }
   return null;
@@ -295,7 +293,7 @@ async function getLatestImageDigest(imageRepo, tag = "latest", userId = null) {
 
   if (tag && tag.includes("@sha256")) {
     logger.debug(
-      `      ⏭️  Skipping digest lookup for ${imageRepo}:${tag} (tag already contains digest)`,
+      `      ⏭️  Skipping digest lookup for ${imageRepo}:${tag} (tag already contains digest)`
     );
     return null;
   }
@@ -351,9 +349,7 @@ function findExactMatchDigest(repoDigests, normalizedTargetRepo) {
 
     if (normalizedRepoPart === normalizedTargetRepo) {
       if (process.env.DEBUG) {
-        logger.debug(
-          `      ✅ Found exact match digest: ${digest.substring(0, 12)}...`,
-        );
+        logger.debug(`      ✅ Found exact match digest: ${digest.substring(0, 12)}...`);
       }
       return digest;
     }
@@ -377,14 +373,9 @@ function findPartialMatchDigest(repoDigests, repoNameOnly) {
     const repoPart = repoDigest.split("@sha256:")[0];
     const normalizedRepoPart = normalizeRepo(repoPart);
 
-    if (
-      normalizedRepoPart.endsWith(`/${repoNameOnly}`) ||
-      normalizedRepoPart === repoNameOnly
-    ) {
+    if (normalizedRepoPart.endsWith(`/${repoNameOnly}`) || normalizedRepoPart === repoNameOnly) {
       if (process.env.DEBUG) {
-        logger.debug(
-          `      ✅ Found partial match digest: ${digest.substring(0, 12)}...`,
-        );
+        logger.debug(`      ✅ Found partial match digest: ${digest.substring(0, 12)}...`);
       }
       return digest;
     }
@@ -422,7 +413,7 @@ function getDigestFromImageData(imageData, imageName) {
   const fallbackDigest = extractDigest(firstRepoDigest);
   if (fallbackDigest && process.env.DEBUG) {
     logger.debug(
-      `Warning: Using first RepoDigest for ${imageName} as fallback: ${fallbackDigest.substring(0, 12)}`,
+      `Warning: Using first RepoDigest for ${imageName} as fallback: ${fallbackDigest.substring(0, 12)}`
     );
   }
   return fallbackDigest;
@@ -476,7 +467,7 @@ function buildDockerHubHeaders(creds) {
 
   if (creds.token && creds.username) {
     hubHeaders.Authorization = `Basic ${Buffer.from(`${creds.username}:${creds.token}`).toString(
-      "base64",
+      "base64"
     )}`;
   }
 
@@ -493,7 +484,7 @@ async function fetchPublishDateFromHub(hubApiUrl, hubHeaders) {
   const hubResponse = await axios.get(hubApiUrl, {
     headers: hubHeaders,
     timeout: 10000,
-    validateStatus: status => status < 500,
+    validateStatus: (status) => status < 500,
   });
 
   if (hubResponse.status === 200 && hubResponse.data) {
@@ -642,7 +633,7 @@ async function fetchTagsFromHub(namespace, repository, hubHeaders) {
   return axios.get(hubApiUrl, {
     headers: hubHeaders,
     timeout: 10000,
-    validateStatus: status => status < 500,
+    validateStatus: (status) => status < 500,
   });
 }
 
@@ -659,7 +650,7 @@ async function getTagFromDigest(imageRepo, digest, userId = null) {
   const cached = digestCache.get(cacheKey);
   if (cached && typeof cached === "string") {
     logger.debug(
-      `      ✅ Cache HIT for tag lookup: ${repoForLookup}@${shortDigest}... -> ${cached}`,
+      `      ✅ Cache HIT for tag lookup: ${repoForLookup}@${shortDigest}... -> ${cached}`
     );
     return cached;
   }

@@ -26,7 +26,7 @@ async function getPortainerInstancesToProcess(userId, filterPortainerUrl = null)
   } else {
     // For batch jobs, get all users and their instances in a single query (avoid N+1)
     const users = await getAllUsers();
-    const userIds = users.map(user => user.id);
+    const userIds = users.map((user) => user.id);
     if (userIds.length > 0) {
       portainerInstances = await getAllPortainerInstancesForUsers(userIds);
     }
@@ -34,7 +34,7 @@ async function getPortainerInstancesToProcess(userId, filterPortainerUrl = null)
 
   // Filter to specific instance if requested
   if (filterPortainerUrl) {
-    portainerInstances = portainerInstances.filter(inst => inst.url === filterPortainerUrl);
+    portainerInstances = portainerInstances.filter((inst) => inst.url === filterPortainerUrl);
   }
 
   return portainerInstances;

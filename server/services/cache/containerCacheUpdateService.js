@@ -1,6 +1,6 @@
 /**
  * Container Cache Update Service
- * 
+ *
  * Handles updating the cache after container upgrades and other events.
  * Ensures cache is always in sync with reality.
  */
@@ -12,10 +12,10 @@ const containerCacheService = require("./containerCacheService");
 
 /**
  * Update cache after container upgrade
- * 
+ *
  * This is called immediately after a container upgrade completes.
  * Updates the database cache with the new container digest.
- * 
+ *
  * @param {number} userId - User ID
  * @param {string} portainerUrl - Portainer URL
  * @param {string} containerId - New container ID (after upgrade)
@@ -30,12 +30,12 @@ async function updateCacheAfterUpgrade(
   containerId,
   containerName,
   newDigest,
-  containerData = {},
+  containerData = {}
 ) {
   try {
     // Get Portainer instance
     const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find(inst => inst.url === portainerUrl);
+    const instance = instances.find((inst) => inst.url === portainerUrl);
 
     if (!instance) {
       logger.warn("Portainer instance not found for cache update", { portainerUrl, containerId });
@@ -60,7 +60,7 @@ async function updateCacheAfterUpgrade(
         usesNetworkMode: containerData.usesNetworkMode || false,
         providesNetwork: containerData.providesNetwork || false,
       },
-      null, // No version data update needed
+      null // No version data update needed
     );
 
     // Invalidate memory cache for this user/instance
@@ -80,21 +80,21 @@ async function updateCacheAfterUpgrade(
 
 /**
  * Batch update cache after multiple upgrades
- * 
+ *
  * @param {number} userId - User ID
  * @param {Array} upgrades - Array of upgrade results
  * @returns {Promise<void>}
  */
 async function batchUpdateCacheAfterUpgrades(userId, upgrades) {
-  const updates = upgrades.map(upgrade =>
+  const updates = upgrades.map((upgrade) =>
     updateCacheAfterUpgrade(
       userId,
       upgrade.portainerUrl,
       upgrade.newContainerId || upgrade.containerId,
       upgrade.containerName,
       upgrade.newDigest,
-      upgrade.containerData,
-    ),
+      upgrade.containerData
+    )
   );
 
   await Promise.allSettled(updates);
@@ -107,4 +107,3 @@ module.exports = {
   updateCacheAfterUpgrade,
   batchUpdateCacheAfterUpgrades,
 };
-

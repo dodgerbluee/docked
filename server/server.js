@@ -5,7 +5,7 @@
 
 // Register error handlers IMMEDIATELY before anything else
 // This ensures we catch any errors during module loading
-process.on("uncaughtException", error => {
+process.on("uncaughtException", (error) => {
   process.stderr.write(`[SERVER.JS] UNCAUGHT EXCEPTION (early): ${error.message}\n`);
   process.stderr.write(`[SERVER.JS] Stack: ${error.stack}\n`);
   // eslint-disable-next-line no-process-exit -- Critical error handler must exit
@@ -88,26 +88,26 @@ app.use(
     contentSecurityPolicy: shouldDisableCSP
       ? false // Disable CSP on localhost/development for Safari compatibility
       : {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow blob URLs for avatar images
-          connectSrc: ["'self'"], // Safari doesn't support blob: in connectSrc
-          fontSrc: ["'self'", "data:"],
-          objectSrc: ["'none'"],
-          // Only upgrade to HTTPS if we're actually serving over HTTPS
-          ...(isHTTPS ? { upgradeInsecureRequests: [] } : {}),
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow blob URLs for avatar images
+            connectSrc: ["'self'"], // Safari doesn't support blob: in connectSrc
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            // Only upgrade to HTTPS if we're actually serving over HTTPS
+            ...(isHTTPS ? { upgradeInsecureRequests: [] } : {}),
+          },
         },
-      },
     // Disable HSTS (HTTP Strict Transport Security) when not using HTTPS
     // HSTS forces browsers to always use HTTPS, which breaks localhost development
     strictTransportSecurity: isHTTPS
       ? {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: false,
-      }
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: false,
+        }
       : false,
     crossOriginEmbedderPolicy: false, // Allow embedding for development
     crossOriginResourcePolicy: shouldDisableCSP
@@ -120,7 +120,7 @@ app.use(
       : process.env.NODE_ENV === "production"
         ? { policy: "same-origin" }
         : false,
-  }),
+  })
 );
 
 // Double-check: Remove HSTS header AFTER helmet (in case helmet sets it anyway)
@@ -158,7 +158,7 @@ app.use(
   swaggerUi.setup(swaggerSpec, {
     customCss: ".swagger-ui .topbar { display: none }",
     customSiteTitle: "Docked API Documentation",
-  }),
+  })
 );
 
 // Serve static files from React app
@@ -222,10 +222,10 @@ process.on("unhandledRejection", (reason, _promise) => {
     reason:
       reason instanceof Error
         ? {
-          message: reason.message,
-          stack: reason.stack,
-          name: reason.name,
-        }
+            message: reason.message,
+            stack: reason.stack,
+            name: reason.name,
+          }
         : reason,
     promise: _promise,
   });
@@ -241,7 +241,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 });
 
 // Handle uncaught exceptions
-process.on("uncaughtException", error => {
+process.on("uncaughtException", (error) => {
   logger.critical("Uncaught Exception", {
     module: "server",
     error: {
@@ -256,7 +256,7 @@ process.on("uncaughtException", error => {
 });
 
 // Log when process is about to exit
-process.on("exit", code => {
+process.on("exit", (code) => {
   logger.debug(`Process exiting with code ${code}`, { module: "server" });
 });
 
@@ -274,7 +274,7 @@ process.exit = function (code) {
 const shouldStartServer = require.main === module && process.env.NODE_ENV !== "test";
 logger.debug(
   `shouldStartServer: ${shouldStartServer}, require.main === module: ${require.main === module}, NODE_ENV: ${process.env.NODE_ENV}`,
-  { module: "server" },
+  { module: "server" }
 );
 
 if (shouldStartServer) {
@@ -350,7 +350,7 @@ if (shouldStartServer) {
               service: "batch",
             });
           })
-          .catch(err => {
+          .catch((err) => {
             logger.error("Failed to start batch system", {
               module: "server",
               service: "batch",
@@ -361,7 +361,7 @@ if (shouldStartServer) {
       });
     });
 
-    server.on("error", err => {
+    server.on("error", (err) => {
       logger.critical("Server listen error", {
         module: "server",
         error: err,

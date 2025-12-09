@@ -100,8 +100,8 @@ async function getRecentAvatars(req, res, next) {
     // Get all avatar files, sorted by modification time (newest first)
     const files = fs
       .readdirSync(recentAvatarsDir)
-      .filter(file => file.endsWith(".jpg"))
-      .map(file => {
+      .filter((file) => file.endsWith(".jpg"))
+      .map((file) => {
         const filePath = path.join(recentAvatarsDir, file);
         return {
           filename: file,
@@ -111,7 +111,7 @@ async function getRecentAvatars(req, res, next) {
       })
       .sort((a, b) => b.mtime - a.mtime)
       .slice(0, 3) // Keep only 3 most recent
-      .map(file => `/api/avatars/recent/${file.filename}`);
+      .map((file) => `/api/avatars/recent/${file.filename}`);
 
     return res.json({
       success: true,
@@ -226,8 +226,8 @@ function uploadAvatar(req, res, next) {
     // Clean up old recent avatars (keep only 3 most recent)
     const recentFiles = fs
       .readdirSync(recentAvatarsDir)
-      .filter(file => file.endsWith(".jpg"))
-      .map(file => {
+      .filter((file) => file.endsWith(".jpg"))
+      .map((file) => {
         const filePath = path.join(recentAvatarsDir, file);
         return {
           filename: file,
@@ -239,7 +239,7 @@ function uploadAvatar(req, res, next) {
 
     // Delete files beyond the 3 most recent
     if (recentFiles.length > 3) {
-      recentFiles.slice(3).forEach(file => {
+      recentFiles.slice(3).forEach((file) => {
         fs.unlinkSync(file.path);
       });
     }
@@ -248,7 +248,7 @@ function uploadAvatar(req, res, next) {
       success: true,
       message: "Avatar uploaded successfully",
       avatarUrl: `/api/avatars`,
-      recentAvatars: recentFiles.slice(0, 3).map(file => `/api/avatars/recent/${file.filename}`),
+      recentAvatars: recentFiles.slice(0, 3).map((file) => `/api/avatars/recent/${file.filename}`),
     });
   } catch (err) {
     next(err);
@@ -427,7 +427,7 @@ function migrateAvatarFromUsername(userId, username) {
 
       // Copy all recent avatar files
       const recentFiles = fs.readdirSync(oldRecentDir);
-      recentFiles.forEach(file => {
+      recentFiles.forEach((file) => {
         const oldFilePath = path.join(oldRecentDir, file);
         const newFilePath = path.join(newRecentDir, file);
         if (fs.statSync(oldFilePath).isFile() && file.endsWith(".jpg")) {
@@ -437,7 +437,7 @@ function migrateAvatarFromUsername(userId, username) {
     }
 
     logger.info(
-      `Migrated avatar from username directory (${username}) to user ID directory (${userId})`,
+      `Migrated avatar from username directory (${username}) to user ID directory (${userId})`
     );
   } catch (err) {
     logger.error("Error migrating avatar:", err);

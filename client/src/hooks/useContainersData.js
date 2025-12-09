@@ -34,7 +34,12 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   }, []);
 
   const fetchContainers = useCallback(
-    async (showLoading = true, instanceUrl = null, portainerOnly = false, refreshUpdates = false) => {
+    async (
+      showLoading = true,
+      instanceUrl = null,
+      portainerOnly = false,
+      refreshUpdates = false
+    ) => {
       try {
         // Track loading state for specific instance if provided
         if (instanceUrl) {
@@ -175,7 +180,10 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           const apiContainers = Array.isArray(response.data) ? response.data : [];
           const updatedContainers = apiContainers.map((apiContainer) => {
             // Use the helper function which computes hasUpdate on-the-fly
-            const updated = updateContainersWithPreservedState([apiContainer], successfullyUpdatedContainersRef);
+            const updated = updateContainersWithPreservedState(
+              [apiContainer],
+              successfullyUpdatedContainersRef
+            );
             return updated[0] || apiContainer;
           });
           setContainers(updatedContainers);

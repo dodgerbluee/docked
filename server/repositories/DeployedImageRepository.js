@@ -22,13 +22,7 @@ class DeployedImageRepository extends BaseRepository {
    * @returns {Promise<number>} - ID of the record
    */
   upsert(userId, imageRepo, imageTag, imageDigest, options = {}) {
-    return deployedImagesDb.upsertDeployedImage(
-      userId,
-      imageRepo,
-      imageTag,
-      imageDigest,
-      options,
-    );
+    return deployedImagesDb.upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options);
   }
 
   /**

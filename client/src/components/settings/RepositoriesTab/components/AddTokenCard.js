@@ -45,4 +45,3 @@ AddTokenCard.propTypes = {
 };
 
 export default AddTokenCard;
-

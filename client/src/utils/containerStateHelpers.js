@@ -23,7 +23,7 @@ export const updateContainersWithPreservedState = (
   return apiContainers.map((apiContainer) => {
     // Compute hasUpdate on-the-fly first
     const computedHasUpdate = computeHasUpdate(apiContainer);
-    
+
     if (successfullyUpdatedContainersRef?.current?.has(apiContainer.id)) {
       // If container was successfully updated, force hasUpdate to false
       // (even if digests don't match yet, we know it was just upgraded)
@@ -33,7 +33,7 @@ export const updateContainersWithPreservedState = (
       }
       return { ...apiContainer, hasUpdate: false };
     }
-    
+
     // Return container with computed hasUpdate
     return { ...apiContainer, hasUpdate: computedHasUpdate };
   });

@@ -22,7 +22,6 @@ const DEFAULT_DISABLE_TRACKED_APPS_PAGE = false;
  * @param {Function} next - Express next function
  */
 
-
 async function getColorSchemeHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
@@ -52,7 +51,6 @@ async function getColorSchemeHandler(req, res, _next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-
 
 async function setColorSchemeHandler(req, res, _next) {
   try {
@@ -95,7 +93,6 @@ async function setColorSchemeHandler(req, res, _next) {
  * @param {Function} next - Express next function
  */
 
-
 async function getRefreshingTogglesEnabledHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
@@ -130,7 +127,6 @@ async function getRefreshingTogglesEnabledHandler(req, res, _next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-
 
 async function setRefreshingTogglesEnabledHandler(req, res, _next) {
   try {
@@ -173,7 +169,6 @@ async function setRefreshingTogglesEnabledHandler(req, res, _next) {
  * @param {Function} next - Express next function
  */
 
-
 async function getDisablePortainerPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
@@ -208,7 +203,6 @@ async function getDisablePortainerPageHandler(req, res, _next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-
 
 async function setDisablePortainerPageHandler(req, res, _next) {
   try {
@@ -251,7 +245,6 @@ async function setDisablePortainerPageHandler(req, res, _next) {
  * @param {Function} next - Express next function
  */
 
-
 async function getDisableTrackedAppsPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
@@ -286,7 +279,6 @@ async function getDisableTrackedAppsPageHandler(req, res, _next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-
 
 async function setDisableTrackedAppsPageHandler(req, res, _next) {
   try {

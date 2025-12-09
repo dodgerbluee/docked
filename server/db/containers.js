@@ -55,7 +55,7 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         namespace,
         repository,
       })
-        .then(deployedImageId => {
+        .then((deployedImageId) => {
           // Then upsert container with reference to deployed image
           db.run(
             `INSERT OR REPLACE INTO containers (
@@ -85,7 +85,7 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
               } else {
                 resolve(this.lastID);
               }
-            },
+            }
           );
         })
         .catch(reject);
@@ -109,7 +109,7 @@ function upsertContainerWithVersion(
   userId,
   portainerInstanceId,
   containerData,
-  versionData = null,
+  versionData = null
 ) {
   return queueDatabaseOperation(() => {
     const db = getDatabase();
@@ -139,7 +139,7 @@ function upsertContainerWithVersion(
 
     return new Promise((resolve, reject) => {
       const commitTransaction = (containerRecordId, deployedImageId, registryVersionId = null) => {
-        db.run("COMMIT", commitErr => {
+        db.run("COMMIT", (commitErr) => {
           if (commitErr) {
             reject(commitErr);
           } else {
@@ -166,17 +166,14 @@ function upsertContainerWithVersion(
           existsInRegistry = true,
         } = versionData;
 
-        logger.debug(
-          `Inserting registry image version for ${imageRepo}:${currentTag}`,
-          {
-            registry: vRegistry,
-            provider: vProvider,
-            latestDigest: latestDigest ? `${latestDigest.substring(0, 12)}...` : null,
-            latestVersion,
-            latestTag,
-            existsInRegistry,
-          },
-        );
+        logger.debug(`Inserting registry image version for ${imageRepo}:${currentTag}`, {
+          registry: vRegistry,
+          provider: vProvider,
+          latestDigest: latestDigest ? `${latestDigest.substring(0, 12)}...` : null,
+          latestVersion,
+          latestTag,
+          existsInRegistry,
+        });
 
         db.run(
           `INSERT OR REPLACE INTO registry_image_versions (
@@ -201,7 +198,7 @@ function upsertContainerWithVersion(
             if (versionErr) {
               logger.error(
                 `Error inserting registry image version for ${imageRepo}:${currentTag}:`,
-                versionErr,
+                versionErr
               );
               db.run("ROLLBACK");
               reject(versionErr);
@@ -209,15 +206,15 @@ function upsertContainerWithVersion(
             }
 
             logger.debug(
-              `Successfully inserted registry image version for ${imageRepo}:${currentTag} (ID: ${this.lastID})`,
+              `Successfully inserted registry image version for ${imageRepo}:${currentTag} (ID: ${this.lastID})`
             );
 
             commitTransaction(containerRecordId, deployedImageId, this.lastID);
-          },
+          }
         );
       };
 
-      const handleContainerInsertion = deployedImageId => {
+      const handleContainerInsertion = (deployedImageId) => {
         // Use a more robust upsert strategy: try UPDATE first, then INSERT if no rows affected
         // This avoids UNIQUE constraint violations in race conditions
         db.run(
@@ -279,7 +276,7 @@ function upsertContainerWithVersion(
                     // No version data - just commit container and deployed image update
                     commitTransaction(containerRecordId, deployedImageId, null);
                   }
-                },
+                }
               );
             } else {
               // No rows updated, insert new record
@@ -366,9 +363,9 @@ function upsertContainerWithVersion(
                                 // No version data - just commit container and deployed image update
                                 commitTransaction(containerRecordId, deployedImageId, null);
                               }
-                            },
+                            }
                           );
-                        },
+                        }
                       );
                     } else {
                       db.run("ROLLBACK");
@@ -386,16 +383,16 @@ function upsertContainerWithVersion(
                     // No version data - just commit container and deployed image update
                     commitTransaction(containerRecordId, deployedImageId, null);
                   }
-                },
+                }
               );
             }
-          },
+          }
         );
       };
 
       try {
         db.serialize(() => {
-          db.run("BEGIN IMMEDIATE TRANSACTION", beginErr => {
+          db.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
             if (beginErr) {
               db.run("ROLLBACK");
               reject(beginErr);
@@ -410,7 +407,7 @@ function upsertContainerWithVersion(
               repository,
             })
               .then(handleContainerInsertion)
-              .catch(err => {
+              .catch((err) => {
                 db.run("ROLLBACK");
                 reject(err);
               });
@@ -462,7 +459,7 @@ function getPortainerContainers(userId, portainerUrl = null) {
         if (err) {
           reject(err);
         } else {
-          const containers = rows.map(row => ({
+          const containers = rows.map((row) => ({
             id: row.id,
             userId: row.user_id,
             portainerInstanceId: row.portainer_instance_id,
@@ -547,7 +544,7 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       query += ` ORDER BY c.last_seen DESC`;
 
       // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
-      const normalizeDigest = digest => {
+      const normalizeDigest = (digest) => {
         if (!digest) {
           return null;
         }
@@ -557,7 +554,7 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
 
       const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
-      const mapRowToContainer = row => {
+      const mapRowToContainer = (row) => {
         // Build container object first
         const containerData = {
           id: row.id,
@@ -623,20 +620,20 @@ function deletePortainerContainersForInstance(userId, portainerInstanceId) {
       db.run(
         `DELETE FROM containers WHERE user_id = ? AND portainer_instance_id = ?`,
         [userId, portainerInstanceId],
-        err => {
+        (err) => {
           if (err) {
             reject(err);
           } else {
             // Clean up orphaned deployed images after deleting containers
             cleanupOrphanedDeployedImages(userId)
               .then(() => resolve())
-              .catch(cleanupErr => {
+              .catch((cleanupErr) => {
                 // Log but don't fail - orphaned images will be cleaned up later
                 logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
                 resolve();
               });
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -658,7 +655,7 @@ function deletePortainerContainersNotInList(
   userId,
   portainerInstanceId,
   endpointId,
-  currentContainerIds,
+  currentContainerIds
 ) {
   return new Promise((resolve, reject) => {
     try {
@@ -675,12 +672,12 @@ function deletePortainerContainersNotInList(
               // Clean up orphaned deployed images
               cleanupOrphanedDeployedImages(userId)
                 .then(() => resolve(this.changes))
-                .catch(cleanupErr => {
+                .catch((cleanupErr) => {
                   logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
                   resolve(this.changes);
                 });
             }
-          },
+          }
         );
         return;
       }
@@ -701,12 +698,12 @@ function deletePortainerContainersNotInList(
             // Clean up orphaned deployed images
             cleanupOrphanedDeployedImages(userId)
               .then(() => resolve(this.changes))
-              .catch(cleanupErr => {
+              .catch((cleanupErr) => {
                 logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
                 resolve(this.changes);
               });
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -741,22 +738,22 @@ function cleanupStalePortainerContainers(daysOld = 7) {
                   resolve(this.changes);
                 } else {
                   // Clean up orphaned images for each user
-                  const cleanupPromises = (userRows || []).map(row =>
-                    cleanupOrphanedDeployedImages(row.user_id).catch(cleanupErr => {
+                  const cleanupPromises = (userRows || []).map((row) =>
+                    cleanupOrphanedDeployedImages(row.user_id).catch((cleanupErr) => {
                       logger.warn(
                         `Error cleaning up orphaned images for user ${row.user_id}:`,
-                        cleanupErr,
+                        cleanupErr
                       );
-                    }),
+                    })
                   );
                   Promise.all(cleanupPromises)
                     .then(() => resolve(this.changes))
                     .catch(() => resolve(this.changes));
                 }
-              },
+              }
             );
           }
-        },
+        }
       );
     } catch (err) {
       reject(err);
@@ -778,33 +775,37 @@ function clearUserContainerData(userId) {
       db.serialize(() => {
         db.run("BEGIN TRANSACTION");
         // Delete ALL containers for this user
-        db.run(`DELETE FROM containers WHERE user_id = ?`, [userId], err1 => {
+        db.run(`DELETE FROM containers WHERE user_id = ?`, [userId], (err1) => {
           if (err1) {
             db.run("ROLLBACK");
             reject(err1);
           } else {
             // Delete ALL deployed_images for this user
-            db.run(`DELETE FROM deployed_images WHERE user_id = ?`, [userId], err2 => {
+            db.run(`DELETE FROM deployed_images WHERE user_id = ?`, [userId], (err2) => {
               if (err2) {
                 db.run("ROLLBACK");
                 reject(err2);
               } else {
                 // Delete ALL registry_image_versions for this user
-                db.run(`DELETE FROM registry_image_versions WHERE user_id = ?`, [userId], err3 => {
-                  if (err3) {
-                    db.run("ROLLBACK");
-                    reject(err3);
-                  } else {
-                    // eslint-disable-next-line max-nested-callbacks -- Transaction commit requires nested callbacks
-                    db.run("COMMIT", commitErr => {
-                      if (commitErr) {
-                        reject(commitErr);
-                      } else {
-                        resolve();
-                      }
-                    });
+                db.run(
+                  `DELETE FROM registry_image_versions WHERE user_id = ?`,
+                  [userId],
+                  (err3) => {
+                    if (err3) {
+                      db.run("ROLLBACK");
+                      reject(err3);
+                    } else {
+                      // eslint-disable-next-line max-nested-callbacks -- Transaction commit requires nested callbacks
+                      db.run("COMMIT", (commitErr) => {
+                        if (commitErr) {
+                          reject(commitErr);
+                        } else {
+                          resolve();
+                        }
+                      });
+                    }
                   }
-                });
+                );
               }
             });
           }

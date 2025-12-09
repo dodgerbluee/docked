@@ -68,12 +68,12 @@ class Scheduler {
                 `⚠️ Failed to parse last run time for user ${user.id}, job ${jobType}`,
                 {
                   completedAt: lastRun.completed_at,
-                },
+                }
               );
             }
           } else {
             this.logger.info(
-              `ℹ️ No completed runs found for user ${user.id}, job ${jobType} - will run on first check`,
+              `ℹ️ No completed runs found for user ${user.id}, job ${jobType} - will run on first check`
             );
           }
         } catch (err) {
@@ -138,13 +138,13 @@ class Scheduler {
     }
 
     this.logger.debug(
-      `Setting up interval check every ${this.checkIntervalMs}ms (${this.checkIntervalMs / 1000}s)`,
+      `Setting up interval check every ${this.checkIntervalMs}ms (${this.checkIntervalMs / 1000}s)`
     );
 
     // Start periodic check
     this.checkInterval = setInterval(() => {
       this.logger.debug(`Interval callback triggered at ${new Date().toISOString()}`);
-      this.checkAndScheduleJobs().catch(err => {
+      this.checkAndScheduleJobs().catch((err) => {
         this.logger.error("Error in scheduler check", {
           error: err.message,
           stack: err.stack,
@@ -215,7 +215,7 @@ class Scheduler {
         {
           currentTime: new Date(now).toISOString(),
           currentTimeMs: now,
-        },
+        }
       );
 
       // Check each user's batch configs
@@ -242,7 +242,7 @@ class Scheduler {
 
           if (!config.enabled || config.intervalMinutes < 1) {
             this.logger.debug(
-              `User ${user.id}, ${jobType}: Skipped - disabled or invalid interval`,
+              `User ${user.id}, ${jobType}: Skipped - disabled or invalid interval`
             );
             // Job is disabled or invalid interval - clear any existing timer
             if (this.jobTimers.has(key)) {
@@ -293,14 +293,14 @@ class Scheduler {
                 intervalMinutes: config.intervalMinutes,
                 lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
                 now: new Date(now).toISOString(),
-              },
+              }
             );
 
             this.runJob(user.id, jobType)
               .then(() => {
                 this.logger.info(`✅ User ${user.id}, Job ${jobType} completed successfully`);
               })
-              .catch(err => {
+              .catch((err) => {
                 this.logger.error(`❌ Error running user ${user.id}, job ${jobType}`, {
                   error: err.message,
                   stack: err.stack,
@@ -310,7 +310,7 @@ class Scheduler {
             const minutesUntilNext =
               Math.round(((intervalMs - timeSinceLastRun) / 1000 / 60) * 10) / 10;
             this.logger.debug(
-              `User ${user.id}, ${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`,
+              `User ${user.id}, ${jobType}: Not due yet - ${minutesUntilNext} minutes until next run`
             );
           }
         }
@@ -380,7 +380,7 @@ class Scheduler {
         Array.from(this.lastRunTimes.entries()).map(([type, time]) => [
           type,
           time === 0 ? null : new Date(time).toISOString(),
-        ]),
+        ])
       ),
     };
   }

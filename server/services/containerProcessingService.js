@@ -42,7 +42,7 @@ async function processContainer({
     const details = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      container.Id,
+      container.Id
     );
     const imageName = details.Config.Image;
 
@@ -52,7 +52,7 @@ async function processContainer({
       details,
       portainerUrl,
       endpointId,
-      userId,
+      userId
     );
 
     // Extract stack name from labels
@@ -66,7 +66,7 @@ async function processContainer({
     // Check if container provides network (other containers depend on it via network_mode)
     const providesNetwork = networkModeService.containerProvidesNetwork(
       container,
-      containerNetworkModes,
+      containerNetworkModes
     );
 
     // Get image creation date by inspecting the image
@@ -77,7 +77,7 @@ async function processContainer({
         const imageDetails = await portainerService.getImageDetails(
           portainerUrl,
           endpointId,
-          imageId,
+          imageId
         );
         if (imageDetails.Created) {
           currentImageCreated = imageDetails.Created;
@@ -202,7 +202,7 @@ async function processContainerBasic({
     const details = await portainerService.getContainerDetails(
       portainerUrl,
       endpointId,
-      container.Id,
+      container.Id
     );
     const imageName = details.Config.Image;
     const imageId = details.Image || "";
@@ -214,7 +214,7 @@ async function processContainerBasic({
         details,
         imageName,
         portainerUrl,
-        endpointId,
+        endpointId
       );
     } catch (digestError) {
       // Fallback to extracting from Image field if getCurrentImageDigest fails
@@ -224,7 +224,7 @@ async function processContainerBasic({
         currentDigest = `sha256:${imageId}`;
       }
       logger.debug(
-        `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`,
+        `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`
       );
     }
 
@@ -251,7 +251,7 @@ async function processContainerBasic({
     // Check if container provides network
     const providesNetwork = networkModeService.containerProvidesNetwork(
       container,
-      containerNetworkModes,
+      containerNetworkModes
     );
 
     // Get image creation date
@@ -261,7 +261,7 @@ async function processContainerBasic({
         const imageDetails = await portainerService.getImageDetails(
           portainerUrl,
           endpointId,
-          imageId,
+          imageId
         );
         if (imageDetails.Created) {
           currentImageCreated = imageDetails.Created;
@@ -328,7 +328,7 @@ async function processContainerBasic({
             error: saveError,
             containerId: container.Id,
             instanceId: instance.id,
-          },
+          }
         );
       }
     }

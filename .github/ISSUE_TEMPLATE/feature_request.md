@@ -29,6 +29,3 @@ Add any other context, mockups, or examples about the feature request here.
 ## Implementation Ideas (Optional)
 
 If you have ideas on how this could be implemented, feel free to share them.
-
-
-

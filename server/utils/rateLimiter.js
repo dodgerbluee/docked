@@ -22,7 +22,7 @@ async function rateLimitDelay(delayMs = 200) {
   const currentState = requestState;
   const timeSinceLastRequest = now - currentState.lastDockerHubRequest;
   if (timeSinceLastRequest < delayMs) {
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, delayMs - timeSinceLastRequest);

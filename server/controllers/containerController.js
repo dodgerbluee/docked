@@ -25,7 +25,6 @@ const logger = require("../utils/logger");
  * @param {Function} next - Express next function
  */
 
-
 // eslint-disable-next-line max-lines-per-function, complexity -- Container retrieval requires comprehensive data processing
 async function getContainers(req, res, _next) {
   try {
@@ -57,7 +56,7 @@ async function getContainers(req, res, _next) {
     if (portainerOnly) {
       // Fetch from Portainer (fresh container data)
       const portainerResult = await containerService.getContainersFromPortainer(userId);
-      
+
       // If refreshUpdates is true, merge fresh Portainer data with cached update info
       // This allows refreshing container status/names while preserving Docker update information
       if (refreshUpdates) {
@@ -65,29 +64,31 @@ async function getContainers(req, res, _next) {
         // Note: These containers have hasUpdate computed from OLD currentDigest in DB
         // We will override currentDigest with fresh Portainer data and recompute hasUpdate
         const cached = await containerService.getAllContainersWithUpdates(false, null, userId);
-        
+
         if (cached && cached.containers && cached.containers.length > 0) {
           // Create a map of cached containers by ID for quick lookup
           const cachedMap = new Map();
-          cached.containers.forEach(c => {
+          cached.containers.forEach((c) => {
             cachedMap.set(c.id, c);
           });
-          
+
           // Merge: use fresh Portainer data (status, state, names) but preserve update info from cache
-          const mergedContainers = portainerResult.containers.map(portainerContainer => {
+          const mergedContainers = portainerResult.containers.map((portainerContainer) => {
             const cachedContainer = cachedMap.get(portainerContainer.id);
-            
+
             if (cachedContainer) {
               // Merge: fresh Portainer data + cached update info
               // CRITICAL: Always use fresh currentDigest from Portainer to detect manual upgrades
               // Don't fall back to cached currentDigest - the fresh one is the source of truth
-              const freshCurrentDigest = portainerContainer.currentDigest || portainerContainer.currentDigestFull;
-              const freshCurrentDigestFull = portainerContainer.currentDigestFull || portainerContainer.currentDigest;
-              
+              const freshCurrentDigest =
+                portainerContainer.currentDigest || portainerContainer.currentDigestFull;
+              const freshCurrentDigestFull =
+                portainerContainer.currentDigestFull || portainerContainer.currentDigest;
+
               // Build merged container with fresh Portainer data prioritized
               // IMPORTANT: Don't spread cachedContainer.hasUpdate - we'll compute it fresh
               const { hasUpdate: _cachedHasUpdate, ...cachedWithoutHasUpdate } = cachedContainer;
-              
+
               const mergedContainer = {
                 ...cachedWithoutHasUpdate, // Start with cached data (but exclude old hasUpdate)
                 // Override Portainer-specific fields (status, state, names) with fresh data
@@ -95,15 +96,22 @@ async function getContainers(req, res, _next) {
                 state: portainerContainer.state,
                 name: portainerContainer.name,
                 // Preserve network mode flags from fresh Portainer data
-                usesNetworkMode: portainerContainer.usesNetworkMode !== undefined ? portainerContainer.usesNetworkMode : cachedContainer.usesNetworkMode,
-                providesNetwork: portainerContainer.providesNetwork !== undefined ? portainerContainer.providesNetwork : cachedContainer.providesNetwork,
+                usesNetworkMode:
+                  portainerContainer.usesNetworkMode !== undefined
+                    ? portainerContainer.usesNetworkMode
+                    : cachedContainer.usesNetworkMode,
+                providesNetwork:
+                  portainerContainer.providesNetwork !== undefined
+                    ? portainerContainer.providesNetwork
+                    : cachedContainer.providesNetwork,
                 // CRITICAL: Always use fresh currentDigest from Portainer (actual running container)
                 // This is the key to detecting manual upgrades - don't use cached digest
                 currentDigest: freshCurrentDigest || null, // Use fresh or null, never cached
                 currentDigestFull: freshCurrentDigestFull || null, // Use fresh or null, never cached
                 currentTag: portainerContainer.currentTag || cachedContainer.currentTag,
                 currentVersion: portainerContainer.currentVersion || cachedContainer.currentVersion,
-                currentImageCreated: portainerContainer.currentImageCreated || cachedContainer.currentImageCreated,
+                currentImageCreated:
+                  portainerContainer.currentImageCreated || cachedContainer.currentImageCreated,
                 // Preserve all update-related fields from cache (latest digest, versions, etc.)
                 latestDigest: cachedContainer.latestDigest,
                 latestDigestFull: cachedContainer.latestDigestFull,
@@ -125,33 +133,33 @@ async function getContainers(req, res, _next) {
               // This will correctly detect if container was manually upgraded
               // This MUST be computed after merging to use the fresh currentDigest
               mergedContainer.hasUpdate = computeHasUpdate(mergedContainer);
-              
+
               return mergedContainer;
             }
-            
+
             // No cached data - container is new, return Portainer data as-is
             return portainerContainer;
           });
-          
+
           // Update stacks and portainerInstances with merged data
           const { stacks } = containerGroupingService.groupContainersByStackWithUnstacked(
             mergedContainers,
-            "Unstacked",
+            "Unstacked"
           );
-          
+
           const userInstances = await getAllPortainerInstances(userId);
           const portainerInstancesArray = containerGroupingService
             .groupContainersByPortainerInstance(mergedContainers, userInstances)
-            .map(instance => {
-              const withUpdates = instance.containers.filter(c => c.hasUpdate);
-              const upToDate = instance.containers.filter(c => !c.hasUpdate);
+            .map((instance) => {
+              const withUpdates = instance.containers.filter((c) => c.hasUpdate);
+              const upToDate = instance.containers.filter((c) => !c.hasUpdate);
               return {
                 ...instance,
                 withUpdates,
                 upToDate,
               };
             });
-          
+
           return res.json({
             ...portainerResult,
             containers: mergedContainers,
@@ -161,11 +169,10 @@ async function getContainers(req, res, _next) {
           });
         }
       }
-      
+
       // No refreshUpdates or no cached data - return Portainer data as-is
       return res.json(portainerResult);
     }
-
 
     // IMPORTANT: Never call registries here - only return cached data or fetch from Portainer
     // Registry checks are ONLY done via /api/containers/pull endpoint (manual pull or batch process)
@@ -188,13 +195,11 @@ async function getContainers(req, res, _next) {
       return res.json(portainerResult);
     }
 
-
     // Check if cached data has network mode flags (providesNetwork, usesNetworkMode)
     // If not, it's old cached data and we need to refresh from Portainer to add these flags
     const hasNetworkModeFlags = cached.containers.some(
-      container =>
-        Object.hasOwn(container, "providesNetwork") ||
-        Object.hasOwn(container, "usesNetworkMode"),
+      (container) =>
+        Object.hasOwn(container, "providesNetwork") || Object.hasOwn(container, "usesNetworkMode")
     );
 
     if (!hasNetworkModeFlags && cached.containers.length > 0) {
@@ -208,12 +213,12 @@ async function getContainers(req, res, _next) {
 
       // Merge Portainer network mode flags into cached data (preserve registry update info)
       const portainerContainersMap = new Map();
-      portainerResult.containers.forEach(c => {
+      portainerResult.containers.forEach((c) => {
         portainerContainersMap.set(c.id, c);
       });
 
       // Update cached containers with network mode flags from Portainer data
-      const updatedContainers = cached.containers.map(cachedContainer => {
+      const updatedContainers = cached.containers.map((cachedContainer) => {
         const portainerContainer = portainerContainersMap.get(cachedContainer.id);
         if (portainerContainer) {
           return {
@@ -297,7 +302,7 @@ async function pullContainers(req, res, _next) {
 
     // Force refresh - checks for updates in container registries
     // Called by: 1) Manual "Pull" button, 2) Batch process, 3) After adding new instance
-    
+
     // Use new cache service if enabled (provides better experience and correct merge logic)
     const useNewCache = process.env.USE_NEW_CACHE === "true";
     if (useNewCache) {
@@ -309,7 +314,7 @@ async function pullContainers(req, res, _next) {
         forceRefresh: true,
         portainerUrl,
       });
-      
+
       logger.info("Container data pull completed successfully (using new cache)", {
         module: "containerController",
         operation: "pullContainers",
@@ -323,7 +328,7 @@ async function pullContainers(req, res, _next) {
         ...result,
       });
     }
-    
+
     // Fallback to old method
     const result = await containerService.getAllContainersWithUpdates(true, portainerUrl, userId);
 
@@ -411,7 +416,7 @@ async function upgradeContainer(req, res, next) {
 
     // Get instance credentials from database for this user
     const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find(inst => inst.url === portainerUrl);
+    const instance = instances.find((inst) => inst.url === portainerUrl);
     if (!instance) {
       return res.status(404).json({
         success: false,
@@ -431,7 +436,7 @@ async function upgradeContainer(req, res, next) {
       endpointId,
       containerId,
       imageName,
-      userId,
+      userId
     );
 
     return res.json({
@@ -482,7 +487,7 @@ async function batchUpgradeContainers(req, res, next) {
 
     // Get all instances once to avoid repeated DB queries (for this user)
     const instances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
+    const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Group containers by Portainer instance for efficient authentication
     const containersByInstance = new Map();
@@ -521,12 +526,12 @@ async function batchUpgradeContainers(req, res, next) {
           });
           return { portainerUrl, success: false, error: error.message };
         }
-      },
+      }
     );
     await Promise.all(authPromises);
 
     // Upgrade all containers concurrently
-    const upgradePromises = containers.map(async container => {
+    const upgradePromises = containers.map(async (container) => {
       try {
         const instance = instanceMap.get(container.portainerUrl);
         if (!instance) {
@@ -548,7 +553,7 @@ async function batchUpgradeContainers(req, res, next) {
           container.endpointId,
           container.containerId,
           container.imageName,
-          userId,
+          userId
         );
         return { success: true, result, containerId: container.containerId };
       } catch (error) {
@@ -628,7 +633,7 @@ async function batchUpgradeContainers(req, res, next) {
 // eslint-disable-next-line max-lines-per-function -- Complex correlation logic
 function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstances) {
   const correlated = {};
-  const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+  const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
   // Helper to extract image repo and tag from various formats
   const extractImageInfo = (imageName, imageRepo, imageTag) => {
@@ -657,7 +662,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   // First pass: Group containers by image_repo:tag
   const containersByImage = new Map();
 
-  (rawDatabaseRecords.containers || []).forEach(container => {
+  (rawDatabaseRecords.containers || []).forEach((container) => {
     const { repo, tag } = extractImageInfo(container.image_name, container.image_repo, null);
     const imageKey = `${repo}:${tag}`;
 
@@ -689,7 +694,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
 
   // Second pass: Correlate deployed_images by image_repo and by ID
   const deployedImageMap = new Map();
-  (rawDatabaseRecords.deployed_images || []).forEach(deployedImage => {
+  (rawDatabaseRecords.deployed_images || []).forEach((deployedImage) => {
     deployedImageMap.set(deployedImage.id, deployedImage);
 
     const { repo, tag } = extractImageInfo(null, deployedImage.image_repo, deployedImage.image_tag);
@@ -714,11 +719,11 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   });
 
   // Third pass: Match deployed_images to containers by deployed_image_id
-  containersByImage.forEach(data => {
+  containersByImage.forEach((data) => {
     if (data.deployedImageIds) {
-      data.deployedImageIds.forEach(deployedImageId => {
+      data.deployedImageIds.forEach((deployedImageId) => {
         const deployedImage = deployedImageMap.get(deployedImageId);
-        if (deployedImage && !data.deployedImages.find(di => di.id === deployedImage.id)) {
+        if (deployedImage && !data.deployedImages.find((di) => di.id === deployedImage.id)) {
           data.deployedImages.push(deployedImage);
         }
       });
@@ -727,7 +732,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   });
 
   // Fourth pass: Correlate registry_image_versions by image_repo
-  (rawDatabaseRecords.registry_image_versions || []).forEach(version => {
+  (rawDatabaseRecords.registry_image_versions || []).forEach((version) => {
     const imageRepo = version.image_repo || "";
     // Try to match by current_tag, latest_tag, or any tag
     const imageTag = version.current_tag || version.latest_tag || version.image_tag || "latest";
@@ -767,7 +772,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   // Convert to object format and add Portainer instance details
   containersByImage.forEach((data, imageKey) => {
     const portainerInstances = Array.from(data.portainerInstances)
-      .map(instanceId => {
+      .map((instanceId) => {
         const instance = instanceMap.get(instanceId);
         return instance || { id: instanceId, error: "Instance not found" };
       })
@@ -804,13 +809,15 @@ async function getContainerData(req, res, _next) {
     }
 
     // Get ALL containers with joined deployed images and registry versions
-    const { getPortainerContainersWithUpdates: getPortainerContainersWithUpdatesLocal } = require("../db/index");
+    const {
+      getPortainerContainersWithUpdates: getPortainerContainersWithUpdatesLocal,
+    } = require("../db/index");
     const allContainers = await getPortainerContainersWithUpdatesLocal(userId);
     const userInstances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+    const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
     // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
-    const _normalizeDigest = digest => {
+    const _normalizeDigest = (digest) => {
       if (!digest) {
         return null;
       }
@@ -821,7 +828,7 @@ async function getContainerData(req, res, _next) {
     // Format containers for display (include Portainer data even if no registry update data)
     // Also preserve portainerInstanceId for grouping
     // eslint-disable-next-line complexity -- Complex formatting logic needed for container display
-    const formattedContainers = allContainers.map(c => {
+    const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
 
       // Data is already joined from getPortainerContainersWithUpdates
@@ -859,16 +866,16 @@ async function getContainerData(req, res, _next) {
         lastSeen: c.lastSeen,
         updatedAt: c.updatedAt,
       };
-      
+
       // Compute hasUpdate on-the-fly
       formattedContainer.hasUpdate = computeHasUpdate(formattedContainer);
-      
+
       return formattedContainer;
     });
 
     // Group by image (repo:tag) for formatted view - show all containers using same image together
     const containersByImage = new Map();
-    formattedContainers.forEach(c => {
+    formattedContainers.forEach((c) => {
       if (c.imageRepo) {
         const imageKey = `${c.imageRepo}:${c.currentTag || "latest"}`;
         if (!containersByImage.has(imageKey)) {
@@ -896,7 +903,7 @@ async function getContainerData(req, res, _next) {
 
     // Also group by portainer instance for instance-based view
     const containersByInstanceId = new Map();
-    formattedContainers.forEach(c => {
+    formattedContainers.forEach((c) => {
       if (c.portainerInstanceId) {
         if (!containersByInstanceId.has(c.portainerInstanceId)) {
           containersByInstanceId.set(c.portainerInstanceId, []);
@@ -911,7 +918,7 @@ async function getContainerData(req, res, _next) {
       imageRepo: imageData.imageRepo,
       imageTag: imageData.imageTag,
       containerCount: imageData.containers.length,
-      containerNames: imageData.containers.map(c => c.name || c.id || "Unknown"),
+      containerNames: imageData.containers.map((c) => c.name || c.id || "Unknown"),
       data: {
         imageRepo: imageData.imageRepo,
         imageTag: imageData.imageTag,
@@ -930,12 +937,12 @@ async function getContainerData(req, res, _next) {
     }));
 
     // Also create entries grouped by instance (for instance-based view)
-    const _instanceEntries = userInstances.map(instance => {
+    const _instanceEntries = userInstances.map((instance) => {
       const instanceContainers = containersByInstanceId.get(instance.id) || [];
       return {
         key: `portainer-${instance.id}`,
         containerCount: instanceContainers.length,
-        containerNames: instanceContainers.map(c => c.name || c.id || "Unknown"),
+        containerNames: instanceContainers.map((c) => c.name || c.id || "Unknown"),
         data: {
           instanceName: instance.name,
           instanceUrl: instance.url,
@@ -959,7 +966,7 @@ async function getContainerData(req, res, _next) {
         ([id, containers]) => ({
           instanceId: id,
           containerCount: containers.length,
-        }),
+        })
       ),
     });
 
@@ -970,7 +977,7 @@ async function getContainerData(req, res, _next) {
     const correlatedRecords = correlateRecordsByImage(
       rawDatabaseRecords,
       allContainers,
-      userInstances,
+      userInstances
     );
 
     return res.json({
@@ -1018,11 +1025,11 @@ async function clearContainerData(req, res, _next) {
       });
     }
     const { clearUserContainerData } = require("../db/index");
-    
+
     // Clear database tables (containers, deployed_images, registry_image_versions)
     // NOTE: tracked_apps table is NOT touched - it's managed separately
     await clearUserContainerData(userId);
-    
+
     // Clear memory cache for this user
     try {
       const containerCacheService = require("../services/cache/containerCacheService");
@@ -1036,7 +1043,7 @@ async function clearContainerData(req, res, _next) {
         error: cacheError,
       });
     }
-    
+
     logger.info("User container data and cache cleared", {
       module: "containerController",
       operation: "clearContainerData",

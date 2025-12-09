@@ -1,11 +1,11 @@
 /**
  * Container Cache Service
- * 
+ *
  * Three-layer cache system for container data:
  * 1. Database Cache (persistent)
  * 2. Memory Cache (in-memory, 30s TTL)
  * 3. UI State (managed by React)
- * 
+ *
  * Provides consistent, flicker-free container data with immediate updates.
  */
 
@@ -34,7 +34,7 @@ class CacheEntry {
 
 /**
  * Get container data with intelligent caching
- * 
+ *
  * Strategy:
  * 1. Check memory cache first (if fresh)
  * 2. Fetch fresh Portainer data
@@ -43,7 +43,7 @@ class CacheEntry {
  * 5. Update database cache if needed
  * 6. Update memory cache
  * 7. Return merged result
- * 
+ *
  * @param {number} userId - User ID
  * @param {Object} options - Options
  * @param {boolean} options.forceRefresh - Force refresh from Portainer
@@ -80,22 +80,22 @@ async function getContainersWithCache(userId, options = {}) {
     const merged = await mergeAndDetectChanges(
       portainerResult.containers || [],
       dbCache || [],
-      userId,
+      userId
     );
 
     // Step 4: Build result
     // merged is an array of containers from mergeAndDetectChanges
     // Ensure merged is always an array
-    const mergedContainers = Array.isArray(merged) ? merged : (merged?.containers || []);
-    
+    const mergedContainers = Array.isArray(merged) ? merged : merged?.containers || [];
+
     // Log summary of containers with updates for debugging
-    const containersWithUpdates = mergedContainers.filter(c => c.hasUpdate);
+    const containersWithUpdates = mergedContainers.filter((c) => c.hasUpdate);
     logger.debug("Merged containers summary", {
       total: mergedContainers.length,
       withUpdates: containersWithUpdates.length,
       withoutUpdates: mergedContainers.length - containersWithUpdates.length,
     });
-    
+
     const result = {
       grouped: true,
       stacks: portainerResult.stacks || [],
@@ -150,7 +150,7 @@ async function getContainersWithCache(userId, options = {}) {
 
 /**
  * Merge fresh Portainer data with database cache and detect changes
- * 
+ *
  * @param {Array} portainerContainers - Fresh containers from Portainer
  * @param {Array} dbContainers - Cached containers from database
  * @param {number} userId - User ID
@@ -159,11 +159,11 @@ async function getContainersWithCache(userId, options = {}) {
 async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) {
   const dbMap = new Map();
   const dbMapByImage = new Map(); // Map by image name for fallback matching
-  
+
   // Database containers: id = DB row ID, containerId = actual container ID
   // Portainer containers: id = actual container ID
   // So we need to map portainerContainer.id to dbContainer.containerId
-  dbContainers.forEach(c => {
+  dbContainers.forEach((c) => {
     // Map by containerId (the actual container ID from Docker/Portainer)
     if (c.containerId) {
       dbMap.set(c.containerId, c);
@@ -191,12 +191,12 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
   for (const portainerContainer of portainerContainers) {
     // portainerContainer.id is the actual container ID
     let dbContainer = dbMap.get(portainerContainer.id);
-    
+
     // If not found by exact ID, try short ID
     if (!dbContainer && portainerContainer.id.length >= 12) {
       dbContainer = dbMap.get(portainerContainer.id.substring(0, 12));
     }
-    
+
     // If still not found, try matching by image name (container might have been recreated)
     if (!dbContainer && portainerContainer.image) {
       const imageKey = `${portainerContainer.image}_${portainerContainer.endpointId || ""}`;
@@ -206,10 +206,10 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
     if (dbContainer) {
       // Compare current digests to detect manual upgrades
       const freshDigest = normalizeDigest(
-        portainerContainer.currentDigest || portainerContainer.currentDigestFull,
+        portainerContainer.currentDigest || portainerContainer.currentDigestFull
       );
       const cachedDigest = normalizeDigest(
-        dbContainer.currentDigest || dbContainer.currentDigestFull,
+        dbContainer.currentDigest || dbContainer.currentDigestFull
       );
 
       // If digests differ, container was manually upgraded
@@ -227,7 +227,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
           userId,
           portainerContainer.id,
           freshDigest,
-          portainerContainer.currentDigestFull || portainerContainer.currentDigest,
+          portainerContainer.currentDigestFull || portainerContainer.currentDigest
         );
       }
 
@@ -255,13 +255,22 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
             : dbContainer.providesNetwork,
         // CRITICAL: Use fresh currentDigest (detects manual upgrades)
         // Prioritize Portainer currentDigest, but fall back to cached if Portainer doesn't have it
-        currentDigest: portainerContainer.currentDigest || portainerContainer.currentDigestFull || dbContainer.currentDigest,
+        currentDigest:
+          portainerContainer.currentDigest ||
+          portainerContainer.currentDigestFull ||
+          dbContainer.currentDigest,
         currentDigestFull:
-          portainerContainer.currentDigestFull || portainerContainer.currentDigest || dbContainer.currentDigest || dbContainer.currentDigestFull,
+          portainerContainer.currentDigestFull ||
+          portainerContainer.currentDigest ||
+          dbContainer.currentDigest ||
+          dbContainer.currentDigestFull,
         currentTag: portainerContainer.currentTag || dbContainer.currentTag || dbContainer.imageTag,
-        currentVersion: portainerContainer.currentVersion || dbContainer.currentVersion || dbContainer.currentTag,
+        currentVersion:
+          portainerContainer.currentVersion || dbContainer.currentVersion || dbContainer.currentTag,
         currentImageCreated:
-          portainerContainer.currentImageCreated || dbContainer.currentImageCreated || dbContainer.imageCreatedDate,
+          portainerContainer.currentImageCreated ||
+          dbContainer.currentImageCreated ||
+          dbContainer.imageCreatedDate,
         // Preserve update-related fields from cache
         // CRITICAL: Database only has latestDigest (not latestDigestFull), so use it for both
         // This ensures computeHasUpdate can find the digest in either field
@@ -284,13 +293,17 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
 
       // Compute hasUpdate on-the-fly with fresh currentDigest
       mergedContainer.hasUpdate = computeHasUpdate(mergedContainer);
-      
+
       // Debug logging for missing updates - log ALL containers with latestDigest to see what's happening
       if (dbContainer.latestDigest) {
-        const currentNorm = normalizeDigest(mergedContainer.currentDigest || mergedContainer.currentDigestFull);
-        const latestNorm = normalizeDigest(dbContainer.latestDigest || dbContainer.latestDigestFull);
+        const currentNorm = normalizeDigest(
+          mergedContainer.currentDigest || mergedContainer.currentDigestFull
+        );
+        const latestNorm = normalizeDigest(
+          dbContainer.latestDigest || dbContainer.latestDigestFull
+        );
         const shouldHaveUpdate = currentNorm && latestNorm && currentNorm !== latestNorm;
-        
+
         if (shouldHaveUpdate && !mergedContainer.hasUpdate) {
           // This should have hasUpdate=true but doesn't - log for debugging
           logger.warn("Container should have update but computeHasUpdate returned false", {
@@ -298,7 +311,8 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
             containerId: mergedContainer.id.substring(0, 12),
             currentDigest: currentNorm ? currentNorm.substring(0, 12) : "null",
             latestDigest: latestNorm ? latestNorm.substring(0, 12) : "null",
-            currentDigestFull: mergedContainer.currentDigest || mergedContainer.currentDigestFull || "null",
+            currentDigestFull:
+              mergedContainer.currentDigest || mergedContainer.currentDigestFull || "null",
             latestDigestFull: dbContainer.latestDigest || dbContainer.latestDigestFull || "null",
             provider: dbContainer.provider,
             hasCurrentDigest: !!mergedContainer.currentDigest,
@@ -324,7 +338,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
         const imageKey = `${portainerContainer.image}_${portainerContainer.endpointId || ""}`;
         updateInfoFromImage = dbMapByImage.get(imageKey);
       }
-      
+
       if (updateInfoFromImage) {
         // We have update info from a previous container with the same image
         // This handles cases where container was recreated (new ID) but same image
@@ -333,7 +347,8 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
           // Preserve update-related fields from the matched container
           // CRITICAL: Database only has latestDigest (not latestDigestFull), so use it for both
           latestDigest: updateInfoFromImage.latestDigest || null,
-          latestDigestFull: updateInfoFromImage.latestDigestFull || updateInfoFromImage.latestDigest || null,
+          latestDigestFull:
+            updateInfoFromImage.latestDigestFull || updateInfoFromImage.latestDigest || null,
           latestTag: updateInfoFromImage.latestTag,
           latestVersion: updateInfoFromImage.latestVersion,
           newVersion: updateInfoFromImage.newVersion,
@@ -347,7 +362,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
           noDigest: updateInfoFromImage.noDigest,
           lastChecked: updateInfoFromImage.lastChecked,
         };
-        
+
         // Compute hasUpdate with the update info
         containerWithUpdates.hasUpdate = computeHasUpdate(containerWithUpdates);
         merged.push(containerWithUpdates);
@@ -363,7 +378,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
     logger.info("Detected container changes", {
       userId,
       changeCount: changes.length,
-      changes: changes.map(c => ({
+      changes: changes.map((c) => ({
         name: c.containerName,
         type: c.type,
       })),
@@ -375,7 +390,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
 
 /**
  * Update container digest in database cache
- * 
+ *
  * @param {number} userId - User ID
  * @param {string} containerId - Container ID
  * @param {string} newDigest - New digest (normalized)
@@ -390,15 +405,16 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
     // Find container in database to get instance ID
     const dbContainers = await getPortainerContainersWithUpdates(userId);
     // Try to find by containerId first (actual container ID), then by id (DB row ID)
-    let container = dbContainers.find(c => c.containerId === containerId);
+    let container = dbContainers.find((c) => c.containerId === containerId);
     if (!container) {
-      container = dbContainers.find(c => c.id === containerId);
+      container = dbContainers.find((c) => c.id === containerId);
     }
     // Also try short ID match
     if (!container && containerId.length >= 12) {
-      container = dbContainers.find(c => 
-        (c.containerId && c.containerId.substring(0, 12) === containerId.substring(0, 12)) ||
-        (c.id && c.id.substring(0, 12) === containerId.substring(0, 12))
+      container = dbContainers.find(
+        (c) =>
+          (c.containerId && c.containerId.substring(0, 12) === containerId.substring(0, 12)) ||
+          (c.id && c.id.substring(0, 12) === containerId.substring(0, 12))
       );
     }
 
@@ -409,7 +425,7 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
 
     // Get Portainer instance
     const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find(inst => inst.id === container.portainerInstanceId);
+    const instance = instances.find((inst) => inst.id === container.portainerInstanceId);
 
     if (!instance) {
       logger.warn("Portainer instance not found for container", { containerId });
@@ -434,7 +450,7 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
         usesNetworkMode: container.usesNetworkMode,
         providesNetwork: container.providesNetwork,
       },
-      null, // No version data update needed
+      null // No version data update needed
     );
 
     logger.debug("Updated container digest in cache", {
@@ -449,19 +465,22 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
 
 /**
  * Normalize digest for comparison
- * 
+ *
  * @param {string|null} digest - Digest string
  * @returns {string|null} Normalized digest
  */
 function normalizeDigest(digest) {
   if (!digest) return null;
   // Remove sha256: prefix if present, convert to lowercase, trim whitespace
-  return String(digest).replace(/^sha256:/i, "").toLowerCase().trim();
+  return String(digest)
+    .replace(/^sha256:/i, "")
+    .toLowerCase()
+    .trim();
 }
 
 /**
  * Invalidate memory cache for a container or all containers
- * 
+ *
  * @param {number} userId - User ID
  * @param {string|null} containerId - Container ID (null for all)
  * @param {string|null} portainerUrl - Portainer URL (null for all)
@@ -470,7 +489,7 @@ function invalidateCache(userId, containerId = null, portainerUrl = null) {
   if (containerId) {
     // Invalidate specific container - clear all cache entries for this user
     const keys = Array.from(memoryCache.keys());
-    keys.forEach(key => {
+    keys.forEach((key) => {
       if (key.includes(`_${userId}_`)) {
         memoryCache.delete(key);
       }
@@ -485,7 +504,7 @@ function invalidateCache(userId, containerId = null, portainerUrl = null) {
   } else {
     // Invalidate all cache entries for this user (no containerId, no portainerUrl)
     const keys = Array.from(memoryCache.keys());
-    keys.forEach(key => {
+    keys.forEach((key) => {
       if (key.startsWith(`containers_${userId}_`)) {
         memoryCache.delete(key);
       }
@@ -509,4 +528,3 @@ module.exports = {
   clearMemoryCache,
   mergeAndDetectChanges,
 };
-

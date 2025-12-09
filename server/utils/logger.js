@@ -102,7 +102,7 @@ function redactString(str) {
  * @returns {Array} - Redacted array
  */
 function redactArray(arr, depth) {
-  return arr.map(item => redactSensitive(item, depth + 1));
+  return arr.map((item) => redactSensitive(item, depth + 1));
 }
 
 /**
@@ -114,9 +114,7 @@ function redactArray(arr, depth) {
 function redactObject(obj, depth) {
   const redacted = {};
   for (const [key, value] of Object.entries(obj)) {
-    redacted[key] = isKeySensitive(key)
-      ? "[REDACTED]"
-      : redactSensitive(value, depth + 1);
+    redacted[key] = isKeySensitive(key) ? "[REDACTED]" : redactSensitive(value, depth + 1);
   }
   return redacted;
 }
@@ -207,7 +205,7 @@ function createChildLogger(additionalContext = {}) {
       const context = getContext();
       getWinstonLogger().error(message, { ...context, ...mergedContext, ...metadata });
     },
-    child: moreContext => createChildLogger({ ...mergedContext, ...moreContext }),
+    child: (moreContext) => createChildLogger({ ...mergedContext, ...moreContext }),
   };
 }
 
@@ -215,7 +213,7 @@ function createChildLogger(additionalContext = {}) {
 const structuredFormat = winston.format.combine(
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
   winston.format.errors({ stack: true }),
-  winston.format(info => {
+  winston.format((info) => {
     // Extract context from metadata
     const context = getContext();
 
@@ -240,7 +238,7 @@ const structuredFormat = winston.format.combine(
 
     return formattedInfo;
   })(),
-  winston.format.json(),
+  winston.format.json()
 );
 
 // Console format for development (human-readable)
@@ -271,7 +269,7 @@ const consoleFormat = winston.format.combine(
 
       // Add metadata if present (excluding standard fields)
       const metaKeys = Object.keys(meta).filter(
-        key =>
+        (key) =>
           ![
             "timestamp",
             "level",
@@ -283,12 +281,12 @@ const consoleFormat = winston.format.combine(
             "batchId",
             "service",
             "stack",
-          ].includes(key),
+          ].includes(key)
       );
 
       if (metaKeys.length > 0) {
         const metaObj = {};
-        metaKeys.forEach(key => {
+        metaKeys.forEach((key) => {
           metaObj[key] = meta[key];
         });
         msg += ` ${JSON.stringify(redactSensitive(metaObj))}`;
@@ -300,8 +298,8 @@ const consoleFormat = winston.format.combine(
       }
 
       return msg;
-    },
-  ),
+    }
+  )
 );
 
 // Lazy getter for winstonLogger to avoid use-before-define
@@ -384,7 +382,7 @@ if (process.env.DISABLE_CONSOLE_LOGGING !== "true") {
   getWinstonLogger().add(
     new winston.transports.Console({
       format: consoleFormat,
-    }),
+    })
   );
 }
 
@@ -393,7 +391,7 @@ function updateLogLevel() {
   const newLevel = getEffectiveLogLevel();
   const logger = getWinstonLogger();
   logger.level = newLevel;
-  logger.transports.forEach(transport => {
+  logger.transports.forEach((transport) => {
     if (transport.level) {
       // Only update if transport has a specific level
       // Note: Winston requires direct property mutation
@@ -414,7 +412,7 @@ if (process.env.NODE_ENV !== "test" && typeof jest === "undefined") {
         module: "logger",
         initialLevel: initialLogLevel,
         currentLevel: getWinstonLogger().level,
-        transports: getWinstonLogger().transports.map(t => t.constructor.name),
+        transports: getWinstonLogger().transports.map((t) => t.constructor.name),
       });
     } catch (err) {
       // Log initialization error to console as fallback

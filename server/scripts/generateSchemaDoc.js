@@ -47,7 +47,7 @@ function getTables(db) {
         } else {
           resolve(rows || []);
         }
-      },
+      }
     );
   });
 }
@@ -84,7 +84,7 @@ function getIndexes(db, tableName) {
         } else {
           resolve(rows || []);
         }
-      },
+      }
     );
   });
 }
@@ -121,7 +121,7 @@ async function generateDocumentation() {
     }
 
     // eslint-disable-next-line max-lines-per-function -- Database initialization callback requires comprehensive error handling
-    const db = new sqlite3.Database(DB_PATH, err => {
+    const db = new sqlite3.Database(DB_PATH, (err) => {
       if (err) {
         reject(err);
         return;
@@ -220,7 +220,7 @@ async function generateDocumentation() {
           doc.push("### User-Centric Design");
           doc.push("");
           doc.push(
-            "The database follows a user-centric design where most tables are scoped to individual users:",
+            "The database follows a user-centric design where most tables are scoped to individual users:"
           );
           doc.push("");
           doc.push("- `users` - Core user accounts");
@@ -228,7 +228,7 @@ async function generateDocumentation() {
           doc.push("- `tracked_apps` - Tracked Docker images per user (via `user_id`)");
           doc.push("- `settings` - User-specific settings (via `user_id`)");
           doc.push(
-            "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)",
+            "- `discord_webhooks` - Discord webhook configurations per user (via `user_id`)"
           );
           doc.push("- `docker_hub_credentials` - Docker Hub credentials per user (via `user_id`)");
           doc.push("- `batch_config` - Batch job configurations per user (via `user_id`)");
@@ -237,7 +237,7 @@ async function generateDocumentation() {
           doc.push("### Special Cases");
           doc.push("");
           doc.push(
-            "- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)",
+            "- `settings` table uses `user_id = 0` for system-wide settings (e.g., log level)"
           );
           doc.push("");
 
@@ -254,13 +254,14 @@ async function generateDocumentation() {
 
           db.close(
             // eslint-disable-next-line no-shadow -- Error parameter shadows outer scope, but needed for callback
-            err => {
+            (err) => {
               if (err) {
                 reject(err);
               } else {
                 resolve();
               }
-            });
+            }
+          );
         } catch (error) {
           db.close();
           reject(error);
@@ -276,7 +277,7 @@ if (require.main === module) {
     .then(() => {
       process.exit(0);
     })
-    .catch(error => {
+    .catch((error) => {
       console.error("Error generating schema documentation:", error);
 
       process.exit(1);

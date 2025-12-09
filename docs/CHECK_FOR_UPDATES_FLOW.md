@@ -7,12 +7,14 @@ This document describes the complete process that occurs when clicking "Check fo
 ### Frontend Flow
 
 **Location:** `client/src/pages/TrackedAppsPage/components/TrackedAppsHeader.js`
+
 - Button calls `onCheckUpdates` prop
 - Which is `handleCheckTrackedAppsUpdates` from `useTrackedApps` hook
 
 **Hook:** `client/src/hooks/useTrackedApps.js` → `handleCheckTrackedAppsUpdates`
 
 **Process:**
+
 1. Sets `checkingUpdates = true` (shows loading state)
 2. Clears any previous errors
 3. Makes POST request to `/api/tracked-apps/check-updates`
@@ -30,6 +32,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Controller:** `server/controllers/trackedAppController.js` → `checkTrackedAppsUpdates`
 
 **Process:**
+
 1. Validates user authentication
 2. Fetches all tracked apps for the user from database:
    ```javascript
@@ -44,6 +47,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Service:** `server/services/trackedAppService.js` → `checkAllTrackedApps`
 
 **Process:**
+
 1. Iterates through each tracked app
 2. For each app, calls `checkTrackedApp(image, batchLogger)`
 3. `checkTrackedApp` determines source type and routes to appropriate handler:
@@ -56,6 +60,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `server/services/trackedAppService.js` → `checkGitHubTrackedApp`
 
 **Process:**
+
 1. Extracts `github_repo` from tracked app
 2. Calls GitHub API to get latest release:
    ```javascript
@@ -88,6 +93,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `server/services/trackedAppService.js` → `checkGitLabTrackedApp`
 
 **Process:** Similar to GitHub, but uses GitLab API:
+
 1. Calls `gitlabService.getLatestRelease(gitlabRepo, gitlabToken)`
 2. Compares versions
 3. Updates database
@@ -98,6 +104,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `server/services/trackedAppService.js` → `checkTrackedApp` (Docker path)
 
 **Process:**
+
 1. Extracts image name and tag
 2. Calls `getLatestVersionFromDockerHubTags(repo, userId)`:
    - Uses Docker Hub API v2 tags endpoint
@@ -117,6 +124,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `server/db/trackedApps.js` → `updateTrackedApp`
 
 **Process:**
+
 1. Builds SQL UPDATE statement with provided fields
 2. Updates `tracked_apps` table
 3. Sets `updated_at = CURRENT_TIMESTAMP`
@@ -126,6 +134,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `client/src/hooks/useTrackedApps.js` → `fetchTrackedApps`
 
 **Process:**
+
 1. Makes GET request to `/api/tracked-apps`
 2. Backend returns all tracked apps for user
 3. Formats and sorts apps alphabetically
@@ -139,12 +148,14 @@ This document describes the complete process that occurs when clicking "Check fo
 ### Frontend Flow
 
 **Location:** `client/src/pages/PortainerPage/components/PortainerHeader.js`
+
 - Button calls `onPullDockerHub` prop
 - Which is `handlePull` from `useContainerPull` hook
 
 **Hook:** `client/src/hooks/useContainerOperations/hooks/useContainerPull.js` → `handlePull`
 
 **Process:**
+
 1. Sets `pulling = true` (shows loading state)
 2. Clears previous errors
 3. **Immediately fetches cached data** (for instant UI update):
@@ -168,6 +179,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Controller:** `server/controllers/containerController.js` → `pullContainers`
 
 **Process:**
+
 1. Validates user authentication
 2. Determines if using new cache service (via query param or env var)
 3. If using new cache:
@@ -188,6 +200,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Service:** `server/services/cache/containerCacheService.js` → `getContainersWithCache`
 
 **Process:**
+
 1. Checks memory cache (TTL-based)
 2. If cache valid and not forcing refresh: returns cached data
 3. If forcing refresh or cache expired:
@@ -207,6 +220,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Service:** `server/services/containerQueryService.js` → `getAllContainersWithUpdates`
 
 **Process:**
+
 1. Gets previous containers from database (for change detection)
 2. Clears registry digest cache
 3. Fetches tracked apps map (for source type mapping)
@@ -232,6 +246,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Service:** `server/services/imageUpdateService.js` → `checkImageUpdates`
 
 **Process:**
+
 1. Parses image name to determine registry
 2. Routes to appropriate registry service:
    - **Docker Hub:** `dockerRegistryService.getLatestDigest()`
@@ -247,6 +262,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Service:** `server/services/containerPersistenceService.js` → `saveContainerToDatabase`
 
 **Process:**
+
 1. Upserts container to `containers` table
 2. Upserts deployed image to `deployed_images` table
 3. Upserts registry image version to `registry_image_versions` table
@@ -257,6 +273,7 @@ This document describes the complete process that occurs when clicking "Check fo
 **Function:** `client/src/utils/containerStateHelpers.js` → `updateContainersWithPreservedState`
 
 **Process:**
+
 1. Iterates through API containers
 2. For each container:
    - Checks if it was recently successfully updated
@@ -271,12 +288,14 @@ This document describes the complete process that occurs when clicking "Check fo
 ## Key Differences
 
 ### Tracked Apps Check:
+
 - Checks **tracked apps** (GitHub repos, GitLab repos, Docker images)
 - Updates version information in `tracked_apps` table
 - Does NOT check actual running containers
 - Faster (only API calls to GitHub/GitLab/Docker Hub)
 
 ### Portainer Check:
+
 - Checks **actual running containers** from Portainer
 - Fetches fresh data from Portainer API
 - Checks registries for each container's image
@@ -290,4 +309,3 @@ This document describes the complete process that occurs when clicking "Check fo
 2. **Stale update status:** Fixed by computing `hasUpdate` on-the-fly using digest comparison
 3. **Race conditions:** Fixed by adding delays before fetching after updates complete
 4. **Cache not updating:** Fixed by invalidating memory cache after database updates
-

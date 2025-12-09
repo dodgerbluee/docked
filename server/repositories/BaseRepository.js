@@ -157,7 +157,7 @@ class BaseRepository {
       }
 
       db.serialize(() => {
-        db.run("BEGIN IMMEDIATE TRANSACTION", err => {
+        db.run("BEGIN IMMEDIATE TRANSACTION", (err) => {
           if (err) {
             reject(err);
             return;
@@ -165,8 +165,8 @@ class BaseRepository {
 
           // Execute callback
           Promise.resolve(callback(this))
-            .then(result => {
-              db.run("COMMIT", commitErr => {
+            .then((result) => {
+              db.run("COMMIT", (commitErr) => {
                 if (commitErr) {
                   // eslint-disable-next-line max-nested-callbacks -- Transaction rollback requires nested callbacks
                   db.run("ROLLBACK", () => {
@@ -177,7 +177,7 @@ class BaseRepository {
                 }
               });
             })
-            .catch(error => {
+            .catch((error) => {
               db.run("ROLLBACK", () => {
                 reject(error);
               });
@@ -198,7 +198,7 @@ class BaseRepository {
         keysToDelete.push(key);
       }
     }
-    keysToDelete.forEach(key => cache.delete(key));
+    keysToDelete.forEach((key) => cache.delete(key));
     logger.debug(`Invalidated ${keysToDelete.length} cache entries with prefix: ${prefix}`);
   }
 
