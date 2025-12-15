@@ -4,7 +4,7 @@
  * Stores preference in database and provides getter/setter
  */
 
-const { getSystemSetting, setSystemSetting } = require("../db/database");
+const { getSystemSetting, setSystemSetting } = require("../db/index");
 
 const LOG_LEVEL_KEY = "log_level";
 const DEFAULT_LOG_LEVEL = "info";

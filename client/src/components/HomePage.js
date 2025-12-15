@@ -7,6 +7,7 @@ import HomePageContent from "./HomePage/components/HomePageContent";
 import HomePageModals from "./HomePage/components/HomePageModals";
 import { usePageVisibilitySettings } from "../hooks/usePageVisibilitySettings";
 import { TAB_NAMES } from "../constants/apiConstants";
+import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 
 /**
  * HomePage Component
@@ -162,8 +163,11 @@ function HomePage({
     [batchConfig, setBatchConfig]
   );
 
-  // Memoize filtered containers
-  const containersWithUpdates = useMemo(() => containers.filter((c) => c.hasUpdate), [containers]);
+  // Memoize filtered containers - compute hasUpdate on-the-fly
+  const containersWithUpdates = useMemo(
+    () => containers.filter((c) => computeHasUpdate(c)),
+    [containers]
+  );
 
   return (
     <BatchConfigContext.Provider value={batchConfigContextValue}>

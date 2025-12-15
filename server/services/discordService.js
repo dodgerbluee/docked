@@ -8,13 +8,14 @@
  * - Error handling and logging
  * - Deduplication
  */
+/* eslint-disable max-lines -- Large service file with comprehensive Discord integration */
 
 const axios = require("axios");
 const logger = require("../utils/logger");
 
 // Lazy load database functions to avoid initialization issues
 function getDatabase() {
-  return require("../db/database");
+  return require("../db/index");
 }
 
 // Discord webhook rate limits: 30 requests per 60 seconds per webhook
@@ -101,7 +102,11 @@ startCleanupInterval();
  * @returns {Promise<void>}
  */
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, ms);
+  });
 }
 
 /**
@@ -115,7 +120,7 @@ function validateWebhookUrl(webhookUrl) {
   }
   // Discord webhook URLs follow pattern: https://discord.com/api/webhooks/{id}/{token}
   const webhookPattern =
-    /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+$/;
+    /^https:\/\/(?<domain>discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+$/;
   return webhookPattern.test(webhookUrl.trim());
 }
 
@@ -124,6 +129,7 @@ function validateWebhookUrl(webhookUrl) {
  * @param {string} webhookUrl - Webhook URL to test
  * @returns {Promise<{success: boolean, error?: string}>}
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Webhook testing requires comprehensive validation logic
 async function testWebhook(webhookUrl) {
   // Validate webhook URL format before use
   if (!validateWebhookUrl(webhookUrl)) {
@@ -144,13 +150,15 @@ async function testWebhook(webhookUrl) {
 
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
-    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    const pathMatch = parsedUrl.pathname.match(
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+    );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
     }
 
-    const webhookId = pathMatch[1];
-    const webhookToken = pathMatch[2];
+    const webhookId = pathMatch.groups.id;
+    const webhookToken = pathMatch.groups.token;
 
     // Validate extracted components match safe patterns
     if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
@@ -180,7 +188,7 @@ async function testWebhook(webhookUrl) {
     if (!validateWebhookUrl(safeUrl)) {
       return { success: false, error: "Reconstructed URL validation failed" };
     }
-  } catch (error) {
+  } catch (_error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
@@ -208,12 +216,11 @@ async function testWebhook(webhookUrl) {
 
     if (response.status >= 200 && response.status < 300) {
       return { success: true };
-    } else {
-      const errorText = response.data
-        ? JSON.stringify(response.data)
-        : response.statusText || "Unknown error";
-      return { success: false, error: `Webhook returned status ${response.status}: ${errorText}` };
     }
+    const errorText = response.data
+      ? JSON.stringify(response.data)
+      : response.statusText || "Unknown error";
+    return { success: false, error: `Webhook returned status ${response.status}: ${errorText}` };
   } catch (error) {
     logger.error("Error testing webhook:", error);
     return { success: false, error: error.message || "Failed to connect to webhook" };
@@ -280,46 +287,72 @@ function getRateLimitResetTime(webhookUrl) {
 }
 
 /**
+ * Normalize digest for consistent comparison (remove sha256: prefix, lowercase)
+ * @param {string} digest - Digest string
+ * @returns {string} - Normalized digest
+ */
+function normalizeDigest(digest) {
+  if (!digest) return "";
+  return String(digest)
+    .replace(/^sha256:/i, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Extract notification values with fallbacks
+ * @param {Object} notification - Notification data
+ * @returns {Object} - Extracted values
+ */
+function extractNotificationValues(notification) {
+  return {
+    imageName: notification.imageName || "",
+    latestDigest: normalizeDigest(notification.latestDigest || notification.latest_digest || ""),
+    containerName: notification.name || notification.containerName || "",
+    userId: notification.userId || notification.user_id || "",
+    latestVersion: notification.latestVersion || "",
+    identifier: notification.imageName || notification.githubRepo || notification.name || "",
+  };
+}
+
+/**
+ * Create deduplication key for portainer container notification
+ * @param {Object} values - Extracted notification values
+ * @returns {string} - Deduplication key
+ */
+function createPortainerContainerKey(values) {
+  const { userId, containerName, imageName, latestDigest, latestVersion } = values;
+  const key = latestDigest || latestVersion;
+  return `${userId}:${containerName}:${imageName}:${key}`;
+}
+
+/**
+ * Create deduplication key for tracked image notification
+ * @param {Object} values - Extracted notification values
+ * @returns {string} - Deduplication key
+ */
+function createTrackedImageKey(values) {
+  const { userId, identifier, latestDigest, latestVersion } = values;
+  const key = latestDigest || latestVersion;
+  return `${userId}:${identifier}:${key}`;
+}
+
+/**
  * Create deduplication key for a notification
  * @param {Object} notification - Notification data
  * @returns {string} - Deduplication key
  */
 function createDeduplicationKey(notification) {
-  // Normalize digest for consistent comparison (remove sha256: prefix, lowercase)
-  const normalizeDigest = (digest) => {
-    if (!digest) return "";
-    return String(digest)
-      .replace(/^sha256:/i, "")
-      .toLowerCase()
-      .trim();
-  };
-
-  const imageName = notification.imageName || "";
-  const latestDigest = normalizeDigest(
-    notification.latestDigest || notification.latest_digest || ""
-  );
-  const containerName = notification.name || notification.containerName || "";
-  const userId = notification.userId || notification.user_id || "";
+  const values = extractNotificationValues(notification);
 
   // For portainer containers, use SHA digest as the key (one notification per unique SHA)
   if (notification.notificationType === "portainer-container") {
-    if (!latestDigest) {
-      // Fallback to version if no digest available (shouldn't happen normally)
-      const latestVersion = notification.latestVersion || "";
-      return `${userId}:${containerName}:${imageName}:${latestVersion}`;
-    }
-    return `${userId}:${containerName}:${imageName}:${latestDigest}`;
+    return createPortainerContainerKey(values);
   }
 
   // For tracked images, use SHA digest as the key
   // For GitHub/GitLab, use githubRepo if imageName is not available
-  const identifier = imageName || notification.githubRepo || notification.name || "";
-  if (!latestDigest) {
-    // Fallback to version if no digest available (for GitHub/GitLab tracked images)
-    const latestVersion = notification.latestVersion || "";
-    return `${userId}:${identifier}:${latestVersion}`;
-  }
-  return `${userId}:${identifier}:${latestDigest}`;
+  return createTrackedImageKey(values);
 }
 
 /**
@@ -416,6 +449,7 @@ async function recordNotification(key, userId = null, notificationType = null) {
  * @param {number} retries - Number of retries remaining
  * @returns {Promise<{success: boolean, error?: string}>}
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Notification sending with retry requires comprehensive error handling
 async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETRIES) {
   // Validate webhook URL format before use
   if (!validateWebhookUrl(webhookUrl)) {
@@ -436,13 +470,15 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
 
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
-    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    const pathMatch = parsedUrl.pathname.match(
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+    );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
     }
 
-    const webhookId = pathMatch[1];
-    const webhookToken = pathMatch[2];
+    const webhookId = pathMatch.groups.id;
+    const webhookToken = pathMatch.groups.token;
 
     // Validate extracted components match safe patterns
     if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
@@ -472,7 +508,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
     if (!validateWebhookUrl(safeUrl)) {
       return { success: false, error: "Reconstructed URL validation failed" };
     }
-  } catch (error) {
+  } catch (_error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
@@ -500,7 +536,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
 
       if (response.status === 429) {
         // Rate limited - get retry-after header
-        const retryAfter = parseInt(response.headers["retry-after"] || "60");
+        const retryAfter = parseInt(response.headers["retry-after"] || "60", 10);
         const waitTime = retryAfter * 1000;
 
         logger.warn(`Discord rate limit hit, waiting ${waitTime}ms`);
@@ -516,28 +552,27 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
       if (response.status >= 200 && response.status < 300) {
         logger.info("Discord notification sent successfully");
         return { success: true };
+      }
+      const errorText = response.data
+        ? JSON.stringify(response.data)
+        : response.statusText || "Unknown error";
+      const error = `HTTP ${response.status}: ${errorText}`;
+
+      // Don't retry on client errors (4xx) except 429
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+        logger.error(`Discord webhook error (not retrying): ${error}`);
+        return { success: false, error };
+      }
+
+      // Retry on server errors (5xx) or network errors
+      if (attempt < retries) {
+        const backoffTime = 2 ** attempt * 1000; // Exponential backoff
+        logger.warn(`Discord notification failed, retrying in ${backoffTime}ms: ${error}`);
+        await sleep(backoffTime);
+        continue;
       } else {
-        const errorText = response.data
-          ? JSON.stringify(response.data)
-          : response.statusText || "Unknown error";
-        const error = `HTTP ${response.status}: ${errorText}`;
-
-        // Don't retry on client errors (4xx) except 429
-        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          logger.error(`Discord webhook error (not retrying): ${error}`);
-          return { success: false, error };
-        }
-
-        // Retry on server errors (5xx) or network errors
-        if (attempt < retries) {
-          const backoffTime = Math.pow(2, attempt) * 1000; // Exponential backoff
-          logger.warn(`Discord notification failed, retrying in ${backoffTime}ms: ${error}`);
-          await sleep(backoffTime);
-          continue;
-        } else {
-          logger.error(`Discord notification failed after ${retries} retries: ${error}`);
-          return { success: false, error };
-        }
+        logger.error(`Discord notification failed after ${retries} retries: ${error}`);
+        return { success: false, error };
       }
     } catch (error) {
       logger.error(
@@ -546,7 +581,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
       );
 
       if (attempt < retries) {
-        const backoffTime = Math.pow(2, attempt) * 1000; // Exponential backoff
+        const backoffTime = 2 ** attempt * 1000; // Exponential backoff
         await sleep(backoffTime);
         continue;
       } else {
@@ -592,12 +627,12 @@ function getDockerHubRepoUrl(imageName) {
   if (repo.includes("/")) {
     // User image
     return `https://hub.docker.com/r/${repo}`;
-  } else {
-    // Official image (library)
-    return `https://hub.docker.com/r/library/${repo}`;
   }
+  // Official image (library)
+  return `https://hub.docker.com/r/library/${repo}`;
 }
 
+// eslint-disable-next-line max-lines-per-function, complexity -- Notification formatting requires comprehensive data transformation
 function formatVersionUpdateNotification(imageData) {
   const {
     name,
@@ -664,7 +699,7 @@ function formatVersionUpdateNotification(imageData) {
           // Invalid URL format, fall back to constructing it
           latestDisplay = latestVersion;
         }
-      } catch (e) {
+      } catch (_e) {
         // Invalid URL, use version without link
         latestDisplay = latestVersion;
       }
@@ -696,7 +731,7 @@ function formatVersionUpdateNotification(imageData) {
         month: "short",
         day: "numeric",
       });
-    } catch (e) {
+    } catch (_e) {
       // Invalid date, use raw value
       publishDateText = latestVersionPublishDate;
     }
@@ -847,7 +882,6 @@ async function processNotificationQueue() {
           await sleep(waitTime);
         }
       }
-
       const result = await sendNotificationWithRetry(notification.webhookUrl, notification.payload);
 
       if (result.success) {
@@ -919,8 +953,9 @@ async function sendNotificationImmediate(imageData) {
 /**
  * Get webhook information from Discord API
  * @param {string} webhookUrl - Webhook URL
- * @returns {Promise<{success: boolean, name?: string, channel_id?: string, guild_id?: string, avatar?: string, avatar_url?: string, error?: string}>}
+ * @returns {Promise<{success: boolean, name?: string, channelId?: string, guildId?: string, avatar?: string, avatarUrl?: string, error?: string}>}
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Webhook info retrieval requires comprehensive API handling
 async function getWebhookInfo(webhookUrl) {
   // Validate webhook URL format before use
   if (!validateWebhookUrl(webhookUrl)) {
@@ -941,13 +976,15 @@ async function getWebhookInfo(webhookUrl) {
 
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
-    const pathMatch = parsedUrl.pathname.match(/^\/api\/webhooks\/(\d+)\/([A-Za-z0-9_-]+)$/);
+    const pathMatch = parsedUrl.pathname.match(
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+    );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
     }
 
-    const webhookId = pathMatch[1];
-    const webhookToken = pathMatch[2];
+    const webhookId = pathMatch.groups.id;
+    const webhookToken = pathMatch.groups.token;
 
     // Validate extracted components match safe patterns
     if (!/^\d+$/.test(webhookId) || !/^[A-Za-z0-9_-]+$/.test(webhookToken)) {
@@ -977,7 +1014,7 @@ async function getWebhookInfo(webhookUrl) {
     if (!validateWebhookUrl(safeUrl)) {
       return { success: false, error: "Reconstructed URL validation failed" };
     }
-  } catch (error) {
+  } catch (_error) {
     return { success: false, error: "Invalid webhook URL format" };
   }
 
@@ -991,14 +1028,15 @@ async function getWebhookInfo(webhookUrl) {
     });
 
     if (response.status === 200 && response.data) {
-      const data = response.data;
+      const { data } = response;
 
       // Construct avatar URL if avatar hash is provided
+      // If no custom avatar, use Discord's default webhook avatar
       let avatarUrl = null;
       if (data.avatar) {
         // Discord CDN URL format for webhooks: https://cdn.discordapp.com/avatars/{webhook_id}/{avatar_hash}.{ext}
         // Extract webhook ID from URL or use data.id
-        const webhookIdRaw = data.id || webhookUrl.match(/\/webhooks\/(\d+)\//)?.[1];
+        const webhookIdRaw = data.id || webhookUrl.match(/\/webhooks\/(?<id>\d+)\//)?.groups?.id;
 
         // Validate webhookId is a valid numeric string to prevent injection
         if (webhookIdRaw && /^\d+$/.test(String(webhookIdRaw))) {
@@ -1008,7 +1046,8 @@ async function getWebhookInfo(webhookUrl) {
           // Validate avatarHash contains only safe characters (alphanumeric, underscore, hyphen)
           // Discord avatar hashes are base64-like strings, typically 32 characters
           // This prevents path traversal attacks (../) and other injection attempts
-          if (/^[a-zA-Z0-9_-]+$/.test(avatarHash) && avatarHash.length <= 64) {
+          const isValidAvatarHash = /^[a-zA-Z0-9_-]+$/.test(avatarHash) && avatarHash.length <= 64;
+          if (isValidAvatarHash) {
             // Discord avatars can be .png, .jpg, .webp, or .gif
             // Check if avatar starts with 'a_' which indicates animated (gif)
             const extension = avatarHash.startsWith("a_") ? "gif" : "png";
@@ -1017,7 +1056,10 @@ async function getWebhookInfo(webhookUrl) {
 
             // Final validation: Ensure the constructed URL is actually a Discord CDN URL
             // This provides defense-in-depth against any potential injection
-            if (constructedUrl.startsWith("https://cdn.discordapp.com/avatars/")) {
+            const isValidDiscordUrl = constructedUrl.startsWith(
+              "https://cdn.discordapp.com/avatars/"
+            );
+            if (isValidDiscordUrl) {
               avatarUrl = constructedUrl;
             } else {
               logger.warn("Constructed avatar URL does not match expected Discord CDN format", {
@@ -1036,40 +1078,43 @@ async function getWebhookInfo(webhookUrl) {
             webhookIdRaw,
           });
         }
+      } else {
+        // No custom avatar - use Discord's default webhook avatar
+        // Discord's default embed avatar (used for webhooks without custom avatars)
+        avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
       }
 
       return {
         success: true,
         name: data.name || null,
-        channel_id: data.channel_id || null,
-        guild_id: data.guild_id || null,
+        channelId: data.channel_id || null,
+        guildId: data.guild_id || null,
         avatar: data.avatar || null,
-        avatar_url: avatarUrl,
+        avatarUrl,
         type: data.type || null,
         id: data.id || null,
-        application_id: data.application_id || null,
-        source_guild: data.source_guild
+        applicationId: data.application_id || null,
+        sourceGuild: data.source_guild
           ? {
               id: data.source_guild.id,
               name: data.source_guild.name,
               icon: data.source_guild.icon ? "***present***" : null,
             }
           : null,
-        source_channel: data.source_channel
+        sourceChannel: data.source_channel
           ? {
               id: data.source_channel.id,
               name: data.source_channel.name,
             }
           : null,
       };
-    } else {
-      logger.warn("Failed to fetch webhook info:", {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-      });
-      return { success: false, error: `Failed to fetch webhook info: ${response.status}` };
     }
+    logger.warn("Failed to fetch webhook info:", {
+      status: response.status,
+      statusText: response.statusText,
+      data: response.data,
+    });
+    return { success: false, error: `Failed to fetch webhook info: ${response.status}` };
   } catch (error) {
     logger.error("Error fetching webhook info:", {
       error: error.message,

@@ -8,11 +8,12 @@
   align-items: center;
   gap: 16px;
   width: 100%;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .portainerHeader {
   margin: 0;
-  margin-left: 240px; /* Align with content area: sidebar width (220px) + gap (20px) */
   white-space: nowrap;
 }
 
@@ -33,7 +34,7 @@
   display: flex;
   gap: 20px;
   min-height: 600px;
-  margin-top: -8px;
+  margin-top: 24px;
   align-items: flex-start;
 }
 
@@ -95,7 +96,7 @@ body.dark-mode .deleteButtonHover:hover:not(:disabled) {
 
 .alertContainer {
   margin: 0;
-  margin-top: 16px;
+  margin-top: 20px;
   margin-bottom: 0;
   padding: 0;
 }
@@ -167,7 +168,7 @@ body.dark-mode .pullSpinner svg {
 }
 
 .contentTabPanel {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .emptyState {

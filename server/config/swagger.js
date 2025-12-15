@@ -75,21 +75,108 @@ const options = {
               type: "string",
               example: "abc123def456",
             },
-            name: {
+            containerId: {
+              type: "string",
+              example: "abc123def456",
+            },
+            containerName: {
               type: "string",
               example: "my-container",
             },
-            image: {
+            imageName: {
               type: "string",
               example: "nginx:latest",
             },
+            imageRepo: {
+              type: "string",
+              example: "nginx",
+            },
             status: {
+              type: "string",
+              example: "running",
+            },
+            state: {
               type: "string",
               example: "running",
             },
             hasUpdate: {
               type: "boolean",
               example: true,
+            },
+            stackName: {
+              type: "string",
+              nullable: true,
+              example: "my-stack",
+            },
+            portainerUrl: {
+              type: "string",
+              example: "http://portainer:9000",
+            },
+          },
+        },
+        PortainerInstance: {
+          type: "object",
+          properties: {
+            id: {
+              type: "integer",
+              example: 1,
+            },
+            url: {
+              type: "string",
+              example: "http://portainer:9000",
+            },
+            name: {
+              type: "string",
+              example: "Local Portainer",
+            },
+            authType: {
+              type: "string",
+              enum: ["apikey", "basic"],
+              example: "apikey",
+            },
+            displayOrder: {
+              type: "integer",
+              example: 0,
+            },
+          },
+        },
+        TrackedApp: {
+          type: "object",
+          properties: {
+            id: {
+              type: "integer",
+              example: 1,
+            },
+            name: {
+              type: "string",
+              example: "My App",
+            },
+            imageName: {
+              type: "string",
+              nullable: true,
+              example: "nginx:latest",
+            },
+            githubRepo: {
+              type: "string",
+              nullable: true,
+              example: "owner/repo",
+            },
+            sourceType: {
+              type: "string",
+              enum: ["docker", "github"],
+              example: "docker",
+            },
+            currentVersion: {
+              type: "string",
+              nullable: true,
+            },
+            latestVersion: {
+              type: "string",
+              nullable: true,
+            },
+            hasUpdate: {
+              type: "boolean",
+              example: false,
             },
           },
         },

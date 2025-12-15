@@ -6,7 +6,7 @@
 const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
 const { validateImageArray } = require("../utils/validation");
-const { getAllPortainerInstances } = require("../db/database");
+const { getAllPortainerInstances } = require("../db/index");
 const logger = require("../utils/logger");
 
 /**
@@ -25,7 +25,7 @@ async function getUnusedImages(req, res, next) {
       });
     }
     const unusedImages = await containerService.getUnusedImages(userId);
-    res.json({ unusedImages });
+    return res.json({ unusedImages });
   } catch (error) {
     next(error);
   }
@@ -37,6 +37,7 @@ async function getUnusedImages(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
+// eslint-disable-next-line max-lines-per-function -- Complex image deletion logic
 async function deleteImages(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -77,37 +78,50 @@ async function deleteImages(req, res, next) {
     const instances = await getAllPortainerInstances(userId);
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
-    // Delete images
-    for (const image of uniqueImages) {
+    // Delete images in parallel
+    const deletePromises = uniqueImages.map(async (image) => {
       const { id, portainerUrl, endpointId } = image;
       try {
         const instance = instanceMap.get(portainerUrl);
         if (!instance) {
-          errors.push({
+          return {
             id,
             error: `Portainer instance not found: ${portainerUrl}`,
-          });
-          continue;
+          };
         }
 
-        await portainerService.authenticatePortainer(
+        await portainerService.authenticatePortainer({
           portainerUrl,
-          instance.username,
-          instance.password,
-          instance.api_key,
-          instance.auth_type || "apikey"
-        );
+          username: instance.username,
+          password: instance.password,
+          apiKey: instance.api_key,
+          authType: instance.auth_type || "apikey",
+        });
         logger.info(`Deleting image ${id.substring(0, 12)} from ${portainerUrl}`);
+
         await portainerService.deleteImage(portainerUrl, endpointId, id, true);
-        results.push({ id, success: true });
         logger.info(`Successfully deleted image ${id.substring(0, 12)} from ${portainerUrl}`);
+        return { id, success: true };
       } catch (error) {
         logger.error(`Failed to delete image ${id.substring(0, 12)}:`, { error });
-        errors.push({ id, error: error.message });
+        return { id, error: error.message };
       }
-    }
+    });
 
-    res.json({
+    const deleteResults = await Promise.allSettled(deletePromises);
+    deleteResults.forEach((result) => {
+      if (result.status === "fulfilled") {
+        if (result.value.success) {
+          results.push(result.value);
+        } else {
+          errors.push(result.value);
+        }
+      } else {
+        errors.push({ id: "unknown", error: result.reason?.message || "Unknown error" });
+      }
+    });
+
+    return res.json({
       success: true,
       deleted: results.length,
       results,

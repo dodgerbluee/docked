@@ -2,6 +2,8 @@
  * Utility functions for container operations
  */
 
+import { computeHasUpdate } from "./containerUpdateHelpers";
+
 /**
  * Check if a container is a Portainer instance
  * @param {Object} container - Container object
@@ -33,7 +35,8 @@ export const buildContainersByPortainer = (containers) => {
       };
     }
     acc[portainerUrl].containers.push(container);
-    if (container.hasUpdate) {
+    // Compute hasUpdate on-the-fly
+    if (computeHasUpdate(container)) {
       acc[portainerUrl].withUpdates.push(container);
     } else {
       acc[portainerUrl].upToDate.push(container);

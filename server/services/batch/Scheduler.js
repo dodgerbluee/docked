@@ -4,9 +4,8 @@
  * retries, error handling, and concurrent execution support
  */
 
-const { getBatchConfig, getLatestBatchRunByJobType, getAllUsers } = require("../../db/database");
+const { getBatchConfig, getLatestBatchRunByJobType, getAllUsers } = require("../../db/index");
 const BatchLogger = require("./Logger");
-const { setLogLevel: setBatchLogLevel } = require("./Logger");
 
 class Scheduler {
   constructor(batchManager) {
@@ -22,6 +21,7 @@ class Scheduler {
   /**
    * Initialize scheduler by loading last run times from database
    */
+  // eslint-disable-next-line max-lines-per-function, complexity -- Scheduler initialization requires comprehensive setup
   async initialize() {
     this.logger.debug("initialize() called");
 
@@ -44,7 +44,7 @@ class Scheduler {
         try {
           const lastRun = await getLatestBatchRunByJobType(user.id, jobType);
           this.logger.debug(`Last run query result for user ${user.id}, job ${jobType}:`, {
-            found: !!lastRun,
+            found: Boolean(lastRun),
           });
 
           if (lastRun && lastRun.completed_at && lastRun.status === "completed") {
@@ -53,13 +53,14 @@ class Scheduler {
               parsed: completedAt ? completedAt.toISOString() : "failed to parse",
             });
 
-            if (completedAt && !isNaN(completedAt.getTime())) {
+            const isValidTimestamp = completedAt && !isNaN(completedAt.getTime());
+            if (isValidTimestamp) {
               const timestamp = completedAt.getTime();
               this.lastRunTimes.set(key, timestamp);
               this.logger.info(`✅ Loaded last run time for user ${user.id}, job ${jobType}`, {
                 completedAtRaw: lastRun.completed_at,
                 completedAtParsed: completedAt.toISOString(),
-                timestamp: timestamp,
+                timestamp,
                 timestampDate: new Date(timestamp).toISOString(),
               });
             } else {
@@ -105,7 +106,7 @@ class Scheduler {
       /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}/.test(timestampStr)
     ) {
       // SQLite stores datetimes in UTC, so add 'Z' to indicate UTC
-      const isoStr = timestampStr.replace(" ", "T") + "Z";
+      const isoStr = `${timestampStr.replace(" ", "T")}Z`;
       return new Date(isoStr);
     }
 
@@ -193,6 +194,7 @@ class Scheduler {
   /**
    * Check batch configs and schedule jobs that are due
    */
+  // eslint-disable-next-line max-lines-per-function, complexity -- Job scheduling requires comprehensive logic
   async checkAndScheduleJobs() {
     try {
       const timestamp = new Date().toISOString();
@@ -233,7 +235,7 @@ class Scheduler {
           const key = `${user.id}:${jobType}`;
 
           this.logger.debug(`Checking user ${user.id}, job: ${jobType}`, {
-            configExists: !!userConfigs[jobType],
+            configExists: Boolean(userConfigs[jobType]),
             enabled: config.enabled,
             intervalMinutes: config.intervalMinutes,
           });
@@ -279,7 +281,7 @@ class Scheduler {
             requiredIntervalMinutes: config.intervalMinutes,
             condition1: `${timeSinceLastRun} >= ${intervalMs} = ${condition1}`,
             condition2: `${lastRunTime} === 0 = ${condition2}`,
-            shouldRun: shouldRun,
+            shouldRun,
           });
 
           if (shouldRun) {
@@ -287,7 +289,7 @@ class Scheduler {
             this.logger.info(
               `⏰ User ${user.id}, Job ${jobType} is due to run - triggering execution`,
               {
-                timeSinceLastRun: Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10 + " minutes",
+                timeSinceLastRun: `${Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10} minutes`,
                 intervalMinutes: config.intervalMinutes,
                 lastRunTime: lastRunTime === 0 ? "never" : new Date(lastRunTime).toISOString(),
                 now: new Date(now).toISOString(),
