@@ -9,7 +9,271 @@
 const dockerRegistryService = require("./dockerRegistryService");
 const registryService = require("./registry");
 const logger = require("../utils/logger");
-const { getDockerHubImageVersion } = require("../db/database");
+const { getDockerHubImageVersion } = require("../db/index");
+
+/**
+ * Extract image repository and tag from image name
+ * @param {string} imageName - Image name
+ * @returns {Object} - { repo, currentTag }
+ */
+function extractImageInfo(imageName) {
+  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
+  return {
+    repo: imageParts[0],
+    currentTag: imageParts[1],
+  };
+}
+
+/**
+ * Get stored version info from database
+ * @param {number} userId - User ID
+ * @param {string} repo - Repository name
+ * @param {string} currentTag - Current tag
+ * @returns {Promise<Object|null>} - Stored version info or null
+ */
+async function getStoredVersionInfo(userId, repo, currentTag) {
+  if (!userId) {
+    return null;
+  }
+
+  try {
+    return await getDockerHubImageVersion(userId, repo, currentTag);
+  } catch (dbError) {
+    logger.debug(`Could not get stored version info for ${repo}:${currentTag}:`, {
+      error: dbError,
+    });
+    return null;
+  }
+}
+
+/**
+ * Get current digest from container or stored info
+ * @param {Object} containerDetails - Container details
+ * @param {string} imageName - Image name
+ * @param {string} portainerUrl - Portainer URL
+ * @param {string|number} endpointId - Endpoint ID
+ * @param {Object} storedVersionInfo - Stored version info
+ * @param {string} repo - Repository name
+ * @returns {Promise<string|null>} - Current digest or null
+ */
+/**
+ * Get current digest from container details
+ * @param {Object} options - Options object
+ * @param {Object} options.containerDetails - Container details
+ * @param {string} options.imageName - Image name
+ * @param {string} options.portainerUrl - Portainer URL
+ * @param {string|number} options.endpointId - Endpoint ID
+ * @param {Object} options.storedVersionInfo - Stored version info
+ * @param {string} options.repo - Repository name
+ * @returns {Promise<string|null>} - Current digest
+ */
+async function getCurrentDigest(options) {
+  const { containerDetails, imageName, portainerUrl, endpointId, storedVersionInfo, repo } =
+    options;
+  if (containerDetails) {
+    const digest = await dockerRegistryService.getCurrentImageDigest(
+      containerDetails,
+      imageName,
+      portainerUrl,
+      endpointId
+    );
+    if (process.env.DEBUG && digest) {
+      logger.debug(`Got current digest from container for ${repo}: ${digest.substring(0, 12)}...`);
+    }
+    if (digest) {
+      return digest;
+    }
+  }
+
+  if (storedVersionInfo?.currentDigest) {
+    if (process.env.DEBUG) {
+      logger.debug(
+        `Using stored current digest from database as fallback for ${repo}: ${storedVersionInfo.currentDigest.substring(0, 12)}...`
+      );
+    }
+    return storedVersionInfo.currentDigest;
+  }
+
+  return null;
+}
+
+/**
+ * Detect provider from image repository
+ * @param {string} repo - Repository name
+ * @returns {string|null} - Provider name or null
+ */
+function detectProvider(repo) {
+  const dockerRegistryServiceLocal = require("./dockerRegistryService");
+  const registryInfo = dockerRegistryServiceLocal.detectRegistry(repo);
+  const providerMap = {
+    dockerhub: "dockerhub",
+    ghcr: "ghcr",
+    gitlab: "gitlab",
+    gcr: "gcr",
+    lscr: "dockerhub",
+  };
+  return providerMap[registryInfo.type] || null;
+}
+
+/**
+ * Ensure provider is set in latest image info
+ * @param {Object|null} latestImageInfo - Latest image info
+ * @param {string} repo - Repository name
+ * @param {string} currentTag - Current tag
+ * @returns {Object|null} - Latest image info with provider
+ */
+function ensureProvider(latestImageInfo, repo, currentTag) {
+  if (latestImageInfo?.provider) {
+    return latestImageInfo;
+  }
+
+  const detectedProvider = detectProvider(repo);
+  if (!detectedProvider) {
+    return latestImageInfo;
+  }
+
+  if (!latestImageInfo) {
+    return {
+      provider: detectedProvider,
+      digest: null,
+      tag: currentTag,
+    };
+  }
+
+  return {
+    ...latestImageInfo,
+    provider: detectedProvider,
+  };
+}
+
+/**
+ * Calculate update status based on latest image info
+ * @param {Object|null} latestImageInfo - Latest image info
+ * @param {string} currentDigest - Current digest
+ * @param {string} currentTag - Current tag
+ * @param {Object} storedVersionInfo - Stored version info
+ * @returns {Object} - { hasUpdate, latestDigest, latestTag }
+ */
+/**
+ * Handle case when no latest image info
+ * @param {Object} storedVersionInfo - Stored version info
+ * @param {string} currentTag - Current tag
+ * @returns {Object} - Update status
+ */
+function handleNoLatestImageInfo(storedVersionInfo, currentTag) {
+  if (storedVersionInfo) {
+    return {
+      hasUpdate: storedVersionInfo.hasUpdate || false,
+      latestDigest: storedVersionInfo.latestDigest || null,
+      latestTag: currentTag,
+    };
+  }
+  return {
+    hasUpdate: false,
+    latestDigest: null,
+    latestTag: currentTag,
+  };
+}
+
+/**
+ * Determine update status with stored version info
+ * @param {Object} storedVersionInfo - Stored version info
+ * @param {string} currentTag - Current tag
+ * @param {Object} latestImageInfo - Latest image info
+ * @param {string} latestDigest - Latest digest
+ * @param {string|null} currentDigest - Current digest
+ * @returns {boolean} - Has update
+ */
+function determineUpdateWithStoredInfo(
+  storedVersionInfo,
+  currentTag,
+  latestImageInfo,
+  latestDigest,
+  currentDigest
+) {
+  if (
+    storedVersionInfo &&
+    storedVersionInfo.hasUpdate === false &&
+    latestDigest &&
+    !currentDigest &&
+    storedVersionInfo.currentDigest
+  ) {
+    return registryService.hasUpdate(storedVersionInfo.currentDigest, currentTag, latestImageInfo);
+  }
+  if (currentDigest === null && latestDigest) {
+    return false;
+  }
+  return null;
+}
+
+// eslint-disable-next-line complexity -- Update status calculation requires multiple conditional checks
+function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, storedVersionInfo) {
+  if (!latestImageInfo) {
+    return handleNoLatestImageInfo(storedVersionInfo, currentTag);
+  }
+
+  const latestDigest = latestImageInfo.digest;
+  const latestTag = latestImageInfo.tag || latestImageInfo.version || currentTag;
+
+  if (latestImageInfo.isFallback && !latestDigest) {
+    logger.debug(
+      `Using GitHub Releases fallback for ${latestImageInfo.provider || "unknown"}:${currentTag} - version: ${latestTag}, digest: null`
+    );
+  }
+
+  let hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo);
+
+  if (process.env.DEBUG) {
+    logger.debug(
+      `Comparing - currentDigest=${currentDigest ? `${currentDigest.substring(0, 12)}...` : "null"}, latestDigest=${latestDigest ? `${latestDigest.substring(0, 12)}...` : "null"}, hasUpdate=${hasUpdate}, isFallback=${latestImageInfo.isFallback || false}`
+    );
+  }
+
+  const storedUpdate = determineUpdateWithStoredInfo(
+    storedVersionInfo,
+    currentTag,
+    latestImageInfo,
+    latestDigest,
+    currentDigest
+  );
+  if (storedUpdate !== null) {
+    hasUpdate = storedUpdate;
+  }
+
+  return { hasUpdate, latestDigest, latestTag };
+}
+
+/**
+ * Format digest for display
+ * @param {string|null} digest - Digest string
+ * @returns {string|null} - Formatted digest
+ */
+function formatDigest(digest) {
+  if (!digest) {
+    return null;
+  }
+  return digest.replace("sha256:", "").substring(0, 12);
+}
+
+/**
+ * Get publish date for latest tag
+ * @param {string} repo - Repository name
+ * @param {string} latestTag - Latest tag
+ * @param {boolean} hasUpdate - Whether update is available
+ * @param {number} userId - User ID
+ * @returns {Promise<string|null>} - Publish date or null
+ */
+async function getPublishDate(repo, latestTag, hasUpdate, userId) {
+  if (!latestTag || !hasUpdate) {
+    return null;
+  }
+
+  try {
+    return await registryService.getTagPublishDate(repo, latestTag, { userId });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Check if an image has updates available
@@ -19,6 +283,7 @@ const { getDockerHubImageVersion } = require("../db/database");
  * @param {string|number} endpointId - Endpoint ID
  * @returns {Promise<Object>} - Update information
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Image update checking requires comprehensive validation logic
 async function checkImageUpdates(
   imageName,
   containerDetails = null,
@@ -26,223 +291,55 @@ async function checkImageUpdates(
   endpointId = null,
   userId = null
 ) {
-  // Extract image name and tag
-  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
-  const repo = imageParts[0];
-  const currentTag = imageParts[1];
+  const { repo, currentTag } = extractImageInfo(imageName);
+  const storedVersionInfo = await getStoredVersionInfo(userId, repo, currentTag);
+  const currentDigest = await getCurrentDigest({
+    containerDetails,
+    imageName,
+    portainerUrl,
+    endpointId,
+    storedVersionInfo,
+    repo,
+  });
 
-  // First, check database for stored current digest (from previous upgrade or pull)
-  // This ensures we use the correct digest even if the container hasn't been refreshed yet
-  let storedVersionInfo = null;
-  if (userId) {
-    try {
-      // Pass currentTag to get the correct record for this specific tag
-      storedVersionInfo = await getDockerHubImageVersion(userId, repo, currentTag);
-    } catch (dbError) {
-      // If database lookup fails, continue without stored info
-      logger.debug(`Could not get stored version info for ${repo}:${currentTag}:`, {
-        error: dbError,
-      });
-    }
-  }
-
-  // Get current image digest from the actual container (not from shared Docker Hub record)
-  // The Docker Hub version table is shared per image_repo, so we can't use its currentDigest
-  // for comparison - each container needs to be checked individually
-  let currentDigest = null;
-  if (containerDetails) {
-    // Always get the actual digest from the container itself
-    currentDigest = await dockerRegistryService.getCurrentImageDigest(
-      containerDetails,
-      imageName,
-      portainerUrl,
-      endpointId
-    );
-    if (process.env.DEBUG && currentDigest) {
-      logger.debug(
-        `Got current digest from container for ${repo}: ${currentDigest.substring(0, 12)}...`
-      );
-    }
-  }
-
-  // If we couldn't get digest from container, try stored digest as fallback
-  // But only if we don't have container details (shouldn't happen in normal flow)
-  if (!currentDigest && storedVersionInfo && storedVersionInfo.currentDigest) {
-    currentDigest = storedVersionInfo.currentDigest;
-    if (process.env.DEBUG) {
-      logger.debug(
-        `Using stored current digest from database as fallback for ${repo}: ${currentDigest.substring(0, 12)}...`
-      );
-    }
-  }
-
-  // Get the image digest from registry for the current tag
-  // Use new unified registry service with automatic fallback
   let latestImageInfo;
   try {
     latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
       userId,
-      useFallback: true, // Enable GitHub Releases fallback if available
+      useFallback: true,
     });
   } catch (error) {
-    // If rate limit exceeded, propagate the error
     if (error.isRateLimitExceeded) {
       throw error;
     }
-    // For other errors, continue with null (will assume no update)
     latestImageInfo = null;
   }
 
-  // If we didn't get provider from registry lookup, detect it from image name
-  // This ensures provider is set even when digest lookup fails
-  if (!latestImageInfo?.provider) {
-    const dockerRegistryService = require("./dockerRegistryService");
-    const registryInfo = dockerRegistryService.detectRegistry(repo);
-    const providerMap = {
-      dockerhub: "dockerhub",
-      ghcr: "ghcr",
-      gitlab: "gitlab",
-      gcr: "gcr",
-      lscr: "dockerhub",
-    };
-    const detectedProvider = providerMap[registryInfo.type] || null;
-    if (detectedProvider) {
-      // Create a minimal latestImageInfo with provider even if digest lookup failed
-      if (!latestImageInfo) {
-        latestImageInfo = {
-          provider: detectedProvider,
-          digest: null,
-          tag: currentTag,
-        };
-      } else {
-        latestImageInfo.provider = detectedProvider;
-      }
-    }
-  }
+  latestImageInfo = ensureProvider(latestImageInfo, repo, currentTag);
+  const { hasUpdate, latestDigest, latestTag } = calculateUpdateStatus(
+    latestImageInfo,
+    currentDigest,
+    currentTag,
+    storedVersionInfo
+  );
 
-  let hasUpdate = false;
-  let latestDigest = null;
-  let latestTag = currentTag; // Use the current tag, not "latest"
-
-  if (latestImageInfo) {
-    latestDigest = latestImageInfo.digest;
-    // For GitHub Releases fallback, use version if digest is null
-    latestTag = latestImageInfo.tag || latestImageInfo.version || currentTag;
-
-    // Log when using fallback to help debug
-    if (latestImageInfo.isFallback && !latestDigest) {
-      logger.debug(
-        `Using GitHub Releases fallback for ${repo}:${currentTag} - version: ${latestTag}, digest: null`
-      );
-    }
-
-    // Use registry service's hasUpdate method for consistent comparison
-    // This handles both digest-based and version-based (fallback) comparisons
-    hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo);
-
-    if (process.env.DEBUG) {
-      logger.debug(
-        `Comparing for ${repo}:${currentTag} - currentDigest=${currentDigest ? currentDigest.substring(0, 12) + "..." : "null"}, latestDigest=${latestDigest ? latestDigest.substring(0, 12) + "..." : "null"}, hasUpdate=${hasUpdate}, isFallback=${latestImageInfo.isFallback || false}`
-      );
-    }
-
-    // Handle stored version info edge cases
-    if (
-      storedVersionInfo &&
-      storedVersionInfo.hasUpdate === false &&
-      latestDigest &&
-      !currentDigest
-    ) {
-      // If we have stored info saying no update (container was recently upgraded),
-      // and we can't get current digest from container, trust the stored info
-      // But verify against the latest digest from registry
-      if (storedVersionInfo.currentDigest) {
-        const storedHasUpdate = registryService.hasUpdate(
-          storedVersionInfo.currentDigest,
-          currentTag,
-          latestImageInfo
-        );
-        if (!storedHasUpdate) {
-          // Stored digest matches latest - no update
-          hasUpdate = false;
-          currentDigest = storedVersionInfo.currentDigest;
-        } else {
-          // Stored digest doesn't match latest - there's a new update available
-          hasUpdate = true;
-        }
-      } else {
-        // No stored digest but stored info says no update - trust it for now
-        hasUpdate = false;
-      }
-    } else if (currentDigest === null && latestDigest) {
-      // If we can't get current digest but we have latest digest, we can't be sure
-      // This could happen if the image was just upgraded and digest info isn't available yet
-      // In this case, assume no update to avoid false positives
-      // The next check will properly compare digests once they're available
-      hasUpdate = false;
-    }
-  } else {
-    // Fallback: if we can't get digests, use stored info if available
-    if (storedVersionInfo) {
-      hasUpdate = storedVersionInfo.hasUpdate || false;
-      if (storedVersionInfo.currentDigest) {
-        currentDigest = storedVersionInfo.currentDigest;
-      }
-      if (storedVersionInfo.latestDigest) {
-        latestDigest = storedVersionInfo.latestDigest;
-      }
-    } else {
-      // No stored info and can't get digests - assume no update available
-      hasUpdate = false;
-    }
-  }
-
-  // Format digest for display (shortened version)
-  const formatDigest = (digest) => {
-    if (!digest) {
-      return null;
-    }
-    // Return first 12 characters after "sha256:" for display
-    return digest.replace("sha256:", "").substring(0, 12);
-  };
-
-  // Get publish date for latest tag (non-blocking - don't fail if this errors)
-  let latestPublishDate = null;
-  if (latestTag && hasUpdate) {
-    try {
-      latestPublishDate = await registryService.getTagPublishDate(repo, latestTag, {
-        userId,
-      });
-    } catch (error) {
-      // Don't fail the entire update check if publish date fetch fails
-      // Silently continue - publish date is nice to have but not critical
-      latestPublishDate = null;
-    }
-  }
-
-  // Determine if image exists in registry based on whether we got a valid response
-  // If latestImageInfo is not null, the image exists in the registry
-  const existsInRegistry = latestImageInfo !== null;
-
-  // For backward compatibility, also set existsInDockerHub
-  // (though it may now refer to other registries too)
-  const existsInDockerHub = existsInRegistry;
+  const latestPublishDate = await getPublishDate(repo, latestTag, hasUpdate, userId);
 
   return {
-    currentTag: currentTag,
+    currentTag,
     currentVersion: currentTag,
     currentDigest: formatDigest(currentDigest),
     currentDigestFull: currentDigest,
-    hasUpdate: hasUpdate,
-    latestTag: latestTag,
+    hasUpdate,
+    latestTag,
     newVersion: latestTag,
     latestDigest: formatDigest(latestDigest),
     latestDigestFull: latestDigest,
-    latestPublishDate: latestPublishDate,
+    latestPublishDate,
     currentVersionPublishDate: null,
     imageRepo: repo,
-    existsInDockerHub: existsInDockerHub, // Backward compatibility
-    existsInRegistry: existsInRegistry,
+    existsInDockerHub: latestImageInfo !== null,
+    existsInRegistry: latestImageInfo !== null,
     provider: latestImageInfo?.provider || null,
     isFallback: latestImageInfo?.isFallback || false,
   };

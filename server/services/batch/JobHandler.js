@@ -32,7 +32,7 @@ class JobHandler {
    * @property {Array<string>} logs - Array of log messages
    * @property {Error|null} error - Error if job failed
    */
-  async execute(context) {
+  execute(_context) {
     throw new Error("execute() must be implemented by subclass");
   }
 

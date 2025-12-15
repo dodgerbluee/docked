@@ -105,44 +105,29 @@ function getForeignKeys(db, tableName) {
 }
 
 /**
- * Format column type with constraints
- */
-function formatColumn(col) {
-  let result = `**${col.name}**`;
-  result += ` \`${col.type}\``;
-
-  if (col.notnull === 1) {
-    result += " NOT NULL";
-  }
-  if (col.dflt_value !== null) {
-    const defaultValue = col.dflt_value.replace(/^'|'$/g, "");
-    result += ` DEFAULT ${defaultValue}`;
-  }
-  if (col.pk === 1) {
-    result += " (PRIMARY KEY)";
-  }
-
-  return result;
-}
-
-/**
  * Generate markdown documentation
  */
+// eslint-disable-next-line max-lines-per-function -- Documentation generation requires comprehensive processing
 async function generateDocumentation() {
+  // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive documentation generation
   return new Promise((resolve, reject) => {
     // Check if database exists
     if (!fs.existsSync(DB_PATH)) {
       console.error(`Database not found at ${DB_PATH}`);
+
       console.error("Please ensure the database has been initialized.");
+
       process.exit(1);
     }
 
+    // eslint-disable-next-line max-lines-per-function -- Database initialization callback requires comprehensive error handling
     const db = new sqlite3.Database(DB_PATH, (err) => {
       if (err) {
         reject(err);
         return;
       }
 
+      // eslint-disable-next-line complexity -- Async arrow function requires multiple conditional checks for documentation generation
       (async () => {
         try {
           const tables = await getTables(db);
@@ -261,18 +246,22 @@ async function generateDocumentation() {
           if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
           }
-
           fs.writeFileSync(OUTPUT_PATH, doc.join("\n"), "utf8");
+
           console.log(`✅ Schema documentation generated: ${OUTPUT_PATH}`);
+
           console.log(`   Tables documented: ${tables.length}`);
 
-          db.close((err) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
+          db.close(
+            // eslint-disable-next-line no-shadow -- Error parameter shadows outer scope, but needed for callback
+            (err) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve();
+              }
             }
-          });
+          );
         } catch (error) {
           db.close();
           reject(error);
@@ -290,6 +279,7 @@ if (require.main === module) {
     })
     .catch((error) => {
       console.error("Error generating schema documentation:", error);
+
       process.exit(1);
     });
 }

@@ -25,13 +25,13 @@ const execAsync = promisify(exec);
 async function isCommandAvailable(command) {
   try {
     const { stdout } = await execAsync(`which ${command}`, { timeout: 5000 });
-    return !!stdout.trim();
-  } catch (error) {
+    return Boolean(stdout.trim());
+  } catch (_error) {
     // On Windows, try 'where' instead of 'which'
     try {
       const { stdout } = await execAsync(`where ${command}`, { timeout: 5000 });
-      return !!stdout.trim();
-    } catch (winError) {
+      return Boolean(stdout.trim());
+    } catch (_winError) {
       return false;
     }
   }

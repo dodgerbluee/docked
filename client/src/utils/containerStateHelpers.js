@@ -3,6 +3,8 @@
  * Shared logic for updating container state consistently
  */
 
+import { computeHasUpdate } from "./containerUpdateHelpers";
+
 /**
  * Updates containers while preserving hasUpdate:false for successfully updated containers
  * This ensures that containers that were just upgraded don't immediately show as having updates again
@@ -19,13 +21,21 @@ export const updateContainersWithPreservedState = (
   successfullyUpdatedContainersRef
 ) => {
   return apiContainers.map((apiContainer) => {
+    // Compute hasUpdate on-the-fly first
+    const computedHasUpdate = computeHasUpdate(apiContainer);
+
     if (successfullyUpdatedContainersRef?.current?.has(apiContainer.id)) {
-      if (!apiContainer.hasUpdate) {
+      // If container was successfully updated, force hasUpdate to false
+      // (even if digests don't match yet, we know it was just upgraded)
+      if (!computedHasUpdate) {
+        // If no update available, remove from tracking
         successfullyUpdatedContainersRef.current.delete(apiContainer.id);
       }
       return { ...apiContainer, hasUpdate: false };
     }
-    return apiContainer;
+
+    // Return container with computed hasUpdate
+    return { ...apiContainer, hasUpdate: computedHasUpdate };
   });
 };
 

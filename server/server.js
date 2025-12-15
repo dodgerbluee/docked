@@ -8,21 +8,22 @@
 process.on("uncaughtException", (error) => {
   process.stderr.write(`[SERVER.JS] UNCAUGHT EXCEPTION (early): ${error.message}\n`);
   process.stderr.write(`[SERVER.JS] Stack: ${error.stack}\n`);
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason, _promise) => {
   process.stderr.write(`[SERVER.JS] UNHANDLED REJECTION (early): ${reason}\n`);
   if (reason instanceof Error) {
     process.stderr.write(`[SERVER.JS] Stack: ${reason.stack}\n`);
   }
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -30,23 +31,24 @@ const config = require("./config");
 const routes = require("./routes");
 const { errorHandler } = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
+const responseFormatter = require("./middleware/responseFormatter");
 const logger = require("./utils/logger");
 const swaggerSpec = require("./config/swagger");
-const { initializeRegistrationCode } = require("./utils/registrationCode");
 
 logger.debug("Starting server module load", { module: "server" });
 
 let databaseModule;
 try {
-  databaseModule = require("./db/database");
+  databaseModule = require("./db/index");
   logger.debug("Database module loaded", { module: "server" });
 } catch (dbError) {
   process.stderr.write(`[SERVER.JS] ERROR loading database: ${dbError}\n`);
   process.stderr.write(`[SERVER.JS] Stack: ${dbError.stack}\n`);
   logger.error("Failed to load database module:", dbError);
+  // eslint-disable-next-line no-process-exit -- Critical initialization error must exit
   process.exit(1);
 }
-const { hasAnyUsers, waitForDatabase } = databaseModule;
+const { waitForDatabase } = databaseModule;
 
 const app = express();
 logger.debug("Express app created", { module: "server" });
@@ -139,6 +141,9 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Request logging middleware (after body parsing to capture request data)
 app.use(requestLogger);
 
+// Response formatter middleware (ensures consistent response format)
+app.use(responseFormatter);
+
 // Rate limiting - DISABLED for all API endpoints
 // We only rate limit Docker Hub requests, not our own API
 // This prevents 429 errors when deploying to Portainer or other production environments
@@ -179,7 +184,8 @@ if (shouldServeStatic) {
       return next();
     }
     // Serve index.html for all other routes (SPA routing)
-    res.sendFile(path.join(publicPath, "index.html"));
+
+    return res.sendFile(path.join(publicPath, "index.html"));
   });
 }
 
@@ -199,6 +205,7 @@ try {
   // Create a dummy batch system to prevent crashes
   batchSystem = {
     start: () => Promise.resolve(),
+    // eslint-disable-next-line no-empty-function -- Dummy implementation for error handling
     stop: () => {},
     executeJob: () => Promise.resolve(),
     getStatus: () => ({ running: false }),
@@ -209,7 +216,7 @@ try {
 
 // Handle unhandled promise rejections (Express 5 compatibility)
 // In Express 5, unhandled rejections can cause crashes
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason, _promise) => {
   logger.error("Unhandled Promise Rejection", {
     module: "server",
     reason:
@@ -220,13 +227,14 @@ process.on("unhandledRejection", (reason, promise) => {
             name: reason.name,
           }
         : reason,
-    promise: promise,
+    promise: _promise,
   });
   // In test mode, don't exit - let Jest handle it
   // In development, log but don't exit - let nodemon handle restarts
   // In production, exit to prevent undefined behavior
   if (process.env.NODE_ENV === "production") {
     logger.critical("Exiting due to unhandled rejection in production");
+    // eslint-disable-next-line no-process-exit -- Production error handler must exit
     process.exit(1);
   }
   // In test mode, just log - don't exit
@@ -243,6 +251,7 @@ process.on("uncaughtException", (error) => {
     },
   });
   // Always exit on uncaught exceptions - these are serious
+  // eslint-disable-next-line no-process-exit -- Critical error handler must exit
   process.exit(1);
 });
 
@@ -253,6 +262,7 @@ process.on("exit", (code) => {
 
 // Log before exit
 const originalExit = process.exit;
+
 process.exit = function (code) {
   logger.debug(`process.exit(${code}) called`, { module: "server" });
   return originalExit.call(process, code);
@@ -281,6 +291,7 @@ if (shouldStartServer) {
     // Registration code is now generated on-demand when user clicks "Create User"
     // No longer generated on server startup
 
+    // eslint-disable-next-line max-lines-per-function -- Server startup requires comprehensive initialization
     const server = app.listen(config.port, () => {
       logger.info("Server started successfully", {
         module: "server",
@@ -364,13 +375,15 @@ if (shouldStartServer) {
         });
       }
       // Exit on listen errors
+      // eslint-disable-next-line no-process-exit -- Critical server error must exit
       process.exit(1);
     });
   } catch (error) {
     logger.critical("Failed to start server", {
       module: "server",
-      error: error,
+      error,
     });
+    // eslint-disable-next-line no-process-exit -- Critical server error must exit
     process.exit(1);
   }
 
@@ -380,6 +393,7 @@ if (shouldStartServer) {
       module: "server",
     });
     batchSystem.stop();
+    // eslint-disable-next-line no-process-exit -- Graceful shutdown requires exit
     process.exit(0);
   });
 
@@ -388,6 +402,7 @@ if (shouldStartServer) {
       module: "server",
     });
     batchSystem.stop();
+    // eslint-disable-next-line no-process-exit -- Graceful shutdown requires exit
     process.exit(0);
   });
 }

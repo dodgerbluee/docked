@@ -1,0 +1,160 @@
+.container {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header Section */
+.header {
+  margin-bottom: 24px;
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.titleSection {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 600px;
+}
+
+.addButton {
+  flex-shrink: 0;
+}
+
+/* Info Banner */
+.infoBanner {
+  margin-bottom: 32px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.infoContent {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.infoIcon {
+  flex-shrink: 0;
+  color: var(--dodger-blue);
+  margin-top: 2px;
+}
+
+body.dark-mode .infoIcon {
+  color: var(--dodger-blue-light);
+}
+
+.infoText {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.infoText strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Tokens Section */
+.tokensSection {
+  margin-top: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tokensGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .tokensGrid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 16px;
+  }
+
+  .headerContent {
+    flex-direction: column;
+  }
+
+  .addButton {
+    width: 100%;
+  }
+
+  .tokensGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .title {
+    font-size: 1.75rem;
+  }
+}
+
+/* Loading State */
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: 40px;
+}
+
+/* Empty State */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin-top: 40px;
+  padding: 40px 20px;
+}
+
+.emptyStateContent {
+  text-align: center;
+}
+
+.emptyStateAction {
+  margin-top: 8px;
+}

@@ -5,12 +5,13 @@
  * Uses the unified registry service with automatic provider selection
  * and fallback strategies for robust update detection.
  */
+/* eslint-disable max-lines -- Large service file with comprehensive tracked image update logic */
 
 const dockerRegistryService = require("./dockerRegistryService");
 const registryService = require("./registry");
 const githubService = require("./githubService");
 const gitlabService = require("./gitlabService");
-const { updateTrackedApp } = require("../db/database");
+const { updateTrackedApp } = require("../db/index");
 const logger = require("../utils/logger");
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
@@ -32,17 +33,18 @@ function getDiscordService() {
  * @param {Object} batchLogger - Optional batch logger for batch job logs
  * @returns {Promise<Object>} - Update information
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- Tracked image checking requires comprehensive update detection logic
 async function checkTrackedApp(trackedApp, batchLogger = null) {
   const sourceType = trackedApp.source_type || "docker";
 
   // Handle GitHub repositories
   if (sourceType === "github" && trackedApp.github_repo) {
-    return await checkGitHubTrackedApp(trackedApp, batchLogger);
+    return checkGitHubTrackedApp(trackedApp, batchLogger);
   }
 
   // Handle GitLab repositories
   if (sourceType === "gitlab" && trackedApp.github_repo) {
-    return await checkGitLabTrackedApp(trackedApp, batchLogger);
+    return checkGitLabTrackedApp(trackedApp, batchLogger);
   }
 
   // Handle Docker images (existing logic)
@@ -93,7 +95,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
           // This means we'll keep the existing stored version
           latestVersion = null;
         }
-      } catch (error) {
+      } catch (_error) {
         // If we can't find the actual tag, don't update the version
         latestVersion = null;
       }
@@ -133,7 +135,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
         userId,
         githubRepo: trackedApp.github_repo, // Pass GitHub repo for fallback
       });
-    } catch (error) {
+    } catch (_error) {
       // Don't fail the entire update check if publish date fetch fails
       latestPublishDate = null;
     }
@@ -158,16 +160,16 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   // Update the tracked image in database
   // Only update if we successfully got image info
   const updateData = {
-    has_update: hasUpdate ? 1 : 0,
-    last_checked: new Date().toISOString(),
+    hasUpdate: hasUpdate ? 1 : 0,
+    lastChecked: new Date().toISOString(),
   };
 
-  // Only update latest_version if we have a valid value (not null, not empty, not "latest" unless we couldn't resolve it)
+  // Only update latestVersion if we have a valid value (not null, not empty, not "latest" unless we couldn't resolve it)
   if (latestVersion) {
     // Convert to string to ensure proper type
     const versionStr = String(latestVersion).trim();
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
-      updateData.latest_version = versionStr;
+      updateData.latestVersion = versionStr;
     }
   }
 
@@ -175,16 +177,16 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
     // Convert to string to ensure proper type
     const digestStr = String(latestDigest).trim();
     if (digestStr !== "" && digestStr !== "null" && digestStr !== "undefined") {
-      updateData.latest_digest = digestStr;
+      updateData.latestDigest = digestStr;
     }
   }
 
   // Update current version/digest if we have better information
   if (currentVersionToStore && currentVersionToStore !== trackedApp.current_version) {
-    updateData.current_version = currentVersionToStore;
+    updateData.currentVersion = currentVersionToStore;
   }
   if (currentDigestToStore && currentDigestToStore !== trackedApp.current_digest) {
-    updateData.current_digest = currentDigestToStore;
+    updateData.currentDigest = currentDigestToStore;
   }
 
   await updateTrackedApp(trackedApp.id, trackedApp.user_id, updateData);
@@ -214,17 +216,17 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
     const currentDigest = trackedApp.current_digest || "N/A";
     const latestDigestFormatted = latestDigest || "N/A";
     const currentDigestShort =
-      currentDigest.length > 12 ? currentDigest.substring(0, 12) + "..." : currentDigest;
+      currentDigest.length > 12 ? `${currentDigest.substring(0, 12)}...` : currentDigest;
     const latestDigestShort =
       latestDigestFormatted.length > 12
-        ? latestDigestFormatted.substring(0, 12) + "..."
+        ? `${latestDigestFormatted.substring(0, 12)}...`
         : latestDigestFormatted;
 
     const logData = {
       module: "trackedAppService",
       operation: "checkTrackedApp",
       trackedAppName: trackedApp.name,
-      imageName: imageName,
+      imageName,
       currentDigest: currentDigestShort,
       latestDigest: latestDigestShort,
       currentVersion: displayCurrentVersion,
@@ -246,7 +248,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
         await discord.queueNotification({
           id: trackedApp.id,
           name: trackedApp.name,
-          imageName: imageName,
+          imageName,
           githubRepo: null,
           sourceType: "docker",
           currentVersion: displayCurrentVersion,
@@ -266,13 +268,13 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   return {
     id: trackedApp.id,
     name: trackedApp.name,
-    imageName: imageName,
+    imageName,
     currentVersion: displayCurrentVersion,
     currentDigest: formatDigest(currentDigestToStore || trackedApp.current_digest),
     latestVersion: displayLatestVersion,
     latestDigest: formatDigest(latestDigest || trackedApp.latest_digest),
     hasUpdate: Boolean(hasUpdate), // Ensure boolean, not 0/1
-    latestPublishDate: latestPublishDate,
+    latestPublishDate,
     imageRepo: repo,
   };
 }
@@ -282,6 +284,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
  * @param {Object} trackedApp - Tracked app object from database
  * @returns {Promise<Object>} - Update information
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- GitHub tracked image checking requires comprehensive API handling
 async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
   const githubRepo = trackedApp.github_repo;
 
@@ -315,10 +318,13 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
         const normalizedLatest = normalizeVersion(latestVersion);
         // If normalized versions are different and both are valid, there's an update
         // If they match (after normalization), there's no update
-        if (normalizedCurrent !== "" && normalizedLatest !== "") {
+        const bothVersionsExist = normalizedCurrent !== "" && normalizedLatest !== "";
+        if (bothVersionsExist) {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          if (normalizedCurrent === normalizedLatest && trackedApp.has_update) {
+          const versionsMatchButHasUpdate =
+            normalizedCurrent === normalizedLatest && trackedApp.has_update;
+          if (versionsMatchButHasUpdate) {
             logger.debug(
               `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
@@ -331,34 +337,40 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
 
         // Get publish date for current version
         // If normalized versions match and we have published_at, use the latest release date
-        if (normalizedCurrent === normalizedLatest && latestRelease.published_at) {
+        const versionsMatch = normalizedCurrent === normalizedLatest;
+        if (versionsMatch && latestRelease.published_at) {
           currentVersionPublishDate = latestRelease.published_at;
-        } else if (normalizedCurrent !== normalizedLatest) {
+        } else if (!versionsMatch) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitHub tags may vary
+          const fetchCurrentVersionRelease = async () => {
+            try {
+              const currentVersionTag = trackedApp.current_version;
+              let release = await githubService.getReleaseByTag(githubRepo, currentVersionTag);
+
+              // If not found and doesn't start with "v", try with "v" prefix
+              const needsVPrefix = !release && !currentVersionTag.startsWith("v");
+              const needsNoVPrefix = !release && currentVersionTag.startsWith("v");
+              if (needsVPrefix) {
+                release = await githubService.getReleaseByTag(githubRepo, `v${currentVersionTag}`);
+              } else if (needsNoVPrefix) {
+                // If not found and starts with "v", try without "v" prefix
+                release = await githubService.getReleaseByTag(
+                  githubRepo,
+                  currentVersionTag.substring(1)
+                );
+              }
+              return release;
+            } catch (err) {
+              logger.error(`Error fetching current version release for ${githubRepo}:`, err);
+              return null;
+            }
+          };
           try {
-            const currentVersionTag = trackedApp.current_version;
-            currentVersionRelease = await githubService.getReleaseByTag(
-              githubRepo,
-              currentVersionTag
-            );
+            currentVersionRelease = await fetchCurrentVersionRelease();
 
-            // If not found and doesn't start with "v", try with "v" prefix
-            if (!currentVersionRelease && !currentVersionTag.startsWith("v")) {
-              currentVersionRelease = await githubService.getReleaseByTag(
-                githubRepo,
-                `v${currentVersionTag}`
-              );
-            }
-            // If not found and starts with "v", try without "v" prefix
-            else if (!currentVersionRelease && currentVersionTag.startsWith("v")) {
-              currentVersionRelease = await githubService.getReleaseByTag(
-                githubRepo,
-                currentVersionTag.substring(1)
-              );
-            }
-
-            if (currentVersionRelease && currentVersionRelease.published_at) {
+            const hasPublishedDate = currentVersionRelease && currentVersionRelease.published_at;
+            if (hasPublishedDate) {
               currentVersionPublishDate = currentVersionRelease.published_at;
             }
           } catch (err) {
@@ -394,26 +406,26 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
 
   // Update the tracked image in database
   const updateData = {
-    has_update: hasUpdate ? 1 : 0,
-    last_checked: new Date().toISOString(),
+    hasUpdate: hasUpdate ? 1 : 0,
+    lastChecked: new Date().toISOString(),
   };
 
-  // Store latest_version if we have it from the release
+  // Store latestVersion if we have it from the release
   // Always store it if we have latestVersion and latestRelease, regardless of published_at
   // This ensures we show the latest version even if publish date is missing
   if (latestVersion && latestRelease) {
     const versionStr = String(latestVersion).trim();
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
-      updateData.latest_version = versionStr;
+      updateData.latestVersion = versionStr;
     }
   } else if (hasUpdate && trackedApp.latest_version) {
     // If we have an update but couldn't get latest version, preserve existing latest_version
     // This prevents clearing the version when there's a known update
-    updateData.latest_version = trackedApp.latest_version;
+    updateData.latestVersion = trackedApp.latest_version;
   } else if (!hasUpdate && !latestVersion) {
-    // Only clear latest_version if we don't have an update and don't have a latest version
+    // Only clear latestVersion if we don't have an update and don't have a latest version
     // This prevents clearing valid version data when there's no update
-    updateData.latest_version = null;
+    updateData.latestVersion = null;
   }
 
   // Update current version if we don't have one yet
@@ -428,7 +440,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
 
   if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
     currentVersionToStore = latestVersion;
-    updateData.current_version = latestVersion;
+    updateData.currentVersion = latestVersion;
     currentVersionPublishDate = latestRelease.published_at;
   } else if (
     currentVersionToStore &&
@@ -446,7 +458,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
 
   // Store current version publish date if we have it
   if (currentVersionPublishDate) {
-    updateData.current_version_publish_date = currentVersionPublishDate;
+    updateData.currentVersionPublishDate = currentVersionPublishDate;
   }
 
   // Also store latest version publish date if we have it and it's different from current
@@ -458,19 +470,19 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
 
     // If normalized current version doesn't match normalized latest, store latest's publish date separately
     if (normalizedCurrent !== normalizedLatest) {
-      updateData.latest_version_publish_date = latestRelease.published_at;
+      updateData.latestVersionPublishDate = latestRelease.published_at;
     } else {
-      // If they match, clear latest_version_publish_date since current_version_publish_date covers it
-      updateData.latest_version_publish_date = null;
+      // If they match, clear latestVersionPublishDate since currentVersionPublishDate covers it
+      updateData.latestVersionPublishDate = null;
     }
   } else if (hasUpdate && trackedApp.latest_version_publish_date) {
     // If we have an update but no published_at, preserve existing latest_version_publish_date
     // This prevents clearing the publish date when there's a known update
-    updateData.latest_version_publish_date = trackedApp.latest_version_publish_date;
+    updateData.latestVersionPublishDate = trackedApp.latest_version_publish_date;
   } else {
     // Only clear if we don't have an update
     if (!hasUpdate) {
-      updateData.latest_version_publish_date = null;
+      updateData.latestVersionPublishDate = null;
     }
   }
 
@@ -498,7 +510,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
       module: "trackedAppService",
       operation: "checkGitHubTrackedApp",
       trackedAppName: trackedApp.name,
-      githubRepo: githubRepo,
+      githubRepo,
       currentVersion: displayCurrentVersion,
       latestVersion: displayLatestVersion,
       userId: trackedApp.user_id || "batch",
@@ -519,7 +531,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
           id: trackedApp.id,
           name: trackedApp.name,
           imageName: null,
-          githubRepo: githubRepo,
+          githubRepo,
           sourceType: "github",
           currentVersion: displayCurrentVersion,
           latestVersion: displayLatestVersion,
@@ -540,7 +552,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
     id: trackedApp.id,
     name: trackedApp.name,
     imageName: null,
-    githubRepo: githubRepo,
+    githubRepo,
     sourceType: "github",
     currentVersion: displayCurrentVersion,
     currentDigest: null,
@@ -549,7 +561,7 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
     hasUpdate: Boolean(hasUpdate),
     latestPublishDate:
       latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
-    currentVersionPublishDate: currentVersionPublishDate,
+    currentVersionPublishDate,
     releaseUrl: latestRelease?.html_url || null,
   };
 }
@@ -591,6 +603,7 @@ async function checkAllTrackedApps(trackedApps, batchLogger = null) {
  * @param {Object} trackedApp - Tracked app object from database
  * @returns {Promise<Object>} - Update information
  */
+// eslint-disable-next-line max-lines-per-function, complexity -- GitLab tracked image checking requires comprehensive API handling
 async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
   const gitlabRepo = trackedApp.github_repo; // Reusing github_repo field for GitLab repos
   const gitlabToken = trackedApp.gitlab_token || null; // Get token from database
@@ -631,10 +644,13 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
         const normalizedLatest = normalizeVersion(latestVersion);
         // If normalized versions are different and both are valid, there's an update
         // If they match (after normalization), there's no update
-        if (normalizedCurrent !== "" && normalizedLatest !== "") {
+        const bothVersionsExist = normalizedCurrent !== "" && normalizedLatest !== "";
+        if (bothVersionsExist) {
           hasUpdate = normalizedCurrent !== normalizedLatest;
           // Debug logging to help diagnose version comparison issues
-          if (normalizedCurrent === normalizedLatest && trackedApp.has_update) {
+          const versionsMatchButHasUpdate =
+            normalizedCurrent === normalizedLatest && trackedApp.has_update;
+          if (versionsMatchButHasUpdate) {
             logger.debug(
               `[TrackedImage] Version match detected but has_update was true: current="${trackedApp.current_version}" (normalized: "${normalizedCurrent}") vs latest="${latestVersion}" (normalized: "${normalizedLatest}")`
             );
@@ -647,37 +663,49 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
         // Get publish date for current version
         // If normalized versions match and we have published_at, use the latest release date
-        if (normalizedCurrent === normalizedLatest && latestRelease.published_at) {
+        const versionsMatch = normalizedCurrent === normalizedLatest;
+        if (versionsMatch && latestRelease.published_at) {
           currentVersionPublishDate = latestRelease.published_at;
-        } else if (normalizedCurrent !== normalizedLatest) {
+        } else if (!versionsMatch) {
           // Current version is different from latest, fetch its release info
           // Try both with and without "v" prefix since GitLab tags may vary
+          const fetchCurrentVersionRelease = async () => {
+            try {
+              const currentVersionTag = trackedApp.current_version;
+              let release = await gitlabService.getReleaseByTag(
+                gitlabRepo,
+                currentVersionTag,
+                gitlabToken
+              );
+
+              // If not found and doesn't start with "v", try with "v" prefix
+              const needsVPrefix = !release && !currentVersionTag.startsWith("v");
+              const needsNoVPrefix = !release && currentVersionTag.startsWith("v");
+              if (needsVPrefix) {
+                release = await gitlabService.getReleaseByTag(
+                  gitlabRepo,
+                  `v${currentVersionTag}`,
+                  gitlabToken
+                );
+              } else if (needsNoVPrefix) {
+                // If not found and starts with "v", try without "v" prefix
+                release = await gitlabService.getReleaseByTag(
+                  gitlabRepo,
+                  currentVersionTag.substring(1),
+                  gitlabToken
+                );
+              }
+              return release;
+            } catch (err) {
+              logger.error(`Error fetching current version release for ${gitlabRepo}:`, err);
+              return null;
+            }
+          };
           try {
-            const currentVersionTag = trackedApp.current_version;
-            currentVersionRelease = await gitlabService.getReleaseByTag(
-              gitlabRepo,
-              currentVersionTag,
-              gitlabToken
-            );
+            currentVersionRelease = await fetchCurrentVersionRelease();
 
-            // If not found and doesn't start with "v", try with "v" prefix
-            if (!currentVersionRelease && !currentVersionTag.startsWith("v")) {
-              currentVersionRelease = await gitlabService.getReleaseByTag(
-                gitlabRepo,
-                `v${currentVersionTag}`,
-                gitlabToken
-              );
-            }
-            // If not found and starts with "v", try without "v" prefix
-            else if (!currentVersionRelease && currentVersionTag.startsWith("v")) {
-              currentVersionRelease = await gitlabService.getReleaseByTag(
-                gitlabRepo,
-                currentVersionTag.substring(1),
-                gitlabToken
-              );
-            }
-
-            if (currentVersionRelease && currentVersionRelease.published_at) {
+            const hasPublishedDate = currentVersionRelease && currentVersionRelease.published_at;
+            if (hasPublishedDate) {
               currentVersionPublishDate = currentVersionRelease.published_at;
             }
           } catch (err) {
@@ -716,26 +744,26 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   // Update the tracked image in database
   const updateData = {
-    has_update: hasUpdate ? 1 : 0,
-    last_checked: new Date().toISOString(),
+    hasUpdate: hasUpdate ? 1 : 0,
+    lastChecked: new Date().toISOString(),
   };
 
-  // Store latest_version if we have it from the release
+  // Store latestVersion if we have it from the release
   // Always store it if we have latestVersion and latestRelease, regardless of published_at
   // This ensures we show the latest version even if publish date is missing
   if (latestVersion && latestRelease) {
     const versionStr = String(latestVersion).trim();
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
-      updateData.latest_version = versionStr;
+      updateData.latestVersion = versionStr;
     }
   } else if (hasUpdate && trackedApp.latest_version) {
     // If we have an update but couldn't get latest version, preserve existing latest_version
     // This prevents clearing the version when there's a known update
-    updateData.latest_version = trackedApp.latest_version;
+    updateData.latestVersion = trackedApp.latest_version;
   } else if (!hasUpdate && !latestVersion) {
-    // Only clear latest_version if we don't have an update and don't have a latest version
+    // Only clear latestVersion if we don't have an update and don't have a latest version
     // This prevents clearing valid version data when there's no update
-    updateData.latest_version = null;
+    updateData.latestVersion = null;
   }
 
   // Update current version if we don't have one yet
@@ -750,7 +778,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
     currentVersionToStore = latestVersion;
-    updateData.current_version = latestVersion;
+    updateData.currentVersion = latestVersion;
     currentVersionPublishDate = latestRelease.published_at;
   } else if (
     currentVersionToStore &&
@@ -768,7 +796,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   // Store current version publish date if we have it
   if (currentVersionPublishDate) {
-    updateData.current_version_publish_date = currentVersionPublishDate;
+    updateData.currentVersionPublishDate = currentVersionPublishDate;
   }
 
   // Also store latest version publish date if we have it and it's different from current
@@ -780,19 +808,19 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
     // If normalized current version doesn't match normalized latest, store latest's publish date separately
     if (normalizedCurrent !== normalizedLatest) {
-      updateData.latest_version_publish_date = latestRelease.published_at;
+      updateData.latestVersionPublishDate = latestRelease.published_at;
     } else {
-      // If they match, clear latest_version_publish_date since current_version_publish_date covers it
-      updateData.latest_version_publish_date = null;
+      // If they match, clear latestVersionPublishDate since currentVersionPublishDate covers it
+      updateData.latestVersionPublishDate = null;
     }
   } else if (hasUpdate && trackedApp.latest_version_publish_date) {
     // If we have an update but no published_at, preserve existing latest_version_publish_date
     // This prevents clearing the publish date when there's a known update
-    updateData.latest_version_publish_date = trackedApp.latest_version_publish_date;
+    updateData.latestVersionPublishDate = trackedApp.latest_version_publish_date;
   } else {
     // Only clear if we don't have an update
     if (!hasUpdate) {
-      updateData.latest_version_publish_date = null;
+      updateData.latestVersionPublishDate = null;
     }
   }
 
@@ -820,7 +848,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
       module: "trackedAppService",
       operation: "checkGitLabTrackedApp",
       trackedAppName: trackedApp.name,
-      gitlabRepo: gitlabRepo,
+      gitlabRepo,
       currentVersion: displayCurrentVersion,
       latestVersion: displayLatestVersion,
       userId: trackedApp.user_id || "batch",
@@ -871,7 +899,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
     hasUpdate: Boolean(hasUpdate),
     latestPublishDate:
       latestRelease && latestRelease.published_at ? latestRelease.published_at : null,
-    currentVersionPublishDate: currentVersionPublishDate,
+    currentVersionPublishDate,
     releaseUrl: latestRelease?.html_url || null,
   };
 }

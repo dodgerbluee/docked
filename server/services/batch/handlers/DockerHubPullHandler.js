@@ -22,6 +22,7 @@ class DockerHubPullHandler extends JobHandler {
     };
   }
 
+  // eslint-disable-next-line max-lines-per-function, complexity -- DockerHub pull execution requires comprehensive processing
   async execute(context) {
     const { logger, userId } = context;
     const result = {

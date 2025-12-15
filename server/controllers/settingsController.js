@@ -3,7 +3,7 @@
  * Handles HTTP requests for application settings
  */
 
-const { getSetting, setSetting } = require("../db/database");
+const { getSetting, setSetting } = require("../db/index");
 const logger = require("../utils/logger");
 
 const COLOR_SCHEME_KEY = "color_scheme";
@@ -21,7 +21,8 @@ const DEFAULT_DISABLE_TRACKED_APPS_PAGE = false;
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getColorSchemeHandler(req, res, next) {
+
+async function getColorSchemeHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -31,13 +32,13 @@ async function getColorSchemeHandler(req, res, next) {
       });
     }
     const colorScheme = await getSetting(COLOR_SCHEME_KEY, userId);
-    res.json({
+    return res.json({
       success: true,
       colorScheme: colorScheme || DEFAULT_COLOR_SCHEME,
     });
   } catch (error) {
     logger.error("Error getting color scheme:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to get color scheme",
     });
@@ -50,7 +51,8 @@ async function getColorSchemeHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setColorSchemeHandler(req, res, next) {
+
+async function setColorSchemeHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -70,14 +72,14 @@ async function setColorSchemeHandler(req, res, next) {
 
     await setSetting(COLOR_SCHEME_KEY, colorScheme, userId);
 
-    res.json({
+    return res.json({
       success: true,
       colorScheme,
       message: `Color scheme set to ${colorScheme}`,
     });
   } catch (error) {
     logger.error("Error setting color scheme:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to set color scheme",
     });
@@ -90,7 +92,8 @@ async function setColorSchemeHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getRefreshingTogglesEnabledHandler(req, res, next) {
+
+async function getRefreshingTogglesEnabledHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -105,13 +108,13 @@ async function getRefreshingTogglesEnabledHandler(req, res, next) {
       value === null || value === undefined
         ? DEFAULT_REFRESHING_TOGGLES_ENABLED
         : value === "true" || value === true;
-    res.json({
+    return res.json({
       success: true,
       enabled,
     });
   } catch (error) {
     logger.error("Error getting refreshing toggles enabled:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to get refreshing toggles enabled",
     });
@@ -124,7 +127,8 @@ async function getRefreshingTogglesEnabledHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setRefreshingTogglesEnabledHandler(req, res, next) {
+
+async function setRefreshingTogglesEnabledHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -144,14 +148,14 @@ async function setRefreshingTogglesEnabledHandler(req, res, next) {
 
     await setSetting(REFRESHING_TOGGLES_ENABLED_KEY, enabled.toString(), userId);
 
-    res.json({
+    return res.json({
       success: true,
       enabled,
       message: `Refreshing toggles ${enabled ? "enabled" : "disabled"}`,
     });
   } catch (error) {
     logger.error("Error setting refreshing toggles enabled:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to set refreshing toggles enabled",
     });
@@ -164,7 +168,8 @@ async function setRefreshingTogglesEnabledHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getDisablePortainerPageHandler(req, res, next) {
+
+async function getDisablePortainerPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -179,13 +184,13 @@ async function getDisablePortainerPageHandler(req, res, next) {
       value === null || value === undefined
         ? DEFAULT_DISABLE_PORTAINER_PAGE
         : value === "true" || value === true;
-    res.json({
+    return res.json({
       success: true,
       disabled,
     });
   } catch (error) {
     logger.error("Error getting disable portainer page setting:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to get disable portainer page setting",
     });
@@ -198,7 +203,8 @@ async function getDisablePortainerPageHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setDisablePortainerPageHandler(req, res, next) {
+
+async function setDisablePortainerPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -218,14 +224,14 @@ async function setDisablePortainerPageHandler(req, res, next) {
 
     await setSetting(DISABLE_PORTAINER_PAGE_KEY, disabled.toString(), userId);
 
-    res.json({
+    return res.json({
       success: true,
       disabled,
       message: `Portainer page ${disabled ? "disabled" : "enabled"}`,
     });
   } catch (error) {
     logger.error("Error setting disable portainer page setting:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to set disable portainer page setting",
     });
@@ -238,7 +244,8 @@ async function setDisablePortainerPageHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function getDisableTrackedAppsPageHandler(req, res, next) {
+
+async function getDisableTrackedAppsPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -253,13 +260,13 @@ async function getDisableTrackedAppsPageHandler(req, res, next) {
       value === null || value === undefined
         ? DEFAULT_DISABLE_TRACKED_APPS_PAGE
         : value === "true" || value === true;
-    res.json({
+    return res.json({
       success: true,
       disabled,
     });
   } catch (error) {
     logger.error("Error getting disable tracked apps page setting:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to get disable tracked apps page setting",
     });
@@ -272,7 +279,8 @@ async function getDisableTrackedAppsPageHandler(req, res, next) {
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-async function setDisableTrackedAppsPageHandler(req, res, next) {
+
+async function setDisableTrackedAppsPageHandler(req, res, _next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -292,14 +300,14 @@ async function setDisableTrackedAppsPageHandler(req, res, next) {
 
     await setSetting(DISABLE_TRACKED_APPS_PAGE_KEY, disabled.toString(), userId);
 
-    res.json({
+    return res.json({
       success: true,
       disabled,
       message: `Tracked Apps page ${disabled ? "disabled" : "enabled"}`,
     });
   } catch (error) {
     logger.error("Error setting disable tracked apps page setting:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Failed to set disable tracked apps page setting",
     });
