@@ -513,7 +513,7 @@ jobs:
           echo "✓ Created and pushed tag ${{ needs.prepare-promotion.outputs.tag_name }}"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: release-artifacts
           path: release-artifacts/
