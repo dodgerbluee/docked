@@ -372,7 +372,18 @@ async function isDuplicate(key, userId) {
 }
 
 /**
- * Record notification for deduplication
+ * Record notification in-memory only (used before delivery attempt)
+ * @param {string} key - Deduplication key
+ */
+function recordNotificationInMemory(key) {
+  recentNotifications.set(key, Date.now());
+  if (recentNotifications.size > 1000) {
+    cleanupExpiredEntries();
+  }
+}
+
+/**
+ * Record notification for deduplication (persists after successful send)
  * @param {string} key - Deduplication key
  * @param {number} userId - User ID (optional, for database persistence)
  * @param {string} notificationType - Notification type (optional, for database persistence)
@@ -783,9 +794,9 @@ async function queueNotification(imageData) {
     return;
   }
 
-  // Record immediately when queuing (prevents duplicates even if processing is delayed)
-  // This records to both in-memory cache and database
-  await recordNotification(dedupKey, userId, imageData.notificationType || "tracked-app");
+  // Record immediately in memory when queuing (prevents duplicates while processing)
+  // Persisted record happens only after a successful send to avoid suppressing retries
+  recordNotificationInMemory(dedupKey);
 
   // Format notification payload once
   const payload = formatVersionUpdateNotification(imageData);
@@ -849,6 +860,8 @@ async function processNotificationQueue() {
         );
         logger.info(`Discord notification sent for ${notification.imageData.name}`);
       } else {
+        // Allow future attempts for this notification since delivery failed
+        recentNotifications.delete(notification.dedupKey);
         logger.error(
           `Failed to send Discord notification for ${notification.imageData.name}: ${result.error}`
         );
@@ -859,6 +872,8 @@ async function processNotificationQueue() {
       await sleep(100);
     } catch (error) {
       logger.error("Error processing Discord notification:", error);
+      // Allow future attempts for this notification since processing failed
+      recentNotifications.delete(notification.dedupKey);
     }
   }
 
