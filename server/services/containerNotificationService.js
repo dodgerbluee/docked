@@ -7,6 +7,7 @@
 
 const logger = require("../utils/logger");
 const { getAllPortainerInstances } = require("../db/index");
+const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;

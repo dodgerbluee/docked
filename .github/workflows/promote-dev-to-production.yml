@@ -246,7 +246,7 @@ jobs:
           sha256sum docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz > docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz.sha256
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-artifacts
           path: release-artifacts/
@@ -513,7 +513,7 @@ jobs:
           echo "✓ Created and pushed tag ${{ needs.prepare-promotion.outputs.tag_name }}"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: release-artifacts
           path: release-artifacts/
