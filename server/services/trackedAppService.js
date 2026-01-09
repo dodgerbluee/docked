@@ -422,7 +422,10 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   // Helper function to normalize digests for comparison
   function normalizeDigestForComparison(digest) {
     if (!digest) return "";
-    return String(digest).replace(/^sha256:/i, "").toLowerCase().trim();
+    return String(digest)
+      .replace(/^sha256:/i, "")
+      .toLowerCase()
+      .trim();
   }
 
   // Check if this is a newly detected update (either first time OR a different update than before)
@@ -435,9 +438,7 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
         trackedApp.latest_digest &&
         normalizeDigestForComparison(latestDigest) !==
           normalizeDigestForComparison(trackedApp.latest_digest)) ||
-      (latestVersion &&
-        trackedApp.latest_version &&
-        latestVersion !== trackedApp.latest_version));
+      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (isNewlyDetectedUpdate) {
