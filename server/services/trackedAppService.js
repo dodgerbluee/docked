@@ -419,8 +419,29 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
     displayLatestVersion = String(trackedApp.latest_version);
   }
 
+  // Helper function to normalize digests for comparison
+  function normalizeDigestForComparison(digest) {
+    if (!digest) return "";
+    return String(digest)
+      .replace(/^sha256:/i, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  // Check if this is a newly detected update (either first time OR a different update than before)
+  // Compare latest digest/version with stored values to detect if this is a new update
+  const isNewlyDetectedUpdate =
+    hasUpdate &&
+    (!trackedApp.has_update ||
+      // If already had an update, check if the latest digest/version has changed (new update available)
+      (latestDigest &&
+        trackedApp.latest_digest &&
+        normalizeDigestForComparison(latestDigest) !==
+          normalizeDigestForComparison(trackedApp.latest_digest)) ||
+      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedApp.has_update) {
+  if (isNewlyDetectedUpdate) {
     // Log newly identified tracked app update
     const currentDigest = trackedApp.current_digest || "N/A";
     const latestDigestFormatted = latestDigest || "N/A";
@@ -710,8 +731,16 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
       ? String(trackedApp.latest_version)
       : "Unknown";
 
+  // Check if this is a newly detected update (either first time OR a different update than before)
+  // Compare latest version with stored value to detect if this is a new update
+  const isNewlyDetectedUpdate =
+    hasUpdate &&
+    (!trackedApp.has_update ||
+      // If already had an update, check if the latest version has changed (new update available)
+      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedApp.has_update) {
+  if (isNewlyDetectedUpdate) {
     // Log newly identified tracked app update
     const logData = {
       module: "trackedAppService",
@@ -964,26 +993,26 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   // Update the tracked image in database
   const updateData = {
-    has_update: hasUpdate ? 1 : 0,
-    last_checked: new Date().toISOString(),
+    hasUpdate: hasUpdate ? 1 : 0,
+    lastChecked: new Date().toISOString(),
   };
 
-  // Store latest_version if we have it from the release
+  // Store latestVersion if we have it from the release
   // Always store it if we have latestVersion and latestRelease, regardless of published_at
   // This ensures we show the latest version even if publish date is missing
   if (latestVersion && latestRelease) {
     const versionStr = String(latestVersion).trim();
     if (versionStr !== "" && versionStr !== "null" && versionStr !== "undefined") {
-      updateData.latest_version = versionStr;
+      updateData.latestVersion = versionStr;
     }
   } else if (hasUpdate && trackedApp.latest_version) {
     // If we have an update but couldn't get latest version, preserve existing latest_version
     // This prevents clearing the version when there's a known update
-    updateData.latest_version = trackedApp.latest_version;
+    updateData.latestVersion = trackedApp.latest_version;
   } else if (!hasUpdate && !latestVersion) {
-    // Only clear latest_version if we don't have an update and don't have a latest version
+    // Only clear latestVersion if we don't have an update and don't have a latest version
     // This prevents clearing valid version data when there's no update
-    updateData.latest_version = null;
+    updateData.latestVersion = null;
   }
 
   // Update current version if we don't have one yet
@@ -998,7 +1027,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   if (!currentVersionToStore && latestVersion && latestRelease && latestRelease.published_at) {
     currentVersionToStore = latestVersion;
-    updateData.current_version = latestVersion;
+    updateData.currentVersion = latestVersion;
     currentVersionPublishDate = latestRelease.published_at;
   } else if (
     currentVersionToStore &&
@@ -1016,7 +1045,7 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
   // Store current version publish date if we have it
   if (currentVersionPublishDate) {
-    updateData.current_version_publish_date = currentVersionPublishDate;
+    updateData.currentVersionPublishDate = currentVersionPublishDate;
   }
 
   // Also store latest version publish date if we have it and it's different from current
@@ -1028,19 +1057,19 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
 
     // If normalized current version doesn't match normalized latest, store latest's publish date separately
     if (normalizedCurrent !== normalizedLatest) {
-      updateData.latest_version_publish_date = latestRelease.published_at;
+      updateData.latestVersionPublishDate = latestRelease.published_at;
     } else {
-      // If they match, clear latest_version_publish_date since current_version_publish_date covers it
-      updateData.latest_version_publish_date = null;
+      // If they match, clear latestVersionPublishDate since currentVersionPublishDate covers it
+      updateData.latestVersionPublishDate = null;
     }
   } else if (hasUpdate && trackedApp.latest_version_publish_date) {
     // If we have an update but no published_at, preserve existing latest_version_publish_date
     // This prevents clearing the publish date when there's a known update
-    updateData.latest_version_publish_date = trackedApp.latest_version_publish_date;
+    updateData.latestVersionPublishDate = trackedApp.latest_version_publish_date;
   } else {
     // Only clear if we don't have an update
     if (!hasUpdate) {
-      updateData.latest_version_publish_date = null;
+      updateData.latestVersionPublishDate = null;
     }
   }
 
@@ -1061,8 +1090,16 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
       ? String(trackedApp.latest_version)
       : "Unknown";
 
+  // Check if this is a newly detected update (either first time OR a different update than before)
+  // Compare latest version with stored value to detect if this is a new update
+  const isNewlyDetectedUpdate =
+    hasUpdate &&
+    (!trackedApp.has_update ||
+      // If already had an update, check if the latest version has changed (new update available)
+      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
-  if (hasUpdate && !trackedApp.has_update) {
+  if (isNewlyDetectedUpdate) {
     // Log newly identified tracked app update
     const logData = {
       module: "trackedAppService",

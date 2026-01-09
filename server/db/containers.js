@@ -528,8 +528,43 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
     LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
     LEFT JOIN registry_image_versions riv 
       ON di.user_id = riv.user_id 
-      AND di.image_repo = riv.image_repo
-      AND di.image_tag = riv.tag`;
+      AND (
+        -- Normalize image_repo: handle both "redis" and "docker.io/redis" formats
+        -- Also handle cases where deployed_images.image_repo incorrectly contains tag/digest
+        (di.image_repo = riv.image_repo)
+        OR (REPLACE(di.image_repo, 'docker.io/', '') = REPLACE(riv.image_repo, 'docker.io/', ''))
+        OR (
+          -- Extract base repo from deployed_images by removing everything after first ':' or '@'
+          -- This handles malformed image_repo like "redis:6.2-alpine@sha256"
+          CASE 
+            WHEN INSTR(di.image_repo, ':') > 0 THEN
+              SUBSTR(di.image_repo, 1, INSTR(di.image_repo, ':') - 1)
+            WHEN INSTR(di.image_repo, '@') > 0 THEN
+              SUBSTR(di.image_repo, 1, INSTR(di.image_repo, '@') - 1)
+            ELSE
+              di.image_repo
+          END = REPLACE(riv.image_repo, 'docker.io/', '')
+        )
+        OR (
+          -- Same normalization in reverse - extract from registry_image_versions
+          REPLACE(di.image_repo, 'docker.io/', '') = 
+          CASE 
+            WHEN INSTR(riv.image_repo, ':') > 0 THEN
+              SUBSTR(riv.image_repo, 1, INSTR(riv.image_repo, ':') - 1)
+            WHEN INSTR(riv.image_repo, '@') > 0 THEN
+              SUBSTR(riv.image_repo, 1, INSTR(riv.image_repo, '@') - 1)
+            ELSE
+              REPLACE(riv.image_repo, 'docker.io/', '')
+          END
+        )
+      )
+      AND (
+        -- Normalize tags: handle @sha256 suffix differences
+        (di.image_tag = riv.tag)
+        OR (di.image_tag = REPLACE(riv.tag, '@sha256', ''))
+        OR (riv.tag = di.image_tag || '@sha256')
+        OR (REPLACE(COALESCE(di.image_tag, ''), '@sha256', '') = REPLACE(COALESCE(riv.tag, ''), '@sha256', ''))
+      )`;
 
       const params = [userId];
 
