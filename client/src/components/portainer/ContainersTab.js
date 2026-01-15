@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { CheckCircle2, RefreshCw, Package } from "lucide-react";
 import PortainerStackGroup from "./PortainerStackGroup";
 import PortainerContainerCard from "./PortainerContainerCard";
 import LoadingSpinner from "../ui/LoadingSpinner";
@@ -167,12 +168,14 @@ const ContainersTab = React.memo(function ContainersTab({
 
     if (allContainersWithUpdates.length === 0) {
       const emptyMessage = dockerHubDataPulled
-        ? "No containers with updates available."
+        ? "All up to date! No containers with updates available!"
         : hasData
-          ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
-          : "Pull from Docker Hub to check for available upgrades.";
+          ? "No containers with updates available! Pull from Docker Hub to check for available upgrades."
+          : "Pull from Docker Hub to check for available upgrades!";
 
-      return <EmptyState message={emptyMessage} className={styles.emptyState} />;
+      const icon = dockerHubDataPulled ? CheckCircle2 : RefreshCw;
+
+      return <EmptyState message={emptyMessage} icon={icon} className={styles.emptyState} />;
     }
 
     // Group containers by Portainer instance and sort
@@ -269,7 +272,9 @@ const ContainersTab = React.memo(function ContainersTab({
       ? "No up-to-date containers found."
       : "No containers found. Data will appear once fetched from Portainer.";
 
-    return <EmptyState message={emptyMessage} className={styles.emptyState} />;
+    const icon = hasData ? CheckCircle2 : Package;
+
+    return <EmptyState message={emptyMessage} icon={icon} className={styles.emptyState} />;
   }
 
   return (

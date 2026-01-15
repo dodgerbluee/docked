@@ -178,11 +178,8 @@ function PortainerPage({
         searchQuery={searchQuery}
         onSearchChange={(e) => setSearchQuery(e.target.value)}
         onPullDockerHub={onPullDockerHub}
-        onPullPortainerOnly={handlePullPortainerOnly}
         pullingDockerHub={pullingDockerHub}
-        pullingPortainerOnly={pullingPortainerOnly}
         showCheckmark={showCheckmark}
-        developerModeEnabled={developerModeEnabled}
         portainerInstancesCount={portainerInstances.length}
         toolbarActions={toolbarActions}
       />

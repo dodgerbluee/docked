@@ -1,27 +1,53 @@
 .emptyState {
   text-align: center;
-  padding: 40px;
+  padding: 60px 40px;
   color: var(--text-secondary);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .iconContainer {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.5;
+  padding: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.08), rgba(33, 150, 243, 0.03));
+  animation: float 3s ease-in-out infinite;
+  transition: transform 0.3s ease;
+}
+
+.iconContainer:hover {
+  transform: scale(1.05);
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .icon {
-  color: var(--text-tertiary);
+  color: #2196f3;
+  opacity: 0.75;
+  filter: drop-shadow(0 2px 6px rgba(33, 150, 243, 0.2));
+  transition: opacity 0.3s ease;
+}
+
+.iconContainer:hover .icon {
+  opacity: 0.9;
 }
 
 .message {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.6;
-  max-width: 800px;
+  max-width: 500px;
+  color: var(--text-secondary);
+  font-weight: 400;
 }

@@ -7,9 +7,7 @@
 }
 
 .emptyState {
-  text-align: center;
-  padding: 40px;
-  color: var(--text-secondary);
+  padding: 60px 40px;
 }
 
 .loadingContainer {

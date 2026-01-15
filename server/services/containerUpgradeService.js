@@ -72,7 +72,12 @@ async function upgradeSingleContainer(
   const cleanContainerName = originalContainerName.replace(/^\//, "");
 
   // Extract current and new image info
-  const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
+  // Remove @sha256 digest suffix if present before parsing
+  let cleanImageName = imageName;
+  if (cleanImageName.includes("@sha256")) {
+    cleanImageName = cleanImageName.split("@sha256")[0];
+  }
+  const imageParts = cleanImageName.includes(":") ? cleanImageName.split(":") : [cleanImageName, "latest"];
   const imageRepo = imageParts[0];
   const currentTag = imageParts[1];
 
