@@ -5,7 +5,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { X, CheckCircle2, XCircle, Clock, Package, Server, Tag, Hash } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Package, Server, Tag, Hash } from "lucide-react";
 import Modal from "../ui/Modal";
 import styles from "./UpgradeHistoryDetailModal.module.css";
 
@@ -234,4 +234,3 @@ UpgradeHistoryDetailModal.propTypes = {
 };
 
 export default UpgradeHistoryDetailModal;
-

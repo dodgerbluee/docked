@@ -71,18 +71,13 @@ function PortainerPage({
     }
   }, [onAddInstance]);
 
-  const {
-    localPullError,
-    showCheckmark,
-    pullingPortainerOnly,
-    handlePullPortainerOnly,
-    handleDismissError,
-  } = usePortainerPullStatus({
-    pullingDockerHub,
-    pullSuccess,
-    pullError,
-    fetchContainers,
-  });
+  const { localPullError, showCheckmark, pullingPortainerOnly, handleDismissError } =
+    usePortainerPullStatus({
+      pullingDockerHub,
+      pullSuccess,
+      pullError,
+      fetchContainers,
+    });
 
   const { errorModal, closeErrorModal, ...portainerPage } = usePortainerPage({
     portainerInstances,

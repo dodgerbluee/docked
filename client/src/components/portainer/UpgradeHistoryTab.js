@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useCallback } from "react";
-import PropTypes from "prop-types";
 import {
   History,
   CheckCircle2,
@@ -47,17 +46,6 @@ function formatDate(dateString) {
   });
 }
 
-/**
- * Get short digest for display
- */
-function getShortDigest(digest) {
-  if (!digest) return "N/A";
-  if (digest.startsWith("sha256:")) {
-    return digest.substring(7, 19);
-  }
-  return digest.substring(0, 12);
-}
-
 function UpgradeHistoryTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -65,7 +53,7 @@ function UpgradeHistoryTab() {
   const [selectedUpgrade, setSelectedUpgrade] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const { history, loading, error, stats, refetch } = useUpgradeHistory({
+  const { history, loading, error, stats } = useUpgradeHistory({
     limit: 200,
   });
 
@@ -161,9 +149,7 @@ function UpgradeHistoryTab() {
             <div className={styles.statCard}>
               <Clock size={20} className={styles.statIcon} />
               <div className={styles.statContent}>
-                <div className={styles.statValue}>
-                  {formatDuration(stats.avg_duration_ms)}
-                </div>
+                <div className={styles.statValue}>{formatDuration(stats.avg_duration_ms)}</div>
                 <div className={styles.statLabel}>Avg Duration</div>
               </div>
             </div>
@@ -235,9 +221,7 @@ function UpgradeHistoryTab() {
                   )}
                   <span className={styles.containerName}>{upgrade.container_name}</span>
                   {upgrade.portainer_instance_name && (
-                    <span className={styles.instanceBadge}>
-                      {upgrade.portainer_instance_name}
-                    </span>
+                    <span className={styles.instanceBadge}>{upgrade.portainer_instance_name}</span>
                   )}
                 </div>
                 <ChevronRight size={18} className={styles.chevronIcon} />
@@ -292,4 +276,3 @@ function UpgradeHistoryTab() {
 UpgradeHistoryTab.propTypes = {};
 
 export default UpgradeHistoryTab;
-

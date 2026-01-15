@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Sparkles, CheckCircle2, RefreshCw } from "lucide-react";
+import { CheckCircle2, RefreshCw } from "lucide-react";
 import PortainerStackGroup from "./PortainerStackGroup";
 import EmptyState from "../ui/EmptyState";
 import styles from "./UpdatesTab.module.css";
@@ -57,13 +57,7 @@ function UpdatesTab({
 
     const icon = dockerHubDataPulled ? CheckCircle2 : RefreshCw;
 
-    return (
-      <EmptyState
-        message={message}
-        icon={icon}
-        className={styles.emptyState}
-      />
-    );
+    return <EmptyState message={message} icon={icon} className={styles.emptyState} />;
   }
 
   return (
