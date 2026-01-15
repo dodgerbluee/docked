@@ -7,6 +7,7 @@ export const PORTAINER_CONTENT_TABS = {
   CURRENT: "current",
   UNUSED: "unused",
   ALL: "all",
+  HISTORY: "history",
 };
 
 export const PORTAINER_CONTENT_TAB_LABELS = {
@@ -14,6 +15,7 @@ export const PORTAINER_CONTENT_TAB_LABELS = {
   [PORTAINER_CONTENT_TABS.CURRENT]: "Up to date",
   [PORTAINER_CONTENT_TABS.UNUSED]: "Unused",
   [PORTAINER_CONTENT_TABS.ALL]: "All",
+  [PORTAINER_CONTENT_TABS.HISTORY]: "History",
 };
 
 export const PORTAINER_IMAGE_SOURCE_FILTERS = {

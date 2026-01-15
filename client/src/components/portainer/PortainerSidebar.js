@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Plus } from "lucide-react";
+import { Plus, History } from "lucide-react";
 import {
   PORTAINER_CONTENT_TABS,
   PORTAINER_CONTENT_TAB_LABELS,
@@ -119,6 +119,17 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
         >
           <span className={styles.sidebarItemName}>
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.UNUSED]}
+          </span>
+        </button>
+        <button
+          className={`${styles.sidebarItem} ${
+            contentTab === PORTAINER_CONTENT_TABS.HISTORY ? styles.active : ""
+          }`}
+          onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.HISTORY)}
+        >
+          <History size={16} className={styles.sidebarIcon} />
+          <span className={styles.sidebarItemName}>
+            {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.HISTORY]}
           </span>
         </button>
       </div>
