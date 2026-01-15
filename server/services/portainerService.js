@@ -194,11 +194,21 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
 async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null) {
   try {
     const response = await requestWithIpFallback(async (url) => {
+      // Remove @sha256 digest suffix if present before parsing
+      let cleanImageName = imageName;
+      if (cleanImageName.includes("@sha256")) {
+        cleanImageName = cleanImageName.split("@sha256")[0];
+      }
+      // Split by : to get fromImage and tag
+      const imageParts = cleanImageName.includes(":") ? cleanImageName.split(":") : [cleanImageName, "latest"];
+      const fromImage = imageParts[0];
+      const tag = imageParts[1] || "latest";
+      
       const baseConfig = {
         headers: getAuthHeaders(url),
         params: {
-          fromImage: imageName.split(":")[0],
-          tag: imageName.includes(":") ? imageName.split(":")[1] : "latest",
+          fromImage,
+          tag,
         },
       };
       // Use originalUrl for Host header if provided, otherwise use portainerUrl

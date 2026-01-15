@@ -1,6 +1,8 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { Sparkles, CheckCircle2, RefreshCw } from "lucide-react";
 import PortainerStackGroup from "./PortainerStackGroup";
+import EmptyState from "../ui/EmptyState";
 import styles from "./UpdatesTab.module.css";
 
 /**
@@ -47,16 +49,20 @@ function UpdatesTab({
   const hasUpdates = groupedStacks.some((stack) => stack.containers.some((c) => c.hasUpdate));
 
   if (!hasUpdates) {
+    const message = dockerHubDataPulled
+      ? "All up to date! No containers with updates available!"
+      : hasData
+        ? "No containers with updates available! Pull from Docker Hub to check for available upgrades."
+        : "Pull from Docker Hub to check for available upgrades!";
+
+    const icon = dockerHubDataPulled ? CheckCircle2 : RefreshCw;
+
     return (
-      <div className={styles.emptyState}>
-        <p>
-          {dockerHubDataPulled
-            ? "No containers with updates available."
-            : hasData
-              ? "No containers with updates available. Pull from Docker Hub to check for available upgrades."
-              : "Pull from Docker Hub to check for available upgrades."}
-        </p>
-      </div>
+      <EmptyState
+        message={message}
+        icon={icon}
+        className={styles.emptyState}
+      />
     );
   }
 

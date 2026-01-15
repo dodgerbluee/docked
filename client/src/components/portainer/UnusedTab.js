@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import { Trash2 } from "lucide-react";
+import { Trash2, Sparkles } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
@@ -42,9 +42,10 @@ const UnusedTab = React.memo(function UnusedTab({
       <EmptyState
         message={
           hasData
-            ? "No unused images found."
-            : "No unused images found. Data will appear once fetched from Portainer."
+            ? "All clean! No unused images found!"
+            : "No unused images found yet! Data will appear once fetched from Portainer."
         }
+        icon={Sparkles}
         className={styles.emptyState}
       />
     );
