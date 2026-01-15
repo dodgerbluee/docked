@@ -288,4 +288,3 @@ module.exports = {
   getUpgradeHistoryStats,
   cleanupOldUpgradeHistory,
 };
-

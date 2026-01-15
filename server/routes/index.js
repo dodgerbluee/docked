@@ -527,7 +527,10 @@ router.get("/containers/upgrade-history", asyncHandler(containerController.getUp
  *       401:
  *         description: Authentication required
  */
-router.get("/containers/upgrade-history/stats", asyncHandler(containerController.getUpgradeHistoryStats));
+router.get(
+  "/containers/upgrade-history/stats",
+  asyncHandler(containerController.getUpgradeHistoryStats)
+);
 
 /**
  * @swagger
@@ -552,7 +555,10 @@ router.get("/containers/upgrade-history/stats", asyncHandler(containerController
  *       404:
  *         description: Upgrade history record not found
  */
-router.get("/containers/upgrade-history/:id", asyncHandler(containerController.getUpgradeHistoryById));
+router.get(
+  "/containers/upgrade-history/:id",
+  asyncHandler(containerController.getUpgradeHistoryById)
+);
 
 // Portainer instance routes
 /**
