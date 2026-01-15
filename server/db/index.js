@@ -25,6 +25,7 @@ const batch = require("./batch");
 const deployedImages = require("./deployedImages");
 const registryImageVersions = require("./registryImageVersions");
 const dockerHubImageVersions = require("./dockerHubImageVersions");
+const upgradeHistory = require("./upgradeHistory");
 const logger = require("../utils/logger");
 
 /**
@@ -124,6 +125,7 @@ module.exports = {
   ...deployedImages,
   ...registryImageVersions,
   ...dockerHubImageVersions,
+  ...upgradeHistory,
 
   // Utility functions
   getRawDatabaseRecords,

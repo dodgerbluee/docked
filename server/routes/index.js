@@ -472,6 +472,94 @@ router.post(
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", asyncHandler(imageController.deleteImages));
 
+// Upgrade history routes
+/**
+ * @swagger
+ * /containers/upgrade-history:
+ *   get:
+ *     summary: Get upgrade history
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Maximum number of records to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
+ *       - in: query
+ *         name: containerName
+ *         schema:
+ *           type: string
+ *         description: Filter by container name
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [success, failed]
+ *         description: Filter by status
+ *     responses:
+ *       200:
+ *         description: Upgrade history retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get("/containers/upgrade-history", asyncHandler(containerController.getUpgradeHistory));
+
+/**
+ * @swagger
+ * /containers/upgrade-history/stats:
+ *   get:
+ *     summary: Get upgrade history statistics
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Upgrade history statistics retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get(
+  "/containers/upgrade-history/stats",
+  asyncHandler(containerController.getUpgradeHistoryStats)
+);
+
+/**
+ * @swagger
+ * /containers/upgrade-history/{id}:
+ *   get:
+ *     summary: Get a single upgrade history record by ID
+ *     tags: [Containers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Upgrade history record ID
+ *     responses:
+ *       200:
+ *         description: Upgrade history record retrieved successfully
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: Upgrade history record not found
+ */
+router.get(
+  "/containers/upgrade-history/:id",
+  asyncHandler(containerController.getUpgradeHistoryById)
+);
+
 // Portainer instance routes
 /**
  * @swagger
