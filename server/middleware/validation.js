@@ -55,12 +55,17 @@ const commonValidations = {
     .withMessage("endpointId must be a string or number"),
 
   // Image name validation
+  // Supports: registry/repo:tag, repo:tag, repo:tag@sha256:digest, registry/repo:tag@sha256:digest
+  // Format: [registry/][namespace/]repository[:tag][@sha256[:digest]]
+  // Examples: redis, redis:6.2-alpine, docker.io/redis:6.2-alpine, redis:6.2-alpine@sha256:abc..., docker.io/redis:6.2-alpine@sha256
   imageName: body("imageName")
     .isString()
     .notEmpty()
     .withMessage("imageName is required")
-    // eslint-disable-next-line prefer-named-capture-group -- Simple regex, named group not needed
-    .matches(/^[a-zA-Z0-9._/-]+(:[a-zA-Z0-9._/-]+)?$/)
+    // eslint-disable-next-line prefer-named-capture-group -- Complex regex for Docker image names
+    .matches(
+      /^(?:[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)*\/)?[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)*(?::[a-zA-Z0-9._-]+)?(?:@sha256(?::[a-fA-F0-9]{64})?)?$/
+    )
     .withMessage("imageName must be a valid Docker image name"),
 
   // Portainer URL validation
