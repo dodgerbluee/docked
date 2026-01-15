@@ -11,6 +11,7 @@ import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModa
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
+import UpgradeHistoryTab from "../components/portainer/UpgradeHistoryTab";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
@@ -285,6 +286,10 @@ function PortainerPage({
                       collapsedUnusedImages={portainerPage.collapsedUnusedImages}
                       onToggleCollapsed={handleToggleCollapsed}
                     />
+                  )}
+
+                  {portainerPage.contentTab === PORTAINER_CONTENT_TABS.HISTORY && (
+                    <UpgradeHistoryTab />
                   )}
                 </ErrorBoundary>
               </div>

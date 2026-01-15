@@ -874,6 +874,74 @@ async function initializeDatabase() {
             }
           }
         );
+
+        // Create upgrade_history table to track container upgrade history
+        db.run(
+          `CREATE TABLE IF NOT EXISTS upgrade_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        portainer_instance_id INTEGER,
+        portainer_instance_name TEXT,
+        container_id TEXT NOT NULL,
+        container_name TEXT NOT NULL,
+        endpoint_id TEXT NOT NULL,
+        portainer_url TEXT,
+        old_image TEXT NOT NULL,
+        new_image TEXT NOT NULL,
+        old_digest TEXT,
+        new_digest TEXT,
+        old_version TEXT,
+        new_version TEXT,
+        image_repo TEXT,
+        registry TEXT,
+        namespace TEXT,
+        repository TEXT,
+        status TEXT DEFAULT 'success',
+        error_message TEXT,
+        upgrade_duration_ms INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE SET NULL
+      )`,
+          (err) => {
+            if (err) {
+              logger.error("Error creating upgrade_history table:", { error: err });
+            } else {
+              logger.info("Upgrade history table ready");
+              // Create indexes for upgrade_history table
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_user_id ON upgrade_history(user_id)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating upgrade_history user_id index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_created_at ON upgrade_history(created_at DESC)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating upgrade_history created_at index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_container_name ON upgrade_history(container_name)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating upgrade_history container_name index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+            }
+          }
+        );
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
         logger.error("Stack:", { error: serializeError });

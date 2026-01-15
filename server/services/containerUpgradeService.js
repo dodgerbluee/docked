@@ -31,6 +31,17 @@ async function upgradeSingleContainer(
   imageName,
   userId = null
 ) {
+  const upgradeStartTime = Date.now();
+  let upgradeHistoryData = {
+    userId,
+    containerId,
+    endpointId,
+    portainerUrl,
+    oldImage: imageName,
+    status: "success",
+  };
+
+  try {
   // Detect if this is nginx-proxy-manager EARLY (before fetching container details)
   // We can detect by image name, which is available before fetching container details
   // If nginx goes down, this app's UI becomes unavailable, so we need to use IP addresses
@@ -71,6 +82,38 @@ async function upgradeSingleContainer(
   const originalContainerName = containerDetails.Name;
   const cleanContainerName = originalContainerName.replace(/^\//, "");
 
+  // Get Portainer instance info for upgrade history
+  let portainerInstanceId = null;
+  let portainerInstanceName = null;
+  if (userId) {
+    try {
+      const { getAllPortainerInstances } = require("../db/index");
+      const instances = await getAllPortainerInstances(userId);
+      const instance = instances.find((inst) => inst.url === portainerUrl);
+      if (instance) {
+        portainerInstanceId = instance.id;
+        portainerInstanceName = instance.name;
+        upgradeHistoryData.portainerInstanceId = portainerInstanceId;
+        upgradeHistoryData.portainerInstanceName = portainerInstanceName;
+      }
+    } catch (err) {
+      logger.debug("Could not get Portainer instance info for upgrade history:", err);
+    }
+  }
+
+  // Get old digest from container details
+  let oldDigest = null;
+  try {
+    oldDigest = await dockerRegistryService.getCurrentImageDigest(
+      containerDetails,
+      imageName,
+      portainerUrl,
+      endpointId
+    );
+  } catch (err) {
+    logger.debug("Could not get old digest for upgrade history:", err);
+  }
+
   // Extract current and new image info
   // Remove @sha256 digest suffix if present before parsing
   let cleanImageName = imageName;
@@ -84,6 +127,11 @@ async function upgradeSingleContainer(
   // Use the current tag for upgrades (to get the latest version of that tag)
   const newTag = currentTag;
   const newImageName = `${imageRepo}:${newTag}`;
+
+  // Update upgrade history data
+  upgradeHistoryData.containerName = cleanContainerName;
+  upgradeHistoryData.oldDigest = oldDigest;
+  upgradeHistoryData.imageRepo = imageRepo;
 
   logger.info("Starting container upgrade", {
     module: "containerService",
@@ -401,6 +449,14 @@ async function upgradeSingleContainer(
       // Pass currentTag to get the correct record for this specific tag
       const versionInfo = await getDockerHubImageVersion(userId, imageRepo, currentTag);
       if (versionInfo && versionInfo.latestDigest && versionInfo.latestVersion) {
+        // Update upgrade history data with new version info
+        upgradeHistoryData.newDigest = versionInfo.latestDigest;
+        upgradeHistoryData.newVersion = versionInfo.latestVersion;
+        upgradeHistoryData.oldVersion = versionInfo.currentVersion || currentTag;
+        upgradeHistoryData.registry = versionInfo.registry || "docker.io";
+        upgradeHistoryData.namespace = versionInfo.namespace || null;
+        upgradeHistoryData.repository = versionInfo.repository || imageRepo;
+
         // Container now has the latest image, so current = latest
         // Pass currentTag to update the correct record
         await markDockerHubImageUpToDate(
@@ -429,6 +485,7 @@ async function upgradeSingleContainer(
             const hasValidDigest = imageId && imageId.startsWith("sha256:");
             if (hasValidDigest) {
               newContainerDigest = imageId;
+              upgradeHistoryData.newDigest = newContainerDigest;
             }
           } catch (digestError) {
             // If we can't get the digest from container, use the one from versionInfo
@@ -487,6 +544,22 @@ async function upgradeSingleContainer(
 
   logger.info(` Upgrade completed successfully for ${originalContainerName}`);
 
+  // Log upgrade to history
+  const upgradeDurationMs = Date.now() - upgradeStartTime;
+  upgradeHistoryData.newImage = newImageName;
+  upgradeHistoryData.upgradeDurationMs = upgradeDurationMs;
+  upgradeHistoryData.status = "success";
+
+  if (userId) {
+    try {
+      const { createUpgradeHistory } = require("../db/index");
+      await createUpgradeHistory(upgradeHistoryData);
+    } catch (historyError) {
+      // Don't fail the upgrade if history logging fails
+      logger.warn("Failed to log upgrade to history:", { error: historyError });
+    }
+  }
+
   return {
     success: true,
     containerId,
@@ -495,6 +568,26 @@ async function upgradeSingleContainer(
     oldImage: imageName,
     newImage: newImageName,
   };
+  } catch (error) {
+    // Log failed upgrade to history
+    const upgradeDurationMs = Date.now() - upgradeStartTime;
+    upgradeHistoryData.status = "failed";
+    upgradeHistoryData.errorMessage = error.message || String(error);
+    upgradeHistoryData.upgradeDurationMs = upgradeDurationMs;
+    upgradeHistoryData.newImage = upgradeHistoryData.newImage || imageName;
+
+    if (userId) {
+      try {
+        const { createUpgradeHistory } = require("../db/index");
+        await createUpgradeHistory(upgradeHistoryData);
+      } catch (historyError) {
+        logger.warn("Failed to log failed upgrade to history:", { error: historyError });
+      }
+    }
+
+    // Re-throw the error
+    throw error;
+  }
 }
 
 // Legacy function for batch upgrades - kept for backward compatibility
