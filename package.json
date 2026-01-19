@@ -13,7 +13,7 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "eslint": "^9.39.2",
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.0",
     "semver": "^7.6.0"
   },
   "scripts": {
