@@ -23,7 +23,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.1.6",
-    "sqlite3": "^5.1.8",
+    "sqlite3": "^5.1.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "winston": "^3.19.0"
