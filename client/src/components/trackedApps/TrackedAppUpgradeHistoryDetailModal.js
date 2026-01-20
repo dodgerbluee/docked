@@ -5,7 +5,17 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { CheckCircle2, XCircle, Clock, Github, Gitlab, Tag, Hash, Package, FileText } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Github,
+  Gitlab,
+  Tag,
+  Hash,
+  Package,
+  FileText,
+} from "lucide-react";
 import Modal from "../ui/Modal";
 import styles from "./TrackedAppUpgradeHistoryDetailModal.module.css";
 
@@ -208,4 +218,3 @@ TrackedAppUpgradeHistoryDetailModal.propTypes = {
 };
 
 export default TrackedAppUpgradeHistoryDetailModal;
-

@@ -230,7 +230,10 @@ function getTrackedAppUpgradeHistoryStats(userId) {
           [userId],
           (err, row) => {
             if (err) {
-              logger.error("Error fetching tracked app upgrade history stats:", { error: err, userId });
+              logger.error("Error fetching tracked app upgrade history stats:", {
+                error: err,
+                userId,
+              });
               reject(err);
             } else {
               resolve(row || {});
@@ -287,4 +290,3 @@ module.exports = {
   getTrackedAppUpgradeHistoryStats,
   cleanupOldTrackedAppUpgradeHistory,
 };
-

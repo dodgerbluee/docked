@@ -308,7 +308,9 @@
 .chevron {
   color: var(--text-secondary);
   flex-shrink: 0;
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
 }
 
 .sectionHeader:hover .chevron {

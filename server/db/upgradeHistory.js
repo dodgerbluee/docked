@@ -68,9 +68,7 @@ function createUpgradeHistory(upgradeData) {
         if (!oldImage) missingFields.push("oldImage");
         if (!newImage) missingFields.push("newImage");
         reject(
-          new Error(
-            `Missing required fields for upgrade history: ${missingFields.join(", ")}`
-          )
+          new Error(`Missing required fields for upgrade history: ${missingFields.join(", ")}`)
         );
         return;
       }

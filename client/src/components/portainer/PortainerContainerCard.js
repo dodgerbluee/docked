@@ -44,7 +44,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   const handleContainerNameClick = useCallback(
     async (e) => {
       e.stopPropagation();
-      
+
       // If developer mode is enabled, open debug modal
       if (developerModeEnabled && container.id && onOpenDebugModal) {
         onOpenDebugModal({ id: container.id, name: container.name });

@@ -514,19 +514,37 @@ router.post("/images/delete", asyncHandler(imageController.deleteImages));
  *         description: Authentication required
  */
 router.get("/containers/upgrade-history", asyncHandler(containerController.getUpgradeHistory));
-router.get("/containers/upgrade-history/stats", asyncHandler(containerController.getUpgradeHistoryStats));
-router.get("/containers/upgrade-history/:id", asyncHandler(containerController.getUpgradeHistoryById));
+router.get(
+  "/containers/upgrade-history/stats",
+  asyncHandler(containerController.getUpgradeHistoryStats)
+);
+router.get(
+  "/containers/upgrade-history/:id",
+  asyncHandler(containerController.getUpgradeHistoryById)
+);
 
 // Tracked App Upgrade History routes
-router.get("/tracked-apps/upgrade-history", asyncHandler(trackedAppHistoryController.getTrackedAppHistory));
-router.get("/tracked-apps/upgrade-history/stats", asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats));
-router.get("/tracked-apps/upgrade-history/:id", asyncHandler(trackedAppHistoryController.getTrackedAppHistoryById));
+router.get(
+  "/tracked-apps/upgrade-history",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistory)
+);
+router.get(
+  "/tracked-apps/upgrade-history/stats",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats)
+);
+router.get(
+  "/tracked-apps/upgrade-history/:id",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryById)
+);
 
 /**
  * Get container debug information (developer mode only)
  * @route GET /api/containers/:containerId/debug
  */
-router.get("/containers/:containerId/debug", asyncHandler(containerDebugController.getContainerDebugInfo));
+router.get(
+  "/containers/:containerId/debug",
+  asyncHandler(containerDebugController.getContainerDebugInfo)
+);
 
 /**
  * @swagger

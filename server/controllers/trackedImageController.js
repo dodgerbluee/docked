@@ -398,7 +398,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
     if (isUpgrade && currentVersion !== undefined && currentVersion !== null) {
       try {
         const { createTrackedAppUpgradeHistory } = require("../db/index");
-        
+
         // Prepare history data
         const historyData = {
           userId,

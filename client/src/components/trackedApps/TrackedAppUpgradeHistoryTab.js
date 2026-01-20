@@ -243,11 +243,7 @@ function TrackedAppUpgradeHistoryTab() {
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
                   <div className={styles.providerIcon}>
-                    {upgrade.provider === "github" ? (
-                      <Github size={18} />
-                    ) : (
-                      <Gitlab size={18} />
-                    )}
+                    {upgrade.provider === "github" ? <Github size={18} /> : <Gitlab size={18} />}
                   </div>
                   <h3 className={styles.appName}>{upgrade.app_name}</h3>
                   <div className={styles.statusBadge}>
@@ -300,4 +296,3 @@ function TrackedAppUpgradeHistoryTab() {
 }
 
 export default TrackedAppUpgradeHistoryTab;
-

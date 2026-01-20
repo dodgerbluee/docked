@@ -8,7 +8,16 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import axios from "axios";
-import { Database, Package, History, AlertCircle, RefreshCw, X, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Database,
+  Package,
+  History,
+  AlertCircle,
+  RefreshCw,
+  X,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../constants/api";
 import styles from "./ContainerDebugModal.module.css";
@@ -39,8 +48,8 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
     }
 
     // Validate containerId
-    if (!containerId || typeof containerId !== 'string' || containerId.trim() === '') {
-      setError('Invalid container ID provided');
+    if (!containerId || typeof containerId !== "string" || containerId.trim() === "") {
+      setError("Invalid container ID provided");
       setLoading(false);
       return;
     }
@@ -57,14 +66,13 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(
-        `${API_BASE_URL}/api/containers/${containerId}/debug`,
-        { signal: abortControllerRef.current.signal }
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/containers/${containerId}/debug`, {
+        signal: abortControllerRef.current.signal,
+      });
       setDebugInfo(response.data);
     } catch (err) {
       // Don't set error if request was cancelled
-      if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
+      if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
         setError(err.response?.data?.error || err.message || "Failed to fetch debug info");
       }
     } finally {
@@ -127,7 +135,7 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
     const lastElement = focusableElements[focusableElements.length - 1];
 
     const handleTab = (e) => {
-      if (e.key === 'Tab') {
+      if (e.key === "Tab") {
         if (e.shiftKey && document.activeElement === firstElement) {
           e.preventDefault();
           lastElement?.focus();
@@ -138,12 +146,12 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
       }
     };
 
-    document.addEventListener('keydown', handleTab);
-    
+    document.addEventListener("keydown", handleTab);
+
     // Focus first element on mount
     setTimeout(() => firstElement?.focus(), 100);
 
-    return () => document.removeEventListener('keydown', handleTab);
+    return () => document.removeEventListener("keydown", handleTab);
   }, [debugInfo, loading]); // Re-run when content changes
 
   const formatDate = (dateString) => {
@@ -353,7 +361,9 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
                 </div>
                 <div className={styles.infoItem}>
                   <span className={styles.infoLabel}>Queried At:</span>
-                  <span className={styles.infoValue}>{formatDate(debugInfo.metadata?.queried_at)}</span>
+                  <span className={styles.infoValue}>
+                    {formatDate(debugInfo.metadata?.queried_at)}
+                  </span>
                 </div>
               </div>
 

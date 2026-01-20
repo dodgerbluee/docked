@@ -341,7 +341,7 @@ function extractDigest(repoDigest) {
 function findExactMatchDigest(repoDigests, normalizedTargetRepo, preferredDigest = null) {
   // Collect all matching digests
   const matchingDigests = [];
-  
+
   for (const repoDigest of repoDigests) {
     const digest = extractDigest(repoDigest);
     if (!digest) {
@@ -355,15 +355,15 @@ function findExactMatchDigest(repoDigests, normalizedTargetRepo, preferredDigest
       matchingDigests.push(digest);
     }
   }
-  
+
   if (matchingDigests.length === 0) {
     return null;
   }
-  
+
   // If we have a preferred digest (from database), try to find it
   if (preferredDigest) {
     const cleanPreferred = preferredDigest.replace("sha256:", "");
-    const found = matchingDigests.find(d => d.replace("sha256:", "") === cleanPreferred);
+    const found = matchingDigests.find((d) => d.replace("sha256:", "") === cleanPreferred);
     if (found) {
       if (process.env.DEBUG) {
         logger.debug(`      ✅ Found preferred digest from database: ${found.substring(0, 12)}...`);
@@ -371,17 +371,19 @@ function findExactMatchDigest(repoDigests, normalizedTargetRepo, preferredDigest
       return found;
     }
   }
-  
+
   // If multiple matches and no preferred digest found, return ALL matches
   // and let the caller decide (don't assume ordering)
   if (matchingDigests.length > 1) {
     if (process.env.DEBUG) {
-      logger.debug(`      ⚠️  Found ${matchingDigests.length} matching digests, no preferred match found`);
+      logger.debug(
+        `      ⚠️  Found ${matchingDigests.length} matching digests, no preferred match found`
+      );
     }
     // Return first as fallback, but log warning
     return matchingDigests[0];
   }
-  
+
   // Single match - safe to return
   if (process.env.DEBUG) {
     logger.debug(`      ✅ Found exact match digest: ${matchingDigests[0].substring(0, 12)}...`);
@@ -399,7 +401,7 @@ function findExactMatchDigest(repoDigests, normalizedTargetRepo, preferredDigest
 function findPartialMatchDigest(repoDigests, repoNameOnly, preferredDigest = null) {
   // Collect all matching digests
   const matchingDigests = [];
-  
+
   for (const repoDigest of repoDigests) {
     const digest = extractDigest(repoDigest);
     if (!digest) {
@@ -413,15 +415,15 @@ function findPartialMatchDigest(repoDigests, repoNameOnly, preferredDigest = nul
       matchingDigests.push(digest);
     }
   }
-  
+
   if (matchingDigests.length === 0) {
     return null;
   }
-  
+
   // If we have a preferred digest (from database), try to find it
   if (preferredDigest) {
     const cleanPreferred = preferredDigest.replace("sha256:", "");
-    const found = matchingDigests.find(d => d.replace("sha256:", "") === cleanPreferred);
+    const found = matchingDigests.find((d) => d.replace("sha256:", "") === cleanPreferred);
     if (found) {
       if (process.env.DEBUG) {
         logger.debug(`      ✅ Found preferred digest from database: ${found.substring(0, 12)}...`);
@@ -429,16 +431,18 @@ function findPartialMatchDigest(repoDigests, repoNameOnly, preferredDigest = nul
       return found;
     }
   }
-  
+
   // If multiple matches and no preferred digest found, don't assume ordering
   if (matchingDigests.length > 1) {
     if (process.env.DEBUG) {
-      logger.debug(`      ⚠️  Found ${matchingDigests.length} partial matching digests, no preferred match found`);
+      logger.debug(
+        `      ⚠️  Found ${matchingDigests.length} partial matching digests, no preferred match found`
+      );
     }
     // Return first as fallback
     return matchingDigests[0];
   }
-  
+
   // Single match - safe to return
   if (process.env.DEBUG) {
     logger.debug(`      ✅ Found partial match digest: ${matchingDigests[0].substring(0, 12)}...`);
@@ -462,7 +466,11 @@ function getDigestFromImageData(imageData, imageName, preferredDigest = null) {
   const repo = imageParts[0];
   const normalizedTargetRepo = normalizeRepo(repo);
 
-  const exactMatch = findExactMatchDigest(imageData.RepoDigests, normalizedTargetRepo, preferredDigest);
+  const exactMatch = findExactMatchDigest(
+    imageData.RepoDigests,
+    normalizedTargetRepo,
+    preferredDigest
+  );
   if (exactMatch) {
     return exactMatch;
   }
@@ -476,11 +484,13 @@ function getDigestFromImageData(imageData, imageName, preferredDigest = null) {
   // Fallback: If we have a preferred digest, check if it exists in any RepoDigest
   if (preferredDigest) {
     const cleanPreferred = preferredDigest.replace("sha256:", "");
-    const foundInAny = imageData.RepoDigests.find(rd => rd.includes(cleanPreferred));
+    const foundInAny = imageData.RepoDigests.find((rd) => rd.includes(cleanPreferred));
     if (foundInAny) {
       const extracted = extractDigest(foundInAny);
       if (extracted && process.env.DEBUG) {
-        logger.debug(`      ✅ Found preferred digest in RepoDigests: ${extracted.substring(0, 12)}...`);
+        logger.debug(
+          `      ✅ Found preferred digest in RepoDigests: ${extracted.substring(0, 12)}...`
+        );
       }
       return extracted;
     }
@@ -506,7 +516,13 @@ function getDigestFromImageData(imageData, imageName, preferredDigest = null) {
  * @param {number|null} userId - User ID to query database for preferred digest (optional)
  * @returns {Promise<string|null>} - Image digest or null
  */
-async function getCurrentImageDigest(containerDetails, imageName, portainerUrl, endpointId, userId = null) {
+async function getCurrentImageDigest(
+  containerDetails,
+  imageName,
+  portainerUrl,
+  endpointId,
+  userId = null
+) {
   if (process.env.DEBUG) {
     logger.debug(`      🔍 Getting current digest for ${imageName}`);
   }
@@ -533,12 +549,14 @@ async function getCurrentImageDigest(containerDetails, imageName, portainerUrl, 
       const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
       const imageRepo = imageParts[0];
       const imageTag = imageParts[1];
-      
+
       const versionInfo = await getRegistryImageVersion(userId, imageRepo, imageTag);
       if (versionInfo?.latest_digest) {
         preferredDigest = versionInfo.latest_digest;
         if (process.env.DEBUG) {
-          logger.debug(`      📊 Found preferred digest in DB: ${preferredDigest.substring(0, 12)}...`);
+          logger.debug(
+            `      📊 Found preferred digest in DB: ${preferredDigest.substring(0, 12)}...`
+          );
         }
       }
     } catch (dbError) {

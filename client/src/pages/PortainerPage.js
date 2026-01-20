@@ -103,7 +103,7 @@ function PortainerPage({
 
   // Image source filter state
   const [selectedImageSourceFilters, setSelectedImageSourceFilters] = useState(new Set());
-  
+
   // Debug modal state - centralized at page level for better performance
   const [debugModalContainer, setDebugModalContainer] = useState(null);
 

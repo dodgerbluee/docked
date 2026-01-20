@@ -27,11 +27,12 @@ There were **THREE bugs** working together:
 After upgrading a container, the code tried to get the new digest from `containerDetails.Image`:
 
 ```javascript
-const imageId = newContainerDetails.Image;  // ❌ This is the local image ID!
+const imageId = newContainerDetails.Image; // ❌ This is the local image ID!
 newContainerDigest = imageId;
 ```
 
 **The problem**: For multi-architecture images (like postgres, mysql, redis):
+
 - **Registry Digest** (manifest list): `sha256:7064d8f3d970...` - this is what Docker Hub returns
 - **Local Image ID** (platform-specific): `sha256:42283dfbd8b9...` - this is what's on your Docker host (amd64)
 
@@ -40,11 +41,13 @@ The code was saving the **local image ID** into the database, but when checking 
 ### Bug 2: Old Container Records Not Cleaned Up
 
 When a Docker container is upgraded:
+
 1. The old container is stopped and removed (OLD container ID)
 2. A new container is created with the new image (NEW container ID)
 3. The database is updated with the NEW container record
 
 The problem was that the OLD container record remained in the database:
+
 - Old container: `container_id=abc123`, `deployed_image_id=100` (pointing to OLD digest)
 - New container: `container_id=def456`, `deployed_image_id=101` (pointing to WRONG digest due to Bug 1)
 
@@ -83,6 +86,7 @@ const versionInfo = await getRegistryImageVersion(userId, imageRepo, currentTag)
 ```
 
 Also updated field names to match the new table schema:
+
 - `versionInfo.latestDigest` → `versionInfo.latest_digest`
 - `versionInfo.latestVersion` → `versionInfo.latest_version`
 
@@ -93,7 +97,7 @@ Modified `server/services/containerUpgradeService.js` to use `getCurrentImageDig
 ```javascript
 // ❌ OLD CODE (WRONG):
 const imageId = newContainerDetails.Image;
-newContainerDigest = imageId;  // Local image ID
+newContainerDigest = imageId; // Local image ID
 
 // ✅ NEW CODE (CORRECT):
 const registryDigest = await dockerRegistryService.getCurrentImageDigest(
@@ -103,7 +107,7 @@ const registryDigest = await dockerRegistryService.getCurrentImageDigest(
   endpointId
 );
 if (registryDigest) {
-  newContainerDigest = registryDigest;  // Registry digest from RepoDigests
+  newContainerDigest = registryDigest; // Registry digest from RepoDigests
 }
 ```
 
@@ -112,6 +116,7 @@ if (registryDigest) {
 ### Fix 3: Clean Up Old Container Records
 
 Added new function `deleteOldContainersByName` in `server/db/containers.js`:
+
 ```javascript
 function deleteOldContainersByName(
   userId,
@@ -125,6 +130,7 @@ function deleteOldContainersByName(
 This deletes any container records matching (userId, portainerInstanceId, endpointId, containerName) but with a DIFFERENT containerId.
 
 Modified `server/services/cache/containerCacheUpdateService.js` to call this function before upserting the new container:
+
 ```javascript
 // Delete old container records with the same name but different ID
 await deleteOldContainersByName(
@@ -142,6 +148,7 @@ await upsertContainerWithVersion(/* ... */);
 ## Testing
 
 To verify the fix:
+
 1. Upgrade a container (e.g., postgres:15)
 2. Check the database - should only have ONE record for that container with the NEW digest
 3. Check for updates - should NOT show an update available
@@ -169,10 +176,12 @@ Or simply trigger a "Refresh data" in the UI to sync all containers from Portain
 ## Why This Only Affected Postgres (and Other Multi-Arch Images)
 
 Single-architecture images (like many custom/private images) only have one image ID, so:
+
 - Registry digest = Local image ID (they're the same)
 - Bug 1 didn't matter
 
 Multi-architecture images (postgres, mysql, redis, nginx, etc.) have:
+
 - A **manifest list** in the registry with one digest
 - Multiple **platform-specific images** (amd64, arm64, etc.) each with their own image ID
 - Bug 1 caused the wrong digest to be saved
@@ -187,9 +196,8 @@ Multi-architecture images (postgres, mysql, redis, nginx, etc.) have:
 ## Impact
 
 - **Fixes**: Duplicate upgrade attempts for the same container
-- **Benefits**: 
+- **Benefits**:
   - Cleaner database (no duplicate container records)
   - Accurate update detection
   - Prevents unnecessary upgrade attempts
 - **Risk**: Low - only affects the cleanup logic after upgrades
-
