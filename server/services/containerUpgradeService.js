@@ -108,7 +108,8 @@ async function upgradeSingleContainer(
         containerDetails,
         imageName,
         portainerUrl,
-        endpointId
+        endpointId,
+        userId // Pass userId for database-assisted digest matching
       );
     } catch (err) {
       logger.debug("Could not get old digest for upgrade history:", err);
@@ -442,30 +443,32 @@ async function upgradeSingleContainer(
     try {
       if (userId && imageRepo) {
         const {
-          markDockerHubImageUpToDate,
-          getDockerHubImageVersion,
+          markRegistryImageUpToDate,
+          getRegistryImageVersion,
           getAllPortainerInstances,
           upsertContainerWithVersion,
         } = require("../db/index");
         // Get the latest digest/version from database (which was the target of the upgrade)
-        // Pass currentTag to get the correct record for this specific tag
-        const versionInfo = await getDockerHubImageVersion(userId, imageRepo, currentTag);
-        if (versionInfo && versionInfo.latestDigest && versionInfo.latestVersion) {
+        // Use getRegistryImageVersion instead of deprecated getDockerHubImageVersion
+        const versionInfo = await getRegistryImageVersion(userId, imageRepo, currentTag);
+        if (versionInfo && versionInfo.latest_digest && versionInfo.latest_version) {
           // Update upgrade history data with new version info
-          upgradeHistoryData.newDigest = versionInfo.latestDigest;
-          upgradeHistoryData.newVersion = versionInfo.latestVersion;
-          upgradeHistoryData.oldVersion = versionInfo.currentVersion || currentTag;
+          upgradeHistoryData.newDigest = versionInfo.latest_digest;
+          upgradeHistoryData.newVersion = versionInfo.latest_version;
+          upgradeHistoryData.oldVersion = currentTag; // We don't have currentVersion in registry_image_versions
           upgradeHistoryData.registry = versionInfo.registry || "docker.io";
           upgradeHistoryData.namespace = versionInfo.namespace || null;
           upgradeHistoryData.repository = versionInfo.repository || imageRepo;
 
           // Container now has the latest image, so current = latest
-          // Pass currentTag to update the correct record
-          await markDockerHubImageUpToDate(
+          // Pass currentTag to update the correct record in registry_image_versions table
+          // This is critical for multi-arch images (like postgres) so the next sync
+          // can find the correct "preferred digest" and not show false updates
+          await markRegistryImageUpToDate(
             userId,
             imageRepo,
-            versionInfo.latestDigest,
-            versionInfo.latestVersion,
+            versionInfo.latest_digest,
+            versionInfo.latest_version,
             currentTag
           );
 
@@ -475,19 +478,31 @@ async function upgradeSingleContainer(
           const instance = instances.find((inst) => inst.url === portainerUrl);
           if (instance && instance.id) {
             // Get the new container's digest (from the newly created container)
-            let newContainerDigest = versionInfo.latestDigest;
+            let newContainerDigest = versionInfo.latest_digest;
             try {
-              // Try to get the actual digest from the new container
+              // Try to get the actual digest from the new container using getCurrentImageDigest
+              // This properly extracts the registry digest from RepoDigests, not the local image ID
+              // This is critical for multi-arch images (like postgres) where the manifest digest
+              // differs from the platform-specific image ID
               const newContainerDetails = await portainerService.getContainerDetails(
                 portainerUrl,
                 endpointId,
                 newContainer.Id
               );
-              const imageId = newContainerDetails.Image || "";
-              const hasValidDigest = imageId && imageId.startsWith("sha256:");
-              if (hasValidDigest) {
-                newContainerDigest = imageId;
+              const registryDigest = await dockerRegistryService.getCurrentImageDigest(
+                newContainerDetails,
+                newImageName,
+                portainerUrl,
+                endpointId,
+                userId // Pass userId for database-assisted digest matching
+              );
+              if (registryDigest) {
+                newContainerDigest = registryDigest;
                 upgradeHistoryData.newDigest = newContainerDigest;
+                logger.debug("Got registry digest from new container after upgrade:", {
+                  containerName: originalContainerName,
+                  digest: newContainerDigest.substring(0, 12),
+                });
               }
             } catch (digestError) {
               // If we can't get the digest from container, use the one from versionInfo
@@ -530,8 +545,8 @@ async function upgradeSingleContainer(
             containerId: containerId.substring(0, 12),
             newContainerId: newContainer.Id.substring(0, 12),
             imageRepo,
-            newDigest: versionInfo.latestDigest.substring(0, 12),
-            newVersion: versionInfo.latestVersion,
+            newDigest: versionInfo.latest_digest.substring(0, 12),
+            newVersion: versionInfo.latest_version,
           });
         } else {
           logger.warn(
@@ -557,11 +572,33 @@ async function upgradeSingleContainer(
 
     if (userId) {
       try {
+        logger.debug("Attempting to log upgrade to history:", {
+          userId,
+          containerName: upgradeHistoryData.containerName,
+          oldImage: upgradeHistoryData.oldImage,
+          newImage: upgradeHistoryData.newImage,
+          hasRequiredFields: !!(
+            upgradeHistoryData.userId &&
+            upgradeHistoryData.containerId &&
+            upgradeHistoryData.containerName &&
+            upgradeHistoryData.oldImage &&
+            upgradeHistoryData.newImage
+          ),
+        });
         const { createUpgradeHistory } = require("../db/index");
-        await createUpgradeHistory(upgradeHistoryData);
+        const historyId = await createUpgradeHistory(upgradeHistoryData);
+        logger.info("Successfully logged upgrade to history:", {
+          historyId,
+          containerName: upgradeHistoryData.containerName,
+        });
       } catch (historyError) {
         // Don't fail the upgrade if history logging fails
-        logger.warn("Failed to log upgrade to history:", { error: historyError });
+        logger.error("Failed to log upgrade to history:", {
+          error: historyError,
+          errorMessage: historyError.message,
+          errorStack: historyError.stack,
+          upgradeHistoryData,
+        });
       }
     }
 
@@ -583,10 +620,23 @@ async function upgradeSingleContainer(
 
     if (userId) {
       try {
+        logger.debug("Attempting to log failed upgrade to history:", {
+          userId,
+          containerName: upgradeHistoryData.containerName,
+          status: upgradeHistoryData.status,
+        });
         const { createUpgradeHistory } = require("../db/index");
-        await createUpgradeHistory(upgradeHistoryData);
+        const historyId = await createUpgradeHistory(upgradeHistoryData);
+        logger.info("Successfully logged failed upgrade to history:", {
+          historyId,
+          containerName: upgradeHistoryData.containerName,
+        });
       } catch (historyError) {
-        logger.warn("Failed to log failed upgrade to history:", { error: historyError });
+        logger.error("Failed to log failed upgrade to history:", {
+          error: historyError,
+          errorMessage: historyError.message,
+          upgradeHistoryData,
+        });
       }
     }
 

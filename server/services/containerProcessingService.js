@@ -214,7 +214,8 @@ async function processContainerBasic({
         details,
         imageName,
         portainerUrl,
-        endpointId
+        endpointId,
+        userId // Pass userId to enable database-assisted digest matching
       );
     } catch (digestError) {
       // Fallback to extracting from Image field if getCurrentImageDigest fails
