@@ -6,7 +6,7 @@
  */
 
 const logger = require("../../utils/logger");
-const { upsertContainerWithVersion } = require("../../db/containers");
+const { upsertContainerWithVersion, deleteOldContainersByName } = require("../../db/containers");
 const { getAllPortainerInstances } = require("../../db/portainerInstances");
 const containerCacheService = require("./containerCacheService");
 
@@ -42,13 +42,30 @@ async function updateCacheAfterUpgrade(
       return;
     }
 
-    // Update database cache
+    const cleanContainerName = containerName.replace("/", "");
+
+    // Delete old container records with the same name but different ID
+    // This is critical after upgrades because the new container has a different ID
+    try {
+      await deleteOldContainersByName(
+        userId,
+        instance.id,
+        containerData.endpointId,
+        cleanContainerName,
+        containerId
+      );
+    } catch (deleteError) {
+      logger.warn("Error deleting old container records after upgrade:", deleteError);
+      // Continue anyway - the upsert might handle it
+    }
+
+    // Update database cache with new container
     await upsertContainerWithVersion(
       userId,
       instance.id,
       {
         containerId,
-        containerName: containerName.replace("/", ""),
+        containerName: cleanContainerName,
         endpointId: containerData.endpointId,
         imageName: containerData.imageName,
         imageRepo: containerData.imageRepo,
@@ -69,8 +86,9 @@ async function updateCacheAfterUpgrade(
     logger.info("Updated cache after container upgrade", {
       userId,
       containerId: containerId.substring(0, 12),
-      containerName,
+      containerName: cleanContainerName,
       portainerUrl,
+      newDigest: newDigest.substring(0, 12),
     });
   } catch (error) {
     logger.error("Error updating cache after upgrade:", error);

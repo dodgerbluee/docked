@@ -191,6 +191,14 @@ body.dark-mode .historyCard:hover {
   border-left: 4px solid #ef4444;
 }
 
+.success {
+  /* Default success state */
+}
+
+.failed {
+  border-left: 4px solid #ef4444;
+}
+
 .cardHeader {
   display: flex;
   align-items: center;
@@ -205,8 +213,40 @@ body.dark-mode .historyCard:hover {
   flex: 1;
 }
 
+.providerIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.appName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--text-primary);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
 .successIcon {
   color: #10b981;
+  flex-shrink: 0;
+}
+
+.failedIcon {
+  color: #ef4444;
   flex-shrink: 0;
 }
 
@@ -230,6 +270,11 @@ body.dark-mode .historyCard:hover {
   font-weight: 500;
 }
 
+.chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
 .chevronIcon {
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -239,6 +284,32 @@ body.dark-mode .historyCard:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.versionChange {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.oldVersion {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.newVersion {
+  font-size: 0.95rem;
+  color: var(--dodger-blue);
+  font-family: monospace;
+  font-weight: 600;
+  padding: 4px 8px;
+  background: rgba(30, 144, 255, 0.1);
+  border-radius: 4px;
 }
 
 .imageChange {
@@ -306,13 +377,16 @@ body.dark-mode .historyCard:hover {
 }
 
 /* Dark mode specific overrides */
-body.dark-mode .instanceBadge {
+body.dark-mode .statusBadge {
   background: rgba(30, 144, 255, 0.15);
 }
 
-body.dark-mode .imageVersion {
-  color: var(--text-secondary);
-  opacity: 0.9;
+body.dark-mode .oldVersion {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .newVersion {
+  background: rgba(30, 144, 255, 0.15);
 }
 
 @media (max-width: 768px) {

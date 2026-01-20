@@ -22,6 +22,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   onToggleSelect,
   onUpgrade,
   developerModeEnabled = false,
+  onOpenDebugModal,
 }) {
   // Use extracted hook for image info
   const {
@@ -39,10 +40,18 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     handleImageNameClick,
   } = useContainerImageInfo(container);
 
-  // Copy container name to clipboard
+  // Handle container name click - open debug modal in developer mode, otherwise copy to clipboard
   const handleContainerNameClick = useCallback(
     async (e) => {
       e.stopPropagation();
+
+      // If developer mode is enabled, open debug modal
+      if (developerModeEnabled && container.id && onOpenDebugModal) {
+        onOpenDebugModal({ id: container.id, name: container.name });
+        return;
+      }
+
+      // Otherwise, copy to clipboard
       if (container.name) {
         try {
           await navigator.clipboard.writeText(container.name);
@@ -53,7 +62,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         }
       }
     },
-    [container.name]
+    [container.name, container.id, developerModeEnabled, onOpenDebugModal]
   );
 
   // Handle card click to open upgrade/rebuild modal
@@ -118,7 +127,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         <div className={styles.headerLeft}>
           <h3
             className={styles.containerName}
-            title={container.name}
+            title={developerModeEnabled ? "Click to view debug info" : container.name}
             onClick={handleContainerNameClick}
           >
             {container.name}
@@ -320,6 +329,8 @@ PortainerContainerCard.propTypes = {
   showUpdates: PropTypes.bool.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  developerModeEnabled: PropTypes.bool,
+  onOpenDebugModal: PropTypes.func,
 };
 
 PortainerContainerCard.displayName = "PortainerContainerCard";

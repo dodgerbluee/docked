@@ -28,6 +28,7 @@ const ContainersTab = React.memo(function ContainersTab({
   onToggleSelect,
   onUpgrade,
   developerModeEnabled = false,
+  onOpenDebugModal,
 }) {
   if (isLoading && !hasData) {
     return (
@@ -140,6 +141,7 @@ const ContainersTab = React.memo(function ContainersTab({
                               onToggleSelect={onToggleSelect}
                               onUpgrade={onUpgrade}
                               developerModeEnabled={developerModeEnabled}
+                              onOpenDebugModal={onOpenDebugModal}
                             />
                           );
                         })}
@@ -245,6 +247,7 @@ const ContainersTab = React.memo(function ContainersTab({
                         onToggleSelect={onToggleSelect}
                         onUpgrade={onUpgrade}
                         developerModeEnabled={developerModeEnabled}
+                        onOpenDebugModal={onOpenDebugModal}
                       />
                     );
                   })
@@ -294,6 +297,7 @@ const ContainersTab = React.memo(function ContainersTab({
             onToggleSelect={onToggleSelect}
             onUpgrade={onUpgrade}
             developerModeEnabled={developerModeEnabled}
+            onOpenDebugModal={onOpenDebugModal}
           />
         ))}
       </div>
@@ -321,6 +325,8 @@ ContainersTab.propTypes = {
   onToggleStack: PropTypes.func.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  developerModeEnabled: PropTypes.bool,
+  onOpenDebugModal: PropTypes.func,
 };
 
 ContainersTab.displayName = "ContainersTab";

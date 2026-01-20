@@ -797,6 +797,66 @@ function cleanupStalePortainerContainers(daysOld = 7) {
 }
 
 /**
+ * Delete old container records with the same name but different ID
+ * Used after container upgrades to remove the old container record
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {string} endpointId - Endpoint ID
+ * @param {string} containerName - Container name
+ * @param {string} currentContainerId - Current container ID (to exclude from deletion)
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function deleteOldContainersByName(
+  userId,
+  portainerInstanceId,
+  endpointId,
+  containerName,
+  currentContainerId
+) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        `DELETE FROM containers 
+         WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? 
+         AND container_name = ? AND container_id != ?`,
+        [userId, portainerInstanceId, endpointId, containerName, currentContainerId],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            const deletedCount = this.changes;
+            if (deletedCount > 0) {
+              logger.info(
+                `Deleted ${deletedCount} old container record(s) for ${containerName} after upgrade`,
+                {
+                  userId,
+                  portainerInstanceId,
+                  endpointId,
+                  containerName,
+                  currentContainerId: currentContainerId.substring(0, 12),
+                }
+              );
+              // Clean up orphaned deployed images
+              cleanupOrphanedDeployedImages(userId)
+                .then(() => resolve(deletedCount))
+                .catch((cleanupErr) => {
+                  logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+                  resolve(deletedCount);
+                });
+            } else {
+              resolve(deletedCount);
+            }
+          }
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
  * Clear all Portainer containers and Docker Hub versions for a user
  * @param {number} userId - User ID
  * @returns {Promise<void>}
@@ -859,6 +919,7 @@ module.exports = {
   getPortainerContainersWithUpdates,
   deletePortainerContainersForInstance,
   deletePortainerContainersNotInList,
+  deleteOldContainersByName,
   cleanupStalePortainerContainers,
   clearUserContainerData,
 };

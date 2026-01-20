@@ -942,6 +942,203 @@ async function initializeDatabase() {
             }
           }
         );
+
+        // Create tracked_app_upgrade_history table
+        db.run(
+          `CREATE TABLE IF NOT EXISTS tracked_app_upgrade_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        tracked_app_id INTEGER,
+        app_name TEXT NOT NULL,
+        provider TEXT NOT NULL CHECK(provider IN ('github', 'gitlab', 'docker')),
+        repository TEXT NOT NULL,
+        old_version TEXT NOT NULL,
+        new_version TEXT NOT NULL,
+        old_tag TEXT,
+        new_tag TEXT,
+        old_commit_sha TEXT,
+        new_commit_sha TEXT,
+        release_notes TEXT,
+        status TEXT DEFAULT 'success',
+        error_message TEXT,
+        upgrade_duration_ms INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (tracked_app_id) REFERENCES tracked_apps(id) ON DELETE SET NULL
+      )`,
+          (err) => {
+            if (err) {
+              logger.error("Error creating tracked_app_upgrade_history table:", { error: err });
+            } else {
+              logger.info("Tracked app upgrade history table ready");
+
+              // Migration: Check if we need to update the CHECK constraint to include 'docker'
+              // This is needed for existing databases that had the old constraint
+              db.get(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_app_upgrade_history'",
+                (err, row) => {
+                  if (!err && row && row.sql) {
+                    // Check if the constraint is missing 'docker'
+                    if (
+                      row.sql.includes("CHECK(provider IN ('github', 'gitlab'))") ||
+                      row.sql.includes("CHECK (provider IN ('github', 'gitlab'))")
+                    ) {
+                      logger.info(
+                        "Migrating tracked_app_upgrade_history table to add 'docker' provider support"
+                      );
+
+                      // Recreate the table with updated constraint
+                      db.run("BEGIN TRANSACTION", (txErr) => {
+                        if (txErr) {
+                          logger.error(
+                            "Error starting transaction for tracked_app_upgrade_history migration:",
+                            { error: txErr }
+                          );
+                          return;
+                        }
+
+                        // Create temporary table with new schema
+                        db.run(
+                          `CREATE TABLE tracked_app_upgrade_history_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        tracked_app_id INTEGER,
+                        app_name TEXT NOT NULL,
+                        provider TEXT NOT NULL CHECK(provider IN ('github', 'gitlab', 'docker')),
+                        repository TEXT NOT NULL,
+                        old_version TEXT NOT NULL,
+                        new_version TEXT NOT NULL,
+                        old_tag TEXT,
+                        new_tag TEXT,
+                        old_commit_sha TEXT,
+                        new_commit_sha TEXT,
+                        release_notes TEXT,
+                        status TEXT DEFAULT 'success',
+                        error_message TEXT,
+                        upgrade_duration_ms INTEGER,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (tracked_app_id) REFERENCES tracked_apps(id) ON DELETE SET NULL
+                      )`,
+                          (createErr) => {
+                            if (createErr) {
+                              logger.error(
+                                "Error creating new tracked_app_upgrade_history table:",
+                                { error: createErr }
+                              );
+                              db.run("ROLLBACK");
+                              return;
+                            }
+
+                            // Copy data from old table
+                            db.run(
+                              `INSERT INTO tracked_app_upgrade_history_new SELECT * FROM tracked_app_upgrade_history`,
+                              (copyErr) => {
+                                if (copyErr) {
+                                  logger.error("Error copying tracked_app_upgrade_history data:", {
+                                    error: copyErr,
+                                  });
+                                  db.run("ROLLBACK");
+                                  return;
+                                }
+
+                                // Drop old table
+                                db.run("DROP TABLE tracked_app_upgrade_history", (dropErr) => {
+                                  if (dropErr) {
+                                    logger.error(
+                                      "Error dropping old tracked_app_upgrade_history table:",
+                                      { error: dropErr }
+                                    );
+                                    db.run("ROLLBACK");
+                                    return;
+                                  }
+
+                                  // Rename new table
+                                  db.run(
+                                    "ALTER TABLE tracked_app_upgrade_history_new RENAME TO tracked_app_upgrade_history",
+                                    (renameErr) => {
+                                      if (renameErr) {
+                                        logger.error(
+                                          "Error renaming tracked_app_upgrade_history table:",
+                                          { error: renameErr }
+                                        );
+                                        db.run("ROLLBACK");
+                                        return;
+                                      }
+
+                                      // Commit transaction
+                                      db.run("COMMIT", (commitErr) => {
+                                        if (commitErr) {
+                                          logger.error(
+                                            "Error committing tracked_app_upgrade_history migration:",
+                                            { error: commitErr }
+                                          );
+                                        } else {
+                                          logger.info(
+                                            "Successfully migrated tracked_app_upgrade_history table"
+                                          );
+                                        }
+                                      });
+                                    }
+                                  );
+                                });
+                              }
+                            );
+                          }
+                        );
+                      });
+                    }
+                  }
+                }
+              );
+
+              // Create indexes
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_user_id ON tracked_app_upgrade_history(user_id)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating tracked_app_upgrade_history user_id index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_tracked_app_id ON tracked_app_upgrade_history(tracked_app_id)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error(
+                      "Error creating tracked_app_upgrade_history tracked_app_id index:",
+                      {
+                        error: idxErr,
+                      }
+                    );
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_created_at ON tracked_app_upgrade_history(created_at DESC)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating tracked_app_upgrade_history created_at index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+              db.run(
+                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_app_name ON tracked_app_upgrade_history(app_name)",
+                (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating tracked_app_upgrade_history app_name index:", {
+                      error: idxErr,
+                    });
+                  }
+                }
+              );
+            }
+          }
+        );
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
         logger.error("Stack:", { error: serializeError });

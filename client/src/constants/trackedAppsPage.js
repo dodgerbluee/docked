@@ -6,12 +6,14 @@ export const TRACKED_APPS_CONTENT_TABS = {
   ALL: "all",
   UPDATES: "updates",
   UP_TO_DATE: "up-to-date",
+  UPGRADE_HISTORY: "upgrade-history",
 };
 
 export const TRACKED_APPS_CONTENT_TAB_LABELS = {
   [TRACKED_APPS_CONTENT_TABS.ALL]: "All",
   [TRACKED_APPS_CONTENT_TABS.UPDATES]: "Updates",
   [TRACKED_APPS_CONTENT_TABS.UP_TO_DATE]: "Up to date",
+  [TRACKED_APPS_CONTENT_TABS.UPGRADE_HISTORY]: "History",
 };
 
 export const TRACKED_APPS_SOURCE_FILTERS = {
