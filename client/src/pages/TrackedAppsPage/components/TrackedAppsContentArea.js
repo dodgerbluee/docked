@@ -5,6 +5,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import TrackedAppCard from "../../../components/TrackedAppCard";
+import TrackedAppUpgradeHistoryTab from "../../../components/trackedApps/TrackedAppUpgradeHistoryTab";
 import { TRACKED_APPS_CONTENT_TABS } from "../../../constants/trackedAppsPage";
 import styles from "../../TrackedAppsPage.module.css";
 
@@ -102,6 +103,15 @@ const TrackedAppsContentArea = ({
   trackedAppsCount = 0,
   onNavigateToSettings,
 }) => {
+  // Render upgrade history tab separately
+  if (contentTab === TRACKED_APPS_CONTENT_TABS.UPGRADE_HISTORY) {
+    return (
+      <div className={styles.contentTabPanel}>
+        <TrackedAppUpgradeHistoryTab />
+      </div>
+    );
+  }
+
   return (
     <div className={styles.contentTabPanel}>
       {/* Always show appsContainer for UP_TO_DATE and UPDATES tabs, or when there are apps to display */}

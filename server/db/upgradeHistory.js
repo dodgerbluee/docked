@@ -59,8 +59,19 @@ function createUpgradeHistory(upgradeData) {
         upgradeDurationMs,
       } = upgradeData;
 
-      if (!userId || !containerId || !containerName || !oldImage || !newImage) {
-        reject(new Error("Missing required fields for upgrade history"));
+      if (!userId || !containerId || !containerName || !endpointId || !oldImage || !newImage) {
+        const missingFields = [];
+        if (!userId) missingFields.push("userId");
+        if (!containerId) missingFields.push("containerId");
+        if (!containerName) missingFields.push("containerName");
+        if (!endpointId) missingFields.push("endpointId");
+        if (!oldImage) missingFields.push("oldImage");
+        if (!newImage) missingFields.push("newImage");
+        reject(
+          new Error(
+            `Missing required fields for upgrade history: ${missingFields.join(", ")}`
+          )
+        );
         return;
       }
 
@@ -78,7 +89,7 @@ function createUpgradeHistory(upgradeData) {
             portainerInstanceName || null,
             containerId,
             containerName,
-            endpointId,
+            String(endpointId), // Ensure endpointId is a string
             portainerUrl || null,
             oldImage,
             newImage,

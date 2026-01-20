@@ -31,12 +31,14 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const containerController = require("../controllers/containerController");
+const containerDebugController = require("../controllers/containerDebugController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedAppController = require("../controllers/trackedAppController");
+const trackedAppController = require("../controllers/trackedImageController");
+const trackedAppHistoryController = require("../controllers/trackedAppController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
@@ -512,6 +514,19 @@ router.post("/images/delete", asyncHandler(imageController.deleteImages));
  *         description: Authentication required
  */
 router.get("/containers/upgrade-history", asyncHandler(containerController.getUpgradeHistory));
+router.get("/containers/upgrade-history/stats", asyncHandler(containerController.getUpgradeHistoryStats));
+router.get("/containers/upgrade-history/:id", asyncHandler(containerController.getUpgradeHistoryById));
+
+// Tracked App Upgrade History routes
+router.get("/tracked-apps/upgrade-history", asyncHandler(trackedAppHistoryController.getTrackedAppHistory));
+router.get("/tracked-apps/upgrade-history/stats", asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats));
+router.get("/tracked-apps/upgrade-history/:id", asyncHandler(trackedAppHistoryController.getTrackedAppHistoryById));
+
+/**
+ * Get container debug information (developer mode only)
+ * @route GET /api/containers/:containerId/debug
+ */
+router.get("/containers/:containerId/debug", asyncHandler(containerDebugController.getContainerDebugInfo));
 
 /**
  * @swagger
@@ -838,7 +853,7 @@ router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandle
  *       401:
  *         description: Unauthorized
  */
-router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
+router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedImages));
 router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
 
 /**
@@ -857,7 +872,7 @@ router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp)
  */
 router.post(
   "/tracked-apps/check-updates",
-  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
+  asyncHandler(trackedAppController.checkTrackedImagesUpdates)
 );
 
 /**
@@ -949,7 +964,7 @@ router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitH
  *       404:
  *         description: Tracked app not found
  */
-router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
+router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedImage));
 router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
 router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
 
@@ -977,7 +992,7 @@ router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrack
  */
 router.post(
   "/tracked-apps/:id/check-update",
-  asyncHandler(trackedAppController.checkTrackedAppUpdate)
+  asyncHandler(trackedAppController.checkTrackedImageUpdate)
 );
 
 // Discord notification routes

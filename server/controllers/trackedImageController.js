@@ -16,6 +16,7 @@ const trackedAppService = require("../services/trackedAppService");
 const githubService = require("../services/githubService");
 const gitlabService = require("../services/gitlabService");
 const { clearLatestVersionsForAllTrackedApps } = require("../db/index");
+const logger = require("../utils/logger");
 
 /**
  * Format a tracked app for API response
@@ -177,7 +178,13 @@ async function createTrackedAppEndpoint(req, res, next) {
       }
 
       // Create tracked GitHub repo
-      const id = await createTrackedApp(userId, name.trim(), null, githubRepo.trim(), "github");
+      const id = await createTrackedApp({
+        userId,
+        name: name.trim(),
+        imageName: null,
+        githubRepo: githubRepo.trim(),
+        sourceType: "github",
+      });
 
       // Update current_version if provided
       if (currentVersion && currentVersion.trim()) {
@@ -208,14 +215,14 @@ async function createTrackedAppEndpoint(req, res, next) {
       }
 
       // Create tracked GitLab repo
-      const id = await createTrackedApp(
+      const id = await createTrackedApp({
         userId,
-        name.trim(),
-        null,
-        githubRepo.trim(),
-        "gitlab",
-        gitlabToken || null
-      );
+        name: name.trim(),
+        imageName: null,
+        githubRepo: githubRepo.trim(),
+        sourceType: "gitlab",
+        gitlabToken: gitlabToken || null,
+      });
 
       // Update current_version if provided
       if (currentVersion && currentVersion.trim()) {
@@ -246,7 +253,13 @@ async function createTrackedAppEndpoint(req, res, next) {
       }
 
       // Create tracked app
-      const id = await createTrackedApp(userId, name.trim(), imageName.trim(), null, "docker");
+      const id = await createTrackedApp({
+        userId,
+        name: name.trim(),
+        imageName: imageName.trim(),
+        githubRepo: null,
+        sourceType: "docker",
+      });
 
       // Update current_version if provided
       if (currentVersion && currentVersion.trim()) {
@@ -288,7 +301,7 @@ async function updateTrackedAppEndpoint(req, res, next) {
       });
     }
     const { id } = req.params;
-    const { name, imageName, current_version: currentVersion, gitlabToken } = req.body;
+    const { name, imageName, current_version: currentVersion, gitlabToken, isUpgrade } = req.body;
 
     // Check if tracked app exists
     const existing = await getTrackedAppById(parseInt(id, 10), userId);
@@ -380,6 +393,56 @@ async function updateTrackedAppEndpoint(req, res, next) {
     }
 
     await updateTrackedApp(parseInt(id, 10), userId, updateData);
+
+    // Log to upgrade history if this is an explicit upgrade
+    if (isUpgrade && currentVersion !== undefined && currentVersion !== null) {
+      try {
+        const { createTrackedAppUpgradeHistory } = require("../db/index");
+        
+        // Prepare history data
+        const historyData = {
+          userId,
+          trackedAppId: existing.id,
+          appName: existing.name,
+          provider: existing.source_type || "docker",
+          repository: existing.github_repo || existing.image_name,
+          oldVersion: existing.current_version || "Not set",
+          newVersion: String(currentVersion).trim(),
+          status: "success",
+        };
+
+        // Add source-type-specific data
+        if (existing.source_type === "github" || existing.source_type === "gitlab") {
+          // For GitHub/GitLab, store commit SHAs if available
+          historyData.oldCommitSha = existing.current_digest || null;
+          historyData.newCommitSha = existing.latest_digest || null;
+          // Store release notes if available
+          if (existing.latest_version_publish_date) {
+            // Release notes would be fetched separately if needed
+            historyData.releaseNotes = null; // TODO: Fetch from GitHub/GitLab API
+          }
+        } else {
+          // For Docker images, store tags
+          historyData.oldTag = existing.current_version || null;
+          historyData.newTag = String(currentVersion).trim();
+        }
+
+        await createTrackedAppUpgradeHistory(historyData);
+        logger.info("Successfully logged tracked app upgrade to history:", {
+          appName: existing.name,
+          oldVersion: historyData.oldVersion,
+          newVersion: historyData.newVersion,
+        });
+      } catch (historyError) {
+        // Don't fail the upgrade if history logging fails
+        logger.error("Failed to log tracked app upgrade to history:", {
+          error: historyError,
+          errorMessage: historyError.message,
+          appId: existing.id,
+          appName: existing.name,
+        });
+      }
+    }
 
     // Fetch the updated image to return current state
     const updatedImage = await getTrackedAppById(parseInt(id, 10), userId);
