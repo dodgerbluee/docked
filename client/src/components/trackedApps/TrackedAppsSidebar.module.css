@@ -57,6 +57,11 @@ body.dark-mode .sidebarItem.active {
   color: var(--dodger-blue-light);
 }
 
+.sidebarItemIcon {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
 .sidebarItemName {
   flex: 1;
   overflow: hidden;

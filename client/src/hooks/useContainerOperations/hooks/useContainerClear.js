@@ -40,7 +40,6 @@ export const useContainerClear = ({
       try {
         setClearingState(true);
         setError(null);
-        console.log("🗑️ Clearing all container data...");
 
         const response = await axios.delete(`${API_BASE_URL}/api/containers/data`);
 
@@ -59,13 +58,10 @@ export const useContainerClear = ({
 
         if (response.data && response.data.success) {
           clearFrontendState();
-          console.log("✅ Cache cleared successfully");
-          console.log("🔄 Fetching fresh data from Portainer...");
           try {
             await fetchContainers(true, null, true);
-            console.log("✅ Portainer data fetched successfully");
           } catch (fetchError) {
-            console.error("❌ Error fetching Portainer data:", fetchError);
+            console.error("Error fetching Portainer data:", fetchError);
             setError(
               fetchError.response?.data?.error ||
                 "Failed to fetch Portainer data after clearing cache"
@@ -75,13 +71,10 @@ export const useContainerClear = ({
           }
         } else {
           clearFrontendState();
-          console.log("✅ Cache cleared (assuming success)");
-          console.log("🔄 Fetching fresh data from Portainer...");
           try {
             await fetchContainers(true, null, true);
-            console.log("✅ Portainer data fetched successfully");
           } catch (fetchError) {
-            console.error("❌ Error fetching Portainer data:", fetchError);
+            console.error("Error fetching Portainer data:", fetchError);
             setError(
               fetchError.response?.data?.error ||
                 "Failed to fetch Portainer data after clearing cache"
@@ -92,7 +85,7 @@ export const useContainerClear = ({
         }
       } catch (err) {
         if (err.response && err.response.status === 404) {
-          console.warn("⚠️ Clear cache endpoint not found (404), clearing frontend state anyway");
+          // Clear cache endpoint not found (404), clearing frontend state anyway
           setContainers([]);
           setStacks([]);
           setUnusedImagesCount(0);
@@ -103,7 +96,6 @@ export const useContainerClear = ({
           localStorage.setItem("dockerHubDataPulled", JSON.stringify(false));
           setDataFetched(false);
           setError(null);
-          console.log("✅ Frontend state cleared. Backend cache may need manual clearing.");
         } else {
           console.error("Error clearing cache:", err);
           setError(err.response?.data?.error || err.message || "Failed to clear cache");

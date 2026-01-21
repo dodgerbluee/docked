@@ -19,9 +19,11 @@ function normalizeDigest(digest) {
 
 /**
  * Compute whether a container has an available update
- * Compares current digest with latest digest
+ *
+ * Checks if the latest digest exists in the container's RepoDigests array for multi-arch support.
  *
  * @param {Object} container - Container object
+ * @param {Array<string>} [container.repoDigests] - Array of RepoDigests from container
  * @param {string} [container.currentDigest] - Current container digest
  * @param {string} [container.currentDigestFull] - Current container digest (full)
  * @param {string} [container.latestDigest] - Latest available digest
@@ -36,27 +38,16 @@ function normalizeDigest(digest) {
 function computeHasUpdate(container) {
   if (!container) return false;
 
-  // Get current and latest digests (try both full and short versions)
-  const currentDigest = container.currentDigest || container.currentDigestFull;
-  const latestDigest = container.latestDigest || container.latestDigestFull;
+  // Get current and latest digests (prefer FULL digests for accurate comparison)
+  const currentDigest = container.currentDigestFull || container.currentDigest;
+  const latestDigest = container.latestDigestFull || container.latestDigest;
 
-  // If we have both digests, compare them
-  if (currentDigest && latestDigest) {
-    const normalizedCurrent = normalizeDigest(currentDigest);
-    const normalizedLatest = normalizeDigest(latestDigest);
+  const currentVersion = container.currentVersion || container.currentTag;
+  const latestVersion = container.latestVersion || container.latestTag;
 
-    if (normalizedCurrent && normalizedLatest) {
-      return normalizedCurrent !== normalizedLatest;
-    }
-  }
-
-  // Fallback: If using GitHub Releases fallback, compare versions
+  // If using GitHub Releases fallback, compare versions
   if (container.isFallback || container.provider === "github-releases") {
-    const currentVersion = container.currentVersion || container.currentTag;
-    const latestVersion = container.latestVersion || container.latestTag;
-
     if (currentVersion && latestVersion) {
-      // Normalize versions (remove "v" prefix, case-insensitive)
       const normalizeVersion = (v) => {
         if (!v) return "";
         return String(v).replace(/^v/i, "").trim().toLowerCase();
@@ -68,6 +59,36 @@ function computeHasUpdate(container) {
       if (normalizedCurrent && normalizedLatest) {
         return normalizedCurrent !== normalizedLatest;
       }
+    }
+  }
+
+  // Primary method: compare digests with RepoDigests support for multi-arch
+  if (currentDigest && latestDigest) {
+    const normalizedCurrent = normalizeDigest(currentDigest);
+    const normalizedLatest = normalizeDigest(latestDigest);
+
+    if (normalizedCurrent && normalizedLatest) {
+      // CRITICAL: Check if latest digest exists in ANY of the container's RepoDigests
+      // This handles multi-arch images where a container may have multiple digests
+      if (
+        container.repoDigests &&
+        Array.isArray(container.repoDigests) &&
+        container.repoDigests.length > 0
+      ) {
+        // Check if the latest digest exists in any RepoDigest
+        // RepoDigests are stored as clean "sha256:..." format (image prefix already stripped)
+        const hasLatestDigest = container.repoDigests.some((rd) => {
+          return normalizeDigest(rd) === normalizedLatest;
+        });
+
+        if (hasLatestDigest) {
+          // Container already has the latest digest, no update needed
+          return false;
+        }
+      }
+
+      // Digests differ and latest not in RepoDigests
+      return normalizedCurrent !== normalizedLatest;
     }
   }
 

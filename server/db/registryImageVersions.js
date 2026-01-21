@@ -6,7 +6,8 @@
  * - Version cleanup operations
  */
 
-const { getDatabase } = require("./connection");
+const logger = require("../utils/logger");
+const { getDatabase, queueDatabaseOperation } = require("./connection");
 
 /**
  * Upsert registry image version (latest available in registry)
@@ -131,8 +132,72 @@ function cleanupOrphanedRegistryVersions(userId) {
   });
 }
 
+/**
+ * Mark registry image as up-to-date after upgrade
+ * Updates the registry_image_versions table to reflect that the container now has the latest version
+ * @param {number} userId - User ID
+ * @param {string} imageRepo - Image repository
+ * @param {string} newDigest - New digest after upgrade
+ * @param {string} newVersion - New version after upgrade
+ * @param {string} tag - Image tag
+ * @returns {Promise<void>}
+ */
+function markRegistryImageUpToDate(userId, imageRepo, newDigest, newVersion, tag) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+
+      // Update the registry_image_versions table
+      // Set latest_digest and latest_version to match what the container now has
+      queueDatabaseOperation(() => {
+        db.run(
+          `UPDATE registry_image_versions 
+           SET latest_digest = ?,
+               latest_version = ?,
+               last_checked = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? 
+           AND image_repo = ? 
+           AND tag = ?`,
+          [newDigest, newVersion, userId, imageRepo, tag],
+          function (err) {
+            if (err) {
+              logger.error("Error marking registry image as up-to-date:", {
+                error: err,
+                userId,
+                imageRepo,
+                tag,
+              });
+              reject(err);
+            } else {
+              if (this.changes === 0) {
+                logger.warn("No registry_image_versions record found to update after upgrade", {
+                  userId,
+                  imageRepo,
+                  tag,
+                });
+              } else {
+                logger.debug("Marked registry image as up-to-date after upgrade", {
+                  userId,
+                  imageRepo,
+                  tag,
+                  newDigest: newDigest.substring(0, 12),
+                });
+              }
+              resolve();
+            }
+          }
+        );
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   upsertRegistryImageVersion,
   getRegistryImageVersion,
   cleanupOrphanedRegistryVersions,
+  markRegistryImageUpToDate,
 };

@@ -87,45 +87,13 @@ function isKeySensitive(key) {
 }
 
 /**
- * Redact string value
- * @param {string} str - String to redact
- * @returns {string} - Redacted string
- */
-function redactString(str) {
-  return isStringSensitive(str) ? "[REDACTED]" : str;
-}
-
-/**
- * Redact array values
- * @param {Array} arr - Array to redact
- * @param {number} depth - Current depth
- * @returns {Array} - Redacted array
- */
-function redactArray(arr, depth) {
-  return arr.map((item) => redactSensitive(item, depth + 1));
-}
-
-/**
- * Redact object values
- * @param {Object} obj - Object to redact
- * @param {number} depth - Current depth
- * @returns {Object} - Redacted object
- */
-function redactObject(obj, depth) {
-  const redacted = {};
-  for (const [key, value] of Object.entries(obj)) {
-    redacted[key] = isKeySensitive(key) ? "[REDACTED]" : redactSensitive(value, depth + 1);
-  }
-  return redacted;
-}
-
-/**
  * Redact sensitive information from objects
  * @param {*} obj - Object to redact
  * @param {number} depth - Current depth (prevents infinite recursion)
  * @returns {*} - Redacted object
  */
 function redactSensitive(obj, depth = 0) {
+  // Prevent infinite recursion
   if (depth > 10) {
     return "[MAX_DEPTH_REACHED]";
   }
@@ -135,15 +103,19 @@ function redactSensitive(obj, depth = 0) {
   }
 
   if (typeof obj === "string") {
-    return redactString(obj);
+    return isStringSensitive(obj) ? "[REDACTED]" : obj;
   }
 
   if (Array.isArray(obj)) {
-    return redactArray(obj, depth);
+    return obj.map((item) => redactSensitive(item, depth + 1));
   }
 
   if (typeof obj === "object") {
-    return redactObject(obj, depth);
+    const redacted = {};
+    for (const [key, value] of Object.entries(obj)) {
+      redacted[key] = isKeySensitive(key) ? "[REDACTED]" : redactSensitive(value, depth + 1);
+    }
+    return redacted;
   }
 
   return obj;

@@ -48,11 +48,12 @@ async function imageExists(imageRepo, options = {}) {
  * @param {string} currentDigest - Current digest (or tag)
  * @param {string} currentTag - Current tag
  * @param {Object} latestInfo - Latest info from getLatestDigest
+ * @param {Array<string>} repoDigests - Optional array of RepoDigests from container
  * @returns {boolean} - True if update available
  */
-function hasUpdate(currentDigest, currentTag, latestInfo) {
+function hasUpdate(currentDigest, currentTag, latestInfo, repoDigests = null) {
   const manager = getRegistryManager();
-  return manager.hasUpdate(currentDigest, currentTag, latestInfo);
+  return manager.hasUpdate(currentDigest, currentTag, latestInfo, repoDigests);
 }
 
 /**

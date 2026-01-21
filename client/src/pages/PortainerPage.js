@@ -12,6 +12,7 @@ import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
 import UpgradeHistoryTab from "../components/portainer/UpgradeHistoryTab";
+import ContainerDebugModal from "../components/portainer/ContainerDebugModal";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import { SETTINGS_TABS } from "../constants/settings";
@@ -102,6 +103,9 @@ function PortainerPage({
 
   // Image source filter state
   const [selectedImageSourceFilters, setSelectedImageSourceFilters] = useState(new Set());
+
+  // Debug modal state - centralized at page level for better performance
+  const [debugModalContainer, setDebugModalContainer] = useState(null);
 
   // Use extracted search hook
   const { searchQuery, setSearchQuery, filteredGroupedStacks } = usePortainerSearch(
@@ -242,6 +246,7 @@ function PortainerPage({
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
+                      onOpenDebugModal={setDebugModalContainer}
                     />
                   )}
 
@@ -262,6 +267,7 @@ function PortainerPage({
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
+                      onOpenDebugModal={setDebugModalContainer}
                     />
                   )}
 
@@ -378,6 +384,16 @@ function PortainerPage({
               });
             }
           }}
+        />
+      )}
+
+      {/* Container Debug Modal - Centralized at page level */}
+      {debugModalContainer && (
+        <ContainerDebugModal
+          containerId={debugModalContainer.id}
+          containerName={debugModalContainer.name}
+          onClose={() => setDebugModalContainer(null)}
+          developerModeEnabled={developerModeEnabled}
         />
       )}
     </div>

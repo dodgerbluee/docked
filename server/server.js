@@ -48,7 +48,7 @@ try {
   // eslint-disable-next-line no-process-exit -- Critical initialization error must exit
   process.exit(1);
 }
-const { waitForDatabase } = databaseModule;
+const { waitForDatabase, waitForDatabaseInit } = databaseModule;
 
 const app = express();
 logger.debug("Express app created", { module: "server" });
@@ -316,7 +316,7 @@ if (shouldStartServer) {
       setImmediate(async () => {
         try {
           // Wait for database tables to be created before starting batch system
-          await waitForDatabase(20, 200); // Wait up to 4 seconds (20 retries * 200ms)
+          await waitForDatabaseInit(); // Wait for full init with all tables
           logger.debug("Database ready, initializing log level and starting batch system", {
             module: "server",
           });

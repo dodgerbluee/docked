@@ -18,7 +18,6 @@ const SettingsTabNavigation = React.memo(function SettingsTabNavigation({
     SETTINGS_TABS.USER_DETAILS,
     SETTINGS_TABS.PORTAINER,
     SETTINGS_TABS.TRACKED_APPS,
-    SETTINGS_TABS.DOCKERHUB,
     SETTINGS_TABS.REPOSITORIES,
     SETTINGS_TABS.DISCORD,
     // Only show Data tab if developer mode is enabled

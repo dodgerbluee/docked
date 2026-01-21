@@ -45,11 +45,10 @@ export function parseUserImportFile(fileContent) {
       });
     } else if (jsonData.user && typeof jsonData.user === "object") {
       // Convert single user export format to array
-      // Merge top-level properties (portainerInstances, dockerHubCredentials, discordWebhooks, trackedApps) into user object
+      // Merge top-level properties (portainerInstances, discordWebhooks, trackedApps) into user object
       const userWithConfig = {
         ...jsonData.user,
         portainerInstances: jsonData.portainerInstances || jsonData.user.portainerInstances,
-        dockerHubCredentials: jsonData.dockerHubCredentials || jsonData.user.dockerHubCredentials,
         discordWebhooks: jsonData.discordWebhooks || jsonData.user.discordWebhooks,
         trackedApps: jsonData.trackedApps || jsonData.user.trackedApps,
       };

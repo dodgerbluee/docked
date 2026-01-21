@@ -18,6 +18,10 @@ dist/
 # Database
 data/users.db
 data/users.db-journal
+data/users.db-shm
+data/users.db-wal
+data/*.sqlite
+data/*.sqlite-*
 data/avatars/
 
 # IDE

@@ -31,12 +31,14 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const containerController = require("../controllers/containerController");
+const containerDebugController = require("../controllers/containerDebugController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const portainerController = require("../controllers/portainerController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedAppController = require("../controllers/trackedAppController");
+const trackedAppController = require("../controllers/trackedImageController");
+const trackedAppHistoryController = require("../controllers/trackedAppController");
 const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
@@ -231,10 +233,6 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Validation endpoints (public - used during import process)
 router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
-router.post(
-  "/docker-hub/credentials/validate",
-  asyncHandler(authController.validateDockerHubCreds)
-);
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 
 // Protected routes - require authentication
@@ -253,10 +251,8 @@ router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUs
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
-// Docker Hub credentials routes (protected)
-router.get("/docker-hub/credentials", asyncHandler(authController.getDockerHubCreds));
-router.post("/docker-hub/credentials", asyncHandler(authController.updateDockerHubCreds));
-router.delete("/docker-hub/credentials", asyncHandler(authController.deleteDockerHubCreds));
+// Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
+// Users should run 'docker login' on the server if authentication is needed
 
 // Container routes
 /**
@@ -512,6 +508,37 @@ router.post("/images/delete", asyncHandler(imageController.deleteImages));
  *         description: Authentication required
  */
 router.get("/containers/upgrade-history", asyncHandler(containerController.getUpgradeHistory));
+router.get(
+  "/containers/upgrade-history/stats",
+  asyncHandler(containerController.getUpgradeHistoryStats)
+);
+router.get(
+  "/containers/upgrade-history/:id",
+  asyncHandler(containerController.getUpgradeHistoryById)
+);
+
+// Tracked App Upgrade History routes
+router.get(
+  "/tracked-apps/upgrade-history",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistory)
+);
+router.get(
+  "/tracked-apps/upgrade-history/stats",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats)
+);
+router.get(
+  "/tracked-apps/upgrade-history/:id",
+  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryById)
+);
+
+/**
+ * Get container debug information (developer mode only)
+ * @route GET /api/containers/:containerId/debug
+ */
+router.get(
+  "/containers/:containerId/debug",
+  asyncHandler(containerDebugController.getContainerDebugInfo)
+);
 
 /**
  * @swagger
@@ -838,7 +865,7 @@ router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandle
  *       401:
  *         description: Unauthorized
  */
-router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedApps));
+router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedImages));
 router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
 
 /**
@@ -857,7 +884,7 @@ router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp)
  */
 router.post(
   "/tracked-apps/check-updates",
-  asyncHandler(trackedAppController.checkTrackedAppsUpdates)
+  asyncHandler(trackedAppController.checkTrackedImagesUpdates)
 );
 
 /**
@@ -949,7 +976,7 @@ router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitH
  *       404:
  *         description: Tracked app not found
  */
-router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedApp));
+router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedImage));
 router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
 router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
 
@@ -977,7 +1004,7 @@ router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrack
  */
 router.post(
   "/tracked-apps/:id/check-update",
-  asyncHandler(trackedAppController.checkTrackedAppUpdate)
+  asyncHandler(trackedAppController.checkTrackedImageUpdate)
 );
 
 // Discord notification routes
@@ -1041,86 +1068,6 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
  */
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
-
-/**
- * @swagger
- * /settings/disable-portainer-page:
- *   get:
- *     summary: Get whether Portainer page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Portainer page disabled status
- *   post:
- *     summary: Set whether Portainer page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - disabled
- *             properties:
- *               disabled:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Setting updated
- */
-router.get(
-  "/settings/disable-portainer-page",
-  asyncHandler(settingsController.getDisablePortainerPageHandler)
-);
-router.post(
-  "/settings/disable-portainer-page",
-  asyncHandler(settingsController.setDisablePortainerPageHandler)
-);
-
-/**
- * @swagger
- * /settings/disable-tracked-apps-page:
- *   get:
- *     summary: Get whether Tracked Apps page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Tracked Apps page disabled status
- *   post:
- *     summary: Set whether Tracked Apps page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - disabled
- *             properties:
- *               disabled:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Setting updated
- */
-router.get(
-  "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
-);
-router.post(
-  "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
-);
 
 /**
  * @swagger

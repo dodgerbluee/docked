@@ -4,6 +4,7 @@
 
 // Content tab types
 export const CONTENT_TABS = {
+  ALL: "all",
   UPDATES: "updates",
   CURRENT: "current",
   UNUSED: "unused",

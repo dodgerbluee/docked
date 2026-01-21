@@ -2,89 +2,16 @@
  * Registry Database Module
  *
  * Handles all registry-related database operations including:
- * - Docker Hub credentials
  * - Repository access tokens (GitHub, GitLab)
  * - Image-token associations
+ *
+ * Note: Docker Hub credentials removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
  */
 
 const { getDatabase } = require("./connection");
 
-/**
- * Get Docker Hub credentials for a user
- * @param {number} userId - User ID
- * @returns {Promise<Object|null>} - Docker Hub credentials or null
- */
-function getDockerHubCredentials(userId) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.get(
-        "SELECT username, token, updated_at FROM docker_hub_credentials WHERE user_id = ?",
-        [userId],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row || null);
-          }
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Update Docker Hub credentials for a user
- * @param {number} userId - User ID
- * @param {string} username - Docker Hub username
- * @param {string} token - Docker Hub personal access token
- * @returns {Promise<void>}
- */
-function updateDockerHubCredentials(userId, username, token) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run(
-        `INSERT OR REPLACE INTO docker_hub_credentials (user_id, username, token, updated_at) 
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-        [userId, username, token],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Delete Docker Hub credentials for a user
- * @param {number} userId - User ID
- * @returns {Promise<void>}
- */
-function deleteDockerHubCredentials(userId) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.run("DELETE FROM docker_hub_credentials WHERE user_id = ?", [userId], (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
+// Docker Hub credentials functions removed - crane/skopeo use system Docker credentials
+// Users should run 'docker login' on the server for registry authentication
 
 /**
  * Get all repository access tokens for a user
@@ -348,9 +275,6 @@ function getAssociatedImagesForToken(userId, tokenId) {
 }
 
 module.exports = {
-  getDockerHubCredentials,
-  updateDockerHubCredentials,
-  deleteDockerHubCredentials,
   getAllRepositoryAccessTokens,
   getRepositoryAccessTokenByProvider,
   getRepositoryAccessTokenById,

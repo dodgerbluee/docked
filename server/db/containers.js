@@ -43,6 +43,7 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         registry = null,
         namespace = null,
         repository = null,
+        repoDigests = null,
       } = containerData;
 
       // Extract tag from imageName if not provided
@@ -54,6 +55,7 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         registry,
         namespace,
         repository,
+        repoDigests,
       })
         .then((deployedImageId) => {
           // Then upsert container with reference to deployed image
@@ -132,6 +134,7 @@ function upsertContainerWithVersion(
       registry = null,
       namespace = null,
       repository = null,
+      repoDigests = null,
     } = containerData;
 
     // Extract tag from imageName if not provided
@@ -405,6 +408,7 @@ function upsertContainerWithVersion(
               registry,
               namespace,
               repository,
+              repoDigests,
             })
               .then(handleContainerInsertion)
               .catch((err) => {
@@ -509,17 +513,13 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       di.image_created_date,
       di.image_tag,
       di.registry,
+      di.repo_digests,
       riv.latest_digest as dh_latest_digest,
       riv.latest_version as dh_latest_version,
       riv.tag as dh_latest_tag,
       riv.latest_publish_date as dh_latest_publish_date,
       riv.provider as dh_provider,
       riv.last_checked as dh_last_checked,
-      CASE 
-        WHEN di.image_digest IS NOT NULL AND riv.latest_digest IS NOT NULL 
-          AND di.image_digest != riv.latest_digest THEN 1
-        ELSE 0
-      END as dh_has_update,
       CASE
         WHEN di.id IS NOT NULL AND riv.id IS NOT NULL AND riv.latest_digest IS NULL THEN 1
         ELSE 0
@@ -590,6 +590,18 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
       const mapRowToContainer = (row) => {
+        // Parse repoDigests JSON from database
+        let repoDigests = null;
+        if (row.repo_digests) {
+          try {
+            repoDigests = JSON.parse(row.repo_digests);
+          } catch (parseErr) {
+            logger.debug(
+              `Failed to parse repo_digests for ${row.container_name}: ${parseErr.message}`
+            );
+          }
+        }
+
         // Build container object first
         const containerData = {
           id: row.id,
@@ -619,9 +631,10 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
           lastSeen: row.last_seen,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          repoDigests, // Store parsed RepoDigests for hasUpdate calculation
         };
 
-        // Compute hasUpdate on-the-fly from digests
+        // Compute hasUpdate using stored repoDigests (checks if latest digest is in the array)
         containerData.hasUpdate = computeHasUpdate(containerData);
 
         return containerData;
@@ -797,6 +810,66 @@ function cleanupStalePortainerContainers(daysOld = 7) {
 }
 
 /**
+ * Delete old container records with the same name but different ID
+ * Used after container upgrades to remove the old container record
+ * @param {number} userId - User ID
+ * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {string} endpointId - Endpoint ID
+ * @param {string} containerName - Container name
+ * @param {string} currentContainerId - Current container ID (to exclude from deletion)
+ * @returns {Promise<number>} - Number of deleted records
+ */
+function deleteOldContainersByName(
+  userId,
+  portainerInstanceId,
+  endpointId,
+  containerName,
+  currentContainerId
+) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        `DELETE FROM containers 
+         WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? 
+         AND container_name = ? AND container_id != ?`,
+        [userId, portainerInstanceId, endpointId, containerName, currentContainerId],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            const deletedCount = this.changes;
+            if (deletedCount > 0) {
+              logger.info(
+                `Deleted ${deletedCount} old container record(s) for ${containerName} after upgrade`,
+                {
+                  userId,
+                  portainerInstanceId,
+                  endpointId,
+                  containerName,
+                  currentContainerId: currentContainerId.substring(0, 12),
+                }
+              );
+              // Clean up orphaned deployed images
+              cleanupOrphanedDeployedImages(userId)
+                .then(() => resolve(deletedCount))
+                .catch((cleanupErr) => {
+                  logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+                  resolve(deletedCount);
+                });
+            } else {
+              resolve(deletedCount);
+            }
+          }
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
  * Clear all Portainer containers and Docker Hub versions for a user
  * @param {number} userId - User ID
  * @returns {Promise<void>}
@@ -859,6 +932,7 @@ module.exports = {
   getPortainerContainersWithUpdates,
   deletePortainerContainersForInstance,
   deletePortainerContainersNotInList,
+  deleteOldContainersByName,
   cleanupStalePortainerContainers,
   clearUserContainerData,
 };

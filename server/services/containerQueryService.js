@@ -6,6 +6,7 @@
 const { URL } = require("url");
 const portainerService = require("./portainerService");
 const dockerRegistryService = require("./dockerRegistryService");
+const registryService = require("./registry"); // New unified registry service with provider caches
 const networkModeService = require("./networkModeService");
 const containerGroupingService = require("./containerGroupingService");
 const containerFormattingService = require("./containerFormattingService");
@@ -37,10 +38,13 @@ async function getAllContainersWithUpdates(
   if (forceRefresh && userId) {
     const { getPortainerContainersWithUpdates } = require("../db/index");
     previousContainers = await getPortainerContainersWithUpdates(userId);
-    // Clear registry digest cache to ensure fresh data when force refreshing
+    // Clear ALL registry digest caches to ensure fresh data when force refreshing
     // This prevents stale cached digests from causing false positives when containers
     // were updated outside the app (e.g., manually via Portainer or docker pull)
-    dockerRegistryService.clearAllDigestCache();
+    // CRITICAL: Clear both old dockerRegistryService cache AND new registry provider caches
+    dockerRegistryService.clearAllDigestCache(); // Old service cache
+    registryService.clearAllCaches(); // New service: clears DockerHub, GHCR, GitLab, GCR provider caches
+    logger.info("🗑️  Cleared all registry digest caches for force refresh");
   }
 
   // Get tracked apps to determine update source type (GitHub vs GitLab vs Registry)
@@ -141,11 +145,16 @@ async function getAllContainersWithUpdates(
       filterPortainerUrl
     );
 
+  logger.info(
+    `🔍 Force refresh: Found ${instancesToProcess.length} Portainer instances to process`,
+    { userId, filterPortainerUrl, instanceCount: instancesToProcess.length }
+  );
+
   if (instancesToProcess.length === 0) {
-    // Only log warning, not every time
-    if (process.env.DEBUG) {
-      logger.debug("No Portainer instances to process.");
-    }
+    logger.warn("⚠️  No Portainer instances found to process - returning empty result", {
+      userId,
+      filterPortainerUrl,
+    });
     // Return empty result
     return {
       grouped: true,

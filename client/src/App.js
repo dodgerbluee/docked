@@ -16,7 +16,6 @@ import { useSelectionHandlers } from "./hooks/useSelectionHandlers";
 import { useAvatarManagement } from "./hooks/useAvatarManagement";
 import { useNavigation } from "./hooks/useNavigation";
 import { useTheme } from "./hooks/useTheme";
-import { useDockerHubCredentials } from "./hooks/useDockerHubCredentials";
 import { useBatchConfig } from "./hooks/useBatchConfig";
 import { useTrackedApps } from "./hooks/useTrackedApps";
 import { usePortainerInstances } from "./hooks/usePortainerInstances";
@@ -106,11 +105,7 @@ function App() {
     handleTemporaryThemeToggle,
   } = useTheme(isAuthenticated, authToken);
 
-  // Docker Hub credentials - using custom hook
-  const { dockerHubCredentials, fetchDockerHubCredentials } = useDockerHubCredentials(
-    isAuthenticated,
-    authToken
-  );
+  // Docker Hub credentials removed - crane/skopeo use system Docker credentials
 
   // Tracked apps - using custom hook
   const { trackedApps, setTrackedApps, fetchTrackedApps } = useTrackedApps(
@@ -190,8 +185,6 @@ function App() {
     setPulling,
     setError,
     setLastPullTime,
-    fetchDockerHubCredentials,
-    dockerHubCredentials,
     fetchTrackedApps,
     fetchContainers,
   });
@@ -312,7 +305,6 @@ function App() {
     isAuthenticated,
     authToken,
     fetchColorScheme,
-    fetchDockerHubCredentials,
     fetchContainers,
     fetchPortainerInstances,
     fetchAvatar,
@@ -640,7 +632,6 @@ function App() {
             handleModalSuccess={handleModalSuccess}
             colorScheme={colorScheme}
             handleColorSchemeChange={handleColorSchemeChange}
-            dockerHubCredentials={dockerHubCredentials}
             batchConfig={batchConfig}
             setBatchConfig={setBatchConfig}
             version={version}
