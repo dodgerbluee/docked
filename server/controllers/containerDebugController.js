@@ -71,14 +71,19 @@ async function getContainerDebugInfo(req, res) {
       : [];
 
     // Get registry image version record
+    // Extract tag from image_name to ensure we get the correct registry record
+    const containerImageTag = containerRecord.image_name?.includes(":")
+      ? containerRecord.image_name.split(":")[1]
+      : "latest";
+    
     const registryImageVersion = containerRecord.image_repo
       ? await new Promise((resolve, reject) => {
           db.get(
             `SELECT * FROM registry_image_versions 
-             WHERE user_id = ? AND image_repo = ?
+             WHERE user_id = ? AND image_repo = ? AND tag = ?
              ORDER BY last_checked DESC
              LIMIT 1`,
-            [userId, containerRecord.image_repo],
+            [userId, containerRecord.image_repo, containerImageTag],
             (err, row) => {
               if (err) reject(err);
               else resolve(row);

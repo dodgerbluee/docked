@@ -13,8 +13,6 @@ const TabNavigation = ({
   onTabChange,
   containersWithUpdates = [],
   trackedAppsBehind = 0,
-  disablePortainerPage = false,
-  disableTrackedAppsPage = false,
 }) => {
   const handleSummaryClick = () => onTabChange("summary");
   const handlePortainerClick = () => onTabChange("portainer");
@@ -31,8 +29,7 @@ const TabNavigation = ({
           <LayoutDashboard size={18} />
           Summary
         </button>
-        {!disablePortainerPage && (
-          <button
+        <button
             className={`tab ${activeTab === "portainer" ? "active" : ""}`}
             onClick={handlePortainerClick}
             aria-label="Portainer tab"
@@ -57,9 +54,7 @@ const TabNavigation = ({
               <span className="tab-badge">{containersWithUpdates.length}</span>
             )}
           </button>
-        )}
-        {!disableTrackedAppsPage && (
-          <button
+        <button
             className={`tab ${activeTab === "tracked-apps" ? "active" : ""}`}
             onClick={handleTrackedAppsClick}
             aria-label="Tracked Apps tab"
@@ -68,7 +63,6 @@ const TabNavigation = ({
             Tracked Apps
             {trackedAppsBehind > 0 && <span className="tab-badge">{trackedAppsBehind}</span>}
           </button>
-        )}
       </div>
     </div>
   );
@@ -79,8 +73,6 @@ TabNavigation.propTypes = {
   onTabChange: PropTypes.func.isRequired,
   containersWithUpdates: PropTypes.arrayOf(containerShape),
   trackedAppsBehind: PropTypes.number,
-  disablePortainerPage: PropTypes.bool,
-  disableTrackedAppsPage: PropTypes.bool,
 };
 
 export default memo(TabNavigation);

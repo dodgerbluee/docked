@@ -50,6 +50,17 @@ let dbConnectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 1; // Only allow one connection attempt
 let dbConnectionEstablished = false;
 
+// Database initialization promise
+let dbInitPromise = null;
+let dbInitResolver = null;
+let dbInitRejector = null;
+
+// Create a promise that resolves when database initialization is complete
+dbInitPromise = new Promise((resolve, reject) => {
+  dbInitResolver = resolve;
+  dbInitRejector = reject;
+});
+
 // Database operation queue to prevent concurrent transactions
 const dbOperationQueue = [];
 let isProcessingQueue = false;
@@ -113,13 +124,20 @@ try {
     } else {
       dbConnectionEstablished = true;
       logger.info(`Connected to SQLite database at ${DB_PATH}`);
+      
+      // Set PRAGMA settings for immediate writes
+      db.run("PRAGMA journal_mode = WAL");
+      db.run("PRAGMA synchronous = NORMAL");
+      
       // Use setImmediate to defer initialization and prevent blocking
       setImmediate(async () => {
         try {
           await initializeDatabase();
+          dbInitResolver(); // Resolve the init promise when complete
         } catch (initError) {
           logger.error("Error initializing database:", initError);
           logger.error("Stack:", { error: initError });
+          dbInitRejector(initError); // Reject the init promise on error
           // Don't throw - log the error but don't crash the server
           // Database operations will fail gracefully if needed
         }
@@ -176,11 +194,13 @@ async function initializeDatabase() {
   initializationStarted = true;
 
   try {
-    // eslint-disable-next-line max-lines-per-function -- Database initialization requires comprehensive schema creation
-    db.serialize(() => {
-      try {
-        // Create users table
-        db.run(
+    // Wrap db.serialize in a promise so we can await it
+    await new Promise((resolve, reject) => {
+      // eslint-disable-next-line max-lines-per-function -- Database initialization requires comprehensive schema creation
+      db.serialize(() => {
+        try {
+          // Create users table
+          db.run(
           `CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -1134,6 +1154,8 @@ async function initializeDatabase() {
                       error: idxErr,
                     });
                   }
+                  // Resolve the promise when all tables are created (this is the last operation)
+                  resolve();
                 }
               );
             }
@@ -1142,8 +1164,10 @@ async function initializeDatabase() {
       } catch (serializeError) {
         logger.error("Error in db.serialize callback:", serializeError);
         logger.error("Stack:", { error: serializeError });
+        reject(serializeError);
       }
     });
+  });
 
     logger.info("Database initialization completed");
 
@@ -1245,10 +1269,19 @@ function isConnected() {
   return dbConnectionEstablished && db !== null;
 }
 
+/**
+ * Wait for database initialization to complete
+ * @returns {Promise} - Resolves when database is fully initialized with all tables created
+ */
+function waitForDatabaseInit() {
+  return dbInitPromise;
+}
+
 module.exports = {
   getDatabase,
   initializeDatabase,
   waitForDatabase,
+  waitForDatabaseInit,
   closeDatabase,
   queueDatabaseOperation,
   isConnected,

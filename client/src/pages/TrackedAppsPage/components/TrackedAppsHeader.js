@@ -34,7 +34,7 @@ const TrackedAppsHeader = ({
   return (
     <div className={styles.summaryHeader}>
       <div className={styles.headerContent}>
-        <h2 className={styles.summaryHeaderTitle}>Tracked Apps</h2>
+        <h2 className={styles.summaryHeaderTitle}/>
         <div className={styles.headerActions}>
           <SearchInput
             value={searchQuery}

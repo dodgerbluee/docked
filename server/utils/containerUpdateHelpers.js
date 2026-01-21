@@ -39,6 +39,10 @@ function computeHasUpdate(container) {
   // Get current and latest digests (try both full and short versions)
   const currentDigest = container.currentDigest || container.currentDigestFull;
   const latestDigest = container.latestDigest || container.latestDigestFull;
+  
+  // Get current and latest versions/tags for comparison
+  const currentVersion = container.currentVersion || container.currentTag;
+  const latestVersion = container.latestVersion || container.latestTag;
 
   // If we have both digests, compare them
   if (currentDigest && latestDigest) {
@@ -46,15 +50,27 @@ function computeHasUpdate(container) {
     const normalizedLatest = normalizeDigest(latestDigest);
 
     if (normalizedCurrent && normalizedLatest) {
-      return normalizedCurrent !== normalizedLatest;
+      const digestsDiffer = normalizedCurrent !== normalizedLatest;
+      
+      if (!digestsDiffer) {
+        return false; // Digests match, no update
+      }
+      
+      // Digests differ - check if this is a multi-arch false positive
+      // For "latest" tag: digest change is a real update (latest is a moving target)
+      const normalizedCurrentVersion = currentVersion ? String(currentVersion).toLowerCase().trim() : "";
+      if (normalizedCurrentVersion === "latest") {
+        return true;
+      }
+      // For specific version tags (postgres:17, mysql:8.0, etc.) with same version:
+      // Digest difference is likely due to multi-arch manifests, not a real update
+      // Return false to avoid false positives (the batch process now uses architecture-aware fetching)
+      return false;
     }
   }
 
   // Fallback: If using GitHub Releases fallback, compare versions
   if (container.isFallback || container.provider === "github-releases") {
-    const currentVersion = container.currentVersion || container.currentTag;
-    const latestVersion = container.latestVersion || container.latestTag;
-
     if (currentVersion && latestVersion) {
       // Normalize versions (remove "v" prefix, case-insensitive)
       const normalizeVersion = (v) => {

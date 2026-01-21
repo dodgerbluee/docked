@@ -32,7 +32,7 @@ const PortainerHeader = ({
   return (
     <div className={styles.summaryHeader}>
       <div className={styles.headerContent}>
-        <h2 className={styles.portainerHeader}>Portainer</h2>
+        <h2 className={styles.portainerHeader}/>
         <div className={styles.headerLeft}>
           <SearchInput
             value={searchQuery}

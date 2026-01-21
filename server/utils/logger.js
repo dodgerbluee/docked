@@ -87,45 +87,13 @@ function isKeySensitive(key) {
 }
 
 /**
- * Redact string value
- * @param {string} str - String to redact
- * @returns {string} - Redacted string
- */
-function redactString(str) {
-  return isStringSensitive(str) ? "[REDACTED]" : str;
-}
-
-/**
- * Redact array values
- * @param {Array} arr - Array to redact
- * @param {number} depth - Current depth
- * @returns {Array} - Redacted array
- */
-function redactArray(arr, depth) {
-  return arr.map((item) => redactSensitive(item, depth + 1));
-}
-
-/**
- * Redact object values
- * @param {Object} obj - Object to redact
- * @param {number} depth - Current depth
- * @returns {Object} - Redacted object
- */
-function redactObject(obj, depth) {
-  const redacted = {};
-  for (const [key, value] of Object.entries(obj)) {
-    redacted[key] = isKeySensitive(key) ? "[REDACTED]" : redactSensitive(value, depth + 1);
-  }
-  return redacted;
-}
-
-/**
  * Redact sensitive information from objects
  * @param {*} obj - Object to redact
  * @param {number} depth - Current depth (prevents infinite recursion)
  * @returns {*} - Redacted object
  */
 function redactSensitive(obj, depth = 0) {
+  // Prevent infinite recursion
   if (depth > 10) {
     return "[MAX_DEPTH_REACHED]";
   }
@@ -135,15 +103,21 @@ function redactSensitive(obj, depth = 0) {
   }
 
   if (typeof obj === "string") {
-    return redactString(obj);
+    return isStringSensitive(obj) ? "[REDACTED]" : obj;
   }
 
   if (Array.isArray(obj)) {
-    return redactArray(obj, depth);
+    return obj.map(item => redactSensitive(item, depth + 1));
   }
 
   if (typeof obj === "object") {
-    return redactObject(obj, depth);
+    const redacted = {};
+    for (const [key, value] of Object.entries(obj)) {
+      redacted[key] = isKeySensitive(key)
+        ? "[REDACTED]"
+        : redactSensitive(value, depth + 1);
+    }
+    return redacted;
   }
 
   return obj;
@@ -205,7 +179,7 @@ function createChildLogger(additionalContext = {}) {
       const context = getContext();
       getWinstonLogger().error(message, { ...context, ...mergedContext, ...metadata });
     },
-    child: (moreContext) => createChildLogger({ ...mergedContext, ...moreContext }),
+    child: moreContext => createChildLogger({ ...mergedContext, ...moreContext }),
   };
 }
 
@@ -213,7 +187,7 @@ function createChildLogger(additionalContext = {}) {
 const structuredFormat = winston.format.combine(
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
   winston.format.errors({ stack: true }),
-  winston.format((info) => {
+  winston.format(info => {
     // Extract context from metadata
     const context = getContext();
 
@@ -238,7 +212,7 @@ const structuredFormat = winston.format.combine(
 
     return formattedInfo;
   })(),
-  winston.format.json()
+  winston.format.json(),
 );
 
 // Console format for development (human-readable)
@@ -269,7 +243,7 @@ const consoleFormat = winston.format.combine(
 
       // Add metadata if present (excluding standard fields)
       const metaKeys = Object.keys(meta).filter(
-        (key) =>
+        key =>
           ![
             "timestamp",
             "level",
@@ -281,12 +255,12 @@ const consoleFormat = winston.format.combine(
             "batchId",
             "service",
             "stack",
-          ].includes(key)
+          ].includes(key),
       );
 
       if (metaKeys.length > 0) {
         const metaObj = {};
-        metaKeys.forEach((key) => {
+        metaKeys.forEach(key => {
           metaObj[key] = meta[key];
         });
         msg += ` ${JSON.stringify(redactSensitive(metaObj))}`;
@@ -298,8 +272,8 @@ const consoleFormat = winston.format.combine(
       }
 
       return msg;
-    }
-  )
+    },
+  ),
 );
 
 // Lazy getter for winstonLogger to avoid use-before-define
@@ -382,7 +356,7 @@ if (process.env.DISABLE_CONSOLE_LOGGING !== "true") {
   getWinstonLogger().add(
     new winston.transports.Console({
       format: consoleFormat,
-    })
+    }),
   );
 }
 
@@ -391,7 +365,7 @@ function updateLogLevel() {
   const newLevel = getEffectiveLogLevel();
   const logger = getWinstonLogger();
   logger.level = newLevel;
-  logger.transports.forEach((transport) => {
+  logger.transports.forEach(transport => {
     if (transport.level) {
       // Only update if transport has a specific level
       // Note: Winston requires direct property mutation
@@ -412,7 +386,7 @@ if (process.env.NODE_ENV !== "test" && typeof jest === "undefined") {
         module: "logger",
         initialLevel: initialLogLevel,
         currentLevel: getWinstonLogger().level,
-        transports: getWinstonLogger().transports.map((t) => t.constructor.name),
+        transports: getWinstonLogger().transports.map(t => t.constructor.name),
       });
     } catch (err) {
       // Log initialization error to console as fallback

@@ -9,7 +9,7 @@ export const SETTINGS_TABS = {
   AVATAR: "avatar",
   PORTAINER: "portainer",
   TRACKED_APPS: "trackedapps",
-  DOCKERHUB: "dockerhub",
+  // DOCKERHUB removed - credentials no longer stored
   DISCORD: "discord",
   USER_DETAILS: "userdetails",
   REPOSITORIES: "repositories",
@@ -24,7 +24,7 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.AVATAR]: "Avatar",
   [SETTINGS_TABS.PORTAINER]: "Portainer",
   [SETTINGS_TABS.TRACKED_APPS]: "Tracked Apps",
-  [SETTINGS_TABS.DOCKERHUB]: "Docker Hub",
+  // Docker Hub tab removed
   [SETTINGS_TABS.DISCORD]: "Notifications",
   [SETTINGS_TABS.USER_DETAILS]: "User",
   [SETTINGS_TABS.REPOSITORIES]: "Repositories",

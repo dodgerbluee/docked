@@ -22,18 +22,18 @@ import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../constants/api";
 import styles from "./ContainerDebugModal.module.css";
 
-function ContainerDebugModal({ containerId, containerName, onClose }) {
+function ContainerDebugModal({ containerId, containerName, onClose, developerModeEnabled = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
-    container: true,
-    deployedImage: true,
-    allDeployedImages: true,
-    registryImageVersion: true,
-    allRegistryImageVersions: true,
-    upgradeHistory: true,
-    allContainersWithSameName: true,
+    container: false,
+    deployedImage: false,
+    allDeployedImages: false,
+    registryImageVersion: false,
+    allRegistryImageVersions: false,
+    upgradeHistory: false,
+    allContainersWithSameName: false,
   });
 
   // Refs for cleanup and focus management
@@ -300,7 +300,7 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
           <div className={styles.headerContent}>
             <Database size={24} className={styles.headerIcon} />
             <h2 id="debug-modal-title" className={styles.modalTitle}>
-              Container Debug Info
+              Container Details
             </h2>
           </div>
           <div className={styles.headerActions}>
@@ -342,64 +342,118 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
             </div>
           ) : debugInfo ? (
             <>
-              <div className={styles.infoGrid}>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Container:</span>
-                  <span className={styles.infoValue}>
-                    {debugInfo.container?.container_name || containerName || "Unknown"}
-                  </span>
+              {/* Container Info Section */}
+              <div className={styles.topSection}>
+                {/* Container Metadata */}
+                <div className={styles.metadataCard}>
+                  <h3 className={styles.cardTitle}>Container Information</h3>
+                  <div className={styles.metadataGrid}>
+                    <div className={styles.metadataItem}>
+                      <span className={styles.metadataLabel}>Container Name:</span>
+                      <span className={styles.metadataValue}>
+                        {debugInfo.container?.container_name || containerName || "Unknown"}
+                      </span>
+                    </div>
+                    <div className={styles.metadataItem}>
+                      <span className={styles.metadataLabel}>Portainer Instance:</span>
+                      <span className={styles.metadataValue}>
+                        {debugInfo.container?.portainer_name || "Unknown"}
+                      </span>
+                    </div>
+                    <div className={styles.metadataItem}>
+                      <span className={styles.metadataLabel}>Container ID:</span>
+                      <span className={`${styles.metadataValue} ${styles.monoValue}`} title={containerId}>
+                        {containerId}
+                      </span>
+                    </div>
+                    <div className={styles.metadataItem}>
+                      <span className={styles.metadataLabel}>Queried At:</span>
+                      <span className={styles.metadataValue}>
+                        {formatDate(debugInfo.metadata?.queried_at)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Container ID:</span>
-                  <span className={styles.infoValue}>{containerId.substring(0, 12)}...</span>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Portainer:</span>
-                  <span className={styles.infoValue}>
-                    {debugInfo.container?.portainer_name || "Unknown"}
-                  </span>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Queried At:</span>
-                  <span className={styles.infoValue}>
-                    {formatDate(debugInfo.metadata?.queried_at)}
-                  </span>
+
+                {/* Version Comparison Card */}
+                <div className={styles.comparisonCard}>
+                  <h3 className={styles.cardTitle}>Image Digest Comparison</h3>
+                  <div className={styles.comparisonGrid}>
+                    {/* Current Digest */}
+                    <div className={styles.digestColumn}>
+                      <div className={styles.digestHeader}>
+                        <span className={styles.digestLabel}>Current (Deployed)</span>
+                      </div>
+                      <div className={styles.digestBox}>
+                        {debugInfo.deployedImage?.image_digest ? (
+                          <code className={styles.digestCode}>
+                            {debugInfo.deployedImage.image_digest}
+                          </code>
+                        ) : (
+                          <span className={styles.nullValue}>Not available</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* VS Divider */}
+                    <div className={styles.vsDivider}>
+                      <span className={styles.vsText}>VS</span>
+                    </div>
+
+                    {/* Registry Latest Digest */}
+                    <div className={styles.digestColumn}>
+                      <div className={styles.digestHeader}>
+                        <span className={styles.digestLabel}>Registry (Latest)</span>
+                        {debugInfo.deployedImage?.image_digest !==
+                          debugInfo.registryImageVersion?.latest_digest &&
+                          debugInfo.deployedImage?.image_digest &&
+                          debugInfo.registryImageVersion?.latest_digest && (
+                            <span className={styles.updateBadge}>Update Available</span>
+                          )}
+                      </div>
+                      <div
+                        className={`${styles.digestBox} ${
+                          debugInfo.deployedImage?.image_digest !==
+                            debugInfo.registryImageVersion?.latest_digest &&
+                          debugInfo.deployedImage?.image_digest &&
+                          debugInfo.registryImageVersion?.latest_digest
+                            ? styles.digestBoxUpdated
+                            : ""
+                        }`}
+                      >
+                        {debugInfo.registryImageVersion?.latest_digest ? (
+                          <code className={styles.digestCode}>
+                            {debugInfo.registryImageVersion.latest_digest}
+                          </code>
+                        ) : (
+                          <span className={styles.nullValue}>Not available</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Provider Info */}
+                  <div className={styles.providerInfo}>
+                    <div className={styles.providerItem}>
+                      <span className={styles.providerLabel}>Provider:</span>
+                      <span className={styles.providerValue}>
+                        {debugInfo.registryImageVersion?.provider || (
+                          <span className={styles.nullValue}>N/A</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className={styles.providerItem}>
+                      <span className={styles.providerLabel}>Last Checked:</span>
+                      <span className={styles.providerValue}>
+                        {formatDate(debugInfo.registryImageVersion?.last_checked)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className={styles.sectionsContainer}>
-                {renderJsonTable(
-                  debugInfo.container,
-                  "Container Record (containers table)",
-                  "container"
-                )}
-
-                {renderJsonTable(
-                  debugInfo.deployedImage,
-                  "Current Deployed Image (deployed_images table)",
-                  "deployedImage"
-                )}
-
-                {renderArrayTable(
-                  debugInfo.allDeployedImages,
-                  "All Deployed Images for this Image/Tag",
-                  <Package size={18} className={styles.sectionIcon} />,
-                  "allDeployedImages"
-                )}
-
-                {renderJsonTable(
-                  debugInfo.registryImageVersion,
-                  "Registry Image Version (registry_image_versions table)",
-                  "registryImageVersion"
-                )}
-
-                {renderArrayTable(
-                  debugInfo.allRegistryImageVersions,
-                  "All Registry Image Versions for this Image",
-                  <Database size={18} className={styles.sectionIcon} />,
-                  "allRegistryImageVersions"
-                )}
-
+                {/* Upgrade History - Always visible */}
                 {renderArrayTable(
                   debugInfo.upgradeHistory,
                   "Upgrade History",
@@ -407,11 +461,54 @@ function ContainerDebugModal({ containerId, containerName, onClose }) {
                   "upgradeHistory"
                 )}
 
-                {renderArrayTable(
-                  debugInfo.allContainersWithSameName,
-                  "All Containers with Same Name (check for duplicates)",
-                  <AlertCircle size={18} className={styles.sectionIcon} />,
-                  "allContainersWithSameName"
+                {/* Debugging Section - Only visible in developer mode */}
+                {developerModeEnabled && (
+                  <>
+                    <div className={styles.debuggingHeader}>
+                      <Database size={20} className={styles.debuggingIcon} />
+                      <h3 className={styles.debuggingTitle}>Debugging</h3>
+                      <span className={styles.debuggingBadge}>Developer Mode</span>
+                    </div>
+
+                    {renderJsonTable(
+                      debugInfo.container,
+                      "Container Record (containers table)",
+                      "container"
+                    )}
+
+                    {renderJsonTable(
+                      debugInfo.deployedImage,
+                      "Current Deployed Image (deployed_images table)",
+                      "deployedImage"
+                    )}
+
+                    {renderArrayTable(
+                      debugInfo.allDeployedImages,
+                      "All Deployed Images for this Image/Tag",
+                      <Package size={18} className={styles.sectionIcon} />,
+                      "allDeployedImages"
+                    )}
+
+                    {renderJsonTable(
+                      debugInfo.registryImageVersion,
+                      "Registry Image Version (registry_image_versions table)",
+                      "registryImageVersion"
+                    )}
+
+                    {renderArrayTable(
+                      debugInfo.allRegistryImageVersions,
+                      "All Registry Image Versions for this Image",
+                      <Database size={18} className={styles.sectionIcon} />,
+                      "allRegistryImageVersions"
+                    )}
+
+                    {renderArrayTable(
+                      debugInfo.allContainersWithSameName,
+                      "All Containers with Same Name (check for duplicates)",
+                      <AlertCircle size={18} className={styles.sectionIcon} />,
+                      "allContainersWithSameName"
+                    )}
+                  </>
                 )}
               </div>
 
@@ -436,6 +533,7 @@ ContainerDebugModal.propTypes = {
   containerId: PropTypes.string.isRequired,
   containerName: PropTypes.string,
   onClose: PropTypes.func.isRequired,
+  developerModeEnabled: PropTypes.bool,
 };
 
 export default ContainerDebugModal;

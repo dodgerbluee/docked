@@ -86,6 +86,8 @@ AddNewCard.propTypes = {
  * @param {Function} props.onUpgrade - Upgrade handler
  * @param {Function} props.onAddNew - Add new app handler
  * @param {number} props.trackedAppsCount - Total number of tracked apps
+ * @param {boolean} props.isLoading - Whether data is loading
+ * @param {boolean} props.hasLoadedOnce - Whether we've loaded data at least once
  * @param {Function} props.onNavigateToSettings - Handler for navigating to Settings page
  */
 const TrackedAppsContentArea = ({
@@ -101,6 +103,8 @@ const TrackedAppsContentArea = ({
   onUpgrade,
   onAddNew,
   trackedAppsCount = 0,
+  isLoading = false,
+  hasLoadedOnce = false,
   onNavigateToSettings,
 }) => {
   // Render upgrade history tab separately
@@ -239,7 +243,12 @@ const TrackedAppsContentArea = ({
       // UP_TO_DATE and UPDATES tabs should always show their sections
       contentTab === TRACKED_APPS_CONTENT_TABS.ALL ? (
         <div className={styles.emptyState}>
-          {trackedAppsCount === 0 ? (
+          {!hasLoadedOnce ? (
+            // Don't show anything on initial load - prevents flash of empty state
+            <div className={styles.emptyStateMessage}>
+              <p className={styles.emptyStateText}>&nbsp;</p>
+            </div>
+          ) : trackedAppsCount === 0 ? (
             <div className={styles.emptyStateMessage}>
               <p className={styles.emptyStateText}>
                 No tracked apps configured.{" "}
@@ -281,6 +290,8 @@ TrackedAppsContentArea.propTypes = {
   onUpgrade: PropTypes.func.isRequired,
   onAddNew: PropTypes.func.isRequired,
   trackedAppsCount: PropTypes.number,
+  isLoading: PropTypes.bool,
+  hasLoadedOnce: PropTypes.bool,
   onNavigateToSettings: PropTypes.func,
 };
 

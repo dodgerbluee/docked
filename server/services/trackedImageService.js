@@ -84,21 +84,12 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
     latestTag = latestImageInfo.tag || currentTag;
 
     // If the tag is "latest", try to find the actual version tag it points to
+    // NOTE: getTagFromDigest was removed as part of sunsetting the old Docker Hub REST API
+    // This functionality is no longer available - we use the tag as-is from the registry service
     if (latestTag === "latest" && latestDigest) {
-      try {
-        const actualTag = await dockerRegistryService.getTagFromDigest(repo, latestDigest, userId);
-        if (actualTag && actualTag !== "latest" && actualTag.trim() !== "") {
-          latestVersion = actualTag.trim();
-          latestTag = actualTag.trim(); // Use the actual tag for display
-        } else {
-          // If we can't find the actual tag, don't set latestVersion (keep as null)
-          // This means we'll keep the existing stored version
-          latestVersion = null;
-        }
-      } catch (_error) {
-        // If we can't find the actual tag, don't update the version
-        latestVersion = null;
-      }
+      // Previously attempted to resolve "latest" to a semantic version tag
+      // Now we just keep "latest" as the version
+      latestVersion = null; // Don't update version for "latest" tag
     } else if (latestTag && latestTag !== "latest") {
       // For non-latest tags, use the tag as the version
       latestVersion = latestTag;

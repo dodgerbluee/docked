@@ -54,13 +54,13 @@ const LastRunTable = React.memo(function LastRunTable({ latestRunsByJobType }) {
       {/* Error messages */}
       {latestRunsByJobType[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.error_message && (
         <Alert variant="error" className={styles.error}>
-          <strong>Docker Hub Scan Error:</strong>{" "}
+          <strong>Image Version Scan Error:</strong>{" "}
           {latestRunsByJobType[BATCH_JOB_TYPES.DOCKER_HUB_PULL].error_message}
         </Alert>
       )}
       {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.error_message && (
         <Alert variant="error" className={styles.error}>
-          <strong>Tracked Apps Scan Error:</strong>{" "}
+          <strong>App Version Scan Error:</strong>{" "}
           {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK].error_message}
         </Alert>
       )}

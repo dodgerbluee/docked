@@ -145,6 +145,7 @@ class RegistryManager {
       const result = await provider.getLatestDigest(imageRepo, tag, {
         userId: options.userId,
         imageRepo,
+        platform: options.platform, // Pass platform for architecture-specific queries
       });
       return this._processProviderResult(result, provider, tag);
     } catch (error) {

@@ -27,6 +27,16 @@
   --spacing-lg: 20px;
   --spacing-xl: 30px;
   --spacing-2xl: 40px;
+
+  /* Additional Modern UI Colors */
+  --color-primary: #6366f1;
+  --color-blue: #3b82f6;
+  --color-green: #10b981;
+  --color-orange: #f59e0b;
+  --color-red: #ef4444;
+  --color-purple: #a855f7;
+  --color-indigo: #6366f1;
+  --color-warning: #f59e0b;
 }
 
 /* Dark Mode - Dodger Away Colors */

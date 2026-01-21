@@ -233,10 +233,6 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Validation endpoints (public - used during import process)
 router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
-router.post(
-  "/docker-hub/credentials/validate",
-  asyncHandler(authController.validateDockerHubCreds)
-);
 router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
 
 // Protected routes - require authentication
@@ -255,10 +251,8 @@ router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUs
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", asyncHandler(authController.importUserConfig));
 
-// Docker Hub credentials routes (protected)
-router.get("/docker-hub/credentials", asyncHandler(authController.getDockerHubCreds));
-router.post("/docker-hub/credentials", asyncHandler(authController.updateDockerHubCreds));
-router.delete("/docker-hub/credentials", asyncHandler(authController.deleteDockerHubCreds));
+// Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
+// Users should run 'docker login' on the server if authentication is needed
 
 // Container routes
 /**
@@ -1074,86 +1068,6 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
  */
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
 router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
-
-/**
- * @swagger
- * /settings/disable-portainer-page:
- *   get:
- *     summary: Get whether Portainer page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Portainer page disabled status
- *   post:
- *     summary: Set whether Portainer page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - disabled
- *             properties:
- *               disabled:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Setting updated
- */
-router.get(
-  "/settings/disable-portainer-page",
-  asyncHandler(settingsController.getDisablePortainerPageHandler)
-);
-router.post(
-  "/settings/disable-portainer-page",
-  asyncHandler(settingsController.setDisablePortainerPageHandler)
-);
-
-/**
- * @swagger
- * /settings/disable-tracked-apps-page:
- *   get:
- *     summary: Get whether Tracked Apps page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Tracked Apps page disabled status
- *   post:
- *     summary: Set whether Tracked Apps page is disabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - disabled
- *             properties:
- *               disabled:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Setting updated
- */
-router.get(
-  "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.getDisableTrackedAppsPageHandler)
-);
-router.post(
-  "/settings/disable-tracked-apps-page",
-  asyncHandler(settingsController.setDisableTrackedAppsPageHandler)
-);
 
 /**
  * @swagger

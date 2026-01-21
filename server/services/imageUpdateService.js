@@ -302,11 +302,34 @@ async function checkImageUpdates(
     repo,
   });
 
+  // CRITICAL: Get architecture from running container for multi-arch images
+  // This ensures we compare same-arch digests (e.g., amd64 to amd64, not amd64 to arm64)
+  let architecture = null;
+  let platform = null;
+  if (portainerUrl && endpointId && containerDetails?.Image) {
+    try {
+      const portainerService = require("./portainerService");
+      const imageDetails = await portainerService.getImageDetails(
+        portainerUrl,
+        endpointId,
+        containerDetails.Image
+      );
+      if (imageDetails.Architecture && imageDetails.Os) {
+        architecture = imageDetails.Architecture;
+        platform = `${imageDetails.Os}/${imageDetails.Architecture}`;
+        logger.debug(`Detected container architecture: ${platform} for ${repo}:${currentTag}`);
+      }
+    } catch (archError) {
+      logger.debug(`Could not detect architecture for ${repo}:${currentTag}: ${archError.message}`);
+    }
+  }
+
   let latestImageInfo;
   try {
     latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
       userId,
       useFallback: true,
+      platform, // Pass platform for architecture-specific digest lookup
     });
   } catch (error) {
     if (error.isRateLimitExceeded) {

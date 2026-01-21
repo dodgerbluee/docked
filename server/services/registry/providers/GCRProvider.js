@@ -122,11 +122,13 @@ class GCRProvider extends RegistryProvider {
    * @param {string} imageRepo - Image repository
    * @param {string} tag - Image tag
    * @param {string} cacheKey - Cache key
+   * @param {string} platform - Platform string (e.g., "linux/amd64")
    * @returns {Promise<Object|null>} - Result object or null
    */
-  async _tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey) {
-    logger.debug(`[GCR] Trying to get digest for ${imageRef} using crane/skopeo`);
-    const digest = await getImageDigest(imageRef);
+  async _tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey, platform = null) {
+    const platformMsg = platform ? ` for platform ${platform}` : "";
+    logger.debug(`[GCR] Trying to get digest for ${imageRef}${platformMsg} using crane/skopeo`);
+    const digest = await getImageDigest(imageRef, { platform });
 
     if (!digest) {
       return null;
@@ -142,9 +144,10 @@ class GCRProvider extends RegistryProvider {
     this.logOperation("getLatestDigest", imageRepo, {
       tag,
       digest: `${digest.substring(0, 12)}...`,
+      platform,
     });
     logger.info(
-      `[GCR] Successfully got digest for ${imageRepo}:${tag} using crane/skopeo - ${digest.substring(0, 12)}...`
+      `[GCR] Successfully got digest for ${imageRepo}:${tag}${platformMsg} using crane/skopeo - ${digest.substring(0, 12)}...`
     );
     return result;
   }
@@ -396,7 +399,7 @@ class GCRProvider extends RegistryProvider {
 
     try {
       const imageRef = `${imageRepo}:${tag}`;
-      const craneResult = await this._tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey);
+      const craneResult = await this._tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey, options.platform);
       if (craneResult) {
         return craneResult;
       }

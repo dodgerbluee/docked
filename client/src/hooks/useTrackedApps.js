@@ -27,6 +27,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
       : !!(axios.defaults.headers.common["Authorization"] || localStorage.getItem("authToken"));
   const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
   const [trackedApps, setTrackedApps] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if we've loaded data at least once
   const [trackedAppError, setTrackedAppError] = useState("");
   const [trackedAppSuccess, setTrackedAppSuccess] = useState("");
   const [checkingUpdates, setCheckingUpdates] = useState(false);
@@ -42,9 +44,16 @@ export function useTrackedApps(isAuthenticated, authToken) {
     variant: "danger",
   });
 
-  const fetchTrackedApps = useCallback(async () => {
-    if (!hasAuth || !effectiveToken) return;
+  const fetchTrackedApps = useCallback(async (showLoading = false) => {
+    if (!hasAuth || !effectiveToken) {
+      return;
+    }
     try {
+      // Only show loading state if explicitly requested (e.g., user clicks "Check for Updates")
+      // Don't show loading on initial mount - just populate data when it arrives
+      if (showLoading) {
+        setIsLoading(true);
+      }
       const response = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
       if (response.data.success) {
         const apps = response.data.images || [];
@@ -57,6 +66,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
         });
 
         setTrackedApps(sortedApps);
+        setHasLoadedOnce(true); // Mark that we've loaded data at least once
 
         // Set last scan time from the most recent last_checked
         if (apps.length > 0) {
@@ -76,6 +86,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
       }
     } catch (err) {
       console.error("Error fetching tracked apps:", err);
+    } finally {
+      setIsLoading(false);
     }
   }, [hasAuth, effectiveToken]);
 
@@ -88,14 +100,14 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
   const handleTrackedAppModalSuccess = useCallback(
     async (appId) => {
-      await fetchTrackedApps();
+      await fetchTrackedApps(false); // Silent refresh after add/edit
 
       // If we have an app ID, check the version for that specific app
       if (appId) {
         try {
           await axios.post(`${API_BASE_URL}/api/tracked-apps/${appId}/check-update`);
           // Refresh tracked apps after version check to get updated version info
-          await fetchTrackedApps();
+          await fetchTrackedApps(false); // Silent refresh after version check
         } catch (err) {
           // Silently fail - version check is not critical, just a nice-to-have
           console.error("Error checking version for tracked app:", err);
@@ -119,7 +131,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
           try {
             const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/${id}`);
             if (response.data.success) {
-              await fetchTrackedApps();
+              await fetchTrackedApps(false); // Silent refresh after delete
               setConfirmDialog({
                 isOpen: false,
                 title: "",
@@ -196,7 +208,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
               isUpgrade: true, // Flag to indicate this is an explicit upgrade
             });
             if (response.data.success) {
-              await fetchTrackedApps();
+              await fetchTrackedApps(false); // Silent refresh after upgrade
               setConfirmDialog({
                 isOpen: false,
                 title: "",
@@ -273,7 +285,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
       if (response.data.success) {
         // Wait a moment for database updates to complete before fetching
         await new Promise((resolve) => setTimeout(resolve, 500));
-        await fetchTrackedApps();
+        await fetchTrackedApps({ showRefreshing: true });
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately
         setTrackedAppSuccess("success");
@@ -338,7 +350,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
         // Update UI state
-        await fetchTrackedApps();
+        await fetchTrackedApps(false); // Silent refresh after batch check
         setLastScanTime(new Date());
 
         // Update batch run as completed
@@ -403,7 +415,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
             setTimeout(() => setTrackedAppSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);
 
             // Refresh tracked apps to show updated data
-            await fetchTrackedApps();
+            await fetchTrackedApps(false); // Silent refresh after cache clear
           } else {
             setTrackedAppError("Failed to clear latest version data");
           }
@@ -426,6 +438,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
   return {
     // State
     trackedApps,
+    isLoading,
+    hasLoadedOnce,
     trackedAppError,
     trackedAppSuccess,
     checkingUpdates,
