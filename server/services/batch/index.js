@@ -20,22 +20,13 @@ function getBatchManager() {
 function registerHandlers() {
   const manager = getBatchManager();
   
-  // V2 Architecture - Refactored with platform-aware digest comparison
+  // Register Docker Hub Pull Handler
   try {
-    const DockerHubPullHandlerV2 = require("./handlers/DockerHubPullHandlerV2");
-    manager.registerHandler(new DockerHubPullHandlerV2());
-    logger.info("✅ Registered V2 batch handler (refactored architecture)");
+    const DockerHubPullHandler = require("./handlers/DockerHubPullHandler");
+    manager.registerHandler(new DockerHubPullHandler());
+    logger.info("✅ Registered Docker Hub Pull batch handler");
   } catch (error) {
-    logger.error("Error registering DockerHubPullHandlerV2:", error);
-    
-    // Fallback to V1 if V2 fails
-    try {
-      const DockerHubPullHandler = require("./handlers/DockerHubPullHandler");
-      manager.registerHandler(new DockerHubPullHandler());
-      logger.warn("⚠️  Fell back to V1 batch handler");
-    } catch (v1Error) {
-      logger.error("Error registering DockerHubPullHandler (V1):", v1Error);
-    }
+    logger.error("Error registering DockerHubPullHandler:", error);
   }
 
   try {

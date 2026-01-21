@@ -335,6 +335,20 @@
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -372,6 +386,27 @@
   line-height: 1.6;
   display: block;
   width: 100%;
+}
+
+.digestList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.digestList .digestCode {
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.digestList .digestCode:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-secondary);
+  cursor: help;
 }
 
 .digestBoxUpdated .digestCode {

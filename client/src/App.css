@@ -18,7 +18,7 @@
   --success-green-light: #4ade80;
   --border-color: #e0e0e0;
   --shadow: rgba(0, 0, 0, 0.1);
-  --header-bg: linear-gradient(135deg, #005a9c 0%, #003d6b 100%);
+  --header-bg: #ffffff;
 
   /* Spacing Tokens - Design System */
   --spacing-xs: 4px;

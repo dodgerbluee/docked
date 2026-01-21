@@ -53,8 +53,8 @@
 .logo {
   font-size: 1.9rem;
   margin: 0;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-  color: white;
+  text-shadow: none;
+  color: var(--dodger-blue);
   text-align: left;
   font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 700;
@@ -62,6 +62,11 @@
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+
+body.dark-mode .logo {
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .logoImage {
@@ -97,6 +102,16 @@
   max-width: 50%; /* Ensure it doesn't exceed half the available space */
 }
 
+/* Dark mode - keep white (no filter) */
+:global(body.dark-mode) .logoTextImage {
+  filter: none !important;
+}
+
+/* Light mode - make black */
+:global(body:not(.dark-mode)) .logoTextImage {
+  filter: brightness(0) !important;
+}
+
 .logoContainer:hover .logoTextImage {
   transform: translateY(-1px);
 }
@@ -126,7 +141,7 @@
 .notificationButton {
   padding: 0;
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 0;
   cursor: pointer;
@@ -137,6 +152,10 @@
   width: auto;
   height: auto;
   position: relative;
+}
+
+body.dark-mode .notificationButton {
+  color: white;
 }
 
 /* Alarm moves independently when hovered */

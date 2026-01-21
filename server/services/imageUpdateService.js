@@ -152,6 +152,7 @@ function ensureProvider(latestImageInfo, repo, currentTag) {
  * @param {string} currentDigest - Current digest
  * @param {string} currentTag - Current tag
  * @param {Object} storedVersionInfo - Stored version info
+ * @param {Array<string>} repoDigests - RepoDigests array from container
  * @returns {Object} - { hasUpdate, latestDigest, latestTag }
  */
 /**
@@ -207,7 +208,7 @@ function determineUpdateWithStoredInfo(
 }
 
 // eslint-disable-next-line complexity -- Update status calculation requires multiple conditional checks
-function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, storedVersionInfo) {
+function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, storedVersionInfo, repoDigests = null) {
   if (!latestImageInfo) {
     return handleNoLatestImageInfo(storedVersionInfo, currentTag);
   }
@@ -221,7 +222,7 @@ function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, store
     );
   }
 
-  let hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo);
+  let hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo, repoDigests);
 
   if (process.env.DEBUG) {
     logger.debug(
@@ -302,10 +303,11 @@ async function checkImageUpdates(
     repo,
   });
 
-  // CRITICAL: Get architecture from running container for multi-arch images
+  // CRITICAL: Get architecture and RepoDigests from running container for multi-arch images
   // This ensures we compare same-arch digests (e.g., amd64 to amd64, not amd64 to arm64)
   let architecture = null;
   let platform = null;
+  let repoDigests = null;
   if (portainerUrl && endpointId && containerDetails?.Image) {
     try {
       const portainerService = require("./portainerService");
@@ -314,10 +316,21 @@ async function checkImageUpdates(
         endpointId,
         containerDetails.Image
       );
+      logger.info(`Portainer image info for ${containerDetails.Name}: ${JSON.stringify(imageDetails)}`);
       if (imageDetails.Architecture && imageDetails.Os) {
         architecture = imageDetails.Architecture;
         platform = `${imageDetails.Os}/${imageDetails.Architecture}`;
         logger.debug(`Detected container architecture: ${platform} for ${repo}:${currentTag}`);
+      }
+      // Extract and clean RepoDigests for update comparison
+      if (imageDetails.RepoDigests && Array.isArray(imageDetails.RepoDigests)) {
+        // Clean RepoDigests IMMEDIATELY: remove image name prefix (e.g., "postgres@sha256:..." -> "sha256:...")
+        repoDigests = imageDetails.RepoDigests.map(rd => {
+          if (rd.includes('@sha256:')) {
+            return 'sha256:' + rd.split('@sha256:')[1];
+          }
+          return rd; // Already clean
+        });
       }
     } catch (archError) {
       logger.debug(`Could not detect architecture for ${repo}:${currentTag}: ${archError.message}`);
@@ -331,6 +344,7 @@ async function checkImageUpdates(
       useFallback: true,
       platform, // Pass platform for architecture-specific digest lookup
     });
+    logger.info(`Latest image info for ${containerDetails.Name}: ${JSON.stringify(latestImageInfo)}`);
   } catch (error) {
     if (error.isRateLimitExceeded) {
       throw error;
@@ -339,12 +353,16 @@ async function checkImageUpdates(
   }
 
   latestImageInfo = ensureProvider(latestImageInfo, repo, currentTag);
+  // Now repoDigests are already clean, so hasUpdate calculation will work correctly
   const { hasUpdate, latestDigest, latestTag } = calculateUpdateStatus(
     latestImageInfo,
     currentDigest,
     currentTag,
-    storedVersionInfo
+    storedVersionInfo,
+    repoDigests
   );
+
+  logger.info(`${containerDetails.Name} hasUpdate: ${hasUpdate}`);
 
   const latestPublishDate = await getPublishDate(repo, latestTag, hasUpdate, userId);
 
@@ -365,6 +383,7 @@ async function checkImageUpdates(
     existsInRegistry: latestImageInfo !== null,
     provider: latestImageInfo?.provider || null,
     isFallback: latestImageInfo?.isFallback || false,
+    repoDigests: repoDigests, // Already cleaned (without image prefix)
   };
 }
 

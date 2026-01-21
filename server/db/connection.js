@@ -482,6 +482,18 @@ async function initializeDatabase() {
               logger.error("Error creating deployed_images table:", { error: err });
             } else {
               logger.info("Deployed images table ready");
+              // Add repo_digests column if it doesn't exist (migration for multi-arch support)
+              db.run("ALTER TABLE deployed_images ADD COLUMN repo_digests TEXT", (alterErr) => {
+                // Ignore error if column already exists
+                if (alterErr && !alterErr.message.includes("duplicate column")) {
+                  logger.debug(
+                    "repo_digests column may already exist or migration not needed:",
+                    alterErr.message
+                  );
+                } else {
+                  logger.info("Added repo_digests column to deployed_images table");
+                }
+              });
               // Create indexes for deployed_images table
               db.run(
                 "CREATE INDEX IF NOT EXISTS idx_deployed_images_user_id ON deployed_images(user_id)",

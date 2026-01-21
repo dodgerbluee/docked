@@ -379,13 +379,27 @@ function ContainerDebugModal({ containerId, containerName, onClose, developerMod
                 <div className={styles.comparisonCard}>
                   <h3 className={styles.cardTitle}>Image Digest Comparison</h3>
                   <div className={styles.comparisonGrid}>
-                    {/* Current Digest */}
+                    {/* Current Digests (RepoDigests) */}
                     <div className={styles.digestColumn}>
                       <div className={styles.digestHeader}>
                         <span className={styles.digestLabel}>Current (Deployed)</span>
+                        {debugInfo.repoDigests && debugInfo.repoDigests.length > 1 && (
+                          <span className={styles.countBadge}>{debugInfo.repoDigests.length} digests</span>
+                        )}
                       </div>
                       <div className={styles.digestBox}>
-                        {debugInfo.deployedImage?.image_digest ? (
+                        {debugInfo.repoDigests && debugInfo.repoDigests.length > 0 ? (
+                          <div className={styles.digestList}>
+                            {debugInfo.repoDigests.map((repoDigest, idx) => {
+                              // Display full digest including sha256: prefix
+                              return (
+                                <code key={idx} className={styles.digestCode} title={repoDigest}>
+                                  {repoDigest}
+                                </code>
+                              );
+                            })}
+                          </div>
+                        ) : debugInfo.deployedImage?.image_digest ? (
                           <code className={styles.digestCode}>
                             {debugInfo.deployedImage.image_digest}
                           </code>
@@ -404,21 +418,49 @@ function ContainerDebugModal({ containerId, containerName, onClose, developerMod
                     <div className={styles.digestColumn}>
                       <div className={styles.digestHeader}>
                         <span className={styles.digestLabel}>Registry (Latest)</span>
-                        {debugInfo.deployedImage?.image_digest !==
-                          debugInfo.registryImageVersion?.latest_digest &&
-                          debugInfo.deployedImage?.image_digest &&
-                          debugInfo.registryImageVersion?.latest_digest && (
-                            <span className={styles.updateBadge}>Update Available</span>
-                          )}
+                        {(() => {
+                          const latestDigest = debugInfo.registryImageVersion?.latest_digest;
+                          const repoDigests = debugInfo.repoDigests || [];
+                          
+                          if (!latestDigest || repoDigests.length === 0) {
+                            return null;
+                          }
+                          
+                          // Normalize latest digest (remove sha256: prefix)
+                          const normalizedLatest = latestDigest.replace(/^sha256:/, '').toLowerCase();
+                          
+                          // Check if latest digest is NOT in any of the RepoDigests
+                          // RepoDigests are stored as clean "sha256:..." format
+                          const hasUpdate = !repoDigests.some(rd => {
+                            const hash = rd.replace(/^sha256:/, '').toLowerCase();
+                            return hash === normalizedLatest;
+                          });
+                          
+                          return hasUpdate && <span className={styles.updateBadge}>Update Available</span>;
+                        })()}
                       </div>
                       <div
                         className={`${styles.digestBox} ${
-                          debugInfo.deployedImage?.image_digest !==
-                            debugInfo.registryImageVersion?.latest_digest &&
-                          debugInfo.deployedImage?.image_digest &&
-                          debugInfo.registryImageVersion?.latest_digest
-                            ? styles.digestBoxUpdated
-                            : ""
+                          (() => {
+                            const latestDigest = debugInfo.registryImageVersion?.latest_digest;
+                            const repoDigests = debugInfo.repoDigests || [];
+                            
+                            if (!latestDigest || repoDigests.length === 0) {
+                              return "";
+                            }
+                            
+                            // Normalize latest digest (remove sha256: prefix)
+                            const normalizedLatest = latestDigest.replace(/^sha256:/, '').toLowerCase();
+                            
+                            // Check if latest digest is NOT in any of the RepoDigests
+                            // RepoDigests are stored as clean "sha256:..." format
+                            const hasUpdate = !repoDigests.some(rd => {
+                              const hash = rd.replace(/^sha256:/, '').toLowerCase();
+                              return hash === normalizedLatest;
+                            });
+                            
+                            return hasUpdate ? styles.digestBoxUpdated : "";
+                          })()
                         }`}
                       >
                         {debugInfo.registryImageVersion?.latest_digest ? (

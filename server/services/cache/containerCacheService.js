@@ -289,9 +289,10 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
         updateGitLabRepo: dbContainer.updateGitLabRepo,
         noDigest: dbContainer.noDigest,
         lastChecked: dbContainer.lastChecked,
+        repoDigests: dbContainer.repoDigests, // CRITICAL: Include RepoDigests for multi-arch update detection
       };
 
-      // Compute hasUpdate on-the-fly with fresh currentDigest
+      // Compute hasUpdate on-the-fly with fresh currentDigest and RepoDigests
       mergedContainer.hasUpdate = computeHasUpdate(mergedContainer);
 
       // Debug logging for missing updates - log ALL containers with latestDigest to see what's happening
@@ -361,9 +362,10 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
           updateGitLabRepo: updateInfoFromImage.updateGitLabRepo,
           noDigest: updateInfoFromImage.noDigest,
           lastChecked: updateInfoFromImage.lastChecked,
+          repoDigests: updateInfoFromImage.repoDigests, // CRITICAL: Include RepoDigests for multi-arch
         };
 
-        // Compute hasUpdate with the update info
+        // Compute hasUpdate with the update info and RepoDigests
         containerWithUpdates.hasUpdate = computeHasUpdate(containerWithUpdates);
         merged.push(containerWithUpdates);
       } else {
@@ -449,6 +451,7 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
         imageCreatedDate: container.imageCreatedDate,
         usesNetworkMode: container.usesNetworkMode,
         providesNetwork: container.providesNetwork,
+        repoDigests: container.repoDigests, // Preserve existing RepoDigests
       },
       null // No version data update needed
     );

@@ -30,31 +30,33 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         containerId,
         containerName,
         endpointId,
-        imageName,
-        imageRepo,
-        status = null,
-        state = null,
-        stackName = null,
-        currentDigest = null,
-        imageCreatedDate = null,
-        usesNetworkMode = false,
-        providesNetwork = false,
-        imageTag = "latest",
-        registry = null,
-        namespace = null,
-        repository = null,
-      } = containerData;
+      imageName,
+      imageRepo,
+      status = null,
+      state = null,
+      stackName = null,
+      currentDigest = null,
+      imageCreatedDate = null,
+      usesNetworkMode = false,
+      providesNetwork = false,
+      imageTag = "latest",
+      registry = null,
+      namespace = null,
+      repository = null,
+      repoDigests = null,
+    } = containerData;
 
-      // Extract tag from imageName if not provided
-      const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
+    // Extract tag from imageName if not provided
+    const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
 
-      // First, upsert deployed image
-      upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
-        imageCreatedDate,
-        registry,
-        namespace,
-        repository,
-      })
+    // First, upsert deployed image
+    upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
+      imageCreatedDate,
+      registry,
+      namespace,
+      repository,
+      repoDigests,
+    })
         .then((deployedImageId) => {
           // Then upsert container with reference to deployed image
           db.run(
@@ -132,6 +134,7 @@ function upsertContainerWithVersion(
       registry = null,
       namespace = null,
       repository = null,
+      repoDigests = null,
     } = containerData;
 
     // Extract tag from imageName if not provided
@@ -405,6 +408,7 @@ function upsertContainerWithVersion(
               registry,
               namespace,
               repository,
+              repoDigests,
             })
               .then(handleContainerInsertion)
               .catch((err) => {
@@ -509,17 +513,13 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       di.image_created_date,
       di.image_tag,
       di.registry,
+      di.repo_digests,
       riv.latest_digest as dh_latest_digest,
       riv.latest_version as dh_latest_version,
       riv.tag as dh_latest_tag,
       riv.latest_publish_date as dh_latest_publish_date,
       riv.provider as dh_provider,
       riv.last_checked as dh_last_checked,
-      CASE 
-        WHEN di.image_digest IS NOT NULL AND riv.latest_digest IS NOT NULL 
-          AND di.image_digest != riv.latest_digest THEN 1
-        ELSE 0
-      END as dh_has_update,
       CASE
         WHEN di.id IS NOT NULL AND riv.id IS NOT NULL AND riv.latest_digest IS NULL THEN 1
         ELSE 0
@@ -590,6 +590,16 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
       const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
       const mapRowToContainer = (row) => {
+        // Parse repoDigests JSON from database
+        let repoDigests = null;
+        if (row.repo_digests) {
+          try {
+            repoDigests = JSON.parse(row.repo_digests);
+          } catch (parseErr) {
+            logger.debug(`Failed to parse repo_digests for ${row.container_name}: ${parseErr.message}`);
+          }
+        }
+
         // Build container object first
         const containerData = {
           id: row.id,
@@ -619,9 +629,10 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
           lastSeen: row.last_seen,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          repoDigests, // Store parsed RepoDigests for hasUpdate calculation
         };
 
-        // Compute hasUpdate on-the-fly from digests
+        // Compute hasUpdate using stored repoDigests (checks if latest digest is in the array)
         containerData.hasUpdate = computeHasUpdate(containerData);
 
         return containerData;

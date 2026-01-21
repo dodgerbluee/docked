@@ -254,9 +254,10 @@ class RegistryManager {
    * @param {string} currentDigest - Current image digest (or tag if digest unavailable)
    * @param {string} currentTag - Current image tag
    * @param {Object} latestInfo - Latest info from getLatestDigest
+   * @param {Array<string>} repoDigests - Optional array of RepoDigests from container
    * @returns {boolean} - True if update is available
    */
-  hasUpdate(currentDigest, currentTag, latestInfo) {
+  hasUpdate(currentDigest, currentTag, latestInfo, repoDigests = null) {
     if (!latestInfo) {
       return false;
     }
@@ -275,6 +276,23 @@ class RegistryManager {
 
       const normalizedCurrent = normalizeDigest(currentDigest);
       const normalizedLatest = normalizeDigest(latestInfo.digest);
+
+      // CRITICAL: Check if latest digest exists in ANY of the container's RepoDigests
+      // This handles multi-arch images where a container may have multiple digests
+      if (repoDigests && Array.isArray(repoDigests) && repoDigests.length > 0) {
+        // Check if the latest digest exists in any RepoDigest
+        // RepoDigests are stored as clean "sha256:..." format (image prefix already stripped)
+        const latestDigestShort = normalizedLatest.replace("sha256:", "");
+        const hasLatestDigest = repoDigests.some((rd) => {
+          const digestHash = rd.replace("sha256:", "");
+          return digestHash === latestDigestShort;
+        });
+
+        if (hasLatestDigest) {
+          // Container already has the latest digest, no update needed
+          return false;
+        }
+      }
 
       return normalizedCurrent !== normalizedLatest;
     }

@@ -47,26 +47,6 @@ export function validatePortainerStep(credentials, instances) {
 /**
  * Validate Docker Hub credentials step
  */
-export function validateDockerHubStep(credentials) {
-  const errors = {};
-  const dockerHub = credentials?.dockerHub;
-
-  if (dockerHub && (dockerHub.username || dockerHub.token)) {
-    // If any field is filled, both are required
-    if (!dockerHub.username) {
-      errors.dockerhub_username = "Username is required";
-    }
-    if (!dockerHub.token) {
-      errors.dockerhub_token = "Token is required";
-    }
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-  };
-}
-
 /**
  * Validate Discord webhooks step
  */
@@ -98,8 +78,6 @@ export function validateStep(stepType, credentials, password, instances, webhook
       return validatePasswordStep(password);
     case "portainer":
       return validatePortainerStep(credentials?.portainerInstances || [], instances);
-    case "dockerhub":
-      return validateDockerHubStep(credentials);
     case "discord":
       return validateDiscordStep(credentials, webhooks);
     default:

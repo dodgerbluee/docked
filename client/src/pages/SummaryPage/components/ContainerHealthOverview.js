@@ -152,7 +152,7 @@ const ContainerHealthOverview = ({ containers, summaryStats, shouldShowEmptyStat
             </div>
             <div className={styles.legendItem}>
               <span className={`${styles.legendDot} ${styles.needsUpdate}`} />
-              <span className={styles.legendLabel}>Needs Update</span>
+              <span className={styles.legendLabel}>Has Update</span>
             </div>
           </div>
         </div>

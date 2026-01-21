@@ -19,9 +19,12 @@ export function normalizeDigest(digest) {
 
 /**
  * Compute whether a container has an available update
- * Compares current digest with latest digest
+ * 
+ * IMPORTANT: The backend now properly checks RepoDigests for multi-arch images.
+ * This function should trust the backend's hasUpdate calculation when available.
  *
  * @param {Object} container - Container object
+ * @param {boolean} [container.hasUpdate] - Backend-computed hasUpdate (preferred)
  * @param {string} [container.currentDigest] - Current container digest
  * @param {string} [container.currentDigestFull] - Current container digest (full)
  * @param {string} [container.latestDigest] - Latest available digest
@@ -36,36 +39,40 @@ export function normalizeDigest(digest) {
 export function computeHasUpdate(container) {
   if (!container) return false;
 
-  // Get current and latest digests (try both full and short versions)
-  const currentDigest = container.currentDigest || container.currentDigestFull;
-  const latestDigest = container.latestDigest || container.latestDigestFull;
+  // CRITICAL: Trust backend's hasUpdate if provided (backend checks all RepoDigests)
+  // The backend now properly handles multi-arch images by checking if the latest digest
+  // exists in ANY of the container's RepoDigests
+  if (typeof container.hasUpdate === 'boolean') {
+    return container.hasUpdate;
+  }
+
+  // Fallback: compute on frontend if backend didn't provide hasUpdate
+  // Prefer FULL digests for accurate comparison (currentDigest/latestDigest may be truncated)
+  const currentDigest = container.currentDigestFull || container.currentDigest;
+  const latestDigest = container.latestDigestFull || container.latestDigest;
   
-  // Get current and latest versions/tags for comparison
   const currentVersion = container.currentVersion || container.currentTag;
   const latestVersion = container.latestVersion || container.latestTag;
 
-  // If we have both digests, compare them
+  // If we have both digests, compare them (with RepoDigests support)
   if (currentDigest && latestDigest) {
     const normalizedCurrent = normalizeDigest(currentDigest);
     const normalizedLatest = normalizeDigest(latestDigest);
 
     if (normalizedCurrent && normalizedLatest) {
-      const digestsDiffer = normalizedCurrent !== normalizedLatest;
-      
-      if (!digestsDiffer) {
-        return false; // Digests match, no update
+      // Check RepoDigests array for multi-arch support
+      // RepoDigests are stored as clean "sha256:..." format (image prefix already stripped)
+      if (container.repoDigests && Array.isArray(container.repoDigests) && container.repoDigests.length > 0) {
+        const hasLatestDigest = container.repoDigests.some((rd) => {
+          return normalizeDigest(rd) === normalizedLatest;
+        });
+        
+        if (hasLatestDigest) {
+          return false; // Already has latest digest
+        }
       }
       
-      // Digests differ - check if this is a multi-arch false positive
-      // For "latest" tag: digest change is a real update (latest is a moving target)
-      const normalizedCurrentVersion = currentVersion ? String(currentVersion).toLowerCase().trim() : "";
-      if (normalizedCurrentVersion === "latest") {
-        return true;
-      }
-      // For specific version tags (postgres:17, mysql:8.0, etc.) with same version:
-      // Digest difference is likely due to multi-arch manifests, not a real update
-      // Return false to avoid false positives (the batch process now uses architecture-aware fetching)
-      return false;
+      return normalizedCurrent !== normalizedLatest;
     }
   }
 

@@ -117,7 +117,7 @@
 
 /* Color variants for stat values */
 .statItem.updates .statValue.hasUpdates {
-  color: #ef4444; /* Red only when there are updates (> 0) */
+  color: #f59e0b; /* Yellow/orange when there are updates (> 0) */
 }
 
 .statItem.current .statValue {
@@ -125,7 +125,7 @@
 }
 
 .statItem.unused .statValue {
-  color: #9ca3af; /* Grey for unused images */
+  color: #a855f7; /* Purple for unused images */
 }
 
 .statLabel {
@@ -138,7 +138,7 @@
 
 /* Color variants for hover effects */
 .statItem.updates:hover {
-  background: rgba(239, 68, 68, 0.05);
+  background: rgba(245, 158, 11, 0.05);
 }
 
 .statItem.current:hover {
@@ -146,7 +146,7 @@
 }
 
 .statItem.unused:hover {
-  background: rgba(156, 163, 175, 0.05);
+  background: rgba(168, 85, 247, 0.05);
 }
 
 /* Empty State */

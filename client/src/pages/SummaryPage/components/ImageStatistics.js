@@ -105,7 +105,18 @@ const ImageStatistics = ({
             </div>
 
             {imageStats.unused > 0 && (
-              <div className={styles.cleanupTip}>
+              <div 
+                className={`${styles.cleanupTip} ${styles.clickable}`}
+                onClick={onUnusedImagesClick}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onUnusedImagesClick();
+                  }
+                }}
+              >
                 <Trash2 size={16} className={styles.tipIcon} />
                 <div className={styles.tipContent}>
                   <div className={styles.tipTitle}>Cleanup Available</div>

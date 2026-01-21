@@ -755,7 +755,6 @@ async function exportUserConfig(req, res, next) {
     // Collect all user configurations
     const [
       portainerInstances,
-      dockerHubCreds,
       discordWebhooks,
       trackedApps,
       batchConfig,
@@ -764,7 +763,6 @@ async function exportUserConfig(req, res, next) {
       refreshingTogglesEnabled,
     ] = await Promise.all([
       getAllPortainerInstances(user.id),
-      null, // Docker Hub credentials removed - use 'docker login' on server
       getAllDiscordWebhooks(user.id),
       getAllTrackedApps(user.id),
       getBatchConfig(user.id),
@@ -793,13 +791,6 @@ async function exportUserConfig(req, res, next) {
         created_at: instance.created_at,
         updated_at: instance.updated_at,
       })),
-      dockerHubCredentials: dockerHubCreds
-        ? {
-            username: dockerHubCreds.username,
-            created_at: dockerHubCreds.created_at,
-            updated_at: dockerHubCreds.updated_at,
-          }
-        : null,
       discordWebhooks: discordWebhooks.map((webhook) => ({
         id: webhook.id,
         server_name: webhook.server_name,
@@ -1151,7 +1142,6 @@ async function importUserConfig(req, res, next) {
 
     const results = {
       portainerInstances: [],
-      dockerHubCredentials: null,
       discordWebhooks: [],
       trackedApps: [],
       generalSettings: null,
@@ -1172,16 +1162,6 @@ async function importUserConfig(req, res, next) {
       !skippedSteps.includes("portainer")
     ) {
       await importPortainerInstances(configData.portainerInstances, credentials, results, user.id);
-    }
-
-    if (
-      configData.dockerHubCredentials &&
-      credentials?.dockerHub &&
-      !skippedSteps.includes("dockerhub")
-    ) {
-      // Docker Hub credentials import skipped - use 'docker login' on server
-      results.warnings = results.warnings || [];
-      results.warnings.push("Docker Hub credentials: Skipped (use 'docker login' on server)");
     }
 
     if (
