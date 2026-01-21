@@ -6,11 +6,13 @@
     "axios": "^1.6.2",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.562.0",
+    "prop-types": "^15.8.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.11.0",
     "react-scripts": "5.0.1",
-    "react-select": "^5.10.2"
+    "react-select": "^5.10.2",
+    "recharts": "^3.6.0"
   },
   "overrides": {
     "nth-check": "^2.1.1",

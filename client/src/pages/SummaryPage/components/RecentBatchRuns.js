@@ -8,7 +8,7 @@ import styles from "./RecentBatchRuns.module.css";
  * Recent batch runs display component
  */
 const RecentBatchRuns = ({ recentRuns, latestRunsByJobType }) => {
-  const displayRuns = recentRuns.slice(0, 5);
+  const displayRuns = recentRuns; // Show all runs, CSS will handle visible height with scroll
 
   const getStatusIcon = (status) => {
     switch (status) {

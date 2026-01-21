@@ -65,7 +65,7 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
         onPortainerStatClick(CONTENT_TABS.UNUSED);
       }
     },
-    subtext: stats.unusedImages > 0 ? "Can be cleaned up" : null,
+    subtext: null,
   });
 
   heroCards.push({
