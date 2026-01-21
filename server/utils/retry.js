@@ -35,22 +35,7 @@ function createDelay(delayMs) {
  * @returns {Promise<string>}
  */
 async function buildRateLimitMessage(userId) {
-  let message =
-    "Docker Hub rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again.";
-  const needsCredsMessage =
-    " Or configure Docker Hub credentials in Settings for higher rate limits.";
-
-  if (userId) {
-    const { getDockerHubCreds } = require("./dockerHubCreds");
-    const creds = await getDockerHubCreds(userId);
-    if (!creds.username || !creds.token) {
-      message += needsCredsMessage;
-    }
-  } else {
-    message += needsCredsMessage;
-  }
-
-  return message;
+  return "Registry rate limit exceeded. Too many consecutive rate limit errors. Please wait a few minutes before trying again. Tip: Run 'docker login' on your server for higher rate limits.";
 }
 
 /**

@@ -2,8 +2,6 @@ import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import PageVisibilitySection from "./components/PageVisibilitySection";
-import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
 import styles from "./TrackedAppsTab.module.css";
 
 /**
@@ -15,9 +13,6 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
   clearingTrackedAppData,
 }) {
   const [trackedAppConfirm, setTrackedAppConfirm] = useState(false);
-
-  const { disableTrackedAppsPage, updateDisableTrackedAppsPage, refreshSettings } =
-    usePageVisibilitySettings();
 
   const handleClearTrackedAppData = useCallback(async () => {
     if (!onClearTrackedAppData) {
@@ -45,15 +40,6 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Tracked Apps Settings</h3>
       <p className={styles.description}>Manage your tracked app data and configurations.</p>
-
-      <PageVisibilitySection
-        initialDisabled={disableTrackedAppsPage}
-        onUpdate={updateDisableTrackedAppsPage}
-        onRefresh={refreshSettings}
-        title="Page Visibility"
-        checkboxLabel="Display Tracked Apps Page"
-        checkboxNote="When enabled, the Tracked Apps page will be visible. When disabled, the Tracked Apps tab will be hidden from the home page navigation."
-      />
 
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>

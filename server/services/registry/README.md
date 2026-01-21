@@ -226,18 +226,42 @@ registryService.clearCache("nginx", "latest");
 
 ### From `dockerRegistryService`
 
-**Before:**
+The old Docker Hub REST API methods have been removed. Use the new registry service instead:
+
+**Removed (old Docker Hub REST API):**
 
 ```javascript
-const dockerRegistryService = require("./dockerRegistryService");
-const result = await dockerRegistryService.getLatestImageDigest("nginx", "latest", userId);
+// ❌ These functions no longer exist:
+// - dockerRegistryService.getLatestImageDigest()
+// - dockerRegistryService.getTagFromDigest()
+// - dockerRegistryService.getTagPublishDate()
+// - dockerRegistryService.checkImageExistsInDockerHub()
 ```
 
-**After:**
+**Use instead (crane/skopeo via registry protocol):**
 
 ```javascript
 const registryService = require("./services/registry");
 const result = await registryService.getLatestDigest("nginx", "latest", { userId });
+```
+
+**Still available (for container digest extraction):**
+
+```javascript
+const dockerRegistryService = require("./dockerRegistryService");
+
+// Extract digest from running containers via Portainer:
+const digest = await dockerRegistryService.getCurrentImageDigest(
+  containerDetails,
+  imageName,
+  portainerUrl,
+  endpointId,
+  userId
+);
+
+// Detect registry type:
+const registryInfo = dockerRegistryService.detectRegistry("ghcr.io/owner/repo");
+// Returns: { type: "ghcr", repo: "owner/repo" }
 ```
 
 ### Benefits

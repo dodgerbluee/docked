@@ -34,7 +34,6 @@
   display: flex;
   gap: 20px;
   min-height: 600px;
-  margin-top: 24px;
   align-items: flex-start;
 }
 
@@ -168,7 +167,7 @@ body.dark-mode .pullSpinner svg {
 }
 
 .contentTabPanel {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .emptyState {

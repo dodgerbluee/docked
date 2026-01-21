@@ -22,9 +22,6 @@ const {
   createUser,
   updateVerificationToken,
   verifyAndClearToken,
-  getDockerHubCredentials,
-  updateDockerHubCredentials,
-  deleteDockerHubCredentials,
   getAllPortainerInstances,
   getAllDiscordWebhooks,
   getAllTrackedApps,
@@ -51,7 +48,6 @@ const {
   verifyAndClearPendingToken,
   clearPendingToken,
 } = require("../utils/verificationToken");
-const { clearCache } = require("../utils/dockerHubCreds");
 const { generateToken, generateRefreshToken, verifyToken: verifyJWT } = require("../utils/jwt");
 const fs = require("fs");
 const path = require("path");
@@ -668,194 +664,8 @@ async function updateUserUsername(req, res, next) {
   }
 }
 
-/**
- * Get Docker Hub credentials endpoint
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getDockerHubCreds(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const credentials = await getDockerHubCredentials(userId);
-
-    if (!credentials) {
-      return res.json({
-        success: true,
-        credentials: null,
-      });
-    }
-
-    // Return username but mask token for security
-    return res.json({
-      success: true,
-      credentials: {
-        username: credentials.username,
-        hasToken: Boolean(credentials.token),
-        updated_at: credentials.updated_at,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Validate Docker Hub credentials without saving them
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function validateDockerHubCreds(req, res, next) {
-  try {
-    const { username, token } = req.body;
-
-    // Validate input
-    if (!username || username.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Docker Hub username is required",
-      });
-    }
-
-    if (!token || token.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Docker Hub personal access token is required",
-      });
-    }
-
-    // Test authentication by making a request to Docker Hub auth API
-    try {
-      const authUrl = "https://auth.docker.io/token";
-      const params = {
-        service: "registry.docker.io",
-        scope: "repository:library/alpine:pull", // Use a public repo for validation
-      };
-
-      const _response = await axios.get(authUrl, {
-        params,
-        auth: {
-          username: username.trim(),
-          password: token.trim(),
-        },
-        timeout: 10000,
-      });
-
-      // If we get here, authentication succeeded
-      return res.json({
-        success: true,
-        message: "Docker Hub credentials validated successfully",
-      });
-    } catch (authError) {
-      // Authentication failed
-      if (authError.response?.status === 401) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication failed. Please check your username and token.",
-        });
-      }
-      // Other errors (network, timeout, etc.)
-      return res.status(500).json({
-        success: false,
-        error: authError.message || "Failed to validate Docker Hub credentials. Please try again.",
-      });
-    }
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Update Docker Hub credentials endpoint
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-// eslint-disable-next-line complexity -- Complex credential update logic
-async function updateDockerHubCreds(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    const { username, token } = req.body;
-
-    // Validate input
-    if (!username || username.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Docker Hub username is required",
-      });
-    }
-
-    // Get existing credentials if token is not provided
-    let tokenToUse = token && token.trim().length > 0 ? token.trim() : null;
-
-    if (!tokenToUse) {
-      const existingCreds = await getDockerHubCredentials(userId);
-      if (!existingCreds || !existingCreds.token) {
-        return res.status(400).json({
-          success: false,
-          error: "Docker Hub personal access token is required",
-        });
-      }
-      // Use existing token
-      tokenToUse = existingCreds.token;
-    }
-
-    // Update credentials
-    await updateDockerHubCredentials(userId, username.trim(), tokenToUse);
-
-    // Clear cache so new credentials are used immediately
-    clearCache();
-
-    return res.json({
-      success: true,
-      message: "Docker Hub credentials updated successfully",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Delete Docker Hub credentials endpoint
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function deleteDockerHubCreds(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-    await deleteDockerHubCredentials(userId);
-
-    // Clear cache so credentials are removed immediately
-    clearCache();
-
-    return res.json({
-      success: true,
-      message: "Docker Hub credentials deleted successfully",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
+// Docker Hub credential management removed - crane/skopeo use system Docker credentials
+// Users should run 'docker login' on the server if registry authentication is needed
 
 /**
  * Migrate avatar from username-based directory to user ID-based directory
@@ -945,7 +755,6 @@ async function exportUserConfig(req, res, next) {
     // Collect all user configurations
     const [
       portainerInstances,
-      dockerHubCreds,
       discordWebhooks,
       trackedApps,
       batchConfig,
@@ -954,7 +763,6 @@ async function exportUserConfig(req, res, next) {
       refreshingTogglesEnabled,
     ] = await Promise.all([
       getAllPortainerInstances(user.id),
-      getDockerHubCredentials(user.id),
       getAllDiscordWebhooks(user.id),
       getAllTrackedApps(user.id),
       getBatchConfig(user.id),
@@ -983,13 +791,6 @@ async function exportUserConfig(req, res, next) {
         created_at: instance.created_at,
         updated_at: instance.updated_at,
       })),
-      dockerHubCredentials: dockerHubCreds
-        ? {
-            username: dockerHubCreds.username,
-            created_at: dockerHubCreds.created_at,
-            updated_at: dockerHubCreds.updated_at,
-          }
-        : null,
       discordWebhooks: discordWebhooks.map((webhook) => ({
         id: webhook.id,
         server_name: webhook.server_name,
@@ -1113,25 +914,7 @@ async function importPortainerInstances(instances, credentials, results, userId)
   }
 }
 
-/**
- * Import Docker Hub credentials from config
- * @param {Object} user - User object
- * @param {Object} credentials - Credentials object
- * @param {Object} results - Results object to update
- * @returns {Promise<void>}
- */
-async function importDockerHubCredentials(user, credentials, results) {
-  try {
-    await updateDockerHubCredentials(
-      user.id,
-      credentials.dockerHub.username,
-      credentials.dockerHub.token
-    );
-    results.dockerHubCredentials = { username: credentials.dockerHub.username };
-  } catch (error) {
-    results.errors.push(`Docker Hub credentials: ${error.message || "Failed to import"}`);
-  }
-}
+// Docker Hub credentials import removed - use 'docker login' on server instead
 
 /**
  * Import Discord webhooks from config
@@ -1359,7 +1142,6 @@ async function importUserConfig(req, res, next) {
 
     const results = {
       portainerInstances: [],
-      dockerHubCredentials: null,
       discordWebhooks: [],
       trackedApps: [],
       generalSettings: null,
@@ -1380,14 +1162,6 @@ async function importUserConfig(req, res, next) {
       !skippedSteps.includes("portainer")
     ) {
       await importPortainerInstances(configData.portainerInstances, credentials, results, user.id);
-    }
-
-    if (
-      configData.dockerHubCredentials &&
-      credentials?.dockerHub &&
-      !skippedSteps.includes("dockerhub")
-    ) {
-      await importDockerHubCredentials(user, credentials, results);
     }
 
     if (
@@ -2191,10 +1965,6 @@ module.exports = {
   updateUserPassword,
   updateUserUsername,
   getCurrentUser,
-  getDockerHubCreds,
-  validateDockerHubCreds,
-  updateDockerHubCreds,
-  deleteDockerHubCreds,
   exportUserConfig,
   importUserConfig,
   importUsers,

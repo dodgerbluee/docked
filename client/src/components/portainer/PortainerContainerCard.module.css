@@ -17,37 +17,37 @@
 }
 
 .updateAvailable {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 .updateAvailable:hover {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
   border-color: var(--border-color);
 }
 
 body.dark-mode .updateAvailable {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 body.dark-mode .updateAvailable:hover {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 .currentCard {
-  border-left: 2px solid var(--dodger-blue) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 .currentCard:hover {
-  border-left: 2px solid var(--dodger-blue) !important;
+  border-left: 2px solid #10b981 !important;
   border-color: var(--border-color);
 }
 
 body.dark-mode .currentCard {
-  border-left: 2px solid var(--dodger-blue-light) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 body.dark-mode .currentCard:hover {
-  border-left: 2px solid var(--dodger-blue-light) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 .portainerDisabled {
@@ -83,7 +83,7 @@ body.dark-mode .currentCard:hover {
 }
 
 .upgradeIcon {
-  color: var(--success-green);
+  color: #f59e0b;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;

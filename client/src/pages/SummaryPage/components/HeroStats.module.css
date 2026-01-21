@@ -1,0 +1,150 @@
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.heroCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.heroCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.heroCard.clickable {
+  cursor: pointer;
+}
+
+.heroCard.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: currentColor;
+}
+
+.heroCard.clickable:hover::before {
+  opacity: 1;
+}
+
+.heroCard.highlight {
+  animation: pulse 2s infinite;
+  border-color: var(--color-warning);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 150, 50, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 150, 50, 0.3);
+  }
+}
+
+.cardIcon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: currentColor;
+  color: var(--bg-primary);
+  opacity: 0.15;
+}
+
+.heroCard:hover .cardIcon {
+  opacity: 0.25;
+}
+
+.cardIcon svg {
+  color: currentColor;
+  filter: brightness(8);
+}
+
+.cardContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardValue {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.cardLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cardSubtext {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+/* Color variants */
+.colorBlue {
+  color: #3b82f6;
+}
+
+.colorGreen {
+  color: #10b981;
+}
+
+.colorOrange {
+  color: #f59e0b;
+}
+
+.colorPurple {
+  color: #a855f7;
+}
+
+.colorIndigo {
+  color: #6366f1;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .heroStats {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .heroCard {
+    padding: 20px;
+  }
+
+  .cardValue {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .heroStats {
+    grid-template-columns: 1fr;
+  }
+}

@@ -19,9 +19,12 @@ function getBatchManager() {
 // Lazy load and register handlers to avoid initialization issues
 function registerHandlers() {
   const manager = getBatchManager();
+
+  // Register Docker Hub Pull Handler
   try {
     const DockerHubPullHandler = require("./handlers/DockerHubPullHandler");
     manager.registerHandler(new DockerHubPullHandler());
+    logger.info("✅ Registered Docker Hub Pull batch handler");
   } catch (error) {
     logger.error("Error registering DockerHubPullHandler:", error);
   }

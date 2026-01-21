@@ -9,7 +9,6 @@ export function useAppInitialization({
   isAuthenticated,
   authToken,
   fetchColorScheme,
-  fetchDockerHubCredentials,
   fetchContainers,
   fetchPortainerInstances,
   fetchAvatar,
@@ -40,7 +39,6 @@ export function useAppInitialization({
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
       }
       fetchColorScheme();
-      fetchDockerHubCredentials();
       // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
       // Only fetch once on initial mount
       initialFetchDoneRef.current = true;

@@ -55,11 +55,9 @@ export const usePortainerPullStatus = ({
     try {
       setPullingPortainerOnly(true);
       setLocalPullError("");
-      console.log("🔄 Pulling Portainer data only (no Docker Hub)...");
 
       // Use fetchContainers with portainerOnly=true to update all state properly
       await fetchContainers(false, null, true);
-      console.log("✅ Portainer data updated successfully");
     } catch (err) {
       console.error("Error pulling Portainer data:", err);
       setLocalPullError(

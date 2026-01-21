@@ -8,7 +8,6 @@ const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
   PORTAINER: "portainer",
-  DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
 
@@ -49,13 +48,12 @@ export function useCredentialValidation({
     return true;
   }, [currentUser, currentStepType, userPasswords, userCredentials, setUserStepErrors]);
 
-  // Validate credentials with backend (for portainer, dockerhub, discord)
+  // Validate credentials with backend (for portainer, discord)
   const validateCredentialsStep = useCallback(async () => {
     if (!currentUser) return { success: true };
 
     const username = currentUser.username;
     const creds = userCredentials[username] || {};
-    const skippedSteps = userSkippedSteps[username] || new Set();
 
     // Create a separate axios instance for validation requests without auth headers
     const validationAxios = axios.create({
@@ -137,25 +135,6 @@ export function useCredentialValidation({
             };
           }
         }
-      } else if (currentStepType === STEP_TYPES.DOCKERHUB) {
-        // Check if step was skipped - don't validate if skipped
-        if (skippedSteps.has(STEP_TYPES.DOCKERHUB)) {
-          return { success: true };
-        }
-
-        // Only validate if credentials are provided
-        if (creds.dockerHub && creds.dockerHub.username && creds.dockerHub.token) {
-          const response = await validationAxios.post(`/api/docker-hub/credentials/validate`, {
-            username: creds.dockerHub.username,
-            token: creds.dockerHub.token,
-          });
-          if (!response.data.success) {
-            return {
-              success: false,
-              error: response.data.error || "Docker Hub authentication failed",
-            };
-          }
-        }
       } else if (
         currentStepType === STEP_TYPES.DISCORD &&
         creds.discordWebhooks &&
@@ -197,7 +176,7 @@ export function useCredentialValidation({
         error: error.response?.data?.error || "Validation failed",
       };
     }
-  }, [currentUser, currentStepType, userCredentials, userSkippedSteps]);
+  }, [currentUser, currentStepType, userCredentials]);
 
   return {
     validateCurrentStep,

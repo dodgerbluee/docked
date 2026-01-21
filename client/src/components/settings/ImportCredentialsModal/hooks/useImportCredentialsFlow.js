@@ -26,16 +26,14 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
   // Determine what credentials are needed
   const needsPortainerCreds =
     configData?.portainerInstances && configData.portainerInstances.length > 0;
-  const needsDockerHubCreds = configData?.dockerHubCredentials !== null;
   const needsDiscordCreds = configData?.discordWebhooks && configData.discordWebhooks.length > 0;
 
   const steps = useMemo(() => {
     const stepArray = [];
     if (needsPortainerCreds) stepArray.push("portainer");
-    if (needsDockerHubCreds) stepArray.push("dockerhub");
     if (needsDiscordCreds) stepArray.push("discord");
     return stepArray;
-  }, [needsPortainerCreds, needsDockerHubCreds, needsDiscordCreds]);
+  }, [needsPortainerCreds, needsDiscordCreds]);
 
   useEffect(() => {
     if (isOpen) {
@@ -51,12 +49,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
           apiKey: "",
         }));
       }
-      if (needsDockerHubCreds) {
-        initCreds.dockerHub = {
-          username: "",
-          token: "",
-        };
-      }
       if (needsDiscordCreds) {
         initCreds.discordWebhooks = configData.discordWebhooks.map((webhook) => ({
           id: webhook.id,
@@ -70,7 +62,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
       setSkippedSteps(new Set());
       setValidationError("");
     }
-  }, [isOpen, configData, needsPortainerCreds, needsDockerHubCreds, needsDiscordCreds]);
+  }, [isOpen, configData, needsPortainerCreds, needsDiscordCreds]);
 
   const validateStepCredentials = useCallback(
     (step) => {
@@ -126,25 +118,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     return { success: true };
   }, [credentials.portainerInstances, configData]);
 
-  const validateDockerHubCredentials = useCallback(async () => {
-    if (!credentials.dockerHub) {
-      return { success: true };
-    }
-
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/docker-hub/credentials/validate`, {
-        username: credentials.dockerHub.username,
-        token: credentials.dockerHub.token,
-      });
-      return { success: response.data.success, error: null };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.response?.data?.error || "Docker Hub authentication failed",
-      };
-    }
-  }, [credentials.dockerHub]);
-
   const validateDiscordWebhooks = useCallback(async () => {
     if (!credentials.discordWebhooks || credentials.discordWebhooks.length === 0) {
       return { success: true };
@@ -198,8 +171,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
       let validationResult;
       if (currentStepName === "portainer") {
         validationResult = await validatePortainerCredentials();
-      } else if (currentStepName === "dockerhub") {
-        validationResult = await validateDockerHubCredentials();
       } else if (currentStepName === "discord") {
         validationResult = await validateDiscordWebhooks();
       } else {
@@ -226,7 +197,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     steps,
     validateStepCredentials,
     validatePortainerCredentials,
-    validateDockerHubCredentials,
     validateDiscordWebhooks,
     credentials,
     skippedSteps,
@@ -282,8 +252,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
           let validationResult;
           if (currentStepName === "portainer") {
             validationResult = await validatePortainerCredentials();
-          } else if (currentStepName === "dockerhub") {
-            validationResult = await validateDockerHubCredentials();
           } else if (currentStepName === "discord") {
             validationResult = await validateDiscordWebhooks();
           } else {
@@ -314,7 +282,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     skippedSteps,
     validateStepCredentials,
     validatePortainerCredentials,
-    validateDockerHubCredentials,
     validateDiscordWebhooks,
     credentials,
     onConfirm,
@@ -332,25 +299,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     });
     // Clear error for this field
     const errorKey = `portainer_${index}_${field}`;
-    setErrors((prev) => {
-      if (prev[errorKey]) {
-        const updated = { ...prev };
-        delete updated[errorKey];
-        return updated;
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleUpdateDockerHubCred = useCallback((field, value) => {
-    setCredentials((prev) => ({
-      ...prev,
-      dockerHub: {
-        ...prev.dockerHub,
-        [field]: value,
-      },
-    }));
-    const errorKey = `dockerhub_${field}`;
     setErrors((prev) => {
       if (prev[errorKey]) {
         const updated = { ...prev };
@@ -396,7 +344,6 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     handleUnskip,
     handleConfirm,
     handleUpdatePortainerCred,
-    handleUpdateDockerHubCred,
     handleUpdateDiscordCred,
   };
 };

@@ -77,19 +77,8 @@ class DockerHubPullHandler extends JobHandler {
           userId,
         });
 
-        // Check if credentials exist to customize message
-        let defaultMessage = `Docker Hub rate limit exceeded. Processed ${result.itemsChecked} of ${err.totalCount || "unknown"} containers. Please wait ${err.retryAfter || "a few"} seconds before trying again.`;
-        if (userId) {
-          const { getDockerHubCreds } = require("../../../utils/dockerHubCreds");
-          const creds = await getDockerHubCreds(userId);
-          if (!creds.username || !creds.token) {
-            defaultMessage +=
-              " Or configure Docker Hub credentials in Settings for higher rate limits.";
-          }
-        } else {
-          defaultMessage +=
-            " Or configure Docker Hub credentials in Settings for higher rate limits.";
-        }
+        // Registry rate limit message
+        const defaultMessage = `Registry rate limit exceeded. Processed ${result.itemsChecked} of ${err.totalCount || "unknown"} containers. Please wait ${err.retryAfter || "a few"} seconds before trying again. Tip: Run 'docker login' on your server for higher rate limits.`;
 
         result.error = new Error(defaultMessage);
         result.error.isRateLimitExceeded = true;
@@ -100,19 +89,8 @@ class DockerHubPullHandler extends JobHandler {
       }
 
       // Check if credentials exist to customize message
-      let defaultMessage =
-        "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
-      if (userId) {
-        const { getDockerHubCreds } = require("../../../utils/dockerHubCreds");
-        const creds = await getDockerHubCreds(userId);
-        if (!creds.username || !creds.token) {
-          defaultMessage +=
-            " Or configure Docker Hub credentials in Settings for higher rate limits.";
-        }
-      } else {
-        defaultMessage +=
-          " Or configure Docker Hub credentials in Settings for higher rate limits.";
-      }
+      const defaultMessage =
+        "Registry rate limit exceeded. Please wait a few minutes before trying again. Tip: Run 'docker login' on your server for higher rate limits.";
 
       const errorMessage =
         err.isRateLimitExceeded || err.message?.includes("rate limit")

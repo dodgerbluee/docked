@@ -18,7 +18,7 @@
   --success-green-light: #4ade80;
   --border-color: #e0e0e0;
   --shadow: rgba(0, 0, 0, 0.1);
-  --header-bg: linear-gradient(135deg, #005a9c 0%, #003d6b 100%);
+  --header-bg: #ffffff;
 
   /* Spacing Tokens - Design System */
   --spacing-xs: 4px;
@@ -27,6 +27,16 @@
   --spacing-lg: 20px;
   --spacing-xl: 30px;
   --spacing-2xl: 40px;
+
+  /* Additional Modern UI Colors */
+  --color-primary: #6366f1;
+  --color-blue: #3b82f6;
+  --color-green: #10b981;
+  --color-orange: #f59e0b;
+  --color-red: #ef4444;
+  --color-purple: #a855f7;
+  --color-indigo: #6366f1;
+  --color-warning: #f59e0b;
 }
 
 /* Dark Mode - Dodger Away Colors */
@@ -1932,4 +1942,17 @@ body.dark-mode .portainer-sidebar-add:hover {
   .header-content {
     flex-direction: column;
   }
+}
+
+/* Screen reader only content - accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

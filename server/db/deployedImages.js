@@ -14,7 +14,7 @@ const { getDatabase } = require("./connection");
  * @param {string} imageRepo - Image repository
  * @param {string} imageTag - Image tag
  * @param {string} imageDigest - Image digest (SHA256)
- * @param {Object} options - Additional options (imageCreatedDate, registry, namespace, repository)
+ * @param {Object} options - Additional options (imageCreatedDate, registry, namespace, repository, repoDigests)
  * @returns {Promise<number>} - ID of the deployed image record
  */
 // eslint-disable-next-line max-lines-per-function -- Deployed image upsert requires comprehensive database operations
@@ -29,7 +29,14 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
         registry = null,
         namespace = null,
         repository = null,
+        repoDigests = null,
       } = options;
+
+      // Serialize repoDigests array to JSON string for storage
+      const repoDigestsJson =
+        repoDigests && Array.isArray(repoDigests) && repoDigests.length > 0
+          ? JSON.stringify(repoDigests)
+          : null;
 
       // First try to find existing record
       db.get(
@@ -43,27 +50,49 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
           }
 
           if (row) {
-            // Update last_seen for existing record
-            db.run(
-              `UPDATE deployed_images 
-               SET last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            // Update last_seen and repo_digests for existing record
+            // CRITICAL: Only update repo_digests if we have new data (don't overwrite with null)
+            if (repoDigestsJson !== null) {
+              db.run(
+                `UPDATE deployed_images 
+               SET last_seen = CURRENT_TIMESTAMP, 
+                   updated_at = CURRENT_TIMESTAMP,
+                   repo_digests = ?
                WHERE id = ?`,
-              [row.id],
-              (updateErr) => {
-                if (updateErr) {
-                  reject(updateErr);
-                } else {
-                  resolve(row.id);
+                [repoDigestsJson, row.id],
+                (updateErr) => {
+                  if (updateErr) {
+                    reject(updateErr);
+                  } else {
+                    resolve(row.id);
+                  }
                 }
-              }
-            );
+              );
+            } else {
+              // Preserve existing repo_digests when updating (don't overwrite with null)
+              db.run(
+                `UPDATE deployed_images 
+               SET last_seen = CURRENT_TIMESTAMP, 
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+                [row.id],
+                (updateErr) => {
+                  if (updateErr) {
+                    reject(updateErr);
+                  } else {
+                    resolve(row.id);
+                  }
+                }
+              );
+            }
           } else {
             // Insert new record
             db.run(
               `INSERT INTO deployed_images (
                 user_id, image_repo, image_tag, image_digest, image_created_date,
-                registry, namespace, repository, first_seen, last_seen, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                registry, namespace, repository, repo_digests,
+                first_seen, last_seen, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
               [
                 userId,
                 imageRepo,
@@ -73,6 +102,7 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
                 registry,
                 namespace,
                 repository || imageRepo,
+                repoDigestsJson,
               ],
               function (insertErr) {
                 if (insertErr) {

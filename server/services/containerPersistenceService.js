@@ -227,6 +227,7 @@ async function saveContainerToDatabase({
         registry,
         namespace,
         repository,
+        repoDigests: updateInfo?.repoDigests, // Pass RepoDigests array for multi-arch support
         usesNetworkMode: usesNetworkMode || false,
         providesNetwork: providesNetwork || false,
       },

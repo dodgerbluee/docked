@@ -1,0 +1,364 @@
+.historyMetrics {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerIcon {
+  color: var(--color-primary);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metricCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cardIcon {
+  color: var(--color-primary);
+}
+
+.cardTitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Success Rate Section */
+.successRateSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rateDisplay {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.rateValue {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rateValue.color-green {
+  color: #10b981;
+}
+
+.rateValue.color-blue {
+  color: #3b82f6;
+}
+
+.rateValue.color-orange {
+  color: #f59e0b;
+}
+
+.rateValue.color-red {
+  color: #ef4444;
+}
+
+.rateLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rateStats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.rateStat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.successIcon {
+  color: #10b981;
+}
+
+.failedIcon {
+  color: #ef4444;
+}
+
+/* Trend Bar */
+.trendSection {
+  margin-top: 8px;
+}
+
+.trendLabel {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trendBar {
+  display: flex;
+  gap: 4px;
+  height: 24px;
+}
+
+.trendSegment {
+  flex: 1;
+  border-radius: 4px;
+  transition: transform 0.2s ease;
+}
+
+.trendSegment:hover {
+  transform: scaleY(1.2);
+}
+
+.trendSegment.success {
+  background: #10b981;
+}
+
+.trendSegment.failed {
+  background: #ef4444;
+}
+
+.trendSegment.unknown {
+  background: var(--border-color);
+}
+
+/* Distribution Bar */
+.distributionBar {
+  display: flex;
+  height: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.distributionSegment {
+  height: 100%;
+  transition: all 0.5s ease-out;
+}
+
+.distributionSegment.success {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.distributionSegment.needsUpdate {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.statItem {
+  text-align: center;
+}
+
+.statValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Activity Stats */
+.activityStats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activityItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.activityLabel {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.activityValue {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.activityValue.updateBadge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+/* Container Info */
+.containerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.containerName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerVersion {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-family: monospace;
+}
+
+.activityTime {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+.upgradeCount {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 4px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.loading {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Compact Stats Layout */
+.compactStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.compactStatItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.compactStatItem:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.compactStatItem.success {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.compactValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.compactLabel {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .rateStats {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .trendBar {
+    height: 20px;
+    gap: 3px;
+  }
+}

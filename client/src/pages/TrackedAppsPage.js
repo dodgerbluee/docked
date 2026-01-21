@@ -34,6 +34,8 @@ function TrackedAppsPage({
 }) {
   const {
     trackedApps,
+    isLoading,
+    hasLoadedOnce,
     trackedAppError,
     trackedAppSuccess,
     checkingUpdates,
@@ -214,6 +216,8 @@ function TrackedAppsPage({
             onUpgrade={handleUpgrade}
             onAddNew={handleAddNew}
             trackedAppsCount={trackedApps.length}
+            isLoading={isLoading}
+            hasLoadedOnce={hasLoadedOnce}
             onNavigateToSettings={onNavigateToSettings}
           />
 

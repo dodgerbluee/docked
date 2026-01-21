@@ -19,7 +19,7 @@ export function useUserImportState(isOpen) {
 
   // Per-user data storage
   const [userPasswords, setUserPasswords] = useState({}); // { username: password }
-  const [userCredentials, setUserCredentials] = useState({}); // { username: { portainerInstances, dockerHub, discordWebhooks } }
+  const [userCredentials, setUserCredentials] = useState({}); // { username: { portainerInstances, discordWebhooks } }
   const [userSkippedSteps, setUserSkippedSteps] = useState({}); // { username: Set<stepType> }
   const [userStepErrors, setUserStepErrors] = useState({}); // { username: { stepType: error } }
 

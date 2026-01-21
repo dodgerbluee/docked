@@ -1,6 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { Info } from "lucide-react";
-import Card from "../../ui/Card";
 import LoadingSpinner from "../../ui/LoadingSpinner";
 import ConfirmDialog from "../../ui/ConfirmDialog";
 import { useRepositoryAccessTokens } from "../../../hooks/useRepositoryAccessTokens";
@@ -73,33 +71,15 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
   }, []);
 
   return (
-    <div className={styles.container}>
-      {/* Header Section */}
-      <div className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.titleSection}>
-            <h2 className={styles.title}>Repository Access Tokens</h2>
-            <p className={styles.subtitle}>
-              Manage tokens for GitHub and GitLab to enable update checking for your container
-              images
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className={styles.updateSection}>
+      <h3 className={styles.title}>Repository Access Tokens</h3>
+      <p className={styles.description}>
+        Manage tokens for GitHub and GitLab to enable update checking for your container images. Add
+        access tokens for GitHub Container Registry (GHCR) or GitLab Container Registry, then
+        associate these tokens with your container images to enable automatic update detection for
+        private repositories.
+      </p>
 
-      {/* Info Banner */}
-      <Card variant="secondary" padding="md" className={styles.infoBanner}>
-        <div className={styles.infoContent}>
-          <Info size={20} className={styles.infoIcon} />
-          <div className={styles.infoText}>
-            <strong>How it works:</strong> Add access tokens for GitHub Container Registry (GHCR) or
-            GitLab Container Registry. Then associate these tokens with your container images to
-            enable automatic update detection for private repositories.
-          </div>
-        </div>
-      </Card>
-
-      {/* Tokens Section */}
       <div className={styles.tokensSection}>
         {tokensLoading ? (
           <div className={styles.loadingContainer}>

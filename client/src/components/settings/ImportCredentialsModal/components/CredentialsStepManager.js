@@ -5,7 +5,6 @@
 import React from "react";
 import PropTypes from "prop-types";
 import PortainerCredentialsStep from "../ImportCredentialsModal/PortainerCredentialsStep";
-import DockerHubCredentialsStep from "../ImportCredentialsModal/DockerHubCredentialsStep";
 import DiscordCredentialsStep from "../ImportCredentialsModal/DiscordCredentialsStep";
 
 /**
@@ -17,7 +16,6 @@ import DiscordCredentialsStep from "../ImportCredentialsModal/DiscordCredentials
  * @param {Object} props.credentials - Credentials object
  * @param {Object} props.errors - Errors object
  * @param {Function} props.onUpdatePortainerCred - Portainer credential update handler
- * @param {Function} props.onUpdateDockerHubCred - Docker Hub credential update handler
  * @param {Function} props.onUpdateDiscordCred - Discord credential update handler
  */
 const CredentialsStepManager = ({
@@ -27,7 +25,6 @@ const CredentialsStepManager = ({
   credentials,
   errors,
   onUpdatePortainerCred,
-  onUpdateDockerHubCred,
   onUpdateDiscordCred,
 }) => {
   if (steps.length === 0) return null;
@@ -41,14 +38,6 @@ const CredentialsStepManager = ({
           credentials={credentials}
           errors={errors}
           onUpdateCredential={onUpdatePortainerCred}
-        />
-      );
-    case "dockerhub":
-      return (
-        <DockerHubCredentialsStep
-          credentials={credentials}
-          errors={errors}
-          onUpdateCredential={onUpdateDockerHubCred}
         />
       );
     case "discord":
@@ -72,7 +61,6 @@ CredentialsStepManager.propTypes = {
   credentials: PropTypes.object.isRequired,
   errors: PropTypes.object.isRequired,
   onUpdatePortainerCred: PropTypes.func.isRequired,
-  onUpdateDockerHubCred: PropTypes.func.isRequired,
   onUpdateDiscordCred: PropTypes.func.isRequired,
 };
 

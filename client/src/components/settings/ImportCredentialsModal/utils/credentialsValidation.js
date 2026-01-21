@@ -6,7 +6,7 @@ import { validateRequired, validateDiscordWebhookUrl } from "../../../utils/vali
 
 /**
  * Validate a step's credentials
- * @param {string} step - Step name ('portainer', 'dockerhub', 'discord')
+ * @param {string} step - Step name ('portainer', 'discord')
  * @param {Object} credentials - Credentials object
  * @returns {Object} Errors object with field keys and error messages
  */
@@ -25,11 +25,6 @@ export const validateStep = (step, credentials) => {
         if (passwordError) stepErrors[`portainer_${index}_password`] = passwordError;
       }
     });
-  } else if (step === "dockerhub") {
-    const usernameError = validateRequired(credentials.dockerHub?.username, "Username");
-    if (usernameError) stepErrors.dockerhub_username = usernameError;
-    const tokenError = validateRequired(credentials.dockerHub?.token, "Token");
-    if (tokenError) stepErrors.dockerhub_token = tokenError;
   } else if (step === "discord") {
     credentials.discordWebhooks?.forEach((cred, index) => {
       const error = validateDiscordWebhookUrl(cred.webhookUrl);

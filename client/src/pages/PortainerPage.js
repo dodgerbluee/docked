@@ -393,6 +393,7 @@ function PortainerPage({
           containerId={debugModalContainer.id}
           containerName={debugModalContainer.name}
           onClose={() => setDebugModalContainer(null)}
+          developerModeEnabled={developerModeEnabled}
         />
       )}
     </div>

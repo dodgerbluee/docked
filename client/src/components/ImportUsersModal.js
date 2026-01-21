@@ -413,29 +413,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     [currentUser, handleCredentialUpdate]
   );
 
-  // Update credential for current user (wrapper for DockerHub step)
-  const handleDockerHubCredentialUpdate = useCallback(
-    (field, value) => {
-      handleCredentialUpdate((prev) => ({
-        ...prev,
-        dockerHub: { ...prev.dockerHub, [field]: value },
-      }));
-      if (currentUser) {
-        const username = currentUser.username;
-        setUserStepErrors((prev) => {
-          const updated = { ...prev };
-          if (updated[username]) {
-            delete updated[username].dockerhub_username;
-            delete updated[username].dockerhub_token;
-          }
-          return updated;
-        });
-        setError("");
-      }
-    },
-    [currentUser, handleCredentialUpdate, setUserStepErrors, setError]
-  );
-
   // Update credential for current user (wrapper for Discord step)
   const handleDiscordCredentialUpdate = useCallback(
     (index, field, value) => {
@@ -647,7 +624,6 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             onTokenChange={handleTokenChange}
             onPasswordChange={handlePasswordChange}
             onPortainerCredentialUpdate={handlePortainerCredentialUpdate}
-            onDockerHubCredentialUpdate={handleDockerHubCredentialUpdate}
             onDiscordCredentialUpdate={handleDiscordCredentialUpdate}
             onRemoveInstance={handleRemoveInstance}
             setUsersData={setUsersData}

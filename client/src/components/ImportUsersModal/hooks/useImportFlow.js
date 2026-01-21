@@ -7,7 +7,6 @@ const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
   PORTAINER: "portainer",
-  DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
 
@@ -94,10 +93,6 @@ export function useImportFlow({
         const updated = { ...prev };
         if (updated[username]) {
           delete updated[username][stepType];
-          if (stepType === STEP_TYPES.DOCKERHUB) {
-            delete updated[username].dockerhub_username;
-            delete updated[username].dockerhub_token;
-          }
           if (stepType === STEP_TYPES.PORTAINER) {
             Object.keys(updated[username]).forEach((key) => {
               if (key.startsWith("portainer_")) {
@@ -144,9 +139,7 @@ export function useImportFlow({
         }
 
         // For credential steps, validate with backend
-        if (
-          [STEP_TYPES.PORTAINER, STEP_TYPES.DOCKERHUB, STEP_TYPES.DISCORD].includes(currentStepType)
-        ) {
+        if ([STEP_TYPES.PORTAINER, STEP_TYPES.DISCORD].includes(currentStepType)) {
           setLoading(true);
           try {
             const validation = await validateCredentialsStep();
@@ -296,7 +289,6 @@ export function useImportFlow({
 
     // Mark all credential steps as skipped
     skipped.add(STEP_TYPES.PORTAINER);
-    skipped.add(STEP_TYPES.DOCKERHUB);
     skipped.add(STEP_TYPES.DISCORD);
     setUserSkippedSteps((prev) => ({ ...prev, [username]: skipped }));
 

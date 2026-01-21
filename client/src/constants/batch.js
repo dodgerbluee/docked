@@ -20,8 +20,8 @@ export const BATCH_JOB_TYPES = {
 };
 
 export const BATCH_JOB_TYPE_LABELS = {
-  [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: "Docker Hub Scan",
-  [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: "Tracked Apps Scan",
+  [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: "Image Version Scan",
+  [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: "App Version Scan",
 };
 
 export const BATCH_STATUS = {

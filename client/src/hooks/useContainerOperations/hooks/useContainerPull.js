@@ -51,7 +51,6 @@ export const useContainerPull = ({
         setError(null);
         setPullError(null);
         setPullSuccess(null);
-        console.log("🔄 Pulling fresh data from Docker Hub...");
 
         const pullPromise = axios.post(
           `${API_BASE_URL}/api/containers/pull`,
@@ -86,7 +85,7 @@ export const useContainerPull = ({
             setDataFetched(true);
           }
         } catch (cacheErr) {
-          console.log("No cached data available yet");
+          // No cached data available yet - this is expected on first run
         }
 
         const response = await pullPromise;

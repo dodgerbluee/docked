@@ -117,6 +117,12 @@ body.dark-mode .statCard:hover {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.filterGroup:focus-within {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
 }
 
 .filterIcon {
@@ -125,22 +131,72 @@ body.dark-mode .statCard:hover {
 }
 
 .filterSelect {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   background: transparent;
   border: none;
   color: var(--text-primary);
   font-size: 0.95rem;
   cursor: pointer;
   outline: none;
+  padding: 0 20px 0 0;
+  min-width: 120px;
+  font-family: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 12px;
+  color-scheme: light;
 }
 
+body.dark-mode .filterSelect {
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+.filterSelect:focus {
+  outline: none;
+}
+
+/* Force dark styling for options */
 .filterSelect option {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  padding: 8px 12px;
 }
 
+/* Dark mode - force dark options */
 body.dark-mode .filterSelect option {
-  background: #1e1e1e;
-  color: var(--text-primary);
+  background-color: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+/* Webkit-specific (Chrome, Safari, Edge) */
+@supports (-webkit-appearance: none) {
+  body.dark-mode .filterSelect option {
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+
+  body.dark-mode .filterSelect option:checked,
+  body.dark-mode .filterSelect option:hover {
+    background: linear-gradient(#1e88e5, #1e88e5);
+    background-color: #1e88e5;
+    color: #ffffff;
+  }
+}
+
+/* Firefox-specific */
+@-moz-document url-prefix() {
+  body.dark-mode .filterSelect option {
+    background-color: #1a1a1a;
+    color: #ffffff;
+  }
+
+  body.dark-mode .filterSelect option:checked {
+    background-color: #1e88e5;
+  }
 }
 
 .sortButton {

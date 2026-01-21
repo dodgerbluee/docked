@@ -75,20 +75,28 @@
 .username-text {
   font-size: 1.035rem;
   opacity: 0.95;
-  color: white;
+  color: var(--text-primary);
   line-height: 1.2;
   font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 500;
 }
 
+body.dark-mode .username-text {
+  color: white;
+}
+
 .user-role-text {
   font-size: 0.805rem;
   opacity: 0.8;
-  color: white;
+  color: var(--text-primary);
   line-height: 1.2;
   margin-top: 2px;
   font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   font-weight: 500;
+}
+
+body.dark-mode .user-role-text {
+  color: white;
 }
 
 .avatar-menu {

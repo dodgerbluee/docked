@@ -40,18 +40,18 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     handleImageNameClick,
   } = useContainerImageInfo(container);
 
-  // Handle container name click - open debug modal in developer mode, otherwise copy to clipboard
+  // Handle container name click - open container details modal
   const handleContainerNameClick = useCallback(
     async (e) => {
       e.stopPropagation();
 
-      // If developer mode is enabled, open debug modal
-      if (developerModeEnabled && container.id && onOpenDebugModal) {
+      // Always open container details modal if available
+      if (container.id && onOpenDebugModal) {
         onOpenDebugModal({ id: container.id, name: container.name });
         return;
       }
 
-      // Otherwise, copy to clipboard
+      // Fallback: copy to clipboard if modal handler not available
       if (container.name) {
         try {
           await navigator.clipboard.writeText(container.name);
@@ -62,7 +62,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         }
       }
     },
-    [container.name, container.id, developerModeEnabled, onOpenDebugModal]
+    [container.name, container.id, onOpenDebugModal]
   );
 
   // Handle card click to open upgrade/rebuild modal

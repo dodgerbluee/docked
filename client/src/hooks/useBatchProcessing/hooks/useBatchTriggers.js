@@ -16,8 +16,6 @@ import { updateContainersWithPreservedState } from "../../../utils/containerStat
  * @param {Function} params.setPulling - Set pulling state function
  * @param {Function} params.setError - Set error function
  * @param {Function} params.setLastPullTime - Set last pull time function
- * @param {Function} params.fetchDockerHubCredentials - Fetch Docker Hub credentials function
- * @param {Object} params.dockerHubCredentials - Docker Hub credentials
  * @param {Function} params.fetchTrackedApps - Fetch tracked images function
  * @returns {Object} Batch trigger handlers
  */
@@ -27,8 +25,6 @@ export const useBatchTriggers = ({
   setPulling,
   setError,
   setLastPullTime,
-  fetchDockerHubCredentials,
-  dockerHubCredentials,
   fetchTrackedApps,
 }) => {
   const {
@@ -147,7 +143,7 @@ export const useBatchTriggers = ({
       // Fetch unused images
       await fetchUnusedImages();
     } catch (err) {
-      await handleDockerHubError(err, fetchDockerHubCredentials, dockerHubCredentials, (msg) => {
+      await handleDockerHubError(err, (msg) => {
         setError(msg);
       });
       console.error("Error in batch pull:", err);
@@ -166,8 +162,6 @@ export const useBatchTriggers = ({
     setLastPullTime,
     fetchUnusedImages,
     successfullyUpdatedContainersRef,
-    fetchDockerHubCredentials,
-    dockerHubCredentials,
   ]);
 
   const handleBatchTrackedAppsCheck = useCallback(async () => {

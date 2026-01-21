@@ -10,13 +10,6 @@ import styles from "./ErrorModal.module.css";
  * Displays error messages in a modal dialog with modern styling
  */
 function ErrorModal({ isOpen, onClose, title, message, containerName, details }) {
-  // Debug: Force modal to show
-  React.useEffect(() => {
-    if (isOpen) {
-      console.log("🔴 ErrorModal should be visible:", { isOpen, title, message });
-    }
-  }, [isOpen, title, message]);
-
   if (!isOpen) return null;
 
   return (

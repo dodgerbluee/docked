@@ -5,8 +5,6 @@ import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
-import { usePageVisibilitySettings } from "../../hooks/usePageVisibilitySettings";
-import PageVisibilitySection from "./components/PageVisibilitySection";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -23,12 +21,6 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
-
-  const {
-    disablePortainerPage: initialDisablePortainerPage,
-    updateDisablePortainerPage,
-    refreshSettings,
-  } = usePageVisibilitySettings();
 
   const handleDeleteClick = useCallback((instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -148,17 +140,6 @@ const PortainerTab = React.memo(function PortainerTab({
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-      />
-
-      <div className={styles.sectionDivider} />
-
-      <PageVisibilitySection
-        initialDisabled={initialDisablePortainerPage}
-        onUpdate={updateDisablePortainerPage}
-        onRefresh={refreshSettings}
-        title="Page Visibility"
-        checkboxLabel="Display Portainer Page"
-        checkboxNote="When enabled, the Portainer page will be visible. When disabled, the Portainer tab will be hidden from the home page navigation."
       />
 
       <div className={styles.dataManagement}>

@@ -8,7 +8,6 @@ import LoadingSpinner from "../../ui/LoadingSpinner";
 import GeneralTab from "../GeneralTab";
 import PortainerTab from "../PortainerTab";
 import TrackedAppsTab from "../TrackedAppsTab";
-import DockerHubTab from "../DockerHubTab";
 import DiscordTab from "../DiscordTab";
 import UserDetailsTab from "../UserDetailsTab";
 import RepositoriesTab from "../RepositoriesTab";
@@ -91,18 +90,7 @@ const SettingsTabs = ({
     );
   }
 
-  if (currentActiveSection === SETTINGS_TABS.DOCKERHUB) {
-    return (
-      <DockerHubTab
-        dockerHubCredentials={settings.dockerHubCredentials}
-        showDockerHubModal={settings.showDockerHubModal}
-        setShowDockerHubModal={settings.setShowDockerHubModal}
-        dockerHubSuccess={settings.dockerHubSuccess}
-        handleDockerHubModalSuccess={settings.handleDockerHubModalSuccess}
-        handleDeleteDockerHubCreds={settings.handleDeleteDockerHubCreds}
-      />
-    );
-  }
+  // Docker Hub tab removed - credentials no longer stored
 
   if (currentActiveSection === SETTINGS_TABS.DISCORD) {
     return (

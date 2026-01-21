@@ -13,7 +13,6 @@ const gitlabService = require("./gitlabService");
 const { updateTrackedApp } = require("../db/index");
 const logger = require("../utils/logger");
 const axios = require("axios");
-const { getDockerHubCreds } = require("../utils/dockerHubCreds");
 const { rateLimitDelay } = require("../utils/rateLimiter");
 // Lazy load discordService to avoid loading issues during module initialization
 let discordService = null;
@@ -39,9 +38,8 @@ function getDiscordService() {
 // eslint-disable-next-line max-lines-per-function, complexity -- Docker Hub tag retrieval requires comprehensive parsing logic
 async function getLatestVersionFromDockerHubTags(imageRepo, userId) {
   try {
-    // Rate limit delay
-    const creds = await getDockerHubCreds(userId);
-    const delay = creds.token && creds.username ? 500 : 1000;
+    // Rate limit delay - conservative delay since we don't track credentials anymore
+    const delay = 1000; // Use 1000ms delay (crane/skopeo handle auth via system Docker config)
     await rateLimitDelay(delay);
 
     // Parse namespace and repository

@@ -27,12 +27,6 @@ export function initializeUserCredentials(user) {
     credentials.portainerInstances = [];
   }
 
-  // Always initialize Docker Hub credentials structure
-  credentials.dockerHub = {
-    username: user.dockerHubCredentials?.username || "",
-    token: "",
-  };
-
   // Always initialize Discord webhooks structure
   if (
     user.discordWebhooks &&
@@ -70,14 +64,6 @@ export function calculateUserSteps(user, isInstanceAdmin) {
     user.portainerInstances.length > 0
   ) {
     steps.push("portainer");
-  }
-
-  // Only include Docker Hub step if credentials exist in import file
-  if (
-    user.dockerHubCredentials &&
-    (user.dockerHubCredentials.username || user.dockerHubCredentials.token)
-  ) {
-    steps.push("dockerhub");
   }
 
   // Only include Discord step if webhooks exist in import file

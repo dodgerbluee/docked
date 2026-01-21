@@ -18,16 +18,12 @@ export const isRateLimitError = (err) => {
 };
 
 /**
- * Gets an appropriate error message for Docker Hub rate limit errors
+ * Gets an appropriate error message for registry rate limit errors
  * @param {Error} err - The error object
- * @param {boolean} hasCredentials - Whether Docker Hub credentials are configured
  * @returns {string} The error message
  */
-export const getRateLimitErrorMessage = (err, hasCredentials = false) => {
-  if (hasCredentials) {
-    return "Docker Hub rate limit exceeded. Please wait a few minutes before trying again.";
-  }
-  return "Docker Hub rate limit exceeded. Please wait a few minutes before trying again, or configure Docker Hub credentials in Settings for higher rate limits.";
+export const getRateLimitErrorMessage = (err) => {
+  return "Registry rate limit exceeded. Please wait a few minutes before trying again. Tip: Run 'docker login' on your server for higher rate limits.";
 };
 
 /**
@@ -41,28 +37,16 @@ export const extractErrorMessage = (err, defaultMessage = "An error occurred") =
 };
 
 /**
- * Handles Docker Hub API errors with consistent messaging
+ * Handles registry API errors with consistent messaging
  * @param {Error} err - The error object
- * @param {Function} fetchDockerHubCredentials - Function to fetch Docker Hub credentials
- * @param {Object} dockerHubCredentials - Current Docker Hub credentials (if available)
  * @param {Function} setError - Function to set the error state
  * @returns {string} The error message that was set
  */
-export const handleDockerHubError = async (
-  err,
-  fetchDockerHubCredentials,
-  dockerHubCredentials,
-  setError
-) => {
+export const handleDockerHubError = async (err, setError) => {
   let errorMessage = "Failed to pull container data";
 
   if (isRateLimitError(err)) {
-    // Try to fetch current credentials to determine the message
-    const currentCreds = fetchDockerHubCredentials
-      ? await fetchDockerHubCredentials().catch(() => null)
-      : null;
-    const hasCredentials = currentCreds || dockerHubCredentials;
-    errorMessage = getRateLimitErrorMessage(err, hasCredentials);
+    errorMessage = getRateLimitErrorMessage(err);
   } else {
     errorMessage = extractErrorMessage(err, "Failed to pull container data");
   }

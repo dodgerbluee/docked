@@ -45,23 +45,16 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
         if (instanceUrl) {
           setLoadingInstances((prev) => new Set(prev).add(instanceUrl));
         } else {
-          // Only show loading if explicitly requested (e.g., on pull) or if we have no data
-          // When refreshUpdates is true, we're refreshing to detect manual upgrades, so don't show loading
-          // to avoid flickering - the data will update quickly
-          if (showLoading && containers.length === 0 && !refreshUpdates) {
+          // Only show loading if:
+          // 1. Explicitly requested (showLoading = true)
+          // 2. AND we have no data (containers.length === 0)
+          // 3. AND not refreshing (refreshUpdates = false)
+          // 4. AND we haven't fetched data before (dataFetched = false)
+          // This prevents showing loading screen when we have cached data or after initial load
+          if (showLoading && containers.length === 0 && !refreshUpdates && !dataFetched) {
             setLoading(true);
           }
         }
-
-        console.log(
-          instanceUrl
-            ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
-            : portainerOnly
-              ? refreshUpdates
-                ? "🔄 Fetching containers from Portainer and re-evaluating update status..."
-                : "🔄 Fetching containers from Portainer"
-              : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
-        );
 
         // Backend will automatically fetch from Portainer if no cache exists
         // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
@@ -214,6 +207,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
       portainerInstancesFromAPI,
       fetchUnusedImages,
       successfullyUpdatedContainersRef,
+      dataFetched,
     ]
   );
 
