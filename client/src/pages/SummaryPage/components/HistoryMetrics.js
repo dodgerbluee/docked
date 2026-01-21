@@ -132,12 +132,6 @@ const HistoryMetrics = () => {
     return topUpgradedContainers.slice(0, 3);
   }, [topUpgradedContainers]);
 
-  // Calculate weekly upgrade volume
-  const weeklyVolume = useMemo(() => {
-    if (!sparklineData || sparklineData.length === 0) return [];
-    return sparklineData.map((day) => day.count);
-  }, [sparklineData]);
-
   // Process tracked app data - top upgraded apps
   const topUpgradedTrackedApps = useMemo(() => {
     if (!trackedAppHistory || trackedAppHistory.length === 0) return [];

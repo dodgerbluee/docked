@@ -6,7 +6,6 @@ import {
   RefreshCw,
   CheckCircle,
   AlertCircle,
-  TrendingUp,
   ArrowUp,
   XCircle,
 } from "lucide-react";
