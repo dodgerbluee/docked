@@ -20,8 +20,11 @@ data/users.db
 data/users.db-journal
 data/users.db-shm
 data/users.db-wal
+<<<<<<< Updated upstream
 data/*.sqlite
 data/*.sqlite-*
+=======
+>>>>>>> Stashed changes
 data/avatars/
 
 # IDE

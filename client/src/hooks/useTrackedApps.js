@@ -407,12 +407,10 @@ export function useTrackedApps(isAuthenticated, authToken) {
         try {
           setClearingGitHubCache(true);
           setTrackedAppError(null);
-          console.log("🗑️ Clearing latest version data for tracked apps...");
 
           const response = await axios.delete(`${API_BASE_URL}/api/tracked-apps/cache`);
 
           if (response.data && response.data.success) {
-            console.log("✅ Latest version data cleared successfully");
             const message = response.data.message || "Latest version data cleared successfully";
             setTrackedAppSuccess(message);
             setTimeout(() => setTrackedAppSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);

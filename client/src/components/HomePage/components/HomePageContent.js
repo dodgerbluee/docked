@@ -244,13 +244,7 @@ const HomePageContent = ({
 
             <RateLimitError
               error={error}
-              dockerHubCredentials={dockerHubCredentials}
               onDismiss={() => setError(null)}
-              onNavigateToDockerHubSettings={() => {
-                setError(null);
-                setActiveTab(TAB_NAMES.SETTINGS);
-                setSettingsTab(SETTINGS_TABS.DOCKERHUB);
-              }}
               onRetry={handlePull}
               pulling={pulling}
               loading={loading}

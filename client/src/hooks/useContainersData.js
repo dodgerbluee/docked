@@ -56,16 +56,6 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           }
         }
 
-        console.log(
-          instanceUrl
-            ? `🔄 Fetching containers for instance ${instanceUrl} from Portainer...`
-            : portainerOnly
-              ? refreshUpdates
-                ? "🔄 Fetching containers from Portainer and re-evaluating update status..."
-                : "🔄 Fetching containers from Portainer"
-              : "🔄 Fetching containers from API (will use cached data if available, or fetch from Portainer if not)..."
-        );
-
         // Backend will automatically fetch from Portainer if no cache exists
         // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
         // If refreshUpdates is true, also re-evaluate update status
