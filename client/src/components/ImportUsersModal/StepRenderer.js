@@ -3,7 +3,6 @@ import PropTypes from "prop-types";
 import InstanceAdminVerificationStep from "./InstanceAdminVerificationStep";
 import PasswordStep from "./PasswordStep";
 import PortainerCredentialsStep from "../settings/ImportCredentialsModal/PortainerCredentialsStep";
-import DockerHubCredentialsStep from "../settings/ImportCredentialsModal/DockerHubCredentialsStep";
 import DiscordCredentialsStep from "../settings/ImportCredentialsModal/DiscordCredentialsStep";
 
 // Step types
@@ -11,7 +10,6 @@ const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
   PORTAINER: "portainer",
-  DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
 
@@ -37,7 +35,6 @@ function StepRenderer({
   onTokenChange,
   onPasswordChange,
   onPortainerCredentialUpdate,
-  onDockerHubCredentialUpdate,
   onDiscordCredentialUpdate,
   onRemoveInstance,
   setUsersData,
@@ -124,24 +121,6 @@ function StepRenderer({
     );
   }
 
-  if (stepType === STEP_TYPES.DOCKERHUB) {
-    // Only show Docker Hub step if credentials exist in import file
-    const hasDockerHubData =
-      currentUser?.dockerHubCredentials &&
-      (currentUser.dockerHubCredentials.username || currentUser.dockerHubCredentials.token);
-    if (!hasDockerHubData) {
-      return null; // Step should have been auto-skipped
-    }
-
-    return (
-      <DockerHubCredentialsStep
-        credentials={creds}
-        errors={errors}
-        onUpdateCredential={onDockerHubCredentialUpdate}
-      />
-    );
-  }
-
   if (stepType === STEP_TYPES.DISCORD) {
     const webhooks = currentUser?.discordWebhooks || [];
     // This step should only appear if webhooks exist (auto-skipped if not)
@@ -181,7 +160,6 @@ StepRenderer.propTypes = {
   onTokenChange: PropTypes.func.isRequired,
   onPasswordChange: PropTypes.func.isRequired,
   onPortainerCredentialUpdate: PropTypes.func.isRequired,
-  onDockerHubCredentialUpdate: PropTypes.func.isRequired,
   onDiscordCredentialUpdate: PropTypes.func.isRequired,
   onRemoveInstance: PropTypes.func.isRequired,
   setUsersData: PropTypes.func.isRequired,

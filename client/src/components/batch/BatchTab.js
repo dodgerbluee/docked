@@ -84,7 +84,7 @@ const BatchTab = React.memo(function BatchTab({
                 }
                 className={styles.checkbox}
               />
-              <span>Enable automatic Docker Hub scanning</span>
+              <span>Enable automatic image version scanning</span>
             </label>
           </div>
           {localConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled && (

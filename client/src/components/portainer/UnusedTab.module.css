@@ -81,7 +81,7 @@ body.dark-mode .stackCount {
 .imageCard {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-left: 2px solid var(--dodger-red) !important;
+  border-left: 2px solid #a855f7 !important;
   border-radius: 8px;
   padding: 16px;
   transition:
@@ -96,16 +96,16 @@ body.dark-mode .stackCount {
 .imageCard:hover {
   transform: translateY(-3px);
   box-shadow: 0 4px 12px var(--shadow);
-  border-left: 2px solid var(--dodger-red) !important;
+  border-left: 2px solid #a855f7 !important;
   border-color: var(--border-color);
 }
 
 body.dark-mode .imageCard {
-  border-left: 2px solid var(--dodger-red) !important;
+  border-left: 2px solid #a855f7 !important;
 }
 
 body.dark-mode .imageCard:hover {
-  border-left: 2px solid var(--dodger-red) !important;
+  border-left: 2px solid #a855f7 !important;
 }
 
 .clickableCard {

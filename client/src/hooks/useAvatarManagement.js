@@ -25,13 +25,9 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
     try {
       isFetchingRef.current = true;
 
-      // Use a stable cache key instead of Date.now() to prevent unnecessary re-fetches
-      // Only cache bust if we don't have a blob URL already
-      const currentAvatar = avatarRef.current;
-      const cacheBustUrl =
-        currentAvatar && currentAvatar.startsWith("blob:")
-          ? `/api/avatars`
-          : `/api/avatars?t=${Date.now()}`;
+      // ALWAYS use cache-busting to ensure fresh avatar after upload
+      // Browser caching can prevent new avatars from displaying
+      const cacheBustUrl = `/api/avatars?t=${Date.now()}`;
 
       const response = await axios.get(`${API_BASE_URL}${cacheBustUrl}`, {
         responseType: "blob",
@@ -39,6 +35,7 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
       const avatarUrl = URL.createObjectURL(response.data);
 
       // Clean up old blob URL if it exists
+      const currentAvatar = avatarRef.current;
       if (currentAvatar && currentAvatar.startsWith("blob:")) {
         URL.revokeObjectURL(currentAvatar);
       }
@@ -95,10 +92,14 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
         setAvatar(newAvatar);
       } else {
         // If it's an API URL, fetch it as a blob to include authentication
-        const avatarUrl =
+        // Add cache-busting to ensure fresh avatar after upload
+        let avatarUrl =
           newAvatar.startsWith("/api/") || newAvatar.startsWith("api/")
             ? `${API_BASE_URL}${newAvatar.startsWith("/") ? newAvatar : `/${newAvatar}`}`
             : `${API_BASE_URL}${newAvatar}`;
+
+        // Add cache-busting parameter to prevent browser caching
+        avatarUrl += `${avatarUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
 
         try {
           const response = await axios.get(avatarUrl, {

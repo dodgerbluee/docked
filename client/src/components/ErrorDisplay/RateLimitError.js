@@ -9,15 +9,7 @@ import rateLimitStyles from "../RateLimitError.module.css";
  * RateLimitError component
  * Displays Docker Hub rate limit errors with appropriate actions
  */
-const RateLimitError = ({
-  error,
-  dockerHubCredentials,
-  onDismiss,
-  onNavigateToDockerHubSettings,
-  onRetry,
-  pulling,
-  loading,
-}) => {
+const RateLimitError = ({ error, onDismiss, onRetry, pulling, loading }) => {
   if (!error) return null;
 
   const isRateLimit = error.includes("rate limit") || error.includes("Rate limit");
@@ -43,17 +35,11 @@ const RateLimitError = ({
     <Modal isOpen={true} onClose={onDismiss} title="⚠️ Docker Hub Rate Limit Exceeded" size="md">
       <div className={rateLimitStyles.rateLimitContent}>
         <p className={rateLimitStyles.rateLimitMessage}>{error}</p>
+        <p className={rateLimitStyles.rateLimitHint}>
+          To avoid rate limits, configure Docker Hub authentication on your host machine using{" "}
+          <code>docker login</code>.
+        </p>
         <div className={rateLimitStyles.rateLimitActions}>
-          {!dockerHubCredentials && (
-            <Button
-              onClick={onNavigateToDockerHubSettings}
-              variant="outline"
-              size="sm"
-              className={rateLimitStyles.configureButton}
-            >
-              Configure Docker Hub Credentials
-            </Button>
-          )}
           <Button
             onClick={onDismiss}
             variant="outline"
@@ -70,9 +56,7 @@ const RateLimitError = ({
 
 RateLimitError.propTypes = {
   error: PropTypes.string,
-  dockerHubCredentials: PropTypes.object, // Can be null or an object
   onDismiss: PropTypes.func.isRequired,
-  onNavigateToDockerHubSettings: PropTypes.func.isRequired,
   onRetry: PropTypes.func.isRequired,
   pulling: PropTypes.bool,
   loading: PropTypes.bool,

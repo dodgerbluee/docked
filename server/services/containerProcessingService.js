@@ -137,17 +137,9 @@ async function processContainer({
       stack: process.env.DEBUG ? error.stack : undefined,
     });
     // Return a basic container object without update info
-    // Try to check if image exists in registry even if update check failed
-    let existsInDockerHub = false;
-    try {
-      const imageName = container.Image || "unknown";
-      const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
-      const repo = imageParts[0];
-      existsInDockerHub = await dockerRegistryService.checkImageExistsInDockerHub(repo, userId);
-    } catch (_error) {
-      // Silently continue - assume false if check fails
-      existsInDockerHub = false;
-    }
+    // NOTE: checkImageExistsInDockerHub was removed as part of sunsetting the old Docker Hub REST API
+    // We now assume all images exist in some registry (crane/skopeo will handle the check)
+    const existsInDockerHub = false; // Legacy field, no longer checked
 
     return {
       id: container.Id,

@@ -192,9 +192,10 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
     updateGitLabRepo,
     noDigest: dbContainer.noDigest || false, // Flag: container was checked but no digest was returned
     lastChecked: dbContainer.lastChecked || null, // When the registry was last checked for this image
+    repoDigests: dbContainer.repoDigests || null, // RepoDigests array for multi-arch update detection
   };
 
-  // Compute hasUpdate on-the-fly from digests
+  // Compute hasUpdate on-the-fly from digests (uses repoDigests for multi-arch support)
   container.hasUpdate = computeHasUpdate(container);
 
   return container;
@@ -282,9 +283,10 @@ function formatContainerFromPortainer({
     updateGitLabRepo,
     noDigest: updateInfo?.noDigest || false,
     lastChecked: updateInfo?.lastChecked || null,
+    repoDigests: updateInfo?.repoDigests || null, // CRITICAL: Include for multi-arch update detection
   };
 
-  // Compute hasUpdate on-the-fly from digests
+  // Compute hasUpdate on-the-fly from digests (now includes repoDigests check)
   containerObj.hasUpdate = computeHasUpdate(containerObj);
 
   return containerObj;
