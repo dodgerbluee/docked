@@ -166,18 +166,17 @@ jobs:
             NODE_ENV=production
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
       - name: Tag dev as latest (simple promotion without release)
         if: github.event.inputs.create_release != 'true'
         run: |
-          # Use buildx imagetools to copy the multi-arch manifest from dev to latest
-          # This preserves all architectures (linux/amd64, linux/arm64) in the manifest list
+          # Use buildx imagetools to copy the manifest from dev to latest
           docker buildx imagetools create \
             --tag ${{ env.REGISTRY }}/${{ github.repository }}:latest \
             ${{ env.REGISTRY }}/${{ github.repository }}:dev
           
-          echo "✓ Successfully promoted dev to latest (multi-arch manifest preserved)"
+          echo "✓ Successfully promoted dev to latest"
 
       - name: Get commits since previous release
         id: commits
