@@ -33,7 +33,89 @@
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+}
+
+/* Analytics CTA Button */
+.analyticsButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.1), rgba(99, 102, 241, 0.08));
+  border: 2px solid rgba(30, 144, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-top: 10px;
+  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.1);
+}
+
+body.dark-mode .analyticsButton {
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.15), rgba(99, 102, 241, 0.12));
+  border-color: rgba(30, 144, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.15);
+}
+
+.analyticsButton:hover {
+  transform: translateY(-3px);
+  border-color: var(--dodger-blue);
+  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.3);
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.18), rgba(99, 102, 241, 0.15));
+}
+
+body.dark-mode .analyticsButton:hover {
+  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.35);
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.22), rgba(99, 102, 241, 0.18));
+}
+
+.analyticsButton:active {
+  transform: translateY(-1px);
+}
+
+.buttonContent {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.buttonIcon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(30, 144, 255, 0.3));
+}
+
+.buttonText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.buttonTitle {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.buttonSubtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.buttonArrow {
+  font-size: 1.5rem;
+  color: var(--dodger-blue);
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.analyticsButton:hover .buttonArrow {
+  transform: translateX(6px) scale(1.1);
+  color: var(--dodger-blue);
 }
 
 .metricCard {
@@ -345,8 +427,222 @@
   letter-spacing: 0.5px;
 }
 
+/* Mini Stats Grid */
+.miniStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.miniStatCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.miniStatCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .miniStatCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.miniStatValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.miniStatLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+/* Mini Charts Grid */
+.miniChartsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.miniChartCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.miniChartCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .miniChartCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.miniChartTitle {
+  margin: 0 0 10px 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Horizontal Bar Chart (Most Upgraded) */
+.horizontalBarChart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.horizontalBarItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.horizontalBarLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 80px;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.horizontalBarTrack {
+  flex: 1;
+  height: 18px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.horizontalBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--dodger-blue), #4f75ff);
+  border-radius: 3px;
+  transition: all 0.3s ease;
+  min-width: 20px;
+}
+
+.horizontalBarFill.trackedApp {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.horizontalBarItem:hover .horizontalBarFill {
+  opacity: 0.85;
+}
+
+.horizontalBarCount {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Bar Chart (Upgrade Frequency) */
+.barChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 80px;
+  padding: 8px 0;
+}
+
+.barChartBar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.barChartFill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--dodger-blue), #3d5fd6);
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s ease;
+  min-height: 2px;
+}
+
+.barChartFill.trackedApp {
+  background: linear-gradient(180deg, #10b981, #059669);
+}
+
+.barChartFill:hover {
+  opacity: 0.8;
+  transform: scaleY(1.1);
+}
+
+.emptyChartMessage {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
 /* Responsive */
+@media (max-width: 768px) {
+  .miniChartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
+  .analyticsButton {
+    padding: 14px 16px;
+  }
+
+  .buttonIcon {
+    font-size: 1.25rem;
+  }
+
+  .buttonTitle {
+    font-size: 0.875rem;
+  }
+
+  .buttonSubtitle {
+    font-size: 0.75rem;
+  }
+
+  .miniStatsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .miniChartsGrid {
+    grid-template-columns: 1fr;
+  }
+
   .statsGrid {
     grid-template-columns: 1fr;
     gap: 16px;

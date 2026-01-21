@@ -228,6 +228,31 @@ body.dark-mode .filterSelect option {
   border-color: var(--dodger-blue);
 }
 
+.chartsButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--dodger-blue), #8b5cf6);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.3);
+}
+
+.chartsButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30, 144, 255, 0.4);
+}
+
+.chartsButton:active {
+  transform: translateY(0);
+}
+
 .historyList {
   display: flex;
   flex-direction: column;

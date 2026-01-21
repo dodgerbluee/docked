@@ -37,6 +37,27 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 270px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar styling */
+.runsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.runsList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.runsList::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.runsList::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
 }
 
 .runItem {
