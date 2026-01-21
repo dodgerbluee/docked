@@ -289,45 +289,11 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
         updateGitLabRepo: dbContainer.updateGitLabRepo,
         noDigest: dbContainer.noDigest,
         lastChecked: dbContainer.lastChecked,
+        repoDigests: dbContainer.repoDigests, // CRITICAL: Include RepoDigests for multi-arch update detection
       };
 
-      // Compute hasUpdate on-the-fly with fresh currentDigest
+      // Compute hasUpdate on-the-fly with fresh currentDigest and RepoDigests
       mergedContainer.hasUpdate = computeHasUpdate(mergedContainer);
-
-      // Debug logging for missing updates - log ALL containers with latestDigest to see what's happening
-      if (dbContainer.latestDigest) {
-        const currentNorm = normalizeDigest(
-          mergedContainer.currentDigest || mergedContainer.currentDigestFull
-        );
-        const latestNorm = normalizeDigest(
-          dbContainer.latestDigest || dbContainer.latestDigestFull
-        );
-        const shouldHaveUpdate = currentNorm && latestNorm && currentNorm !== latestNorm;
-
-        if (shouldHaveUpdate && !mergedContainer.hasUpdate) {
-          // This should have hasUpdate=true but doesn't - log for debugging
-          logger.warn("Container should have update but computeHasUpdate returned false", {
-            containerName: mergedContainer.name,
-            containerId: mergedContainer.id.substring(0, 12),
-            currentDigest: currentNorm ? currentNorm.substring(0, 12) : "null",
-            latestDigest: latestNorm ? latestNorm.substring(0, 12) : "null",
-            currentDigestFull:
-              mergedContainer.currentDigest || mergedContainer.currentDigestFull || "null",
-            latestDigestFull: dbContainer.latestDigest || dbContainer.latestDigestFull || "null",
-            provider: dbContainer.provider,
-            hasCurrentDigest: !!mergedContainer.currentDigest,
-            hasCurrentDigestFull: !!mergedContainer.currentDigestFull,
-            hasLatestDigest: !!mergedContainer.latestDigest,
-            hasLatestDigestFull: !!mergedContainer.latestDigestFull,
-          });
-        }
-      } else if (!dbContainer.latestDigest && mergedContainer.hasUpdate) {
-        // Container has update but no latestDigest in cache - this shouldn't happen
-        logger.warn("Container has update but no latestDigest in cache", {
-          containerName: mergedContainer.name,
-          containerId: mergedContainer.id.substring(0, 12),
-        });
-      }
 
       merged.push(mergedContainer);
     } else {
@@ -361,9 +327,10 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
           updateGitLabRepo: updateInfoFromImage.updateGitLabRepo,
           noDigest: updateInfoFromImage.noDigest,
           lastChecked: updateInfoFromImage.lastChecked,
+          repoDigests: updateInfoFromImage.repoDigests, // CRITICAL: Include RepoDigests for multi-arch
         };
 
-        // Compute hasUpdate with the update info
+        // Compute hasUpdate with the update info and RepoDigests
         containerWithUpdates.hasUpdate = computeHasUpdate(containerWithUpdates);
         merged.push(containerWithUpdates);
       } else {
@@ -449,6 +416,7 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
         imageCreatedDate: container.imageCreatedDate,
         usesNetworkMode: container.usesNetworkMode,
         providesNetwork: container.providesNetwork,
+        repoDigests: container.repoDigests, // Preserve existing RepoDigests
       },
       null // No version data update needed
     );

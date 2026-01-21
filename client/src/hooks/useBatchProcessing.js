@@ -15,8 +15,6 @@ export const useBatchProcessing = ({
   setPulling,
   setError,
   setLastPullTime,
-  fetchDockerHubCredentials,
-  dockerHubCredentials,
   fetchTrackedApps,
   fetchContainers,
 }) => {
@@ -27,8 +25,6 @@ export const useBatchProcessing = ({
     setPulling,
     setError,
     setLastPullTime,
-    fetchDockerHubCredentials,
-    dockerHubCredentials,
     fetchTrackedApps,
   });
 

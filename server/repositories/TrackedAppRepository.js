@@ -45,7 +45,7 @@ class TrackedAppRepository extends BaseRepository {
    * @returns {Promise<number>} - ID of created tracked app
    */
   create(userId, appData) {
-    return trackedAppsDb.createTrackedApp(userId, appData);
+    return trackedAppsDb.createTrackedApp({ userId, ...appData });
   }
 
   /**

@@ -8,7 +8,6 @@ const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
   PORTAINER: "portainer",
-  DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
 
@@ -84,12 +83,6 @@ export function useUserCreation({
         configData.portainerInstances = currentUser.portainerInstances;
       }
       if (
-        currentUser.dockerHubCredentials !== null &&
-        currentUser.dockerHubCredentials !== undefined
-      ) {
-        configData.dockerHubCredentials = currentUser.dockerHubCredentials;
-      }
-      if (
         currentUser.discordWebhooks &&
         Array.isArray(currentUser.discordWebhooks) &&
         currentUser.discordWebhooks.length > 0
@@ -112,9 +105,6 @@ export function useUserCreation({
         userCredentials[username]?.portainerInstances
       ) {
         credentials.portainerInstances = userCredentials[username].portainerInstances;
-      }
-      if (!skippedSteps.has(STEP_TYPES.DOCKERHUB) && userCredentials[username]?.dockerHub) {
-        credentials.dockerHub = userCredentials[username].dockerHub;
       }
       if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
         credentials.discordWebhooks = userCredentials[username].discordWebhooks;

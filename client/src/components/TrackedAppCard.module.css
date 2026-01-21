@@ -38,37 +38,37 @@
 }
 
 .updateAvailable {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 .updateAvailable:hover {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
   border-color: var(--border-color);
 }
 
 body.dark-mode .updateAvailable {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 body.dark-mode .updateAvailable:hover {
-  border-left: 2px solid var(--success-green) !important;
+  border-left: 2px solid #f59e0b !important;
 }
 
 .noUpdate {
-  border-left: 2px solid var(--dodger-blue) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 .noUpdate:hover {
-  border-left: 2px solid var(--dodger-blue) !important;
+  border-left: 2px solid #10b981 !important;
   border-color: var(--border-color);
 }
 
 body.dark-mode .noUpdate {
-  border-left: 2px solid var(--dodger-blue-light) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 body.dark-mode .noUpdate:hover {
-  border-left: 2px solid var(--dodger-blue-light) !important;
+  border-left: 2px solid #10b981 !important;
 }
 
 .noCurrentVersion {

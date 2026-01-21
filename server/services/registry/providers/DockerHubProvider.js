@@ -106,15 +106,21 @@ class DockerHubProvider extends RegistryProvider {
    * @returns {Promise<Object|null>} - Result or null
    */
   async _getDigestWithCraneSkopeo(params) {
-    const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag } = params;
+    const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag, platform } =
+      params;
     const { getImageDigest } = require("../../../utils/containerTools");
+
+    const platformMsg = platform ? ` for platform ${platform}` : "";
     logger.debug(
-      `[Registry] Attempting to get digest for ${imageRef} using crane/skopeo (primary method - uses registry protocol)`
+      `[Registry] Attempting to get digest for ${imageRef}${platformMsg} using crane/skopeo (primary method - uses registry protocol)`
     );
-    const digest = await getImageDigest(imageRef);
+
+    const digest = await getImageDigest(imageRef, { platform });
 
     if (!digest) {
-      logger.warn(`[Registry] ⚠️ crane/skopeo failed for ${imageRef}, no digest available`);
+      logger.warn(
+        `[Registry] ⚠️ crane/skopeo failed for ${imageRef}${platformMsg}, no digest available`
+      );
       return null;
     }
 
@@ -134,9 +140,10 @@ class DockerHubProvider extends RegistryProvider {
     this.logOperation("getLatestDigest (crane-skopeo)", imageRepo, {
       tag: cleanedTag,
       digest: `${digest.substring(0, 12)}...`,
+      platform,
     });
     logger.info(
-      `[Registry] ✅ Successfully got digest for ${imageRepo}:${cleanedTag} using crane/skopeo (registry protocol) - ${digest.substring(0, 12)}...`
+      `[Registry] ✅ Successfully got digest for ${imageRepo}:${cleanedTag}${platformMsg} using crane/skopeo (registry protocol) - ${digest.substring(0, 12)}...`
     );
     return result;
   }
@@ -166,7 +173,7 @@ class DockerHubProvider extends RegistryProvider {
     return null;
   }
 
-  async getLatestDigest(imageRepo, tag = "latest", _options = {}) {
+  async getLatestDigest(imageRepo, tag = "latest", options = {}) {
     const normalizedRepo = this.normalizeRepo(imageRepo);
     const cacheKey = `${normalizedRepo}:${tag}`;
 
@@ -198,6 +205,7 @@ class DockerHubProvider extends RegistryProvider {
         cacheKey,
         normalizedRepo,
         originalTag: tag,
+        platform: options.platform, // Pass platform for architecture-specific lookup
       });
     } catch (error) {
       return this._handleGetLatestDigestError(error, imageRepo, cleanedTag);

@@ -79,8 +79,6 @@ const HomePageContent = ({
   handleLogoutWithCleanup,
   editingPortainerInstance,
   fetchPortainerInstances,
-  disablePortainerPage = false,
-  disableTrackedAppsPage = false,
 }) => {
   // Render summary page
   const renderSummary = useCallback(() => {
@@ -99,8 +97,6 @@ const HomePageContent = ({
         onSetContentTab={setContentTab}
         isLoading={isLoading}
         onAddInstance={openModal}
-        disablePortainerPage={disablePortainerPage}
-        disableTrackedAppsPage={disableTrackedAppsPage}
       />
     );
   }, [
@@ -115,8 +111,6 @@ const HomePageContent = ({
     setSelectedPortainerInstances,
     setContentTab,
     openModal,
-    disablePortainerPage,
-    disableTrackedAppsPage,
   ]);
 
   // Render tracked apps
@@ -191,8 +185,6 @@ const HomePageContent = ({
             }}
             containersWithUpdates={containersWithUpdates}
             trackedAppsBehind={trackedAppsBehind}
-            disablePortainerPage={disablePortainerPage}
-            disableTrackedAppsPage={disableTrackedAppsPage}
           />
         )}
 
@@ -252,13 +244,7 @@ const HomePageContent = ({
 
             <RateLimitError
               error={error}
-              dockerHubCredentials={dockerHubCredentials}
               onDismiss={() => setError(null)}
-              onNavigateToDockerHubSettings={() => {
-                setError(null);
-                setActiveTab(TAB_NAMES.SETTINGS);
-                setSettingsTab(SETTINGS_TABS.DOCKERHUB);
-              }}
               onRetry={handlePull}
               pulling={pulling}
               loading={loading}
@@ -267,7 +253,7 @@ const HomePageContent = ({
             {!loading && (
               <>
                 {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                {!disablePortainerPage && activeTab === TAB_NAMES.PORTAINER && (
+                {activeTab === TAB_NAMES.PORTAINER && (
                   <PortainerPage
                     portainerInstances={portainerInstances}
                     containers={containers}
@@ -294,9 +280,7 @@ const HomePageContent = ({
                     onSetContentTab={setContentTab}
                   />
                 )}
-                {!disableTrackedAppsPage &&
-                  activeTab === TAB_NAMES.TRACKED_APPS &&
-                  renderTrackedApps()}
+                {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
                 {activeTab === TAB_NAMES.ADMIN && (
                   <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
                 )}
@@ -369,8 +353,6 @@ HomePageContent.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   editingPortainerInstance: PropTypes.object,
   fetchPortainerInstances: PropTypes.func.isRequired,
-  disablePortainerPage: PropTypes.bool,
-  disableTrackedAppsPage: PropTypes.bool,
 };
 
 export default HomePageContent;

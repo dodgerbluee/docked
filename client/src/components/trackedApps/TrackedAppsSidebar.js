@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { History } from "lucide-react";
 import {
   TRACKED_APPS_CONTENT_TABS,
   TRACKED_APPS_CONTENT_TAB_LABELS,
@@ -80,6 +81,17 @@ const TrackedAppsSidebar = React.memo(function TrackedAppsSidebar({
         >
           <span className={styles.sidebarItemName}>
             {TRACKED_APPS_CONTENT_TAB_LABELS[TRACKED_APPS_CONTENT_TABS.UP_TO_DATE]}
+          </span>
+        </button>
+        <button
+          className={`${styles.sidebarItem} ${
+            contentTab === TRACKED_APPS_CONTENT_TABS.UPGRADE_HISTORY ? styles.active : ""
+          }`}
+          onClick={() => onContentTabChange(TRACKED_APPS_CONTENT_TABS.UPGRADE_HISTORY)}
+        >
+          <History size={18} className={styles.sidebarItemIcon} />
+          <span className={styles.sidebarItemName}>
+            {TRACKED_APPS_CONTENT_TAB_LABELS[TRACKED_APPS_CONTENT_TABS.UPGRADE_HISTORY]}
           </span>
         </button>
       </div>

@@ -277,7 +277,7 @@ const LastRunSummary = ({ latestRunsByJobType }) => {
             color: "var(--dodger-red)",
           }}
         >
-          <strong>Docker Hub Scan Error:</strong>{" "}
+          <strong>Image Version Scan Error:</strong>{" "}
           {latestRunsByJobType["docker-hub-pull"].error_message}
         </div>
       )}
@@ -292,7 +292,7 @@ const LastRunSummary = ({ latestRunsByJobType }) => {
             color: "var(--dodger-red)",
           }}
         >
-          <strong>Tracked Apps Scan Error:</strong>{" "}
+          <strong>App Version Scan Error:</strong>{" "}
           {latestRunsByJobType["tracked-apps-check"].error_message}
         </div>
       )}

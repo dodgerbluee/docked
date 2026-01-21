@@ -11,12 +11,12 @@ const JOB_TYPES = {
   "docker-hub-pull": {
     bg: "rgba(0, 90, 156, 0.2)",
     color: "var(--dodger-blue)",
-    text: "Docker Hub Scan",
+    text: "Image Version Scan",
   },
   "tracked-apps-check": {
     bg: "rgba(139, 92, 246, 0.2)",
     color: "#8b5cf6",
-    text: "Tracked Apps Scan",
+    text: "App Version Scan",
   },
 };
 
