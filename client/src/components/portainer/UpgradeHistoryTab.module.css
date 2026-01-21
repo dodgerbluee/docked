@@ -199,6 +199,16 @@ body.dark-mode .filterSelect option {
   }
 }
 
+.filterSelect option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+body.dark-mode .filterSelect option {
+  background: #1e1e1e;
+  color: var(--text-primary);
+}
+
 .sortButton {
   display: flex;
   align-items: center;

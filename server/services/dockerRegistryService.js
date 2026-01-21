@@ -280,6 +280,30 @@ async function getCurrentImageDigest(
     return null;
   }
 
+  // Get preferred digest from database if userId provided
+  let preferredDigest = null;
+  if (userId) {
+    try {
+      const { getRegistryImageVersion } = require("../db/index");
+      const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
+      const imageRepo = imageParts[0];
+      const imageTag = imageParts[1];
+
+      const versionInfo = await getRegistryImageVersion(userId, imageRepo, imageTag);
+      if (versionInfo?.latest_digest) {
+        preferredDigest = versionInfo.latest_digest;
+        if (process.env.DEBUG) {
+          logger.debug(
+            `      📊 Found preferred digest in DB: ${preferredDigest.substring(0, 12)}...`
+          );
+        }
+      }
+    } catch (dbError) {
+      // Non-fatal: continue without preferred digest
+      logger.debug(`      ⚠️  Could not query DB for preferred digest: ${dbError.message}`);
+    }
+  }
+
   try {
     const imageData = await portainerService.getImageDetails(portainerUrl, endpointId, imageId);
 

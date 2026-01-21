@@ -139,6 +139,7 @@ async function getContainerDebugInfo(req, res) {
       );
     });
 
+<<<<<<< HEAD
     // Get RepoDigests from deployed image (stored in database) or fetch from Portainer if not available
     let repoDigests = null;
 
