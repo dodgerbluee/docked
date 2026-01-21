@@ -176,7 +176,7 @@ export function useCredentialValidation({
         error: error.response?.data?.error || "Validation failed",
       };
     }
-  }, [currentUser, currentStepType, userCredentials, userSkippedSteps]);
+  }, [currentUser, currentStepType, userCredentials]);
 
   return {
     validateCurrentStep,
