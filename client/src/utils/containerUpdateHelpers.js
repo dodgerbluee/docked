@@ -19,7 +19,7 @@ export function normalizeDigest(digest) {
 
 /**
  * Compute whether a container has an available update
- * 
+ *
  * IMPORTANT: The backend now properly checks RepoDigests for multi-arch images.
  * This function should trust the backend's hasUpdate calculation when available.
  *
@@ -42,7 +42,7 @@ export function computeHasUpdate(container) {
   // CRITICAL: Trust backend's hasUpdate if provided (backend checks all RepoDigests)
   // The backend now properly handles multi-arch images by checking if the latest digest
   // exists in ANY of the container's RepoDigests
-  if (typeof container.hasUpdate === 'boolean') {
+  if (typeof container.hasUpdate === "boolean") {
     return container.hasUpdate;
   }
 
@@ -50,7 +50,7 @@ export function computeHasUpdate(container) {
   // Prefer FULL digests for accurate comparison (currentDigest/latestDigest may be truncated)
   const currentDigest = container.currentDigestFull || container.currentDigest;
   const latestDigest = container.latestDigestFull || container.latestDigest;
-  
+
   const currentVersion = container.currentVersion || container.currentTag;
   const latestVersion = container.latestVersion || container.latestTag;
 
@@ -62,16 +62,20 @@ export function computeHasUpdate(container) {
     if (normalizedCurrent && normalizedLatest) {
       // Check RepoDigests array for multi-arch support
       // RepoDigests are stored as clean "sha256:..." format (image prefix already stripped)
-      if (container.repoDigests && Array.isArray(container.repoDigests) && container.repoDigests.length > 0) {
+      if (
+        container.repoDigests &&
+        Array.isArray(container.repoDigests) &&
+        container.repoDigests.length > 0
+      ) {
         const hasLatestDigest = container.repoDigests.some((rd) => {
           return normalizeDigest(rd) === normalizedLatest;
         });
-        
+
         if (hasLatestDigest) {
           return false; // Already has latest digest
         }
       }
-      
+
       return normalizedCurrent !== normalizedLatest;
     }
   }

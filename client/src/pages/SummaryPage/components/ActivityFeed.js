@@ -17,10 +17,10 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
         // Validate timestamp before creating activity
         const timeValue = run.end_time || run.start_time;
         if (!timeValue) return; // Skip if no valid timestamp
-        
+
         const timestamp = new Date(timeValue);
         if (isNaN(timestamp.getTime())) return; // Skip if invalid date
-        
+
         const isSuccess = run.status === "completed";
         items.push({
           id: `run-${run.id}`,

@@ -1,7 +1,7 @@
 /**
  * Docker Registry Service
  * Handles digest extraction from running containers via Portainer
- * 
+ *
  * Note: For fetching latest digests from registries, use the new registry service
  * (server/services/registry) which uses crane/skopeo and supports multiple providers.
  */
@@ -282,16 +282,18 @@ async function getCurrentImageDigest(
 
   try {
     const imageData = await portainerService.getImageDetails(portainerUrl, endpointId, imageId);
-    
+
     // CRITICAL: For multi-arch images, RepoDigests contains multiple digests
     // We need to find the one that matches our image name
     // Don't pass preferredDigest - just take the first matching digest for our repo
     const digest = getDigestFromImageData(imageData, imageName, null);
-    
+
     if (process.env.DEBUG && digest) {
-      logger.debug(`      ✅ Selected digest: ${digest.substring(0, 12)}... from ${imageData.RepoDigests?.length || 0} RepoDigests`);
+      logger.debug(
+        `      ✅ Selected digest: ${digest.substring(0, 12)}... from ${imageData.RepoDigests?.length || 0} RepoDigests`
+      );
     }
-    
+
     return digest;
   } catch (error) {
     logger.debug(`Could not inspect image ${imageId} to get digest: ${error.message}`);

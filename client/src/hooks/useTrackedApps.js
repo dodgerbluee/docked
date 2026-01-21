@@ -44,52 +44,55 @@ export function useTrackedApps(isAuthenticated, authToken) {
     variant: "danger",
   });
 
-  const fetchTrackedApps = useCallback(async (showLoading = false) => {
-    if (!hasAuth || !effectiveToken) {
-      return;
-    }
-    try {
-      // Only show loading state if explicitly requested (e.g., user clicks "Check for Updates")
-      // Don't show loading on initial mount - just populate data when it arrives
-      if (showLoading) {
-        setIsLoading(true);
+  const fetchTrackedApps = useCallback(
+    async (showLoading = false) => {
+      if (!hasAuth || !effectiveToken) {
+        return;
       }
-      const response = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
-      if (response.data.success) {
-        const apps = response.data.images || [];
+      try {
+        // Only show loading state if explicitly requested (e.g., user clicks "Check for Updates")
+        // Don't show loading on initial mount - just populate data when it arrives
+        if (showLoading) {
+          setIsLoading(true);
+        }
+        const response = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
+        if (response.data.success) {
+          const apps = response.data.images || [];
 
-        // Sort alphabetically by name
-        const sortedApps = apps.sort((a, b) => {
-          const nameA = (a.name || "").toLowerCase();
-          const nameB = (b.name || "").toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
+          // Sort alphabetically by name
+          const sortedApps = apps.sort((a, b) => {
+            const nameA = (a.name || "").toLowerCase();
+            const nameB = (b.name || "").toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
 
-        setTrackedApps(sortedApps);
-        setHasLoadedOnce(true); // Mark that we've loaded data at least once
+          setTrackedApps(sortedApps);
+          setHasLoadedOnce(true); // Mark that we've loaded data at least once
 
-        // Set last scan time from the most recent last_checked
-        if (apps.length > 0) {
-          const mostRecentCheck = apps
-            .map((img) => img.last_checked)
-            .filter(Boolean)
-            .sort((a, b) => {
-              const dateA = parseUTCTimestamp(a);
-              const dateB = parseUTCTimestamp(b);
-              return dateB.getTime() - dateA.getTime();
-            })[0];
-          if (mostRecentCheck) {
-            // Parse as UTC timestamp (database stores in UTC without timezone info)
-            setLastScanTime(parseUTCTimestamp(mostRecentCheck));
+          // Set last scan time from the most recent last_checked
+          if (apps.length > 0) {
+            const mostRecentCheck = apps
+              .map((img) => img.last_checked)
+              .filter(Boolean)
+              .sort((a, b) => {
+                const dateA = parseUTCTimestamp(a);
+                const dateB = parseUTCTimestamp(b);
+                return dateB.getTime() - dateA.getTime();
+              })[0];
+            if (mostRecentCheck) {
+              // Parse as UTC timestamp (database stores in UTC without timezone info)
+              setLastScanTime(parseUTCTimestamp(mostRecentCheck));
+            }
           }
         }
+      } catch (err) {
+        console.error("Error fetching tracked apps:", err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching tracked apps:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [hasAuth, effectiveToken]);
+    },
+    [hasAuth, effectiveToken]
+  );
 
   // Fetch tracked apps on mount (only if authenticated)
   useEffect(() => {

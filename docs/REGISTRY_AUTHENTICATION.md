@@ -31,11 +31,13 @@ docker login gcr.io
 Different registries have different rate limits based on authentication status:
 
 #### Docker Hub
+
 - **Unauthenticated:** 100 pulls per 6 hours (per IP address)
 - **Authenticated (Free):** 200 pulls per 6 hours
 - **Authenticated (Pro/Team/Business):** Unlimited pulls
 
 #### Other Registries
+
 - **GHCR:** Higher limits for authenticated users
 - **GitLab:** Based on your GitLab plan
 - **GCR:** Based on your Google Cloud quota
@@ -43,11 +45,13 @@ Different registries have different rate limits based on authentication status:
 ### When Do You Need Authentication?
 
 You **do NOT** need authentication if:
+
 - ✅ You're checking for updates every 15 minutes or less frequently
 - ✅ You only use public images
 - ✅ You're under 100 checks per 6 hours from your IP address
 
 You **DO** need authentication if:
+
 - ❌ You use private/internal images
 - ❌ You're in a shared IP environment (cloud, CI/CD)
 - ❌ You exceed 100 registry checks per 6 hours
@@ -60,6 +64,7 @@ You **DO** need authentication if:
 Both tools interact with registries using the OCI Distribution Specification:
 
 1. **crane** (Google go-containerregistry):
+
    ```bash
    crane digest nginx:latest
    # Output: sha256:abc123...

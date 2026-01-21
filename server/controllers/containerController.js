@@ -355,7 +355,8 @@ async function pullContainers(req, res, _next) {
       });
 
       // Check if credentials exist to customize message
-      const message = "Registry rate limit exceeded. Please wait a few minutes before trying again. Tip: Run 'docker login' on your server for higher rate limits.";
+      const message =
+        "Registry rate limit exceeded. Please wait a few minutes before trying again. Tip: Run 'docker login' on your server for higher rate limits.";
 
       // Return error without updating container data
       return res.status(429).json({

@@ -74,8 +74,8 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
     <div className={styles.updateSection}>
       <h3 className={styles.title}>Repository Access Tokens</h3>
       <p className={styles.description}>
-        Manage tokens for GitHub and GitLab to enable update checking for your container images.
-        Add access tokens for GitHub Container Registry (GHCR) or GitLab Container Registry, then
+        Manage tokens for GitHub and GitLab to enable update checking for your container images. Add
+        access tokens for GitHub Container Registry (GHCR) or GitLab Container Registry, then
         associate these tokens with your container images to enable automatic update detection for
         private repositories.
       </p>

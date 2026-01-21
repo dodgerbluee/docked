@@ -56,12 +56,13 @@ const RecentBatchRuns = ({ recentRuns, latestRunsByJobType }) => {
             {displayRuns.map((run) => {
               const StatusIcon = getStatusIcon(run.status);
               const statusColor = getStatusColor(run.status);
-              
+
               // Safely handle timestamp
               const startTime = run.start_time ? new Date(run.start_time) : null;
-              const timeDisplay = startTime && !isNaN(startTime.getTime())
-                ? formatDistanceToNow(startTime, { addSuffix: true })
-                : "Recently";
+              const timeDisplay =
+                startTime && !isNaN(startTime.getTime())
+                  ? formatDistanceToNow(startTime, { addSuffix: true })
+                  : "Recently";
 
               return (
                 <div key={run.id} className={styles.runItem}>
@@ -71,17 +72,15 @@ const RecentBatchRuns = ({ recentRuns, latestRunsByJobType }) => {
                   <div className={styles.runContent}>
                     <div className={styles.runHeader}>
                       <span className={styles.runType}>
-                        {run.job_type === "docker-hub-pull" ? "Container Check" : "Tracked Apps Check"}
+                        {run.job_type === "docker-hub-pull"
+                          ? "Container Check"
+                          : "Tracked Apps Check"}
                       </span>
-                      <span className={styles.runTime}>
-                        {timeDisplay}
-                      </span>
+                      <span className={styles.runTime}>{timeDisplay}</span>
                     </div>
                     <div className={styles.runStats}>
                       {run.containers_checked > 0 && (
-                        <span className={styles.statBadge}>
-                          {run.containers_checked} checked
-                        </span>
+                        <span className={styles.statBadge}>{run.containers_checked} checked</span>
                       )}
                       {run.containers_updated > 0 && (
                         <span className={`${styles.statBadge} ${styles.updated}`}>

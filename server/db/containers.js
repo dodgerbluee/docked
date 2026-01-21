@@ -30,33 +30,33 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         containerId,
         containerName,
         endpointId,
-      imageName,
-      imageRepo,
-      status = null,
-      state = null,
-      stackName = null,
-      currentDigest = null,
-      imageCreatedDate = null,
-      usesNetworkMode = false,
-      providesNetwork = false,
-      imageTag = "latest",
-      registry = null,
-      namespace = null,
-      repository = null,
-      repoDigests = null,
-    } = containerData;
+        imageName,
+        imageRepo,
+        status = null,
+        state = null,
+        stackName = null,
+        currentDigest = null,
+        imageCreatedDate = null,
+        usesNetworkMode = false,
+        providesNetwork = false,
+        imageTag = "latest",
+        registry = null,
+        namespace = null,
+        repository = null,
+        repoDigests = null,
+      } = containerData;
 
-    // Extract tag from imageName if not provided
-    const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
+      // Extract tag from imageName if not provided
+      const tag = imageTag || (imageName.includes(":") ? imageName.split(":")[1] : "latest");
 
-    // First, upsert deployed image
-    upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
-      imageCreatedDate,
-      registry,
-      namespace,
-      repository,
-      repoDigests,
-    })
+      // First, upsert deployed image
+      upsertDeployedImage(userId, imageRepo, tag, currentDigest, {
+        imageCreatedDate,
+        registry,
+        namespace,
+        repository,
+        repoDigests,
+      })
         .then((deployedImageId) => {
           // Then upsert container with reference to deployed image
           db.run(
@@ -596,7 +596,9 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
           try {
             repoDigests = JSON.parse(row.repo_digests);
           } catch (parseErr) {
-            logger.debug(`Failed to parse repo_digests for ${row.container_name}: ${parseErr.message}`);
+            logger.debug(
+              `Failed to parse repo_digests for ${row.container_name}: ${parseErr.message}`
+            );
           }
         }
 

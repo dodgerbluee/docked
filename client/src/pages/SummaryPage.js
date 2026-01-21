@@ -96,60 +96,57 @@ const SummaryPage = ({
     <div className={styles.summaryPage}>
       <div className={styles.contentTabPanel}>
         <div className={styles.modernDashboard}>
-            {/* Hero Stats Section */}
-            <HeroStats
-              stats={summaryStats}
-              shouldShowEmptyState={shouldShowEmptyState}
-              onPortainerStatClick={handlePortainerStatClick}
-              onTrackedAppsClick={handleTrackedAppsClick}
-            />
+          {/* Hero Stats Section */}
+          <HeroStats
+            stats={summaryStats}
+            shouldShowEmptyState={shouldShowEmptyState}
+            onPortainerStatClick={handlePortainerStatClick}
+            onTrackedAppsClick={handleTrackedAppsClick}
+          />
 
-            {/* Main Content Grid */}
-            <div className={styles.dashboardGrid}>
-              {/* Left Column - Health & History */}
-              <div className={styles.leftColumn}>
-                {/* Portainer Instances Section */}
-                <ModernPortainerInstances
-                    portainerStats={summaryStats.portainerStats}
-                    shouldShowEmptyState={shouldShowEmptyState}
-                  onInstanceClick={handleInstanceClick}
-                  onStatClick={handleInstanceStatClick}
-                  />
+          {/* Main Content Grid */}
+          <div className={styles.dashboardGrid}>
+            {/* Left Column - Health & History */}
+            <div className={styles.leftColumn}>
+              {/* Portainer Instances Section */}
+              <ModernPortainerInstances
+                portainerStats={summaryStats.portainerStats}
+                shouldShowEmptyState={shouldShowEmptyState}
+                onInstanceClick={handleInstanceClick}
+                onStatClick={handleInstanceStatClick}
+              />
 
-                <ContainerHealthOverview
-                  containers={containers}
-                  summaryStats={summaryStats}
-                  shouldShowEmptyState={shouldShowEmptyState}
-                  onStatClick={handlePortainerStatClick}
-                />
+              <ContainerHealthOverview
+                containers={containers}
+                summaryStats={summaryStats}
+                shouldShowEmptyState={shouldShowEmptyState}
+                onStatClick={handlePortainerStatClick}
+              />
 
-                <HistoryMetrics />
-              </div>
+              <HistoryMetrics />
+            </div>
 
-              {/* Right Column - Activity & Stats */}
-              <div className={styles.rightColumn}>
-                <ActivityFeed
-                  containers={containers}
-                  trackedApps={trackedApps}
-                  recentRuns={recentRuns}
-                  latestRunsByJobType={latestRunsByJobType}
-                />
+            {/* Right Column - Activity & Stats */}
+            <div className={styles.rightColumn}>
+              <ActivityFeed
+                containers={containers}
+                trackedApps={trackedApps}
+                recentRuns={recentRuns}
+                latestRunsByJobType={latestRunsByJobType}
+              />
 
-                <ImageStatistics
-                  containers={containers}
-                  unusedImages={unusedImages}
-                  unusedImagesCount={unusedImagesCount}
-                  shouldShowEmptyState={shouldShowEmptyState}
-                  onUnusedImagesClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
-                />
+              <ImageStatistics
+                containers={containers}
+                unusedImages={unusedImages}
+                unusedImagesCount={unusedImagesCount}
+                shouldShowEmptyState={shouldShowEmptyState}
+                onUnusedImagesClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
+              />
 
-                <RecentBatchRuns
-                  recentRuns={recentRuns}
-                  latestRunsByJobType={latestRunsByJobType}
-                />
-              </div>
+              <RecentBatchRuns recentRuns={recentRuns} latestRunsByJobType={latestRunsByJobType} />
             </div>
           </div>
+        </div>
       </div>
 
       <WelcomeModal

@@ -208,7 +208,13 @@ function determineUpdateWithStoredInfo(
 }
 
 // eslint-disable-next-line complexity -- Update status calculation requires multiple conditional checks
-function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, storedVersionInfo, repoDigests = null) {
+function calculateUpdateStatus(
+  latestImageInfo,
+  currentDigest,
+  currentTag,
+  storedVersionInfo,
+  repoDigests = null
+) {
   if (!latestImageInfo) {
     return handleNoLatestImageInfo(storedVersionInfo, currentTag);
   }
@@ -222,7 +228,12 @@ function calculateUpdateStatus(latestImageInfo, currentDigest, currentTag, store
     );
   }
 
-  let hasUpdate = registryService.hasUpdate(currentDigest, currentTag, latestImageInfo, repoDigests);
+  let hasUpdate = registryService.hasUpdate(
+    currentDigest,
+    currentTag,
+    latestImageInfo,
+    repoDigests
+  );
 
   if (process.env.DEBUG) {
     logger.debug(
@@ -316,7 +327,9 @@ async function checkImageUpdates(
         endpointId,
         containerDetails.Image
       );
-      logger.info(`Portainer image info for ${containerDetails.Name}: ${JSON.stringify(imageDetails)}`);
+      logger.info(
+        `Portainer image info for ${containerDetails.Name}: ${JSON.stringify(imageDetails)}`
+      );
       if (imageDetails.Architecture && imageDetails.Os) {
         architecture = imageDetails.Architecture;
         platform = `${imageDetails.Os}/${imageDetails.Architecture}`;
@@ -325,9 +338,9 @@ async function checkImageUpdates(
       // Extract and clean RepoDigests for update comparison
       if (imageDetails.RepoDigests && Array.isArray(imageDetails.RepoDigests)) {
         // Clean RepoDigests IMMEDIATELY: remove image name prefix (e.g., "postgres@sha256:..." -> "sha256:...")
-        repoDigests = imageDetails.RepoDigests.map(rd => {
-          if (rd.includes('@sha256:')) {
-            return 'sha256:' + rd.split('@sha256:')[1];
+        repoDigests = imageDetails.RepoDigests.map((rd) => {
+          if (rd.includes("@sha256:")) {
+            return "sha256:" + rd.split("@sha256:")[1];
           }
           return rd; // Already clean
         });
@@ -344,7 +357,9 @@ async function checkImageUpdates(
       useFallback: true,
       platform, // Pass platform for architecture-specific digest lookup
     });
-    logger.info(`Latest image info for ${containerDetails.Name}: ${JSON.stringify(latestImageInfo)}`);
+    logger.info(
+      `Latest image info for ${containerDetails.Name}: ${JSON.stringify(latestImageInfo)}`
+    );
   } catch (error) {
     if (error.isRateLimitExceeded) {
       throw error;

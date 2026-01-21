@@ -7,6 +7,7 @@ Complete reimagination of the Summary page with modern React components and comp
 ## Features
 
 ### 🎯 Hero Stats Section
+
 - **Large, prominent stats cards** for key metrics
 - **Color-coded indicators** for different states (updates, health, etc.)
 - **Animated highlights** for items needing attention
@@ -19,6 +20,7 @@ Complete reimagination of the Summary page with modern React components and comp
   - Tracked Apps summary
 
 ### 📊 Container Health Overview
+
 - **Visual health score** with circular progress indicator (0-100%)
 - **Health status labels**: Excellent (90%+), Good (70%+), Fair (50%+), Needs Attention (<50%)
 - **Interactive stat cards** for Total, Updates, and Up-to-Date containers
@@ -26,6 +28,7 @@ Complete reimagination of the Summary page with modern React components and comp
 - **Color-coded segments**: Green for up-to-date, Orange for needs update
 
 ### 📦 Image Statistics
+
 - **Three-card layout** showing:
   - Total Images count
   - Images In Use
@@ -35,6 +38,7 @@ Complete reimagination of the Summary page with modern React components and comp
 - Smart calculations combining container images with unused images
 
 ### ⚡ Quick Actions Panel
+
 - **Context-aware actions**:
   - "Add Portainer Instance" when no instances exist
   - "View Containers" when instances are configured
@@ -43,6 +47,7 @@ Complete reimagination of the Summary page with modern React components and comp
 - **Hover animations** for better interaction feedback
 
 ### 🔄 Recent Activity Feed
+
 - **Timeline of recent events**:
   - Batch run completions
   - Container updates available
@@ -53,6 +58,7 @@ Complete reimagination of the Summary page with modern React components and comp
 - **Smart grouping** of related activities
 
 ### 🚀 Recent Batch Runs
+
 - **Last 5 batch runs** display
 - **Status indicators** with appropriate icons
 - **Job type differentiation** (Container Check vs Tracked Apps Check)
@@ -61,12 +67,14 @@ Complete reimagination of the Summary page with modern React components and comp
 - **Pulsing animation** for running jobs
 
 ### 🖥️ Portainer Instances Grid
+
 - **Responsive grid layout** (auto-fit based on screen size)
 - **Enhanced instance cards** using existing PortainerInstanceCard component
 - **Empty state** with call-to-action to add instances
 - **Add Instance button** in header for quick access
 
 ### 📱 Tracked Apps Section
+
 - **Four-card stat layout**:
   - Total Apps
   - Updates Available (orange border)
@@ -106,15 +114,18 @@ SummaryPage/
 The page uses a **responsive two-column grid layout**:
 
 ### Desktop (>1200px)
+
 - **Left Column**: Activity Feed + Container Health Overview
 - **Right Column**: Quick Actions + Image Statistics + Recent Batch Runs
 
 ### Tablet & Mobile
+
 - Switches to **single-column layout** with stacked cards
 
 ## Design Features
 
 ### 🎨 Modern UI Elements
+
 - **Gradient borders** and hover effects
 - **Smooth animations** with cubic-bezier easing
 - **Card-based design** with consistent 16px border radius
@@ -122,6 +133,7 @@ The page uses a **responsive two-column grid layout**:
 - **Color-coded status indicators**
 
 ### 🌈 Color Scheme
+
 - **Blue (#3b82f6)**: Primary actions, containers
 - **Green (#10b981)**: Success, up-to-date status
 - **Orange (#f59e0b)**: Warnings, updates available
@@ -130,6 +142,7 @@ The page uses a **responsive two-column grid layout**:
 - **Red (#ef4444)**: Errors, critical states
 
 ### ✨ Animations
+
 - **Fade-in** on page load
 - **Pulse animation** for update alerts
 - **Hover transformations** (translateY, scale)
@@ -137,6 +150,7 @@ The page uses a **responsive two-column grid layout**:
 - **Progress bar animations** with ease-out timing
 
 ### 📐 Responsive Design
+
 - **Auto-fit grids** for flexible layouts
 - **Mobile-first breakpoints**:
   - 768px: Tablet adjustments
@@ -146,18 +160,21 @@ The page uses a **responsive two-column grid layout**:
 ## Data Integration
 
 ### Batch Run Data
+
 - Integrates with `useBatchRuns()` hook
 - Displays recent run history from `/api/batch/runs`
 - Shows latest runs by job type
 - Real-time status updates with polling
 
 ### Container Data
+
 - Uses existing `containers` prop
 - Calculates health metrics on-the-fly
 - Tracks update status per container
 - Groups by Portainer instance
 
 ### Image Data
+
 - Combines container images with unused images
 - Calculates usage percentages
 - Provides cleanup recommendations
@@ -186,6 +203,7 @@ The page uses a **responsive two-column grid layout**:
 ## Future Enhancements
 
 Potential additions:
+
 - Real-time WebSocket updates for batch runs
 - Filterable activity feed
 - Exportable health reports

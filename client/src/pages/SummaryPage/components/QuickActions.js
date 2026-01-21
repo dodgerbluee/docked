@@ -15,33 +15,33 @@ const QuickActions = ({
   const actions = [];
 
   if (!hasInstances) {
-      actions.push({
-        id: "add-instance",
-        icon: Plus,
-        label: "Add Portainer Instance",
-        description: "Connect to a Portainer server",
-        color: "blue",
-        onClick: onAddInstance,
-      });
-    } else {
-      actions.push({
-        id: "view-containers",
-        icon: Server,
-        label: "View Containers",
-        description: "Manage all containers",
-        color: "blue",
-        onClick: onNavigateToPortainer,
-      });
-    }
+    actions.push({
+      id: "add-instance",
+      icon: Plus,
+      label: "Add Portainer Instance",
+      description: "Connect to a Portainer server",
+      color: "blue",
+      onClick: onAddInstance,
+    });
+  } else {
+    actions.push({
+      id: "view-containers",
+      icon: Server,
+      label: "View Containers",
+      description: "Manage all containers",
+      color: "blue",
+      onClick: onNavigateToPortainer,
+    });
+  }
 
   actions.push({
-      id: "tracked-apps",
-      icon: Package,
-      label: "Tracked Apps",
-      description: "Monitor app versions",
-      color: "indigo",
-      onClick: onNavigateToTrackedApps,
-    });
+    id: "tracked-apps",
+    icon: Package,
+    label: "Tracked Apps",
+    description: "Monitor app versions",
+    color: "indigo",
+    onClick: onNavigateToTrackedApps,
+  });
 
   if (actions.length === 0) {
     return null;

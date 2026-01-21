@@ -459,7 +459,6 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   margin: 40px 0;
 }
 
-
 .visibilityCard {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);

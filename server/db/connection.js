@@ -124,11 +124,11 @@ try {
     } else {
       dbConnectionEstablished = true;
       logger.info(`Connected to SQLite database at ${DB_PATH}`);
-      
+
       // Set PRAGMA settings for immediate writes
       db.run("PRAGMA journal_mode = WAL");
       db.run("PRAGMA synchronous = NORMAL");
-      
+
       // Use setImmediate to defer initialization and prevent blocking
       setImmediate(async () => {
         try {
@@ -201,7 +201,7 @@ async function initializeDatabase() {
         try {
           // Create users table
           db.run(
-          `CREATE TABLE IF NOT EXISTS users (
+            `CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
@@ -214,27 +214,27 @@ async function initializeDatabase() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating users table:", { error: err });
-            } else {
-              logger.info("Users table ready");
-              // Create indexes for users table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating username index:", { error: idxErr });
+            (err) => {
+              if (err) {
+                logger.error("Error creating users table:", { error: err });
+              } else {
+                logger.info("Users table ready");
+                // Create indexes for users table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating username index:", { error: idxErr });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create portainer_instances table
-        db.run(
-          `CREATE TABLE IF NOT EXISTS portainer_instances (
+          // Create portainer_instances table
+          db.run(
+            `CREATE TABLE IF NOT EXISTS portainer_instances (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
@@ -249,52 +249,52 @@ async function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, url)
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating portainer_instances table:", { error: err });
-            } else {
-              logger.info("Portainer instances table ready");
-              // Create indexes for portainer_instances table
-              // Note: user_id index may fail if table exists without user_id column (migration will fix this)
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_user_id ON portainer_instances(user_id)",
-                (idxErr) => {
-                  if (
-                    idxErr &&
-                    !idxErr.message.includes("already exists") &&
-                    !idxErr.message.includes("no such column")
-                  ) {
-                    logger.error("Error creating user_id index:", { error: idxErr });
-                  } else if (idxErr && idxErr.message.includes("no such column")) {
-                    logger.debug(
-                      "user_id column doesn't exist yet - index will be created after migration"
-                    );
+            (err) => {
+              if (err) {
+                logger.error("Error creating portainer_instances table:", { error: err });
+              } else {
+                logger.info("Portainer instances table ready");
+                // Create indexes for portainer_instances table
+                // Note: user_id index may fail if table exists without user_id column (migration will fix this)
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_portainer_user_id ON portainer_instances(user_id)",
+                  (idxErr) => {
+                    if (
+                      idxErr &&
+                      !idxErr.message.includes("already exists") &&
+                      !idxErr.message.includes("no such column")
+                    ) {
+                      logger.error("Error creating user_id index:", { error: idxErr });
+                    } else if (idxErr && idxErr.message.includes("no such column")) {
+                      logger.debug(
+                        "user_id column doesn't exist yet - index will be created after migration"
+                      );
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating portainer URL index:", { error: idxErr });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_portainer_url ON portainer_instances(url)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating portainer URL index:", { error: idxErr });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating display_order index:", { error: idxErr });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_portainer_display_order ON portainer_instances(display_order)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating display_order index:", { error: idxErr });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create docker_hub_credentials table (per user)
-        db.run(
-          `CREATE TABLE IF NOT EXISTS docker_hub_credentials (
+          // Create docker_hub_credentials table (per user)
+          db.run(
+            `CREATE TABLE IF NOT EXISTS docker_hub_credentials (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         username TEXT,
@@ -303,18 +303,18 @@ async function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id)
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating docker_hub_credentials table:", { error: err });
-            } else {
-              logger.info("Docker Hub credentials table ready");
+            (err) => {
+              if (err) {
+                logger.error("Error creating docker_hub_credentials table:", { error: err });
+              } else {
+                logger.info("Docker Hub credentials table ready");
+              }
             }
-          }
-        );
+          );
 
-        // Create repository_access_tokens table
-        db.run(
-          `CREATE TABLE IF NOT EXISTS repository_access_tokens (
+          // Create repository_access_tokens table
+          db.run(
+            `CREATE TABLE IF NOT EXISTS repository_access_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         provider TEXT NOT NULL CHECK(provider IN ('github', 'gitlab')),
@@ -325,59 +325,59 @@ async function initializeDatabase() {
         UNIQUE(user_id, provider, name),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating repository_access_tokens table:", { error: err });
-            } else {
-              logger.info("Repository access tokens table ready");
-              // Add name column if it doesn't exist (migration for existing databases)
-              db.run("ALTER TABLE repository_access_tokens ADD COLUMN name TEXT", (alterErr) => {
-                // Ignore error if column already exists
-                if (alterErr && !alterErr.message.includes("duplicate column")) {
-                  logger.debug(
-                    "Name column may already exist or migration not needed:",
-                    alterErr.message
-                  );
-                } else {
-                  // If column was just added, set default names for existing tokens
-                  db.run(
-                    "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
-                    (updateErr) => {
-                      if (updateErr) {
-                        logger.debug("Error setting default names:", updateErr.message);
+            (err) => {
+              if (err) {
+                logger.error("Error creating repository_access_tokens table:", { error: err });
+              } else {
+                logger.info("Repository access tokens table ready");
+                // Add name column if it doesn't exist (migration for existing databases)
+                db.run("ALTER TABLE repository_access_tokens ADD COLUMN name TEXT", (alterErr) => {
+                  // Ignore error if column already exists
+                  if (alterErr && !alterErr.message.includes("duplicate column")) {
+                    logger.debug(
+                      "Name column may already exist or migration not needed:",
+                      alterErr.message
+                    );
+                  } else {
+                    // If column was just added, set default names for existing tokens
+                    db.run(
+                      "UPDATE repository_access_tokens SET name = provider || ' Token' WHERE name IS NULL OR name = ''",
+                      (updateErr) => {
+                        if (updateErr) {
+                          logger.debug("Error setting default names:", updateErr.message);
+                        }
                       }
+                    );
+                  }
+                });
+                // Create indexes for repository_access_tokens table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_repo_tokens_user_id ON repository_access_tokens(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating repository_access_tokens user_id index:", {
+                        error: idxErr,
+                      });
                     }
-                  );
-                }
-              });
-              // Create indexes for repository_access_tokens table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_repo_tokens_user_id ON repository_access_tokens(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating repository_access_tokens user_id index:", {
-                      error: idxErr,
-                    });
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_repo_tokens_provider ON repository_access_tokens(provider)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating repository_access_tokens provider index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_repo_tokens_provider ON repository_access_tokens(provider)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating repository_access_tokens provider index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create tracked_apps table
-        db.run(
-          `CREATE TABLE IF NOT EXISTS tracked_apps (
+          // Create tracked_apps table
+          db.run(
+            `CREATE TABLE IF NOT EXISTS tracked_apps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
@@ -397,69 +397,69 @@ async function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, image_name, github_repo)
       )`,
-          // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          (err) => {
-            if (err) {
-              logger.error("Error creating tracked_apps table:", { error: err });
-            } else {
-              logger.info("Tracked apps table ready");
-              // Add repository_token_id column if it doesn't exist (migration for existing databases)
-              db.run(
-                "ALTER TABLE tracked_apps ADD COLUMN repository_token_id INTEGER",
-                (alterErr) => {
-                  // Ignore error if column already exists
-                  if (alterErr && !alterErr.message.includes("duplicate column")) {
-                    logger.debug(
-                      "Repository token ID column may already exist or migration not needed:",
-                      alterErr.message
-                    );
+            // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
+            (err) => {
+              if (err) {
+                logger.error("Error creating tracked_apps table:", { error: err });
+              } else {
+                logger.info("Tracked apps table ready");
+                // Add repository_token_id column if it doesn't exist (migration for existing databases)
+                db.run(
+                  "ALTER TABLE tracked_apps ADD COLUMN repository_token_id INTEGER",
+                  (alterErr) => {
+                    // Ignore error if column already exists
+                    if (alterErr && !alterErr.message.includes("duplicate column")) {
+                      logger.debug(
+                        "Repository token ID column may already exist or migration not needed:",
+                        alterErr.message
+                      );
+                    }
                   }
-                }
-              );
-              // Create indexes
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_apps user_id index:", { error: idxErr });
+                );
+                // Create indexes
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_apps user_id index:", { error: idxErr });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_name ON tracked_apps(name)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_apps name index:", { error: idxErr });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_apps_name ON tracked_apps(name)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_apps name index:", { error: idxErr });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_image_name ON tracked_apps(image_name)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_apps image_name index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_apps_image_name ON tracked_apps(image_name)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_apps image_name index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_apps_github_repo ON tracked_apps(github_repo)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_apps github_repo index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_apps_github_repo ON tracked_apps(github_repo)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_apps github_repo index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create deployed_images table - tracks actual images used by containers
-        db.run(
-          `CREATE TABLE IF NOT EXISTS deployed_images (
+          // Create deployed_images table - tracks actual images used by containers
+          db.run(
+            `CREATE TABLE IF NOT EXISTS deployed_images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         image_repo TEXT NOT NULL,
@@ -476,88 +476,88 @@ async function initializeDatabase() {
         UNIQUE(user_id, image_repo, image_tag, image_digest),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          (err) => {
-            if (err) {
-              logger.error("Error creating deployed_images table:", { error: err });
-            } else {
-              logger.info("Deployed images table ready");
-              // Add repo_digests column if it doesn't exist (migration for multi-arch support)
-              db.run("ALTER TABLE deployed_images ADD COLUMN repo_digests TEXT", (alterErr) => {
-                // Ignore error if column already exists
-                if (alterErr && !alterErr.message.includes("duplicate column")) {
-                  logger.debug(
-                    "repo_digests column may already exist or migration not needed:",
-                    alterErr.message
-                  );
-                } else {
-                  logger.info("Added repo_digests column to deployed_images table");
-                }
-              });
-              // Create indexes for deployed_images table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_deployed_images_user_id ON deployed_images(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating deployed_images user_id index:", {
-                      error: idxErr,
-                    });
-                  }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_deployed_images_image_repo ON deployed_images(image_repo)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating deployed_images image_repo index:", {
-                      error: idxErr,
-                    });
-                  }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_deployed_images_last_seen ON deployed_images(last_seen)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating deployed_images last_seen index:", {
-                      error: idxErr,
-                    });
-                  }
-                }
-              );
-              // Add repository_token_id column if it doesn't exist (migration for existing databases)
-              db.run(
-                "ALTER TABLE deployed_images ADD COLUMN repository_token_id INTEGER",
-                (alterErr) => {
+            // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
+            (err) => {
+              if (err) {
+                logger.error("Error creating deployed_images table:", { error: err });
+              } else {
+                logger.info("Deployed images table ready");
+                // Add repo_digests column if it doesn't exist (migration for multi-arch support)
+                db.run("ALTER TABLE deployed_images ADD COLUMN repo_digests TEXT", (alterErr) => {
                   // Ignore error if column already exists
                   if (alterErr && !alterErr.message.includes("duplicate column")) {
                     logger.debug(
-                      "Repository token ID column may already exist or migration not needed:",
+                      "repo_digests column may already exist or migration not needed:",
                       alterErr.message
                     );
                   } else {
-                    // Add foreign key constraint if column was just created
-                    db.run(
-                      "CREATE INDEX IF NOT EXISTS idx_deployed_images_repository_token_id ON deployed_images(repository_token_id)",
-                      (idxErr) => {
-                        if (idxErr && !idxErr.message.includes("already exists")) {
-                          logger.debug(
-                            "Index for repository_token_id may already exist:",
-                            idxErr.message
-                          );
-                        }
-                      }
-                    );
+                    logger.info("Added repo_digests column to deployed_images table");
                   }
-                }
-              );
+                });
+                // Create indexes for deployed_images table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_deployed_images_user_id ON deployed_images(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating deployed_images user_id index:", {
+                        error: idxErr,
+                      });
+                    }
+                  }
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_deployed_images_image_repo ON deployed_images(image_repo)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating deployed_images image_repo index:", {
+                        error: idxErr,
+                      });
+                    }
+                  }
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_deployed_images_last_seen ON deployed_images(last_seen)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating deployed_images last_seen index:", {
+                        error: idxErr,
+                      });
+                    }
+                  }
+                );
+                // Add repository_token_id column if it doesn't exist (migration for existing databases)
+                db.run(
+                  "ALTER TABLE deployed_images ADD COLUMN repository_token_id INTEGER",
+                  (alterErr) => {
+                    // Ignore error if column already exists
+                    if (alterErr && !alterErr.message.includes("duplicate column")) {
+                      logger.debug(
+                        "Repository token ID column may already exist or migration not needed:",
+                        alterErr.message
+                      );
+                    } else {
+                      // Add foreign key constraint if column was just created
+                      db.run(
+                        "CREATE INDEX IF NOT EXISTS idx_deployed_images_repository_token_id ON deployed_images(repository_token_id)",
+                        (idxErr) => {
+                          if (idxErr && !idxErr.message.includes("already exists")) {
+                            logger.debug(
+                              "Index for repository_token_id may already exist:",
+                              idxErr.message
+                            );
+                          }
+                        }
+                      );
+                    }
+                  }
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create registry_image_versions table - tracks latest versions available in registries
-        db.run(
-          `CREATE TABLE IF NOT EXISTS registry_image_versions (
+          // Create registry_image_versions table - tracks latest versions available in registries
+          db.run(
+            `CREATE TABLE IF NOT EXISTS registry_image_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         image_repo TEXT NOT NULL,
@@ -576,59 +576,62 @@ async function initializeDatabase() {
         UNIQUE(user_id, image_repo, tag),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating registry_image_versions table:", { error: err });
-            } else {
-              logger.info("Registry image versions table ready");
-              // Add provider column if it doesn't exist (migration for existing databases)
-              db.run("ALTER TABLE registry_image_versions ADD COLUMN provider TEXT", (alterErr) => {
-                // Ignore error if column already exists
-                if (alterErr && !alterErr.message.includes("duplicate column")) {
-                  logger.debug(
-                    "Provider column may already exist or migration not needed:",
-                    alterErr.message
-                  );
-                }
-              });
-              // Create indexes for registry_image_versions table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_user_id ON registry_image_versions(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating registry_image_versions user_id index:", {
-                      error: idxErr,
-                    });
+            (err) => {
+              if (err) {
+                logger.error("Error creating registry_image_versions table:", { error: err });
+              } else {
+                logger.info("Registry image versions table ready");
+                // Add provider column if it doesn't exist (migration for existing databases)
+                db.run(
+                  "ALTER TABLE registry_image_versions ADD COLUMN provider TEXT",
+                  (alterErr) => {
+                    // Ignore error if column already exists
+                    if (alterErr && !alterErr.message.includes("duplicate column")) {
+                      logger.debug(
+                        "Provider column may already exist or migration not needed:",
+                        alterErr.message
+                      );
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_image_repo ON registry_image_versions(image_repo)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating registry_image_versions image_repo index:", {
-                      error: idxErr,
-                    });
+                );
+                // Create indexes for registry_image_versions table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_user_id ON registry_image_versions(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating registry_image_versions user_id index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_last_checked ON registry_image_versions(last_checked)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating registry_image_versions last_checked index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_image_repo ON registry_image_versions(image_repo)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating registry_image_versions image_repo index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_registry_image_versions_last_checked ON registry_image_versions(last_checked)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating registry_image_versions last_checked index:", {
+                        error: idxErr,
+                      });
+                    }
+                  }
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create containers table (renamed from portainer_containers) to store container state per user
-        db.run(
-          `CREATE TABLE IF NOT EXISTS containers (
+          // Create containers table (renamed from portainer_containers) to store container state per user
+          db.run(
+            `CREATE TABLE IF NOT EXISTS containers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         portainer_instance_id INTEGER NOT NULL,
@@ -651,70 +654,70 @@ async function initializeDatabase() {
         FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE CASCADE,
         FOREIGN KEY (deployed_image_id) REFERENCES deployed_images(id) ON DELETE SET NULL
       )`,
-          // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
-          (err) => {
-            if (err) {
-              logger.error("Error creating containers table:", { error: err });
-            } else {
-              logger.info("Containers table ready");
-              // Create indexes for containers table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating containers user_id index:", {
-                      error: idxErr,
-                    });
+            // eslint-disable-next-line max-lines-per-function -- Database table creation callback requires comprehensive error handling
+            (err) => {
+              if (err) {
+                logger.error("Error creating containers table:", { error: err });
+              } else {
+                logger.info("Containers table ready");
+                // Create indexes for containers table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating containers user_id index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(portainer_instance_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating containers instance index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(portainer_instance_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating containers instance index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_containers_deployed_image ON containers(deployed_image_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating containers deployed_image_id index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_containers_deployed_image ON containers(deployed_image_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating containers deployed_image_id index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_containers_image_repo ON containers(image_repo)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating containers image_repo index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_containers_image_repo ON containers(image_repo)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating containers image_repo index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_containers_last_seen ON containers(last_seen)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating containers last_seen index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_containers_last_seen ON containers(last_seen)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating containers last_seen index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create batch_config table (per user, per job type)
-        db.run(
-          `CREATE TABLE IF NOT EXISTS batch_config (
+          // Create batch_config table (per user, per job type)
+          db.run(
+            `CREATE TABLE IF NOT EXISTS batch_config (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         job_type TEXT NOT NULL,
@@ -724,18 +727,18 @@ async function initializeDatabase() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, job_type)
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating batch_config table:", { error: err });
-            } else {
-              logger.info("Batch config table ready");
+            (err) => {
+              if (err) {
+                logger.error("Error creating batch_config table:", { error: err });
+              } else {
+                logger.info("Batch config table ready");
+              }
             }
-          }
-        );
+          );
 
-        // Create settings table for application settings
-        db.run(
-          `CREATE TABLE IF NOT EXISTS settings (
+          // Create settings table for application settings
+          db.run(
+            `CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             key TEXT NOT NULL,
@@ -744,32 +747,32 @@ async function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, key)
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating settings table:", { error: err });
-            } else {
-              logger.info("Settings table ready");
-              // Create indexes for settings table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating settings user_id index:", { error: idxErr });
+            (err) => {
+              if (err) {
+                logger.error("Error creating settings table:", { error: err });
+              } else {
+                logger.info("Settings table ready");
+                // Create indexes for settings table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating settings user_id index:", { error: idxErr });
+                    }
                   }
-                }
-              );
-              db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
-                if (idxErr && !idxErr.message.includes("already exists")) {
-                  logger.error("Error creating settings key index:", { error: idxErr });
-                }
-              });
+                );
+                db.run("CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)", (idxErr) => {
+                  if (idxErr && !idxErr.message.includes("already exists")) {
+                    logger.error("Error creating settings key index:", { error: idxErr });
+                  }
+                });
+              }
             }
-          }
-        );
+          );
 
-        // Create discord_webhooks table for multiple webhook configurations
-        db.run(
-          `CREATE TABLE IF NOT EXISTS discord_webhooks (
+          // Create discord_webhooks table for multiple webhook configurations
+          db.run(
+            `CREATE TABLE IF NOT EXISTS discord_webhooks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         webhook_url TEXT NOT NULL,
@@ -783,49 +786,49 @@ async function initializeDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating discord_webhooks table:", { error: err });
-            } else {
-              logger.info("Discord webhooks table ready");
-              // Create indexes for discord_webhooks table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_user_id ON discord_webhooks(user_id)",
-                (idxErr) => {
-                  // Ignore "no such column" errors - these are expected if table exists from old schema
-                  // Migration will handle adding the column and recreating the index
-                  if (
-                    idxErr &&
-                    !idxErr.message.includes("already exists") &&
-                    !idxErr.message.includes("no such column")
-                  ) {
-                    logger.error("Error creating discord_webhooks user_id index:", {
-                      error: idxErr,
-                    });
-                  } else if (idxErr && idxErr.message.includes("no such column")) {
-                    logger.debug(
-                      "Discord webhooks table exists without user_id column - migration will handle this"
-                    );
+            (err) => {
+              if (err) {
+                logger.error("Error creating discord_webhooks table:", { error: err });
+              } else {
+                logger.info("Discord webhooks table ready");
+                // Create indexes for discord_webhooks table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_user_id ON discord_webhooks(user_id)",
+                  (idxErr) => {
+                    // Ignore "no such column" errors - these are expected if table exists from old schema
+                    // Migration will handle adding the column and recreating the index
+                    if (
+                      idxErr &&
+                      !idxErr.message.includes("already exists") &&
+                      !idxErr.message.includes("no such column")
+                    ) {
+                      logger.error("Error creating discord_webhooks user_id index:", {
+                        error: idxErr,
+                      });
+                    } else if (idxErr && idxErr.message.includes("no such column")) {
+                      logger.debug(
+                        "Discord webhooks table exists without user_id column - migration will handle this"
+                      );
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating discord_webhooks enabled index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_discord_webhooks_enabled ON discord_webhooks(enabled)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating discord_webhooks enabled index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create batch_runs table to track batch execution history (per user)
-        db.run(
-          `CREATE TABLE IF NOT EXISTS batch_runs (
+          // Create batch_runs table to track batch execution history (per user)
+          db.run(
+            `CREATE TABLE IF NOT EXISTS batch_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         job_type TEXT DEFAULT 'docker-hub-pull',
@@ -839,36 +842,38 @@ async function initializeDatabase() {
         error_message TEXT,
         logs TEXT
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating batch_runs table:", { error: err });
-            } else {
-              logger.info("Batch runs table ready");
-              // Create indexes for batch_runs table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating batch_runs started_at index:", { error: idxErr });
+            (err) => {
+              if (err) {
+                logger.error("Error creating batch_runs table:", { error: err });
+              } else {
+                logger.info("Batch runs table ready");
+                // Create indexes for batch_runs table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_batch_runs_started_at ON batch_runs(started_at DESC)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating batch_runs started_at index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating batch_runs status index:", { error: idxErr });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_batch_runs_status ON batch_runs(status)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating batch_runs status index:", { error: idxErr });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create discord_notifications_sent table to persist notification deduplication
-        // This ensures notifications are only sent once per SHA, even across server restarts
-        db.run(
-          `CREATE TABLE IF NOT EXISTS discord_notifications_sent (
+          // Create discord_notifications_sent table to persist notification deduplication
+          // This ensures notifications are only sent once per SHA, even across server restarts
+          db.run(
+            `CREATE TABLE IF NOT EXISTS discord_notifications_sent (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         deduplication_key TEXT NOT NULL,
@@ -877,39 +882,39 @@ async function initializeDatabase() {
         UNIQUE(user_id, deduplication_key),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating discord_notifications_sent table:", { error: err });
-            } else {
-              logger.info("Discord notifications sent table ready");
-              // Create indexes for discord_notifications_sent table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_discord_notifications_user_key ON discord_notifications_sent(user_id, deduplication_key)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating discord_notifications user_key index:", {
-                      error: idxErr,
-                    });
+            (err) => {
+              if (err) {
+                logger.error("Error creating discord_notifications_sent table:", { error: err });
+              } else {
+                logger.info("Discord notifications sent table ready");
+                // Create indexes for discord_notifications_sent table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_discord_notifications_user_key ON discord_notifications_sent(user_id, deduplication_key)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating discord_notifications user_key index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_discord_notifications_sent_at ON discord_notifications_sent(sent_at DESC)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating discord_notifications sent_at index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_discord_notifications_sent_at ON discord_notifications_sent(sent_at DESC)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating discord_notifications sent_at index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create upgrade_history table to track container upgrade history
-        db.run(
-          `CREATE TABLE IF NOT EXISTS upgrade_history (
+          // Create upgrade_history table to track container upgrade history
+          db.run(
+            `CREATE TABLE IF NOT EXISTS upgrade_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         portainer_instance_id INTEGER,
@@ -935,49 +940,49 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (portainer_instance_id) REFERENCES portainer_instances(id) ON DELETE SET NULL
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating upgrade_history table:", { error: err });
-            } else {
-              logger.info("Upgrade history table ready");
-              // Create indexes for upgrade_history table
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_user_id ON upgrade_history(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating upgrade_history user_id index:", {
-                      error: idxErr,
-                    });
+            (err) => {
+              if (err) {
+                logger.error("Error creating upgrade_history table:", { error: err });
+              } else {
+                logger.info("Upgrade history table ready");
+                // Create indexes for upgrade_history table
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_upgrade_history_user_id ON upgrade_history(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating upgrade_history user_id index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_created_at ON upgrade_history(created_at DESC)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating upgrade_history created_at index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_upgrade_history_created_at ON upgrade_history(created_at DESC)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating upgrade_history created_at index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_upgrade_history_container_name ON upgrade_history(container_name)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating upgrade_history container_name index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_upgrade_history_container_name ON upgrade_history(container_name)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating upgrade_history container_name index:", {
+                        error: idxErr,
+                      });
+                    }
                   }
-                }
-              );
+                );
+              }
             }
-          }
-        );
+          );
 
-        // Create tracked_app_upgrade_history table
-        db.run(
-          `CREATE TABLE IF NOT EXISTS tracked_app_upgrade_history (
+          // Create tracked_app_upgrade_history table
+          db.run(
+            `CREATE TABLE IF NOT EXISTS tracked_app_upgrade_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         tracked_app_id INTEGER,
@@ -998,40 +1003,40 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (tracked_app_id) REFERENCES tracked_apps(id) ON DELETE SET NULL
       )`,
-          (err) => {
-            if (err) {
-              logger.error("Error creating tracked_app_upgrade_history table:", { error: err });
-            } else {
-              logger.info("Tracked app upgrade history table ready");
+            (err) => {
+              if (err) {
+                logger.error("Error creating tracked_app_upgrade_history table:", { error: err });
+              } else {
+                logger.info("Tracked app upgrade history table ready");
 
-              // Migration: Check if we need to update the CHECK constraint to include 'docker'
-              // This is needed for existing databases that had the old constraint
-              db.get(
-                "SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_app_upgrade_history'",
-                (err, row) => {
-                  if (!err && row && row.sql) {
-                    // Check if the constraint is missing 'docker'
-                    if (
-                      row.sql.includes("CHECK(provider IN ('github', 'gitlab'))") ||
-                      row.sql.includes("CHECK (provider IN ('github', 'gitlab'))")
-                    ) {
-                      logger.info(
-                        "Migrating tracked_app_upgrade_history table to add 'docker' provider support"
-                      );
+                // Migration: Check if we need to update the CHECK constraint to include 'docker'
+                // This is needed for existing databases that had the old constraint
+                db.get(
+                  "SELECT sql FROM sqlite_master WHERE type='table' AND name='tracked_app_upgrade_history'",
+                  (err, row) => {
+                    if (!err && row && row.sql) {
+                      // Check if the constraint is missing 'docker'
+                      if (
+                        row.sql.includes("CHECK(provider IN ('github', 'gitlab'))") ||
+                        row.sql.includes("CHECK (provider IN ('github', 'gitlab'))")
+                      ) {
+                        logger.info(
+                          "Migrating tracked_app_upgrade_history table to add 'docker' provider support"
+                        );
 
-                      // Recreate the table with updated constraint
-                      db.run("BEGIN TRANSACTION", (txErr) => {
-                        if (txErr) {
-                          logger.error(
-                            "Error starting transaction for tracked_app_upgrade_history migration:",
-                            { error: txErr }
-                          );
-                          return;
-                        }
+                        // Recreate the table with updated constraint
+                        db.run("BEGIN TRANSACTION", (txErr) => {
+                          if (txErr) {
+                            logger.error(
+                              "Error starting transaction for tracked_app_upgrade_history migration:",
+                              { error: txErr }
+                            );
+                            return;
+                          }
 
-                        // Create temporary table with new schema
-                        db.run(
-                          `CREATE TABLE tracked_app_upgrade_history_new (
+                          // Create temporary table with new schema
+                          db.run(
+                            `CREATE TABLE tracked_app_upgrade_history_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         user_id INTEGER NOT NULL,
                         tracked_app_id INTEGER,
@@ -1052,134 +1057,137 @@ async function initializeDatabase() {
                         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                         FOREIGN KEY (tracked_app_id) REFERENCES tracked_apps(id) ON DELETE SET NULL
                       )`,
-                          (createErr) => {
-                            if (createErr) {
-                              logger.error(
-                                "Error creating new tracked_app_upgrade_history table:",
-                                { error: createErr }
-                              );
-                              db.run("ROLLBACK");
-                              return;
-                            }
+                            (createErr) => {
+                              if (createErr) {
+                                logger.error(
+                                  "Error creating new tracked_app_upgrade_history table:",
+                                  { error: createErr }
+                                );
+                                db.run("ROLLBACK");
+                                return;
+                              }
 
-                            // Copy data from old table
-                            db.run(
-                              `INSERT INTO tracked_app_upgrade_history_new SELECT * FROM tracked_app_upgrade_history`,
-                              (copyErr) => {
-                                if (copyErr) {
-                                  logger.error("Error copying tracked_app_upgrade_history data:", {
-                                    error: copyErr,
-                                  });
-                                  db.run("ROLLBACK");
-                                  return;
-                                }
-
-                                // Drop old table
-                                db.run("DROP TABLE tracked_app_upgrade_history", (dropErr) => {
-                                  if (dropErr) {
+                              // Copy data from old table
+                              db.run(
+                                `INSERT INTO tracked_app_upgrade_history_new SELECT * FROM tracked_app_upgrade_history`,
+                                (copyErr) => {
+                                  if (copyErr) {
                                     logger.error(
-                                      "Error dropping old tracked_app_upgrade_history table:",
-                                      { error: dropErr }
+                                      "Error copying tracked_app_upgrade_history data:",
+                                      {
+                                        error: copyErr,
+                                      }
                                     );
                                     db.run("ROLLBACK");
                                     return;
                                   }
 
-                                  // Rename new table
-                                  db.run(
-                                    "ALTER TABLE tracked_app_upgrade_history_new RENAME TO tracked_app_upgrade_history",
-                                    (renameErr) => {
-                                      if (renameErr) {
-                                        logger.error(
-                                          "Error renaming tracked_app_upgrade_history table:",
-                                          { error: renameErr }
-                                        );
-                                        db.run("ROLLBACK");
-                                        return;
-                                      }
-
-                                      // Commit transaction
-                                      db.run("COMMIT", (commitErr) => {
-                                        if (commitErr) {
-                                          logger.error(
-                                            "Error committing tracked_app_upgrade_history migration:",
-                                            { error: commitErr }
-                                          );
-                                        } else {
-                                          logger.info(
-                                            "Successfully migrated tracked_app_upgrade_history table"
-                                          );
-                                        }
-                                      });
+                                  // Drop old table
+                                  db.run("DROP TABLE tracked_app_upgrade_history", (dropErr) => {
+                                    if (dropErr) {
+                                      logger.error(
+                                        "Error dropping old tracked_app_upgrade_history table:",
+                                        { error: dropErr }
+                                      );
+                                      db.run("ROLLBACK");
+                                      return;
                                     }
-                                  );
-                                });
-                              }
-                            );
-                          }
-                        );
+
+                                    // Rename new table
+                                    db.run(
+                                      "ALTER TABLE tracked_app_upgrade_history_new RENAME TO tracked_app_upgrade_history",
+                                      (renameErr) => {
+                                        if (renameErr) {
+                                          logger.error(
+                                            "Error renaming tracked_app_upgrade_history table:",
+                                            { error: renameErr }
+                                          );
+                                          db.run("ROLLBACK");
+                                          return;
+                                        }
+
+                                        // Commit transaction
+                                        db.run("COMMIT", (commitErr) => {
+                                          if (commitErr) {
+                                            logger.error(
+                                              "Error committing tracked_app_upgrade_history migration:",
+                                              { error: commitErr }
+                                            );
+                                          } else {
+                                            logger.info(
+                                              "Successfully migrated tracked_app_upgrade_history table"
+                                            );
+                                          }
+                                        });
+                                      }
+                                    );
+                                  });
+                                }
+                              );
+                            }
+                          );
+                        });
+                      }
+                    }
+                  }
+                );
+
+                // Create indexes
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_user_id ON tracked_app_upgrade_history(user_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_app_upgrade_history user_id index:", {
+                        error: idxErr,
                       });
                     }
                   }
-                }
-              );
-
-              // Create indexes
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_user_id ON tracked_app_upgrade_history(user_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_app_upgrade_history user_id index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_tracked_app_id ON tracked_app_upgrade_history(tracked_app_id)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error(
+                        "Error creating tracked_app_upgrade_history tracked_app_id index:",
+                        {
+                          error: idxErr,
+                        }
+                      );
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_tracked_app_id ON tracked_app_upgrade_history(tracked_app_id)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error(
-                      "Error creating tracked_app_upgrade_history tracked_app_id index:",
-                      {
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_created_at ON tracked_app_upgrade_history(created_at DESC)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_app_upgrade_history created_at index:", {
                         error: idxErr,
-                      }
-                    );
+                      });
+                    }
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_created_at ON tracked_app_upgrade_history(created_at DESC)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_app_upgrade_history created_at index:", {
-                      error: idxErr,
-                    });
+                );
+                db.run(
+                  "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_app_name ON tracked_app_upgrade_history(app_name)",
+                  (idxErr) => {
+                    if (idxErr && !idxErr.message.includes("already exists")) {
+                      logger.error("Error creating tracked_app_upgrade_history app_name index:", {
+                        error: idxErr,
+                      });
+                    }
+                    // Resolve the promise when all tables are created (this is the last operation)
+                    resolve();
                   }
-                }
-              );
-              db.run(
-                "CREATE INDEX IF NOT EXISTS idx_tracked_app_upgrade_history_app_name ON tracked_app_upgrade_history(app_name)",
-                (idxErr) => {
-                  if (idxErr && !idxErr.message.includes("already exists")) {
-                    logger.error("Error creating tracked_app_upgrade_history app_name index:", {
-                      error: idxErr,
-                    });
-                  }
-                  // Resolve the promise when all tables are created (this is the last operation)
-                  resolve();
-                }
-              );
+                );
+              }
             }
-          }
-        );
-      } catch (serializeError) {
-        logger.error("Error in db.serialize callback:", serializeError);
-        logger.error("Stack:", { error: serializeError });
-        reject(serializeError);
-      }
+          );
+        } catch (serializeError) {
+          logger.error("Error in db.serialize callback:", serializeError);
+          logger.error("Stack:", { error: serializeError });
+          reject(serializeError);
+        }
+      });
     });
-  });
 
     logger.info("Database initialization completed");
 

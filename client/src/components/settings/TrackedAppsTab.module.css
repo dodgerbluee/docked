@@ -77,7 +77,6 @@ body.dark-mode .dangerButton:hover:not(:disabled) {
   max-width: 100%;
 }
 
-
 .visibilityCard {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);

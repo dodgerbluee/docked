@@ -139,9 +139,7 @@ export function useImportFlow({
         }
 
         // For credential steps, validate with backend
-        if (
-          [STEP_TYPES.PORTAINER, STEP_TYPES.DISCORD].includes(currentStepType)
-        ) {
+        if ([STEP_TYPES.PORTAINER, STEP_TYPES.DISCORD].includes(currentStepType)) {
           setLoading(true);
           try {
             const validation = await validateCredentialsStep();

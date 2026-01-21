@@ -7,83 +7,78 @@ import styles from "./HeroStats.module.css";
 /**
  * Hero stats section displaying key metrics at a glance
  */
-const HeroStats = ({
-  stats,
-  shouldShowEmptyState,
-  onPortainerStatClick,
-  onTrackedAppsClick,
-}) => {
+const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTrackedAppsClick }) => {
   const heroCards = [];
 
   heroCards.push({
-      id: "containers",
-      icon: Server,
-      label: "Total Containers",
-      value: shouldShowEmptyState ? 0 : stats.totalContainers,
-      color: "blue",
-      clickable: !shouldShowEmptyState,
-      onClick: () => {
-        if (!shouldShowEmptyState && onPortainerStatClick) {
-          onPortainerStatClick(CONTENT_TABS.ALL);
-        }
-      },
-    });
-
-    heroCards.push({
-      id: "updates",
-      icon: RefreshCw,
-      label: "Updates Available",
-      value: shouldShowEmptyState ? 0 : stats.containersWithUpdates,
-      color: stats.containersWithUpdates > 0 ? "orange" : "green",
-      clickable: !shouldShowEmptyState,
-      onClick: () => {
-        if (!shouldShowEmptyState && onPortainerStatClick) {
-          onPortainerStatClick(CONTENT_TABS.UPDATES);
-        }
-      },
-      highlight: stats.containersWithUpdates > 0,
-    });
-
-    heroCards.push({
-      id: "upToDate",
-      icon: CheckCircle,
-      label: "Up to Date",
-      value: shouldShowEmptyState ? 0 : stats.containersUpToDate,
-      color: "green",
-      clickable: !shouldShowEmptyState,
-      onClick: () => {
-        if (!shouldShowEmptyState && onPortainerStatClick) {
-          onPortainerStatClick(CONTENT_TABS.CURRENT);
-        }
-      },
-    });
-
-    heroCards.push({
-      id: "unusedImages",
-      icon: AlertCircle,
-      label: "Unused Images",
-      value: shouldShowEmptyState ? 0 : stats.unusedImages,
-      color: "purple",
-      clickable: !shouldShowEmptyState,
-      onClick: () => {
-        if (!shouldShowEmptyState && onPortainerStatClick) {
-          onPortainerStatClick(CONTENT_TABS.UNUSED);
-        }
-      },
-      subtext: stats.unusedImages > 0 ? "Can be cleaned up" : null,
-    });
+    id: "containers",
+    icon: Server,
+    label: "Total Containers",
+    value: shouldShowEmptyState ? 0 : stats.totalContainers,
+    color: "blue",
+    clickable: !shouldShowEmptyState,
+    onClick: () => {
+      if (!shouldShowEmptyState && onPortainerStatClick) {
+        onPortainerStatClick(CONTENT_TABS.ALL);
+      }
+    },
+  });
 
   heroCards.push({
-      id: "trackedApps",
-      icon: Package,
-      label: "Tracked Apps",
-      value: stats.totalTrackedApps,
-      color: "indigo",
-      clickable: true,
-      onClick: onTrackedAppsClick,
-      subtext:
-        stats.trackedAppsBehind > 0 ? `${stats.trackedAppsBehind} need updates` : "All up to date",
-    });
+    id: "updates",
+    icon: RefreshCw,
+    label: "Updates Available",
+    value: shouldShowEmptyState ? 0 : stats.containersWithUpdates,
+    color: stats.containersWithUpdates > 0 ? "orange" : "green",
+    clickable: !shouldShowEmptyState,
+    onClick: () => {
+      if (!shouldShowEmptyState && onPortainerStatClick) {
+        onPortainerStatClick(CONTENT_TABS.UPDATES);
+      }
+    },
+    highlight: stats.containersWithUpdates > 0,
+  });
+
+  heroCards.push({
+    id: "upToDate",
+    icon: CheckCircle,
+    label: "Up to Date",
+    value: shouldShowEmptyState ? 0 : stats.containersUpToDate,
+    color: "green",
+    clickable: !shouldShowEmptyState,
+    onClick: () => {
+      if (!shouldShowEmptyState && onPortainerStatClick) {
+        onPortainerStatClick(CONTENT_TABS.CURRENT);
+      }
+    },
+  });
+
+  heroCards.push({
+    id: "unusedImages",
+    icon: AlertCircle,
+    label: "Unused Images",
+    value: shouldShowEmptyState ? 0 : stats.unusedImages,
+    color: "purple",
+    clickable: !shouldShowEmptyState,
+    onClick: () => {
+      if (!shouldShowEmptyState && onPortainerStatClick) {
+        onPortainerStatClick(CONTENT_TABS.UNUSED);
+      }
+    },
+    subtext: stats.unusedImages > 0 ? "Can be cleaned up" : null,
+  });
+
+  heroCards.push({
+    id: "trackedApps",
+    icon: Package,
+    label: "Tracked Apps",
+    value: stats.totalTrackedApps,
+    color: "indigo",
+    clickable: true,
+    onClick: onTrackedAppsClick,
+    subtext:
+      stats.trackedAppsBehind > 0 ? `${stats.trackedAppsBehind} need updates` : "All up to date",
+  });
 
   return (
     <div className={styles.heroStats}>

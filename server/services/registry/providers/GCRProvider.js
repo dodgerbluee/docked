@@ -399,7 +399,13 @@ class GCRProvider extends RegistryProvider {
 
     try {
       const imageRef = `${imageRepo}:${tag}`;
-      const craneResult = await this._tryCraneSkopeo(imageRef, imageRepo, tag, cacheKey, options.platform);
+      const craneResult = await this._tryCraneSkopeo(
+        imageRef,
+        imageRepo,
+        tag,
+        cacheKey,
+        options.platform
+      );
       if (craneResult) {
         return craneResult;
       }

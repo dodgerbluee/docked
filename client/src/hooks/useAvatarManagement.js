@@ -97,9 +97,9 @@ export const useAvatarManagement = (isAuthenticated, authToken) => {
           newAvatar.startsWith("/api/") || newAvatar.startsWith("api/")
             ? `${API_BASE_URL}${newAvatar.startsWith("/") ? newAvatar : `/${newAvatar}`}`
             : `${API_BASE_URL}${newAvatar}`;
-        
+
         // Add cache-busting parameter to prevent browser caching
-        avatarUrl += `${avatarUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        avatarUrl += `${avatarUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
 
         try {
           const response = await axios.get(avatarUrl, {

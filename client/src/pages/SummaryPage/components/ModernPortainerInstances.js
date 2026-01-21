@@ -60,7 +60,9 @@ const ModernPortainerInstances = ({
                     }}
                   >
                     <div className={styles.statContent}>
-                      <div className={`${styles.statValue} ${instance.withUpdates > 0 ? styles.hasUpdates : ''}`}>
+                      <div
+                        className={`${styles.statValue} ${instance.withUpdates > 0 ? styles.hasUpdates : ""}`}
+                      >
                         {instance.withUpdates}
                       </div>
                       <div className={styles.statLabel}>Updates</div>

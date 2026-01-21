@@ -29,8 +29,7 @@ const ImageStatistics = ({
       totalImages,
       inUse: uniqueImages.size,
       unused: unusedImagesCount,
-      unusedPercentage:
-        totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0,
+      unusedPercentage: totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0,
     };
   }, [containers, unusedImagesCount]);
 
@@ -62,24 +61,22 @@ const ImageStatistics = ({
               <HardDrive size={20} />
             </div>
             <div className={styles.statContent}>
-              <div className={styles.statValue}>
-                {shouldShowEmptyState ? 0 : imageStats.inUse}
-              </div>
+              <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.inUse}</div>
               <div className={styles.statLabel}>In Use</div>
             </div>
           </div>
 
           <div
             className={`${styles.statCard} ${styles.clickable} ${imageStats.unused > 0 ? styles.warning : ""}`}
-            onClick={!shouldShowEmptyState && imageStats.unused > 0 ? onUnusedImagesClick : undefined}
+            onClick={
+              !shouldShowEmptyState && imageStats.unused > 0 ? onUnusedImagesClick : undefined
+            }
           >
             <div className={`${styles.iconWrapper} ${imageStats.unused > 0 ? styles.warning : ""}`}>
               <Trash2 size={20} />
             </div>
             <div className={styles.statContent}>
-              <div className={styles.statValue}>
-                {shouldShowEmptyState ? 0 : imageStats.unused}
-              </div>
+              <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.unused}</div>
               <div className={styles.statLabel}>Unused</div>
             </div>
           </div>
@@ -105,13 +102,13 @@ const ImageStatistics = ({
             </div>
 
             {imageStats.unused > 0 && (
-              <div 
+              <div
                 className={`${styles.cleanupTip} ${styles.clickable}`}
                 onClick={onUnusedImagesClick}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     onUnusedImagesClick();
                   }

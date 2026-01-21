@@ -28,7 +28,7 @@ const HistoryMetrics = () => {
   // Get most frequently upgraded containers
   const topUpgradedContainers = useMemo(() => {
     if (!history || history.length === 0) return [];
-    
+
     const containerCounts = {};
     history.forEach((upgrade) => {
       const name = upgrade.container_name;
@@ -99,9 +99,7 @@ const HistoryMetrics = () => {
           </div>
           {topUpgradedContainers.length > 0 && (
             <div className={styles.compactStatItem}>
-              <div className={styles.compactValue}>
-                {topUpgradedContainers[0].name}
-              </div>
+              <div className={styles.compactValue}>{topUpgradedContainers[0].name}</div>
               <div className={styles.compactLabel}>
                 Most Upgraded ({topUpgradedContainers[0].count}×)
               </div>

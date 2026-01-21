@@ -106,18 +106,21 @@ class DockerHubProvider extends RegistryProvider {
    * @returns {Promise<Object|null>} - Result or null
    */
   async _getDigestWithCraneSkopeo(params) {
-    const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag, platform } = params;
+    const { imageRef, imageRepo, cleanedTag, cacheKey, normalizedRepo, originalTag, platform } =
+      params;
     const { getImageDigest } = require("../../../utils/containerTools");
-    
+
     const platformMsg = platform ? ` for platform ${platform}` : "";
     logger.debug(
       `[Registry] Attempting to get digest for ${imageRef}${platformMsg} using crane/skopeo (primary method - uses registry protocol)`
     );
-    
+
     const digest = await getImageDigest(imageRef, { platform });
 
     if (!digest) {
-      logger.warn(`[Registry] ⚠️ crane/skopeo failed for ${imageRef}${platformMsg}, no digest available`);
+      logger.warn(
+        `[Registry] ⚠️ crane/skopeo failed for ${imageRef}${platformMsg}, no digest available`
+      );
       return null;
     }
 

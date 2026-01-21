@@ -7,7 +7,12 @@ import styles from "./ContainerHealthOverview.module.css";
 /**
  * Container health overview with visual chart
  */
-const ContainerHealthOverview = ({ containers, summaryStats, shouldShowEmptyState, onStatClick }) => {
+const ContainerHealthOverview = ({
+  containers,
+  summaryStats,
+  shouldShowEmptyState,
+  onStatClick,
+}) => {
   const healthData = useMemo(() => {
     const total = shouldShowEmptyState ? 0 : summaryStats.totalContainers;
     const withUpdates = shouldShowEmptyState ? 0 : summaryStats.containersWithUpdates;
@@ -100,7 +105,9 @@ const ContainerHealthOverview = ({ containers, summaryStats, shouldShowEmptyStat
 
           <div
             className={`${styles.statItem} ${styles.clickable} ${healthData.withUpdates > 0 ? styles.warning : ""}`}
-            onClick={() => !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)}
+            onClick={() =>
+              !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)
+            }
           >
             <div className={styles.statIcon}>
               <TrendingUp size={18} />
@@ -114,7 +121,9 @@ const ContainerHealthOverview = ({ containers, summaryStats, shouldShowEmptyStat
 
           <div
             className={`${styles.statItem} ${styles.clickable} ${styles.success}`}
-            onClick={() => !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)}
+            onClick={() =>
+              !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)
+            }
           >
             <div className={styles.statIcon}>
               <CheckCircle2 size={18} />

@@ -178,7 +178,7 @@ body.dark-mode .filterSelect option {
     background: #1a1a1a;
     color: #ffffff;
   }
-  
+
   body.dark-mode .filterSelect option:checked,
   body.dark-mode .filterSelect option:hover {
     background: linear-gradient(#1e88e5, #1e88e5);
@@ -193,7 +193,7 @@ body.dark-mode .filterSelect option {
     background-color: #1a1a1a;
     color: #ffffff;
   }
-  
+
   body.dark-mode .filterSelect option:checked {
     background-color: #1e88e5;
   }

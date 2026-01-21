@@ -22,7 +22,12 @@ import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../constants/api";
 import styles from "./ContainerDebugModal.module.css";
 
-function ContainerDebugModal({ containerId, containerName, onClose, developerModeEnabled = false }) {
+function ContainerDebugModal({
+  containerId,
+  containerName,
+  onClose,
+  developerModeEnabled = false,
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
@@ -362,7 +367,10 @@ function ContainerDebugModal({ containerId, containerName, onClose, developerMod
                     </div>
                     <div className={styles.metadataItem}>
                       <span className={styles.metadataLabel}>Container ID:</span>
-                      <span className={`${styles.metadataValue} ${styles.monoValue}`} title={containerId}>
+                      <span
+                        className={`${styles.metadataValue} ${styles.monoValue}`}
+                        title={containerId}
+                      >
                         {containerId}
                       </span>
                     </div>
@@ -384,7 +392,9 @@ function ContainerDebugModal({ containerId, containerName, onClose, developerMod
                       <div className={styles.digestHeader}>
                         <span className={styles.digestLabel}>Current (Deployed)</span>
                         {debugInfo.repoDigests && debugInfo.repoDigests.length > 1 && (
-                          <span className={styles.countBadge}>{debugInfo.repoDigests.length} digests</span>
+                          <span className={styles.countBadge}>
+                            {debugInfo.repoDigests.length} digests
+                          </span>
                         )}
                       </div>
                       <div className={styles.digestBox}>
@@ -421,47 +431,53 @@ function ContainerDebugModal({ containerId, containerName, onClose, developerMod
                         {(() => {
                           const latestDigest = debugInfo.registryImageVersion?.latest_digest;
                           const repoDigests = debugInfo.repoDigests || [];
-                          
+
                           if (!latestDigest || repoDigests.length === 0) {
                             return null;
                           }
-                          
+
                           // Normalize latest digest (remove sha256: prefix)
-                          const normalizedLatest = latestDigest.replace(/^sha256:/, '').toLowerCase();
-                          
+                          const normalizedLatest = latestDigest
+                            .replace(/^sha256:/, "")
+                            .toLowerCase();
+
                           // Check if latest digest is NOT in any of the RepoDigests
                           // RepoDigests are stored as clean "sha256:..." format
-                          const hasUpdate = !repoDigests.some(rd => {
-                            const hash = rd.replace(/^sha256:/, '').toLowerCase();
+                          const hasUpdate = !repoDigests.some((rd) => {
+                            const hash = rd.replace(/^sha256:/, "").toLowerCase();
                             return hash === normalizedLatest;
                           });
-                          
-                          return hasUpdate && <span className={styles.updateBadge}>Update Available</span>;
+
+                          return (
+                            hasUpdate && (
+                              <span className={styles.updateBadge}>Update Available</span>
+                            )
+                          );
                         })()}
                       </div>
                       <div
-                        className={`${styles.digestBox} ${
-                          (() => {
-                            const latestDigest = debugInfo.registryImageVersion?.latest_digest;
-                            const repoDigests = debugInfo.repoDigests || [];
-                            
-                            if (!latestDigest || repoDigests.length === 0) {
-                              return "";
-                            }
-                            
-                            // Normalize latest digest (remove sha256: prefix)
-                            const normalizedLatest = latestDigest.replace(/^sha256:/, '').toLowerCase();
-                            
-                            // Check if latest digest is NOT in any of the RepoDigests
-                            // RepoDigests are stored as clean "sha256:..." format
-                            const hasUpdate = !repoDigests.some(rd => {
-                              const hash = rd.replace(/^sha256:/, '').toLowerCase();
-                              return hash === normalizedLatest;
-                            });
-                            
-                            return hasUpdate ? styles.digestBoxUpdated : "";
-                          })()
-                        }`}
+                        className={`${styles.digestBox} ${(() => {
+                          const latestDigest = debugInfo.registryImageVersion?.latest_digest;
+                          const repoDigests = debugInfo.repoDigests || [];
+
+                          if (!latestDigest || repoDigests.length === 0) {
+                            return "";
+                          }
+
+                          // Normalize latest digest (remove sha256: prefix)
+                          const normalizedLatest = latestDigest
+                            .replace(/^sha256:/, "")
+                            .toLowerCase();
+
+                          // Check if latest digest is NOT in any of the RepoDigests
+                          // RepoDigests are stored as clean "sha256:..." format
+                          const hasUpdate = !repoDigests.some((rd) => {
+                            const hash = rd.replace(/^sha256:/, "").toLowerCase();
+                            return hash === normalizedLatest;
+                          });
+
+                          return hasUpdate ? styles.digestBoxUpdated : "";
+                        })()}`}
                       >
                         {debugInfo.registryImageVersion?.latest_digest ? (
                           <code className={styles.digestCode}>

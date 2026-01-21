@@ -19,7 +19,7 @@ function normalizeDigest(digest) {
 
 /**
  * Compute whether a container has an available update
- * 
+ *
  * Checks if the latest digest exists in the container's RepoDigests array for multi-arch support.
  *
  * @param {Object} container - Container object
@@ -41,7 +41,7 @@ function computeHasUpdate(container) {
   // Get current and latest digests (prefer FULL digests for accurate comparison)
   const currentDigest = container.currentDigestFull || container.currentDigest;
   const latestDigest = container.latestDigestFull || container.latestDigest;
-  
+
   const currentVersion = container.currentVersion || container.currentTag;
   const latestVersion = container.latestVersion || container.latestTag;
 
@@ -70,7 +70,11 @@ function computeHasUpdate(container) {
     if (normalizedCurrent && normalizedLatest) {
       // CRITICAL: Check if latest digest exists in ANY of the container's RepoDigests
       // This handles multi-arch images where a container may have multiple digests
-      if (container.repoDigests && Array.isArray(container.repoDigests) && container.repoDigests.length > 0) {
+      if (
+        container.repoDigests &&
+        Array.isArray(container.repoDigests) &&
+        container.repoDigests.length > 0
+      ) {
         // Check if the latest digest exists in any RepoDigest
         // RepoDigests are stored as clean "sha256:..." format (image prefix already stripped)
         const hasLatestDigest = container.repoDigests.some((rd) => {

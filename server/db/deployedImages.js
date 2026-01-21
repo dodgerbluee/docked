@@ -31,11 +31,12 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
         repository = null,
         repoDigests = null,
       } = options;
-      
+
       // Serialize repoDigests array to JSON string for storage
-      const repoDigestsJson = repoDigests && Array.isArray(repoDigests) && repoDigests.length > 0
-        ? JSON.stringify(repoDigests) 
-        : null;
+      const repoDigestsJson =
+        repoDigests && Array.isArray(repoDigests) && repoDigests.length > 0
+          ? JSON.stringify(repoDigests)
+          : null;
 
       // First try to find existing record
       db.get(
@@ -48,42 +49,42 @@ function upsertDeployedImage(userId, imageRepo, imageTag, imageDigest, options =
             return;
           }
 
-        if (row) {
-          // Update last_seen and repo_digests for existing record
-          // CRITICAL: Only update repo_digests if we have new data (don't overwrite with null)
-          if (repoDigestsJson !== null) {
-            db.run(
-              `UPDATE deployed_images 
+          if (row) {
+            // Update last_seen and repo_digests for existing record
+            // CRITICAL: Only update repo_digests if we have new data (don't overwrite with null)
+            if (repoDigestsJson !== null) {
+              db.run(
+                `UPDATE deployed_images 
                SET last_seen = CURRENT_TIMESTAMP, 
                    updated_at = CURRENT_TIMESTAMP,
                    repo_digests = ?
                WHERE id = ?`,
-              [repoDigestsJson, row.id],
-              (updateErr) => {
-                if (updateErr) {
-                  reject(updateErr);
-                } else {
-                  resolve(row.id);
+                [repoDigestsJson, row.id],
+                (updateErr) => {
+                  if (updateErr) {
+                    reject(updateErr);
+                  } else {
+                    resolve(row.id);
+                  }
                 }
-              }
-            );
-          } else {
-            // Preserve existing repo_digests when updating (don't overwrite with null)
-            db.run(
-              `UPDATE deployed_images 
+              );
+            } else {
+              // Preserve existing repo_digests when updating (don't overwrite with null)
+              db.run(
+                `UPDATE deployed_images 
                SET last_seen = CURRENT_TIMESTAMP, 
                    updated_at = CURRENT_TIMESTAMP
                WHERE id = ?`,
-              [row.id],
-              (updateErr) => {
-                if (updateErr) {
-                  reject(updateErr);
-                } else {
-                  resolve(row.id);
+                [row.id],
+                (updateErr) => {
+                  if (updateErr) {
+                    reject(updateErr);
+                  } else {
+                    resolve(row.id);
+                  }
                 }
-              }
-            );
-          }
+              );
+            }
           } else {
             // Insert new record
             db.run(
