@@ -1,7 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { Server, Package, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
-import { CONTENT_TABS, PORTAINER_CONTENT_TABS } from "../../../constants/summaryPage";
+import { CONTENT_TABS } from "../../../constants/summaryPage";
 import styles from "./HeroStats.module.css";
 
 /**

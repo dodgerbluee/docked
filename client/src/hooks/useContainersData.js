@@ -207,6 +207,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
       portainerInstancesFromAPI,
       fetchUnusedImages,
       successfullyUpdatedContainersRef,
+      dataFetched,
     ]
   );
 

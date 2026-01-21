@@ -54,7 +54,6 @@ export function useCredentialValidation({
 
     const username = currentUser.username;
     const creds = userCredentials[username] || {};
-    const skippedSteps = userSkippedSteps[username] || new Set();
 
     // Create a separate axios instance for validation requests without auth headers
     const validationAxios = axios.create({

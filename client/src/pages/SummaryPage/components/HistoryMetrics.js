@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
-import PropTypes from "prop-types";
-import { TrendingUp, CheckCircle, XCircle, Clock, History, Zap } from "lucide-react";
+import { History } from "lucide-react";
 import { useUpgradeHistory } from "../../../hooks/useUpgradeHistory";
 import styles from "./HistoryMetrics.module.css";
 
@@ -49,6 +48,7 @@ const HistoryMetrics = () => {
     return { label: "Needs Improvement", color: "red" };
   };
 
+  // eslint-disable-next-line no-unused-vars
   const successStatus = getSuccessStatus(successRate);
 
   if (statsLoading) {

@@ -3,8 +3,7 @@ import PropTypes from "prop-types";
 import { useSummaryStats } from "../hooks/useSummaryStats";
 import { useNavigationHandlers } from "../hooks/useNavigationHandlers";
 import { useBatchRuns } from "../hooks/useBatchRuns";
-import { CONTENT_TABS, STAT_CARD_VARIANTS } from "../constants/summaryPage";
-import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
+import { CONTENT_TABS } from "../constants/summaryPage";
 import {
   containerShape,
   portainerInstanceShape,

@@ -5,7 +5,6 @@ import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import HomePageContent from "./HomePage/components/HomePageContent";
 import HomePageModals from "./HomePage/components/HomePageModals";
-import { TAB_NAMES } from "../constants/apiConstants";
 import { computeHasUpdate } from "../utils/containerUpdateHelpers";
 
 /**

@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Server, TrendingUp, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Server, ExternalLink } from "lucide-react";
 import styles from "./ModernPortainerInstances.module.css";
 
 /**

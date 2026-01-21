@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import PropTypes from "prop-types";
-import { Activity, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Activity, TrendingUp, CheckCircle2 } from "lucide-react";
 import { CONTENT_TABS } from "../../../constants/summaryPage";
 import styles from "./ContainerHealthOverview.module.css";
 
@@ -28,7 +28,7 @@ const ContainerHealthOverview = ({
       updatesPercentage,
       upToDatePercentage,
     };
-  }, [summaryStats, shouldShowEmptyState, containers]);
+  }, [summaryStats, shouldShowEmptyState]);
 
   const healthScore = useMemo(() => {
     if (healthData.total === 0) return 0;
