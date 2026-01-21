@@ -295,41 +295,6 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
       // Compute hasUpdate on-the-fly with fresh currentDigest and RepoDigests
       mergedContainer.hasUpdate = computeHasUpdate(mergedContainer);
 
-      // Debug logging for missing updates - log ALL containers with latestDigest to see what's happening
-      if (dbContainer.latestDigest) {
-        const currentNorm = normalizeDigest(
-          mergedContainer.currentDigest || mergedContainer.currentDigestFull
-        );
-        const latestNorm = normalizeDigest(
-          dbContainer.latestDigest || dbContainer.latestDigestFull
-        );
-        const shouldHaveUpdate = currentNorm && latestNorm && currentNorm !== latestNorm;
-
-        if (shouldHaveUpdate && !mergedContainer.hasUpdate) {
-          // This should have hasUpdate=true but doesn't - log for debugging
-          logger.warn("Container should have update but computeHasUpdate returned false", {
-            containerName: mergedContainer.name,
-            containerId: mergedContainer.id.substring(0, 12),
-            currentDigest: currentNorm ? currentNorm.substring(0, 12) : "null",
-            latestDigest: latestNorm ? latestNorm.substring(0, 12) : "null",
-            currentDigestFull:
-              mergedContainer.currentDigest || mergedContainer.currentDigestFull || "null",
-            latestDigestFull: dbContainer.latestDigest || dbContainer.latestDigestFull || "null",
-            provider: dbContainer.provider,
-            hasCurrentDigest: !!mergedContainer.currentDigest,
-            hasCurrentDigestFull: !!mergedContainer.currentDigestFull,
-            hasLatestDigest: !!mergedContainer.latestDigest,
-            hasLatestDigestFull: !!mergedContainer.latestDigestFull,
-          });
-        }
-      } else if (!dbContainer.latestDigest && mergedContainer.hasUpdate) {
-        // Container has update but no latestDigest in cache - this shouldn't happen
-        logger.warn("Container has update but no latestDigest in cache", {
-          containerName: mergedContainer.name,
-          containerId: mergedContainer.id.substring(0, 12),
-        });
-      }
-
       merged.push(mergedContainer);
     } else {
       // Container not found by ID - might be recreated or new
