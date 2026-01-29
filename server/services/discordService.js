@@ -300,6 +300,31 @@ function normalizeDigest(digest) {
 }
 
 /**
+ * Normalize image name for consistent deduplication (remove registry prefixes and tags)
+ * @param {string} imageName - Image name (e.g., "docker.io/tomsquest/docker-radicale:latest")
+ * @returns {string} - Normalized image name (e.g., "tomsquest/docker-radicale")
+ */
+function normalizeImageName(imageName) {
+  if (!imageName) return "";
+  let normalized = String(imageName).trim().toLowerCase();
+  
+  // Remove tag (everything after :)
+  if (normalized.includes(":")) {
+    normalized = normalized.split(":")[0];
+  }
+  
+  // Remove registry prefixes
+  const registryPrefixes = ["docker.io/", "registry-1.docker.io/", "ghcr.io/", "lscr.io/", "registry.gitlab.com/", "gcr.io/"];
+  for (const prefix of registryPrefixes) {
+    if (normalized.startsWith(prefix)) {
+      normalized = normalized.replace(prefix, "");
+    }
+  }
+  
+  return normalized;
+}
+
+/**
  * Extract notification values with fallbacks
  * @param {Object} notification - Notification data
  * @returns {Object} - Extracted values
@@ -322,8 +347,20 @@ function extractNotificationValues(notification) {
  */
 function createPortainerContainerKey(values) {
   const { userId, containerName, imageName, latestDigest, latestVersion } = values;
-  const key = latestDigest || latestVersion;
-  return `${userId}:${containerName}:${imageName}:${key}`;
+  
+  // Normalize image name for consistent deduplication
+  const normalizedImageName = normalizeImageName(imageName);
+  
+  // Normalize version (remove "Unknown" and empty strings, trim and lowercase)
+  const normalizedVersion = latestVersion && latestVersion !== "Unknown" 
+    ? String(latestVersion).trim().toLowerCase() 
+    : "";
+  
+  // Use digest if available (more reliable), otherwise version
+  // Ensure empty strings don't create different keys
+  const key = (latestDigest && latestDigest.trim()) || normalizedVersion || "";
+  
+  return `${userId}:${containerName}:${normalizedImageName}:${key}`;
 }
 
 /**
@@ -384,19 +421,24 @@ async function isDuplicate(key, userId) {
     }
   }
 
+  // Record in memory immediately as "pending" to prevent race conditions
+  // This acts as a lock - if another call checks while we're checking DB, it will see this
+  // If database check shows it was already sent, we'll update the timestamp below
+  recordNotificationInMemory(key);
+
   // Check database for persistent deduplication (survives server restarts)
   if (userId) {
     try {
       const { hasDiscordNotificationBeenSent } = getDatabase();
       const wasSent = await hasDiscordNotificationBeenSent(userId, key);
       if (wasSent) {
-        // Update in-memory cache for future lookups
-        recordNotification(key);
+        // Already sent - keep the in-memory record (timestamp already set above)
         return true;
       }
     } catch (error) {
-      // If database check fails, log error but don't block notification
-      // Fall through to allow notification (fail open)
+      // If database check fails, we've already recorded in memory as pending
+      // This prevents duplicates from concurrent calls, but allows retry if DB was temporarily unavailable
+      // Log error but don't block notification (fail open, but with memory protection)
       logger.warn("Error checking database for duplicate notification:", error);
     }
   }
@@ -822,16 +864,18 @@ async function queueNotification(imageData) {
   }
 
   // Check for duplicates (checks both in-memory cache and database)
+  // Note: isDuplicate() now records in memory immediately to prevent race conditions
   const dedupKey = createDeduplicationKey(imageData);
   const isDup = await isDuplicate(dedupKey, userId);
   if (isDup) {
-    logger.debug(`Skipping duplicate notification for ${dedupKey}`);
+    logger.debug(`Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`);
     return;
   }
+  
+  logger.debug(`Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`);
 
-  // Record immediately in memory when queuing (prevents duplicates while processing)
+  // isDuplicate() already recorded in memory, so we don't need to call recordNotificationInMemory() again
   // Persisted record happens only after a successful send to avoid suppressing retries
-  recordNotificationInMemory(dedupKey);
 
   // Format notification payload once
   const payload = formatVersionUpdateNotification(imageData);

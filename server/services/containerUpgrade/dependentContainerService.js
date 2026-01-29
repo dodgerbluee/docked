@@ -95,7 +95,7 @@ async function findDependentContainers(
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 
   try {
-    logger.info(" Checking for containers that depend on this container via network_mode...");
+    logger.debug(" Checking for containers that depend on this container via network_mode...");
     const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
     const dependentContainers = [];
 

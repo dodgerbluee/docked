@@ -835,7 +835,7 @@ async function restartDependentContainers(options) {
     stackName,
   } = options;
   try {
-    logger.info(` Checking for dependent containers...`);
+    logger.debug(` Checking for dependent containers...`);
     const dependentContainers = await findDependentContainersAfterUpgrade({
       portainerUrl,
       workingPortainerUrl,
