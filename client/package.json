@@ -22,10 +22,15 @@
     "eslint": "^9.26.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.5.1",
     "baseline-browser-mapping": "^2.9.17",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^15.14.0",
     "yaml": "^2.8.2"
   },
   "scripts": {
@@ -33,11 +38,6 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app"
-    ]
   },
   "browserslist": {
     "production": [
