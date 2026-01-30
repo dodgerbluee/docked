@@ -12,6 +12,7 @@ import UnusedTab from "../components/portainer/UnusedTab";
 import UpgradeHistoryTab from "../components/portainer/UpgradeHistoryTab";
 import ContainerDebugModal from "../components/portainer/ContainerDebugModal";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
+import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import styles from "./PortainerPage.module.css";
@@ -54,7 +55,6 @@ function PortainerPage({
   onSetContentTab,
   portainerUpgradeFromProps = null,
   onNavigateToLogs = null,
-  onNavigateToAnalytics = null,
 }) {
   // Use extracted hooks
   const { developerModeEnabled } = usePortainerDeveloperMode();
@@ -182,7 +182,6 @@ function PortainerPage({
         showCheckmark={showCheckmark}
         portainerInstancesCount={portainerInstances.length}
         toolbarActions={toolbarActions}
-        onNavigateToAnalytics={onNavigateToAnalytics}
       />
 
       <PortainerStatusAlerts
@@ -318,6 +317,22 @@ function PortainerPage({
         variant="danger"
       />
 
+      {/* Batch upgrade confirm – same look as before; on Upgrade, close and queue in Updating section (no second page) */}
+      <BatchUpgradeProgressModal
+        isOpen={(portainerPage.batchUpgradeConfirmContainers?.length ?? 0) > 0}
+        onClose={portainerPage.closeBatchUpgradeConfirm}
+        containers={portainerPage.batchUpgradeConfirmContainers ?? []}
+        onConfirm={() => {}}
+        showProgressInPage={true}
+        onConfirmForBanner={(containers) =>
+          portainerPage.confirmAndStartBatchUpgrade(
+            containers,
+            portainerPage.setSelectedContainers
+          )
+        }
+        onNavigateToLogs={onNavigateToLogs}
+      />
+
       {/* Single-container upgrade confirm – same text/details as old popup; on Upgrade, close and show progress in Updating section */}
       <UpgradeProgressModal
         isOpen={!!portainerPage.upgradeConfirmContainer}
@@ -383,7 +398,6 @@ PortainerPage.propTypes = {
   onSetContentTab: PropTypes.func,
   portainerUpgradeFromProps: PropTypes.object,
   onNavigateToLogs: PropTypes.func,
-  onNavigateToAnalytics: PropTypes.func,
 };
 
 PortainerPage.displayName = "PortainerPage";

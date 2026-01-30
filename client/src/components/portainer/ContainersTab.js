@@ -173,9 +173,7 @@ const ContainersTab = React.memo(function ContainersTab({
 
     const hasUpdating = activeUpgrades?.length > 0;
     const updatesKey = "updates-all";
-    const updatingKey = "updating-all";
     const isUpdatesCollapsed = collapsedStacks.has(updatesKey);
-    const isUpdatingCollapsed = collapsedStacks.has(updatingKey);
 
     if (allContainersWithUpdates.length === 0 && !hasUpdating) {
       const emptyMessage = dockerHubDataPulled
@@ -210,51 +208,17 @@ const ContainersTab = React.memo(function ContainersTab({
     return (
       <div className={styles.contentTabPanel}>
         <div className={styles.stacksContainer}>
-          {/* Updating section: same format as Updates, above it */}
+          {/* Updating cards float above Updates (no header) */}
           {hasUpdating && (
-            <div className={styles.stackGroup}>
-              <div
-                className={styles.stackHeader}
-                onClick={() => onToggleStack(updatingKey)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onToggleStack(updatingKey);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                aria-expanded={!isUpdatingCollapsed}
-                aria-label={`Updating - ${isUpdatingCollapsed ? "Expand" : "Collapse"}`}
-              >
-                <div className={styles.stackHeaderLeft}>
-                  <button
-                    className={styles.stackToggle}
-                    aria-label={isUpdatingCollapsed ? "Expand updating" : "Collapse updating"}
-                    aria-hidden="true"
-                    tabIndex={-1}
-                  >
-                    {isUpdatingCollapsed ? "▶" : "▼"}
-                  </button>
-                  <h3 className={styles.stackName}>Updating</h3>
-                </div>
-                <span className={styles.stackCount}>
-                  {activeUpgrades.length} container
-                  {activeUpgrades.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-              {!isUpdatingCollapsed && (
-                <div className={styles.containersGrid}>
-                  {activeUpgrades.map((item) => (
-                    <UpdatingCard
-                      key={item.key}
-                      item={item}
-                      onDismiss={dismissActiveUpgrade}
-                      onNavigateToLogs={onNavigateToLogs}
-                    />
-                  ))}
-                </div>
-              )}
+            <div className={styles.containersGrid}>
+              {activeUpgrades.map((item) => (
+                <UpdatingCard
+                  key={item.key}
+                  item={item}
+                  onDismiss={dismissActiveUpgrade}
+                  onNavigateToLogs={onNavigateToLogs}
+                />
+              ))}
             </div>
           )}
 

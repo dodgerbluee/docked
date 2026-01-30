@@ -283,7 +283,6 @@ const HomePageContent = ({
                     contentTab={contentTab}
                     onSetContentTab={setContentTab}
                     portainerUpgradeFromProps={portainerUpgrade}
-                    onNavigateToAnalytics={() => setActiveTab(TAB_NAMES.ANALYTICS)}
                     fetchContainers={fetchContainers}
                     fetchUnusedImages={fetchUnusedImages}
                     onNavigateToLogs={() => {

@@ -307,9 +307,6 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
               <AlertCircle size={48} className={styles.warningIcon} />
             </div>
             <h3 className={styles.title}>Upgrade Container?</h3>
-            <p className={styles.message}>
-              Are you sure you want to upgrade <strong>{containerName}</strong>?
-            </p>
             {container &&
             (containerName?.toLowerCase().includes("nginx-proxy-manager") ||
               containerName?.toLowerCase().includes("npm") ||
@@ -325,32 +322,54 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
               </div>
             ) : container?.providesNetwork ? (
               <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Network Provider:</strong> This container provides network access for
-                  other containers (network_mode). After upgrading, all containers that depend on
-                  this network will be recreated to reconnect to the new network container and
-                  ensure proper network connectivity for all dependent services.
+                  This container provides network access for other containers
+                  (network_mode). After upgrading, all containers that depend on
+                  this network will be recreated to reconnect to the new network
+                  container and ensure proper network connectivity for all
+                  dependent services.
                 </p>
               </div>
             ) : container?.usesNetworkMode ? (
               <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Network Configuration:</strong> This container uses a shared network
-                  configuration (network_mode). The network container and all containers using the
-                  same network will be restarted to ensure proper reconnection after the upgrade.
+                  This container uses a shared network configuration
+                  (network_mode). The network container and all containers using
+                  the same network will be restarted to ensure proper
+                  reconnection after the upgrade.
                 </p>
               </div>
             ) : (
-              <p className={styles.warning}>
-                The container will be stopped, removed, and recreated with the latest image. This
-                may cause a brief service interruption.
-              </p>
+              container && (
+                <div className={styles.infoNotice}>
+                  <p className={styles.infoNoticeText}>
+                    The container will be stopped, removed, and recreated with the
+                    latest image. This may cause a brief service interruption.
+                  </p>
+                </div>
+              )
             )}
+            <p className={styles.message}>
+              Are you sure you want to upgrade <strong>{containerName}</strong>?
+            </p>
             <div className={styles.actions}>
               <Button variant="outline" onClick={handleClose} className={styles.cancelButton}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleConfirm} className={styles.confirmButton}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (showProgressInPage && onConfirmForBanner && container) {
+                    onClose();
+                    onConfirmForBanner(container);
+                  } else {
+                    handleConfirm();
+                  }
+                }}
+                className={styles.confirmButton}
+              >
                 Yes, Upgrade
               </Button>
             </div>

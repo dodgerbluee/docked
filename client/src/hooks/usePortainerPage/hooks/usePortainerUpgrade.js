@@ -306,10 +306,7 @@ export const usePortainerUpgrade = ({
     setBatchUpgradeModal({ isOpen: false, containers: [] });
   }, []);
 
-  // Confirm batch: clear selection, add each container to section and run upgrades SEQUENTIALLY.
-  // Related containers (e.g. Immich app + redis + ML) must be upgraded one after another so
-  // dependencies (e.g. redis) are up before the app starts; parallel upgrades can let the app
-  // pass readiness then exit when redis isn't ready yet.
+  // Confirm batch: queue in Updating section. Different stacks run in parallel; same stack one at a time.
   const confirmAndStartBatchUpgrade = useCallback(
     async (containersToUpgrade, setSelectedContainers) => {
       if (!containersToUpgrade?.length) return;
@@ -317,9 +314,21 @@ export const usePortainerUpgrade = ({
       if (setSelectedContainers) {
         setSelectedContainers(new Set());
       }
-      for (const container of containersToUpgrade) {
-        await startUpgrade(container);
-      }
+      // Group by stack (same stack = one at a time; different stacks = at the same time)
+      const byStack = containersToUpgrade.reduce((acc, c) => {
+        const stack = c.stackName || "Standalone";
+        if (!acc[stack]) acc[stack] = [];
+        acc[stack].push(c);
+        return acc;
+      }, /** @type {{ [stack: string]: typeof containersToUpgrade }} */ ({}));
+      const stackArrays = Object.values(byStack);
+      await Promise.all(
+        stackArrays.map(async (stackContainers) => {
+          for (const container of stackContainers) {
+            await startUpgrade(container);
+          }
+        })
+      );
     },
     [startUpgrade]
   );

@@ -112,9 +112,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
-  padding: 24px 32px;
+  padding-bottom: 24px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
 }
 
 .statItem {

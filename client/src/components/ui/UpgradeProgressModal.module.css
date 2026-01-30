@@ -166,7 +166,7 @@
   border: 1px solid #ef4444;
   border-radius: 8px;
   padding: 16px;
-  margin: 0 0 32px 0;
+  margin: 20px;
 }
 
 .networkWarning .warningHeader {
@@ -190,6 +190,22 @@
   color: #ef4444;
 }
 
+/* Green sidebar info notice (default upgrade message – no warning header) */
+.infoNotice {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 0 0 20px 0;
+  border-left: 4px solid #10b981;
+}
+
+.infoNoticeText {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 /* Confirmation Stage */
 .confirmStage {
   animation: fadeIn 0.3s ease-out;
@@ -197,10 +213,6 @@
 
 .confirmStage .message {
   margin-bottom: 20px;
-}
-
-.confirmStage .networkWarning {
-  margin-top: 4px;
 }
 
 .confirmStage .actions {

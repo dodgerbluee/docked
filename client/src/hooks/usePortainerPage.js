@@ -212,6 +212,7 @@ export function usePortainerPage({
     collapsedUnusedImages,
     setCollapsedUnusedImages,
     selectedContainers,
+    setSelectedContainers,
     selectedImages,
     upgrading: upgradeOperations.upgrading,
     batchUpgrading: upgradeOperations.batchUpgrading,
