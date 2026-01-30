@@ -84,7 +84,7 @@ export const useContainerPull = ({
             }
             setDataFetched(true);
           }
-        } catch (cacheErr) {
+        } catch (_cacheErr) {
           // No cached data available yet - this is expected on first run
         }
 

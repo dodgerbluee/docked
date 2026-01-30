@@ -75,7 +75,7 @@ export const useBatchTriggers = ({
           }
           setDataFetched(true);
         }
-      } catch (cacheErr) {
+      } catch (_cacheErr) {
         // Ignore cache errors
       }
 
@@ -98,7 +98,7 @@ export const useBatchTriggers = ({
               break;
             }
           }
-        } catch (pollErr) {
+        } catch (_pollErr) {
           // Continue polling on error
         }
 

@@ -46,9 +46,9 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
             className={styles.toggle}
           />
           <small className={styles.helperText}>
-            Control the verbosity of application logs. "Info" shows core events (job starts,
-            completions, errors). "Debug" includes detailed scheduling, comparison, and diagnostic
-            information.
+            Control the verbosity of application logs. {'"'}Info{'"'} shows core events (job starts,
+            completions, errors). {'"'}Debug{'"'} includes detailed scheduling, comparison, and
+            diagnostic information.
           </small>
         </div>
         <div className={styles.formActions}>

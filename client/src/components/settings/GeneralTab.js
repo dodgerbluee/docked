@@ -55,7 +55,7 @@ const GeneralTab = React.memo(function GeneralTab({
             onChange={setLocalColorScheme}
           />
           <small className={styles.helperText}>
-            Choose how the application theme is determined. "System" will follow your browser or
+            Choose how the application theme is determined. {'"'}System{'"'} will follow your browser or
             operating system preference.
           </small>
         </div>

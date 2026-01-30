@@ -125,7 +125,7 @@ export function useImportFlow({
             if (!verified) {
               return false;
             }
-          } catch (err) {
+          } catch (_err) {
             setLoading(false);
             return false;
           }

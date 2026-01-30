@@ -419,7 +419,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
             </div>
             <h3 className={styles.title}>Reconnecting...</h3>
             <p className={styles.message}>
-              The UI connection was lost during the upgrade. We're automatically reconnecting and
+              The UI connection was lost during the upgrade. We{'\''}re automatically reconnecting and
               verifying the upgrade completed.
             </p>
             <div className={styles.reconnectingInfo}>

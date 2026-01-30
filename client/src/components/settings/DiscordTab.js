@@ -62,7 +62,7 @@ const DiscordTab = React.memo(function DiscordTab({
           <div className={styles.infoText}>
             <strong>How to Set Up Discord Webhooks:</strong> Open your Discord server and go to{" "}
             <strong>Server Settings</strong> → <strong>Integrations</strong> →{" "}
-            <strong>Webhooks</strong>. Click <strong>"New Webhook"</strong> and customize it: choose
+            <strong>Webhooks</strong>. Click <strong>{'"'}New Webhook{'"'}</strong> and customize it: choose
             the channel, rename it to{" "}
             <strong>
               <i>Docked</i>
@@ -71,7 +71,7 @@ const DiscordTab = React.memo(function DiscordTab({
             <a href="/img/logo.png" download="docked-logo.png" className={styles.downloadLink}>
               Download Logo
             </a>
-            ). Copy the webhook URL, then click <strong>"Add Webhook"</strong> below and paste it.
+            ). Copy the webhook URL, then click <strong>{'"'}Add Webhook{'"'}</strong> below and paste it.
             You can optionally add a server name for easy identification.
           </div>
         </div>

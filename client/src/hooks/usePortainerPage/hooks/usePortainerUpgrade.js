@@ -412,9 +412,6 @@ export const usePortainerUpgrade = ({
 
         // Return response for the modal to process
         return response;
-      } catch (err) {
-        // Error will be handled by the modal
-        throw err;
       } finally {
         setBatchUpgrading(false);
         const clearedState = {};

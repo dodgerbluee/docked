@@ -55,7 +55,7 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
               {clearingTrackedAppData ? "Clearing..." : "Clear Tracked App Data"}
             </Button>
             <small className={styles.dataActionHelper}>
-              Clears the latest version data for all tracked apps. This will reset the "Latest"
+              Clears the latest version data for all tracked apps. This will reset the {'"'}Latest{'"'}
               version information and force fresh data to be fetched on the next check. Your tracked
               app configurations will be preserved.
             </small>

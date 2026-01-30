@@ -164,7 +164,7 @@ export const formatDate = (dateString) => {
   if (!dateString) return "Unknown";
   try {
     return new Date(dateString).toLocaleString();
-  } catch (e) {
+  } catch (_e) {
     return dateString;
   }
 };
