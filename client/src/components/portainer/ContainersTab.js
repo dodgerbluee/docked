@@ -252,33 +252,33 @@ const ContainersTab = React.memo(function ContainersTab({
             </div>
             {!isUpdatesCollapsed && (
               <div className={styles.containersGrid}>
-                {hasUpdates
-                  ? sortedPortainerNames.map((portainerName) =>
-                      containersByPortainer[portainerName].map((container) => {
-                        const isPortainer = isPortainerContainer(container);
-                        return (
-                          <PortainerContainerCard
-                            key={container.id}
-                            container={container}
-                            isPortainer={isPortainer}
-                            selected={selectedContainers.has(container.id)}
-                            upgrading={upgrading[container.id] || false}
-                            showUpdates={showUpdates}
-                            onToggleSelect={onToggleSelect}
-                            onUpgrade={onUpgrade}
-                            developerModeEnabled={developerModeEnabled}
-                            onOpenDebugModal={onOpenDebugModal}
-                          />
-                        );
-                      })
-                    )
-                  : (
-                      <div className={styles.updatesEmpty}>
-                        {dockerHubDataPulled
-                          ? "All up to date! No containers with updates available."
-                          : "Pull from Docker Hub to check for available upgrades."}
-                      </div>
-                    )}
+                {hasUpdates ? (
+                  sortedPortainerNames.map((portainerName) =>
+                    containersByPortainer[portainerName].map((container) => {
+                      const isPortainer = isPortainerContainer(container);
+                      return (
+                        <PortainerContainerCard
+                          key={container.id}
+                          container={container}
+                          isPortainer={isPortainer}
+                          selected={selectedContainers.has(container.id)}
+                          upgrading={upgrading[container.id] || false}
+                          showUpdates={showUpdates}
+                          onToggleSelect={onToggleSelect}
+                          onUpgrade={onUpgrade}
+                          developerModeEnabled={developerModeEnabled}
+                          onOpenDebugModal={onOpenDebugModal}
+                        />
+                      );
+                    })
+                  )
+                ) : (
+                  <div className={styles.updatesEmpty}>
+                    {dockerHubDataPulled
+                      ? "All up to date! No containers with updates available."
+                      : "Pull from Docker Hub to check for available upgrades."}
+                  </div>
+                )}
               </div>
             )}
           </div>

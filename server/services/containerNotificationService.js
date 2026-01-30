@@ -183,12 +183,12 @@ function logNewlyIdentifiedUpgrade(container, versionInfo, userId, batchLogger) 
  */
 async function queueContainerNotification(discord, container, versionInfo, userId) {
   const { imageName, currentVersion, latestVersion, latestDigest } = versionInfo;
-  
+
   // Prefer latestDigestFull over latestDigest for consistency, but fall back to either
   // Normalize to ensure consistent format for deduplication
   const rawDigest = container.latestDigestFull || container.latestDigest || null;
   const normalizedDigest = rawDigest ? normalizeDigest(rawDigest) : null;
-  
+
   await discord.queueNotification({
     id: container.id,
     name: container.name,
@@ -242,14 +242,14 @@ async function sendContainerUpdateNotifications(
       const containerName = container.name || container.containerName || "";
       const key = `${containerName}-${container.portainerUrl}-${container.endpointId}`;
       const previousContainer = previousContainersMap.get(key);
-      
+
       // Log if previousContainer lookup failed (helps diagnose key mismatch issues)
       if (!previousContainer && previousContainersMap.size > 0) {
         logger.debug(
           `Previous container not found for key "${key}" (container: ${containerName}, portainerUrl: ${container.portainerUrl})`
         );
       }
-      
+
       const { shouldNotify, isNewlyIdentified } = shouldNotifyContainerUpdate(
         container,
         previousContainer

@@ -524,8 +524,7 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
                           {Array.from({ length: 24 }, (_, hour) => {
                             const cellData = chartData.heatmapData.find(
                               (d) =>
-                                d.day === day &&
-                                d.hour === `${hour.toString().padStart(2, "0")}:00`
+                                d.day === day && d.hour === `${hour.toString().padStart(2, "0")}:00`
                             );
                             const intensity = cellData ? cellData.intensity : 0;
                             const count = cellData ? cellData.count : 0;

@@ -206,7 +206,10 @@ body.dark-mode .roleBadgeMember:hover {
   border-color: var(--border-color);
   background: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .actionButtons .actionButton:hover:not(:disabled) {

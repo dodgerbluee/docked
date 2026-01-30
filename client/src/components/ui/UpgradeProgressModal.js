@@ -314,39 +314,36 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
               <div className={styles.networkWarning}>
                 <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  If this nginx-proxy-manager instance handles URL or DNS
-                  resolution for Docked or your Portainer instances, the upgrade
-                  can fail after the old container is removed and may require
-                  manual recovery. Do not upgrade if that applies to your setup.
+                  If this nginx-proxy-manager instance handles URL or DNS resolution for Docked or
+                  your Portainer instances, the upgrade can fail after the old container is removed
+                  and may require manual recovery. Do not upgrade if that applies to your setup.
                 </p>
               </div>
             ) : container?.providesNetwork ? (
               <div className={styles.networkWarning}>
                 <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  This container provides network access for other containers
-                  (network_mode). After upgrading, all containers that depend on
-                  this network will be recreated to reconnect to the new network
-                  container and ensure proper network connectivity for all
-                  dependent services.
+                  This container provides network access for other containers (network_mode). After
+                  upgrading, all containers that depend on this network will be recreated to
+                  reconnect to the new network container and ensure proper network connectivity for
+                  all dependent services.
                 </p>
               </div>
             ) : container?.usesNetworkMode ? (
               <div className={styles.networkWarning}>
                 <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  This container uses a shared network configuration
-                  (network_mode). The network container and all containers using
-                  the same network will be restarted to ensure proper
-                  reconnection after the upgrade.
+                  This container uses a shared network configuration (network_mode). The network
+                  container and all containers using the same network will be restarted to ensure
+                  proper reconnection after the upgrade.
                 </p>
               </div>
             ) : (
               container && (
                 <div className={styles.infoNotice}>
                   <p className={styles.infoNoticeText}>
-                    The container will be stopped, removed, and recreated with the
-                    latest image. This may cause a brief service interruption.
+                    The container will be stopped, removed, and recreated with the latest image.
+                    This may cause a brief service interruption.
                   </p>
                 </div>
               )

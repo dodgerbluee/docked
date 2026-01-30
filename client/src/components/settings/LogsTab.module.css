@@ -53,7 +53,10 @@
   border-radius: 6px;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .levelFilterBtn:focus-visible {

@@ -12,9 +12,7 @@ function UpdatingCard({ item, onDismiss, onNavigateToLogs }) {
   const name = item.container?.name ?? "Container";
   const status = item.status;
   const stepLabel =
-    status === "in_progress" && item.steps?.length
-      ? item.steps[item.currentStep]?.label
-      : null;
+    status === "in_progress" && item.steps?.length ? item.steps[item.currentStep]?.label : null;
 
   return (
     <div
@@ -24,23 +22,17 @@ function UpdatingCard({ item, onDismiss, onNavigateToLogs }) {
       aria-label={`Upgrade ${name} - ${status}`}
     >
       <div className={styles.cardMain}>
-        {status === "in_progress" && (
-          <Loader2 size={20} className={styles.spinner} aria-hidden />
-        )}
+        {status === "in_progress" && <Loader2 size={20} className={styles.spinner} aria-hidden />}
         {status === "success" && (
           <CheckCircle2 size={20} className={styles.successIcon} aria-hidden />
         )}
-        {status === "error" && (
-          <AlertCircle size={20} className={styles.errorIcon} aria-hidden />
-        )}
+        {status === "error" && <AlertCircle size={20} className={styles.errorIcon} aria-hidden />}
         <div className={styles.cardContent}>
           <span className={styles.containerName}>{name}</span>
           {status === "in_progress" && stepLabel && (
             <span className={styles.stepLabel}>{stepLabel}</span>
           )}
-          {status === "success" && (
-            <span className={styles.statusLabel}>Upgraded</span>
-          )}
+          {status === "success" && <span className={styles.statusLabel}>Upgraded</span>}
           {status === "error" && (
             <span className={styles.errorMessage} title={item.errorMessage ?? undefined}>
               {item.errorMessage ?? "Upgrade failed"}

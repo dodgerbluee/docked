@@ -25,10 +25,8 @@ const ImageStatistics = ({
     // Calculate total images (in use + unused)
     const totalImages = uniqueImages.size + unusedImagesCount;
 
-    const inUsePct =
-      totalImages > 0 ? Math.round((uniqueImages.size / totalImages) * 100) : 0;
-    const unusedPct =
-      totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0;
+    const inUsePct = totalImages > 0 ? Math.round((uniqueImages.size / totalImages) * 100) : 0;
+    const unusedPct = totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0;
 
     return {
       totalImages,
@@ -88,7 +86,9 @@ const ImageStatistics = ({
                 <HardDrive size={18} />
               </div>
               <div className={styles.statContent}>
-                <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.inUse}</div>
+                <div className={styles.statValue}>
+                  {shouldShowEmptyState ? 0 : imageStats.inUse}
+                </div>
                 <div className={styles.statLabel}>In Use</div>
                 <div className={styles.statPercentage}>{imageStats.inUsePercentage}%</div>
               </div>
@@ -116,7 +116,9 @@ const ImageStatistics = ({
                 <Trash2 size={18} />
               </div>
               <div className={styles.statContent}>
-                <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.unused}</div>
+                <div className={styles.statValue}>
+                  {shouldShowEmptyState ? 0 : imageStats.unused}
+                </div>
                 <div className={styles.statLabel}>Unused</div>
                 <div className={styles.statPercentage}>{imageStats.unusedPercentage}%</div>
               </div>

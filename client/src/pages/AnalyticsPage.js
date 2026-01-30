@@ -22,7 +22,8 @@ function AnalyticsPage({ portainerInstances = [] }) {
   const { history: trackedAppHistory = [] } = useTrackedAppUpgradeHistory();
 
   const containerHistory = useMemo(() => {
-    const includeContainers = selectedDataSources.size === 0 || selectedDataSources.has(ANALYTICS_DATA_SOURCE.CONTAINERS);
+    const includeContainers =
+      selectedDataSources.size === 0 || selectedDataSources.has(ANALYTICS_DATA_SOURCE.CONTAINERS);
     if (!includeContainers) return [];
     if (selectedPortainerInstances.size === 0) return containerHistoryRaw;
     return containerHistoryRaw.filter((u) =>
@@ -38,7 +39,6 @@ function AnalyticsPage({ portainerInstances = [] }) {
 
   return (
     <div className={styles.analyticsPage}>
-
       <div className={styles.analyticsSidebarLayout}>
         <AnalyticsSidebar
           activeViewTab={activeViewTab}
@@ -49,11 +49,7 @@ function AnalyticsPage({ portainerInstances = [] }) {
           onSelectedPortainerInstancesChange={setSelectedPortainerInstances}
           portainerInstances={portainerInstances}
         />
-        <div
-          className={styles.analyticsContentArea}
-          role="region"
-          aria-label="Analytics charts"
-        >
+        <div className={styles.analyticsContentArea} role="region" aria-label="Analytics charts">
           <UpgradeChartsContent
             containerHistory={containerHistory}
             trackedAppHistory={trackedAppHistoryFiltered}

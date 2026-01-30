@@ -107,8 +107,7 @@ export const usePortainerUpgrade = ({
                   c.id === response.data.newContainerId ||
                   c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
                   (response.data.newContainerId &&
-                    c.id?.substring(0, 12) ===
-                      response.data.newContainerId?.substring(0, 12));
+                    c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
                 const matchesName = c.name === container.name;
                 if (matchesId || matchesName) return { ...c, hasUpdate: false };
                 return c;
@@ -153,9 +152,7 @@ export const usePortainerUpgrade = ({
         container.image?.toLowerCase().includes("nginx-proxy-manager");
 
       const updateActive = (patch) => {
-        setActiveUpgrades((prev) =>
-          prev.map((a) => (a.key === key ? { ...a, ...patch } : a))
-        );
+        setActiveUpgrades((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
       };
 
       const apiPromise = executeUpgradeForContainer(container);
@@ -206,9 +203,7 @@ export const usePortainerUpgrade = ({
             while (Date.now() - start < maxWait) {
               await new Promise((r) => setTimeout(r, pollInterval));
               try {
-                const res = await axios.get(
-                  `${API_BASE_URL}/api/containers?portainerOnly=true`
-                );
+                const res = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
                 let list = [];
                 if (res.data?.grouped && res.data?.containers) list = res.data.containers;
                 else if (Array.isArray(res.data)) list = res.data;
@@ -237,8 +232,7 @@ export const usePortainerUpgrade = ({
         }
         updateActive({
           status: "error",
-          errorMessage:
-            err.response?.data?.error || err.message || "Unknown error occurred",
+          errorMessage: err.response?.data?.error || err.message || "Unknown error occurred",
           completedAt: Date.now(),
         });
       }

@@ -325,10 +325,7 @@ function PortainerPage({
         onConfirm={() => {}}
         showProgressInPage={true}
         onConfirmForBanner={(containers) =>
-          portainerPage.confirmAndStartBatchUpgrade(
-            containers,
-            portainerPage.setSelectedContainers
-          )
+          portainerPage.confirmAndStartBatchUpgrade(containers, portainerPage.setSelectedContainers)
         }
         onNavigateToLogs={onNavigateToLogs}
       />
@@ -341,9 +338,7 @@ function PortainerPage({
         container={portainerPage.upgradeConfirmContainer}
         onConfirm={() => {}}
         showProgressInPage={true}
-        onConfirmForBanner={(container) =>
-          portainerPage.confirmAndStartUpgrade(container)
-        }
+        onConfirmForBanner={(container) => portainerPage.confirmAndStartUpgrade(container)}
         onNavigateToLogs={onNavigateToLogs}
       />
 

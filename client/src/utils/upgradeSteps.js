@@ -24,8 +24,14 @@ export function getUpgradeSteps(container) {
 
   if (container.providesNetwork) {
     return [
-      { label: "Stopping dependent containers...", duration: TIMING.STEP_DURATION_START_DEPENDENTS },
-      { label: "Removing dependent containers...", duration: TIMING.STEP_DURATION_START_DEPENDENTS },
+      {
+        label: "Stopping dependent containers...",
+        duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+      },
+      {
+        label: "Removing dependent containers...",
+        duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+      },
       { label: "Waiting for cleanup...", duration: TIMING.STEP_DURATION_CLEANUP },
       { label: "Stopping tunnel container...", duration: TIMING.STEP_DURATION_STOP },
       { label: "Pulling latest image...", duration: TIMING.STEP_DURATION_PULL },
@@ -34,7 +40,10 @@ export function getUpgradeSteps(container) {
       { label: "Starting tunnel container...", duration: TIMING.STEP_DURATION_START },
       { label: "Waiting for tunnel to be ready...", duration: TIMING.STEP_DURATION_WAIT_NETWORK },
       { label: "Recreating dependent containers...", duration: TIMING.STEP_DURATION_RECREATE },
-      { label: "Starting dependent containers...", duration: TIMING.STEP_DURATION_START_DEPENDENTS },
+      {
+        label: "Starting dependent containers...",
+        duration: TIMING.STEP_DURATION_START_DEPENDENTS,
+      },
     ];
   }
 

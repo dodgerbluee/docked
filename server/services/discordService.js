@@ -307,20 +307,27 @@ function normalizeDigest(digest) {
 function normalizeImageName(imageName) {
   if (!imageName) return "";
   let normalized = String(imageName).trim().toLowerCase();
-  
+
   // Remove tag (everything after :)
   if (normalized.includes(":")) {
     normalized = normalized.split(":")[0];
   }
-  
+
   // Remove registry prefixes
-  const registryPrefixes = ["docker.io/", "registry-1.docker.io/", "ghcr.io/", "lscr.io/", "registry.gitlab.com/", "gcr.io/"];
+  const registryPrefixes = [
+    "docker.io/",
+    "registry-1.docker.io/",
+    "ghcr.io/",
+    "lscr.io/",
+    "registry.gitlab.com/",
+    "gcr.io/",
+  ];
   for (const prefix of registryPrefixes) {
     if (normalized.startsWith(prefix)) {
       normalized = normalized.replace(prefix, "");
     }
   }
-  
+
   return normalized;
 }
 
@@ -347,19 +354,18 @@ function extractNotificationValues(notification) {
  */
 function createPortainerContainerKey(values) {
   const { userId, containerName, imageName, latestDigest, latestVersion } = values;
-  
+
   // Normalize image name for consistent deduplication
   const normalizedImageName = normalizeImageName(imageName);
-  
+
   // Normalize version (remove "Unknown" and empty strings, trim and lowercase)
-  const normalizedVersion = latestVersion && latestVersion !== "Unknown" 
-    ? String(latestVersion).trim().toLowerCase() 
-    : "";
-  
+  const normalizedVersion =
+    latestVersion && latestVersion !== "Unknown" ? String(latestVersion).trim().toLowerCase() : "";
+
   // Use digest if available (more reliable), otherwise version
   // Ensure empty strings don't create different keys
   const key = (latestDigest && latestDigest.trim()) || normalizedVersion || "";
-  
+
   return `${userId}:${containerName}:${normalizedImageName}:${key}`;
 }
 
@@ -868,11 +874,15 @@ async function queueNotification(imageData) {
   const dedupKey = createDeduplicationKey(imageData);
   const isDup = await isDuplicate(dedupKey, userId);
   if (isDup) {
-    logger.debug(`Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`);
+    logger.debug(
+      `Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
+    );
     return;
   }
-  
-  logger.debug(`Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`);
+
+  logger.debug(
+    `Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
+  );
 
   // isDuplicate() already recorded in memory, so we don't need to call recordNotificationInMemory() again
   // Persisted record happens only after a successful send to avoid suppressing retries

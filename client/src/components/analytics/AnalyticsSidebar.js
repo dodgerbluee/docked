@@ -5,14 +5,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import {
-  TrendingUp,
-  BarChart3,
-  Package,
-  Zap,
-  Calendar,
-  Award,
-} from "lucide-react";
+import { TrendingUp, BarChart3, Package, Zap, Calendar, Award } from "lucide-react";
 import {
   ANALYTICS_VIEW_TABS,
   ANALYTICS_VIEW_TAB_LABELS,
@@ -155,12 +148,18 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
                     <span
                       className={styles.filterText}
                       onClick={() =>
-                        handleInstanceToggle(instance.name, !selectedPortainerInstances.has(instance.name))
+                        handleInstanceToggle(
+                          instance.name,
+                          !selectedPortainerInstances.has(instance.name)
+                        )
                       }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          handleInstanceToggle(instance.name, !selectedPortainerInstances.has(instance.name));
+                          handleInstanceToggle(
+                            instance.name,
+                            !selectedPortainerInstances.has(instance.name)
+                          );
                         }
                       }}
                       role="button"
