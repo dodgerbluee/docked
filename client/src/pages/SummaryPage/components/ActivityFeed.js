@@ -15,6 +15,17 @@ import { useTrackedAppUpgradeHistory } from "../../../hooks/useTrackedAppUpgrade
 import styles from "./ActivityFeed.module.css";
 
 /**
+ * Parse API timestamp as UTC when it has no timezone (e.g. SQLite "YYYY-MM-DD HH:MM:SS").
+ * Prevents "in about 6 hours" when server stores UTC and client parses as local.
+ */
+function parseUtcIfNeeded(dateStr) {
+  if (!dateStr) return new Date(NaN);
+  const s = String(dateStr).trim();
+  if (s.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  return new Date(s.replace(" ", "T") + "Z");
+}
+
+/**
  * Activity feed showing recent changes and events
  */
 const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType }) => {
@@ -28,7 +39,7 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
     // Add recent container upgrades (individual items)
     if (history && history.length > 0) {
       history.slice(0, 5).forEach((upgrade) => {
-        const timestamp = new Date(upgrade.created_at);
+        const timestamp = parseUtcIfNeeded(upgrade.created_at);
         if (isNaN(timestamp.getTime())) return;
 
         const isSuccess = upgrade.status === "success";
@@ -47,7 +58,7 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
     // Add recent tracked app upgrades
     if (trackedAppHistory && trackedAppHistory.length > 0) {
       trackedAppHistory.slice(0, 5).forEach((upgrade) => {
-        const timestamp = new Date(upgrade.created_at);
+        const timestamp = parseUtcIfNeeded(upgrade.created_at);
         if (isNaN(timestamp.getTime())) return;
 
         const isSuccess = upgrade.status === "success";
@@ -70,7 +81,7 @@ const ActivityFeed = ({ containers, trackedApps, recentRuns, latestRunsByJobType
         const timeValue = run.end_time || run.start_time;
         if (!timeValue) return; // Skip if no valid timestamp
 
-        const timestamp = new Date(timeValue);
+        const timestamp = parseUtcIfNeeded(timeValue);
         if (isNaN(timestamp.getTime())) return; // Skip if invalid date
 
         const isSuccess = run.status === "completed";

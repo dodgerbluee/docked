@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { LayoutDashboard, MonitorSmartphone } from "lucide-react";
+import { LayoutDashboard, MonitorSmartphone, BarChart3 } from "lucide-react";
 import PropTypes from "prop-types";
 import { containerShape } from "../../utils/propTypes";
 import "./TabNavigation.css";
@@ -17,6 +17,7 @@ const TabNavigation = ({
   const handleSummaryClick = () => onTabChange("summary");
   const handlePortainerClick = () => onTabChange("portainer");
   const handleTrackedAppsClick = () => onTabChange("tracked-apps");
+  const handleAnalyticsClick = () => onTabChange("analytics");
 
   return (
     <div className="tabs-container">
@@ -63,13 +64,21 @@ const TabNavigation = ({
           Tracked Apps
           {trackedAppsBehind > 0 && <span className="tab-badge">{trackedAppsBehind}</span>}
         </button>
+        <button
+          className={`tab ${activeTab === "analytics" ? "active" : ""}`}
+          onClick={handleAnalyticsClick}
+          aria-label="Analytics tab"
+        >
+          <BarChart3 size={18} />
+          Analytics
+        </button>
       </div>
     </div>
   );
 };
 
 TabNavigation.propTypes = {
-  activeTab: PropTypes.oneOf(["summary", "portainer", "tracked-apps"]).isRequired,
+  activeTab: PropTypes.oneOf(["summary", "portainer", "tracked-apps", "analytics"]).isRequired,
   onTabChange: PropTypes.func.isRequired,
   containersWithUpdates: PropTypes.arrayOf(containerShape),
   trackedAppsBehind: PropTypes.number,

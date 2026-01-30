@@ -180,7 +180,7 @@ async function getContainers(req, res, _next) {
 
     // If cache is empty or has no containers, fetch from Portainer only (NO registry checks)
     if (!cached || !cached.containers || cached.containers.length === 0) {
-      logger.info("No cached container data found, fetching from Portainer only", {
+      logger.debug("No cached container data found, fetching from Portainer only", {
         module: "containerController",
         operation: "getContainers",
         source: "portainer-only",

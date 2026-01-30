@@ -69,11 +69,20 @@ body.dark-mode .stackCount {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+  padding-bottom: 20px;
 }
 
 .containersGrid > * {
   min-width: 0;
   width: 100%;
+}
+
+.updatesEmpty {
+  grid-column: 1 / -1;
+  padding: 16px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .loadingState {

@@ -2,13 +2,30 @@
  * Hook for managing container upgrade operations
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../utils/api";
 import { toast } from "../../../utils/toast";
+import { getUpgradeSteps } from "../../../utils/upgradeSteps";
+import { TIMING } from "../../../constants/timing";
+
+/** Auto-dismiss completed (success/error) items after this many ms (10 min) */
+const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
+
+/**
+ * @typedef {Object} ActiveUpgrade
+ * @property {string} key - Unique key for the upgrade (e.g. containerId-timestamp)
+ * @property {Object} container - Container object
+ * @property {'in_progress'|'success'|'error'} status
+ * @property {number} currentStep - Current step index
+ * @property {Array<{ label: string, duration: number }>} steps
+ * @property {string|null} errorMessage
+ * @property {number} [completedAt] - Timestamp when status became success/error (for auto-dismiss)
+ */
 
 /**
  * Hook to manage container upgrade operations (single and batch)
+ * Single upgrades use a banner above the body; batch upgrades keep the modal.
  * @param {Object} options
  * @param {Object} options.successfullyUpdatedContainersRef - Ref to track updated containers
  * @param {Function} options.onContainersUpdate - Callback to update containers
@@ -22,6 +39,8 @@ export const usePortainerUpgrade = ({
 }) => {
   const [upgrading, setUpgrading] = useState({});
   const [batchUpgrading, setBatchUpgrading] = useState(false);
+  const [upgradeConfirmContainer, setUpgradeConfirmContainer] = useState(null);
+  const [activeUpgrades, setActiveUpgrades] = useState(/** @type {ActiveUpgrade[]} */ ([]));
   const [upgradeModal, setUpgradeModal] = useState({
     isOpen: false,
     container: null,
@@ -30,99 +49,230 @@ export const usePortainerUpgrade = ({
     isOpen: false,
     containers: [],
   });
+  // Batch: show confirm dialog, then add each container to banner (no modal)
+  const [batchUpgradeConfirmContainers, setBatchUpgradeConfirmContainers] = useState([]);
 
-  // Open upgrade modal
+  // Dismiss a single upgrade from the section (by key). Only completed items are dismissible.
+  const dismissActiveUpgrade = useCallback((key) => {
+    setActiveUpgrades((prev) => prev.filter((a) => a.key !== key));
+  }, []);
+
+  // Auto-dismiss completed (success/error) items after 10 minutes
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      setActiveUpgrades((prev) =>
+        prev.filter((a) => {
+          if (a.status !== "success" && a.status !== "error") return true;
+          if (!a.completedAt) return true;
+          return now - a.completedAt < COMPLETED_AUTO_DISMISS_MS;
+        })
+      );
+    }, 60 * 1000); // check every minute
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Open upgrade confirm (single container) – shows confirm dialog, then banner
   const handleUpgrade = useCallback((container) => {
-    // Always reopen modal, even if it was just closed (allows clicking card again)
-    setUpgradeModal({
-      isOpen: true,
-      container,
-    });
+    setUpgradeConfirmContainer(container);
   }, []);
 
-  // Close upgrade modal (but keep container reference so it can be reopened)
-  const closeUpgradeModal = useCallback(() => {
-    setUpgradeModal((prev) => ({
-      isOpen: false,
-      container: prev.container, // Keep container reference so clicking card again works
-    }));
+  const closeUpgradeConfirm = useCallback(() => {
+    setUpgradeConfirmContainer(null);
   }, []);
 
-  // Execute the actual upgrade (called by the modal)
+  // Execute upgrade API call for a given container (shared logic)
+  const executeUpgradeForContainer = useCallback(
+    async (container) => {
+      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
+          {
+            endpointId: container.endpointId,
+            imageName: container.image,
+            portainerUrl: container.portainerUrl,
+          }
+        );
+        if (response.data.success) {
+          successfullyUpdatedContainersRef.current.add(container.id);
+          if (response.data.newContainerId) {
+            successfullyUpdatedContainersRef.current.add(response.data.newContainerId);
+          }
+          if (onContainersUpdate) {
+            onContainersUpdate((prevContainers) =>
+              prevContainers.map((c) => {
+                const matchesId =
+                  c.id === container.id ||
+                  c.id === response.data.newContainerId ||
+                  c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
+                  (response.data.newContainerId &&
+                    c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
+                const matchesName = c.name === container.name;
+                if (matchesId || matchesName) return { ...c, hasUpdate: false };
+                return c;
+              })
+            );
+          }
+          if (fetchContainers) fetchContainers();
+        }
+        return response;
+      } finally {
+        setUpgrading((prev) => ({ ...prev, [container.id]: false }));
+      }
+    },
+    [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]
+  );
+
+  // Run upgrade in banner (add to list + step progress + API). Used by single confirm and batch.
+  const startUpgrade = useCallback(
+    async (container) => {
+      if (!container) return;
+      const key = `${container.id}-${Date.now()}`;
+      const steps = getUpgradeSteps(container);
+      const containerName = container.name;
+
+      setActiveUpgrades((prev) => [
+        ...prev,
+        {
+          key,
+          container,
+          status: "in_progress",
+          currentStep: 0,
+          steps,
+          errorMessage: null,
+        },
+      ]);
+
+      await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
+
+      const isNginx =
+        containerName?.toLowerCase().includes("nginx-proxy-manager") ||
+        containerName?.toLowerCase().includes("npm") ||
+        container.image?.toLowerCase().includes("nginx-proxy-manager");
+
+      const updateActive = (patch) => {
+        setActiveUpgrades((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+      };
+
+      const apiPromise = executeUpgradeForContainer(container);
+      const apiCompletedRef = { current: false };
+      let apiError = null;
+      apiPromise.catch((err) => {
+        apiCompletedRef.current = true;
+        apiError = err;
+      });
+
+      for (let i = 0; i < steps.length; i++) {
+        updateActive({ currentStep: i });
+        const stepDuration = steps[i].duration;
+        const minStep = TIMING.MIN_STEP_DURATION;
+        const stepStart = Date.now();
+        await new Promise((resolve) => {
+          const id = setInterval(() => {
+            const elapsed = Date.now() - stepStart;
+            if (elapsed < minStep) return;
+            if (apiCompletedRef.current || elapsed >= stepDuration) {
+              clearInterval(id);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+      updateActive({ currentStep: steps.length - 1 });
+      await new Promise((r) => setTimeout(r, TIMING.FINAL_STEP_DELAY));
+
+      try {
+        await apiPromise;
+        updateActive({ status: "success", completedAt: Date.now() });
+        toast.success(`Container ${containerName} upgraded successfully!`, 8000);
+        if (fetchContainers) fetchContainers();
+      } catch (err) {
+        if (apiError && isNginx) {
+          const isNetworkError =
+            apiError.code === "ECONNREFUSED" ||
+            apiError.code === "ETIMEDOUT" ||
+            apiError.code === "ERR_NETWORK" ||
+            apiError.message?.includes("Network Error") ||
+            apiError.message?.includes("Failed to fetch") ||
+            !apiError.response;
+          if (isNetworkError) {
+            const maxWait = TIMING.RECONNECT_MAX_WAIT;
+            const pollInterval = TIMING.RECONNECT_POLL_INTERVAL;
+            const start = Date.now();
+            while (Date.now() - start < maxWait) {
+              await new Promise((r) => setTimeout(r, pollInterval));
+              try {
+                const res = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
+                let list = [];
+                if (res.data?.grouped && res.data?.containers) list = res.data.containers;
+                else if (Array.isArray(res.data)) list = res.data;
+                else if (Array.isArray(res.data?.containers)) list = res.data.containers;
+                const found = list.find(
+                  (c) => c.name === containerName || c.name === container?.name
+                );
+                if (found) {
+                  updateActive({ status: "success", completedAt: Date.now() });
+                  toast.success(`Container ${containerName} upgraded successfully!`, 8000);
+                  if (fetchContainers) fetchContainers();
+                  return;
+                }
+              } catch {
+                // keep polling
+              }
+            }
+            updateActive({
+              status: "error",
+              errorMessage:
+                "Upgrade may have completed, but we couldn't verify. Refresh the page to check.",
+              completedAt: Date.now(),
+            });
+            return;
+          }
+        }
+        updateActive({
+          status: "error",
+          errorMessage: err.response?.data?.error || err.message || "Unknown error occurred",
+          completedAt: Date.now(),
+        });
+      }
+    },
+    [executeUpgradeForContainer, fetchContainers]
+  );
+
+  // Confirm single upgrade and start it (close confirm dialog, then run in banner)
+  const confirmAndStartUpgrade = useCallback(
+    async (container) => {
+      if (!container) return;
+      closeUpgradeConfirm();
+      await startUpgrade(container);
+    },
+    [closeUpgradeConfirm, startUpgrade]
+  );
+
+  // Legacy: execute upgrade used by modal (kept for batch or any remaining modal usage)
   const executeUpgrade = useCallback(async () => {
     const container = upgradeModal.container;
     if (!container) return;
+    return executeUpgradeForContainer(container);
+  }, [upgradeModal.container, executeUpgradeForContainer]);
 
-    try {
-      setUpgrading((prev) => ({ ...prev, [container.id]: true }));
-      const response = await axios.post(`${API_BASE_URL}/api/containers/${container.id}/upgrade`, {
-        endpointId: container.endpointId,
-        imageName: container.image,
-        portainerUrl: container.portainerUrl,
-      });
+  // Legacy: close upgrade modal (no longer used for single upgrade; keep for API compat)
+  const closeUpgradeModal = useCallback(() => {
+    setUpgradeModal((prev) => ({ ...prev, isOpen: false, container: prev.container }));
+  }, []);
 
-      if (response.data.success) {
-        // Add both old and new container IDs to the ref
-        // After upgrade, container gets a new ID, so we need to track both
-        successfullyUpdatedContainersRef.current.add(container.id);
-        if (response.data.newContainerId) {
-          successfullyUpdatedContainersRef.current.add(response.data.newContainerId);
-        }
-
-        // Update local state immediately so UI reflects the change right away
-        if (onContainersUpdate) {
-          onContainersUpdate((prevContainers) =>
-            prevContainers.map((c) => {
-              // Match by old ID or new ID
-              const matchesId =
-                c.id === container.id ||
-                c.id === response.data.newContainerId ||
-                c.id?.substring(0, 12) === container.id?.substring(0, 12) ||
-                (response.data.newContainerId &&
-                  c.id?.substring(0, 12) === response.data.newContainerId?.substring(0, 12));
-              // Also match by name as fallback
-              const matchesName = c.name === container.name;
-              if (matchesId || matchesName) {
-                return { ...c, hasUpdate: false };
-              }
-              return c;
-            })
-          );
-        }
-
-        // Refresh from server to get updated data (cache is already updated on backend)
-        if (fetchContainers) {
-          fetchContainers();
-        }
+  const handleUpgradeSuccess = useCallback(
+    (container) => {
+      if (container) {
+        toast.success(`Container ${container.name} upgraded successfully!`, 8000);
+        if (fetchContainers) fetchContainers();
       }
-    } catch (err) {
-      // Error will be handled by the modal
-      throw err;
-    } finally {
-      setUpgrading((prev) => ({ ...prev, [container.id]: false }));
-    }
-  }, [
-    upgradeModal.container,
-    successfullyUpdatedContainersRef,
-    onContainersUpdate,
-    fetchContainers,
-  ]);
+    },
+    [fetchContainers]
+  );
 
-  // Handle upgrade success callback
-  const handleUpgradeSuccess = useCallback(() => {
-    const container = upgradeModal.container;
-    if (container) {
-      // Show success toast notification (stays longer for better visibility)
-      toast.success(`Container ${container.name} upgraded successfully!`, 8000);
-
-      // Refresh containers to get updated data (especially important after reconnection)
-      if (fetchContainers) {
-        fetchContainers();
-      }
-    }
-  }, [upgradeModal.container, fetchContainers]);
-
-  // Open batch upgrade modal
+  // Open batch upgrade confirm (show "Upgrade N containers?" then add each to banner)
   const handleBatchUpgrade = useCallback((selectedContainers, aggregatedContainers) => {
     if (selectedContainers.size === 0) {
       toast.warning("Please select at least one container to upgrade");
@@ -133,10 +283,7 @@ export const usePortainerUpgrade = ({
       selectedContainers.has(c.id)
     );
 
-    setBatchUpgradeModal({
-      isOpen: true,
-      containers: containersToUpgrade,
-    });
+    setBatchUpgradeConfirmContainers(containersToUpgrade);
 
     return {
       containerCount: containersToUpgrade.length,
@@ -144,15 +291,43 @@ export const usePortainerUpgrade = ({
     };
   }, []);
 
-  // Close batch upgrade modal
-  const closeBatchUpgradeModal = useCallback(() => {
-    setBatchUpgradeModal({
-      isOpen: false,
-      containers: [],
-    });
+  const closeBatchUpgradeConfirm = useCallback(() => {
+    setBatchUpgradeConfirmContainers([]);
   }, []);
 
-  // Execute batch upgrade (called by the modal)
+  // Legacy: close batch modal (no longer used; kept for return API compat)
+  const closeBatchUpgradeModal = useCallback(() => {
+    setBatchUpgradeModal({ isOpen: false, containers: [] });
+  }, []);
+
+  // Confirm batch: queue in Updating section. Different stacks run in parallel; same stack one at a time.
+  const confirmAndStartBatchUpgrade = useCallback(
+    async (containersToUpgrade, setSelectedContainers) => {
+      if (!containersToUpgrade?.length) return;
+      setBatchUpgradeConfirmContainers([]);
+      if (setSelectedContainers) {
+        setSelectedContainers(new Set());
+      }
+      // Group by stack (same stack = one at a time; different stacks = at the same time)
+      const byStack = containersToUpgrade.reduce((acc, c) => {
+        const stack = c.stackName || "Standalone";
+        if (!acc[stack]) acc[stack] = [];
+        acc[stack].push(c);
+        return acc;
+      }, /** @type {{ [stack: string]: typeof containersToUpgrade }} */ ({}));
+      const stackArrays = Object.values(byStack);
+      await Promise.all(
+        stackArrays.map(async (stackContainers) => {
+          for (const container of stackContainers) {
+            await startUpgrade(container);
+          }
+        })
+      );
+    },
+    [startUpgrade]
+  );
+
+  // Legacy: execute batch upgrade (kept for API compat; no longer used by UI)
   const executeBatchUpgrade = useCallback(
     async (setSelectedContainers) => {
       const containersToUpgrade = batchUpgradeModal.containers;
@@ -237,9 +412,6 @@ export const usePortainerUpgrade = ({
 
         // Return response for the modal to process
         return response;
-      } catch (err) {
-        // Error will be handled by the modal
-        throw err;
       } finally {
         setBatchUpgrading(false);
         const clearedState = {};
@@ -323,6 +495,15 @@ export const usePortainerUpgrade = ({
   return {
     upgrading,
     batchUpgrading,
+    upgradeConfirmContainer,
+    closeUpgradeConfirm,
+    confirmAndStartUpgrade,
+    startUpgrade,
+    activeUpgrades,
+    dismissActiveUpgrade,
+    batchUpgradeConfirmContainers,
+    closeBatchUpgradeConfirm,
+    confirmAndStartBatchUpgrade,
     upgradeModal,
     closeUpgradeModal,
     executeUpgrade,

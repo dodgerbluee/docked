@@ -138,24 +138,42 @@
   gap: 20px;
 }
 
-/* Dashboard Grid Layout */
+/* Dashboard Grid Layout - right column height matches left (Portainer + Health + Images) */
 .dashboardGrid {
   display: grid;
   grid-template-columns: 1fr 400px;
   gap: 20px;
   align-items: start;
+  position: relative;
 }
 
 .leftColumn {
   display: flex;
   flex-direction: column;
-  /* gap: 20px; */
 }
 
+.healthAndImagesRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1200px) {
+  .healthAndImagesRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Right column (Recent Activity) stops at same height as left column; content scrolls inside */
 .rightColumn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  /* gap: 20px; */
+  min-height: 0;
 }
 
 /* Tracked Apps Section */
@@ -312,6 +330,14 @@
   .dashboardGrid {
     grid-template-columns: 1fr 360px;
   }
+
+  .leftColumn {
+    margin-right: 380px; /* 360px + 20px gap */
+  }
+
+  .rightColumn {
+    width: 360px;
+  }
 }
 
 @media (max-width: 1200px) {
@@ -319,7 +345,14 @@
     grid-template-columns: 1fr;
   }
 
+  .leftColumn {
+    margin-right: 0;
+  }
+
   .rightColumn {
+    position: static;
+    width: auto;
+    height: auto;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;

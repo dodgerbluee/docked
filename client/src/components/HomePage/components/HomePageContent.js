@@ -9,6 +9,7 @@ import RateLimitError from "../../ErrorDisplay/RateLimitError";
 import SummaryPage from "../../../pages/SummaryPage";
 import TrackedAppsPage from "../../../pages/TrackedAppsPage";
 import PortainerPage from "../../../pages/PortainerPage";
+import AnalyticsPage from "../../../pages/AnalyticsPage";
 import SettingsPage from "../../../pages/SettingsPage";
 import BatchPage from "../../../pages/BatchPage";
 import AdminPage from "../../../pages/AdminPage";
@@ -79,6 +80,7 @@ const HomePageContent = ({
   handleLogoutWithCleanup,
   editingPortainerInstance,
   fetchPortainerInstances,
+  portainerUpgrade,
 }) => {
   // Render summary page
   const renderSummary = useCallback(() => {
@@ -93,6 +95,7 @@ const HomePageContent = ({
         dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
         onNavigateToPortainer={() => setActiveTab(TAB_NAMES.PORTAINER)}
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
+        onNavigateToAnalytics={() => setActiveTab(TAB_NAMES.ANALYTICS)}
         onSetSelectedPortainerInstances={setSelectedPortainerInstances}
         onSetContentTab={setContentTab}
         isLoading={isLoading}
@@ -253,6 +256,9 @@ const HomePageContent = ({
             {!loading && (
               <>
                 {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
+                {activeTab === TAB_NAMES.ANALYTICS && (
+                  <AnalyticsPage portainerInstances={portainerInstances} />
+                )}
                 {activeTab === TAB_NAMES.PORTAINER && (
                   <PortainerPage
                     portainerInstances={portainerInstances}
@@ -267,8 +273,6 @@ const HomePageContent = ({
                     onContainersUpdate={setContainers}
                     onUnusedImagesUpdate={setUnusedImages}
                     onUnusedImagesCountUpdate={setUnusedImagesCount}
-                    fetchContainers={fetchContainers}
-                    fetchUnusedImages={fetchUnusedImages}
                     onAddInstance={openModal}
                     onPullDockerHub={handlePull}
                     pullingDockerHub={pulling}
@@ -278,6 +282,17 @@ const HomePageContent = ({
                     onSetSelectedPortainerInstances={setSelectedPortainerInstances}
                     contentTab={contentTab}
                     onSetContentTab={setContentTab}
+                    portainerUpgradeFromProps={portainerUpgrade}
+                    fetchContainers={fetchContainers}
+                    fetchUnusedImages={fetchUnusedImages}
+                    onNavigateToLogs={() => {
+                      setActiveTab(TAB_NAMES.SETTINGS);
+                      requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                          setTimeout(() => setSettingsTab(SETTINGS_TABS.LOGS), 200);
+                        });
+                      });
+                    }}
                   />
                 )}
                 {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
@@ -353,6 +368,7 @@ HomePageContent.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   editingPortainerInstance: PropTypes.object,
   fetchPortainerInstances: PropTypes.func.isRequired,
+  portainerUpgrade: PropTypes.object,
 };
 
 export default HomePageContent;

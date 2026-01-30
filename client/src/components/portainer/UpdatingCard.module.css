@@ -1,0 +1,159 @@
+/* Updating section card: blend of Updates card + progress banner */
+
+.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.card_in_progress {
+  border-left: 3px solid var(--dodger-blue);
+}
+
+.card_success {
+  border-left: 3px solid var(--success-green, #10b981);
+}
+
+.card_error {
+  border-left: 3px solid var(--dodger-red, #ef4444);
+}
+
+.cardMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spinner {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
+body.dark-mode .spinner {
+  color: var(--dodger-blue-light);
+}
+
+.successIcon {
+  color: var(--success-green, #10b981);
+  flex-shrink: 0;
+}
+
+.errorIcon {
+  color: var(--dodger-red, #ef4444);
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cardContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.containerName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.statusLabel {
+  font-size: 0.85rem;
+  color: var(--success-green, #10b981);
+  font-weight: 500;
+}
+
+.errorMessage {
+  font-size: 0.85rem;
+  color: var(--dodger-red, #ef4444);
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.viewLogsBtn {
+  font-size: 0.875rem;
+}
+
+.dismissBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dismissBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.dismissBtn:focus-visible {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .card {
+    flex-wrap: wrap;
+  }
+
+  .cardActions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+  }
+}

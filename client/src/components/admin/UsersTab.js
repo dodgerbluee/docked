@@ -167,19 +167,23 @@ const UsersTab = React.memo(function UsersTab() {
         <div className={styles.actionButtons}>
           <Button
             type="button"
-            variant="primary"
+            variant="outline"
+            size="md"
             onClick={() => setShowImportModal(true)}
             icon={Upload}
+            iconPosition="left"
             className={styles.actionButton}
           >
             Import Users
           </Button>
           <Button
             type="button"
-            variant="primary"
+            variant="outline"
+            size="md"
             onClick={handleExportUsers}
             disabled={exporting}
             icon={Download}
+            iconPosition="left"
             className={styles.actionButton}
           >
             {exporting ? "Exporting..." : "Export Users"}

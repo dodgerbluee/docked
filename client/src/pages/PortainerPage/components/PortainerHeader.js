@@ -2,13 +2,11 @@
  * Portainer page header component
  */
 
-import React, { useState } from "react";
+import React from "react";
 import PropTypes from "prop-types";
-import { RefreshCw, Check, BarChart3 } from "lucide-react";
+import { RefreshCw, Check } from "lucide-react";
 import Button from "../../../components/ui/Button";
 import SearchInput from "../../../components/ui/SearchInput";
-import UpgradeChartsModal from "../../../components/portainer/UpgradeChartsModal";
-import { useUpgradeHistory } from "../../../hooks/useUpgradeHistory";
 import styles from "../../PortainerPage.module.css";
 
 /**
@@ -31,59 +29,38 @@ const PortainerHeader = ({
   portainerInstancesCount,
   toolbarActions,
 }) => {
-  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
-  const { history } = useUpgradeHistory({ limit: 200 });
-
   return (
-    <>
-      <div className={styles.summaryHeader}>
-        <div className={styles.headerContent}>
-          <h2 className={styles.portainerHeader}>
-            <span className="sr-only">Portainer Containers</span>
-          </h2>
-          <div className={styles.headerLeft}>
-            <SearchInput
-              value={searchQuery}
-              onChange={onSearchChange}
-              placeholder="Search containers..."
-              className={styles.searchInput}
-            />
-          </div>
-          <div className={styles.headerActions}>
-            {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
-            <div className={styles.buttonContainer}>
-              <Button
-                onClick={() => setIsAnalyticsOpen(true)}
-                title="View Upgrade Analytics"
-                variant="outline"
-                icon={BarChart3}
-                size="sm"
-              >
-                Analytics
-              </Button>
-              <Button
-                onClick={onPullDockerHub}
-                disabled={pullingDockerHub || portainerInstancesCount === 0}
-                title={pullingDockerHub ? "Checking for updates..." : "Check for updates"}
-                variant="outline"
-                icon={RefreshCw}
-                size="sm"
-              >
-                {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
-              </Button>
-              {showCheckmark && <Check className={styles.checkmark} size={20} />}
-            </div>
+    <div className={styles.summaryHeader}>
+      <div className={styles.headerContent}>
+        <h2 className={styles.portainerHeader}>
+          <span className="sr-only">Portainer Containers</span>
+        </h2>
+        <div className={styles.headerLeft}>
+          <SearchInput
+            value={searchQuery}
+            onChange={onSearchChange}
+            placeholder="Search containers..."
+            className={styles.searchInput}
+          />
+        </div>
+        <div className={styles.headerActions}>
+          {toolbarActions && <div className={styles.toolbarActions}>{toolbarActions}</div>}
+          <div className={styles.buttonContainer}>
+            <Button
+              onClick={onPullDockerHub}
+              disabled={pullingDockerHub || portainerInstancesCount === 0}
+              title={pullingDockerHub ? "Checking for updates..." : "Check for updates"}
+              variant="outline"
+              icon={RefreshCw}
+              size="sm"
+            >
+              {pullingDockerHub ? "Checking for Updates..." : "Check for Updates"}
+            </Button>
+            {showCheckmark && <Check className={styles.checkmark} size={20} />}
           </div>
         </div>
       </div>
-
-      {/* Analytics Modal */}
-      <UpgradeChartsModal
-        isOpen={isAnalyticsOpen}
-        onClose={() => setIsAnalyticsOpen(false)}
-        history={history}
-      />
-    </>
+    </div>
   );
 };
 

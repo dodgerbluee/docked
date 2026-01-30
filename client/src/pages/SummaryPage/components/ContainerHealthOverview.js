@@ -6,6 +6,7 @@ import styles from "./ContainerHealthOverview.module.css";
 
 /**
  * Container health overview with visual chart
+ * Layout: Row 1 = up to date / has update bar; Row 2 = ring chart + Updates + Up to Date boxes
  */
 const ContainerHealthOverview = ({
   containers,
@@ -54,28 +55,28 @@ const ContainerHealthOverview = ({
       </div>
 
       <div className={styles.content}>
-        {/* Health Score Ring */}
-        <div className={styles.healthScoreSection}>
+        {/* Row 1: Ring chart + Updates + Up to Date (same line) */}
+        <div className={styles.chartAndStatsRow}>
           <div className={styles.scoreRing}>
-            <svg viewBox="0 0 200 200" className={styles.ringChart}>
+            <svg viewBox="0 0 120 120" className={styles.ringChart}>
               <circle
-                cx="100"
-                cy="100"
-                r="85"
+                cx="60"
+                cy="60"
+                r="48"
                 fill="none"
                 stroke="var(--border-color)"
-                strokeWidth="20"
+                strokeWidth="12"
               />
               <circle
-                cx="100"
-                cy="100"
-                r="85"
+                cx="60"
+                cy="60"
+                r="48"
                 fill="none"
                 stroke={`var(--color-${status.color})`}
-                strokeWidth="20"
-                strokeDasharray={`${(healthScore / 100) * 534} 534`}
+                strokeWidth="12"
+                strokeDasharray={`${(healthScore / 100) * 302} 302`}
                 strokeLinecap="round"
-                transform="rotate(-90 100 100)"
+                transform="rotate(-90 60 60)"
                 className={styles.progressCircle}
               />
             </svg>
@@ -86,57 +87,42 @@ const ContainerHealthOverview = ({
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Stats Grid */}
-        <div className={styles.statsGrid}>
-          <div
-            className={`${styles.statItem} ${styles.clickable}`}
-            onClick={() => !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.ALL)}
-          >
-            <div className={styles.statIcon}>
-              <Activity size={18} />
+          <div className={styles.statsGrid}>
+            <div
+              className={`${styles.statItem} ${styles.clickable} ${healthData.withUpdates > 0 ? styles.warning : ""}`}
+              onClick={() =>
+                !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)
+              }
+            >
+              <div className={styles.statIcon}>
+                <TrendingUp size={18} />
+              </div>
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{healthData.withUpdates}</div>
+                <div className={styles.statLabel}>Updates</div>
+                <div className={styles.statPercentage}>{healthData.updatesPercentage}%</div>
+              </div>
             </div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{healthData.total}</div>
-              <div className={styles.statLabel}>Total</div>
-            </div>
-          </div>
 
-          <div
-            className={`${styles.statItem} ${styles.clickable} ${healthData.withUpdates > 0 ? styles.warning : ""}`}
-            onClick={() =>
-              !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.UPDATES)
-            }
-          >
-            <div className={styles.statIcon}>
-              <TrendingUp size={18} />
-            </div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{healthData.withUpdates}</div>
-              <div className={styles.statLabel}>Updates</div>
-              <div className={styles.statPercentage}>{healthData.updatesPercentage}%</div>
-            </div>
-          </div>
-
-          <div
-            className={`${styles.statItem} ${styles.clickable} ${styles.success}`}
-            onClick={() =>
-              !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)
-            }
-          >
-            <div className={styles.statIcon}>
-              <CheckCircle2 size={18} />
-            </div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{healthData.upToDate}</div>
-              <div className={styles.statLabel}>Up to Date</div>
-              <div className={styles.statPercentage}>{healthData.upToDatePercentage}%</div>
+            <div
+              className={`${styles.statItem} ${styles.clickable} ${styles.success}`}
+              onClick={() =>
+                !shouldShowEmptyState && onStatClick && onStatClick(CONTENT_TABS.CURRENT)
+              }
+            >
+              <div className={styles.statIcon}>
+                <CheckCircle2 size={18} />
+              </div>
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{healthData.upToDate}</div>
+                <div className={styles.statLabel}>Up to Date</div>
+                <div className={styles.statPercentage}>{healthData.upToDatePercentage}%</div>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Health Bar */}
+        {/* Row 2: Up to date / Has update bar */}
         <div className={styles.healthBar}>
           <div className={styles.healthBarTrack}>
             {healthData.upToDate > 0 && (

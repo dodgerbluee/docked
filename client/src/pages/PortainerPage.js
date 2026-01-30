@@ -6,16 +6,15 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
-import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
-import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
 import UpgradeHistoryTab from "../components/portainer/UpgradeHistoryTab";
 import ContainerDebugModal from "../components/portainer/ContainerDebugModal";
+import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
+import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
-import { SETTINGS_TABS } from "../constants/settings";
 import styles from "./PortainerPage.module.css";
 import PortainerHeader from "./PortainerPage/components/PortainerHeader";
 import PortainerStatusAlerts from "./PortainerPage/components/PortainerStatusAlerts";
@@ -54,8 +53,8 @@ function PortainerPage({
   onSetSelectedPortainerInstances,
   contentTab: controlledContentTab,
   onSetContentTab,
-  onNavigateToSettings,
-  onSetSettingsTab,
+  portainerUpgradeFromProps = null,
+  onNavigateToLogs = null,
 }) {
   // Use extracted hooks
   const { developerModeEnabled } = usePortainerDeveloperMode();
@@ -99,6 +98,7 @@ function PortainerPage({
     onSetSelectedPortainerInstances,
     contentTab: controlledContentTab,
     onSetContentTab,
+    portainerUpgradeFromProps,
   });
 
   // Image source filter state
@@ -247,6 +247,9 @@ function PortainerPage({
                       onUpgrade={portainerPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
                       onOpenDebugModal={setDebugModalContainer}
+                      activeUpgrades={portainerPage.activeUpgrades}
+                      dismissActiveUpgrade={portainerPage.dismissActiveUpgrade}
+                      onNavigateToLogs={onNavigateToLogs}
                     />
                   )}
 
@@ -268,6 +271,9 @@ function PortainerPage({
                       onUpgrade={portainerPage.handleUpgrade}
                       developerModeEnabled={developerModeEnabled}
                       onOpenDebugModal={setDebugModalContainer}
+                      activeUpgrades={portainerPage.activeUpgrades}
+                      dismissActiveUpgrade={portainerPage.dismissActiveUpgrade}
+                      onNavigateToLogs={onNavigateToLogs}
                     />
                   )}
 
@@ -311,6 +317,31 @@ function PortainerPage({
         variant="danger"
       />
 
+      {/* Batch upgrade confirm – same look as before; on Upgrade, close and queue in Updating section (no second page) */}
+      <BatchUpgradeProgressModal
+        isOpen={(portainerPage.batchUpgradeConfirmContainers?.length ?? 0) > 0}
+        onClose={portainerPage.closeBatchUpgradeConfirm}
+        containers={portainerPage.batchUpgradeConfirmContainers ?? []}
+        onConfirm={() => {}}
+        showProgressInPage={true}
+        onConfirmForBanner={(containers) =>
+          portainerPage.confirmAndStartBatchUpgrade(containers, portainerPage.setSelectedContainers)
+        }
+        onNavigateToLogs={onNavigateToLogs}
+      />
+
+      {/* Single-container upgrade confirm – same text/details as old popup; on Upgrade, close and show progress in Updating section */}
+      <UpgradeProgressModal
+        isOpen={!!portainerPage.upgradeConfirmContainer}
+        onClose={portainerPage.closeUpgradeConfirm}
+        containerName={portainerPage.upgradeConfirmContainer?.name ?? ""}
+        container={portainerPage.upgradeConfirmContainer}
+        onConfirm={() => {}}
+        showProgressInPage={true}
+        onConfirmForBanner={(container) => portainerPage.confirmAndStartUpgrade(container)}
+        onNavigateToLogs={onNavigateToLogs}
+      />
+
       {/* Error Modal for Container Upgrade Failures */}
       <ErrorModal
         isOpen={errorModal.isOpen}
@@ -320,72 +351,6 @@ function PortainerPage({
         containerName={errorModal.containerName}
         details={errorModal.details}
       />
-
-      {/* Upgrade Progress Modal */}
-      {portainerPage.upgradeModal.container && (
-        <UpgradeProgressModal
-          key={`upgrade-modal-${portainerPage.upgradeModal.container.id}`}
-          isOpen={portainerPage.upgradeModal.isOpen}
-          onClose={portainerPage.closeUpgradeModal}
-          containerName={portainerPage.upgradeModal.container?.name}
-          container={portainerPage.upgradeModal.container}
-          onConfirm={portainerPage.executeUpgrade}
-          onSuccess={portainerPage.handleUpgradeSuccess}
-          onNavigateToLogs={() => {
-            // Close modal first to prevent it from blocking navigation
-            portainerPage.closeUpgradeModal();
-
-            // Navigate to settings
-            if (onNavigateToSettings) {
-              onNavigateToSettings();
-            }
-
-            // Set logs tab after a delay to ensure Settings page is rendered
-            if (onSetSettingsTab) {
-              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  setTimeout(() => {
-                    onSetSettingsTab(SETTINGS_TABS.LOGS);
-                  }, 200);
-                });
-              });
-            }
-          }}
-        />
-      )}
-
-      {/* Batch Upgrade Progress Modal */}
-      {portainerPage.batchUpgradeModal.containers.length > 0 && (
-        <BatchUpgradeProgressModal
-          isOpen={portainerPage.batchUpgradeModal.isOpen}
-          onClose={portainerPage.closeBatchUpgradeModal}
-          containers={portainerPage.batchUpgradeModal.containers}
-          onConfirm={portainerPage.executeBatchUpgrade}
-          onSuccess={portainerPage.handleBatchUpgradeSuccess}
-          onNavigateToLogs={() => {
-            // Close modal first to prevent it from blocking navigation
-            portainerPage.closeBatchUpgradeModal();
-
-            // Navigate to settings
-            if (onNavigateToSettings) {
-              onNavigateToSettings();
-            }
-
-            // Set logs tab after a delay to ensure Settings page is rendered
-            if (onSetSettingsTab) {
-              // Use multiple requestAnimationFrame + setTimeout to ensure Settings page is fully rendered
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  setTimeout(() => {
-                    onSetSettingsTab(SETTINGS_TABS.LOGS);
-                  }, 200);
-                });
-              });
-            }
-          }}
-        />
-      )}
 
       {/* Container Debug Modal - Centralized at page level */}
       {debugModalContainer && (
@@ -426,8 +391,8 @@ PortainerPage.propTypes = {
   onSetSelectedPortainerInstances: PropTypes.func,
   contentTab: PropTypes.string,
   onSetContentTab: PropTypes.func,
-  onNavigateToSettings: PropTypes.func,
-  onSetSettingsTab: PropTypes.func,
+  portainerUpgradeFromProps: PropTypes.object,
+  onNavigateToLogs: PropTypes.func,
 };
 
 PortainerPage.displayName = "PortainerPage";

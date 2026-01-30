@@ -74,7 +74,7 @@ const CorrelatedRecordsView = ({
         if (recordString.includes(query)) {
           filtered[imageKey] = record;
         }
-      } catch (e) {
+      } catch {
         // If stringify fails, check individual fields
         const imageRepo = (record.imageRepo || "").toLowerCase();
         const imageTag = (record.imageTag || "").toLowerCase();
