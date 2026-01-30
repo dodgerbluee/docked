@@ -39,7 +39,7 @@ const DatabaseRecordsView = forwardRef(({ rawDatabaseRecords, searchQuery = "" }
           try {
             const recordString = JSON.stringify(record).toLowerCase();
             return recordString.includes(query);
-          } catch (_e) {
+          } catch {
             return false;
           }
         });

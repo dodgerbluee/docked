@@ -43,7 +43,7 @@ function getLevelFromLine(line) {
     if (parsed && typeof parsed === "object" && parsed.level) {
       return normalizeLevel(parsed.level);
     }
-  } catch (_e) {
+  } catch {
     // not JSON
   }
   const bracketMatch = line.match(/(\[)(info|warn|warning|error|err|debug)(\])/i);
@@ -228,7 +228,7 @@ function LogsTab() {
       let logEntry = null;
       try {
         logEntry = JSON.parse(line);
-      } catch (_e) {
+      } catch {
         // Not JSON, treat as plain text
       }
 

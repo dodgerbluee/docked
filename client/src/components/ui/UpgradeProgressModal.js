@@ -226,7 +226,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                 upgradeCompleted = true;
                 break;
               }
-            } catch (pollError) {
+            } catch {
               // Still can't connect, continue polling
               continue;
             }
@@ -419,8 +419,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
             </div>
             <h3 className={styles.title}>Reconnecting...</h3>
             <p className={styles.message}>
-              The UI connection was lost during the upgrade. We{'\''}re automatically reconnecting and
-              verifying the upgrade completed.
+              The UI connection was lost during the upgrade. We{"'"}re automatically reconnecting
+              and verifying the upgrade completed.
             </p>
             <div className={styles.reconnectingInfo}>
               <p className={styles.reconnectingAttempts}>

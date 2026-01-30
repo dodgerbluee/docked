@@ -107,7 +107,7 @@ const AboutSection = () => {
             // Clear if no update
             try {
               localStorage.removeItem("versionUpdateInfo");
-            } catch (_err) {
+            } catch {
               // Ignore errors
             }
           }
