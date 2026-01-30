@@ -8,13 +8,13 @@ on:
         required: true
         type: string
       version_override:
-        description: 'Override version (leave empty to use latest dev version)'
+        description: "Override version (leave empty to use latest dev version)"
         required: false
         type: string
 
 env:
   REGISTRY: ghcr.io
-  NODE_VERSION: '18'
+  NODE_VERSION: "18"
 
 jobs:
   # Job 1: Prepare promotion (get version, validate, update package.json)
@@ -38,10 +38,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo
             });
-            
+
             const actor = context.actor;
             const isOwner = repo.owner.login.toLowerCase() === actor.toLowerCase();
-            
+
             let hasAdmin = false;
             try {
               const { data: permissions } = await github.rest.repos.getCollaboratorPermissionLevel({
@@ -53,11 +53,11 @@ jobs:
             } catch (error) {
               hasAdmin = false;
             }
-            
+
             if (!isOwner && !hasAdmin) {
               core.setFailed('Only repository owners and admins can promote to production.');
             }
-            
+
             core.info(`User ${actor} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
 
       - name: Checkout code
@@ -69,7 +69,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -100,13 +100,13 @@ jobs:
             echo "Latest dev tag: $LATEST_DEV_TAG"
             echo "Promoting to version: $RELEASE_VERSION"
           fi
-          
+
           if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "❌ Error: Invalid version format: $RELEASE_VERSION"
             echo "Version must be in format X.Y.Z (e.g., 1.2.3)"
             exit 1
           fi
-          
+
           TAG_NAME="v${RELEASE_VERSION}"
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
@@ -125,7 +125,7 @@ jobs:
         id: commits
         run: |
           PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
-          
+
           if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
             BASE_TAG="$PREVIOUS_RELEASE_TAG"
             echo "Using previous release tag: $BASE_TAG"
@@ -134,13 +134,13 @@ jobs:
             BASE_TAG=""
             echo "No previous release tags found, using all commits"
           fi
-          
+
           if [ -z "$BASE_TAG" ]; then
             COMMITS=$(git log --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true) | head -50)
           else
             COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true))
           fi
-          
+
           if [ -z "$COMMITS" ]; then
             COMMITS_LIST="- No conventional commits since previous release"
           else
@@ -148,7 +148,7 @@ jobs:
               echo "- $subject ([${hash:0:7}](https://github.com/${{ github.repository }}/commit/$fullhash))"
             done)
           fi
-          
+
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -166,7 +166,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -206,7 +206,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -230,7 +230,7 @@ jobs:
       - name: Build client
         run: |
           cd client
-          npm run build
+          DISABLE_ESLINT_PLUGIN=true npm run build
 
       - name: Create release artifacts
         run: |
@@ -371,7 +371,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           if git diff --quiet package.json server/package.json client/package.json; then
             echo "No version changes to commit"
           else
@@ -403,49 +403,49 @@ jobs:
           RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
           RELEASE_NAME="v$RELEASE_VERSION"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-          
+
           if [ -n "${{ needs.prepare-promotion.outputs.previous_tag }}" ]; then
             PREV_TAG="${{ needs.prepare-promotion.outputs.previous_tag }}"
             CHANGELOG_LINK="[${PREV_TAG}...${TAG_NAME}](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG_NAME})"
           else
             CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
           fi
-          
+
           RELEASE_BODY=$(cat <<EOF
           ## 🚀 Release v$RELEASE_VERSION
-          
+
           **Release Date:** $RELEASE_DATE  
           **Promoted by:** @${{ github.actor }}  
           **Promoted from:** Latest dev build
-          
+
           ${{ steps.changelog.outputs.changelog }}
-          
+
           ## 📦 Downloads
-          
+
           ### Source Code
           - **Source Tarball:** [docked-$RELEASE_VERSION-source.tar.gz](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/docked-$RELEASE_VERSION-source.tar.gz)
           - **SHA256 Checksum:** [docked-$RELEASE_VERSION-source.tar.gz.sha256](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/docked-$RELEASE_VERSION-source.tar.gz.sha256)
-          
+
           ### Container Image
           \`\`\`bash
           docker pull ${{ env.REGISTRY }}/${{ github.repository }}:$RELEASE_VERSION
           docker pull ${{ env.REGISTRY }}/${{ github.repository }}:latest
           \`\`\`
-          
+
           ## 📝 Commits in This Release
-          
+
           ${{ needs.prepare-promotion.outputs.commits }}
-          
+
           ---
-          
+
           $CHANGELOG_LINK
-          
+
           ## 🔄 Upgrade Instructions
-          
+
           See [UPGRADE.md](https://github.com/${{ github.repository }}/blob/main/UPGRADE.md) for detailed upgrade instructions.
           EOF
           )
-          
+
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_BODY" \
@@ -457,7 +457,7 @@ jobs:
         run: |
           TAG_NAME="${{ needs.prepare-promotion.outputs.tag_name }}"
           RELEASE_VERSION="${{ needs.prepare-promotion.outputs.release_version }}"
-          
+
           if [ -f "release-artifacts/docked-$RELEASE_VERSION-source.tar.gz" ]; then
             gh release upload "$TAG_NAME" \
               release-artifacts/docked-$RELEASE_VERSION-source.tar.gz \

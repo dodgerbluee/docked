@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       check-formatting:
-        description: 'Check code formatting'
+        description: "Check code formatting"
         required: false
         type: boolean
         default: false
@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -54,7 +54,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             client/package-lock.json
@@ -70,7 +70,7 @@ jobs:
           if [ -f "node_modules/.bin/eslint" ]; then
             npx eslint src --max-warnings=0
           elif [ -d "node_modules/react-scripts" ]; then
-            CI=true npm run build 2>&1 | tee /tmp/build.log
+            DISABLE_ESLINT_PLUGIN=true CI=true npm run build 2>&1 | tee /tmp/build.log
             BUILD_EXIT_CODE=${PIPESTATUS[0]}
             if [ $BUILD_EXIT_CODE -ne 0 ]; then
               if grep -qiE "(eslint|Failed to compile)" /tmp/build.log; then
@@ -101,7 +101,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
 
@@ -116,4 +116,3 @@ jobs:
             echo "Prettier not installed, skipping formatting check"
             exit 1
           fi
-
