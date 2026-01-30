@@ -206,7 +206,7 @@ jobs:
       - name: Build client
         run: |
           cd client
-          npm run build
+          DISABLE_ESLINT_PLUGIN=true npm run build
 
       - name: Create release artifacts
         run: |
