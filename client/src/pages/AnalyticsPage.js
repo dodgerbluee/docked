@@ -5,7 +5,6 @@
 
 import React, { useState, useMemo } from "react";
 import PropTypes from "prop-types";
-import { BarChart3 } from "lucide-react";
 import { useUpgradeHistory } from "../hooks/useUpgradeHistory";
 import { useTrackedAppUpgradeHistory } from "../hooks/useTrackedAppUpgradeHistory";
 import AnalyticsSidebar from "../components/analytics/AnalyticsSidebar";
