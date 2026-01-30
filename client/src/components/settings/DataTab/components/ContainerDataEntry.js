@@ -35,7 +35,7 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       try {
         const containerJsonString = JSON.stringify(container || {}).toLowerCase();
         return containerJsonString.includes(query);
-      } catch (e) {
+      } catch {
         return false;
       }
     };
@@ -214,7 +214,9 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
                     return (
                       <div className={styles.containerData}>
                         <Alert variant="warning">
-                          Container data not found for "{name}". Showing raw data entry.
+                          Container data not found for {'"'}
+                          {name}
+                          {'"'}. Showing raw data entry.
                         </Alert>
                         <JSONViewer data={entry.data} />
                       </div>

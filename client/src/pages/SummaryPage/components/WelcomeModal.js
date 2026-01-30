@@ -170,8 +170,8 @@ const WelcomeModal = ({
               <div className={styles.featureContent}>
                 <h3 className={styles.featureTitle}>Documentation</h3>
                 <p className={styles.featureDescription}>
-                  Learn more about Docked's features and how to get the most out of your container
-                  management.{" "}
+                  Learn more about Docked{"'"}s features and how to get the most out of your
+                  container management.{" "}
                   <a
                     href={`${GITHUB_REPO}/blob/main/README.md`}
                     target="_blank"
@@ -222,7 +222,7 @@ const WelcomeModal = ({
               </Button>
             </div>
             <Button variant="ghost" size="md" onClick={onClose} className={styles.skipButton}>
-              I'll do this later
+              I{"'"}ll do this later
             </Button>
           </div>
 

@@ -1,0 +1,48 @@
+/**
+ * AnalyticsPage styles
+ * Matches Portainer and Tracked Apps page layout
+ */
+
+.analyticsPage {
+  padding: 0;
+}
+
+.analyticsSidebarLayout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+  align-items: flex-start;
+}
+
+.analyticsContentArea {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.analyticsHeader {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .analyticsSidebarLayout {
+    flex-direction: column;
+  }
+}

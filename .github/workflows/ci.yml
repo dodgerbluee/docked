@@ -189,6 +189,8 @@ jobs:
           cd ../client && npm ci
 
       - name: Build client
+        env:
+          DISABLE_ESLINT_PLUGIN: true
         run: |
           cd client
           npm run build

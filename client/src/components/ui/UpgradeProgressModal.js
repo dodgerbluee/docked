@@ -22,6 +22,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   onSuccess,
   onError,
   onNavigateToLogs,
+  showProgressInPage = false,
+  onConfirmForBanner,
 }) {
   const [stage, setStage] = useState(MODAL_STAGES.CONFIRM);
   const [currentStep, setCurrentStep] = useState(0);
@@ -224,7 +226,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
                 upgradeCompleted = true;
                 break;
               }
-            } catch (pollError) {
+            } catch {
               // Still can't connect, continue polling
               continue;
             }
@@ -277,8 +279,15 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
   if (!isOpen) return null;
 
-  // Use larger modal size for tunnel containers with many steps
-  const modalSize = container?.providesNetwork ? "lg" : "md";
+  // Use larger modal size when we show warning messages or tunnel steps
+  const hasWarning =
+    container &&
+    (container?.providesNetwork ||
+      container?.usesNetworkMode ||
+      containerName?.toLowerCase().includes("nginx-proxy-manager") ||
+      containerName?.toLowerCase().includes("npm") ||
+      container.image?.toLowerCase().includes("nginx-proxy-manager"));
+  const modalSize = hasWarning || container?.providesNetwork ? "lg" : "md";
 
   return (
     <Modal
@@ -298,49 +307,66 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
               <AlertCircle size={48} className={styles.warningIcon} />
             </div>
             <h3 className={styles.title}>Upgrade Container?</h3>
-            <p className={styles.message}>
-              Are you sure you want to upgrade <strong>{containerName}</strong>?
-            </p>
             {container &&
             (containerName?.toLowerCase().includes("nginx-proxy-manager") ||
               containerName?.toLowerCase().includes("npm") ||
               container.image?.toLowerCase().includes("nginx-proxy-manager")) ? (
-              <div className={styles.nginxWarning}>
+              <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Important:</strong> Upgrading nginx-proxy-manager will temporarily make
-                  this UI unavailable. The upgrade will complete in the background using IP
-                  addresses. The page will automatically reconnect and verify completion - no
-                  refresh needed.
+                  If this nginx-proxy-manager instance handles URL or DNS resolution for Docked or
+                  your Portainer instances, the upgrade can fail after the old container is removed
+                  and may require manual recovery. Do not upgrade if that applies to your setup.
                 </p>
               </div>
             ) : container?.providesNetwork ? (
               <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Network Provider:</strong> This container provides network access for
-                  other containers (network_mode). After upgrading, all containers that depend on
-                  this network will be recreated to reconnect to the new network container and
-                  ensure proper network connectivity for all dependent services.
+                  This container provides network access for other containers (network_mode). After
+                  upgrading, all containers that depend on this network will be recreated to
+                  reconnect to the new network container and ensure proper network connectivity for
+                  all dependent services.
                 </p>
               </div>
             ) : container?.usesNetworkMode ? (
               <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Network Configuration:</strong> This container uses a shared network
-                  configuration (network_mode). The network container and all containers using the
-                  same network will be restarted to ensure proper reconnection after the upgrade.
+                  This container uses a shared network configuration (network_mode). The network
+                  container and all containers using the same network will be restarted to ensure
+                  proper reconnection after the upgrade.
                 </p>
               </div>
             ) : (
-              <p className={styles.warning}>
-                The container will be stopped, removed, and recreated with the latest image. This
-                may cause a brief service interruption.
-              </p>
+              container && (
+                <div className={styles.infoNotice}>
+                  <p className={styles.infoNoticeText}>
+                    The container will be stopped, removed, and recreated with the latest image.
+                    This may cause a brief service interruption.
+                  </p>
+                </div>
+              )
             )}
+            <p className={styles.message}>
+              Are you sure you want to upgrade <strong>{containerName}</strong>?
+            </p>
             <div className={styles.actions}>
               <Button variant="outline" onClick={handleClose} className={styles.cancelButton}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleConfirm} className={styles.confirmButton}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (showProgressInPage && onConfirmForBanner && container) {
+                    onClose();
+                    onConfirmForBanner(container);
+                  } else {
+                    handleConfirm();
+                  }
+                }}
+                className={styles.confirmButton}
+              >
                 Yes, Upgrade
               </Button>
             </div>
@@ -393,8 +419,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
             </div>
             <h3 className={styles.title}>Reconnecting...</h3>
             <p className={styles.message}>
-              The UI connection was lost during the upgrade. We're automatically reconnecting and
-              verifying the upgrade completed.
+              The UI connection was lost during the upgrade. We{"'"}re automatically reconnecting
+              and verifying the upgrade completed.
             </p>
             <div className={styles.reconnectingInfo}>
               <p className={styles.reconnectingAttempts}>
@@ -473,6 +499,8 @@ UpgradeProgressModal.propTypes = {
   onSuccess: PropTypes.func,
   onError: PropTypes.func,
   onNavigateToLogs: PropTypes.func,
+  showProgressInPage: PropTypes.bool,
+  onConfirmForBanner: PropTypes.func,
 };
 
 UpgradeProgressModal.displayName = "UpgradeProgressModal";

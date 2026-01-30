@@ -436,10 +436,6 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
       <div className={styles.overlay} onClick={onClose}>
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div className={styles.header}>
-            <div className={styles.headerLeft}>
-              <BarChart3 size={24} className={styles.headerIcon} />
-              <h2 className={styles.title}>Upgrade Analytics</h2>
-            </div>
             <button className={styles.closeButton} onClick={onClose}>
               <X size={20} />
             </button>
@@ -469,10 +465,6 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <div className={styles.headerLeft}>
-            <BarChart3 size={24} className={styles.headerIcon} />
-            <h2 className={styles.title}>Upgrade Analytics</h2>
-          </div>
           <button className={styles.closeButton} onClick={onClose}>
             <X size={20} />
           </button>

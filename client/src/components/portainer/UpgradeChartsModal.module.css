@@ -46,6 +46,21 @@
   }
 }
 
+.embedWrapper {
+  width: 100%;
+  display: block;
+}
+
+.embedInner {
+  background: var(--bg-primary);
+  border-radius: 16px;
+  width: 100%;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -97,9 +112,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
-  padding: 24px 32px;
+  padding-bottom: 24px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
 }
 
 .statItem {

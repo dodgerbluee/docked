@@ -73,7 +73,7 @@ function TokenVerificationStep({
         // Token is logged to server logs, not returned or displayed
         // Clear input to prompt user to enter new token from logs
         setInputToken("");
-      } catch (err) {
+      } catch {
         // Error handling is done in parent component
       }
     }
@@ -128,7 +128,9 @@ function TokenVerificationStep({
                 <small>This token is also available in the server logs.</small>
               </>
             ) : (
-              <small>Click "Generate" to create a verification token.</small>
+              <small>
+                Click {'"'}Generate{'"'} to create a verification token.
+              </small>
             )}
           </div>
         </Alert>

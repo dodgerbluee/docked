@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { CheckCircle2, RefreshCw, Package } from "lucide-react";
 import PortainerStackGroup from "./PortainerStackGroup";
 import PortainerContainerCard from "./PortainerContainerCard";
+import UpdatingCard from "./UpdatingCard";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
 import { DATE_FORMAT_OPTIONS, STACK_NAMES } from "../../constants/portainerPage";
@@ -29,6 +30,9 @@ const ContainersTab = React.memo(function ContainersTab({
   onUpgrade,
   developerModeEnabled = false,
   onOpenDebugModal,
+  activeUpgrades = [],
+  dismissActiveUpgrade,
+  onNavigateToLogs,
 }) {
   if (isLoading && !hasData) {
     return (
@@ -160,15 +164,18 @@ const ContainersTab = React.memo(function ContainersTab({
     );
   }
 
-  // For Updates tab: single dropdown with containers organized by Portainer instance
-  // For Current tab: keep stack grouping
+  // For Updates tab: "Updating" section (if any) then "Updates" section
   if (showUpdates) {
     // Collect all containers with updates, grouped by Portainer instance
     const allContainersWithUpdates = groupedStacks.flatMap((stack) =>
       stack.containers.filter((c) => c.hasUpdate)
     );
 
-    if (allContainersWithUpdates.length === 0) {
+    const hasUpdating = activeUpgrades?.length > 0;
+    const updatesKey = "updates-all";
+    const isUpdatesCollapsed = collapsedStacks.has(updatesKey);
+
+    if (allContainersWithUpdates.length === 0 && !hasUpdating) {
       const emptyMessage = dockerHubDataPulled
         ? "All up to date! No containers with updates available!"
         : hasData
@@ -180,6 +187,8 @@ const ContainersTab = React.memo(function ContainersTab({
       return <EmptyState message={emptyMessage} icon={icon} className={styles.emptyState} />;
     }
 
+    const hasUpdates = allContainersWithUpdates.length > 0;
+
     // Group containers by Portainer instance and sort
     const containersByPortainer = allContainersWithUpdates.reduce((acc, container) => {
       const portainerName = container.portainerName || "Unknown";
@@ -190,20 +199,30 @@ const ContainersTab = React.memo(function ContainersTab({
       return acc;
     }, {});
 
-    // Sort Portainer instances alphabetically
     const sortedPortainerNames = Object.keys(containersByPortainer).sort((a, b) => {
       if (a === "Unknown") return 1;
       if (b === "Unknown") return -1;
       return a.localeCompare(b);
     });
 
-    // Single "Updates" collapsible section
-    const updatesKey = "updates-all";
-    const isCollapsed = collapsedStacks.has(updatesKey);
-
     return (
       <div className={styles.contentTabPanel}>
         <div className={styles.stacksContainer}>
+          {/* Updating cards float above Updates (no header) */}
+          {hasUpdating && (
+            <div className={styles.containersGrid}>
+              {activeUpgrades.map((item) => (
+                <UpdatingCard
+                  key={item.key}
+                  item={item}
+                  onDismiss={dismissActiveUpgrade}
+                  onNavigateToLogs={onNavigateToLogs}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Updates section */}
           <div className={styles.stackGroup}>
             <div
               className={styles.stackHeader}
@@ -216,41 +235,49 @@ const ContainersTab = React.memo(function ContainersTab({
               }}
               role="button"
               tabIndex={0}
-              aria-expanded={!isCollapsed}
-              aria-label={`Updates - ${isCollapsed ? "Expand" : "Collapse"}`}
+              aria-expanded={!isUpdatesCollapsed}
+              aria-label={`Updates - ${isUpdatesCollapsed ? "Expand" : "Collapse"}`}
             >
               <div className={styles.stackHeaderLeft}>
                 <button
                   className={styles.stackToggle}
-                  aria-label={isCollapsed ? "Expand updates" : "Collapse updates"}
+                  aria-label={isUpdatesCollapsed ? "Expand updates" : "Collapse updates"}
                   aria-hidden="true"
                   tabIndex={-1}
                 >
-                  {isCollapsed ? "▶" : "▼"}
+                  {isUpdatesCollapsed ? "▶" : "▼"}
                 </button>
                 <h3 className={styles.stackName}>Updates</h3>
               </div>
             </div>
-            {!isCollapsed && (
+            {!isUpdatesCollapsed && (
               <div className={styles.containersGrid}>
-                {sortedPortainerNames.map((portainerName) =>
-                  containersByPortainer[portainerName].map((container) => {
-                    const isPortainer = isPortainerContainer(container);
-                    return (
-                      <PortainerContainerCard
-                        key={container.id}
-                        container={container}
-                        isPortainer={isPortainer}
-                        selected={selectedContainers.has(container.id)}
-                        upgrading={upgrading[container.id] || false}
-                        showUpdates={showUpdates}
-                        onToggleSelect={onToggleSelect}
-                        onUpgrade={onUpgrade}
-                        developerModeEnabled={developerModeEnabled}
-                        onOpenDebugModal={onOpenDebugModal}
-                      />
-                    );
-                  })
+                {hasUpdates ? (
+                  sortedPortainerNames.map((portainerName) =>
+                    containersByPortainer[portainerName].map((container) => {
+                      const isPortainer = isPortainerContainer(container);
+                      return (
+                        <PortainerContainerCard
+                          key={container.id}
+                          container={container}
+                          isPortainer={isPortainer}
+                          selected={selectedContainers.has(container.id)}
+                          upgrading={upgrading[container.id] || false}
+                          showUpdates={showUpdates}
+                          onToggleSelect={onToggleSelect}
+                          onUpgrade={onUpgrade}
+                          developerModeEnabled={developerModeEnabled}
+                          onOpenDebugModal={onOpenDebugModal}
+                        />
+                      );
+                    })
+                  )
+                ) : (
+                  <div className={styles.updatesEmpty}>
+                    {dockerHubDataPulled
+                      ? "All up to date! No containers with updates available."
+                      : "Pull from Docker Hub to check for available upgrades."}
+                  </div>
                 )}
               </div>
             )}
@@ -327,6 +354,9 @@ ContainersTab.propTypes = {
   onUpgrade: PropTypes.func.isRequired,
   developerModeEnabled: PropTypes.bool,
   onOpenDebugModal: PropTypes.func,
+  activeUpgrades: PropTypes.arrayOf(PropTypes.object),
+  dismissActiveUpgrade: PropTypes.func,
+  onNavigateToLogs: PropTypes.func,
 };
 
 ContainersTab.displayName = "ContainersTab";

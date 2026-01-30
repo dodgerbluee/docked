@@ -67,7 +67,7 @@ export const useDataTabSearch = (dataEntries) => {
             if (containerJsonString.includes(query)) {
               return true;
             }
-          } catch (e) {
+          } catch {
             // If JSON stringify fails, skip
           }
 
@@ -79,7 +79,7 @@ export const useDataTabSearch = (dataEntries) => {
         try {
           const jsonString = JSON.stringify(entry.data || {}).toLowerCase();
           matchesJsonContent = jsonString.includes(query);
-        } catch (e) {
+        } catch {
           // If JSON stringify fails, skip JSON content search
         }
 

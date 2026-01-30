@@ -9,9 +9,53 @@ import Alert from "../ui/Alert";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
 import styles from "./LogsTab.module.css";
 
+/** Log levels for filter buttons; order and labels for display */
+const LOG_LEVELS = [
+  { key: "info", label: "INFO" },
+  { key: "warn", label: "WARN" },
+  { key: "error", label: "ERROR" },
+  { key: "debug", label: "DEBUG" },
+];
+
+/**
+ * Normalize a raw level string to a filter key
+ * @param {string} level - Raw level from log (e.g. "info", "warn", "ERROR")
+ * @returns {'info'|'warn'|'error'|'debug'|'other'}
+ */
+function normalizeLevel(level) {
+  if (!level || typeof level !== "string") return "other";
+  const lower = level.toLowerCase();
+  if (lower === "info") return "info";
+  if (lower === "warn" || lower === "warning") return "warn";
+  if (lower === "error" || lower === "err" || lower === "critical") return "error";
+  if (lower === "debug") return "debug";
+  return "other";
+}
+
+/**
+ * Get normalized level from a raw log line (JSON or bracket format)
+ * @param {string} line - Single log line
+ * @returns {'info'|'warn'|'error'|'debug'|'other'}
+ */
+function getLevelFromLine(line) {
+  try {
+    const parsed = JSON.parse(line);
+    if (parsed && typeof parsed === "object" && parsed.level) {
+      return normalizeLevel(parsed.level);
+    }
+  } catch {
+    // not JSON
+  }
+  const bracketMatch = line.match(/(\[)(info|warn|warning|error|err|debug)(\])/i);
+  if (bracketMatch) {
+    return normalizeLevel(bracketMatch[2]);
+  }
+  return "other";
+}
+
 /**
  * LogsTab Component
- * Displays application logs with color-coded log levels
+ * Displays application logs with color-coded log levels and level filter buttons
  */
 function LogsTab() {
   const [logs, setLogs] = useState(null);
@@ -22,8 +66,21 @@ function LogsTab() {
   const [expandedLogs, setExpandedLogs] = useState(new Set());
   const [lastLineCount, setLastLineCount] = useState(0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [levelFilters, setLevelFilters] = useState(() => new Set());
   const contentRef = useRef(null);
   const wasAtBottomRef = useRef(true);
+
+  const toggleLevelFilter = useCallback((key) => {
+    setLevelFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   // Check if user is at bottom of scroll
   const checkIfAtBottom = () => {
@@ -154,15 +211,24 @@ function LogsTab() {
   const formattedLogs = useMemo(() => {
     if (!logs) return null;
 
-    // Split logs by lines
+    // Split logs by lines and attach level for filtering
     const lines = logs.split("\n").filter((line) => line.trim());
+    const withLevel = lines.map((line, index) => ({
+      line,
+      index,
+      level: getLevelFromLine(line),
+    }));
+    const filtered =
+      levelFilters.size === 0
+        ? withLevel
+        : withLevel.filter(({ level }) => level === "other" || levelFilters.has(level));
 
-    return lines.map((line, index) => {
+    return filtered.map(({ line, index }) => {
       // Try to parse as JSON (Winston structured logs)
       let logEntry = null;
       try {
         logEntry = JSON.parse(line);
-      } catch (e) {
+      } catch {
         // Not JSON, treat as plain text
       }
 
@@ -348,7 +414,7 @@ function LogsTab() {
         </div>
       );
     });
-  }, [logs, expandedLogs]);
+  }, [logs, expandedLogs, levelFilters]);
 
   if (loading) {
     return (
@@ -365,6 +431,22 @@ function LogsTab() {
           <div className={styles.header}>
             <div className={styles.headerTitle}>
               <h3 className={styles.title}>Application Logs</h3>
+            </div>
+            <div className={styles.levelFilters}>
+              {LOG_LEVELS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`${styles.levelFilterBtn} ${styles[`levelFilter_${key}`]} ${
+                    levelFilters.has(key) ? styles.levelFilterActive : ""
+                  }`}
+                  onClick={() => toggleLevelFilter(key)}
+                  aria-pressed={levelFilters.has(key)}
+                  aria-label={`Filter by ${label}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
             <div className={styles.actions}>
               <Button

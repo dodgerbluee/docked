@@ -184,41 +184,53 @@ body.dark-mode .roleBadgeMember:hover {
 .actionButtons {
   display: flex;
   flex-direction: row;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
   margin-top: 16px;
 }
 
-.actionButton {
-  width: auto;
-  display: inline-block;
-  background: var(--bg-primary) !important;
-  color: var(--dodger-blue) !important;
-  border-color: var(--dodger-blue) !important;
-  padding: 10px 20px !important;
-  font-size: 1rem;
-  min-height: 42px;
-  gap: 12px !important; /* Increased gap between icon and text */
+.actionButtons .actionButton {
+  box-sizing: border-box;
+  width: 160px;
+  height: 40px;
+  padding: 0 16px;
+  gap: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
-/* Fix icon spacing for action buttons */
-.actionButton svg {
-  margin-right: 0 !important; /* Override negative margin from iconLeft */
+.actionButtons .actionButton:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
 }
 
-.actionButton:hover:not(:disabled) {
-  background: rgba(30, 144, 255, 0.1) !important;
-  border-color: var(--dodger-blue) !important;
-  color: var(--dodger-blue) !important;
+.actionButtons .actionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-body.dark-mode .actionButton {
-  background: var(--bg-primary) !important;
-  color: var(--dodger-blue-light) !important;
-  border-color: var(--dodger-blue-light) !important;
+body.dark-mode .actionButtons .actionButton {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
-body.dark-mode .actionButton:hover:not(:disabled) {
-  background: rgba(30, 136, 229, 0.15) !important;
-  border-color: var(--dodger-blue-light) !important;
-  color: var(--dodger-blue-light) !important;
+body.dark-mode .actionButtons .actionButton:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
 }

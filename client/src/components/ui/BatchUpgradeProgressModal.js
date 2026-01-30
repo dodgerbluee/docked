@@ -20,8 +20,10 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
   onSuccess,
   onError,
   onNavigateToLogs,
+  showProgressInPage = false,
+  onConfirmForBanner,
 }) {
-  // Use extracted hook
+  // Use extracted hook (only needed when not showProgressInPage)
   const {
     stage,
     containerStates,
@@ -42,6 +44,16 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
     }
   }, [stage, onClose]);
 
+  // When showProgressInPage: confirm closes modal and runs upgrades in Updating section (no second page)
+  const confirmHandler = useCallback(() => {
+    if (showProgressInPage && onConfirmForBanner && containers?.length) {
+      onClose();
+      onConfirmForBanner(containers);
+    } else {
+      handleConfirm();
+    }
+  }, [showProgressInPage, onConfirmForBanner, containers, onClose, handleConfirm]);
+
   if (!isOpen || !containers || containers.length === 0) return null;
 
   return (
@@ -49,7 +61,7 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
       isOpen={isOpen}
       onClose={handleClose}
       size="lg"
-      showCloseButton={stage !== "progress"}
+      showCloseButton={stage !== "progress" && stage !== "confirm"}
       className={styles.modal}
     >
       <div className={styles.content}>
@@ -57,7 +69,7 @@ const BatchUpgradeProgressModal = React.memo(function BatchUpgradeProgressModal(
           <ConfirmStage
             totalCount={totalCount}
             containers={containers}
-            onConfirm={handleConfirm}
+            onConfirm={confirmHandler}
             onCancel={handleClose}
           />
         )}
@@ -105,6 +117,8 @@ BatchUpgradeProgressModal.propTypes = {
   onSuccess: PropTypes.func,
   onError: PropTypes.func,
   onNavigateToLogs: PropTypes.func,
+  showProgressInPage: PropTypes.bool,
+  onConfirmForBanner: PropTypes.func,
 };
 
 BatchUpgradeProgressModal.displayName = "BatchUpgradeProgressModal";

@@ -16,8 +16,6 @@ import ActivityFeed from "./SummaryPage/components/ActivityFeed";
 import ContainerHealthOverview from "./SummaryPage/components/ContainerHealthOverview";
 import ImageStatistics from "./SummaryPage/components/ImageStatistics";
 import ModernPortainerInstances from "./SummaryPage/components/ModernPortainerInstances";
-import RecentBatchRuns from "./SummaryPage/components/RecentBatchRuns";
-import HistoryMetrics from "./SummaryPage/components/HistoryMetrics";
 import styles from "./SummaryPage.module.css";
 
 /**
@@ -33,6 +31,7 @@ const SummaryPage = ({
   dismissedTrackedAppNotifications = new Map(),
   onNavigateToPortainer,
   onNavigateToTrackedApps,
+  onNavigateToAnalytics,
   onSetSelectedPortainerInstances,
   onSetContentTab,
   isLoading = false,
@@ -105,9 +104,8 @@ const SummaryPage = ({
 
           {/* Main Content Grid */}
           <div className={styles.dashboardGrid}>
-            {/* Left Column - Health & History */}
+            {/* Left Column - Instances & Health + Images (two equal sections) */}
             <div className={styles.leftColumn}>
-              {/* Portainer Instances Section */}
               <ModernPortainerInstances
                 portainerStats={summaryStats.portainerStats}
                 shouldShowEmptyState={shouldShowEmptyState}
@@ -115,17 +113,23 @@ const SummaryPage = ({
                 onStatClick={handleInstanceStatClick}
               />
 
-              <ContainerHealthOverview
-                containers={containers}
-                summaryStats={summaryStats}
-                shouldShowEmptyState={shouldShowEmptyState}
-                onStatClick={handlePortainerStatClick}
-              />
-
-              <HistoryMetrics />
+              <div className={styles.healthAndImagesRow}>
+                <ContainerHealthOverview
+                  containers={containers}
+                  summaryStats={summaryStats}
+                  shouldShowEmptyState={shouldShowEmptyState}
+                  onStatClick={handlePortainerStatClick}
+                />
+                <ImageStatistics
+                  containers={containers}
+                  unusedImagesCount={unusedImagesCount}
+                  shouldShowEmptyState={shouldShowEmptyState}
+                  onUnusedImagesClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
+                />
+              </div>
             </div>
 
-            {/* Right Column - Activity & Stats */}
+            {/* Right Column - Activity */}
             <div className={styles.rightColumn}>
               <ActivityFeed
                 containers={containers}
@@ -133,16 +137,6 @@ const SummaryPage = ({
                 recentRuns={recentRuns}
                 latestRunsByJobType={latestRunsByJobType}
               />
-
-              <ImageStatistics
-                containers={containers}
-                unusedImages={unusedImages}
-                unusedImagesCount={unusedImagesCount}
-                shouldShowEmptyState={shouldShowEmptyState}
-                onUnusedImagesClick={() => handlePortainerStatClick(CONTENT_TABS.UNUSED)}
-              />
-
-              <RecentBatchRuns recentRuns={recentRuns} latestRunsByJobType={latestRunsByJobType} />
             </div>
           </div>
         </div>
@@ -177,6 +171,7 @@ SummaryPage.propTypes = {
   dismissedTrackedAppNotifications: PropTypes.instanceOf(Map),
   onNavigateToPortainer: PropTypes.func,
   onNavigateToTrackedApps: PropTypes.func,
+  onNavigateToAnalytics: PropTypes.func,
   onSetSelectedPortainerInstances: PropTypes.func,
   onSetContentTab: PropTypes.func,
   isLoading: PropTypes.bool,

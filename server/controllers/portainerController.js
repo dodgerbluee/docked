@@ -221,11 +221,10 @@ async function createInstance(req, res, next) {
         note: "This IP will be used for fallback when DNS is unavailable (e.g., during nginx upgrades)",
       });
     } else {
-      logger.warn("Failed to resolve URL to IP address", {
+      logger.debug("Could not resolve URL to IP address (IP fallback unavailable)", {
         module: "portainerController",
         operation: "createInstance",
         url: url.trim(),
-        note: "IP fallback will not be available. If this instance is behind a proxy, you may need to manually set the IP address in Settings.",
       });
     }
 

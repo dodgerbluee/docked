@@ -407,7 +407,7 @@ async function getAllContainersWithUpdates(
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Container retrieval requires comprehensive processing
 async function getContainersFromPortainer(userId = null) {
-  logger.info("Fetching containers from Portainer");
+  logger.debug("Fetching containers from Portainer");
   const allContainers = [];
 
   // Get Portainer instances from database
