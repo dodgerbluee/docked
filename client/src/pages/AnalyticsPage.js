@@ -15,9 +15,7 @@ import styles from "./AnalyticsPage.module.css";
 
 function AnalyticsPage({ portainerInstances = [] }) {
   const [activeViewTab, setActiveViewTab] = useState(ANALYTICS_VIEW_TABS.OVERVIEW);
-  const [selectedDataSources, setSelectedDataSources] = useState(
-    () => new Set([ANALYTICS_DATA_SOURCE.CONTAINERS, ANALYTICS_DATA_SOURCE.TRACKED_APPS])
-  );
+  const [selectedDataSources, setSelectedDataSources] = useState(() => new Set());
   const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(() => new Set());
 
   const { history: containerHistoryRaw = [] } = useUpgradeHistory();

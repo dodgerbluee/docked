@@ -40,17 +40,25 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
   portainerInstances = [],
 }) {
   const showContainerData = selectedDataSources.has(ANALYTICS_DATA_SOURCE.CONTAINERS);
-  const showInstanceFilter = showContainerData && portainerInstances.length > 0;
+  const showInstanceFilter =
+    (showContainerData || selectedDataSources.size === 0) && portainerInstances.length > 0;
 
   const handleDataSourceToggle = (source, checked) => {
     onSelectedDataSourcesChange((prev) => {
       const next = new Set(prev);
       if (checked) {
         next.add(source);
+        // Selecting both = no filter; clear checkboxes
+        if (
+          next.has(ANALYTICS_DATA_SOURCE.CONTAINERS) &&
+          next.has(ANALYTICS_DATA_SOURCE.TRACKED_APPS)
+        ) {
+          return new Set();
+        }
         return next;
       }
       next.delete(source);
-      return next.size > 0 ? next : new Set([ANALYTICS_DATA_SOURCE.CONTAINERS, ANALYTICS_DATA_SOURCE.TRACKED_APPS]);
+      return next;
     });
   };
 

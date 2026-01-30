@@ -39,13 +39,65 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  gap: 20px;
 }
 
-.statsGrid {
+/* Row 1: Ring + In Use / Unused boxes — matches Container Health */
+.chartAndStatsRow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+.scoreRing {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+.ringChart {
+  width: 100%;
+  height: 100%;
+  transform: rotate(0deg);
+}
+
+.progressCircle {
+  transition: stroke-dasharray 1s ease-out;
+}
+
+.scoreContent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.scoreValue {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.scoreLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.chartAndStatsRow .statsGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
-  margin-bottom: 24px;
+  flex: 1;
+  margin-bottom: 0;
 }
 
 .statItem {
@@ -138,6 +190,12 @@
   margin-top: 4px;
 }
 
+.statPercentage {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
 .progressSection {
   margin-bottom: 0;
 }
@@ -213,8 +271,19 @@
   color: var(--text-secondary);
 }
 
+@media (max-width: 1024px) {
+  .chartAndStatsRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chartAndStatsRow .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 640px) {
-  .statsGrid {
+  .chartAndStatsRow .statsGrid {
     grid-template-columns: 1fr;
   }
 }
