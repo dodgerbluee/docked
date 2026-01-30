@@ -76,6 +76,14 @@ body.dark-mode .stackCount {
   width: 100%;
 }
 
+.updatesEmpty {
+  grid-column: 1 / -1;
+  padding: 16px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
 .loadingState {
   min-height: 300px;
 }

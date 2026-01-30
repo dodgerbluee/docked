@@ -135,21 +135,43 @@ async function tryIpFallback(requestFn, portainerUrl, originalError) {
   }
 }
 
+const RETRY_DELAY_MS = 1500;
+const MAX_RETRIES = 1;
+
 /**
- * Make a request with automatic IP fallback if DNS fails
+ * Make a request with retry on connection errors and automatic IP fallback if DNS fails
  * @param {Function} requestFn - Function that makes the axios request (receives URL as parameter)
  * @param {string} portainerUrl - Original Portainer URL
  * @returns {Promise<any>} - Response data
  */
 async function requestWithIpFallback(requestFn, portainerUrl) {
-  try {
-    return requestFn(portainerUrl);
-  } catch (error) {
-    if (!isDnsError(error)) {
-      throw error;
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        logger.debug("Retrying Portainer request after connection error", {
+          portainerUrl,
+          attempt,
+        });
+      }
+      return await requestFn(portainerUrl);
+    } catch (error) {
+      lastError = error;
+      const isConnectionError =
+        error.code === "ECONNREFUSED" ||
+        error.code === "ETIMEDOUT" ||
+        error.code === "ECONNRESET" ||
+        error.message === "socket hang up";
+      if (!isConnectionError || attempt >= MAX_RETRIES) {
+        break;
+      }
     }
-    return tryIpFallback(requestFn, portainerUrl, error);
   }
+  if (!isDnsError(lastError)) {
+    throw lastError;
+  }
+  return tryIpFallback(requestFn, portainerUrl, lastError);
 }
 
 module.exports = {

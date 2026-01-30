@@ -22,6 +22,8 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   onSuccess,
   onError,
   onNavigateToLogs,
+  showProgressInPage = false,
+  onConfirmForBanner,
 }) {
   const [stage, setStage] = useState(MODAL_STAGES.CONFIRM);
   const [currentStep, setCurrentStep] = useState(0);
@@ -277,8 +279,15 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
   if (!isOpen) return null;
 
-  // Use larger modal size for tunnel containers with many steps
-  const modalSize = container?.providesNetwork ? "lg" : "md";
+  // Use larger modal size when we show warning messages or tunnel steps
+  const hasWarning =
+    container &&
+    (container?.providesNetwork ||
+      container?.usesNetworkMode ||
+      containerName?.toLowerCase().includes("nginx-proxy-manager") ||
+      containerName?.toLowerCase().includes("npm") ||
+      container.image?.toLowerCase().includes("nginx-proxy-manager"));
+  const modalSize = hasWarning || container?.providesNetwork ? "lg" : "md";
 
   return (
     <Modal
@@ -305,12 +314,13 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
             (containerName?.toLowerCase().includes("nginx-proxy-manager") ||
               containerName?.toLowerCase().includes("npm") ||
               container.image?.toLowerCase().includes("nginx-proxy-manager")) ? (
-              <div className={styles.nginxWarning}>
+              <div className={styles.networkWarning}>
+                <p className={styles.warningHeader}>⚠️ Warning:</p>
                 <p className={styles.warning}>
-                  <strong>⚠️ Important:</strong> Upgrading nginx-proxy-manager will temporarily make
-                  this UI unavailable. The upgrade will complete in the background using IP
-                  addresses. The page will automatically reconnect and verify completion - no
-                  refresh needed.
+                  If this nginx-proxy-manager instance handles URL or DNS
+                  resolution for Docked or your Portainer instances, the upgrade
+                  can fail after the old container is removed and may require
+                  manual recovery. Do not upgrade if that applies to your setup.
                 </p>
               </div>
             ) : container?.providesNetwork ? (
@@ -473,6 +483,8 @@ UpgradeProgressModal.propTypes = {
   onSuccess: PropTypes.func,
   onError: PropTypes.func,
   onNavigateToLogs: PropTypes.func,
+  showProgressInPage: PropTypes.bool,
+  onConfirmForBanner: PropTypes.func,
 };
 
 UpgradeProgressModal.displayName = "UpgradeProgressModal";

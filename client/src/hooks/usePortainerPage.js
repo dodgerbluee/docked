@@ -30,6 +30,8 @@ export function usePortainerPage({
   onSetSelectedPortainerInstances,
   contentTab: controlledContentTab,
   onSetContentTab,
+  /** When provided, use this instead of calling usePortainerUpgrade (lifts state to parent for persistence across tab switch) */
+  portainerUpgradeFromProps = null,
 }) {
   // Error modal state
   const [errorModal, setErrorModal] = useState({
@@ -72,12 +74,13 @@ export function usePortainerPage({
   const { selectedImages, setSelectedImages, handleToggleImageSelect } =
     usePortainerImageSelection();
 
-  // Use extracted upgrade hook
-  const upgradeOperations = usePortainerUpgrade({
+  // Use extracted upgrade hook (or injected from parent when lifting state for tab persistence)
+  const upgradeOperationsFromHook = usePortainerUpgrade({
     successfullyUpdatedContainersRef,
     onContainersUpdate,
     fetchContainers,
   });
+  const upgradeOperations = portainerUpgradeFromProps ?? upgradeOperationsFromHook;
 
   // Use extracted image deletion hook
   const imageDeletion = usePortainerImageDeletion({
@@ -218,13 +221,23 @@ export function usePortainerPage({
     errorModal,
     closeErrorModal,
 
-    // Upgrade modal
+    // Single upgrade: confirm dialog + progress banner
+    upgradeConfirmContainer: upgradeOperations.upgradeConfirmContainer,
+    closeUpgradeConfirm: upgradeOperations.closeUpgradeConfirm,
+    confirmAndStartUpgrade: upgradeOperations.confirmAndStartUpgrade,
+    activeUpgrades: upgradeOperations.activeUpgrades,
+    dismissActiveUpgrade: upgradeOperations.dismissActiveUpgrade,
+
+    // Batch upgrade: confirm dialog + progress banner (no modal)
+    batchUpgradeConfirmContainers: upgradeOperations.batchUpgradeConfirmContainers,
+    closeBatchUpgradeConfirm: upgradeOperations.closeBatchUpgradeConfirm,
+    confirmAndStartBatchUpgrade: upgradeOperations.confirmAndStartBatchUpgrade,
+
+    // Legacy
     upgradeModal: upgradeOperations.upgradeModal,
     closeUpgradeModal: upgradeOperations.closeUpgradeModal,
     executeUpgrade: upgradeOperations.executeUpgrade,
     handleUpgradeSuccess: upgradeOperations.handleUpgradeSuccess,
-
-    // Batch upgrade modal
     batchUpgradeModal: upgradeOperations.batchUpgradeModal,
     closeBatchUpgradeModal: upgradeOperations.closeBatchUpgradeModal,
     executeBatchUpgrade,

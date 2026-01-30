@@ -34,6 +34,103 @@
   align-items: center;
 }
 
+/* Level filter buttons - color coded (in header row) */
+.levelFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+  margin: 0 12px;
+}
+
+.levelFilterBtn {
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.levelFilterBtn:focus-visible {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+.levelFilter_info {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--text-primary);
+  border-color: var(--success-green);
+}
+
+.levelFilter_info.levelFilterActive {
+  background: var(--success-green);
+  color: var(--bg-primary);
+}
+
+.levelFilter_warn {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--text-primary);
+  border-color: #fbbf24;
+}
+
+body.dark-mode .levelFilter_warn {
+  border-color: #fcd34d;
+}
+
+.levelFilter_warn.levelFilterActive {
+  background: #fbbf24;
+  color: #1f2937;
+}
+
+body.dark-mode .levelFilter_warn.levelFilterActive {
+  background: #fcd34d;
+  color: #111827;
+}
+
+.levelFilter_error {
+  background: rgba(239, 62, 66, 0.15);
+  color: var(--text-primary);
+  border-color: var(--dodger-red);
+}
+
+.levelFilter_error.levelFilterActive {
+  background: var(--dodger-red);
+  color: #fff;
+}
+
+.levelFilter_debug {
+  background: rgba(251, 146, 60, 0.15);
+  color: var(--text-primary);
+  border-color: #fb923c;
+}
+
+body.dark-mode .levelFilter_debug {
+  border-color: #fdba74;
+}
+
+.levelFilter_debug.levelFilterActive {
+  background: #fb923c;
+  color: #1f2937;
+}
+
+body.dark-mode .levelFilter_debug.levelFilterActive {
+  background: #fdba74;
+  color: #111827;
+}
+
+.levelFilterBtn:not(.levelFilterActive) {
+  opacity: 0.75;
+}
+
+.levelFilterBtn:not(.levelFilterActive):hover {
+  opacity: 1;
+}
+
 .error {
   margin-bottom: 20px;
 }

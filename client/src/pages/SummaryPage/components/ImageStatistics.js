@@ -25,11 +25,17 @@ const ImageStatistics = ({
     // Calculate total images (in use + unused)
     const totalImages = uniqueImages.size + unusedImagesCount;
 
+    const inUsePct =
+      totalImages > 0 ? Math.round((uniqueImages.size / totalImages) * 100) : 0;
+    const unusedPct =
+      totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0;
+
     return {
       totalImages,
       inUse: uniqueImages.size,
       unused: unusedImagesCount,
-      unusedPercentage: totalImages > 0 ? Math.round((unusedImagesCount / totalImages) * 100) : 0,
+      inUsePercentage: inUsePct,
+      unusedPercentage: unusedPct,
     };
   }, [containers, unusedImagesCount]);
 
@@ -44,9 +50,9 @@ const ImageStatistics = ({
 
       <div className={styles.content}>
         <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.iconWrapper}>
-              <Layers size={20} />
+          <div className={styles.statItem}>
+            <div className={styles.statIcon}>
+              <Layers size={18} />
             </div>
             <div className={styles.statContent}>
               <div className={styles.statValue}>
@@ -56,9 +62,9 @@ const ImageStatistics = ({
             </div>
           </div>
 
-          <div className={styles.statCard}>
-            <div className={`${styles.iconWrapper} ${styles.success}`}>
-              <HardDrive size={20} />
+          <div className={`${styles.statItem} ${styles.success}`}>
+            <div className={styles.statIcon}>
+              <HardDrive size={18} />
             </div>
             <div className={styles.statContent}>
               <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.inUse}</div>
@@ -67,13 +73,25 @@ const ImageStatistics = ({
           </div>
 
           <div
-            className={`${styles.statCard} ${styles.clickable} ${imageStats.unused > 0 ? styles.warning : ""}`}
+            className={`${styles.statItem} ${styles.clickable} ${imageStats.unused > 0 ? styles.warning : ""}`}
             onClick={
               !shouldShowEmptyState && imageStats.unused > 0 ? onUnusedImagesClick : undefined
             }
+            role={imageStats.unused > 0 ? "button" : undefined}
+            tabIndex={imageStats.unused > 0 ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (
+                imageStats.unused > 0 &&
+                (e.key === "Enter" || e.key === " ") &&
+                onUnusedImagesClick
+              ) {
+                e.preventDefault();
+                onUnusedImagesClick();
+              }
+            }}
           >
-            <div className={`${styles.iconWrapper} ${imageStats.unused > 0 ? styles.warning : ""}`}>
-              <Trash2 size={20} />
+            <div className={styles.statIcon}>
+              <Trash2 size={18} />
             </div>
             <div className={styles.statContent}>
               <div className={styles.statValue}>{shouldShowEmptyState ? 0 : imageStats.unused}</div>
@@ -83,48 +101,39 @@ const ImageStatistics = ({
         </div>
 
         {!shouldShowEmptyState && imageStats.totalImages > 0 && (
-          <>
-            <div className={styles.progressSection}>
-              <div className={styles.progressHeader}>
-                <span className={styles.progressLabel}>Storage Usage</span>
-                <span className={styles.progressValue}>
-                  {imageStats.inUse}/{imageStats.totalImages} in use
-                </span>
-              </div>
-              <div className={styles.progressBar}>
+          <div className={styles.progressSection}>
+            <div className={styles.progressHeader}>
+              <span className={styles.progressValue}>
+                {imageStats.inUse}/{imageStats.totalImages} in use
+              </span>
+            </div>
+            <div className={styles.progressBarTrack}>
+              {imageStats.inUse > 0 && (
                 <div
-                  className={styles.progressFill}
-                  style={{
-                    width: `${100 - imageStats.unusedPercentage}%`,
-                  }}
+                  className={`${styles.progressBarSegment} ${styles.inUse}`}
+                  style={{ width: `${imageStats.inUsePercentage}%` }}
+                  title={`${imageStats.inUse} in use`}
                 />
+              )}
+              {imageStats.unused > 0 && (
+                <div
+                  className={`${styles.progressBarSegment} ${styles.unused}`}
+                  style={{ width: `${imageStats.unusedPercentage}%` }}
+                  title={`${imageStats.unused} unused`}
+                />
+              )}
+            </div>
+            <div className={styles.progressBarLegend}>
+              <div className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.inUse}`} />
+                <span className={styles.legendLabel}>In Use</span>
+              </div>
+              <div className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.unused}`} />
+                <span className={styles.legendLabel}>Unused</span>
               </div>
             </div>
-
-            {imageStats.unused > 0 && (
-              <div
-                className={`${styles.cleanupTip} ${styles.clickable}`}
-                onClick={onUnusedImagesClick}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onUnusedImagesClick();
-                  }
-                }}
-              >
-                <Trash2 size={16} className={styles.tipIcon} />
-                <div className={styles.tipContent}>
-                  <div className={styles.tipTitle}>Cleanup Available</div>
-                  <div className={styles.tipText}>
-                    {imageStats.unused} unused image{imageStats.unused !== 1 ? "s" : ""} can be
-                    removed to free up space
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
+          </div>
         )}
       </div>
     </div>

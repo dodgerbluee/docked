@@ -3,7 +3,11 @@
   border: 1px solid var(--border-color);
   border-radius: 16px;
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .header {
@@ -31,77 +35,99 @@
 
 .content {
   padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
-.statCard {
+.statItem {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  padding: 20px 12px;
+  gap: 12px;
+  padding: 16px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   transition: all 0.2s ease;
 }
 
-.statCard.clickable {
+.statItem.clickable {
   cursor: pointer;
 }
 
-.statCard.clickable:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+.statItem.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border-color: currentColor;
 }
 
-.statCard.warning {
-  border-color: #a855f7;
+.statItem.success {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
 }
 
-.statCard.clickable.warning:hover {
-  border-color: #a855f7;
-  box-shadow: 0 6px 16px rgba(168, 85, 247, 0.3);
+.statItem.warning {
+  color: #a855f7;
+  border-color: rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.06);
 }
 
-.iconWrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.statIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--border-color);
-  color: var(--text-primary);
-  margin-bottom: 12px;
+  background: currentColor;
+  color: var(--bg-primary);
+  opacity: 0.2;
 }
 
-.iconWrapper.success {
-  background: rgba(16, 185, 129, 0.15);
+.statIcon svg {
+  color: currentColor;
+  filter: brightness(10);
+}
+
+.statItem.success .statIcon {
+  background: rgba(16, 185, 129, 0.2);
+  opacity: 1;
+}
+
+.statItem.success .statIcon svg {
+  filter: none;
   color: #10b981;
 }
 
-.iconWrapper.warning {
-  background: rgba(168, 85, 247, 0.15);
+.statItem.warning .statIcon {
+  background: rgba(168, 85, 247, 0.2);
+  opacity: 1;
+}
+
+.statItem.warning .statIcon svg {
+  filter: none;
   color: #a855f7;
 }
 
 .statContent {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .statValue {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
-  margin-bottom: 6px;
 }
 
 .statLabel {
@@ -109,10 +135,11 @@
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-top: 4px;
 }
 
 .progressSection {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .progressHeader {
@@ -133,68 +160,57 @@
   color: var(--text-secondary);
 }
 
-.progressBar {
-  height: 8px;
+.progressBarTrack {
+  height: 12px;
   background: var(--bg-primary);
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
+  display: flex;
+  margin-bottom: 12px;
 }
 
-.progressFill {
+.progressBarSegment {
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #059669);
-  border-radius: 4px;
   transition: width 0.5s ease-out;
 }
 
-.cleanupTip {
+.progressBarSegment.inUse {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.progressBarSegment.unused {
+  background: linear-gradient(90deg, #a855f7, #7c3aed);
+}
+
+.progressBarLegend {
   display: flex;
-  gap: 12px;
-  padding: 16px;
-  background: rgba(168, 85, 247, 0.1);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  gap: 20px;
+  justify-content: center;
 }
 
-.cleanupTip.clickable {
-  cursor: pointer;
+.progressBarLegend .legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.cleanupTip.clickable:hover {
-  background: rgba(168, 85, 247, 0.15);
-  border-color: #a855f7;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+.progressBarLegend .legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
 }
 
-.cleanupTip.clickable:focus {
-  outline: 2px solid #a855f7;
-  outline-offset: 2px;
+.progressBarLegend .legendDot.inUse {
+  background: #10b981;
 }
 
-.tipIcon {
-  flex-shrink: 0;
-  color: #a855f7;
-  margin-top: 2px;
+.progressBarLegend .legendDot.unused {
+  background: #a855f7;
 }
 
-.tipContent {
-  flex: 1;
-  min-width: 0;
-}
-
-.tipTitle {
+.progressBarLegend .legendLabel {
   font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.tipText {
-  font-size: 0.8125rem;
   color: var(--text-secondary);
-  line-height: 1.5;
 }
 
 @media (max-width: 640px) {
