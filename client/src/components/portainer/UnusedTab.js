@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import PropTypes from "prop-types";
 import { Trash2, Sparkles } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
+import { getImageKey } from "../../utils/imageHelpers";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import EmptyState from "../ui/EmptyState";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -106,7 +107,7 @@ const UnusedTab = React.memo(function UnusedTab({
             <div className={styles.imagesGrid}>
               {unusedImages.map((image) => (
                 <div
-                  key={image.id}
+                  key={getImageKey(image)}
                   className={`${styles.imageCard} ${!deletingImages ? styles.clickableCard : ""}`}
                   onClick={(e) => {
                     // Don't trigger if clicking on interactive elements
@@ -142,10 +143,10 @@ const UnusedTab = React.memo(function UnusedTab({
                     <label className={styles.checkbox} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        checked={selectedImages.has(image.id)}
+                        checked={selectedImages.has(getImageKey(image))}
                         onChange={(e) => {
                           e.stopPropagation();
-                          onToggleImageSelect(image.id);
+                          onToggleImageSelect(getImageKey(image));
                         }}
                         disabled={deletingImages}
                       />

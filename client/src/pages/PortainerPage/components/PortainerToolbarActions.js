@@ -6,6 +6,7 @@ import React, { useMemo } from "react";
 import PropTypes from "prop-types";
 import Button from "../../../components/ui/Button";
 import { PORTAINER_CONTENT_TABS } from "../../../constants/portainerPage";
+import { getImageKey } from "../../../utils/imageHelpers";
 import styles from "../../PortainerPage.module.css";
 
 /**
@@ -82,7 +83,7 @@ const PortainerToolbarActions = ({
     if (contentTab === PORTAINER_CONTENT_TABS.UNUSED && portainerUnusedImages.length > 0) {
       const allImagesSelected =
         portainerUnusedImages.length > 0 &&
-        portainerUnusedImages.every((img) => selectedImages.has(img.id));
+        portainerUnusedImages.every((img) => selectedImages.has(getImageKey(img)));
 
       return (
         <>
@@ -90,14 +91,14 @@ const PortainerToolbarActions = ({
             variant="outline"
             size="sm"
             onClick={() => {
-              const allIds = portainerUnusedImages.map((img) => img.id);
-              const allSelected = allIds.every((id) => selectedImages.has(id));
+              const allKeys = portainerUnusedImages.map((img) => getImageKey(img));
+              const allSelected = allKeys.every((key) => selectedImages.has(key));
               if (allSelected) {
-                allIds.forEach((id) => onToggleImageSelect(id));
+                allKeys.forEach((key) => onToggleImageSelect(key));
               } else {
-                allIds.forEach((id) => {
-                  if (!selectedImages.has(id)) {
-                    onToggleImageSelect(id);
+                allKeys.forEach((key) => {
+                  if (!selectedImages.has(key)) {
+                    onToggleImageSelect(key);
                   }
                 });
               }
