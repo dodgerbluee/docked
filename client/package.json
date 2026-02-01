@@ -1,6 +1,6 @@
 {
   "name": "docked-client",
-  "version": "2.3.10-dev",
+  "version": "2.3.10",
   "private": true,
   "dependencies": {
     "axios": "^1.13.4",
