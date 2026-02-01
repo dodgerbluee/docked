@@ -83,16 +83,16 @@
 }
 
 .instanceStats {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: stretch;
 }
 
 .statItem {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
+  justify-content: center;
   padding: 8px;
   border-radius: 8px;
   transition: all 0.2s ease;

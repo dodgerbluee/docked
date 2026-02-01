@@ -127,6 +127,8 @@ async function getContainers(req, res, _next) {
                 updateGitLabRepo: cachedContainer.updateGitLabRepo,
                 noDigest: cachedContainer.noDigest,
                 lastChecked: cachedContainer.lastChecked,
+                // CRITICAL: Preserve RepoDigests so computeHasUpdate can check if latest is in array (multi-arch)
+                repoDigests: cachedContainer.repoDigests || null,
               };
 
               // Compute hasUpdate on-the-fly using fresh currentDigest from Portainer
@@ -823,9 +825,8 @@ async function getContainerData(req, res, _next) {
       const instance = instanceMap.get(c.portainerInstanceId);
 
       // Data is already joined from getPortainerContainersWithUpdates
-      // hasUpdate is already computed in the query
-
-      return {
+      // Include repoDigests so computeHasUpdate can check if latest digest is in array (multi-arch)
+      const formattedContainer = {
         id: c.containerId,
         name: c.containerName,
         image: c.imageName,
@@ -846,7 +847,6 @@ async function getContainerData(req, res, _next) {
         usesNetworkMode: c.usesNetworkMode || false,
         providesNetwork: c.providesNetwork || false,
         // Registry version data (already joined, may be null if not available)
-        // hasUpdate will be computed below
         latestDigest: c.latestDigest || null,
         latestVersion: c.latestVersion || null,
         latestTag: c.latestTag || null,
@@ -856,11 +856,10 @@ async function getContainerData(req, res, _next) {
         deployedImageId: c.deployedImageId || null,
         lastSeen: c.lastSeen,
         updatedAt: c.updatedAt,
+        repoDigests: c.repoDigests || null, // Required for multi-arch hasUpdate (latest in RepoDigests = no update)
       };
 
-      // Compute hasUpdate on-the-fly
       formattedContainer.hasUpdate = computeHasUpdate(formattedContainer);
-
       return formattedContainer;
     });
 
