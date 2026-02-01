@@ -16,7 +16,7 @@ const COMPLETED_AUTO_DISMISS_MS = 10 * 60 * 1000;
  * @typedef {Object} ActiveUpgrade
  * @property {string} key - Unique key for the upgrade (e.g. containerId-timestamp)
  * @property {Object} container - Container object
- * @property {'in_progress'|'success'|'error'} status
+ * @property {'queued'|'in_progress'|'success'|'error'} status
  * @property {number} currentStep - Current step index
  * @property {Array<{ label: string, duration: number }>} steps
  * @property {string|null} errorMessage
@@ -124,36 +124,21 @@ export const usePortainerUpgrade = ({
     [successfullyUpdatedContainersRef, onContainersUpdate, fetchContainers]
   );
 
-  // Run upgrade in banner (add to list + step progress + API). Used by single confirm and batch.
-  const startUpgrade = useCallback(
-    async (container) => {
-      if (!container) return;
-      const key = `${container.id}-${Date.now()}`;
-      const steps = getUpgradeSteps(container);
+  // Run upgrade for an existing list entry (by key). Used by batch after enqueueing; also by single.
+  const runUpgradeForEntry = useCallback(
+    async (key, container, steps) => {
       const containerName = container.name;
+      const updateActive = (patch) => {
+        setActiveUpgrades((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+      };
 
-      setActiveUpgrades((prev) => [
-        ...prev,
-        {
-          key,
-          container,
-          status: "in_progress",
-          currentStep: 0,
-          steps,
-          errorMessage: null,
-        },
-      ]);
-
+      updateActive({ status: "in_progress" });
       await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
 
       const isNginx =
         containerName?.toLowerCase().includes("nginx-proxy-manager") ||
         containerName?.toLowerCase().includes("npm") ||
         container.image?.toLowerCase().includes("nginx-proxy-manager");
-
-      const updateActive = (patch) => {
-        setActiveUpgrades((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
-      };
 
       const apiPromise = executeUpgradeForContainer(container);
       const apiCompletedRef = { current: false };
@@ -240,6 +225,30 @@ export const usePortainerUpgrade = ({
     [executeUpgradeForContainer, fetchContainers]
   );
 
+  // Run upgrade in banner (add to list + step progress + API). Used by single confirm.
+  const startUpgrade = useCallback(
+    async (container) => {
+      if (!container) return;
+      const key = `${container.id}-${Date.now()}`;
+      const steps = getUpgradeSteps(container);
+
+      setActiveUpgrades((prev) => [
+        ...prev,
+        {
+          key,
+          container,
+          status: "in_progress",
+          currentStep: 0,
+          steps,
+          errorMessage: null,
+        },
+      ]);
+
+      await runUpgradeForEntry(key, container, steps);
+    },
+    [runUpgradeForEntry]
+  );
+
   // Confirm single upgrade and start it (close confirm dialog, then run in banner)
   const confirmAndStartUpgrade = useCallback(
     async (container) => {
@@ -300,7 +309,7 @@ export const usePortainerUpgrade = ({
     setBatchUpgradeModal({ isOpen: false, containers: [] });
   }, []);
 
-  // Confirm batch: queue in Updating section. Different stacks run in parallel; same stack one at a time.
+  // Confirm batch: add all to Updating section as queued, then run one at a time per stack.
   const confirmAndStartBatchUpgrade = useCallback(
     async (containersToUpgrade, setSelectedContainers) => {
       if (!containersToUpgrade?.length) return;
@@ -308,23 +317,46 @@ export const usePortainerUpgrade = ({
       if (setSelectedContainers) {
         setSelectedContainers(new Set());
       }
-      // Group by stack (same stack = one at a time; different stacks = at the same time)
-      const byStack = containersToUpgrade.reduce((acc, c) => {
-        const stack = c.stackName || "Standalone";
+
+      // Enqueue all selected containers immediately so they appear in the Updating section
+      const entries = containersToUpgrade.map((container) => {
+        const key = `${container.id}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const steps = getUpgradeSteps(container);
+        return { key, container, steps };
+      });
+
+      setActiveUpgrades((prev) => [
+        ...prev,
+        ...entries.map(({ key, container, steps }) => ({
+          key,
+          container,
+          status: "queued",
+          currentStep: 0,
+          steps,
+          errorMessage: null,
+        })),
+      ]);
+
+      await new Promise((r) => setTimeout(r, TIMING.INITIAL_RENDER_DELAY));
+
+      // Group by stack (same stack = one at a time; different stacks = in parallel)
+      const byStack = entries.reduce((acc, entry) => {
+        const stack = entry.container.stackName || "Standalone";
         if (!acc[stack]) acc[stack] = [];
-        acc[stack].push(c);
+        acc[stack].push(entry);
         return acc;
-      }, /** @type {{ [stack: string]: typeof containersToUpgrade }} */ ({}));
+      }, /** @type {{ [stack: string]: typeof entries }} */ ({}));
       const stackArrays = Object.values(byStack);
+
       await Promise.all(
-        stackArrays.map(async (stackContainers) => {
-          for (const container of stackContainers) {
-            await startUpgrade(container);
+        stackArrays.map(async (stackEntries) => {
+          for (const { key, container, steps } of stackEntries) {
+            await runUpgradeForEntry(key, container, steps);
           }
         })
       );
     },
-    [startUpgrade]
+    [runUpgradeForEntry]
   );
 
   // Legacy: execute batch upgrade (kept for API compat; no longer used by UI)

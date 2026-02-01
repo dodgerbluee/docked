@@ -85,10 +85,13 @@ function computeHasUpdate(container) {
           // Container already has the latest digest, no update needed
           return false;
         }
+        // We have RepoDigests and latest is not in the array - container has update
+        return true;
       }
 
-      // Digests differ and latest not in RepoDigests
-      return normalizedCurrent !== normalizedLatest;
+      // No RepoDigests: we cannot reliably tell for multi-arch (currentDigest may be one arch,
+      // latestDigest another for the same tag). Avoid false positives by not reporting update.
+      return false;
     }
   }
 

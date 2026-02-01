@@ -1,11 +1,11 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { CheckCircle2, Loader2, AlertCircle, X } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, X, Clock } from "lucide-react";
 import Button from "../ui/Button";
 import styles from "./UpdatingCard.module.css";
 
 /**
- * Card for the "Updating" section: blend of upgrade progress (spinner/step/success/error)
+ * Card for the "Updating" section: blend of upgrade progress (queued/spinner/step/success/error)
  * and Updates-style container card (border, padding, grid cell).
  */
 function UpdatingCard({ item, onDismiss, onNavigateToLogs }) {
@@ -22,6 +22,7 @@ function UpdatingCard({ item, onDismiss, onNavigateToLogs }) {
       aria-label={`Upgrade ${name} - ${status}`}
     >
       <div className={styles.cardMain}>
+        {status === "queued" && <Clock size={20} className={styles.queuedIcon} aria-hidden />}
         {status === "in_progress" && <Loader2 size={20} className={styles.spinner} aria-hidden />}
         {status === "success" && (
           <CheckCircle2 size={20} className={styles.successIcon} aria-hidden />
@@ -29,6 +30,7 @@ function UpdatingCard({ item, onDismiss, onNavigateToLogs }) {
         {status === "error" && <AlertCircle size={20} className={styles.errorIcon} aria-hidden />}
         <div className={styles.cardContent}>
           <span className={styles.containerName}>{name}</span>
+          {status === "queued" && <span className={styles.queuedLabel}>Queued</span>}
           {status === "in_progress" && stepLabel && (
             <span className={styles.stepLabel}>{stepLabel}</span>
           )}
@@ -77,7 +79,7 @@ UpdatingCard.propTypes = {
   item: PropTypes.shape({
     key: PropTypes.string.isRequired,
     container: PropTypes.object,
-    status: PropTypes.oneOf(["in_progress", "success", "error"]).isRequired,
+    status: PropTypes.oneOf(["queued", "in_progress", "success", "error"]).isRequired,
     currentStep: PropTypes.number,
     steps: PropTypes.arrayOf(
       PropTypes.shape({ label: PropTypes.string, duration: PropTypes.number })
