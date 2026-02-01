@@ -76,14 +76,18 @@ async function getContainerDebugInfo(req, res) {
       ? containerRecord.image_name.split(":")[1]
       : "latest";
 
+    // Match registry_image_versions using normalized image_repo so "redis" matches "docker.io/redis"
     const registryImageVersion = containerRecord.image_repo
       ? await new Promise((resolve, reject) => {
           db.get(
             `SELECT * FROM registry_image_versions 
-             WHERE user_id = ? AND image_repo = ? AND tag = ?
+             WHERE user_id = ? AND tag = ? AND (
+               image_repo = ? 
+               OR REPLACE(COALESCE(image_repo, ''), 'docker.io/', '') = REPLACE(COALESCE(?, ''), 'docker.io/', '')
+             )
              ORDER BY last_checked DESC
              LIMIT 1`,
-            [userId, containerRecord.image_repo, containerImageTag],
+            [userId, containerImageTag, containerRecord.image_repo, containerRecord.image_repo],
             (err, row) => {
               if (err) reject(err);
               else resolve(row);
@@ -92,14 +96,17 @@ async function getContainerDebugInfo(req, res) {
         })
       : null;
 
-    // Get all registry image versions for this image_repo (to see all tags)
+    // Get all registry image versions for this image_repo (to see all tags), normalized so "redis" matches "docker.io/redis"
     const allRegistryImageVersions = containerRecord.image_repo
       ? await new Promise((resolve, reject) => {
           db.all(
             `SELECT * FROM registry_image_versions 
-             WHERE user_id = ? AND image_repo = ?
+             WHERE user_id = ? AND (
+               image_repo = ? 
+               OR REPLACE(COALESCE(image_repo, ''), 'docker.io/', '') = REPLACE(COALESCE(?, ''), 'docker.io/', '')
+             )
              ORDER BY last_checked DESC`,
-            [userId, containerRecord.image_repo],
+            [userId, containerRecord.image_repo, containerRecord.image_repo],
             (err, rows) => {
               if (err) reject(err);
               else resolve(rows || []);

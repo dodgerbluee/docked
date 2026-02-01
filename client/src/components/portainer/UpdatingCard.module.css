@@ -21,6 +21,10 @@
   box-shadow: 0 2px 8px var(--shadow);
 }
 
+.card_queued {
+  border-left: 3px solid var(--text-tertiary);
+}
+
 .card_in_progress {
   border-left: 3px solid var(--dodger-blue);
 }
@@ -39,6 +43,16 @@
   gap: 12px;
   min-width: 0;
   flex: 1;
+}
+
+.queuedIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.queuedLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .spinner {
