@@ -4,6 +4,7 @@
 
 import { useState, useCallback } from "react";
 import axios from "axios";
+import { getImageKey } from "../../../utils/imageHelpers";
 import { API_BASE_URL } from "../../../utils/api";
 import { toast } from "../../../utils/toast";
 
@@ -49,8 +50,9 @@ export const usePortainerImageDeletion = ({
         });
 
         if (response.data.success) {
+          const imageKey = getImageKey(image);
           if (onUnusedImagesUpdate) {
-            onUnusedImagesUpdate((prev) => prev.filter((img) => img.id !== image.id));
+            onUnusedImagesUpdate((prev) => prev.filter((img) => getImageKey(img) !== imageKey));
           }
           if (onUnusedImagesCountUpdate) {
             onUnusedImagesCountUpdate((prev) => Math.max(0, prev - 1));
@@ -58,15 +60,12 @@ export const usePortainerImageDeletion = ({
           if (setSelectedImages) {
             setSelectedImages((prev) => {
               const next = new Set(prev);
-              next.delete(image.id);
+              next.delete(imageKey);
               return next;
             });
           }
           toast.info(`Image ${image.repoTags?.[0] || image.id} deleted successfully.`);
-          // Refetch unused images to get updated list (don't refetch containers as it's not needed)
-          if (fetchUnusedImages) {
-            fetchUnusedImages().catch(() => {});
-          }
+          // Don't refetch: optimistic update already removed the image; refetch can re-add it if server is stale
         } else {
           toast.error("Failed to delete image. Check console for details.");
           console.error("Delete errors:", response.data.errors);
@@ -79,7 +78,7 @@ export const usePortainerImageDeletion = ({
         setDeletingImages(false);
       }
     },
-    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchUnusedImages, setSelectedImages]
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, setSelectedImages]
   );
 
   // Delete multiple images
@@ -91,7 +90,7 @@ export const usePortainerImageDeletion = ({
     }
     return {
       count: selectedImages.size,
-      images: portainerUnusedImages.filter((img) => selectedImages.has(img.id)),
+      images: portainerUnusedImages.filter((img) => selectedImages.has(getImageKey(img))),
     };
   }, []);
 
@@ -121,10 +120,12 @@ export const usePortainerImageDeletion = ({
 
         if (response.data.success) {
           const deletedCount = response.data.deleted || uniqueImages.length;
-          const deletedIds = new Set(uniqueImages.map((img) => img.id));
+          const deletedKeys = new Set(uniqueImages.map((img) => getImageKey(img)));
 
           if (onUnusedImagesUpdate) {
-            onUnusedImagesUpdate((prev) => prev.filter((img) => !deletedIds.has(img.id)));
+            onUnusedImagesUpdate((prev) =>
+              prev.filter((img) => !deletedKeys.has(getImageKey(img)))
+            );
           }
           if (onUnusedImagesCountUpdate) {
             onUnusedImagesCountUpdate((prev) => Math.max(0, prev - deletedCount));
@@ -132,15 +133,12 @@ export const usePortainerImageDeletion = ({
           if (setSelectedImages) {
             setSelectedImages((prev) => {
               const next = new Set(prev);
-              deletedIds.forEach((id) => next.delete(id));
+              deletedKeys.forEach((key) => next.delete(key));
               return next;
             });
           }
           toast.info(`Successfully deleted ${deletedCount} image(s).`);
-          // Refetch unused images to get updated list (don't refetch containers as it's not needed)
-          if (fetchUnusedImages) {
-            fetchUnusedImages().catch(() => {});
-          }
+          // Don't refetch: optimistic update already removed the images; refetch can re-add them if server is stale
         } else {
           toast.error("Failed to delete images. Check console for details.");
           console.error("Delete errors:", response.data.errors);
@@ -153,7 +151,7 @@ export const usePortainerImageDeletion = ({
         setDeletingImages(false);
       }
     },
-    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, fetchUnusedImages, setSelectedImages]
+    [onUnusedImagesUpdate, onUnusedImagesCountUpdate, setSelectedImages]
   );
 
   return {
