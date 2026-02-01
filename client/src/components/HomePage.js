@@ -126,6 +126,7 @@ function HomePage({
   handleReorderTabs,
   toggleStack,
   discordWebhooks = [],
+  portainerUpgrade,
 }) {
   // Page visibility settings removed - all pages are now always visible
   // Memoize context value
@@ -234,6 +235,7 @@ function HomePage({
           handleLogoutWithCleanup={handleLogoutWithCleanup}
           editingPortainerInstance={editingPortainerInstance}
           fetchPortainerInstances={fetchPortainerInstances}
+          portainerUpgrade={portainerUpgrade}
         />
 
         <div className="version-footer-wrapper">
@@ -371,6 +373,7 @@ HomePage.propTypes = {
       enabled: PropTypes.bool,
     })
   ),
+  portainerUpgrade: PropTypes.object,
 };
 
 export default HomePage;

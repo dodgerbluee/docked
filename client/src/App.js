@@ -31,6 +31,7 @@ import { useEnhancedNavigation } from "./hooks/useEnhancedNavigation";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAddPortainerModal } from "./hooks/useAddPortainerModal";
 import { useDiscordSettings } from "./hooks/useDiscordSettings";
+import { usePortainerUpgrade } from "./hooks/usePortainerPage/hooks/usePortainerUpgrade";
 import HomePage from "./components/HomePage";
 import { TAB_NAMES } from "./constants/apiConstants";
 
@@ -242,6 +243,13 @@ function App() {
     handleClear,
     handlePull,
   } = containerOperations;
+
+  // Portainer upgrade state lifted to App so completed upgrade cards persist 10 min when switching tabs
+  const portainerUpgrade = usePortainerUpgrade({
+    successfullyUpdatedContainersRef,
+    onContainersUpdate: setContainers,
+    fetchContainers,
+  });
 
   // Selection handlers - using custom hook
   const selectionHandlers = useSelectionHandlers({
@@ -643,6 +651,7 @@ function App() {
             handleReorderTabs={handleReorderTabs}
             toggleStack={toggleStack}
             discordWebhooks={discordWebhooks}
+            portainerUpgrade={portainerUpgrade}
           />
         }
       />
