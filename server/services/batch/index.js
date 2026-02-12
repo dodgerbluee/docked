@@ -35,6 +35,15 @@ function registerHandlers() {
   } catch (error) {
     logger.error("Error registering TrackedAppsCheckHandler:", error);
   }
+
+  // Register Auto-Update Handler
+  try {
+    const AutoUpdateHandler = require("./handlers/AutoUpdateHandler");
+    manager.registerHandler(new AutoUpdateHandler());
+    logger.info("✅ Registered Auto-Update batch handler");
+  } catch (error) {
+    logger.error("Error registering AutoUpdateHandler:", error);
+  }
 }
 
 /**

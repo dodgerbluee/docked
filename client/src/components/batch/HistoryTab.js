@@ -17,7 +17,7 @@ import styles from "./HistoryTab.module.css";
  * HistoryTab Component
  * Displays batch run history and logs
  */
-const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTrackedAppsBatch }) {
+const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTrackedAppsBatch, onTriggerAutoUpdate }) {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [displayCount, setDisplayCount] = useState(8);
 
@@ -30,13 +30,16 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
     error,
     triggeringBatch,
     triggeringTrackedAppsBatch,
+    triggeringAutoUpdate,
     nextScheduledRunDockerHub,
     nextScheduledRunTrackedApps,
+    nextScheduledRunAutoUpdate,
     hasEnabledJobs,
     batchConfigs,
     handleTriggerBatch,
     handleTriggerTrackedAppsBatch,
-  } = useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch);
+    handleTriggerAutoUpdate,
+  } = useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch, onTriggerAutoUpdate);
 
   // Removed scroll listener - no longer needed with grid layout
 
@@ -56,6 +59,7 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
   const enabledJobsCount = [
     batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled,
     batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled,
+    batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.enabled,
   ].filter(Boolean).length;
 
   // Pagination for run history
@@ -157,6 +161,16 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
                         lastRun={latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
                         isTriggering={triggeringTrackedAppsBatch}
                         onTrigger={handleTriggerTrackedAppsBatch}
+                      />
+                    )}
+                    {batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.enabled && (
+                      <ScheduledRunRow
+                        jobType={BATCH_JOB_TYPES.AUTO_UPDATE}
+                        config={batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]}
+                        nextRunDate={nextScheduledRunAutoUpdate}
+                        lastRun={latestRunsByJobType[BATCH_JOB_TYPES.AUTO_UPDATE]}
+                        isTriggering={triggeringAutoUpdate}
+                        onTrigger={handleTriggerAutoUpdate}
                       />
                     )}
                   </tbody>
@@ -264,6 +278,7 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
 HistoryTab.propTypes = {
   onTriggerBatch: PropTypes.func,
   onTriggerTrackedAppsBatch: PropTypes.func,
+  onTriggerAutoUpdate: PropTypes.func,
 };
 
 export default HistoryTab;

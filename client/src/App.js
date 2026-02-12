@@ -192,6 +192,7 @@ function App() {
   const {
     handleBatchPull,
     handleBatchTrackedAppsCheck,
+    handleBatchAutoUpdate,
     batchIntervalRef,
     batchInitialTimeoutRef,
     hasRunInitialPullRef,
@@ -626,6 +627,7 @@ function App() {
             handleSelectAllImages={handleSelectAllImages}
             handleBatchPull={handleBatchPull}
             handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
+            handleBatchAutoUpdate={handleBatchAutoUpdate}
             handleNewInstanceDataFetch={handleNewInstanceDataFetch}
             fetchPortainerInstances={fetchPortainerInstances}
             fetchContainers={fetchContainers}

@@ -19,7 +19,7 @@ export const useBatchProcessing = ({
   fetchContainers,
 }) => {
   // Use extracted hooks
-  const { handleBatchPull, handleBatchTrackedAppsCheck } = useBatchTriggers({
+  const { handleBatchPull, handleBatchTrackedAppsCheck, handleBatchAutoUpdate } = useBatchTriggers({
     containersData,
     successfullyUpdatedContainersRef,
     setPulling,
@@ -49,6 +49,7 @@ export const useBatchProcessing = ({
   return {
     handleBatchPull,
     handleBatchTrackedAppsCheck,
+    handleBatchAutoUpdate,
     batchIntervalRef,
     batchInitialTimeoutRef,
     hasRunInitialPullRef,

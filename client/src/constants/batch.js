@@ -17,11 +17,13 @@ export const BATCH_TAB_LABELS = {
 export const BATCH_JOB_TYPES = {
   DOCKER_HUB_PULL: "docker-hub-pull",
   TRACKED_APPS_CHECK: "tracked-apps-check",
+  AUTO_UPDATE: "auto-update",
 };
 
 export const BATCH_JOB_TYPE_LABELS = {
   [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: "Image Version Scan",
   [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: "App Version Scan",
+  [BATCH_JOB_TYPES.AUTO_UPDATE]: "Auto-Update Containers",
 };
 
 export const BATCH_STATUS = {

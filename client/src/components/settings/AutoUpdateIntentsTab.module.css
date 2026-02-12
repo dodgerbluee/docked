@@ -1,0 +1,189 @@
+.intentsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.header h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.emptyState {
+  padding: 3rem;
+  text-align: center;
+}
+
+.emptyContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.emptyContent p {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.emptySubtext {
+  color: var(--text-secondary) !important;
+  font-size: 0.875rem;
+}
+
+.intentsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.intentCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.intentContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.intentHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.toggleButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.toggleButton:hover {
+  color: var(--text-primary);
+}
+
+.enabledIcon {
+  color: var(--success-color, #4caf50);
+}
+
+.disabledIcon {
+  color: var(--text-secondary);
+}
+
+.intentInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.intentName {
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-word;
+  margin-bottom: 0.5rem;
+}
+
+.intentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.type {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.target {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status.enabled {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: var(--success-color, #4caf50);
+}
+
+.status.disabled {
+  background-color: rgba(158, 158, 158, 0.1);
+  color: var(--text-secondary);
+}
+
+.intentActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.actionButton:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--text-primary);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .intentsList {
+    grid-template-columns: 1fr;
+  }
+}

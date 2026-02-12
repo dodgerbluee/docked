@@ -155,6 +155,50 @@ const BatchTab = React.memo(function BatchTab({
           )}
         </div>
 
+        {/* Auto-Update Configuration */}
+        <div className={styles.jobConfig}>
+          <h4 className={styles.jobTitle}>
+            {BATCH_JOB_TYPE_LABELS[BATCH_JOB_TYPES.AUTO_UPDATE]}
+          </h4>
+          <p className={styles.jobDescription}>
+            Automatically upgrade containers that match your enabled auto-update intents.
+          </p>
+          <div className={styles.formGroup}>
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={localConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.enabled || false}
+                onChange={(e) =>
+                  handleConfigChange(BATCH_JOB_TYPES.AUTO_UPDATE, "enabled", e.target.checked)
+                }
+                className={styles.checkbox}
+              />
+              <span>Enable automatic container updates</span>
+            </label>
+          </div>
+          {localConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.enabled && (
+            <div className={styles.intervalContainer}>
+              <TimeIntervalInput
+                label="Interval"
+                value={intervalInputs[BATCH_JOB_TYPES.AUTO_UPDATE]}
+                unit={
+                  localConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.intervalUnit ||
+                  BATCH_INTERVAL_UNITS.MINUTES
+                }
+                onChange={(value) =>
+                  handleIntervalInputChange(BATCH_JOB_TYPES.AUTO_UPDATE, value)
+                }
+                onUnitChange={(unit) =>
+                  handleConfigChange(BATCH_JOB_TYPES.AUTO_UPDATE, "intervalUnit", unit)
+                }
+                onBlur={() => handleIntervalBlur(BATCH_JOB_TYPES.AUTO_UPDATE)}
+                min={1}
+                required
+              />
+            </div>
+          )}
+        </div>
+
         <div className={styles.formActions}>
           <Button
             type="submit"

@@ -10,6 +10,7 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
   const [batchConfig, setBatchConfig] = useState({
     "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
     "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
+    "auto-update": { enabled: false, intervalMinutes: 60 },
   });
 
   // Fetch batch configuration
@@ -20,13 +21,17 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
           const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
           if (response.data.success) {
             const configs = response.data.config || {};
-            // Ensure both job types exist with defaults
+            // Ensure all job types exist with defaults
             setBatchConfig({
               "docker-hub-pull": configs["docker-hub-pull"] || {
                 enabled: false,
                 intervalMinutes: 60,
               },
               "tracked-apps-check": configs["tracked-apps-check"] || {
+                enabled: false,
+                intervalMinutes: 60,
+              },
+              "auto-update": configs["auto-update"] || {
                 enabled: false,
                 intervalMinutes: 60,
               },
@@ -47,13 +52,17 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
       const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
       if (response.data.success) {
         const configs = response.data.config || {};
-        // Ensure both job types exist with defaults
+        // Ensure all job types exist with defaults
         const newConfigs = {
           "docker-hub-pull": configs["docker-hub-pull"] || {
             enabled: false,
             intervalMinutes: 60,
           },
           "tracked-apps-check": configs["tracked-apps-check"] || {
+            enabled: false,
+            intervalMinutes: 60,
+          },
+          "auto-update": configs["auto-update"] || {
             enabled: false,
             intervalMinutes: 60,
           },

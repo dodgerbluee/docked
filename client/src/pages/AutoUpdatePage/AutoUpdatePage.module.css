@@ -1,0 +1,70 @@
+.pageContainer {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  gap: 2rem;
+}
+
+.pageTitle {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+}
+
+.pageSubtitle {
+  font-size: 0.95rem;
+  color: #666;
+  margin: 0;
+  font-weight: 400;
+}
+
+.createButton {
+  background-color: #2563eb;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.createButton:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.createButton:active {
+  transform: translateY(0);
+}
+
+.createButton:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .pageContainer {
+    padding: 1rem;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+  }
+
+  .createButton {
+    width: 100%;
+  }
+}

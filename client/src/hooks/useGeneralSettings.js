@@ -25,6 +25,7 @@ export function useGeneralSettings({
   const [batchConfigs, setBatchConfigs] = useState({
     [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
     [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
+    [BATCH_JOB_TYPES.AUTO_UPDATE]: { ...DEFAULT_BATCH_CONFIG },
   });
   const [batchError, setBatchError] = useState("");
   const [batchSuccess, setBatchSuccess] = useState("");
@@ -61,9 +62,16 @@ export function useGeneralSettings({
         const newConfigs = {
           [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
           [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
+          [BATCH_JOB_TYPES.AUTO_UPDATE]: { ...DEFAULT_BATCH_CONFIG },
         };
 
-        [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach((jobType) => {
+        const jobTypes = [
+          BATCH_JOB_TYPES.DOCKER_HUB_PULL,
+          BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
+          BATCH_JOB_TYPES.AUTO_UPDATE,
+        ];
+
+        jobTypes.forEach((jobType) => {
           const config = configs[jobType] || {
             enabled: false,
             intervalMinutes: 60,
@@ -219,22 +227,32 @@ export function useGeneralSettings({
       setBatchLoading({
         [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: true,
         [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: true,
+        [BATCH_JOB_TYPES.AUTO_UPDATE]: true,
       });
 
       // Use provided configs or fall back to current batchConfigs
       const configs = configsToSubmit || batchConfigs;
 
+      // All job types to process
+      const jobTypes = [
+        BATCH_JOB_TYPES.DOCKER_HUB_PULL,
+        BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
+        BATCH_JOB_TYPES.AUTO_UPDATE,
+      ];
+
       try {
         const responses = await Promise.all(
-          [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].map(
+          jobTypes.map(
             async (jobType) => {
-              const config = configs[jobType];
+              const config = configs[jobType] || DEFAULT_BATCH_CONFIG;
+              const intervalValue = config.intervalValue || DEFAULT_BATCH_CONFIG.intervalValue;
+              const intervalUnit = config.intervalUnit || DEFAULT_BATCH_CONFIG.intervalUnit;
               const intervalMinutes =
-                config.intervalUnit === "hours" ? config.intervalValue * 60 : config.intervalValue;
+                intervalUnit === "hours" ? intervalValue * 60 : intervalValue;
 
               const response = await axios.post(`${API_BASE_URL}/api/batch/config`, {
                 jobType: jobType,
-                enabled: config.enabled,
+                enabled: config.enabled || false,
                 intervalMinutes: intervalMinutes,
               });
 
@@ -254,9 +272,10 @@ export function useGeneralSettings({
           const newConfigs = {
             [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
             [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
+            [BATCH_JOB_TYPES.AUTO_UPDATE]: { ...DEFAULT_BATCH_CONFIG },
           };
 
-          [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach(
+          jobTypes.forEach(
             (jobType) => {
               const config = serverConfigs[jobType] || {
                 enabled: false,
@@ -287,7 +306,7 @@ export function useGeneralSettings({
           // Fallback: update state with the configs we just submitted
           setBatchConfigs((prev) => {
             const updated = { ...prev };
-            [BATCH_JOB_TYPES.DOCKER_HUB_PULL, BATCH_JOB_TYPES.TRACKED_APPS_CHECK].forEach(
+            jobTypes.forEach(
               (jobType) => {
                 const config = configs[jobType];
                 const intervalMinutes =
@@ -322,6 +341,7 @@ export function useGeneralSettings({
         setBatchLoading({
           [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: false,
           [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: false,
+          [BATCH_JOB_TYPES.AUTO_UPDATE]: false,
         });
       }
     },

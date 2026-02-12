@@ -14,6 +14,12 @@
   margin-bottom: 32px;
 }
 
+.separator {
+  height: 2px;
+  background-color: var(--border-color);
+  margin: 3rem 0;
+}
+
 .instancesSection {
   margin-top: 0;
   padding-top: 0;

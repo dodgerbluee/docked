@@ -77,6 +77,13 @@ function getBatchConfig(userId, jobType = null) {
                   updatedAt: null,
                 };
               }
+              if (!configs["auto-update"]) {
+                configs["auto-update"] = {
+                  enabled: false,
+                  intervalMinutes: 60,
+                  updatedAt: null,
+                };
+              }
               resolve(configs);
             }
           }
@@ -560,7 +567,7 @@ function getLatestBatchRunByJobType(userId, jobType) {
  */
 function getLatestBatchRunsByJobType(userId) {
   return new Promise((resolve, reject) => {
-    const jobTypes = ["docker-hub-pull", "tracked-apps-check"];
+    const jobTypes = ["docker-hub-pull", "tracked-apps-check", "auto-update"];
     const promises = jobTypes.map((jobType) =>
       getLatestBatchRunByJobType(userId, jobType).then((run) => ({ jobType, run }))
     );

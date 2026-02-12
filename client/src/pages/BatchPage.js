@@ -23,6 +23,7 @@ function BatchPage({
   onReturnHome,
   onTriggerBatch,
   onTriggerTrackedAppsBatch,
+  onTriggerAutoUpdate,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
 }) {
@@ -81,6 +82,7 @@ function BatchPage({
               key="history-tab"
               onTriggerBatch={onTriggerBatch}
               onTriggerTrackedAppsBatch={onTriggerTrackedAppsBatch}
+              onTriggerAutoUpdate={onTriggerAutoUpdate}
             />
           ) : (
             <BatchTab
@@ -103,6 +105,7 @@ BatchPage.propTypes = {
   onReturnHome: PropTypes.func,
   onTriggerBatch: PropTypes.func,
   onTriggerTrackedAppsBatch: PropTypes.func,
+  onTriggerAutoUpdate: PropTypes.func,
   activeTab: PropTypes.string,
   onTabChange: PropTypes.func,
 };

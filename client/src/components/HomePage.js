@@ -101,6 +101,7 @@ function HomePage({
   handleSelectAllImages,
   handleBatchPull,
   handleBatchTrackedAppsCheck,
+  handleBatchAutoUpdate,
   handleNewInstanceDataFetch,
   fetchPortainerInstances,
   fetchContainers,
@@ -222,6 +223,7 @@ function HomePage({
           handlePull={handlePull}
           handleBatchPull={handleBatchPull}
           handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
+          handleBatchAutoUpdate={handleBatchAutoUpdate}
           handleUsernameUpdate={handleUsernameUpdate}
           handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
           handlePortainerInstancesChange={handlePortainerInstancesChange}
@@ -341,6 +343,7 @@ HomePage.propTypes = {
   handleSelectAllImages: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
+  handleBatchAutoUpdate: PropTypes.func.isRequired,
   handleNewInstanceDataFetch: PropTypes.func.isRequired,
   fetchPortainerInstances: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,

@@ -21,6 +21,7 @@ export const TAB_NAMES = {
   SUMMARY: "summary",
   PORTAINER: "portainer",
   TRACKED_APPS: "tracked-apps",
+  AUTO_UPDATE: "auto-update",
   ANALYTICS: "analytics",
   SETTINGS: "settings",
   CONFIGURATION: "configuration",

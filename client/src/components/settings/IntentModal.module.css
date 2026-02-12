@@ -1,0 +1,442 @@
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background-color: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.closeButton:hover {
+  color: var(--text-primary);
+}
+
+.form {
+  flex: 1;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formGroup label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input,
+.select {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--primary-color, #0066cc);
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.input::placeholder {
+  color: var(--text-secondary);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.intentTypeButtons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.typeButton {
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.typeButton:hover {
+  border-color: var(--text-primary);
+}
+
+.typeButton.active {
+  background-color: var(--primary-color, #0066cc);
+  border-color: var(--primary-color, #0066cc);
+  color: white;
+}
+
+.criteriaSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.preview {
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.preview h4 {
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.previewContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.previewStat {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.previewHighlight {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: rgba(76, 175, 80, 0.1);
+  color: var(--success-color, #4caf50);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.matchedList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.matchedItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: var(--bg-primary);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.containerName {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.updateBadge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: var(--success-color, #4caf50);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Step 1: Container List Styles */
+.containerList {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 2rem 2rem;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.searchBox {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--primary-color, #0066cc);
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.searchInput::placeholder {
+  color: var(--text-secondary);
+}
+
+.containerItems {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.containerItem {
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.containerItem:hover {
+  background-color: var(--bg-primary);
+  border-color: var(--primary-color, #0066cc);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.containerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.containerMainInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.containerNameLabel {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.updateAvailableBadge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: var(--success-color, #4caf50);
+  border-radius: 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.containerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.metaItem {
+  color: var(--text-secondary);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.emptyState p {
+  margin: 0.25rem 0;
+}
+
+.emptyHint {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  margin-top: 0.5rem;
+}
+
+/* Step 2: Selected Container Display */
+.selectedContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.selectedLabel {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.selectedName {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.changeButton {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.changeButton:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.typeButtonTitle {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.typeButtonValue {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.typeButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.typeButton:disabled:hover {
+  border-color: var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+@media (max-width: 600px) {
+  .modal {
+    max-width: 100%;
+  }
+
+  .intentTypeButtons {
+    grid-template-columns: 1fr;
+  }
+
+  .header,
+  .form {
+    padding: 1.5rem 1rem;
+  }
+
+  .containerList {
+    padding: 1rem;
+  }
+
+  .selectedContainer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .changeButton {
+    align-self: flex-end;
+  }
+}

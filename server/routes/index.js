@@ -44,6 +44,7 @@ const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
+const autoUpdateIntentController = require("../controllers/autoUpdateIntentController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validate, validationChains } = require("../middleware/validation");
@@ -1137,5 +1138,216 @@ router.post(
 
 // Logs routes
 router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
+
+// Auto-Update Intent routes
+/**
+ * @swagger
+ * /auto-update/intents:
+ *   post:
+ *     summary: Create a new auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stackName:
+ *                 type: string
+ *                 description: Stack name (for compose services)
+ *               serviceName:
+ *                 type: string
+ *                 description: Service name within stack
+ *               imageRepo:
+ *                 type: string
+ *                 description: Image repository (e.g., ghcr.io/linuxserver/plex)
+ *               containerName:
+ *                 type: string
+ *                 description: Container name (fallback matching)
+ *               enabled:
+ *                 type: boolean
+ *                 description: Whether auto-updates are enabled
+ *               notifyDiscord:
+ *                 type: boolean
+ *                 description: Send Discord notifications
+ *               notifyOnUpdateDetected:
+ *                 type: boolean
+ *               notifyOnBatchStart:
+ *                 type: boolean
+ *               notifyOnSuccess:
+ *                 type: boolean
+ *               notifyOnFailure:
+ *                 type: boolean
+ *               description:
+ *                 type: string
+ *                 description: User-provided description
+ *     responses:
+ *       201:
+ *         description: Intent created successfully
+ *       400:
+ *         description: Invalid input
+ *   get:
+ *     summary: List all auto-update intents
+ *     tags:
+ *       - Auto-Update
+ *     responses:
+ *       200:
+ *         description: List of intents
+ */
+router.post(
+  "/auto-update/intents",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.createAutoUpdateIntent)
+);
+router.get(
+  "/auto-update/intents",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.listAutoUpdateIntents)
+);
+
+/**
+ * @swagger
+ * /auto-update/intents/{id}:
+ *   get:
+ *     summary: Get a specific auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Intent details
+ *       404:
+ *         description: Intent not found
+ *   patch:
+ *     summary: Update an auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Intent updated
+ *       404:
+ *         description: Intent not found
+ *   delete:
+ *     summary: Delete an auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Intent deleted
+ *       404:
+ *         description: Intent not found
+ */
+router.get(
+  "/auto-update/intents/:id",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.getAutoUpdateIntent)
+);
+router.patch(
+  "/auto-update/intents/:id",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.updateAutoUpdateIntent)
+);
+router.delete(
+  "/auto-update/intents/:id",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.deleteAutoUpdateIntent)
+);
+
+/**
+ * @swagger
+ * /auto-update/intents/{id}/test-match:
+ *   post:
+ *     summary: Test which containers match an intent (dry-run)
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Matching results
+ *       404:
+ *         description: Intent not found
+ */
+router.post(
+  "/auto-update/intents/:id/test-match",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.testIntentMatch)
+);
+
+/**
+ * @swagger
+ * /auto-update/intents/{id}/enable:
+ *   post:
+ *     summary: Enable an auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Intent enabled
+ *       404:
+ *         description: Intent not found
+ *
+ * /auto-update/intents/{id}/disable:
+ *   post:
+ *     summary: Disable an auto-update intent
+ *     tags:
+ *       - Auto-Update
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Intent disabled
+ *       404:
+ *         description: Intent not found
+ */
+router.post(
+  "/auto-update/intents/:id/enable",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.enableAutoUpdateIntent)
+);
+router.post(
+  "/auto-update/intents/:id/disable",
+  authenticate,
+  asyncHandler(autoUpdateIntentController.disableAutoUpdateIntent)
+);
 
 module.exports = router;

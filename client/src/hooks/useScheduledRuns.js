@@ -10,6 +10,7 @@ import { parseSQLiteDate } from "../utils/dateParsing";
 export function useScheduledRuns(batchConfigs, recentRuns) {
   const [nextScheduledRunDockerHub, setNextScheduledRunDockerHub] = useState(null);
   const [nextScheduledRunTrackedApps, setNextScheduledRunTrackedApps] = useState(null);
+  const [nextScheduledRunAutoUpdate, setNextScheduledRunAutoUpdate] = useState(null);
 
   // Refs for scheduled run calculations
   const lastCalculatedRunIdRefDockerHub = useRef(null);
@@ -18,6 +19,9 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
   const lastCalculatedRunIdRefTrackedApps = useRef(null);
   const lastCalculatedIntervalRefTrackedApps = useRef(null);
   const baseScheduledTimeRefTrackedApps = useRef(null);
+  const lastCalculatedRunIdRefAutoUpdate = useRef(null);
+  const lastCalculatedIntervalRefAutoUpdate = useRef(null);
+  const baseScheduledTimeRefAutoUpdate = useRef(null);
 
   // Calculate next scheduled run for a job type
   const calculateNextScheduledRun = useCallback((jobType, recentRuns, config, setNextRun, refs) => {
@@ -113,6 +117,21 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
     );
   }, [batchConfigs, recentRuns, calculateNextScheduledRun]);
 
+  // Calculate next scheduled run for Auto Update
+  useEffect(() => {
+    calculateNextScheduledRun(
+      BATCH_JOB_TYPES.AUTO_UPDATE,
+      recentRuns,
+      batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE],
+      setNextScheduledRunAutoUpdate,
+      {
+        lastCalculatedRunId: lastCalculatedRunIdRefAutoUpdate,
+        lastCalculatedInterval: lastCalculatedIntervalRefAutoUpdate,
+        baseScheduledTime: baseScheduledTimeRefAutoUpdate,
+      }
+    );
+  }, [batchConfigs, recentRuns, calculateNextScheduledRun]);
+
   // Reset dependency tracking when configs change
   useEffect(() => {
     baseScheduledTimeRefDockerHub.current = null;
@@ -121,10 +140,14 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
     baseScheduledTimeRefTrackedApps.current = null;
     lastCalculatedRunIdRefTrackedApps.current = null;
     lastCalculatedIntervalRefTrackedApps.current = null;
+    baseScheduledTimeRefAutoUpdate.current = null;
+    lastCalculatedRunIdRefAutoUpdate.current = null;
+    lastCalculatedIntervalRefAutoUpdate.current = null;
   }, [batchConfigs]);
 
   return {
     nextScheduledRunDockerHub,
     nextScheduledRunTrackedApps,
+    nextScheduledRunAutoUpdate,
   };
 }

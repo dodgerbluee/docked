@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
+import axios from "axios";
 import { Lock, Package, Plus } from "lucide-react";
 import Card from "../ui/Card";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
+import AutoUpdateIntentsTab from "./AutoUpdateIntentsTab";
 import styles from "./PortainerTab.module.css";
 
 /**
@@ -21,6 +23,7 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
+  const [pullingContainers, setPullingContainers] = useState(false);
 
   const handleDeleteClick = useCallback((instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -56,16 +59,32 @@ const PortainerTab = React.memo(function PortainerTab({
     setPortainerConfirm(false);
   }, []);
 
-  const handleEditInstanceClick = useCallback(
-    (instance) => {
-      if (onEditInstance) {
-        onEditInstance(instance);
+  const handlePullContainers = useCallback(async () => {
+    try {
+      setPullingContainers(true);
+      const response = await axios.post(
+        `${process.env.REACT_APP_SERVER || "http://localhost:3001"}/api/containers/pull`,
+        {},
+        { withCredentials: true }
+      );
+      
+      if (response.data.success) {
+        alert("Successfully pulled container data from Portainer instances");
+        // Trigger a refresh of the parent component
+        if (onEditInstance) {
+          onEditInstance();
+        }
       } else {
-        handleEditInstance(instance);
+        alert("Error pulling containers: " + (response.data.error || "Unknown error"));
       }
-    },
-    [onEditInstance, handleEditInstance]
-  );
+    } catch (error) {
+      console.error("Error pulling containers:", error);
+      const errorMessage = error.response?.data?.error || error.message || "Unknown error";
+      alert("Error pulling containers: " + errorMessage);
+    } finally {
+      setPullingContainers(false);
+    }
+  }, [onEditInstance]);
 
   const handleAddInstanceClick = useCallback(() => {
     if (onEditInstance) {
@@ -148,6 +167,20 @@ const PortainerTab = React.memo(function PortainerTab({
           <div className={styles.dataActionItem}>
             <Button
               type="button"
+              variant="primary"
+              onClick={handlePullContainers}
+              disabled={pullingContainers || portainerInstances.length === 0}
+              className={styles.primaryButton}
+            >
+              {pullingContainers ? "Pulling..." : "Pull Containers"}
+            </Button>
+            <small className={styles.dataActionHelper}>
+              Fetches the latest containers from your Portainer instances
+            </small>
+          </div>
+          <div className={styles.dataActionItem}>
+            <Button
+              type="button"
               variant="danger"
               onClick={() => setPortainerConfirm(true)}
               disabled={clearingPortainerData}
@@ -174,6 +207,10 @@ const PortainerTab = React.memo(function PortainerTab({
         cancelText="Cancel"
         variant="danger"
       />
+
+      <div className={styles.separator} />
+
+      <AutoUpdateIntentsTab portainerInstances={portainerInstances} />
     </div>
   );
 });

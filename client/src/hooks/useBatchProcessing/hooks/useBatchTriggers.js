@@ -248,8 +248,86 @@ export const useBatchTriggers = ({
     }
   }, [fetchTrackedApps]);
 
+  const handleBatchAutoUpdate = useCallback(async () => {
+    try {
+      // Trigger the auto-update batch job
+      const triggerResponse = await axios.post(
+        `${API_BASE_URL}/api/batch/trigger`,
+        {
+          jobType: "auto-update",
+        },
+        {
+          timeout: 5000,
+        }
+      );
+
+      if (!triggerResponse.data.success) {
+        throw new Error(triggerResponse.data.error || "Failed to trigger auto-update batch job");
+      }
+
+      // Poll for the latest batch run to get the runId and wait for completion
+      const maxWaitTime = 300000; // 5 minutes
+      const pollInterval = 2000; // 2 seconds
+      const startTime = Date.now();
+      let batchRun = null;
+
+      while (Date.now() - startTime < maxWaitTime) {
+        try {
+          const latestRunResponse = await axios.get(
+            `${API_BASE_URL}/api/batch/runs/latest?jobType=auto-update`
+          );
+          batchRun = latestRunResponse.data.run;
+
+          if (batchRun) {
+            if (batchRun.status === "completed" || batchRun.status === "failed") {
+              break;
+            }
+          }
+        } catch {
+          // Continue polling on error
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+
+      if (!batchRun) {
+        console.warn("Auto-update batch job did not complete within the expected time");
+      } else if (batchRun.status === "failed") {
+        console.error("Auto-update batch job failed:", batchRun.error_message);
+      }
+
+      // Refresh containers after auto-update completes
+      const response = await axios.get(`${API_BASE_URL}/api/containers`);
+      if (response.data.grouped && response.data.stacks) {
+        const apiContainers = response.data.containers || [];
+        const updatedContainers = updateContainersWithPreservedState(
+          apiContainers,
+          successfullyUpdatedContainersRef
+        );
+        setContainers(updatedContainers);
+        setStacks(response.data.stacks || []);
+        setUnusedImagesCount(response.data.unusedImagesCount || 0);
+
+        if (response.data.portainerInstances) {
+          setPortainerInstancesFromAPI(response.data.portainerInstances);
+        }
+        setDataFetched(true);
+      }
+    } catch (err) {
+      console.error("Error in auto-update batch:", err);
+    }
+  }, [
+    setContainers,
+    setStacks,
+    setUnusedImagesCount,
+    setPortainerInstancesFromAPI,
+    setDataFetched,
+    successfullyUpdatedContainersRef,
+  ]);
+
   return {
     handleBatchPull,
     handleBatchTrackedAppsCheck,
+    handleBatchAutoUpdate,
   };
 };

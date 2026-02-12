@@ -1,7 +1,3 @@
-/**
- * HomePage content component
- */
-
 import React, { useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
@@ -9,6 +5,7 @@ import RateLimitError from "../../ErrorDisplay/RateLimitError";
 import SummaryPage from "../../../pages/SummaryPage";
 import TrackedAppsPage from "../../../pages/TrackedAppsPage";
 import PortainerPage from "../../../pages/PortainerPage";
+import AutoUpdatePage from "../../../pages/AutoUpdatePage/AutoUpdatePage";
 import AnalyticsPage from "../../../pages/AnalyticsPage";
 import SettingsPage from "../../../pages/SettingsPage";
 import BatchPage from "../../../pages/BatchPage";
@@ -67,6 +64,7 @@ const HomePageContent = ({
   handlePull,
   handleBatchPull,
   handleBatchTrackedAppsCheck,
+  handleBatchAutoUpdate,
   handleUsernameUpdate,
   handlePasswordUpdateSuccessWithNavigation,
   handlePortainerInstancesChange,
@@ -226,6 +224,7 @@ const HomePageContent = ({
             onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
             onTriggerBatch={handleBatchPull}
             onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+            onTriggerAutoUpdate={handleBatchAutoUpdate}
             activeTab={configurationTab}
             onTabChange={setConfigurationTab}
           />
@@ -237,6 +236,7 @@ const HomePageContent = ({
             onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
             onTriggerBatch={handleBatchPull}
             onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+            onTriggerAutoUpdate={handleBatchAutoUpdate}
             activeTab="history"
           />
         ) : (
@@ -296,6 +296,7 @@ const HomePageContent = ({
                   />
                 )}
                 {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                {activeTab === TAB_NAMES.AUTO_UPDATE && <AutoUpdatePage />}
                 {activeTab === TAB_NAMES.ADMIN && (
                   <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
                 )}
@@ -355,6 +356,7 @@ HomePageContent.propTypes = {
   handlePull: PropTypes.func.isRequired,
   handleBatchPull: PropTypes.func.isRequired,
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
+  handleBatchAutoUpdate: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
   handlePasswordUpdateSuccessWithNavigation: PropTypes.func.isRequired,
   handlePortainerInstancesChange: PropTypes.func.isRequired,

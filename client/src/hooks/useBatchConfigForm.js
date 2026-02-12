@@ -16,6 +16,9 @@ export function useBatchConfigForm(batchConfigs) {
     [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: String(
       batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.intervalValue || DEFAULT_INTERVAL_MINUTES
     ),
+    [BATCH_JOB_TYPES.AUTO_UPDATE]: String(
+      batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.intervalValue || DEFAULT_INTERVAL_MINUTES
+    ),
   });
 
   // Update local configs when batchConfigs change from the hook
@@ -28,6 +31,9 @@ export function useBatchConfigForm(batchConfigs) {
       ),
       [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: String(
         batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.intervalValue || DEFAULT_INTERVAL_MINUTES
+      ),
+      [BATCH_JOB_TYPES.AUTO_UPDATE]: String(
+        batchConfigs[BATCH_JOB_TYPES.AUTO_UPDATE]?.intervalValue || DEFAULT_INTERVAL_MINUTES
       ),
     });
   }, [batchConfigs]);

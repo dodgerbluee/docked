@@ -1,0 +1,29 @@
+.error-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  background-color: var(--error-bg, #fee);
+  border: 1px solid var(--error-border, #fcc);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.error-icon {
+  color: var(--error-color, #c33);
+  flex-shrink: 0;
+}
+
+.error-content h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--error-color, #c33);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.error-content p {
+  margin: 0;
+  color: var(--text-primary, #333);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}

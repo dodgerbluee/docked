@@ -46,6 +46,7 @@ export const LOG_LEVELS = {
 export const BATCH_JOB_TYPES = {
   DOCKER_HUB_PULL: "docker-hub-pull",
   TRACKED_APPS_CHECK: "tracked-apps-check",
+  AUTO_UPDATE: "auto-update",
 };
 
 export const BATCH_INTERVAL_UNITS = {

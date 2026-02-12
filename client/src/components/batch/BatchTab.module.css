@@ -59,10 +59,17 @@ body.dark-mode .titleIcon {
 }
 
 .jobTitle {
-  margin: 0 0 16px 0;
+  margin: 0 0 8px 0;
   color: var(--text-primary);
   font-size: 1.125rem;
   font-weight: 600;
+}
+
+.jobDescription {
+  margin: 0 0 16px 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .formGroup {
