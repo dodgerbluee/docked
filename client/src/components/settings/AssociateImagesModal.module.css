@@ -209,3 +209,50 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   border-radius: 6px;
   border: 1px solid var(--error-color);
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .modalContent {
+    min-height: 200px;
+    max-height: none;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .description {
+    min-width: 0;
+  }
+
+  .imageItem {
+    min-height: var(--touch-target-min);
+    padding: 10px;
+  }
+
+  .checkbox {
+    width: 24px;
+    height: 24px;
+  }
+
+  .checkbox::before {
+    width: 24px;
+    height: 24px;
+  }
+
+  .checkbox::after {
+    left: 8px;
+    top: 4px;
+    width: 6px;
+    height: 10px;
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+
+  .footer > * {
+    width: 100%;
+  }
+}

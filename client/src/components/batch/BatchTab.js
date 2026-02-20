@@ -84,6 +84,9 @@ const BatchTab = React.memo(function BatchTab({
                 }
                 className={styles.checkbox}
               />
+              <span className={styles.toggleTrack} aria-hidden="true">
+                <span className={styles.toggleKnob} />
+              </span>
               <span>Enable automatic image version scanning</span>
             </label>
           </div>
@@ -129,6 +132,9 @@ const BatchTab = React.memo(function BatchTab({
                 }
                 className={styles.checkbox}
               />
+              <span className={styles.toggleTrack} aria-hidden="true">
+                <span className={styles.toggleKnob} />
+              </span>
               <span>Enable automatic tracked apps checking</span>
             </label>
           </div>

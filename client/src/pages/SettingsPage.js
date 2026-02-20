@@ -1,11 +1,9 @@
 import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Home } from "lucide-react";
 import axios from "axios";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Settings from "../components/Settings";
 import SettingsTabNavigation from "../components/settings/SettingsTabNavigation";
-import Button from "../components/ui/Button";
 import { SETTINGS_TABS } from "../constants/settings";
 import { API_BASE_URL } from "../utils/api";
 import styles from "./SettingsPage.module.css";
@@ -33,7 +31,6 @@ function SettingsPage({
   onEditInstance,
   editingPortainerInstance,
   refreshInstances,
-  onReturnHome,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
   hideTabNavigation = false,
@@ -111,17 +108,6 @@ function SettingsPage({
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
           <h2 className={styles.settingsHeader}>Settings</h2>
-          {onReturnHome && (
-            <Button
-              onClick={onReturnHome}
-              variant="outline"
-              icon={Home}
-              iconPosition="left"
-              className={styles.returnHomeButton}
-            >
-              Return Home
-            </Button>
-          )}
         </div>
       </div>
 
@@ -184,7 +170,6 @@ SettingsPage.propTypes = {
   onEditInstance: PropTypes.func,
   editingPortainerInstance: PropTypes.object,
   refreshInstances: PropTypes.func,
-  onReturnHome: PropTypes.func,
   activeTab: PropTypes.string,
   onTabChange: PropTypes.func,
   hideTabNavigation: PropTypes.bool,

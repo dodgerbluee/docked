@@ -1,64 +1,30 @@
 import React, { memo } from "react";
-import { Bell } from "lucide-react";
 import PropTypes from "prop-types";
 import AvatarMenu from "./AvatarMenu";
-import NotificationMenu from "./NotificationMenu";
-import { containerShape, trackedAppShape } from "../../utils/propTypes";
 import styles from "./Header.module.css";
 
 /**
  * Header component for the application
- * Contains logo, notifications, and user avatar menu
+ * Contains logo and user avatar menu
  */
 const Header = ({
   username,
   userRole,
   avatar,
   darkMode,
-  notificationCount,
-  activeContainersWithUpdates = [],
-  activeTrackedAppsBehind = [],
-  versionUpdateInfo,
-  discordWebhooks = [],
-  showNotificationMenu,
   showAvatarMenu,
   instanceAdmin,
-  onToggleNotificationMenu,
   onToggleAvatarMenu,
   onNavigateToSummary,
   onNavigateToSettings,
   onNavigateToBatch,
   onNavigateToAdmin,
-  onNavigateToPortainer,
-  onNavigateToTrackedApps,
-  onDismissContainerNotification,
-  onDismissTrackedAppNotification,
-  onDismissVersionUpdateNotification,
   onTemporaryThemeToggle,
   onLogout,
   API_BASE_URL,
 }) => {
   const handleLogoClick = () => {
     onNavigateToSummary();
-  };
-
-  const handleNotificationToggle = (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // Prevent event from bubbling to click-outside handler
-    if (typeof onToggleNotificationMenu === "function") {
-      // If menu is open, close it; otherwise open it
-      if (showNotificationMenu) {
-        onToggleNotificationMenu(false);
-      } else {
-        onToggleNotificationMenu(true);
-      }
-    }
-  };
-
-  const handleNotificationClose = () => {
-    if (typeof onToggleNotificationMenu === "function") {
-      onToggleNotificationMenu(false);
-    }
   };
 
   return (
@@ -84,39 +50,6 @@ const Header = ({
         </div>
         <div className={styles.headerActions}>
           <div className={styles.actionsContainer}>
-            <div className={styles.notificationWrapper}>
-              <button
-                className={`${styles.notificationButton} notification-button`}
-                onClick={handleNotificationToggle}
-                aria-label="Notifications"
-                title="Notifications"
-              >
-                <Bell size={25} className={styles.notificationIcon} />
-                {notificationCount > 0 && (
-                  <span className={styles.notificationBadge}>
-                    {notificationCount > 99 ? "99+" : notificationCount}
-                  </span>
-                )}
-              </button>
-              {showNotificationMenu && (
-                <NotificationMenu
-                  notificationCount={notificationCount}
-                  activeContainersWithUpdates={activeContainersWithUpdates}
-                  activeTrackedAppsBehind={activeTrackedAppsBehind}
-                  versionUpdateInfo={versionUpdateInfo}
-                  discordWebhooks={discordWebhooks}
-                  instanceAdmin={instanceAdmin}
-                  onClose={handleNotificationClose}
-                  onNavigateToPortainer={onNavigateToPortainer}
-                  onNavigateToTrackedApps={onNavigateToTrackedApps}
-                  onNavigateToSummary={onNavigateToSummary}
-                  onNavigateToSettings={onNavigateToSettings}
-                  onDismissContainerNotification={onDismissContainerNotification}
-                  onDismissTrackedAppNotification={onDismissTrackedAppNotification}
-                  onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
-                />
-              )}
-            </div>
             <AvatarMenu
               username={username}
               userRole={userRole}
@@ -145,38 +78,13 @@ Header.propTypes = {
   userRole: PropTypes.string,
   avatar: PropTypes.string.isRequired,
   darkMode: PropTypes.bool.isRequired,
-  notificationCount: PropTypes.number.isRequired,
-  activeContainersWithUpdates: PropTypes.arrayOf(containerShape),
-  activeTrackedAppsBehind: PropTypes.arrayOf(trackedAppShape),
-  versionUpdateInfo: PropTypes.shape({
-    hasUpdate: PropTypes.bool,
-    latestVersion: PropTypes.string,
-    currentVersion: PropTypes.string,
-    checkedAt: PropTypes.string,
-  }),
-  discordWebhooks: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      avatarUrl: PropTypes.string,
-      name: PropTypes.string,
-      serverName: PropTypes.string,
-      enabled: PropTypes.bool,
-    })
-  ),
-  showNotificationMenu: PropTypes.bool.isRequired,
   showAvatarMenu: PropTypes.bool.isRequired,
   instanceAdmin: PropTypes.bool,
-  onToggleNotificationMenu: PropTypes.func.isRequired,
   onToggleAvatarMenu: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
   onNavigateToSettings: PropTypes.func,
   onNavigateToBatch: PropTypes.func.isRequired,
   onNavigateToAdmin: PropTypes.func,
-  onNavigateToPortainer: PropTypes.func.isRequired,
-  onNavigateToTrackedApps: PropTypes.func.isRequired,
-  onDismissContainerNotification: PropTypes.func.isRequired,
-  onDismissTrackedAppNotification: PropTypes.func.isRequired,
-  onDismissVersionUpdateNotification: PropTypes.func,
   onTemporaryThemeToggle: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,

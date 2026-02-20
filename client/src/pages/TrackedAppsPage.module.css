@@ -14,6 +14,29 @@
   align-items: flex-start;
 }
 
+/* Sidebar wrapper (desktop default) */
+.trackedAppsSidebar {
+  flex: 0 0 auto;
+}
+
+.mobileOnly {
+  display: none;
+}
+
+/* Mobile tracked apps layout */
+@media (max-width: 768px) {
+  .trackedAppsSidebarLayout {
+    flex-direction: column;
+    gap: 0;
+    min-height: auto;
+    align-items: stretch;
+  }
+
+  .mobileOnly {
+    display: inline-flex;
+  }
+}
+
 .trackedAppsContentArea {
   flex: 1;
   min-width: 0;
@@ -24,16 +47,149 @@
 }
 
 .headerContent {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   width: 100%;
+  gap: 16px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: 0;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.desktopOnly {
+  display: block;
+}
+
+.desktopActionGroup {
+  display: block;
+}
+
+.mobileActionRow {
+  display: none;
+}
+
+.mobileToolbarActions {
+  display: contents;
+}
+
+.mobileSearchOverlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .headerContent {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .headerLeft {
+    display: none;
+  }
+
+  .headerActions {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  .desktopActionGroup {
+    display: none;
+  }
+
+  .mobileActionRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .iconOnlyButton {
+    width: 36px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    justify-content: center;
+  }
+
+  .mobileToolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .mobileActionRow :global(button) {
+    white-space: nowrap;
+    flex: 0 0 auto;
+    min-width: 36px;
+  }
+
+  .mobileToolbarActions :global(button) {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .mobileSearchOverlay {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .mobileSearchOverlay {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-top: 10px;
+  }
+
+  .mobileSearchOverlay :global(input) {
+    min-width: 0;
+  }
+
+  .mobileSearchInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* Desktop action group is hidden on mobile; actions are in .mobileActionRow */
+}
+
+@media (max-width: 420px) {
+  .mobileActionRow {
+    gap: 6px;
+  }
+
+  .mobileToolbarActions {
+    gap: 6px;
+  }
+
+  .mobileToolbarActions :global(button) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
 }
 
 .buttonContainer {
@@ -135,7 +291,6 @@ body.dark-mode .checkmark {
 }
 
 .section {
-  margin-bottom: 30px;
 }
 
 .section:first-child {
@@ -211,8 +366,9 @@ body.dark-mode .stackCount {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 15px;
+  padding-bottom: 20px;
 }
 
 .grid > * {
@@ -222,8 +378,9 @@ body.dark-mode .stackCount {
 
 .gridWithUpdates {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 15px;
+  padding-bottom: 20px;
 }
 
 .gridWithUpdates > * {
@@ -233,13 +390,59 @@ body.dark-mode .stackCount {
 
 .gridWithoutUpdates {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 15px;
+  padding-bottom: 20px;
 }
 
 .gridWithoutUpdates > * {
   min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .grid,
+  .gridWithUpdates,
+  .gridWithoutUpdates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .grid,
+  .gridWithUpdates,
+  .gridWithoutUpdates {
+    grid-template-columns: 1fr;
+  }
+
+  .stackHeader {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .stackHeaderLeft {
+    gap: 10px;
+  }
+
+  .stackToggle {
+    font-size: 0.85rem;
+    width: 22px;
+    height: 22px;
+  }
+
+  .stackName {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .stackCount {
+    font-size: 0.85rem;
+  }
+
+  .contentTabPanel {
+    margin-top: 16px;
+  }
 }
 
 .emptyState {
@@ -317,32 +520,4 @@ body.dark-mode .emptyStateLink:hover {
   text-align: right;
   margin-top: 20px;
   padding-right: 10px;
-}
-
-/* Responsive design */
-@media (max-width: 1024px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .gridWithUpdates {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .gridWithoutUpdates {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .trackedAppsSidebarLayout {
-    flex-direction: column;
-  }
-  .grid {
-    grid-template-columns: 1fr;
-  }
-  .gridWithUpdates {
-    grid-template-columns: 1fr;
-  }
-  .gridWithoutUpdates {
-    grid-template-columns: 1fr;
-  }
 }

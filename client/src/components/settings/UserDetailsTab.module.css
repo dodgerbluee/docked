@@ -228,3 +228,51 @@ body.dark-mode .submitButton:hover:not(:disabled) {
   width: 100%;
   max-width: 100%;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .updateSection {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 1.25rem;
+    margin-bottom: 16px;
+  }
+
+  .infoItem {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .label {
+    min-width: 0;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .value {
+    word-break: break-word;
+  }
+
+  .sectionHeader {
+    padding: 14px 16px;
+  }
+
+  .sectionContent {
+    padding: 0 16px 16px 16px;
+  }
+
+  .form {
+    max-width: 100%;
+  }
+
+  .section:hover {
+    transform: none;
+  }
+
+  .deleteSection {
+    margin-top: 24px;
+    padding-top: 16px;
+  }
+}

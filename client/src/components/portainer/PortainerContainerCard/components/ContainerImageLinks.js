@@ -9,6 +9,8 @@ import GitLabIcon from "../../../icons/GitLabIcon";
 import GoogleIcon from "../../../icons/GoogleIcon";
 import styles from "../../PortainerContainerCard.module.css";
 
+const DOCKER_ICON_SRC = `${process.env.PUBLIC_URL || ""}/img/docker-mark-white.svg`;
+
 /**
  * Container image links component
  * @param {Object} props
@@ -54,7 +56,7 @@ const ContainerImageLinks = ({
             }
           }}
         >
-          <img src="/img/docker-mark-white.svg" alt="Docker" className={styles.dockerIconSmall} />
+          <img src={DOCKER_ICON_SRC} alt="Docker" className={styles.dockerIconSmall} />
         </a>
       ) : isGitHub ? (
         <a

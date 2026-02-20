@@ -1,0 +1,27 @@
+{
+  "name": "Docked - Docker Container Manager",
+  "short_name": "Docked",
+  "description": "A modern Docker container maintenance tool with Portainer integration",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#005a9c",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/img/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/img/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "developer", "utilities"],
+  "lang": "en"
+}

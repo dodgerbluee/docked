@@ -334,3 +334,78 @@ body.dark-mode .logDebug {
   text-align: center;
   padding: 40px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .logsTab {
+    overflow-x: hidden;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .headerTitle {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .levelFilters {
+    width: 100%;
+    margin: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .levelFilterBtn {
+    flex-shrink: 0;
+    min-height: var(--touch-target-min);
+    padding: 8px 14px;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .content {
+    min-height: 250px;
+    max-height: 60vh;
+    padding: 10px;
+    font-size: 0.8rem;
+    overflow-x: hidden;
+  }
+
+  .logContent {
+    font-size: 0.75rem;
+  }
+
+  .expandHint {
+    display: none;
+  }
+
+  .logLineClickable {
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+  }
+
+  .logMetadata,
+  .logStack {
+    margin-left: 8px;
+    padding: 8px;
+  }
+
+  .empty {
+    padding: 24px;
+  }
+}

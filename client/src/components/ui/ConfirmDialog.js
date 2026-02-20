@@ -31,7 +31,7 @@ const ConfirmDialog = React.memo(function ConfirmDialog({
       onClose={onClose}
       title={variant !== "success" ? title : undefined}
       size="sm"
-      zIndex={20000}
+      zIndex={4000}
       {...props}
     >
       <div className={styles.content}>

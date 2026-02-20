@@ -47,3 +47,35 @@ body.dark-mode .tab.active {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Mobile: horizontal scroll + touch targets */
+@media (max-width: 768px) {
+  .tabsContainer {
+    flex-wrap: nowrap;
+    gap: 0;
+    margin: var(--spacing-mobile-lg) 0 var(--spacing-mobile-md) 0;
+    padding-bottom: 0;
+    border-bottom-width: 1px;
+  }
+
+  .tabsLeft {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 1;
+  }
+
+  .tabsLeft::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    padding: var(--spacing-mobile-lg) var(--spacing-mobile-xl);
+    font-size: var(--font-size-mobile-base);
+    font-weight: 500;
+    white-space: nowrap;
+    min-height: var(--touch-target-min);
+    border-bottom-width: 2px;
+    -webkit-tap-highlight-color: transparent;
+  }
+}

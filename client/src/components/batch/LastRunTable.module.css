@@ -52,3 +52,44 @@
 .error {
   margin-top: 15px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .container {
+    padding: 14px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* Convert table to stacked cards on mobile */
+  .table {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .tableRow {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+  }
+
+  .headerCell {
+    display: none;
+  }
+
+  .tableCell {
+    display: block;
+    padding: 2px 0;
+    border-bottom: none;
+    font-size: 0.9rem;
+  }
+}

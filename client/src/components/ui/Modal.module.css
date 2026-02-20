@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: var(--z-modal-overlay);
   padding: 10px;
   overflow-y: auto;
   backdrop-filter: blur(2px);
@@ -32,6 +32,8 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-height: 90vh;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
 }
@@ -81,4 +83,95 @@
 
 .content {
   padding: 16px 24px;
+}
+
+/* Mobile-specific modal styles */
+@media (max-width: 768px) {
+  .overlay {
+    padding: var(--spacing-mobile-md);
+  }
+
+  .modal {
+    border-radius: 16px;
+    max-height: 95vh;
+    margin: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+
+  .sm {
+    max-width: 100%;
+    margin: var(--spacing-mobile-md);
+  }
+
+  .md {
+    max-width: 100%;
+    margin: var(--spacing-mobile-md);
+  }
+
+  .lg {
+    max-width: 100%;
+    margin: var(--spacing-mobile-md);
+  }
+
+  .xl {
+    max-width: 100%;
+    margin: var(--spacing-mobile-md);
+  }
+
+  .header {
+    padding: var(--spacing-mobile-lg) var(--spacing-mobile-md);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .title {
+    font-size: var(--font-size-mobile-lg);
+  }
+
+  .closeButton {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+  }
+
+  .content {
+    padding: var(--spacing-mobile-md);
+  }
+}
+
+/* Full-screen mobile variant — takes entire viewport on mobile */
+@media (max-width: 768px) {
+  .fullScreenMobile {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .fullScreenMobile .modal {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    border: none;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  .fullScreenMobile .header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    z-index: 1;
+    padding: calc(env(safe-area-inset-top, 0px) + var(--spacing-mobile-lg)) var(--spacing-mobile-md)
+      var(--spacing-mobile-lg);
+  }
+
+  .fullScreenMobile .content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-mobile-md));
+  }
 }
