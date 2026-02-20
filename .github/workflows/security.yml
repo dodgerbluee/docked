@@ -9,78 +9,78 @@ on:
   workflow_dispatch:
 
 jobs:
-  # npm audit job temporarily disabled due to upstream advisories
-  # npm-audit:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v6
-  #
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: '18'
-  #         cache: 'npm'
-  #         cache-dependency-path: |
-  #           package-lock.json
-  #           server/package-lock.json
-  #           client/package-lock.json
-  #
-  #     - name: Install dependencies
-  #       run: |
-  #         npm ci
-  #         cd server && npm ci
-  #         cd ../client && npm ci
-  #
-  #     - name: Run npm audit (root)
-  #       run: npm audit --audit-level=moderate
-  #
-  #     - name: Run npm audit (server)
-  #       run: |
-  #         cd server
-  #         npm audit --audit-level=moderate
-  #
-  #     - name: Run npm audit (client)
-  #       run: |
-  #         cd client
-  #         npm audit --audit-level=moderate
+  # npm audit checks
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-  # Snyk scan temporarily disabled pending dependency remediation
-  # snyk-scan:
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v6
-  #
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: '18'
-  #         cache: 'npm'
-  #         cache-dependency-path: |
-  #           package-lock.json
-  #           server/package-lock.json
-  #           client/package-lock.json
-  #
-  #     - name: Install dependencies
-  #       run: |
-  #         npm ci
-  #         cd server && npm ci
-  #         cd ../client && npm ci
-  #
-  #     - name: Run Snyk to check for vulnerabilities
-  #       uses: snyk/actions/node@master
-  #       continue-on-error: false
-  #       env:
-  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  #       with:
-  #         args: --severity-threshold=high --all-projects
-  #
-  #     - name: Upload Snyk results to GitHub Security Tab
-  #       uses: github/codeql-action/upload-sarif@v4
-  #       if: always()
-  #       continue-on-error: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run npm audit (root)
+        run: npm audit --audit-level=moderate
+
+      - name: Run npm audit (server)
+        run: |
+          cd server
+          npm audit --audit-level=moderate
+
+      - name: Run npm audit (client)
+        run: |
+          cd client
+          npm audit --audit-level=moderate
+
+  # Snyk security scan
+  snyk-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+      - name: Upload Snyk results to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        continue-on-error: true
 
   # CodeQL analysis is handled by ci.yml workflow on every PR and push
   # This avoids configuration mismatch warnings and ensures consistent scanning

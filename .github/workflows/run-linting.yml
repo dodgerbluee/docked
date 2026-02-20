@@ -34,15 +34,15 @@ jobs:
           npm ci
           cd server && npm ci
 
-      # - name: Run ESLint (server)
-      #   run: |
-      #     cd server
-      #     if [ -f "node_modules/.bin/eslint" ]; then
-      #       npx eslint . --ext .js
-      #     else
-      #       echo "ESLint not found in server/node_modules/.bin/eslint"
-      #       exit 1
-      #     fi
+      - name: Run ESLint (server)
+        run: |
+          cd server
+          if [ -f "node_modules/.bin/eslint" ]; then
+            npx eslint . --ext .js
+          else
+            echo "ESLint not found in server/node_modules/.bin/eslint"
+            exit 1
+          fi
 
   eslint-client:
     runs-on: ubuntu-latest
