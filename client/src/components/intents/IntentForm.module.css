@@ -1,0 +1,551 @@
+/**
+ * IntentForm Styles
+ * CSS Module for IntentForm component
+ * Matches AddTrackedAppModal spacing and styling
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Remove margin-bottom from Input component's formGroup when used in this form */
+.form :global([class*="_formGroup_"]) {
+  margin-bottom: 0 !important;
+}
+
+.formError {
+  background: rgba(239, 62, 66, 0.1);
+  border: 1px solid rgba(239, 62, 66, 0.3);
+  color: var(--dodger-red);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.helperText {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* ── Match Criteria ── */
+
+.matchCriteria {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Type selector buttons – mirrors AddTrackedAppModal's .sourceTypeToggle */
+.matchTypeToggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.matchTypeButton {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.matchTypeButton:hover:not(.matchTypeActive) {
+  border-color: var(--dodger-blue);
+  background: var(--bg-secondary);
+}
+
+.matchTypeActive {
+  border-color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .matchTypeActive {
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+/* Input area with dropdown */
+.inputArea {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tagInputWrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.tagInputRow {
+  display: flex;
+  gap: 6px;
+}
+
+.tagInput {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.tagInput:focus {
+  outline: none;
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .tagInput:focus {
+  border-color: var(--dodger-blue-light);
+}
+
+.tagAddButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.tagAddButton:hover:not(:disabled) {
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.tagAddButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Options dropdown */
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+body.dark-mode .dropdown {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dropdownItem {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.dropdownItem:hover {
+  background: var(--bg-secondary);
+}
+
+.dropdownItem:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.dropdownItem:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.dropdownItem:only-child {
+  border-radius: 8px;
+}
+
+/* Tags section */
+.tagsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tagGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(30, 144, 255, 0.1);
+  border: 1px solid var(--dodger-blue);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--dodger-blue);
+  font-weight: 500;
+  width: fit-content;
+}
+
+body.dark-mode .tag {
+  background: rgba(30, 136, 229, 0.15);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+/* Glob pattern tag has a slightly different style */
+.tagGlob {
+  border-style: dashed;
+  font-style: italic;
+}
+
+/* Expanded glob matches shown below the glob tag */
+.globMatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 12px;
+}
+
+.globMatchTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.globNoMatches {
+  padding-left: 12px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.tagRemove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s;
+}
+
+.tagRemove:hover {
+  opacity: 1;
+  color: var(--dodger-red);
+}
+
+/* ── Schedule type buttons ── */
+
+.scheduleTypeButtons {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.scheduleTypeButton {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.scheduleTypeButton:hover:not(.scheduleTypeActive) {
+  border-color: var(--dodger-blue);
+  background: var(--bg-secondary);
+}
+
+.scheduleTypeActive {
+  border-color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .scheduleTypeActive {
+  background: rgba(30, 136, 229, 0.15);
+  color: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+/* Cron expression row */
+.cronRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cronInput {
+  flex: 0 0 180px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  letter-spacing: 0.5px;
+}
+
+.cronDescription {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--dodger-blue);
+  font-weight: 500;
+  line-height: 1.3;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cronError {
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .cronDescription {
+  color: var(--dodger-blue-light);
+}
+
+/* Cron presets */
+.cronPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.presetLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.presetButton {
+  padding: 3px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.presetButton:hover {
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+}
+
+.presetButtonActive {
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.08);
+}
+
+body.dark-mode .presetButton:hover {
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .presetButtonActive {
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+  background: rgba(30, 136, 229, 0.12);
+}
+
+@media (max-width: 500px) {
+  .matchTypeToggle {
+    flex-wrap: wrap;
+  }
+
+  .matchTypeButton {
+    flex: 0 1 auto;
+    min-width: calc(50% - 4px);
+  }
+
+  .cronRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .cronInput {
+    flex: 1;
+  }
+
+  .cronDescription {
+    white-space: normal;
+  }
+}
+
+/* ── Toggle switch (iOS-style, from BatchTab pattern) ── */
+
+.toggleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.toggleCheckbox {
+  /* Visually hidden but accessible */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.toggleTrack {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  flex-shrink: 0;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+  cursor: pointer;
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+/* Checked state */
+.toggleCheckbox:checked + .toggleTrack {
+  background: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .toggleCheckbox:checked + .toggleTrack {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.toggleCheckbox:checked + .toggleTrack .toggleKnob {
+  transform: translateX(20px);
+}
+
+/* Focus state for accessibility */
+.toggleCheckbox:focus-visible + .toggleTrack {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 2px;
+}
+
+/* ── Actions bar ── */
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue) !important;
+  border-color: var(--dodger-blue) !important;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.1) !important;
+  border-color: var(--dodger-blue) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .submitButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-blue-light) !important;
+  border-color: var(--dodger-blue-light) !important;
+}
+
+body.dark-mode .submitButton:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.15) !important;
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}

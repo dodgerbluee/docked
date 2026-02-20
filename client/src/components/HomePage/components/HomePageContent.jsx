@@ -262,6 +262,8 @@ const HomePageContent = ({
               username={username}
               avatar={avatar}
               recentAvatars={recentAvatars || []}
+              containers={containers}
+              portainerInstances={portainerInstances}
               onUsernameUpdate={handleUsernameUpdate}
               onLogout={handleLogoutWithCleanup}
               onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
@@ -353,12 +355,20 @@ const HomePageContent = ({
                           });
                         });
                       }}
+                      onManageIntents={() => {
+                        setActiveTab(TAB_NAMES.SETTINGS);
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.PORTAINER), 200);
+                          });
+                        });
+                      }}
                     />
                   )}
                   {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
-                  {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
                 </>
               )}
+              {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
             </>
           )}
         </Suspense>

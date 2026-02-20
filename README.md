@@ -6,7 +6,7 @@ A modern web application for managing Docker container updates through Portainer
 
 ## What is Docked?
 
-Docked connects to your Portainer instances to monitor and manage Docker containers. It automatically detects available image updates and provides a clean interface to upgrade containers with a single click.
+Docked connects to your Portainer instances to monitor and manage Docker containers. It automatically detects available image updates and provides a clean interface to upgrade containers with a single click!
 
 Beyond Portainer-managed containers, Docked can also track applications directly from their source repositories. You can monitor applications by adding GitHub or GitLab repositories, and Docked will track new releases even if they aren't published to Docker registries. This is perfect for keeping up with applications that release on GitHub or GitLab but may not immediately update their Docker images.
 

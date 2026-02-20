@@ -44,6 +44,8 @@ const SettingsTabs = ({
   handleClearTrackedAppData,
   clearingPortainerData,
   clearingTrackedAppData,
+  containers = [],
+  portainerInstances = [],
 }) => {
   if (currentActiveSection === SETTINGS_TABS.GENERAL) {
     return (
@@ -78,6 +80,8 @@ const SettingsTabs = ({
         handleDeleteInstance={settings.handleDeleteInstance}
         onClearPortainerData={handleClearPortainerData}
         clearingPortainerData={clearingPortainerData}
+        containers={containers}
+        portainerInstancesProp={portainerInstances}
       />
     );
   }
@@ -167,6 +171,8 @@ SettingsTabs.propTypes = {
   handleClearTrackedAppData: PropTypes.func.isRequired,
   clearingPortainerData: PropTypes.bool.isRequired,
   clearingTrackedAppData: PropTypes.bool.isRequired,
+  containers: PropTypes.array,
+  portainerInstances: PropTypes.array,
 };
 
 export default SettingsTabs;

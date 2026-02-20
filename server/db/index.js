@@ -27,6 +27,8 @@ const registryImageVersions = require("./registryImageVersions");
 const dockerHubImageVersions = require("./dockerHubImageVersions");
 const upgradeHistory = require("./upgradeHistory");
 const trackedAppUpgradeHistory = require("./trackedAppUpgradeHistory");
+const intents = require("./intents");
+const intentExecutions = require("./intentExecutions");
 const logger = require("../utils/logger");
 
 /**
@@ -128,6 +130,8 @@ module.exports = {
   ...dockerHubImageVersions,
   ...upgradeHistory,
   ...trackedAppUpgradeHistory,
+  ...intents,
+  ...intentExecutions,
 
   // Utility functions
   getRawDatabaseRecords,

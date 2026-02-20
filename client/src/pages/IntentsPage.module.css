@@ -1,0 +1,154 @@
+/**
+ * IntentsPage Styles
+ * CSS Module for IntentsPage component
+ */
+
+.intentsPage {
+  padding: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.errorMessage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(239, 62, 66, 0.1);
+  border: 1px solid rgba(239, 62, 66, 0.3);
+  color: var(--dodger-red);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+}
+
+.dismissButton {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.dismissButton:hover {
+  opacity: 1;
+}
+
+.successMessage {
+  background: rgba(30, 144, 255, 0.15);
+  border: 1px solid var(--dodger-blue);
+  color: var(--dodger-blue);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.grid > * {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 850px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .headerLeft {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+.addCard {
+  background: var(--bg-secondary);
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 2px dashed var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  gap: 10px;
+  height: 100%;
+  min-height: 120px;
+}
+
+.addCard:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.addCard:hover .addCardIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .addCard:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .addCard:hover .addCardIcon {
+  color: var(--dodger-blue-light);
+}
+
+.addCardIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.addCardText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}

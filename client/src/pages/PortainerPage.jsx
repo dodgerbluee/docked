@@ -57,6 +57,7 @@ function PortainerPage({
   onSetContentTab,
   portainerUpgradeFromProps = null,
   onNavigateToLogs = null,
+  onManageIntents = null,
 }) {
   // Use extracted hooks
   const { developerModeEnabled } = usePortainerDeveloperMode();
@@ -231,6 +232,7 @@ function PortainerPage({
                   setSelectedImageSourceFilters(next);
                 }}
                 onAddInstance={onAddInstance}
+                onManageIntents={onManageIntents}
               />
             </div>
           </ErrorBoundary>
@@ -263,6 +265,14 @@ function PortainerPage({
                 closeMobileSidebar();
                 onAddInstance();
               }}
+              onManageIntents={
+                onManageIntents
+                  ? () => {
+                      closeMobileSidebar();
+                      onManageIntents();
+                    }
+                  : null
+              }
             />
           </ErrorBoundary>
         </MobileDrawer>
@@ -455,6 +465,7 @@ PortainerPage.propTypes = {
   onSetContentTab: PropTypes.func,
   portainerUpgradeFromProps: PropTypes.object,
   onNavigateToLogs: PropTypes.func,
+  onManageIntents: PropTypes.func,
 };
 
 PortainerPage.displayName = "PortainerPage";

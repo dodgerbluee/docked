@@ -31,6 +31,8 @@ const Settings = React.memo(
     refreshInstances = null,
     onClearPortainerData = null,
     onClearTrackedAppData = null,
+    containers = [],
+    portainerInstances = [],
   }) {
     // Memoize callbacks to avoid stale closures and prevent unnecessary re-renders
     const handleBatchConfigUpdate = useCallback(
@@ -207,6 +209,8 @@ const Settings = React.memo(
             handleClearTrackedAppData={handleClearTrackedAppData}
             clearingPortainerData={clearingPortainerData}
             clearingTrackedAppData={clearingTrackedAppData}
+            containers={containers}
+            portainerInstances={portainerInstances}
           />
         )}
       </>
@@ -237,7 +241,9 @@ const Settings = React.memo(
       // onClearPortainerData and onClearTrackedAppData excluded - we use refs, so reference changes don't matter
       prevProps.onEditInstance === nextProps.onEditInstance &&
       prevProps.onSectionChange === nextProps.onSectionChange &&
-      prevProps.refreshInstances === nextProps.refreshInstances
+      prevProps.refreshInstances === nextProps.refreshInstances &&
+      prevProps.containers === nextProps.containers &&
+      prevProps.portainerInstances === nextProps.portainerInstances
     );
   }
 );
