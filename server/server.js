@@ -24,6 +24,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -144,10 +145,28 @@ app.use(requestLogger);
 // Response formatter middleware (ensures consistent response format)
 app.use(responseFormatter);
 
-// Rate limiting - DISABLED for all API endpoints
-// We only rate limit Docker Hub requests, not our own API
-// This prevents 429 errors when deploying to Portainer or other production environments
-logger.info("API rate limiting disabled - only Docker Hub requests are rate limited", {
+// Global rate limiter - 300 requests per minute per IP
+// Acts as a safety net; per-route limiters in routes/index.js are stricter for sensitive endpoints
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute per IP
+  message: { success: false, error: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for localhost in development
+  skip: (req) => {
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+    const ip = req.ip || req.connection?.remoteAddress || "";
+    return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1";
+  },
+});
+
+// Apply global limiter to all API routes
+app.use("/api", globalLimiter);
+
+logger.info("Global rate limiter enabled: 300 req/min per IP", {
   module: "server",
 });
 

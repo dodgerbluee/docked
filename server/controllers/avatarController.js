@@ -267,8 +267,18 @@ function uploadAvatar(req, res, next) {
     const buffer = Buffer.from(base64Data, "base64");
 
     // Ensure user's avatar directory exists (using user ID)
-    const userAvatarDir = path.join(AVATARS_DIR, userId.toString());
-    const recentAvatarsDir = path.join(userAvatarDir, "recent");
+    // Security: Validate paths are contained within AVATARS_DIR
+    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    const userAvatarDir = path.resolve(AVATARS_DIR, userId.toString());
+    const recentAvatarsDir = path.resolve(userAvatarDir, "recent");
+
+    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
+    if (!userAvatarDir.startsWith(normalizedAvatarsDir)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user path",
+      });
+    }
     if (!fs.existsSync(userAvatarDir)) {
       fs.mkdirSync(userAvatarDir, { recursive: true });
     }
@@ -350,8 +360,23 @@ function setCurrentAvatar(req, res, next) {
       });
     }
 
-    const recentAvatarPath = path.join(AVATARS_DIR, userId.toString(), "recent", filename);
-    const currentAvatarPath = path.join(AVATARS_DIR, userId.toString(), "avatar.jpg");
+    // Security: Validate userId and construct contained paths
+    const resolvedAvatarsDir = path.resolve(AVATARS_DIR);
+    const recentAvatarPath = path.resolve(AVATARS_DIR, userId.toString(), "recent", filename);
+    const currentAvatarPath = path.resolve(AVATARS_DIR, userId.toString(), "avatar.jpg");
+
+    // Containment check: ensure both paths are within AVATARS_DIR
+    const normalizedAvatarsDir = resolvedAvatarsDir + path.sep;
+    if (
+      !recentAvatarPath.startsWith(normalizedAvatarsDir) ||
+      !currentAvatarPath.startsWith(normalizedAvatarsDir)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid path",
+      });
+    }
+
     if (!fs.existsSync(recentAvatarPath)) {
       return res.status(404).json({
         success: false,

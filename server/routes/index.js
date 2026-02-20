@@ -88,6 +88,33 @@ const authLimiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+// Destructive operations limiter: 10 requests per minute per IP (upgrades, deletes, batch triggers)
+const destructiveLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: "Too many destructive operations, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Write operations limiter: 30 requests per 15 minutes per IP (creates, updates, settings changes)
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  message: "Too many write requests, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Public endpoints limiter: strict, 20 requests per 15 minutes per IP
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /**
  * @swagger
  * /health:
@@ -132,8 +159,8 @@ router.get("/health", (req, res) => {
  *                   type: string
  *                   example: "production"
  */
-router.get("/version", versionController.getVersion);
-router.get("/version/latest-release", versionController.getLatestRelease);
+router.get("/version", publicLimiter, versionController.getVersion);
+router.get("/version/latest-release", publicLimiter, versionController.getLatestRelease);
 
 /**
  * @swagger
@@ -182,7 +209,20 @@ router.get("/version/latest-release", versionController.getLatestRelease);
  */
 router.get(
   "/auth/registration-code-required",
+  publicLimiter,
   asyncHandler(authController.checkRegistrationCodeRequired)
+);
+// Auth routes (public - no authentication required)
+router.get("/auth/check-user-exists", publicLimiter, asyncHandler(authController.checkUserExists));
+router.post(
+  "/auth/generate-registration-code",
+  authLimiter,
+  asyncHandler(authController.generateRegistrationCodeEndpoint)
+);
+router.post(
+  "/auth/verify-registration-code",
+  authLimiter,
+  asyncHandler(authController.verifyRegistrationCode)
 );
 // Auth routes (public - no authentication required)
 router.get("/auth/check-user-exists", asyncHandler(authController.checkUserExists));
@@ -232,8 +272,12 @@ router.post(
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
 // Validation endpoints (public - used during import process)
-router.post("/portainer/instances/validate", asyncHandler(portainerController.validateInstance));
-router.post("/discord/test", asyncHandler(discordController.testDiscordWebhook));
+router.post(
+  "/portainer/instances/validate",
+  publicLimiter,
+  asyncHandler(portainerController.validateInstance)
+);
+router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
 
 // Protected routes - require authentication
 // All routes below this line require authentication
@@ -244,12 +288,20 @@ router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
 router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
-router.post("/auth/update-password", asyncHandler(authController.updateUserPassword));
-router.post("/auth/update-username", asyncHandler(authController.updateUserUsername));
-router.post("/auth/users/:userId/password", asyncHandler(authController.adminUpdateUserPassword));
-router.put("/auth/users/:userId/role", asyncHandler(authController.adminUpdateUserRole));
+router.post("/auth/update-password", writeLimiter, asyncHandler(authController.updateUserPassword));
+router.post("/auth/update-username", writeLimiter, asyncHandler(authController.updateUserUsername));
+router.post(
+  "/auth/users/:userId/password",
+  writeLimiter,
+  asyncHandler(authController.adminUpdateUserPassword)
+);
+router.put(
+  "/auth/users/:userId/role",
+  writeLimiter,
+  asyncHandler(authController.adminUpdateUserRole)
+);
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
-router.post("/user/import-config", asyncHandler(authController.importUserConfig));
+router.post("/user/import-config", writeLimiter, asyncHandler(authController.importUserConfig));
 
 // Docker Hub credentials routes removed - crane/skopeo use system Docker credentials (~/.docker/config.json)
 // Users should run 'docker login' on the server if authentication is needed
@@ -314,7 +366,11 @@ router.get("/containers", asyncHandler(containerController.getContainers));
  *       401:
  *         description: Unauthorized
  */
-router.post("/containers/pull", asyncHandler(containerController.pullContainers));
+router.post(
+  "/containers/pull",
+  destructiveLimiter,
+  asyncHandler(containerController.pullContainers)
+);
 
 /**
  * @swagger
@@ -345,7 +401,11 @@ router.post("/containers/pull", asyncHandler(containerController.pullContainers)
  *         description: Unauthorized
  */
 router.get("/containers/data", asyncHandler(containerController.getContainerData));
-router.delete("/containers/data", asyncHandler(containerController.clearContainerData));
+router.delete(
+  "/containers/data",
+  destructiveLimiter,
+  asyncHandler(containerController.clearContainerData)
+);
 
 /**
  * @swagger
@@ -392,7 +452,11 @@ router.delete("/containers/data", asyncHandler(containerController.clearContaine
  *       401:
  *         description: Unauthorized
  */
-router.post("/containers/batch-upgrade", asyncHandler(containerController.batchUpgradeContainers));
+router.post(
+  "/containers/batch-upgrade",
+  destructiveLimiter,
+  asyncHandler(containerController.batchUpgradeContainers)
+);
 
 /**
  * @swagger
@@ -454,6 +518,7 @@ router.post("/containers/batch-upgrade", asyncHandler(containerController.batchU
  */
 router.post(
   "/containers/:containerId/upgrade",
+  destructiveLimiter,
   validate([
     param("containerId")
       .isString()
@@ -466,7 +531,7 @@ router.post(
 
 // Image routes
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
-router.post("/images/delete", asyncHandler(imageController.deleteImages));
+router.post("/images/delete", destructiveLimiter, asyncHandler(imageController.deleteImages));
 
 // Upgrade history routes
 /**
@@ -658,7 +723,7 @@ router.get(
  *         description: Unauthorized
  */
 router.get("/portainer/instances", asyncHandler(portainerController.getInstances));
-router.post("/portainer/instances", asyncHandler(portainerController.createInstance));
+router.post("/portainer/instances", writeLimiter, asyncHandler(portainerController.createInstance));
 
 /**
  * @swagger
@@ -742,8 +807,16 @@ router.post("/portainer/instances", asyncHandler(portainerController.createInsta
  *         description: Instance not found
  */
 router.get("/portainer/instances/:id", asyncHandler(portainerController.getInstance));
-router.put("/portainer/instances/:id", asyncHandler(portainerController.updateInstance));
-router.delete("/portainer/instances/:id", asyncHandler(portainerController.deleteInstance));
+router.put(
+  "/portainer/instances/:id",
+  writeLimiter,
+  asyncHandler(portainerController.updateInstance)
+);
+router.delete(
+  "/portainer/instances/:id",
+  destructiveLimiter,
+  asyncHandler(portainerController.deleteInstance)
+);
 
 /**
  * @swagger
@@ -790,19 +863,23 @@ router.get(
   avatarLimiter,
   asyncHandler(avatarController.getRecentAvatar)
 );
-router.post("/avatars", asyncHandler(avatarController.uploadAvatar));
-router.post("/avatars/set-current", asyncHandler(avatarController.setCurrentAvatar));
-router.delete("/avatars", asyncHandler(avatarController.deleteAvatar));
+router.post("/avatars", writeLimiter, asyncHandler(avatarController.uploadAvatar));
+router.post("/avatars/set-current", writeLimiter, asyncHandler(avatarController.setCurrentAvatar));
+router.delete("/avatars", destructiveLimiter, asyncHandler(avatarController.deleteAvatar));
 
 // Batch configuration routes
 router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
-router.post("/batch/config", asyncHandler(batchController.updateBatchConfigHandler));
+router.post("/batch/config", writeLimiter, asyncHandler(batchController.updateBatchConfigHandler));
 router.get("/batch/status", asyncHandler(batchController.getBatchStatusHandler));
-router.post("/batch/trigger", asyncHandler(batchController.triggerBatchJobHandler));
+router.post(
+  "/batch/trigger",
+  destructiveLimiter,
+  asyncHandler(batchController.triggerBatchJobHandler)
+);
 router.get("/batch/log-level", asyncHandler(batchController.getLogLevelHandler));
-router.post("/batch/log-level", asyncHandler(batchController.setLogLevelHandler));
-router.post("/batch/runs", asyncHandler(batchController.createBatchRunHandler));
-router.put("/batch/runs/:id", asyncHandler(batchController.updateBatchRunHandler));
+router.post("/batch/log-level", writeLimiter, asyncHandler(batchController.setLogLevelHandler));
+router.post("/batch/runs", writeLimiter, asyncHandler(batchController.createBatchRunHandler));
+router.put("/batch/runs/:id", writeLimiter, asyncHandler(batchController.updateBatchRunHandler));
 router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
@@ -866,7 +943,7 @@ router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandle
  *         description: Unauthorized
  */
 router.get("/tracked-apps", asyncHandler(trackedAppController.getTrackedImages));
-router.post("/tracked-apps", asyncHandler(trackedAppController.createTrackedApp));
+router.post("/tracked-apps", writeLimiter, asyncHandler(trackedAppController.createTrackedApp));
 
 /**
  * @swagger
@@ -901,7 +978,11 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitHubCache));
+router.delete(
+  "/tracked-apps/cache",
+  destructiveLimiter,
+  asyncHandler(trackedAppController.clearGitHubCache)
+);
 
 /**
  * @swagger
@@ -977,8 +1058,12 @@ router.delete("/tracked-apps/cache", asyncHandler(trackedAppController.clearGitH
  *         description: Tracked app not found
  */
 router.get("/tracked-apps/:id", asyncHandler(trackedAppController.getTrackedImage));
-router.put("/tracked-apps/:id", asyncHandler(trackedAppController.updateTrackedApp));
-router.delete("/tracked-apps/:id", asyncHandler(trackedAppController.deleteTrackedApp));
+router.put("/tracked-apps/:id", writeLimiter, asyncHandler(trackedAppController.updateTrackedApp));
+router.delete(
+  "/tracked-apps/:id",
+  destructiveLimiter,
+  asyncHandler(trackedAppController.deleteTrackedApp)
+);
 
 /**
  * @swagger
@@ -1010,10 +1095,26 @@ router.post(
 // Discord notification routes
 router.get("/discord/webhooks", asyncHandler(discordController.getDiscordWebhooks));
 router.get("/discord/webhooks/:id", asyncHandler(discordController.getDiscordWebhook));
-router.post("/discord/webhooks", asyncHandler(discordController.createDiscordWebhook));
-router.put("/discord/webhooks/:id", asyncHandler(discordController.updateDiscordWebhook));
-router.delete("/discord/webhooks/:id", asyncHandler(discordController.deleteDiscordWebhook));
-router.post("/discord/webhooks/:id/test", asyncHandler(discordController.testDiscordWebhookById));
+router.post(
+  "/discord/webhooks",
+  writeLimiter,
+  asyncHandler(discordController.createDiscordWebhook)
+);
+router.put(
+  "/discord/webhooks/:id",
+  writeLimiter,
+  asyncHandler(discordController.updateDiscordWebhook)
+);
+router.delete(
+  "/discord/webhooks/:id",
+  destructiveLimiter,
+  asyncHandler(discordController.deleteDiscordWebhook)
+);
+router.post(
+  "/discord/webhooks/:id/test",
+  writeLimiter,
+  asyncHandler(discordController.testDiscordWebhookById)
+);
 router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite));
 
@@ -1067,7 +1168,11 @@ router.get("/discord/invite", asyncHandler(discordController.getDiscordBotInvite
  *         description: Unauthorized
  */
 router.get("/settings/color-scheme", asyncHandler(settingsController.getColorSchemeHandler));
-router.post("/settings/color-scheme", asyncHandler(settingsController.setColorSchemeHandler));
+router.post(
+  "/settings/color-scheme",
+  writeLimiter,
+  asyncHandler(settingsController.setColorSchemeHandler)
+);
 
 /**
  * @swagger
@@ -1106,6 +1211,7 @@ router.get(
 );
 router.post(
   "/settings/refreshing-toggles-enabled",
+  writeLimiter,
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
 );
 
@@ -1115,9 +1221,14 @@ router.get(
   "/repository-access-tokens/:provider",
   asyncHandler(repositoryAccessTokenController.getTokenByProvider)
 );
-router.post("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.upsertToken));
+router.post(
+  "/repository-access-tokens",
+  writeLimiter,
+  asyncHandler(repositoryAccessTokenController.upsertToken)
+);
 router.delete(
   "/repository-access-tokens/:id",
+  destructiveLimiter,
   asyncHandler(repositoryAccessTokenController.deleteToken)
 );
 
