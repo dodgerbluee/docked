@@ -270,6 +270,21 @@ function LogsTab() {
         if (batchId) contextParts.push(`[batch:${batchId}]`);
         const contextStr = contextParts.length > 0 ? contextParts.join(" ") + " " : "";
 
+        // Format short timestamp for mobile (time only)
+        let shortTimestamp = "";
+        if (timestamp) {
+          try {
+            const d = new Date(timestamp);
+            shortTimestamp = d.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+          } catch {
+            shortTimestamp = timestamp;
+          }
+        }
+
         // Filter out empty metadata
         const metaKeys = Object.keys(metadata).filter((key) => {
           const value = metadata[key];
@@ -313,29 +328,31 @@ function LogsTab() {
                   : undefined
               }
             >
-              <span className={styles.expandIcon}>
-                {hasExpandableContent ? (
-                  isExpanded ? (
-                    <ChevronDown size={14} />
+              <span className={styles.logMeta}>
+                <span className={styles.expandIcon}>
+                  {hasExpandableContent ? (
+                    isExpanded ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronRight size={14} />
+                    )
                   ) : (
-                    <ChevronRight size={14} />
-                  )
-                ) : (
-                  <span style={{ width: "14px", display: "inline-block" }}></span>
-                )}
+                    <span style={{ width: "14px", display: "inline-block" }}></span>
+                  )}
+                </span>
+                <span
+                  className={styles.logTimestamp}
+                  data-full={timestamp || ""}
+                  data-short={shortTimestamp}
+                >
+                  {timestamp || ""}
+                </span>
+                <span className={styles.logDefault}> </span>
+                <span className={styles.logBracket}>[</span>
+                <span className={levelClass}>{level?.toUpperCase() || "UNKNOWN"}</span>
+                <span className={styles.logBracket}>]</span>
               </span>
-              <span className={styles.logTimestamp}>{timestamp || ""}</span>
-              <span className={styles.logDefault}> </span>
-              <span className={styles.logDefault}>[</span>
-              <span className={levelClass}>{level?.toUpperCase() || "UNKNOWN"}</span>
-              <span className={styles.logDefault}>]</span>
-              {contextStr && (
-                <>
-                  <span className={styles.logDefault}> </span>
-                  <span className={styles.logContext}>{contextStr}</span>
-                </>
-              )}
-              <span className={styles.logDefault}> </span>
+              {contextStr && <span className={styles.logContext}>{contextStr}</span>}
               <span className={styles.logMessage}>{message || ""}</span>
               {hasExpandableContent && (
                 <span className={styles.expandHint}>
