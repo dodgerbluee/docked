@@ -210,7 +210,7 @@ const ContainersTab = React.memo(function ContainersTab({
         <div className={styles.stacksContainer}>
           {/* Updating cards float above Updates (no header) */}
           {hasUpdating && (
-            <div className={styles.containersGrid}>
+            <div className={`${styles.containersGrid} ${styles.updatingSection}`}>
               {activeUpgrades.map((item) => (
                 <UpdatingCard
                   key={item.key}

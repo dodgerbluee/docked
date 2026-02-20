@@ -45,34 +45,6 @@ const ContainerVersionDisplay = ({
             )}
           </p>
         )}
-        <p className={styles.metaItem}>
-          <strong>Current:</strong>{" "}
-          <span className={styles.versionBadge}>
-            <a
-              href={
-                container.currentTag || container.currentVersion
-                  ? getDockerHubUrl(
-                      container.image,
-                      container.currentTag || container.currentVersion
-                    )
-                  : getDockerHubTagsUrl(container.image)
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className={styles.digestLink}
-              title={
-                container.currentTag || container.currentVersion
-                  ? "View layer on Docker Hub"
-                  : "View tags on Docker Hub"
-              }
-            >
-              {container.currentDigest
-                ? `sha256:${container.currentDigest}`
-                : container.currentTag || container.currentVersion || "latest"}
-            </a>
-          </span>
-        </p>
         {container.currentVersionPublishDate && (
           <p className={styles.metaItem}>
             <strong>Published:</strong> {formatTimeAgo(container.currentVersionPublishDate)}

@@ -71,6 +71,12 @@ const AvatarMenu = ({
       {showAvatarMenu && (
         <div className="avatar-menu">
           <div className="avatar-menu-actions">
+            {username && (
+              <div className="avatar-menu-identity">
+                <div className="avatar-menu-username">{username}</div>
+                <div className="avatar-menu-role">{userRole}</div>
+              </div>
+            )}
             <button
               className="avatar-menu-item"
               onClick={() => {

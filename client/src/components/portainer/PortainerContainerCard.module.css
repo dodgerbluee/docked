@@ -1,8 +1,8 @@
 .containerCard {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 12px;
+  padding: 16px 18px;
   transition:
     transform 0.3s,
     box-shadow 0.3s;
@@ -300,7 +300,7 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
 .cardBody {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 6px;
 }
 
 .imageHeaderContainer {
@@ -308,7 +308,8 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
   transform: none !important;
   flex-wrap: wrap;
@@ -467,199 +468,44 @@ body.dark-mode .digestLink:hover {
   transform: none !important;
 }
 
-.dockerIconLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-}
-
-.dockerIconLink:hover {
-  opacity: 0.8;
-}
-
-.dockerIconSmall {
-  width: 18px;
-  height: 18px;
-  display: inline-block;
-}
-
-.githubIconLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  text-decoration: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-}
-
-.githubIconLink:hover {
-  color: var(--dodger-blue);
-}
-
-body.dark-mode .githubIconLink:hover {
-  color: var(--dodger-blue-light);
-}
-
-.gitlabIconLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  text-decoration: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-}
-
-.gitlabIconLink:hover {
-  color: var(--dodger-blue);
-}
-
-body.dark-mode .gitlabIconLink {
-  color: #ffffff;
-}
-
-body.dark-mode .gitlabIconLink:hover {
-  color: var(--dodger-blue-light);
-}
-
-.googleIconLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition:
-    color 0.2s,
-    transform 0.2s;
-  cursor: pointer;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.googleIconLink:hover {
-  color: var(--dodger-blue);
-  transform: scale(1.1);
-}
-
-body.dark-mode .googleIconLink {
-  color: var(--text-primary);
-}
-
-body.dark-mode .googleIconLink:hover {
-  color: var(--dodger-blue-light);
-}
-
-.upgradeCheckmark {
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.upgradeCheckmark.upgrading {
-  width: auto;
-  min-width: 100px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: var(--bg-secondary);
-  color: var(--dodger-blue);
-}
-
-.upgradeCheckmark:hover {
-  color: var(--text-primary);
-}
-
-.upgradeCheckmark.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.upgradeCheckmark.disabled:hover {
-  color: var(--text-secondary);
-}
-
-.upgradingText {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--dodger-blue);
-  white-space: nowrap;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-body.dark-mode .upgradeCheckmark {
-  color: var(--text-secondary);
-}
-
-body.dark-mode .upgradeCheckmark:hover {
-  color: #ffffff;
-}
-
 .rebuildButton {
   color: var(--text-secondary);
   flex-shrink: 0;
   cursor: pointer;
   transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 24px;
-  height: 24px;
+  min-width: 72px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .rebuildButton.upgrading {
   width: auto;
   min-width: 100px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 4px 12px;
+  border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--dodger-blue);
 }
 
+.rebuildText {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
 .rebuildButton:hover {
   color: var(--text-primary);
+  border-color: var(--dodger-blue);
 }
 
 .rebuildButton.disabled {
@@ -669,6 +515,7 @@ body.dark-mode .upgradeCheckmark:hover {
 
 .rebuildButton.disabled:hover {
   color: var(--text-secondary);
+  border-color: var(--border-color);
 }
 
 body.dark-mode .rebuildButton {
@@ -677,6 +524,7 @@ body.dark-mode .rebuildButton {
 
 body.dark-mode .rebuildButton:hover {
   color: #ffffff;
+  border-color: var(--dodger-blue-light);
 }
 
 .buttonGroup {
@@ -780,26 +628,9 @@ body.dark-mode .noDigestBadge {
     font-size: 0.85rem;
   }
 
-  /*
-   * Match TrackedAppCard mobile tap targets.
-   * Global mobile rules already enforce 32px minimum on anchors/buttons,
-   * but Portainer actions are spans, so we set an explicit minimum here.
-   */
-  .upgradeCheckmark,
-  .rebuildButton,
-  .dockerIconLink,
-  .githubIconLink,
-  .gitlabIconLink,
-  .googleIconLink {
+  .rebuildButton {
     min-width: 32px;
     min-height: 32px;
-  }
-
-  .dockerIconLink,
-  .githubIconLink,
-  .gitlabIconLink,
-  .googleIconLink {
-    display: inline-flex;
   }
 
   .buttonGroup {

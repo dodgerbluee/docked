@@ -1,11 +1,10 @@
 import React, { useCallback } from "react";
 import PropTypes from "prop-types";
-import { HardDriveDownload, RefreshCw, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
 import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/portainerPage";
 import { useContainerImageInfo } from "./PortainerContainerCard/hooks/useContainerImageInfo";
-import ContainerImageLinks from "./PortainerContainerCard/components/ContainerImageLinks";
 import ContainerVersionDisplay from "./PortainerContainerCard/components/ContainerVersionDisplay";
 import styles from "./PortainerContainerCard.module.css";
 
@@ -25,20 +24,8 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   onOpenDebugModal,
 }) {
   // Use extracted hook for image info
-  const {
-    imageVersion,
-    imageNameWithoutVersion,
-    isGitHub: isGitHubContainer,
-    isGitLab: isGitLabContainer,
-    isGoogle: isGoogleContainer,
-    isDocker: isDockerHub,
-    githubUrl,
-    gitlabUrl,
-    googleUrl,
-    dockerHubUrl,
-    handleVersionClick,
-    handleImageNameClick,
-  } = useContainerImageInfo(container);
+  const { imageVersion, imageNameWithoutVersion, handleVersionClick } =
+    useContainerImageInfo(container);
 
   // Handle container name click - open container details modal
   const handleContainerNameClick = useCallback(
@@ -82,8 +69,6 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         // Check for specific interactive elements by class or data attributes
         (target.closest &&
           (target.closest(`.${styles.checkbox}`) ||
-            target.closest(`.${styles.upgradeCheckmark}`) ||
-            target.closest(`.${styles.rebuildButton}`) ||
             target.closest(`.${styles.containerName}`) ||
             target.closest(`.${styles.imageHeader}`) ||
             target.closest(`.${styles.versionText}`) ||
@@ -181,27 +166,12 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             <h4
               className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ""}`}
               title={imageNameWithoutVersion}
-              onClick={handleImageNameClick}
             >
               {imageNameWithoutVersion}
             </h4>
           </div>
-          <div className={styles.iconGroup}>
-            {container.image &&
-              (isDockerHub || isGitHubContainer || isGitLabContainer || isGoogleContainer) && (
-                <ContainerImageLinks
-                  isDocker={isDockerHub}
-                  isGitHub={isGitHubContainer}
-                  isGitLab={isGitLabContainer}
-                  isGoogle={isGoogleContainer}
-                  dockerHubUrl={dockerHubUrl}
-                  githubUrl={githubUrl}
-                  gitlabUrl={gitlabUrl}
-                  googleUrl={googleUrl}
-                  imageName={container.image}
-                />
-              )}
-            {!showUpdates && !isPortainer && developerModeEnabled && (
+          {!showUpdates && !isPortainer && developerModeEnabled && (
+            <div className={styles.iconGroup}>
               <span
                 className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
                 title={
@@ -228,34 +198,11 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 {upgrading ? (
                   <span className={styles.upgradingText}>Rebuilding...</span>
                 ) : (
-                  <RefreshCw size={18} />
+                  <span className={styles.rebuildText}>Rebuild</span>
                 )}
               </span>
-            )}
-            {showUpdates && (
-              <span
-                className={`${styles.upgradeCheckmark} ${isPortainer || upgrading ? styles.disabled : ""} ${upgrading ? styles.upgrading : ""}`}
-                title={
-                  isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"
-                }
-                aria-label={
-                  isPortainer ? PORTAINER_CONTAINER_MESSAGE : upgrading ? "Upgrading..." : "Upgrade"
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isPortainer && !upgrading) {
-                    onUpgrade(container);
-                  }
-                }}
-              >
-                {upgrading ? (
-                  <span className={styles.upgradingText}>Upgrading...</span>
-                ) : (
-                  <HardDriveDownload size={18} />
-                )}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         {showUpdates && container.latestPublishDate && (
           <p className={styles.metaItem}>

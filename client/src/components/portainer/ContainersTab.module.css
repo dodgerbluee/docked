@@ -67,8 +67,18 @@ body.dark-mode .stackCount {
 
 .containersGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.containersGrid + .stackGroup,
+.containersGrid + .stackGroup:last-child,
+.containersGrid + .stackGroup:first-of-type {
+  margin-top: 24px;
+}
+
+.updatingSection {
+  margin-bottom: 24px;
 }
 
 .containersGrid > * {
@@ -98,6 +108,12 @@ body.dark-mode .stackCount {
   text-align: right;
   margin-top: 20px;
   padding-right: 10px;
+}
+
+@media (max-width: 1024px) {
+  .containersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {

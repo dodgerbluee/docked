@@ -1,0 +1,422 @@
+/**
+ * UpgradeChartsContent styles
+ * Standalone layout for analytics charts (not modal-bound)
+ */
+
+.content {
+  flex: 1;
+  padding: 24px 32px;
+  background: var(--bg-primary);
+  border-radius: 0 0 16px 16px;
+}
+
+/* ── Stats bar ── */
+.statsBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.statItem:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .statItem:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.statIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+.statIconSuccess {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.statIconWarning {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.statContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* ── Charts grid ── */
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+}
+
+.chartCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.chartCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .chartCard:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+.chartCardWide {
+  grid-column: 1 / -1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.chartCardWide:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .chartCardWide:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+.chartTitle {
+  margin: 0 0 20px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── Insights / fun-facts ── */
+.funFactsCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.funFactsCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .funFactsCard:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+.funFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.funFact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.funFactLabel {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.funFactValue {
+  font-size: 1rem;
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+/* ── Tooltip ── */
+.tooltip {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode .tooltip {
+  background: #1a1a1a;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tooltipLabel {
+  margin: 0 0 8px 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tooltipValue {
+  margin: 4px 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* ── Empty state ── */
+.emptyMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  gap: 16px;
+}
+
+.emptyIcon {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.emptyMessage h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.emptyMessage p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+/* ── Heatmap ── */
+.heatmap {
+  padding: 20px;
+}
+
+.heatmapGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.heatmapRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heatmapLabel {
+  width: 50px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.heatmapCells {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  flex: 1;
+}
+
+.heatmapCell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  position: relative;
+}
+
+.heatmapCell:hover {
+  transform: scale(1.15);
+  z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--dodger-blue);
+}
+
+.cellCount {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.heatmapHourLabels {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  padding-left: 58px;
+  margin-top: 8px;
+}
+
+.hourLabel {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  text-align: left;
+}
+
+/* ── Responsive: tablet ── */
+@media (max-width: 1200px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heatmapCell {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .cellCount {
+    font-size: 0.6rem;
+  }
+}
+
+/* ── Responsive: mobile ── */
+@media (max-width: 768px) {
+  .content {
+    padding: 16px 12px;
+  }
+
+  /* Stats bar: 2-up on mobile */
+  .statsBar {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding-bottom: 16px;
+  }
+
+  .statItem {
+    padding: 12px 10px;
+  }
+
+  .statItem:hover {
+    transform: none;
+  }
+
+  .statValue {
+    font-size: 1.25rem;
+  }
+
+  /* Charts: single column, full width, no min-width constraint */
+  .chartsGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .chartCard,
+  .chartCardWide {
+    padding: 14px 10px;
+  }
+
+  .chartCard:hover,
+  .chartCardWide:hover,
+  .funFactsCard:hover {
+    transform: none;
+  }
+
+  .chartTitle {
+    font-size: 1rem;
+    margin-bottom: 14px;
+  }
+
+  /* Insights */
+  .funFact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  /* Heatmap */
+  .heatmap {
+    padding: 10px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .heatmapLabel {
+    width: 36px;
+    font-size: 0.7rem;
+  }
+
+  .heatmapCell {
+    min-width: 14px;
+    min-height: 14px;
+  }
+
+  .cellCount {
+    display: none;
+  }
+
+  .heatmapHourLabels {
+    padding-left: 44px;
+  }
+
+  /* Empty state */
+  .emptyMessage {
+    padding: 40px 16px;
+  }
+}
+
+/* ── Custom scrollbar ── */
+.content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--dodger-blue);
+}

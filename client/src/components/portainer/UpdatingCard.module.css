@@ -160,14 +160,14 @@ body.dark-mode .spinner {
 
 @media (max-width: 640px) {
   .card {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .cardActions {
-    width: 100%;
-    justify-content: flex-end;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
+    width: auto;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
 }
