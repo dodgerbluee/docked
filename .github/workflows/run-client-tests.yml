@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       run-coverage:
-        description: 'Run tests with coverage'
+        description: "Run tests with coverage"
         required: false
         type: boolean
         default: false
@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             client/package-lock.json
@@ -38,9 +38,9 @@ jobs:
         run: |
           cd client
           if [ "${{ inputs.run-coverage }}" = "true" ]; then
-            CI=true npm test -- --coverage --watchAll=false
+            npm test -- --coverage
           else
-            CI=true npm test -- --watchAll=false
+            npm test
           fi
 
       - name: Upload client test coverage
@@ -51,4 +51,3 @@ jobs:
           flags: client
           name: client-test-coverage
           fail_ci_if_error: false
-

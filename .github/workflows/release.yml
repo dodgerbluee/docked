@@ -25,7 +25,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
 
 jobs:
   # Extract version from tag or input
@@ -86,7 +86,7 @@ jobs:
       - name: Run client tests
         run: |
           cd client
-          npm test -- --coverage --watchAll=false
+          npm test -- --coverage
 
       - name: Upload test coverage
         uses: codecov/codecov-action@v5
