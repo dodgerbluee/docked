@@ -182,6 +182,17 @@ body.dark-mode .content {
   gap: 2px;
 }
 
+.logMeta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.logBracket {
+  color: var(--text-primary);
+}
+
 .logLineClickable {
   cursor: pointer;
   padding: 4px 8px;
@@ -380,13 +391,61 @@ body.dark-mode .logDebug {
   .content {
     min-height: 250px;
     max-height: 60vh;
-    padding: 10px;
+    padding: 8px;
     font-size: 0.8rem;
     overflow-x: hidden;
   }
 
   .logContent {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .logEntry {
+    margin-bottom: 4px;
+    padding: 6px 0;
+  }
+
+  /* Stacked layout: meta row on top, message below */
+  .logLine {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .logMeta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  /* Show short timestamp on mobile via CSS content replacement */
+  .logTimestamp {
+    font-size: 0;
+    line-height: 0;
+  }
+
+  .logTimestamp::after {
+    content: attr(data-short);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Hide context on mobile — reduce noise */
+  .logContext {
+    display: none;
+  }
+
+  /* Message takes full width, wraps naturally */
+  .logMessage {
+    width: 100%;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    padding-left: 22px; /* align with text after expand icon */
+    box-sizing: border-box;
   }
 
   .expandHint {
@@ -395,8 +454,6 @@ body.dark-mode .logDebug {
 
   .logLineClickable {
     min-height: var(--touch-target-min);
-    display: flex;
-    align-items: center;
   }
 
   .logMetadata,
