@@ -179,3 +179,56 @@ body.dark-mode .downloadLink {
 body.dark-mode .downloadLink:hover {
   color: var(--dodger-blue);
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .updateSection {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .webhookContent {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .webhookInfo {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .webhookCard:hover {
+    transform: none;
+  }
+
+  .webhookMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .lastUpdated {
+    margin-left: 0;
+  }
+
+  .infoBanner {
+    margin-top: 16px;
+    margin-bottom: 20px;
+  }
+
+  .infoContent {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

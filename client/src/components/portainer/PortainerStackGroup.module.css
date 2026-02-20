@@ -90,5 +90,34 @@ body.dark-mode .updateCount {
 @media (max-width: 768px) {
   .containersGrid {
     grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .stackGroup {
+    margin-bottom: 16px;
+  }
+
+  .stackHeader {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .stackHeaderLeft {
+    gap: 10px;
+  }
+
+  .stackToggle {
+    font-size: 0.85rem;
+    width: 22px;
+    height: 22px;
+  }
+
+  .stackName {
+    font-size: 1rem;
+  }
+
+  .stackCount {
+    font-size: 0.85rem;
   }
 }

@@ -1,0 +1,161 @@
+/* ============================================
+   MobileDrawer Component Styles
+   Shared slide-out drawer for mobile sidebar content
+   ============================================ */
+
+.wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-drawer-overlay);
+  pointer-events: none;
+}
+
+/* Overlay backdrop */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+}
+
+.overlayVisible {
+  opacity: 1;
+}
+
+/* Drawer panel */
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 82%;
+  max-width: 340px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+  /* Safe area padding */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Left drawer (default) */
+.left {
+  left: 0;
+  border-right: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  transform: translateX(-100%);
+}
+
+.left.drawerOpen {
+  transform: translateX(0);
+}
+
+/* Right drawer */
+.right {
+  right: 0;
+  border-left: 1px solid var(--border-color);
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  transform: translateX(100%);
+}
+
+.right.drawerOpen {
+  transform: translateX(0);
+}
+
+/* Drawer header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 1;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.closeButton:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.closeButton:active {
+  transform: scale(0.95);
+}
+
+/* Drawer content area */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    transition: none;
+  }
+
+  .drawer {
+    transition: none;
+    will-change: auto;
+  }
+
+  .closeButton:active {
+    transform: none;
+  }
+}
+
+/* Hide on desktop */
+@media (min-width: 769px) {
+  .wrapper {
+    display: none;
+  }
+}

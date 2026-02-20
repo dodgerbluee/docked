@@ -80,3 +80,25 @@
 body.dark-mode .cropOverlay {
   border-color: var(--dodger-blue-light);
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .imageContainer {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    max-width: 100%;
+  }
+
+  .previewContainer {
+    max-width: 100%;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions > * {
+    width: 100%;
+  }
+}

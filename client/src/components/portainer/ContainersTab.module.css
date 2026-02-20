@@ -3,7 +3,6 @@
 }
 
 .stackGroup {
-  margin-bottom: 20px;
 }
 
 .stackHeader {
@@ -67,9 +66,8 @@ body.dark-mode .stackCount {
 
 .containersGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  padding-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 15px;
 }
 
 .containersGrid > * {
@@ -101,14 +99,34 @@ body.dark-mode .stackCount {
   padding-right: 10px;
 }
 
-@media (max-width: 1024px) {
-  .containersGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
+  .stackHeader {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .stackHeaderLeft {
+    gap: 10px;
+  }
+
+  .stackToggle {
+    font-size: 0.85rem;
+    width: 22px;
+    height: 22px;
+  }
+
+  .stackName {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .stackCount {
+    font-size: 0.85rem;
+  }
+
   .containersGrid {
     grid-template-columns: 1fr;
+    gap: 15px;
   }
 }

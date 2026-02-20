@@ -106,6 +106,29 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     [isPortainer, upgrading, onUpgrade, container, showUpdates, developerModeEnabled]
   );
 
+  // Render portainer badge element (reused in both showUpdates and !showUpdates branches)
+  const portainerBadgeElement = container.portainerName ? (
+    container.portainerUrl ? (
+      <a
+        href={container.portainerUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={styles.portainerBadge}
+        title={`Open Portainer instance: ${container.portainerName}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {container.portainerName}
+      </a>
+    ) : (
+      <span
+        className={styles.portainerBadge}
+        title={`Portainer instance: ${container.portainerName}`}
+      >
+        {container.portainerName}
+      </span>
+    )
+  ) : null;
+
   return (
     <div
       className={`${styles.containerCard} ${
@@ -234,27 +257,6 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             )}
           </div>
         </div>
-        {showUpdates &&
-          container.portainerName &&
-          (container.portainerUrl ? (
-            <a
-              href={container.portainerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.portainerBadge}
-              title={`Open Portainer instance: ${container.portainerName}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {container.portainerName}
-            </a>
-          ) : (
-            <span
-              className={styles.portainerBadge}
-              title={`Portainer instance: ${container.portainerName}`}
-            >
-              {container.portainerName}
-            </span>
-          ))}
         {showUpdates && container.latestPublishDate && (
           <p className={styles.metaItem}>
             <strong>Published:</strong> {formatTimeAgo(container.latestPublishDate)}
@@ -271,26 +273,6 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         )}
         {!showUpdates && container.currentDigest && (
           <>
-            {container.portainerName &&
-              (container.portainerUrl ? (
-                <a
-                  href={container.portainerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.portainerBadge}
-                  title={`Open Portainer instance: ${container.portainerName}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {container.portainerName}
-                </a>
-              ) : (
-                <span
-                  className={styles.portainerBadge}
-                  title={`Portainer instance: ${container.portainerName}`}
-                >
-                  {container.portainerName}
-                </span>
-              ))}
             {container.noDigest && (
               <div
                 className={styles.noDigestBadge}
@@ -305,6 +287,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               imageVersion={imageVersion}
               onVersionClick={handleVersionClick}
               showUpdates={showUpdates}
+              badge={portainerBadgeElement}
             />
           </>
         )}
@@ -314,6 +297,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             imageVersion={imageVersion}
             onVersionClick={handleVersionClick}
             showUpdates={showUpdates}
+            badge={portainerBadgeElement}
           />
         )}
       </div>

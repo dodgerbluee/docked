@@ -79,3 +79,19 @@ body.dark-mode .logDebug {
 .empty {
   color: var(--text-secondary);
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .logViewer {
+    min-height: 250px;
+  }
+
+  .header {
+    padding: 12px;
+  }
+
+  .content {
+    padding: 10px;
+    font-size: 0.8rem;
+  }
+}

@@ -176,3 +176,43 @@ body.dark-mode .dangerButton:hover:not(:disabled) {
   padding: 0;
   margin: 0;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .updateSection {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 1.25rem;
+    margin-bottom: 16px;
+  }
+
+  .formGroup {
+    margin-bottom: 16px;
+  }
+
+  .supportText {
+    white-space: normal;
+    max-width: 100%;
+    font-size: 0.9rem;
+  }
+
+  .dataManagement {
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+
+  .supportSection {
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+
+  .dangerButton {
+    min-height: var(--touch-target-min);
+  }
+
+  .sectionDivider {
+    margin: 24px 0;
+  }
+}

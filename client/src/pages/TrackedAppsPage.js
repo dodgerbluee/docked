@@ -7,7 +7,9 @@ import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
 import { useTrackedApps } from "../hooks/useTrackedApps";
 import AddTrackedAppModal from "../components/AddTrackedAppModal";
-import ConfirmDialog from "../components/ConfirmDialog";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import ErrorBoundary from "../components/ErrorBoundary";
+import MobileDrawer from "../components/ui/MobileDrawer";
 import TrackedAppsSidebar from "../components/trackedApps/TrackedAppsSidebar";
 import { TRACKED_APPS_CONTENT_TABS } from "../constants/trackedAppsPage";
 import styles from "./TrackedAppsPage.module.css";
@@ -17,6 +19,7 @@ import TrackedAppsContentArea from "./TrackedAppsPage/components/TrackedAppsCont
 import { useTrackedAppsFiltering } from "./TrackedAppsPage/hooks/useTrackedAppsFiltering";
 import { useTrackedAppsSelection } from "./TrackedAppsPage/hooks/useTrackedAppsSelection";
 import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsCheckmark";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 /**
  * TrackedAppsPage component
@@ -58,6 +61,18 @@ function TrackedAppsPage({
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [markingUpgraded, setMarkingUpgraded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Mobile-only sidebar drawer state (MobileDrawer handles escape, scroll lock, focus trap)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
+
+  const openMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(true);
+  }, []);
 
   // Check if modal should open after navigation from welcome page
   useEffect(() => {
@@ -168,7 +183,6 @@ function TrackedAppsPage({
     }
   }, [selectedApps, appsWithUpdates, handleUpgrade, setSelectedApps]);
 
-  // Toolbar actions
   const toolbarActions = (
     <TrackedAppsToolbar
       appsWithUpdates={appsWithUpdates}
@@ -177,6 +191,7 @@ function TrackedAppsPage({
       markingUpgraded={markingUpgraded}
       onSelectAll={handleSelectAll}
       onBatchMarkUpgraded={handleBatchMarkUpgraded}
+      compactLabels={isMobile}
     />
   );
 
@@ -191,15 +206,55 @@ function TrackedAppsPage({
         trackedAppsCount={trackedApps.length}
         markingUpgraded={markingUpgraded}
         toolbarActions={toolbarActions}
+        mobileSidebarOpen={mobileSidebarOpen}
+        onMobileSidebarOpen={openMobileSidebar}
       />
 
       <div className={styles.trackedAppsSidebarLayout}>
-        <TrackedAppsSidebar
-          contentTab={contentTab}
-          onContentTabChange={setContentTab}
-          selectedSourceFilters={selectedSourceFilters}
-          onSelectedSourceFiltersChange={setSelectedSourceFilters}
-        />
+        {/* Desktop: render sidebar inline */}
+        {!isMobile && (
+          <ErrorBoundary>
+            <div
+              className={styles.trackedAppsSidebar}
+              role="complementary"
+              aria-label="Tracked apps filters"
+            >
+              <TrackedAppsSidebar
+                contentTab={contentTab}
+                onContentTabChange={(tab) => {
+                  setContentTab(tab);
+                }}
+                selectedSourceFilters={selectedSourceFilters}
+                onSelectedSourceFiltersChange={(next) => {
+                  setSelectedSourceFilters(next);
+                }}
+              />
+            </div>
+          </ErrorBoundary>
+        )}
+
+        {/* Mobile: render sidebar in shared MobileDrawer */}
+        <ErrorBoundary>
+          <MobileDrawer
+            isOpen={mobileSidebarOpen}
+            onClose={closeMobileSidebar}
+            title="Filters"
+            ariaLabel="Tracked apps filters"
+          >
+            <TrackedAppsSidebar
+              contentTab={contentTab}
+              onContentTabChange={(tab) => {
+                setContentTab(tab);
+                closeMobileSidebar();
+              }}
+              selectedSourceFilters={selectedSourceFilters}
+              onSelectedSourceFiltersChange={(next) => {
+                setSelectedSourceFilters(next);
+              }}
+            />
+          </MobileDrawer>
+        </ErrorBoundary>
+
         <div className={styles.trackedAppsContentArea}>
           {trackedAppError && <div className={styles.errorMessage}>{trackedAppError}</div>}
 
@@ -259,7 +314,7 @@ function TrackedAppsPage({
             confirmDialog.onConfirm();
           }
         }}
-        onCancel={() => {
+        onClose={() => {
           if (confirmDialog.onClose) {
             confirmDialog.onClose();
           } else {

@@ -1,0 +1,110 @@
+/**
+ * Responsive CSS Utilities
+ * Mobile-first responsive design utilities
+ *
+ * This file contains:
+ * - Homepage container responsive sizing
+ * - Global mobile form input rules (iOS zoom prevention, touch targets)
+ * - Tab content spacing for mobile bottom nav
+ * - Global touch feedback for touch devices
+ * - Global prefers-reduced-motion rule
+ */
+
+/* ============================================
+   Container Queries for responsive layouts
+   ============================================ */
+.homepage-container {
+  width: 100%;
+  margin: 0 auto;
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 20px var(--shadow);
+}
+
+@media (max-width: 767px) {
+  .homepage-container {
+    padding: 10px 16px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .homepage-container {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .homepage-container {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 1200px) {
+  .homepage-container {
+    max-width: 100%;
+  }
+}
+
+/* ============================================
+   Mobile-friendly form inputs
+   ============================================ */
+@media (max-width: 768px) {
+  /* Prevent iOS auto-zoom on input focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+    min-height: var(--touch-target-min);
+    padding: var(--spacing-mobile-md);
+  }
+
+  /* Ensure buttons and links meet minimum touch target */
+  a,
+  button {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+  }
+}
+
+/* ============================================
+   Tab content spacing for mobile bottom nav
+   ============================================ */
+@media (max-width: 768px) {
+  .tab-content {
+    padding-bottom: 0;
+  }
+}
+
+/* ============================================
+   Global touch feedback for touch devices
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* Active state feedback on touch devices */
+  button:active,
+  a:active,
+  [role="button"]:active,
+  [role="tab"]:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+    transition:
+      transform 0.1s ease,
+      opacity 0.1s ease;
+  }
+}
+
+/* ============================================
+   Accessibility: Reduced motion preference
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

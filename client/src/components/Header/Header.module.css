@@ -9,7 +9,25 @@
   box-shadow: 0 4px 12px var(--shadow);
   isolation: isolate;
   position: relative;
-  z-index: 1000;
+  z-index: var(--z-header);
+}
+
+/* Mobile-friendly header */
+@media (max-width: 768px) {
+  .header {
+    margin-bottom: 12px;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px 16px;
+    border-radius: 0;
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    background: var(--header-bg);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  }
+
+  :global(body.drawer-open) .header {
+    z-index: var(--z-sticky);
+  }
 }
 
 .headerContent {
@@ -18,8 +36,15 @@
   align-items: center;
   max-width: 1600px;
   margin: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 15px;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .headerContent {
+    gap: var(--spacing-mobile-md);
+  }
 }
 
 /* When logo is hovered, move only the logo container (logo and text-logo move together) */
@@ -29,13 +54,15 @@
 }
 
 .logoContainer {
+  flex: 1 1 auto;
+  min-width: 0;
   cursor: pointer;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
-  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .logoContainer:hover {
@@ -62,6 +89,15 @@
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .logo {
+    font-size: 1.5rem;
+  }
 }
 
 body.dark-mode .logo {
@@ -82,6 +118,13 @@ body.dark-mode .logo {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@media (max-width: 768px) {
+  .logoImage {
+    height: 1.9em;
+    margin-right: 10px;
+  }
+}
+
 /* LogoImage moves up when logoContainer is hovered */
 .logoContainer:hover .logoImage {
   transform: translateY(-1px);
@@ -89,7 +132,7 @@ body.dark-mode .logo {
 
 .logoTextImage {
   display: inline-block;
-  height: 1.25em; /* Half of 2.5em */
+  height: 0.95em;
   vertical-align: middle;
   margin-left: 12px;
   user-select: none;
@@ -99,7 +142,15 @@ body.dark-mode .logo {
   pointer-events: none;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   object-fit: contain;
-  max-width: 50%; /* Ensure it doesn't exceed half the available space */
+  max-width: 240px;
+  flex: 0 1 auto;
+}
+
+@media (max-width: 768px) {
+  .logoTextImage {
+    height: 1em;
+    margin-left: 10px;
+  }
 }
 
 /* Dark mode - keep white (no filter) */
@@ -117,10 +168,10 @@ body.dark-mode .logo {
 }
 
 .headerActions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
 }
 
 .actionsContainer {
@@ -129,61 +180,43 @@ body.dark-mode .logo {
   align-items: center;
   gap: 10px;
   isolation: isolate;
+  flex-wrap: nowrap;
 }
 
-.notificationWrapper {
-  position: relative;
-  margin-right: 18px;
-  isolation: isolate;
-  z-index: 1001;
+@media (max-width: 768px) {
+  .headerContent {
+    gap: 12px;
+  }
+
+  .logoTextImage {
+    max-width: 140px;
+    margin-left: 8px;
+  }
+
+  .logoImage {
+    height: 1.9em;
+    margin-right: 10px;
+  }
 }
 
-.notificationButton {
-  padding: 0;
-  background: transparent;
-  color: var(--text-primary);
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  height: auto;
-  position: relative;
+@media (max-width: 420px) {
+  .logoTextImage {
+    max-width: 110px;
+    margin-left: 6px;
+  }
 }
 
-body.dark-mode .notificationButton {
-  color: white;
-}
+/* Disable hover transforms on touch devices */
+@media (max-width: 768px) {
+  .headerContent:has(.logoContainer:hover) .logoContainer {
+    transform: none;
+  }
 
-/* Alarm moves independently when hovered */
-.notificationButton:hover {
-  transform: translateY(-2px);
-}
+  .logoContainer:hover .logoImage {
+    transform: none;
+  }
 
-.notificationIcon {
-  display: block;
-  transform: translateY(0.5px);
-}
-
-.notificationBadge {
-  position: absolute;
-  top: -8px;
-  right: -4px;
-  background: var(--dodger-blue);
-  color: white;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: bold;
-  border: none;
-  z-index: 10;
-  pointer-events: none;
-  box-shadow: 0 2px 4px rgba(0, 90, 156, 0.4);
+  .logoContainer:hover .logoTextImage {
+    transform: none;
+  }
 }

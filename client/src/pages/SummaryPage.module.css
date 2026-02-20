@@ -331,10 +331,6 @@
     grid-template-columns: 1fr 360px;
   }
 
-  .leftColumn {
-    margin-right: 380px; /* 360px + 20px gap */
-  }
-
   .rightColumn {
     width: 360px;
   }
@@ -343,10 +339,6 @@
 @media (max-width: 1200px) {
   .dashboardGrid {
     grid-template-columns: 1fr;
-  }
-
-  .leftColumn {
-    margin-right: 0;
   }
 
   .rightColumn {

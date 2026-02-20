@@ -90,12 +90,14 @@ body.dark-mode .noCurrentVersion:hover {
 
 .content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .header {
   font-weight: bold;
   color: var(--text-primary);
-  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -107,8 +109,10 @@ body.dark-mode .noCurrentVersion:hover {
 .titleRow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .statusBadge {
@@ -138,7 +142,8 @@ body.dark-mode .noCurrentVersion:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  max-width: calc(100% - 5px);
+  line-height: 1.1;
 }
 
 .updateLabel {
@@ -151,13 +156,19 @@ body.dark-mode .noCurrentVersion:hover {
 .repoInfo {
   margin: 0;
   margin-bottom: 10px;
-  padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.repoInfoLeft {
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .repoInfoWithUpdates {
@@ -170,6 +181,7 @@ body.dark-mode .repoInfoWithUpdates {
 
 .repoInfoWithUpdates .repoName {
   color: var(--text-primary);
+  align-content: center;
 }
 
 .repoInfoWithUpdates .repoName:hover {
@@ -197,7 +209,7 @@ body.dark-mode .repoInfoWithUpdates .repoName:hover {
 .repoName {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   line-height: 1.5;
   text-decoration: none;
   transition: color 0.2s;
@@ -206,6 +218,7 @@ body.dark-mode .repoInfoWithUpdates .repoName:hover {
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+  align-content: center;
 }
 
 .repoName:hover {
@@ -301,16 +314,6 @@ body.dark-mode .upgradedCheckmark:hover {
   display: inline-block;
 }
 
-.releaseLink {
-  color: var(--dodger-blue);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.releaseLink:hover {
-  text-decoration: underline;
-}
-
 .versionInfo {
   display: flex;
   flex-direction: column;
@@ -327,6 +330,12 @@ body.dark-mode .upgradedCheckmark:hover {
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .metaItem {
+    white-space: normal;
+  }
+}
+
 .metaItem:last-of-type {
   margin-bottom: 0;
 }
@@ -336,7 +345,6 @@ body.dark-mode .upgradedCheckmark:hover {
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
-  display: inline-block;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -369,10 +377,10 @@ body.dark-mode .versionLink:hover {
 
 .actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .actionButton {
@@ -580,4 +588,82 @@ body.dark-mode .markUpgradedIcon {
 
 body.dark-mode .markUpgradedButton:hover .markUpgradedIcon {
   color: #ffffff;
+}
+
+/* Mobile-specific tracked app card styles */
+@media (max-width: 768px) {
+  .card {
+    margin-bottom: 0;
+  }
+
+  .header {
+    gap: var(--spacing-mobile-sm);
+  }
+
+  .titleRow {
+    gap: 6px;
+  }
+
+  .name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: normal;
+  }
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+  }
+
+  .checkbox::before {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+  }
+
+  .checkbox::after {
+    left: 7px;
+    top: 4px;
+    width: 6px;
+    height: 10px;
+  }
+
+  .repoInfo {
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .repoName {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  /*
+   * Match PortainerContainerCard mobile tap targets.
+   * Global mobile rules already enforce 32px minimum on anchors/buttons,
+   * but some actions are spans, so we set an explicit minimum here.
+   */
+  .upgradedCheckmark,
+  .githubIconLink,
+  .dockerIconLink,
+  .editButton,
+  .markUpgradedButton {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .githubIconLink,
+  .dockerIconLink {
+    display: inline-flex;
+  }
+
+  .actions {
+    gap: var(--spacing-mobile-sm);
+    margin-top: var(--spacing-mobile-md);
+  }
+
+  .actionButton {
+    font-size: var(--font-size-mobile-sm);
+    padding: var(--spacing-mobile-sm) var(--spacing-mobile-md);
+  }
 }

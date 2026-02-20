@@ -46,3 +46,19 @@ body.dark-mode .tableRow:hover {
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .tableCell {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  .tableCell:first-child {
+    padding-left: 12px;
+  }
+
+  .tableCell:last-child {
+    padding-right: 12px;
+  }
+}

@@ -1,14 +1,16 @@
 .containerCard {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px;
   transition:
     transform 0.3s,
     box-shadow 0.3s;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .containerCard:hover {
@@ -67,10 +69,10 @@ body.dark-mode .currentCard:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
-  gap: 5px;
+  gap: 8px;
   height: auto;
   padding: 0;
+  flex-wrap: wrap;
 }
 
 .headerLeft {
@@ -123,8 +125,8 @@ body.dark-mode .currentCard:hover {
 .cardHeader h3 {
   margin: 0;
   padding: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--text-primary);
   line-height: 1.1;
 }
@@ -150,6 +152,13 @@ body.dark-mode .containerName:hover {
   color: var(--dodger-blue-light);
 }
 
+.versionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .portainerBadge {
   display: inline-flex;
   align-items: center;
@@ -162,7 +171,7 @@ body.dark-mode .containerName:hover {
   border-radius: 4px;
   white-space: nowrap;
   width: fit-content;
-  margin-bottom: 6px;
+  flex-shrink: 0;
   text-decoration: none;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -187,8 +196,8 @@ body.dark-mode .portainerBadge:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   margin: 0;
   padding: 0;
@@ -208,10 +217,10 @@ body.dark-mode .portainerBadge:hover {
 .checkbox::before {
   content: "";
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: 2px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--bg-primary);
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -303,6 +312,7 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
   transform: none !important;
+  flex-wrap: wrap;
 }
 
 .updateAvailable .imageHeaderContainer {
@@ -378,6 +388,12 @@ body.dark-mode .imageHeaderWithUpdates:hover {
   overflow: hidden;
   min-width: 0;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .metaItem {
+    white-space: normal;
+  }
 }
 
 .metaItem:last-of-type {
@@ -570,8 +586,6 @@ body.dark-mode .googleIconLink:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translateZ(0);
-  will-change: color;
   position: relative;
 }
 
@@ -633,8 +647,6 @@ body.dark-mode .upgradeCheckmark:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translateZ(0);
-  will-change: color;
   position: relative;
 }
 
@@ -706,4 +718,105 @@ body.dark-mode .noDigestBadge {
 
 .noDigestBadge svg {
   flex-shrink: 0;
+}
+
+/* Mobile-specific container card styles */
+@media (max-width: 768px) {
+  .containerCard {
+    margin-bottom: 0;
+  }
+
+  .cardHeader {
+    gap: var(--spacing-mobile-sm);
+  }
+
+  .headerLeft {
+    flex-wrap: wrap;
+  }
+
+  .headerLeft {
+    gap: 6px;
+  }
+
+  .cardHeader h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: normal;
+  }
+
+  .cardHeader .containerName {
+    font-weight: 700;
+    line-height: normal;
+  }
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+  }
+
+  .checkbox::before {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+  }
+
+  .checkbox::after {
+    left: 7px;
+    top: 4px;
+    width: 6px;
+    height: 10px;
+  }
+
+  .imageHeaderContainer {
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .imageHeader {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .metaItem {
+    font-size: 0.85rem;
+  }
+
+  /*
+   * Match TrackedAppCard mobile tap targets.
+   * Global mobile rules already enforce 32px minimum on anchors/buttons,
+   * but Portainer actions are spans, so we set an explicit minimum here.
+   */
+  .upgradeCheckmark,
+  .rebuildButton,
+  .dockerIconLink,
+  .githubIconLink,
+  .gitlabIconLink,
+  .googleIconLink {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .dockerIconLink,
+  .githubIconLink,
+  .gitlabIconLink,
+  .googleIconLink {
+    display: inline-flex;
+  }
+
+  .buttonGroup {
+    gap: var(--spacing-mobile-sm);
+    margin-top: var(--spacing-mobile-md);
+  }
+
+  .upgradeIcon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .portainerBadge {
+    font-size: var(--font-size-mobile-xs);
+    padding: var(--spacing-mobile-xs) var(--spacing-mobile-sm);
+    min-height: auto;
+  }
 }

@@ -5,9 +5,8 @@
   gap: 10px;
   position: relative;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
   isolation: isolate;
-  z-index: 1001;
+  z-index: calc(var(--z-header) + 1);
 }
 
 /* Avatar and username move together when either is hovered */
@@ -108,7 +107,7 @@ body.dark-mode .user-role-text {
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--shadow);
   min-width: 200px;
-  z-index: 9999 !important;
+  z-index: var(--z-dropdown) !important;
   isolation: isolate;
   backdrop-filter: none !important;
   opacity: 1 !important;
@@ -181,4 +180,80 @@ body.dark-mode .avatar-menu-item:hover {
   height: 1px;
   background: var(--border-color);
   margin: 4px 0;
+}
+
+/* Mobile sizing overrides must come AFTER base rules */
+@media (max-width: 768px) {
+  .avatar-menu-container {
+    gap: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .avatar-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    /* Touch target is expanded via the container's gap + padding */
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+  }
+
+  .username-role-container {
+    padding: 4px 8px;
+    min-width: 0;
+  }
+
+  .username-text {
+    font-size: 0.82rem;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .user-role-text {
+    font-size: 0.68rem;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Dropdown menu: prevent overflow on small screens */
+  .avatar-menu {
+    right: -8px;
+    min-width: 180px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .avatar-menu-item {
+    min-height: var(--touch-target-min);
+    padding: 12px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Disable hover transforms on touch */
+  .avatar-menu-container:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .username-text {
+    max-width: 90px;
+  }
+
+  .user-role-text {
+    max-width: 90px;
+  }
 }

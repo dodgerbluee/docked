@@ -265,3 +265,59 @@ body.dark-mode .stackCount {
   gap: 20px;
   padding: 20px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .scheduledRunsTable {
+    /* Hide table on mobile — ScheduledRunCard handles this */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableHeader {
+    padding: 12px;
+    font-size: 0.85rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+  }
+
+  .runHistoryHeader {
+    padding: 12px 16px;
+  }
+
+  .runHistoryTitle {
+    font-size: 1rem;
+  }
+
+  .runHistoryGrid {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .stackHeader {
+    padding: 10px 14px;
+  }
+
+  .stackName {
+    font-size: 1rem;
+  }
+
+  .stackToggle {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+  }
+
+  .showMoreButton {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .showMoreContainer {
+    padding: 12px;
+  }
+}

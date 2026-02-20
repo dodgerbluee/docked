@@ -36,6 +36,7 @@ const PortainerToolbarActions = ({
   onToggleImageSelect,
   onBatchUpgrade,
   onBatchDelete,
+  compactLabels = false,
 }) => {
   const toolbarActions = useMemo(() => {
     if (contentTab === PORTAINER_CONTENT_TABS.UPDATES && containersWithUpdates.length > 0) {
@@ -64,7 +65,13 @@ const PortainerToolbarActions = ({
             }}
             disabled={batchUpgrading}
           >
-            {allSelectableSelected ? "Unselect All" : "Select All"}
+            {allSelectableSelected
+              ? compactLabels
+                ? "None"
+                : "Unselect All"
+              : compactLabels
+                ? "All"
+                : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -74,7 +81,9 @@ const PortainerToolbarActions = ({
           >
             {batchUpgrading
               ? `Upgrading ${selectedContainers.size}...`
-              : `Upgrade Selected (${selectedContainers.size})`}
+              : compactLabels
+                ? `Upgrade (${selectedContainers.size})`
+                : `Upgrade Selected (${selectedContainers.size})`}
           </Button>
         </>
       );
@@ -105,7 +114,13 @@ const PortainerToolbarActions = ({
             }}
             disabled={deletingImages}
           >
-            {allImagesSelected ? "Unselect All" : "Select All"}
+            {allImagesSelected
+              ? compactLabels
+                ? "None"
+                : "Unselect All"
+              : compactLabels
+                ? "All"
+                : "Select All"}
           </Button>
           <Button
             variant="outline"
@@ -116,7 +131,9 @@ const PortainerToolbarActions = ({
           >
             {deletingImages
               ? `Deleting ${selectedImages.size}...`
-              : `Delete Selected (${selectedImages.size})`}
+              : compactLabels
+                ? `Delete (${selectedImages.size})`
+                : `Delete Selected (${selectedImages.size})`}
           </Button>
         </>
       );
@@ -152,6 +169,7 @@ PortainerToolbarActions.propTypes = {
   onToggleImageSelect: PropTypes.func.isRequired,
   onBatchUpgrade: PropTypes.func.isRequired,
   onBatchDelete: PropTypes.func.isRequired,
+  compactLabels: PropTypes.bool,
 };
 
 export default PortainerToolbarActions;

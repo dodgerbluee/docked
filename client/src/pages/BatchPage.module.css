@@ -22,30 +22,6 @@
   line-height: 1.2;
 }
 
-.returnHomeButton {
-  background: transparent !important;
-  color: var(--text-primary) !important;
-  border-color: var(--border-color) !important;
-}
-
-.returnHomeButton:hover:not(:disabled) {
-  background: var(--bg-secondary) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-primary) !important;
-}
-
-body.dark-mode .returnHomeButton {
-  background: transparent !important;
-  color: var(--text-primary) !important;
-  border-color: var(--border-color) !important;
-}
-
-body.dark-mode .returnHomeButton:hover:not(:disabled) {
-  background: var(--bg-secondary) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-primary) !important;
-}
-
 .contentTabPanel {
   /* Matches content-tab-panel from App.css */
   margin-top: 20px;
@@ -57,4 +33,25 @@ body.dark-mode .returnHomeButton:hover:not(:disabled) {
   gap: 16px;
   padding: 40px;
   min-height: 200px;
+}
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .headerContent {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .batchHeader {
+    font-size: 1.4rem;
+  }
+
+  .contentTabPanel {
+    margin-top: 12px;
+  }
+
+  .loadingContainer {
+    padding: 20px;
+  }
 }
