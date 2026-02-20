@@ -4,7 +4,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { getDockerHubUrl, getDockerHubTagsUrl, formatTimeAgo } from "../../../../utils/formatters";
+import { formatTimeAgo } from "../../../../utils/formatters";
 import styles from "../../PortainerContainerCard.module.css";
 
 /**
