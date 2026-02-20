@@ -89,8 +89,15 @@ const config = {
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
       : process.env.NODE_ENV === "production"
-        ? ["https://yourdomain.com"] // Update with your production domain
-        : true, // Allow all origins in development for Safari compatibility
+        ? false // Deny all cross-origin requests if CORS_ORIGIN is not configured
+        : [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:3002",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+            "http://127.0.0.1:3002",
+          ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

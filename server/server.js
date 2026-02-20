@@ -24,6 +24,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -58,16 +59,12 @@ logger.debug("Express app created", { module: "server" });
 app.set("trust proxy", true);
 
 // Security middleware configuration - must be defined before middleware
-// Note: CSP disabled on localhost and in development for Safari compatibility
-// In production with HTTPS, CSP allows blob: URLs for images to support avatar functionality
-// Disable CSP entirely when:
-// 1. Running in development mode, OR
-// 2. Explicitly disabled via DISABLE_CSP env var, OR
-// 3. Running on any localhost port without HTTPS (for Safari compatibility)
+// CSP is always enabled but uses a permissive policy in dev/localhost for Safari compatibility.
+// In production with HTTPS, CSP is strict and allows blob: URLs for avatar images.
 const isHTTPS = process.env.HTTPS === "true" || process.env.PROTOCOL === "https";
 // Consider any port < 10000 as localhost development (3001, 3002, 3000, etc.)
 const isLocalhost = config.port < 10000 && !isHTTPS;
-const shouldDisableCSP =
+const isRelaxedMode =
   process.env.NODE_ENV !== "production" || process.env.DISABLE_CSP === "true" || isLocalhost;
 
 // Explicitly remove HSTS header for localhost to fix Safari caching issues
@@ -85,21 +82,31 @@ app.use((req, res, next) => {
 
 app.use(
   helmet({
-    contentSecurityPolicy: shouldDisableCSP
-      ? false // Disable CSP on localhost/development for Safari compatibility
-      : {
-          directives: {
+    // CSP is always enabled — never set to false.
+    // Dev/localhost uses a permissive policy; production uses a strict one.
+    contentSecurityPolicy: {
+      directives: isRelaxedMode
+        ? {
+            // Permissive dev policy: allows inline styles/scripts, any connect/img source
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
+            connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+          }
+        : {
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow blob URLs for avatar images
-            connectSrc: ["'self'"], // Safari doesn't support blob: in connectSrc
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'"],
             fontSrc: ["'self'", "data:"],
             objectSrc: ["'none'"],
-            // Only upgrade to HTTPS if we're actually serving over HTTPS
             ...(isHTTPS ? { upgradeInsecureRequests: [] } : {}),
           },
-        },
+    },
     // Disable HSTS (HTTP Strict Transport Security) when not using HTTPS
     // HSTS forces browsers to always use HTTPS, which breaks localhost development
     strictTransportSecurity: isHTTPS
@@ -109,17 +116,11 @@ app.use(
           preload: false,
         }
       : false,
-    crossOriginEmbedderPolicy: false, // Allow embedding for development
-    crossOriginResourcePolicy: shouldDisableCSP
-      ? false
-      : process.env.NODE_ENV === "production"
-        ? { policy: "same-origin" }
-        : false,
-    crossOriginOpenerPolicy: shouldDisableCSP
-      ? false
-      : process.env.NODE_ENV === "production"
-        ? { policy: "same-origin" }
-        : false,
+    // COEP: use credentialless in production (allows cross-origin loads without CORP headers),
+    // disable in dev to avoid blocking external resources during development
+    crossOriginEmbedderPolicy: isRelaxedMode ? false : { policy: "credentialless" },
+    crossOriginResourcePolicy: isRelaxedMode ? false : { policy: "same-origin" },
+    crossOriginOpenerPolicy: isRelaxedMode ? false : { policy: "same-origin" },
   })
 );
 
@@ -144,10 +145,28 @@ app.use(requestLogger);
 // Response formatter middleware (ensures consistent response format)
 app.use(responseFormatter);
 
-// Rate limiting - DISABLED for all API endpoints
-// We only rate limit Docker Hub requests, not our own API
-// This prevents 429 errors when deploying to Portainer or other production environments
-logger.info("API rate limiting disabled - only Docker Hub requests are rate limited", {
+// Global rate limiter - 300 requests per minute per IP
+// Acts as a safety net; per-route limiters in routes/index.js are stricter for sensitive endpoints
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute per IP
+  message: { success: false, error: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for localhost in development
+  skip: (req) => {
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+    const ip = req.ip || req.connection?.remoteAddress || "";
+    return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1";
+  },
+});
+
+// Apply global limiter to all API routes
+app.use("/api", globalLimiter);
+
+logger.info("Global rate limiter enabled: 300 req/min per IP", {
   module: "server",
 });
 
