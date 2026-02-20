@@ -78,76 +78,72 @@ jobs:
           deny-licenses: GPL-2.0, GPL-3.0
 
   # npm audit checks
-  # npm audit job temporarily disabled due to upstream dependency advisories
-  # See tracking issue (to be created) before reenabling
-  # npm-audit:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v6
-  #
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: ${{ env.NODE_VERSION }}
-  #         cache: 'npm'
-  #         cache-dependency-path: |
-  #           package-lock.json
-  #           server/package-lock.json
-  #           client/package-lock.json
-  #
-  #     - name: Install dependencies
-  #       run: |
-  #         npm ci
-  #         cd server && npm ci
-  #         cd ../client && npm ci
-  #
-  #     - name: Run npm audit (root)
-  #       run: npm audit --audit-level=moderate
-  #
-  #     - name: Run npm audit (server)
-  #       run: |
-  #         cd server
-  #         npm audit --audit-level=moderate
-  #
-  #     - name: Run npm audit (client)
-  #       run: |
-  #         cd client
-  #         npm audit --audit-level=moderate
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run npm audit (root)
+        run: npm audit --audit-level=moderate
+
+      - name: Run npm audit (server)
+        run: |
+          cd server
+          npm audit --audit-level=moderate
+
+      - name: Run npm audit (client)
+        run: |
+          cd client
+          npm audit --audit-level=moderate
 
   # Snyk security scan
-  # Snyk job temporarily disabled while addressing dependency noise
-  # Reenable once tracking issue is resolved
-  # snyk-scan:
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v6
-  #
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: ${{ env.NODE_VERSION }}
-  #         cache: 'npm'
-  #         cache-dependency-path: |
-  #           package-lock.json
-  #           server/package-lock.json
-  #           client/package-lock.json
-  #
-  #     - name: Install dependencies
-  #       run: |
-  #         npm ci
-  #         cd server && npm ci
-  #         cd ../client && npm ci
-  #
-  #     - name: Run Snyk security scan
-  #       uses: snyk/actions/node@master
-  #       continue-on-error: false
-  #       env:
-  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  #       with:
-  #         args: --severity-threshold=high --all-projects
+  snyk-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
 
   # CodeQL Analysis
   codeql-analysis:
@@ -253,8 +249,8 @@ jobs:
       - lint
       - test
       - dependency-review
-      # - npm-audit
-      # - snyk-scan
+      - npm-audit
+      - snyk-scan
       - codeql-analysis
       - build
     if: always()
@@ -279,7 +275,13 @@ jobs:
             FAILED_JOBS="${FAILED_JOBS} dependency-review"
           fi
 
-          # npm-audit and snyk-scan temporarily disabled
+          if [ "${{ needs.npm-audit.result }}" != "success" ]; then
+            FAILED_JOBS="${FAILED_JOBS} npm-audit"
+          fi
+
+          if [ "${{ needs.snyk-scan.result }}" != "success" ] && [ "${{ needs.snyk-scan.result }}" != "skipped" ]; then
+            FAILED_JOBS="${FAILED_JOBS} snyk-scan"
+          fi
 
           if [ "${{ needs.codeql-analysis.result }}" != "success" ]; then
             FAILED_JOBS="${FAILED_JOBS} codeql-analysis"
