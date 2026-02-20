@@ -13,13 +13,14 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 export default [
   { ignores: ["build/**", "node_modules/**", "public/**", "**/*.module.css"] },
   js.configs.recommended,
-  // Jest and Node globals for tests and mocks
+  // Vitest and Node globals for tests and mocks
   {
-    files: ["**/__tests__/**", "**/__mocks__/**"],
+    files: ["**/__tests__/**", "**/__mocks__/**", "**/*.test.js", "**/*.test.jsx"],
     languageOptions: {
       globals: {
         ...globals.jest,
         ...globals.node,
+        vi: "readonly",
       },
     },
   },
@@ -39,7 +40,10 @@ export default [
     },
     rules: {
       // Match react-app: prefer warn, not error
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", args: "none", ignoreRestSiblings: true }],
+      "no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", args: "none", ignoreRestSiblings: true },
+      ],
     },
   },
   {

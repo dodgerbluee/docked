@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       create_release:
-        description: 'Create a GitHub release for this promotion'
+        description: "Create a GitHub release for this promotion"
         required: false
         type: boolean
         default: false
@@ -18,7 +18,7 @@ env:
 
 jobs:
   promote:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     if: github.event.inputs.confirm == 'promote'
     permissions:
       contents: write
@@ -35,13 +35,13 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo
             });
-            
+
             // Get the actor (user who triggered the workflow)
             const actor = context.actor;
-            
+
             // Check if user is owner
             const isOwner = repo.owner.login.toLowerCase() === actor.toLowerCase();
-            
+
             // Check if user has admin permissions
             let hasAdmin = false;
             try {
@@ -55,11 +55,11 @@ jobs:
               // If we can't check permissions, assume not admin
               hasAdmin = false;
             }
-            
+
             if (!isOwner && !hasAdmin) {
               core.setFailed('Only repository owners and admins can promote to latest. You must be the repository owner or have admin permissions.');
             }
-            
+
             core.info(`User ${actor} is ${isOwner ? 'owner' : hasAdmin ? 'admin' : 'not authorized'}`);
 
       - name: Checkout code
@@ -71,7 +71,7 @@ jobs:
         if: github.event.inputs.create_release == 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
+          node-version: "22"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -102,19 +102,19 @@ jobs:
         run: |
           # Fetch all tags
           git fetch --tags --force
-          
+
           # Find the latest dev tag (e.g., v1.0.3-dev)
           LATEST_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -1)
-          
+
           if [ -z "$LATEST_DEV_TAG" ]; then
             echo "❌ Error: No dev tag found. Please ensure a dev pre-release has been created first."
             exit 1
           fi
-          
+
           # Extract version from dev tag (e.g., v1.0.3-dev -> 1.0.3)
           RELEASE_VERSION=$(echo "$LATEST_DEV_TAG" | sed 's/^v\(.*\)-dev$/\1/')
           TAG_NAME="v${RELEASE_VERSION}"
-          
+
           echo "Latest dev tag: $LATEST_DEV_TAG"
           echo "Release version: $RELEASE_VERSION"
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
@@ -140,7 +140,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Check if there are changes to commit
           if git diff --quiet package.json server/package.json client/package.json; then
             echo "No version changes to commit"
@@ -175,7 +175,7 @@ jobs:
           docker buildx imagetools create \
             --tag ${{ env.REGISTRY }}/${{ github.repository }}:latest \
             ${{ env.REGISTRY }}/${{ github.repository }}:dev
-          
+
           echo "✓ Successfully promoted dev to latest"
 
       - name: Get commits since previous release
@@ -184,7 +184,7 @@ jobs:
         run: |
           # Find the latest formal release tag (excluding dev and latest tags)
           PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
-          
+
           # Determine which tag to use as the base
           if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
             BASE_TAG="$PREVIOUS_RELEASE_TAG"
@@ -193,7 +193,7 @@ jobs:
             BASE_TAG=""
             echo "No previous release tags found, using all commits"
           fi
-          
+
           # Get commits between BASE_TAG and HEAD, filtering for conventional commits only (exclude merge commits)
           # Pattern matches: type(scope): or type: (with optional scope)
           # Use || true to prevent grep from failing when no matches are found
@@ -202,7 +202,7 @@ jobs:
           else
             COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true))
           fi
-          
+
           if [ -z "$COMMITS" ]; then
             COMMITS_LIST="- No conventional commits since previous release"
           else
@@ -210,12 +210,12 @@ jobs:
               echo "- $subject ([${hash:0:7}](https://github.com/${{ github.repository }}/commit/$fullhash))"
             done)
           fi
-          
+
           # Store in output
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           # Also get previous release tag for changelog link
           if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
             echo "previous_tag=$PREVIOUS_RELEASE_TAG" >> $GITHUB_OUTPUT
@@ -231,7 +231,7 @@ jobs:
           RELEASE_VERSION="${{ steps.version.outputs.release_version }}"
           RELEASE_NAME="v$RELEASE_VERSION"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-          
+
           # Create changelog link in Sonarr format (v1.0.0...v1.0.1)
           if [ -n "${{ steps.commits.outputs.previous_tag }}" ]; then
             PREV_TAG="${{ steps.commits.outputs.previous_tag }}"
@@ -239,34 +239,34 @@ jobs:
           else
             CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
           fi
-          
+
           RELEASE_BODY=$(cat <<EOF
           **Docker Images:**
           - \`${{ env.REGISTRY }}/${{ github.repository }}:$RELEASE_VERSION\`
           - \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`
-          
+
           **Promoted by:** @${{ github.actor }}
           **Promoted at:** $RELEASE_DATE
-          
+
           ---
-          
+
           ## 📝 Commits in This Release
-          
+
           ${{ steps.commits.outputs.commits }}
-          
+
           ---
-          
+
           $CHANGELOG_LINK
           EOF
           )
-          
+
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_BODY" \
             --repo ${{ github.repository }}
-          
+
           echo "✓ Created GitHub release: $TAG_NAME"
-          
+
           # Store the actual release version for the summary
           echo "actual_tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "actual_release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
@@ -295,4 +295,3 @@ jobs:
         run: |
           echo "❌ Promotion cancelled. You must type 'promote' in the confirmation field."
           exit 1
-

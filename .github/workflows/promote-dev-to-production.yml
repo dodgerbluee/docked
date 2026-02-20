@@ -14,7 +14,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
 
 jobs:
   # Job 1: Prepare promotion (get version, validate, update package.json)
@@ -183,7 +183,7 @@ jobs:
           cd server
           npm test -- --coverage --watchAll=false
           cd ../client
-          CI=true npm test -- --coverage --watchAll=false
+          npm test -- --coverage
 
       - name: Run security scans
         run: |

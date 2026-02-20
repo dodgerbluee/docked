@@ -34,6 +34,7 @@ jobs:
           npm ci
           cd server && npm ci
 
+      # ESLint server step disabled — server eslint config needs cleanup first
       # - name: Run ESLint (server)
       #   run: |
       #     cd server

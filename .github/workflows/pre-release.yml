@@ -28,8 +28,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies (minimal)
@@ -41,16 +41,16 @@ jobs:
           # Get current version from package.json
           BASE_VERSION=$(node -p "require('./package.json').version")
           echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Fetch all tags
           git fetch --tags --force
-          
+
           # Find the latest dev tag (e.g., v1.0.3-dev)
           LATEST_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -1)
-          
+
           # Find the latest formal release tag (e.g., v1.0.3)
           LATEST_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
-          
+
           # Determine base version and tag to compare against
           if [ -n "$LATEST_DEV_TAG" ]; then
             BASE_VERSION_FOR_COMPARE=$(echo "$LATEST_DEV_TAG" | sed 's/^v\(.*\)-dev$/\1/')
@@ -65,7 +65,7 @@ jobs:
             BASE_TAG_FOR_COMPARE=""
             echo "No existing tags found, using base version: $BASE_VERSION"
           fi
-          
+
           # Analyze commits to determine version increment (manual implementation)
           INCREMENT_TYPE=$(node -e "
             const { execSync } = require('child_process');
@@ -115,19 +115,19 @@ jobs:
               console.log('patch');
             }
           " || echo "patch")
-          
+
           # Clean and validate increment type
           INCREMENT_TYPE=$(echo "$INCREMENT_TYPE" | tr -d '\n' | tr '[:upper:]' '[:lower:]')
           if [ "$INCREMENT_TYPE" != "major" ] && [ "$INCREMENT_TYPE" != "minor" ] && [ "$INCREMENT_TYPE" != "patch" ]; then
             INCREMENT_TYPE="patch"
           fi
-          
+
           echo "Recommended bump type: $INCREMENT_TYPE"
-          
+
           # Use semver to increment version
           DEV_VERSION=$(node -e "const semver = require('semver'); console.log(semver.inc('$BASE_VERSION_FOR_COMPARE', '$INCREMENT_TYPE'));")
           echo "Incrementing $INCREMENT_TYPE version: $BASE_VERSION_FOR_COMPARE -> $DEV_VERSION"
-          
+
           TAG_NAME="v${DEV_VERSION}-dev"
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
@@ -138,7 +138,7 @@ jobs:
         run: |
           # Find the previous dev tag
           PREVIOUS_DEV_TAG=$(git tag -l "*-dev" | sort -V | tail -2 | head -1)
-          
+
           # Determine which tag to use as the base
           if [ -n "$PREVIOUS_DEV_TAG" ]; then
             BASE_TAG="$PREVIOUS_DEV_TAG"
@@ -154,7 +154,7 @@ jobs:
               echo "No previous tags found, using all commits"
             fi
           fi
-          
+
           # Get commits between BASE_TAG and HEAD, filtering for conventional commits only
           # Pattern matches: type(scope): or type: (with optional scope)
           # Use || true to prevent grep from failing when no matches are found
@@ -163,7 +163,7 @@ jobs:
           else
             COMMITS=$(git log ${BASE_TAG}..HEAD --pretty=format:"%s|%h|%H" --reverse | (grep -E "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?:" || true))
           fi
-          
+
           if [ -z "$COMMITS" ]; then
             COMMITS_LIST="- No conventional commits since previous release"
           else
@@ -171,7 +171,7 @@ jobs:
               echo "- $subject ([${hash:0:7}](https://github.com/${{ github.repository }}/commit/$fullhash))"
             done)
           fi
-          
+
           # Store in output
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS_LIST" >> $GITHUB_OUTPUT
@@ -190,8 +190,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -217,7 +217,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           if git diff --quiet package.json server/package.json client/package.json; then
             echo "No version changes to commit"
           else
@@ -251,7 +251,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
+          node-version: "22"
 
       - name: Update version in package.json files for Docker build
         run: |
@@ -311,37 +311,37 @@ jobs:
           DEV_VERSION="${{ needs.prepare-release.outputs.dev_version }}"
           RELEASE_NAME="v$DEV_VERSION-dev"
           RELEASE_DATE=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-          
+
           PREVIOUS_RELEASE_TAG=$(git tag -l "v*" | grep -v "dev" | grep -v "latest" | sort -V | tail -1)
           if [ -n "$PREVIOUS_RELEASE_TAG" ]; then
             CHANGELOG_LINK="[${PREVIOUS_RELEASE_TAG}...${TAG_NAME}](https://github.com/${{ github.repository }}/compare/${PREVIOUS_RELEASE_TAG}...${TAG_NAME})"
           else
             CHANGELOG_LINK="[${TAG_NAME}](https://github.com/${{ github.repository }}/commits/${TAG_NAME})"
           fi
-          
+
           RELEASE_BODY=$(cat <<EOF
           **Docker Images:**
           - \`${{ env.REGISTRY }}/${{ github.repository }}:$DEV_VERSION-dev\`
           - \`${{ env.REGISTRY }}/${{ github.repository }}:dev\`
-          
+
           **Released at:** $RELEASE_DATE
-          
+
           ---
-          
+
           ## 📝 Commits in This Release
-          
+
           ${{ needs.prepare-release.outputs.commits }}
-          
+
           ---
-          
+
           $CHANGELOG_LINK
           EOF
           )
-          
+
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_BODY" \
             --prerelease \
             --repo ${{ github.repository }}
-          
+
           echo "✓ Created GitHub pre-release: $TAG_NAME"
