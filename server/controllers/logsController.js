@@ -24,7 +24,16 @@ function getLogsHandler(req, res, _next) {
     const since = parseInt(req.query.since, 10); // Line count to fetch after (for incremental updates)
     const logFile = req.query.file || "combined.log"; // Default to combined.log (Winston's combined log)
 
-    const logFilePath = path.join(logsDir, logFile);
+    // Security: validate log file path to prevent path traversal
+    const resolvedLogsDir = path.resolve(logsDir);
+    const logFilePath = path.resolve(logsDir, logFile);
+    if (!logFilePath.startsWith(resolvedLogsDir + path.sep) && logFilePath !== resolvedLogsDir) {
+      logger.warn(`[logs] Path traversal attempt blocked: ${logFile}`);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid log file path",
+      });
+    }
 
     // Check if logs directory exists
     if (!fs.existsSync(logsDir)) {

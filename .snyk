@@ -3,18 +3,19 @@
 version: v1.25.0
 ignore:
   SNYK-JS-MINIMATCH-15309438:
-    - "swagger-jsdoc > glob > minimatch":
+    - "*":
         reason: >-
-          glob patterns passed to swagger-jsdoc are hardcoded route paths in
-          source code. Untrusted user input never reaches minimatch. The only
-          fixed version (>=10.2.1) is API-incompatible with glob@7 used by
-          swagger-jsdoc@6.2.8 (minimatch 10 CJS export is an object, not a
-          function). Will re-evaluate when swagger-jsdoc releases a version
-          using glob@10+ or when minimatch backports a fix to 3.x-9.x.
+          minimatch@3.1.2 ReDoS: all usages are with hardcoded/trusted input.
+          swagger-jsdoc uses glob patterns from source code; sqlite3 uses
+          node-gyp glob patterns during native addon compilation. Untrusted
+          user input never reaches minimatch. The only fixed version (>=10.2.1)
+          is API-incompatible with glob@7 (minimatch 10 CJS export is an
+          object, not a function). Will re-evaluate when upstream deps migrate
+          to glob@10+ or when minimatch backports a fix to 3.x-9.x.
         expires: 2026-08-20T00:00:00.000Z
         created: 2026-02-20T00:00:00.000Z
   SNYK-JS-AJV-15274295:
-    - "eslint > ajv":
+    - "*":
         reason: >-
           ajv <8.18.0 ReDoS via $data option. eslint 10 hard-pins ajv@^6.12.4
           and is API-incompatible with ajv 8 (removed draft-04 schema refs,
