@@ -3,12 +3,16 @@
  * Upgrade analytics with sidebar (view tabs + filters), matching Portainer/Tracked Apps layout
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import PropTypes from "prop-types";
+import { SlidersHorizontal } from "lucide-react";
 import { useUpgradeHistory } from "../hooks/useUpgradeHistory";
 import { useTrackedAppUpgradeHistory } from "../hooks/useTrackedAppUpgradeHistory";
+import { useIsMobile } from "../hooks/useIsMobile";
 import AnalyticsSidebar from "../components/analytics/AnalyticsSidebar";
 import UpgradeChartsContent from "../components/analytics/UpgradeChartsContent";
+import MobileDrawer from "../components/ui/MobileDrawer";
+import Button from "../components/ui/Button";
 import { ANALYTICS_VIEW_TABS, ANALYTICS_DATA_SOURCE } from "../constants/analyticsPage";
 import styles from "./AnalyticsPage.module.css";
 
@@ -16,6 +20,12 @@ function AnalyticsPage({ portainerInstances = [] }) {
   const [activeViewTab, setActiveViewTab] = useState(ANALYTICS_VIEW_TABS.OVERVIEW);
   const [selectedDataSources, setSelectedDataSources] = useState(() => new Set());
   const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(() => new Set());
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
 
   const { history: containerHistoryRaw = [] } = useUpgradeHistory();
   const { history: trackedAppHistory = [] } = useTrackedAppUpgradeHistory();
@@ -36,18 +46,56 @@ function AnalyticsPage({ portainerInstances = [] }) {
     return includeTrackedApps ? trackedAppHistory : [];
   }, [trackedAppHistory, selectedDataSources]);
 
+  const sidebarProps = {
+    activeViewTab,
+    onViewTabChange: setActiveViewTab,
+    selectedDataSources,
+    onSelectedDataSourcesChange: setSelectedDataSources,
+    selectedPortainerInstances,
+    onSelectedPortainerInstancesChange: setSelectedPortainerInstances,
+    portainerInstances,
+  };
+
   return (
     <div className={styles.analyticsPage}>
+      {/* Mobile filter button */}
+      {isMobile && (
+        <div className={styles.mobileHeaderRow}>
+          <Button
+            onClick={() => setMobileSidebarOpen(true)}
+            variant="outline"
+            icon={SlidersHorizontal}
+            size="sm"
+            title="Filters"
+            aria-label="Open filters"
+            aria-expanded={mobileSidebarOpen ? "true" : "false"}
+            className={styles.mobileFilterButton}
+          >
+            Filters
+          </Button>
+        </div>
+      )}
+
       <div className={styles.analyticsSidebarLayout}>
-        <AnalyticsSidebar
-          activeViewTab={activeViewTab}
-          onViewTabChange={setActiveViewTab}
-          selectedDataSources={selectedDataSources}
-          onSelectedDataSourcesChange={setSelectedDataSources}
-          selectedPortainerInstances={selectedPortainerInstances}
-          onSelectedPortainerInstancesChange={setSelectedPortainerInstances}
-          portainerInstances={portainerInstances}
-        />
+        {/* Desktop: render sidebar inline */}
+        {!isMobile && <AnalyticsSidebar {...sidebarProps} />}
+
+        {/* Mobile: render sidebar in shared MobileDrawer */}
+        <MobileDrawer
+          isOpen={mobileSidebarOpen}
+          onClose={closeMobileSidebar}
+          title="Filters"
+          ariaLabel="Analytics filters"
+        >
+          <AnalyticsSidebar
+            {...sidebarProps}
+            onViewTabChange={(tab) => {
+              setActiveViewTab(tab);
+              closeMobileSidebar();
+            }}
+          />
+        </MobileDrawer>
+
         <div className={styles.analyticsContentArea} role="region" aria-label="Analytics charts">
           <UpgradeChartsContent
             containerHistory={containerHistory}

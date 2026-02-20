@@ -2,9 +2,10 @@
  * HomePage content component
  */
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
+import MobileNavigation from "../../Navigation/MobileNavigation";
 import RateLimitError from "../../ErrorDisplay/RateLimitError";
 import SummaryPage from "../../../pages/SummaryPage";
 import TrackedAppsPage from "../../../pages/TrackedAppsPage";
@@ -21,6 +22,8 @@ import { SETTINGS_TABS } from "../../../constants/settings";
  * @param {Object} props
  */
 const HomePageContent = ({
+  darkMode,
+  instanceAdmin,
   activeTab,
   contentTab,
   settingsTab,
@@ -75,6 +78,7 @@ const HomePageContent = ({
   handleAvatarUploaded,
   handleBatchConfigUpdate,
   handleColorSchemeChange,
+  onTemporaryThemeToggle,
   handleClear,
   handleClearGitHubCache,
   handleLogoutWithCleanup,
@@ -142,6 +146,13 @@ const HomePageContent = ({
   // Track previous tab to detect navigation
   const previousTabRef = useRef(activeTab);
 
+  // Scroll to top on tab change (important for mobile UX)
+  useEffect(() => {
+    if (previousTabRef.current !== activeTab) {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab]);
+
   // Automatically refresh containers when navigating to Portainer or Summary tabs
   // This ensures containers are refreshed and update status is re-evaluated
   useEffect(() => {
@@ -170,26 +181,74 @@ const HomePageContent = ({
     previousTabRef.current = currentTab;
   }, [activeTab, fetchContainers]);
 
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleMobileMenuToggle = (isOpen) => {
+    setIsMobileMenuOpen(isOpen);
+  };
+
   return (
-    <div className="container">
+    <div className="homepage-container">
       {/* Tabs - Show for all tabs except settings, configuration, batch logs, and admin */}
       {activeTab !== TAB_NAMES.SETTINGS &&
         activeTab !== TAB_NAMES.CONFIGURATION &&
         activeTab !== TAB_NAMES.BATCH_LOGS &&
         activeTab !== TAB_NAMES.ADMIN && (
-          <TabNavigation
-            activeTab={activeTab}
-            onTabChange={(tab) => {
-              setActiveTab(tab);
-              if (tab === TAB_NAMES.PORTAINER) {
-                setSelectedPortainerInstances(new Set());
-                setContentTab(CONTENT_TABS.UPDATES);
-              }
-            }}
-            containersWithUpdates={containersWithUpdates}
-            trackedAppsBehind={trackedAppsBehind}
-          />
+          <>
+            <TabNavigation
+              activeTab={activeTab}
+              onTabChange={(tab) => {
+                setActiveTab(tab);
+                if (tab === TAB_NAMES.PORTAINER) {
+                  setSelectedPortainerInstances(new Set());
+                  setContentTab(CONTENT_TABS.UPDATES);
+                }
+              }}
+              containersWithUpdates={containersWithUpdates}
+              trackedAppsBehind={trackedAppsBehind}
+            />
+
+            {/* Mobile Navigation - Bottom Navigation Bar */}
+            <MobileNavigation
+              activeTab={activeTab}
+              onTabChange={(tab) => {
+                setActiveTab(tab);
+                if (tab === TAB_NAMES.PORTAINER) {
+                  setSelectedPortainerInstances(new Set());
+                  setContentTab(CONTENT_TABS.UPDATES);
+                }
+              }}
+              containersWithUpdates={containersWithUpdates}
+              trackedAppsBehind={trackedAppsBehind}
+              darkMode={darkMode}
+              instanceAdmin={instanceAdmin}
+              onThemeToggle={onTemporaryThemeToggle}
+              onLogout={handleLogoutWithCleanup}
+              onMenuToggle={handleMobileMenuToggle}
+              isMenuOpen={isMobileMenuOpen}
+            />
+          </>
         )}
+
+      {/* Mobile Navigation - Always show on mobile */}
+      {activeTab === TAB_NAMES.SETTINGS ||
+      activeTab === TAB_NAMES.CONFIGURATION ||
+      activeTab === TAB_NAMES.BATCH_LOGS ||
+      activeTab === TAB_NAMES.ADMIN ? (
+        <MobileNavigation
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          containersWithUpdates={containersWithUpdates}
+          trackedAppsBehind={trackedAppsBehind}
+          darkMode={darkMode}
+          instanceAdmin={instanceAdmin}
+          onThemeToggle={onTemporaryThemeToggle}
+          onLogout={handleLogoutWithCleanup}
+          onMenuToggle={handleMobileMenuToggle}
+          isMenuOpen={isMobileMenuOpen}
+        />
+      ) : null}
 
       {/* Tab Content */}
       <div className="tab-content">
@@ -214,7 +273,6 @@ const HomePageContent = ({
             onEditInstance={openModal}
             editingPortainerInstance={editingPortainerInstance}
             refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
-            onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
             activeTab={settingsTab}
             onTabChange={setSettingsTab}
           />
@@ -223,7 +281,6 @@ const HomePageContent = ({
             onBatchConfigUpdate={handleBatchConfigUpdate}
             colorScheme={colorScheme}
             onColorSchemeChange={handleColorSchemeChange}
-            onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
             onTriggerBatch={handleBatchPull}
             onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
             activeTab={configurationTab}
@@ -234,7 +291,6 @@ const HomePageContent = ({
             onBatchConfigUpdate={handleBatchConfigUpdate}
             colorScheme={colorScheme}
             onColorSchemeChange={handleColorSchemeChange}
-            onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)}
             onTriggerBatch={handleBatchPull}
             onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
             activeTab="history"
@@ -296,9 +352,7 @@ const HomePageContent = ({
                   />
                 )}
                 {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
-                {activeTab === TAB_NAMES.ADMIN && (
-                  <AdminPage onReturnHome={() => setActiveTab(TAB_NAMES.SUMMARY)} />
-                )}
+                {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
               </>
             )}
           </>
@@ -309,6 +363,8 @@ const HomePageContent = ({
 };
 
 HomePageContent.propTypes = {
+  darkMode: PropTypes.bool,
+  instanceAdmin: PropTypes.bool,
   activeTab: PropTypes.string.isRequired,
   contentTab: PropTypes.string.isRequired,
   settingsTab: PropTypes.string.isRequired,
@@ -363,6 +419,7 @@ HomePageContent.propTypes = {
   handleAvatarUploaded: PropTypes.func.isRequired,
   handleBatchConfigUpdate: PropTypes.func.isRequired,
   handleColorSchemeChange: PropTypes.func.isRequired,
+  onTemporaryThemeToggle: PropTypes.func,
   handleClear: PropTypes.func.isRequired,
   handleClearGitHubCache: PropTypes.func.isRequired,
   handleLogoutWithCleanup: PropTypes.func.isRequired,

@@ -1,5 +1,4 @@
-import React, { useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useMemo } from "react";
 import PropTypes from "prop-types";
 import Header from "../components/Header/Header";
 import SettingsPage from "./SettingsPage";
@@ -26,8 +25,6 @@ function LogsPage({
   onSetSettingsTab,
   API_BASE_URL,
 }) {
-  const navigate = useNavigate();
-
   // Wrap navigation handlers to navigate to home route first
   const routerNavigation = useRouterNavigation({
     onNavigateToSummary,
@@ -36,11 +33,6 @@ function LogsPage({
     onNavigateToPortainer,
     onNavigateToTrackedApps,
   });
-
-  // Memoize return home handler
-  const handleReturnHome = useCallback(() => {
-    navigate("/");
-  }, [navigate]);
 
   // Memoize header props to prevent unnecessary re-renders
   const memoizedHeaderProps = useMemo(
@@ -55,12 +47,11 @@ function LogsPage({
   const memoizedSettingsProps = useMemo(
     () => ({
       ...settingsProps,
-      onReturnHome: handleReturnHome,
       activeTab: SETTINGS_TABS.LOGS,
       onTabChange: onSetSettingsTab,
       hideTabNavigation: true,
     }),
-    [settingsProps, handleReturnHome, onSetSettingsTab]
+    [settingsProps, onSetSettingsTab]
   );
 
   return (
@@ -80,15 +71,8 @@ LogsPage.propTypes = {
     userRole: PropTypes.string,
     avatar: PropTypes.string,
     darkMode: PropTypes.bool.isRequired,
-    notificationCount: PropTypes.number.isRequired,
-    activeContainersWithUpdates: PropTypes.array,
-    activeTrackedAppsBehind: PropTypes.array,
-    showNotificationMenu: PropTypes.bool.isRequired,
     showAvatarMenu: PropTypes.bool.isRequired,
-    onToggleNotificationMenu: PropTypes.func.isRequired,
     onToggleAvatarMenu: PropTypes.func.isRequired,
-    onDismissContainerNotification: PropTypes.func.isRequired,
-    onDismissTrackedAppNotification: PropTypes.func.isRequired,
     onTemporaryThemeToggle: PropTypes.func.isRequired,
     onLogout: PropTypes.func.isRequired,
   }).isRequired,

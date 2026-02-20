@@ -23,7 +23,7 @@ export const selectStyles = {
     backgroundColor: "var(--bg-primary)",
     border: "2px solid var(--border-color)",
     borderRadius: "8px",
-    zIndex: 9999,
+    zIndex: 3000,
   }),
   option: (base, state) => ({
     ...base,

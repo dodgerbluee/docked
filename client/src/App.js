@@ -1,6 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
+import "./styles/responsive.css";
+import { initializePerformanceMonitoring, MobilePerformance } from "./utils/performance";
+
+// PWA Service Worker Registration
+const registerServiceWorker = () => {
+  if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => {
+          console.log("SW registered: ", registration);
+        })
+        .catch((registrationError) => {
+          console.log("SW registration failed: ", registrationError);
+        });
+    });
+  }
+};
 import Login from "./components/Login";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
@@ -135,6 +153,28 @@ function App() {
 
   // Discord webhooks - using custom hook
   const { discordWebhooks } = useDiscordSettings(isAuthenticated, authToken);
+
+  // Initialize performance monitoring and PWA
+  useEffect(() => {
+    // Performance monitoring
+    initializePerformanceMonitoring();
+
+    // Mobile optimizations
+    if (MobilePerformance.isLowEndDevice()) {
+      console.log("Low-end device detected, enabling performance optimizations");
+      // Could disable animations, reduce polling frequency, etc.
+    }
+
+    // Service worker
+    registerServiceWorker();
+
+    // Cleanup on unmount
+    return () => {
+      if (window.performanceMonitor) {
+        window.performanceMonitor.cleanup();
+      }
+    };
+  }, []);
 
   // Container data management - using custom hook
   const successfullyUpdatedContainersRef = useRef(new Set()); // Track containers that were successfully updated to preserve hasUpdate:false
@@ -481,17 +521,8 @@ function App() {
               userRole,
               avatar,
               darkMode,
-              notificationCount,
-              activeContainersWithUpdates,
-              activeTrackedAppsBehind,
-              versionUpdateInfo,
-              showNotificationMenu,
               showAvatarMenu,
-              onToggleNotificationMenu: toggleNotificationMenu,
               onToggleAvatarMenu: toggleAvatarMenu,
-              onDismissContainerNotification: handleDismissContainerNotification,
-              onDismissTrackedAppNotification: handleDismissTrackedAppNotification,
-              onDismissVersionUpdateNotification: handleDismissVersionUpdateNotification,
               onTemporaryThemeToggle: handleTemporaryThemeToggle,
               onLogout: handleLogoutWithCleanup,
             }}

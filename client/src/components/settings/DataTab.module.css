@@ -523,3 +523,74 @@ body.dark-mode .content {
   background: var(--bg-tertiary);
   border-radius: 4px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .headerTitle {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .searchInput {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .content {
+    min-height: 250px;
+    max-height: 60vh;
+    padding: 10px;
+    font-size: 0.8rem;
+  }
+
+  .viewModeToggle {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .viewModeButton {
+    flex-shrink: 0;
+    min-height: var(--touch-target-min);
+  }
+
+  .dataSection,
+  .containerData {
+    margin-left: 8px;
+    padding: 8px;
+  }
+
+  .subCategorySection {
+    margin-left: 4px;
+    padding: 8px;
+  }
+
+  .recordsControls {
+    flex-wrap: wrap;
+  }
+
+  .expandAllButton {
+    min-height: var(--touch-target-min);
+  }
+
+  .empty {
+    padding: 24px;
+  }
+}

@@ -15,7 +15,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  z-index: 9999 !important;
+  z-index: var(--z-dropdown) !important;
   animation: slideDown 0.2s ease-out;
   isolation: isolate;
   backdrop-filter: none !important;

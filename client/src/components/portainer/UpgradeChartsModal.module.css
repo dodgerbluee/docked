@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal-overlay);
   animation: fadeIn 0.2s ease-out;
   backdrop-filter: blur(4px);
 }
@@ -359,13 +359,28 @@ body.dark-mode .tooltip {
     padding: 16px 20px;
   }
 
+  .closeButton {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+  }
+
   .statsBar {
     grid-template-columns: repeat(2, 1fr);
     padding: 16px 20px;
   }
 
+  .statItem:hover {
+    transform: none;
+  }
+
   .tabs {
     padding: 12px 20px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab {
+    min-height: var(--touch-target-min);
+    flex-shrink: 0;
   }
 
   .content {
@@ -382,8 +397,20 @@ body.dark-mode .tooltip {
     padding: 16px;
   }
 
+  .chartCard:hover,
+  .chartCardWide:hover,
+  .funFactsCard:hover {
+    transform: none;
+  }
+
   .title {
     font-size: 1.25rem;
+  }
+
+  .funFact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }
 

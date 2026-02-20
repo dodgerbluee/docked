@@ -10,6 +10,39 @@
   margin-top: 20px;
 }
 
+/* Mobile-responsive sidebar */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid var(--border-color);
+    padding: var(--spacing-mobile-md);
+    margin-top: var(--spacing-mobile-lg);
+  }
+
+  .viewsToolbar {
+    gap: 6px;
+    margin-bottom: 22px;
+  }
+
+  .sidebarItem {
+    padding: 9px 14px;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .sidebarHeader h3 {
+    font-size: 1rem;
+  }
+
+  .filterLabel {
+    padding: 9px 10px;
+  }
+}
+
 .viewsToolbar {
   display: flex;
   flex-direction: column;

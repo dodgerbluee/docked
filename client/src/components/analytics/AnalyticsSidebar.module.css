@@ -216,3 +216,23 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   flex: 1;
   cursor: pointer;
 }
+
+/* Mobile: sidebar renders inside MobileDrawer, needs full width */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    border: none;
+    border-radius: 0;
+    margin-top: 0;
+    background: transparent;
+  }
+
+  .sidebarItem {
+    min-height: var(--touch-target-min);
+  }
+
+  .filterLabel {
+    min-height: var(--touch-target-min);
+  }
+}

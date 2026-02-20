@@ -498,3 +498,69 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   margin: 0;
   margin-left: 28px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .updateSection {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .instanceContent {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .tokenContent {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .instanceCard:hover,
+  .tokenCard:hover {
+    transform: none;
+  }
+
+  .addInstanceCard:hover,
+  .addTokenCard:hover {
+    transform: none;
+  }
+
+  .dataManagement {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .repositoryTokensSection {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .sectionDivider {
+    margin: 24px 0;
+  }
+
+  .dangerButton {
+    min-height: var(--touch-target-min);
+  }
+
+  .checkboxLabel {
+    min-height: var(--touch-target-min);
+  }
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+  }
+}

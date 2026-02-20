@@ -1,42 +1,67 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Docked - Update Manager" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#005a9c" />
+    <meta
+      name="description"
+      content="Docked - Modern Docker container maintenance tool with Portainer integration"
+    />
     <link rel="icon" type="image/png" sizes="32x32" href="/img/logo.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/img/logo.png" />
     <link rel="apple-touch-icon" href="/img/logo.png" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Mobile Optimizations -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Docked" />
+    <meta name="application-name" content="Docked" />
+    <meta name="msapplication-TileColor" content="#005a9c" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <title>Docked</title>
     <script>
       // Apply dark mode immediately to prevent flash of light mode
-      (function() {
+      (function () {
         try {
+          var isDark = false;
           // Check localStorage for saved dark mode state
-          const savedDarkMode = localStorage.getItem('darkMode');
-          if (savedDarkMode === 'true') {
-            document.body.classList.add('dark-mode');
-            return;
+          var savedDarkMode = localStorage.getItem("darkMode");
+          if (savedDarkMode === "true") {
+            isDark = true;
+          } else if (
+            savedDarkMode === null &&
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+          ) {
+            // If no saved state, check system preference
+            isDark = true;
           }
-          // If no saved state, check system preference
-          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.body.classList.add('dark-mode');
+          if (isDark) {
+            document.body.classList.add("dark-mode");
+            // Update theme-color meta tag for dark mode status bar
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#1a1a2e");
           }
         } catch (e) {
           // Silently fail if localStorage is not available
         }
       })();
     </script>
+    <!-- Debug scripts removed -->
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
 </html>
-
-
-

@@ -56,7 +56,7 @@ export function showToast(message, type = "info", duration = 3000, onClick = nul
         position: fixed;
         top: 110px;
         right: 20px;
-        z-index: 10000;
+        z-index: var(--z-toast, 5000);
         display: flex;
         flex-direction: column;
         gap: 12px;

@@ -234,3 +234,85 @@ body.dark-mode .actionButtons .actionButton:hover:not(:disabled) {
   border-color: var(--dodger-blue-light);
   color: var(--dodger-blue-light);
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .header {
+    margin-bottom: 16px;
+  }
+
+  /* Hide the table on mobile, show cards instead */
+  .tableContainer {
+    border: none;
+    background: transparent;
+    overflow-x: visible;
+  }
+
+  .usersTable thead {
+    display: none;
+  }
+
+  .usersTable,
+  .usersTable tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .usersTable tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+  }
+
+  .usersTable tbody tr:last-child {
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .usersTable td {
+    padding: 0;
+    border-bottom: none;
+    font-size: 0.9rem;
+  }
+
+  .date {
+    text-align: left;
+  }
+
+  .username {
+    font-size: 1rem;
+  }
+
+  .roleBadge {
+    align-self: flex-start;
+  }
+
+  .roleBadgeInstanceAdmin:hover,
+  .roleBadgeAdmin:hover,
+  .roleBadgeMember:hover {
+    transform: none;
+  }
+
+  .userActions {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+
+  .actionButtons {
+    gap: 10px;
+  }
+
+  .actionButtons .actionButton {
+    width: 100%;
+    min-height: var(--touch-target-min);
+  }
+}

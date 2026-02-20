@@ -81,13 +81,20 @@ export const useTheme = (isAuthenticated, authToken) => {
     }
   }, [colorScheme]);
 
-  // Update body class when dark mode changes and persist to localStorage
+  // Update body class and theme-color meta tag when dark mode changes, persist to localStorage
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add("dark-mode");
     } else {
       document.body.classList.remove("dark-mode");
     }
+
+    // Update theme-color meta tag for mobile status bar
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute("content", darkMode ? "#1a1a2e" : "#005a9c");
+    }
+
     // Persist dark mode state to localStorage for immediate application on page load
     try {
       localStorage.setItem("darkMode", darkMode.toString());

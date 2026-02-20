@@ -152,31 +152,21 @@ function HomePage({
           userRole={userRole}
           avatar={avatar}
           darkMode={darkMode}
-          notificationCount={notificationCount}
-          activeContainersWithUpdates={activeContainersWithUpdates}
-          activeTrackedAppsBehind={activeTrackedAppsBehind}
-          versionUpdateInfo={versionUpdateInfo}
-          discordWebhooks={discordWebhooks}
-          showNotificationMenu={showNotificationMenu}
           showAvatarMenu={showAvatarMenu}
-          onToggleNotificationMenu={toggleNotificationMenu}
           onToggleAvatarMenu={toggleAvatarMenu}
           instanceAdmin={instanceAdmin}
           onNavigateToSummary={handleNavigateToSummary}
           onNavigateToSettings={handleNavigateToSettings}
           onNavigateToBatch={handleNavigateToBatch}
           onNavigateToAdmin={handleNavigateToAdmin}
-          onNavigateToPortainer={handleNavigateToPortainer}
-          onNavigateToTrackedApps={handleNavigateToTrackedApps}
-          onDismissContainerNotification={handleDismissContainerNotification}
-          onDismissTrackedAppNotification={handleDismissTrackedAppNotification}
-          onDismissVersionUpdateNotification={onDismissVersionUpdateNotification}
           onTemporaryThemeToggle={handleTemporaryThemeToggle}
           onLogout={handleLogoutWithCleanup}
           API_BASE_URL={API_BASE_URL}
         />
 
         <HomePageContent
+          darkMode={darkMode}
+          instanceAdmin={instanceAdmin}
           activeTab={activeTab}
           contentTab={contentTab}
           settingsTab={settingsTab}
@@ -230,6 +220,7 @@ function HomePage({
           handleAvatarUploaded={handleAvatarUploaded}
           handleBatchConfigUpdate={handleBatchConfigUpdate}
           handleColorSchemeChange={handleColorSchemeChange}
+          onTemporaryThemeToggle={handleTemporaryThemeToggle}
           handleClear={handleClear}
           handleClearGitHubCache={handleClearGitHubCache}
           handleLogoutWithCleanup={handleLogoutWithCleanup}

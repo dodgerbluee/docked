@@ -125,3 +125,32 @@ body.dark-mode .statusText.update {
     transform: rotate(360deg);
   }
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .aboutSection {
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+
+  .aboutCard {
+    max-width: 100%;
+  }
+
+  .versionRow,
+  .environmentRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .updateStatusRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .updateButton {
+    align-self: flex-start;
+  }
+}

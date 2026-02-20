@@ -6,6 +6,7 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import MobileDrawer from "../components/ui/MobileDrawer";
 import PortainerSidebar from "../components/portainer/PortainerSidebar";
 import ContainersTab from "../components/portainer/ContainersTab";
 import UnusedTab from "../components/portainer/UnusedTab";
@@ -14,6 +15,7 @@ import ContainerDebugModal from "../components/portainer/ContainerDebugModal";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
 import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
 import { usePortainerPage } from "../hooks/usePortainerPage";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
 import styles from "./PortainerPage.module.css";
 import PortainerHeader from "./PortainerPage/components/PortainerHeader";
@@ -104,6 +106,18 @@ function PortainerPage({
   // Image source filter state
   const [selectedImageSourceFilters, setSelectedImageSourceFilters] = useState(new Set());
 
+  // Mobile-only sidebar drawer state (MobileDrawer handles escape, scroll lock, focus trap)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
+
+  const openMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(true);
+  }, []);
+
   // Debug modal state - centralized at page level for better performance
   const [debugModalContainer, setDebugModalContainer] = useState(null);
 
@@ -155,7 +169,6 @@ function PortainerPage({
     }
   }, [portainerPage]);
 
-  // Use extracted toolbar actions component
   const toolbarActions = (
     <PortainerToolbarActions
       contentTab={portainerPage.contentTab}
@@ -169,6 +182,7 @@ function PortainerPage({
       onToggleImageSelect={portainerPage.handleToggleImageSelect}
       onBatchUpgrade={handleBatchUpgradeClick}
       onBatchDelete={handleBatchDeleteClick}
+      compactLabels={isMobile}
     />
   );
 
@@ -182,6 +196,8 @@ function PortainerPage({
         showCheckmark={showCheckmark}
         portainerInstancesCount={portainerInstances.length}
         toolbarActions={toolbarActions}
+        mobileSidebarOpen={mobileSidebarOpen}
+        onMobileSidebarOpen={openMobileSidebar}
       />
 
       <PortainerStatusAlerts
@@ -192,18 +208,64 @@ function PortainerPage({
       />
 
       <div className={styles.portainerSidebarLayout}>
-        <ErrorBoundary>
-          <PortainerSidebar
-            portainerInstances={portainerPage.sortedPortainerInstances}
-            contentTab={portainerPage.contentTab}
-            onContentTabChange={portainerPage.setContentTab}
-            selectedPortainerInstances={portainerPage.selectedPortainerInstances}
-            onSelectedPortainerInstancesChange={portainerPage.setSelectedPortainerInstances}
-            selectedImageSourceFilters={selectedImageSourceFilters}
-            onSelectedImageSourceFiltersChange={setSelectedImageSourceFilters}
-            onAddInstance={onAddInstance}
-          />
-        </ErrorBoundary>
+        {/* Desktop: render sidebar inline */}
+        {!isMobile && (
+          <ErrorBoundary>
+            <div
+              className={styles.portainerSidebar}
+              role="complementary"
+              aria-label="Portainer filters"
+            >
+              <PortainerSidebar
+                portainerInstances={portainerPage.sortedPortainerInstances}
+                contentTab={portainerPage.contentTab}
+                onContentTabChange={(tab) => {
+                  portainerPage.setContentTab(tab);
+                }}
+                selectedPortainerInstances={portainerPage.selectedPortainerInstances}
+                onSelectedPortainerInstancesChange={(next) => {
+                  portainerPage.setSelectedPortainerInstances(next);
+                }}
+                selectedImageSourceFilters={selectedImageSourceFilters}
+                onSelectedImageSourceFiltersChange={(next) => {
+                  setSelectedImageSourceFilters(next);
+                }}
+                onAddInstance={onAddInstance}
+              />
+            </div>
+          </ErrorBoundary>
+        )}
+
+        {/* Mobile: render sidebar in shared MobileDrawer */}
+        <MobileDrawer
+          isOpen={mobileSidebarOpen}
+          onClose={closeMobileSidebar}
+          title="Filters"
+          ariaLabel="Portainer filters"
+        >
+          <ErrorBoundary>
+            <PortainerSidebar
+              portainerInstances={portainerPage.sortedPortainerInstances}
+              contentTab={portainerPage.contentTab}
+              onContentTabChange={(tab) => {
+                portainerPage.setContentTab(tab);
+                closeMobileSidebar();
+              }}
+              selectedPortainerInstances={portainerPage.selectedPortainerInstances}
+              onSelectedPortainerInstancesChange={(next) => {
+                portainerPage.setSelectedPortainerInstances(next);
+              }}
+              selectedImageSourceFilters={selectedImageSourceFilters}
+              onSelectedImageSourceFiltersChange={(next) => {
+                setSelectedImageSourceFilters(next);
+              }}
+              onAddInstance={() => {
+                closeMobileSidebar();
+                onAddInstance();
+              }}
+            />
+          </ErrorBoundary>
+        </MobileDrawer>
 
         <div className={styles.portainerContentArea}>
           {portainerInstances.length === 0 ? (

@@ -1,9 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Home } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary";
 import BatchTabNavigation from "../components/batch/BatchTabNavigation";
-import Button from "../components/ui/Button";
 import { BATCH_TABS } from "../constants/batch";
 import styles from "./BatchPage.module.css";
 
@@ -20,7 +18,6 @@ function BatchPage({
   onBatchConfigUpdate,
   colorScheme,
   onColorSchemeChange,
-  onReturnHome,
   onTriggerBatch,
   onTriggerTrackedAppsBatch,
   activeTab: controlledActiveTab,
@@ -56,17 +53,6 @@ function BatchPage({
       <div className={styles.summaryHeader}>
         <div className={styles.headerContent}>
           <h2 className={styles.batchHeader}>Batch</h2>
-          {onReturnHome && (
-            <Button
-              onClick={onReturnHome}
-              variant="outline"
-              icon={Home}
-              iconPosition="left"
-              className={styles.returnHomeButton}
-            >
-              Return Home
-            </Button>
-          )}
         </div>
       </div>
 
@@ -100,7 +86,6 @@ BatchPage.propTypes = {
   onBatchConfigUpdate: PropTypes.func,
   colorScheme: PropTypes.string,
   onColorSchemeChange: PropTypes.func,
-  onReturnHome: PropTypes.func,
   onTriggerBatch: PropTypes.func,
   onTriggerTrackedAppsBatch: PropTypes.func,
   activeTab: PropTypes.string,

@@ -62,6 +62,12 @@ body.dark-mode .version-footer-link:hover {
   pointer-events: none;
 }
 
+.version-footer a,
+.version-footer span {
+  min-height: auto;
+  min-width: auto;
+}
+
 /* Wrapper for version footer to align it to the right */
 .version-footer-wrapper {
   display: flex;
@@ -70,4 +76,23 @@ body.dark-mode .version-footer-link:hover {
   max-width: 1600px;
   margin: 0;
   padding-right: 20px;
+}
+
+@media (max-width: 768px) {
+  .version-footer-wrapper {
+    position: static;
+    padding: 0;
+    justify-content: center;
+    pointer-events: auto;
+    margin-bottom: calc(64px + env(safe-area-inset-bottom));
+    padding-bottom: 8px;
+  }
+
+  .version-footer {
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    opacity: 0.8;
+    pointer-events: auto;
+    margin-top: 16px;
+  }
 }

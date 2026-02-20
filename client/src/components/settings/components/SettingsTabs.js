@@ -12,6 +12,7 @@ import DiscordTab from "../DiscordTab";
 import UserDetailsTab from "../UserDetailsTab";
 import RepositoriesTab from "../RepositoriesTab";
 import DataTab from "../DataTab";
+import LogsTab from "../LogsTab";
 import { SETTINGS_TABS } from "../../../constants/settings";
 
 /**
@@ -144,6 +145,10 @@ const SettingsTabs = ({
 
   if (currentActiveSection === SETTINGS_TABS.DATA && settings.localRefreshingTogglesEnabled) {
     return <DataTab />;
+  }
+
+  if (currentActiveSection === SETTINGS_TABS.LOGS) {
+    return <LogsTab />;
   }
 
   return null;

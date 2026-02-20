@@ -397,7 +397,46 @@ body.dark-mode .portainerBadge:hover {
 }
 
 @media (max-width: 768px) {
+  .stackHeader {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .stackHeaderLeft {
+    gap: 10px;
+  }
+
+  .stackToggle {
+    font-size: 0.85rem;
+    width: 22px;
+    height: 22px;
+  }
+
+  .stackName {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .stackCount {
+    font-size: 0.85rem;
+  }
+
   .imagesGrid {
     grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .imageCard {
+    background: var(--bg-secondary);
+    padding: 10px;
+  }
+
+  .cardHeader {
+    margin-bottom: 8px;
+  }
+
+  .cardHeader h3 {
+    font-size: 1rem;
   }
 }

@@ -41,8 +41,28 @@
   margin-bottom: 0;
 }
 
+.mobileHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mobileFilterButton {
+  min-height: var(--touch-target-min);
+  -webkit-tap-highlight-color: transparent;
+}
+
 @media (max-width: 768px) {
   .analyticsSidebarLayout {
     flex-direction: column;
+    gap: 0;
+    min-height: auto;
+    align-items: stretch;
+  }
+
+  .analyticsContentArea {
+    margin-top: 0;
+    border-radius: 8px;
   }
 }

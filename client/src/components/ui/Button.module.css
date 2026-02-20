@@ -10,6 +10,8 @@
   border-radius: 8px;
   font-family: inherit;
   line-height: 1.5;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
 }
 
 .button:disabled {
@@ -22,6 +24,16 @@
 .sm {
   padding: 6px 10px;
   font-size: 0.875rem;
+  min-height: 36px; /* Smaller minimum for small buttons */
+  min-width: 36px;
+}
+
+@media (max-width: 768px) {
+  .sm {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    padding: 10px 12px;
+  }
 }
 
 .button.sm {
@@ -31,11 +43,15 @@
 .md {
   padding: 10px 20px;
   font-size: 1rem;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
 }
 
 .lg {
   padding: 12px 24px;
   font-size: 1.125rem;
+  min-height: var(--touch-target-comfortable);
+  min-width: var(--touch-target-comfortable);
 }
 
 /* Variants */
@@ -127,4 +143,30 @@ body.dark-mode .primary {
 
 body.dark-mode .primary:hover:not(:disabled) {
   box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .button {
+    font-size: var(--font-size-mobile-base);
+    min-height: var(--touch-target-min);
+  }
+
+  .sm {
+    padding: var(--spacing-mobile-sm) var(--spacing-mobile-md);
+    font-size: var(--font-size-mobile-sm);
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .md {
+    padding: var(--spacing-mobile-md) var(--spacing-mobile-xl);
+    font-size: var(--font-size-mobile-base);
+  }
+
+  .lg {
+    padding: var(--spacing-mobile-lg) var(--spacing-mobile-2xl);
+    font-size: var(--font-size-mobile-lg);
+    min-height: var(--touch-target-comfortable);
+  }
 }

@@ -28,6 +28,36 @@
   --spacing-xl: 30px;
   --spacing-2xl: 40px;
 
+  /* Typography Tokens */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  /* Mobile Typography Tokens */
+  --font-size-mobile-xs: 0.6875rem;
+  --font-size-mobile-sm: 0.75rem;
+  --font-size-mobile-base: 0.875rem;
+  --font-size-mobile-lg: 1rem;
+  --font-size-mobile-xl: 1.125rem;
+  --font-size-mobile-2xl: 1.25rem;
+  --font-size-mobile-3xl: 1.5rem;
+  --font-size-mobile-4xl: 1.75rem;
+
+  /* Line Height Tokens */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Mobile Line Height Tokens */
+  --line-height-mobile-tight: 1.3;
+  --line-height-mobile-normal: 1.4;
+  --line-height-mobile-relaxed: 1.6;
+
   /* Additional Modern UI Colors */
   --color-primary: #6366f1;
   --color-blue: #3b82f6;
@@ -37,6 +67,43 @@
   --color-purple: #a855f7;
   --color-indigo: #6366f1;
   --color-warning: #f59e0b;
+
+  /* Mobile-Specific Spacing */
+  --spacing-mobile-xs: 2px;
+  --spacing-mobile-sm: 4px;
+  --spacing-mobile-md: 8px;
+  --spacing-mobile-lg: 12px;
+  --spacing-mobile-xl: 16px;
+  --spacing-mobile-2xl: 20px;
+  --spacing-mobile-3xl: 24px;
+  --spacing-mobile-4xl: 28px;
+
+  /* Touch Target Sizes */
+  --touch-target-min: 44px;
+  --touch-target-comfortable: 48px;
+
+  /* Breakpoints */
+  --breakpoint-mobile: 320px;
+  --breakpoint-mobile-large: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-tablet-large: 1024px;
+  --breakpoint-desktop: 1200px;
+  --breakpoint-desktop-large: 1440px;
+
+  /* Z-Index Scale
+     Standardized layering to prevent z-index wars.
+     Each tier is spaced by 100 to allow intermediate values if needed. */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-header: 1000;
+  --z-drawer-overlay: 1100;
+  --z-drawer: 1200;
+  --z-mobile-nav: 1300;
+  --z-modal-overlay: 2000;
+  --z-modal: 2000;
+  --z-dropdown: 3000;
+  --z-confirm: 4000;
+  --z-toast: 5000;
 }
 
 /* Dark Mode - Dodger Away Colors */
@@ -62,8 +129,16 @@ body.dark-mode {
 }
 
 .App {
-  max-width: 1500px;
+  width: 100%;
   margin: 0 auto;
+  min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .App {
+    max-width: 100% !important;
+    padding: 0;
+  }
 }
 
 /* Reusable danger/red button classes */
@@ -290,7 +365,7 @@ body.dark-mode .primary-button:hover:not(:disabled) {
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--shadow);
   min-width: 200px;
-  z-index: 1000;
+  z-index: var(--z-dropdown);
   overflow: hidden;
 }
 
@@ -439,6 +514,18 @@ body.dark-mode .primary-button:hover:not(:disabled) {
 .tabs-container {
   margin-bottom: 23px;
   border-bottom: 3px solid var(--border-color);
+}
+
+/* Mobile - Hide desktop tabs */
+@media (max-width: 768px) {
+  .tabs-container {
+    display: none;
+  }
+
+  .container {
+    border-radius: 0;
+    padding: 16px 12px;
+  }
 }
 
 .tabs {
@@ -686,7 +773,6 @@ body.dark-mode .add-instance-tab.add-instance-icon-only:hover {
 }
 
 .tab-content {
-  min-height: 400px;
 }
 
 /* Summary Page */
@@ -983,7 +1069,7 @@ body.dark-mode .instance-stat .stat-number.current {
   background: var(--dodger-blue);
   color: white;
   padding: 16px 24px;
-  z-index: 1000;
+  z-index: var(--z-header);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   animation: slideDown 0.3s ease-out;
 }

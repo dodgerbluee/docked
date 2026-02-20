@@ -23,6 +23,7 @@ const TrackedAppsToolbar = ({
   markingUpgraded,
   onSelectAll,
   onBatchMarkUpgraded,
+  compactLabels = false,
 }) => {
   if (appsWithUpdates.length === 0) {
     return null;
@@ -31,7 +32,13 @@ const TrackedAppsToolbar = ({
   return (
     <>
       <Button variant="outline" size="sm" onClick={onSelectAll} disabled={markingUpgraded}>
-        {allAppsWithUpdatesSelected ? "Deselect All" : "Select All"}
+        {allAppsWithUpdatesSelected
+          ? compactLabels
+            ? "None"
+            : "Deselect All"
+          : compactLabels
+            ? "All"
+            : "Select All"}
       </Button>
       <Button
         variant="outline"
@@ -41,7 +48,9 @@ const TrackedAppsToolbar = ({
       >
         {markingUpgraded
           ? `Marking Upgraded (${selectedApps.size})...`
-          : `Mark Upgraded (${selectedApps.size})`}
+          : compactLabels
+            ? `Upgraded (${selectedApps.size})`
+            : `Mark Upgraded (${selectedApps.size})`}
       </Button>
     </>
   );
@@ -54,6 +63,7 @@ TrackedAppsToolbar.propTypes = {
   markingUpgraded: PropTypes.bool.isRequired,
   onSelectAll: PropTypes.func.isRequired,
   onBatchMarkUpgraded: PropTypes.func.isRequired,
+  compactLabels: PropTypes.bool,
 };
 
 export default TrackedAppsToolbar;

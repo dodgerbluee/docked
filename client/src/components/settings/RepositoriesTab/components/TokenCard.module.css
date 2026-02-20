@@ -84,9 +84,9 @@ body.dark-mode .tokenCard:hover {
 
 .menuButton {
   padding: 4px;
-  min-width: auto;
-  width: 32px;
-  height: 32px;
+  min-width: var(--touch-target-min);
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
 }
 
 .menuOverlay {
@@ -95,14 +95,14 @@ body.dark-mode .tokenCard:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 9998;
+  z-index: var(--z-dropdown);
 }
 
 .menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 9999;
+  z-index: calc(var(--z-dropdown) + 1);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;

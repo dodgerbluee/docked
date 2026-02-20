@@ -145,6 +145,46 @@
 
 @media (max-width: 768px) {
   .heroStats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .heroCard {
+    padding: 12px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  /* 5th card (Tracked Apps) spans both columns */
+  .heroCard:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .heroCard.clickable:hover {
+    transform: none;
+  }
+
+  .cardIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .cardIcon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .cardValue {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+
+  .cardLabel {
+    font-size: 0.75rem;
+  }
+
+  .cardSubtext {
+    font-size: 0.6875rem;
   }
 }

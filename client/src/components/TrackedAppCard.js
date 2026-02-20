@@ -12,6 +12,8 @@ import GitLabIcon from "./icons/GitLabIcon";
 import Button from "./ui/Button";
 import styles from "./TrackedAppCard.module.css";
 
+const DOCKER_ICON_SRC = `${process.env.PUBLIC_URL || ""}/img/docker-mark-white.svg`;
+
 /**
  * TrackedAppCard component
  * @param {Object} image - Tracked image data
@@ -170,29 +172,32 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
         </div>
 
         <div className={`${styles.repoInfo} ${image.has_update ? styles.repoInfoWithUpdates : ""}`}>
-          {(image.source_type === "github" || image.source_type === "gitlab") &&
-          image.github_repo ? (
-            <a
-              href={
-                image.github_repo.startsWith("http")
-                  ? image.github_repo
-                  : image.source_type === "gitlab"
-                    ? `https://gitlab.com/${image.github_repo}`
-                    : `https://github.com/${image.github_repo}`
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.repoName}
-              title={subheaderText}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {subheaderText}
-            </a>
-          ) : (
-            <span className={styles.repoName} title={subheaderText}>
-              {subheaderText}
-            </span>
-          )}
+          <div className={styles.repoInfoLeft}>
+            {(image.source_type === "github" || image.source_type === "gitlab") &&
+            image.github_repo ? (
+              <a
+                href={
+                  image.github_repo.startsWith("http")
+                    ? image.github_repo
+                    : image.source_type === "gitlab"
+                      ? `https://gitlab.com/${image.github_repo}`
+                      : `https://github.com/${image.github_repo}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.repoName}
+                title={subheaderText}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {subheaderText}
+              </a>
+            ) : (
+              <span className={styles.repoName} title={subheaderText}>
+                {subheaderText}
+              </span>
+            )}
+          </div>
+
           <div className={styles.iconGroup}>
             {image.source_type === "github" && image.github_repo && (
               <>
@@ -294,11 +299,7 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
                     }
                   }}
                 >
-                  <img
-                    src="/img/docker-mark-white.svg"
-                    alt="Docker"
-                    className={styles.dockerIconSmall}
-                  />
+                  <img src={DOCKER_ICON_SRC} alt="Docker" className={styles.dockerIconSmall} />
                 </a>
                 <Button
                   onClick={handleEdit}
@@ -326,16 +327,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
               </>
             )}
           </div>
-          {image.releaseUrl && (
-            <a
-              href={image.releaseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.releaseLink}
-            >
-              View Release →
-            </a>
-          )}
         </div>
 
         <div className={styles.versionInfo}>
@@ -388,10 +379,23 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
               <strong>Released:</strong> <span className={styles.unavailable}>Not available</span>
             </p>
           ) : null}
+
+          {image.releaseUrl && (
+            <p className={styles.metaItem}>
+              <strong>Release:</strong>{" "}
+              <a
+                href={image.releaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.versionLink}
+                onClick={(e) => e.stopPropagation()}
+              >
+                View
+              </a>
+            </p>
+          )}
         </div>
       </div>
-
-      <div className={styles.actions}></div>
     </div>
   );
 });

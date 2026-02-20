@@ -136,3 +136,33 @@ body.dark-mode .runCard.selected {
   justify-content: flex-end;
   gap: 12px;
 }
+
+/* ==================== Mobile Responsive ==================== */
+@media (max-width: 768px) {
+  .runCard {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .runCard:hover {
+    transform: none;
+  }
+
+  .runId {
+    font-size: 0.9rem;
+  }
+
+  .timestampRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .errorModalActions {
+    flex-direction: column;
+  }
+
+  .errorModalActions > * {
+    width: 100%;
+  }
+}
