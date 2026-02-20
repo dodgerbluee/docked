@@ -9,6 +9,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  noop:
+    name: No-op (keeps workflow valid)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow enabled
+        run: echo "Security Scan workflow is enabled."
+
   # npm audit checks
   npm-audit:
     runs-on: ubuntu-latest
