@@ -8,7 +8,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 env:
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
 
 jobs:
   # Validate PR title follows conventional commits (PRs only)
@@ -49,14 +49,14 @@ jobs:
   lint:
     uses: ./.github/workflows/run-linting.yml
     with:
-      node-version: "18"
+      node-version: "22"
       check-formatting: true
 
   # Run tests with coverage
   test:
     uses: ./.github/workflows/run-tests.yml
     with:
-      node-version: "18"
+      node-version: "22"
       run-coverage: true
       upload-coverage: ${{ github.event_name == 'push' }}
 
