@@ -23,7 +23,7 @@ import {
 import { Target, Award, Clock, Zap, BarChart3, Package } from "lucide-react";
 import { processChartData, calculateStats, COLORS, CHART_COLORS } from "./upgradeChartsUtils";
 import { ANALYTICS_VIEW_TABS } from "../../constants/analyticsPage";
-import styles from "../portainer/UpgradeChartsModal.module.css";
+import styles from "./UpgradeChartsContent.module.css";
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;

@@ -132,6 +132,24 @@ body.dark-mode .avatar-menu {
   background: var(--bg-primary) !important;
 }
 
+.avatar-menu-identity {
+  padding: 15px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.avatar-menu-username {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.avatar-menu-role {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 /* Ensure solid background in light mode */
 :root .avatar-menu-actions {
   background: #ffffff !important;
@@ -245,6 +263,10 @@ body.dark-mode .avatar-menu-item:hover {
   /* Disable hover transforms on touch */
   .avatar-menu-container:hover {
     transform: none;
+  }
+
+  .username-role-container {
+    display: none;
   }
 }
 
