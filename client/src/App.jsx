@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import "./styles/responsive.css";
@@ -6,7 +6,7 @@ import { initializePerformanceMonitoring, MobilePerformance } from "./utils/perf
 
 // PWA Service Worker Registration
 const registerServiceWorker = () => {
-  if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+  if ("serviceWorker" in navigator && import.meta.env.PROD) {
     window.addEventListener("load", () => {
       navigator.serviceWorker
         .register("/sw.js")
@@ -22,7 +22,7 @@ const registerServiceWorker = () => {
 import Login from "./components/Login";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
-import LogsPage from "./pages/LogsPage";
+const LogsPage = lazy(() => import("./pages/LogsPage"));
 // buildContainersByPortainer is now imported in usePortainerInstances hook
 import { API_BASE_URL } from "./constants/api";
 import { useAuth } from "./hooks/useAuth";
@@ -511,183 +511,186 @@ function App() {
 
   // Use React Router for routing
   return (
-    <Routes>
-      <Route
-        path="/logs"
-        element={
-          <LogsPage
-            headerProps={{
-              username,
-              userRole,
-              avatar,
-              darkMode,
-              showAvatarMenu,
-              onToggleAvatarMenu: toggleAvatarMenu,
-              onTemporaryThemeToggle: handleTemporaryThemeToggle,
-              onLogout: handleLogoutWithCleanup,
-            }}
-            settingsProps={{
-              username,
-              avatar,
-              recentAvatars,
-              onUsernameUpdate: handleUsernameUpdate,
-              onLogout: handleLogoutWithCleanup,
-              onPasswordUpdateSuccess: handlePasswordUpdateSuccessWithNavigation,
-              onPortainerInstancesChange: async () => {
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        <Route
+          path="/logs"
+          element={
+            <LogsPage
+              headerProps={{
+                username,
+                userRole,
+                avatar,
+                darkMode,
+                showAvatarMenu,
+                onToggleAvatarMenu: toggleAvatarMenu,
+                onTemporaryThemeToggle: handleTemporaryThemeToggle,
+                onLogout: handleLogoutWithCleanup,
+              }}
+              settingsProps={{
+                username,
+                avatar,
+                recentAvatars,
+                onUsernameUpdate: handleUsernameUpdate,
+                onLogout: handleLogoutWithCleanup,
+                onPasswordUpdateSuccess: handlePasswordUpdateSuccessWithNavigation,
+                onPortainerInstancesChange: async () => {
+                  await fetchPortainerInstances();
+                  await fetchContainers(false);
+                },
+                onAvatarChange: handleAvatarChange,
+                onRecentAvatarsChange: (avatars) => {
+                  setRecentAvatars(avatars);
+                  fetchRecentAvatars();
+                },
+                onAvatarUploaded: async () => {
+                  await fetchAvatar();
+                },
+                onBatchConfigUpdate: handleBatchConfigUpdate,
+                colorScheme,
+                onColorSchemeChange: handleColorSchemeChange,
+                onClearPortainerData: handleClear,
+                onClearTrackedAppData: handleClearGitHubCache,
+                onEditInstance: openModal,
+                editingPortainerInstance,
+                refreshInstances:
+                  editingPortainerInstance === null ? fetchPortainerInstances : null,
+              }}
+              onNavigateToSummary={handleNavigateToSummary}
+              onNavigateToSettings={handleNavigateToSettings}
+              onNavigateToBatch={handleNavigateToBatch}
+              onNavigateToPortainer={handleNavigateToPortainer}
+              onNavigateToTrackedApps={handleNavigateToTrackedApps}
+              onSetSettingsTab={setSettingsTab}
+              API_BASE_URL={API_BASE_URL}
+            />
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <HomePage
+              username={username}
+              userRole={userRole}
+              avatar={avatar}
+              darkMode={darkMode}
+              instanceAdmin={instanceAdmin}
+              authToken={authToken}
+              activeTab={activeTab}
+              contentTab={contentTab}
+              settingsTab={settingsTab}
+              configurationTab={configurationTab}
+              selectedPortainerInstances={selectedPortainerInstances}
+              selectedContainers={selectedContainers}
+              selectedImages={selectedImages}
+              collapsedStacks={collapsedStacks}
+              pulling={pulling}
+              loading={loading}
+              error={error}
+              pullError={pullError}
+              pullSuccess={pullSuccess}
+              containers={containers}
+              stacks={stacks}
+              unusedImages={unusedImages}
+              unusedImagesCount={unusedImagesCount}
+              trackedApps={trackedApps}
+              portainerInstances={portainerInstances}
+              containersByPortainer={containersByPortainer}
+              loadingInstances={loadingInstances}
+              dockerHubDataPulled={dockerHubDataPulled}
+              lastPullTime={lastPullTime}
+              successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
+              portainerInstancesFromAPI={portainerInstancesFromAPI}
+              notificationCount={notificationCount}
+              activeContainersWithUpdates={activeContainersWithUpdates}
+              activeTrackedAppsBehind={activeTrackedAppsBehind}
+              versionUpdateInfo={versionUpdateInfo}
+              dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
+              trackedAppsBehind={trackedAppsBehind}
+              showAvatarMenu={showAvatarMenu}
+              showNotificationMenu={showNotificationMenu}
+              toggleAvatarMenu={toggleAvatarMenu}
+              toggleNotificationMenu={toggleNotificationMenu}
+              showAddPortainerModal={showAddPortainerModal}
+              editingPortainerInstance={editingPortainerInstance}
+              closeModal={closeModal}
+              setActiveTab={setActiveTab}
+              setContentTab={setContentTab}
+              setSettingsTab={setSettingsTab}
+              setConfigurationTab={setConfigurationTab}
+              setSelectedPortainerInstances={setSelectedPortainerInstances}
+              setError={setError}
+              handleNavigateToSummary={handleNavigateToSummary}
+              handleNavigateToSettings={handleNavigateToSettings}
+              handleNavigateToBatch={handleNavigateToBatch}
+              handleNavigateToAdmin={handleNavigateToAdmin}
+              handleNavigateToPortainer={handleNavigateToPortainer}
+              handleNavigateToTrackedApps={handleNavigateToTrackedApps}
+              handleDismissContainerNotification={handleDismissContainerNotification}
+              handleDismissTrackedAppNotification={handleDismissTrackedAppNotification}
+              onDismissVersionUpdateNotification={handleDismissVersionUpdateNotification}
+              handleTemporaryThemeToggle={handleTemporaryThemeToggle}
+              handleLogoutWithCleanup={handleLogoutWithCleanup}
+              handleUsernameUpdate={handleUsernameUpdate}
+              handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
+              handlePortainerInstancesChange={async () => {
                 await fetchPortainerInstances();
                 await fetchContainers(false);
-              },
-              onAvatarChange: handleAvatarChange,
-              onRecentAvatarsChange: (avatars) => {
+              }}
+              handleAvatarChange={handleAvatarChange}
+              handleRecentAvatarsChange={(avatars) => {
                 setRecentAvatars(avatars);
                 fetchRecentAvatars();
-              },
-              onAvatarUploaded: async () => {
+              }}
+              handleAvatarUploaded={async () => {
                 await fetchAvatar();
-              },
-              onBatchConfigUpdate: handleBatchConfigUpdate,
-              colorScheme,
-              onColorSchemeChange: handleColorSchemeChange,
-              onClearPortainerData: handleClear,
-              onClearTrackedAppData: handleClearGitHubCache,
-              onEditInstance: openModal,
-              editingPortainerInstance,
-              refreshInstances: editingPortainerInstance === null ? fetchPortainerInstances : null,
-            }}
-            onNavigateToSummary={handleNavigateToSummary}
-            onNavigateToSettings={handleNavigateToSettings}
-            onNavigateToBatch={handleNavigateToBatch}
-            onNavigateToPortainer={handleNavigateToPortainer}
-            onNavigateToTrackedApps={handleNavigateToTrackedApps}
-            onSetSettingsTab={setSettingsTab}
-            API_BASE_URL={API_BASE_URL}
-          />
-        }
-      />
-      <Route
-        path="/"
-        element={
-          <HomePage
-            username={username}
-            userRole={userRole}
-            avatar={avatar}
-            darkMode={darkMode}
-            instanceAdmin={instanceAdmin}
-            authToken={authToken}
-            activeTab={activeTab}
-            contentTab={contentTab}
-            settingsTab={settingsTab}
-            configurationTab={configurationTab}
-            selectedPortainerInstances={selectedPortainerInstances}
-            selectedContainers={selectedContainers}
-            selectedImages={selectedImages}
-            collapsedStacks={collapsedStacks}
-            pulling={pulling}
-            loading={loading}
-            error={error}
-            pullError={pullError}
-            pullSuccess={pullSuccess}
-            containers={containers}
-            stacks={stacks}
-            unusedImages={unusedImages}
-            unusedImagesCount={unusedImagesCount}
-            trackedApps={trackedApps}
-            portainerInstances={portainerInstances}
-            containersByPortainer={containersByPortainer}
-            loadingInstances={loadingInstances}
-            dockerHubDataPulled={dockerHubDataPulled}
-            lastPullTime={lastPullTime}
-            successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-            portainerInstancesFromAPI={portainerInstancesFromAPI}
-            notificationCount={notificationCount}
-            activeContainersWithUpdates={activeContainersWithUpdates}
-            activeTrackedAppsBehind={activeTrackedAppsBehind}
-            versionUpdateInfo={versionUpdateInfo}
-            dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
-            trackedAppsBehind={trackedAppsBehind}
-            showAvatarMenu={showAvatarMenu}
-            showNotificationMenu={showNotificationMenu}
-            toggleAvatarMenu={toggleAvatarMenu}
-            toggleNotificationMenu={toggleNotificationMenu}
-            showAddPortainerModal={showAddPortainerModal}
-            editingPortainerInstance={editingPortainerInstance}
-            closeModal={closeModal}
-            setActiveTab={setActiveTab}
-            setContentTab={setContentTab}
-            setSettingsTab={setSettingsTab}
-            setConfigurationTab={setConfigurationTab}
-            setSelectedPortainerInstances={setSelectedPortainerInstances}
-            setError={setError}
-            handleNavigateToSummary={handleNavigateToSummary}
-            handleNavigateToSettings={handleNavigateToSettings}
-            handleNavigateToBatch={handleNavigateToBatch}
-            handleNavigateToAdmin={handleNavigateToAdmin}
-            handleNavigateToPortainer={handleNavigateToPortainer}
-            handleNavigateToTrackedApps={handleNavigateToTrackedApps}
-            handleDismissContainerNotification={handleDismissContainerNotification}
-            handleDismissTrackedAppNotification={handleDismissTrackedAppNotification}
-            onDismissVersionUpdateNotification={handleDismissVersionUpdateNotification}
-            handleTemporaryThemeToggle={handleTemporaryThemeToggle}
-            handleLogoutWithCleanup={handleLogoutWithCleanup}
-            handleUsernameUpdate={handleUsernameUpdate}
-            handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
-            handlePortainerInstancesChange={async () => {
-              await fetchPortainerInstances();
-              await fetchContainers(false);
-            }}
-            handleAvatarChange={handleAvatarChange}
-            handleRecentAvatarsChange={(avatars) => {
-              setRecentAvatars(avatars);
-              fetchRecentAvatars();
-            }}
-            handleAvatarUploaded={async () => {
-              await fetchAvatar();
-            }}
-            handleBatchConfigUpdate={handleBatchConfigUpdate}
-            handleClear={handleClear}
-            handleClearGitHubCache={handleClearGitHubCache}
-            handlePull={handlePull}
-            handleUpgrade={handleUpgrade}
-            handleBatchUpgrade={handleBatchUpgrade}
-            handleDeleteImage={handleDeleteImage}
-            handleDeleteImages={handleDeleteImages}
-            handleToggleSelect={handleToggleSelect}
-            handleSelectAll={handleSelectAll}
-            handleToggleImageSelect={handleToggleImageSelect}
-            handleSelectAllImages={handleSelectAllImages}
-            handleBatchPull={handleBatchPull}
-            handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
-            handleNewInstanceDataFetch={handleNewInstanceDataFetch}
-            fetchPortainerInstances={fetchPortainerInstances}
-            fetchContainers={fetchContainers}
-            fetchUnusedImages={fetchUnusedImages}
-            fetchRecentAvatars={fetchRecentAvatars}
-            fetchAvatar={fetchAvatar}
-            fetchTrackedApps={fetchTrackedApps}
-            setContainers={setContainers}
-            setStacks={setStacks}
-            setUnusedImages={setUnusedImages}
-            setUnusedImagesCount={setUnusedImagesCount}
-            openModal={openModal}
-            handleModalSuccess={handleModalSuccess}
-            colorScheme={colorScheme}
-            handleColorSchemeChange={handleColorSchemeChange}
-            batchConfig={batchConfig}
-            setBatchConfig={setBatchConfig}
-            version={version}
-            isDevBuild={isDevBuild}
-            API_BASE_URL={API_BASE_URL}
-            draggedTabIndex={draggedTabIndex}
-            setDraggedTabIndex={setDraggedTabIndex}
-            handleReorderTabs={handleReorderTabs}
-            toggleStack={toggleStack}
-            discordWebhooks={discordWebhooks}
-            portainerUpgrade={portainerUpgrade}
-          />
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+              }}
+              handleBatchConfigUpdate={handleBatchConfigUpdate}
+              handleClear={handleClear}
+              handleClearGitHubCache={handleClearGitHubCache}
+              handlePull={handlePull}
+              handleUpgrade={handleUpgrade}
+              handleBatchUpgrade={handleBatchUpgrade}
+              handleDeleteImage={handleDeleteImage}
+              handleDeleteImages={handleDeleteImages}
+              handleToggleSelect={handleToggleSelect}
+              handleSelectAll={handleSelectAll}
+              handleToggleImageSelect={handleToggleImageSelect}
+              handleSelectAllImages={handleSelectAllImages}
+              handleBatchPull={handleBatchPull}
+              handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
+              handleNewInstanceDataFetch={handleNewInstanceDataFetch}
+              fetchPortainerInstances={fetchPortainerInstances}
+              fetchContainers={fetchContainers}
+              fetchUnusedImages={fetchUnusedImages}
+              fetchRecentAvatars={fetchRecentAvatars}
+              fetchAvatar={fetchAvatar}
+              fetchTrackedApps={fetchTrackedApps}
+              setContainers={setContainers}
+              setStacks={setStacks}
+              setUnusedImages={setUnusedImages}
+              setUnusedImagesCount={setUnusedImagesCount}
+              openModal={openModal}
+              handleModalSuccess={handleModalSuccess}
+              colorScheme={colorScheme}
+              handleColorSchemeChange={handleColorSchemeChange}
+              batchConfig={batchConfig}
+              setBatchConfig={setBatchConfig}
+              version={version}
+              isDevBuild={isDevBuild}
+              API_BASE_URL={API_BASE_URL}
+              draggedTabIndex={draggedTabIndex}
+              setDraggedTabIndex={setDraggedTabIndex}
+              handleReorderTabs={handleReorderTabs}
+              toggleStack={toggleStack}
+              discordWebhooks={discordWebhooks}
+              portainerUpgrade={portainerUpgrade}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

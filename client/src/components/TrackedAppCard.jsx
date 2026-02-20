@@ -1,34 +1,26 @@
 /**
  * TrackedAppCard Component
  * Reusable card component for displaying a tracked app (Docker image, GitHub repo, or GitLab repo)
+ *
+ * Interactions:
+ * - Tap/click: mark as upgraded (when update available)
+ * - Long-press: open edit mode
  */
 
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
-import { Pencil, Check } from "lucide-react";
-import { getDockerHubRepoUrl } from "../utils/formatters";
-import GitHubIcon from "./icons/GitHubIcon";
-import GitLabIcon from "./icons/GitLabIcon";
-import Button from "./ui/Button";
 import styles from "./TrackedAppCard.module.css";
-
-const DOCKER_ICON_SRC = `${process.env.PUBLIC_URL || ""}/img/docker-mark-white.svg`;
 
 /**
  * TrackedAppCard component
  * @param {Object} image - Tracked image data
- * @param {Function} onEdit - Handler for edit action
+ * @param {Function} onEdit - Handler for edit action (triggered by long-press)
  * @param {Function} onUpgrade - Handler for upgrade action
- * @param {boolean} selected - Whether the card is selected
- * @param {Function} onToggleSelect - Handler for toggling selection
  */
-const TrackedAppCard = React.memo(function TrackedAppCard({
-  image,
-  onEdit,
-  onUpgrade,
-  selected = false,
-  onToggleSelect,
-}) {
+const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpgrade }) {
+  // Long-press state
+  const longPressTimer = useRef(null);
+  const longPressFired = useRef(false);
   // Memoize computed values
   const hasNoLatestVersion = useMemo(
     () =>
@@ -90,19 +82,45 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
   ]);
 
   // Memoize event handlers
-  const handleEdit = useCallback(
-    (e) => {
-      if (e) {
-        e.stopPropagation();
-      }
-      onEdit(image);
-    },
-    [image, onEdit]
-  );
+  const handleEdit = useCallback(() => {
+    onEdit(image);
+  }, [image, onEdit]);
 
   const handleUpgrade = useCallback(() => {
     onUpgrade(image.id, image.latest_version, image.name);
   }, [image.id, image.latest_version, image.name, onUpgrade]);
+
+  // Long-press handlers (500ms threshold)
+  const handlePointerDown = useCallback(
+    (e) => {
+      // Only primary button (left-click / touch)
+      if (e.button && e.button !== 0) return;
+      longPressFired.current = false;
+      longPressTimer.current = setTimeout(() => {
+        longPressFired.current = true;
+        handleEdit();
+      }, 500);
+    },
+    [handleEdit]
+  );
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    cancelLongPress();
+  }, [cancelLongPress]);
+
+  const handleContextMenu = useCallback((e) => {
+    // If a long-press fired, suppress the native context menu
+    if (longPressFired.current) {
+      e.preventDefault();
+    }
+  }, []);
 
   // Check if current version is not available
   // Only show red if the app has been checked (last_checked exists) and got a bad response
@@ -130,6 +148,8 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
 
   // Handle card click - mark as upgraded if it has an update
   const handleCardClick = useCallback(() => {
+    // If long-press already fired, don't also trigger click
+    if (longPressFired.current) return;
     if (image.has_update && onUpgrade) {
       handleUpgrade();
     }
@@ -141,6 +161,11 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
         shouldShowUnknownBorder ? styles.unknownBorder : ""
       } ${image.has_update ? styles.updateAvailable : hasNoCurrentVersion ? styles.noCurrentVersion : styles.noUpdate} ${image.has_update ? styles.clickableCard : ""}`}
       onClick={image.has_update ? handleCardClick : undefined}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={cancelLongPress}
+      onPointerLeave={cancelLongPress}
+      onContextMenu={handleContextMenu}
       style={image.has_update ? { cursor: "pointer" } : undefined}
       role={image.has_update ? "button" : undefined}
       tabIndex={image.has_update ? 0 : undefined}
@@ -159,16 +184,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
               {image.name}
             </span>
           </div>
-          {image.has_update && onToggleSelect && (
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={() => onToggleSelect(image.id)}
-                aria-label={`Select ${image.name} for upgrade`}
-              />
-            </label>
-          )}
         </div>
 
         <div className={`${styles.repoInfo} ${image.has_update ? styles.repoInfoWithUpdates : ""}`}>
@@ -195,136 +210,6 @@ const TrackedAppCard = React.memo(function TrackedAppCard({
               <span className={styles.repoName} title={subheaderText}>
                 {subheaderText}
               </span>
-            )}
-          </div>
-
-          <div className={styles.iconGroup}>
-            {image.source_type === "github" && image.github_repo && (
-              <>
-                <a
-                  href={
-                    image.github_repo.startsWith("http")
-                      ? image.github_repo
-                      : `https://github.com/${image.github_repo}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.githubIconLink}
-                  title="Open GitHub repository"
-                  aria-label="Open GitHub repository"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <GitHubIcon size={18} />
-                </a>
-                <Button
-                  onClick={handleEdit}
-                  variant="outline"
-                  size="sm"
-                  title="Edit"
-                  aria-label="Edit"
-                  className={styles.editButton}
-                >
-                  <Pencil size={14} className={styles.editIcon} />
-                </Button>
-                {image.has_update && (
-                  <span
-                    className={styles.upgradedCheckmark}
-                    title="Mark Upgraded"
-                    aria-label="Mark Upgraded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpgrade();
-                    }}
-                  >
-                    <Check size={18} />
-                  </span>
-                )}
-              </>
-            )}
-            {image.source_type === "gitlab" && image.github_repo && (
-              <>
-                <a
-                  href={
-                    image.github_repo.startsWith("http")
-                      ? image.github_repo
-                      : `https://gitlab.com/${image.github_repo}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.githubIconLink}
-                  title="Open GitLab repository"
-                  aria-label="Open GitLab repository"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <GitLabIcon size={18} />
-                </a>
-                <Button
-                  onClick={handleEdit}
-                  variant="outline"
-                  size="sm"
-                  title="Edit"
-                  aria-label="Edit"
-                  className={styles.editButton}
-                >
-                  <Pencil size={14} className={styles.editIcon} />
-                </Button>
-                {image.has_update && (
-                  <span
-                    className={styles.upgradedCheckmark}
-                    title="Mark Upgraded"
-                    aria-label="Mark Upgraded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpgrade();
-                    }}
-                  >
-                    <Check size={18} />
-                  </span>
-                )}
-              </>
-            )}
-            {(!image.source_type || image.source_type === "docker") && image.image_name && (
-              <>
-                <a
-                  href={getDockerHubRepoUrl(image.image_name) || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.dockerIconLink}
-                  title="Open Docker Hub repository"
-                  aria-label="Open Docker Hub repository"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!getDockerHubRepoUrl(image.image_name)) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <img src={DOCKER_ICON_SRC} alt="Docker" className={styles.dockerIconSmall} />
-                </a>
-                <Button
-                  onClick={handleEdit}
-                  variant="outline"
-                  size="sm"
-                  title="Edit"
-                  aria-label="Edit"
-                  className={styles.editButton}
-                >
-                  <Pencil size={14} className={styles.editIcon} />
-                </Button>
-                {image.has_update && (
-                  <span
-                    className={styles.upgradedCheckmark}
-                    title="Mark Upgraded"
-                    aria-label="Mark Upgraded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpgrade();
-                    }}
-                  >
-                    <Check size={18} />
-                  </span>
-                )}
-              </>
             )}
           </div>
         </div>
@@ -417,8 +302,6 @@ TrackedAppCard.propTypes = {
   }).isRequired,
   onEdit: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
-  selected: PropTypes.bool,
-  onToggleSelect: PropTypes.func,
 };
 
 export default TrackedAppCard;

@@ -47,7 +47,6 @@
   /* Ensure buttons and links meet minimum touch target */
   a,
   button {
-    min-height: var(--touch-target-min);
     min-width: var(--touch-target-min);
   }
 }

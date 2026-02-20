@@ -78,10 +78,8 @@ AddNewCard.propTypes = {
  * @param {Array} props.appsWithUpdates - Apps with updates
  * @param {Array} props.appsWithoutUpdates - Apps without updates
  * @param {Array} props.displayedApps - Apps to display based on tab
- * @param {Set} props.selectedApps - Selected apps
  * @param {Set} props.collapsedSections - Collapsed sections
  * @param {Function} props.onToggleSection - Section toggle handler
- * @param {Function} props.onToggleSelect - App selection toggle handler
  * @param {Function} props.onEdit - Edit handler
  * @param {Function} props.onUpgrade - Upgrade handler
  * @param {Function} props.onAddNew - Add new app handler
@@ -95,10 +93,8 @@ const TrackedAppsContentArea = ({
   appsWithUpdates,
   appsWithoutUpdates,
   displayedApps,
-  selectedApps,
   collapsedSections,
   onToggleSection,
-  onToggleSelect,
   onEdit,
   onUpgrade,
   onAddNew,
@@ -143,8 +139,6 @@ const TrackedAppsContentArea = ({
                           image={image}
                           onEdit={onEdit}
                           onUpgrade={onUpgrade}
-                          selected={selectedApps.has(image.id)}
-                          onToggleSelect={onToggleSelect}
                         />
                       ))}
                       {/* Add new app card - only show if Up to Date section doesn't exist */}
@@ -202,8 +196,6 @@ const TrackedAppsContentArea = ({
                       image={image}
                       onEdit={onEdit}
                       onUpgrade={onUpgrade}
-                      selected={selectedApps.has(image.id)}
-                      onToggleSelect={onToggleSelect}
                     />
                   ))}
                 </div>
@@ -282,10 +274,8 @@ TrackedAppsContentArea.propTypes = {
   appsWithUpdates: PropTypes.array.isRequired,
   appsWithoutUpdates: PropTypes.array.isRequired,
   displayedApps: PropTypes.array.isRequired,
-  selectedApps: PropTypes.instanceOf(Set).isRequired,
   collapsedSections: PropTypes.instanceOf(Set).isRequired,
   onToggleSection: PropTypes.func.isRequired,
-  onToggleSelect: PropTypes.func.isRequired,
   onEdit: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
   onAddNew: PropTypes.func.isRequired,

@@ -5,7 +5,7 @@
   border-radius: 8px;
   border: 1px solid var(--border-color);
   padding: 16px;
-  padding-bottom: 80px;
+  padding-bottom: 100px;
   display: flex;
   flex-direction: column;
   margin-top: 20px;
@@ -21,6 +21,7 @@
     border-right: none;
     border-top: 1px solid var(--border-color);
     padding: var(--spacing-mobile-md);
+    padding-bottom: 120px;
     margin-top: var(--spacing-mobile-lg);
   }
 

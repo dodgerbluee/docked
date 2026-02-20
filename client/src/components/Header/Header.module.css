@@ -8,7 +8,6 @@
   background: var(--header-bg);
   border-radius: 12px;
   box-shadow: 0 4px 12px var(--shadow);
-  isolation: isolate;
   position: relative;
   z-index: var(--z-header);
 }
@@ -176,7 +175,6 @@ body.dark-mode .logo {
   display: flex;
   align-items: center;
   gap: 10px;
-  isolation: isolate;
   flex-wrap: nowrap;
 }
 

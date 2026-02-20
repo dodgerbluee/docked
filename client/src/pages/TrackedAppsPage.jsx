@@ -14,11 +14,8 @@ import TrackedAppsSidebar from "../components/trackedApps/TrackedAppsSidebar";
 import { TRACKED_APPS_CONTENT_TABS } from "../constants/trackedAppsPage";
 import styles from "./TrackedAppsPage.module.css";
 import TrackedAppsHeader from "./TrackedAppsPage/components/TrackedAppsHeader";
-import TrackedAppsToolbar from "./TrackedAppsPage/components/TrackedAppsToolbar";
 import TrackedAppsContentArea from "./TrackedAppsPage/components/TrackedAppsContentArea";
 import { useTrackedAppsFiltering } from "./TrackedAppsPage/hooks/useTrackedAppsFiltering";
-import { useTrackedAppsSelection } from "./TrackedAppsPage/hooks/useTrackedAppsSelection";
-import { useTrackedAppsCheckmark } from "./TrackedAppsPage/hooks/useTrackedAppsCheckmark";
 import { useIsMobile } from "../hooks/useIsMobile";
 
 /**
@@ -40,7 +37,6 @@ function TrackedAppsPage({
     isLoading,
     hasLoadedOnce,
     trackedAppError,
-    trackedAppSuccess,
     checkingUpdates,
     lastScanTime,
     editingTrackedAppData,
@@ -59,7 +55,6 @@ function TrackedAppsPage({
   const [contentTab, setContentTab] = useState(TRACKED_APPS_CONTENT_TABS.ALL);
   const [selectedSourceFilters, setSelectedSourceFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
-  const [markingUpgraded, setMarkingUpgraded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Mobile-only sidebar drawer state (MobileDrawer handles escape, scroll lock, focus trap)
@@ -88,30 +83,12 @@ function TrackedAppsPage({
   }, [setEditingTrackedAppData, setShowAddTrackedAppModal]);
 
   // Use extracted hooks
-  const showCheckmark = useTrackedAppsCheckmark({
-    trackedAppSuccess,
-    checkingUpdates,
-  });
-
-  const {
-    selectedApps,
-    setSelectedApps,
-    handleToggleSelect,
-    handleSelectAll: handleSelectAllApps,
-    allAppsWithUpdatesSelected,
-  } = useTrackedAppsSelection();
-
   const { appsWithUpdates, appsWithoutUpdates, displayedApps } = useTrackedAppsFiltering(
     trackedApps,
     selectedSourceFilters,
     searchQuery,
     contentTab
   );
-
-  // Wrapper for handleSelectAll that includes appsWithUpdates
-  const handleSelectAll = useCallback(() => {
-    handleSelectAllApps(appsWithUpdates);
-  }, [handleSelectAllApps, appsWithUpdates]);
 
   // Handle delete with callback
   const handleDelete = async (id) => {
@@ -158,43 +135,6 @@ function TrackedAppsPage({
     setShowAddTrackedAppModal(true);
   }, [setEditingTrackedAppData, setShowAddTrackedAppModal]);
 
-  // Handle batch mark upgraded
-  const handleBatchMarkUpgraded = useCallback(async () => {
-    if (selectedApps.size === 0) return;
-
-    setMarkingUpgraded(true);
-    try {
-      // Get all selected apps with their latest versions
-      const selectedAppsData = appsWithUpdates.filter((app) => selectedApps.has(app.id));
-
-      // Process each app sequentially
-      for (const app of selectedAppsData) {
-        if (app.latest_version) {
-          await handleUpgrade(app.id, app.latest_version);
-        }
-      }
-
-      // Clear selection after processing
-      setSelectedApps(new Set());
-    } catch (error) {
-      console.error("Error marking apps as upgraded:", error);
-    } finally {
-      setMarkingUpgraded(false);
-    }
-  }, [selectedApps, appsWithUpdates, handleUpgrade, setSelectedApps]);
-
-  const toolbarActions = (
-    <TrackedAppsToolbar
-      appsWithUpdates={appsWithUpdates}
-      selectedApps={selectedApps}
-      allAppsWithUpdatesSelected={allAppsWithUpdatesSelected(appsWithUpdates)}
-      markingUpgraded={markingUpgraded}
-      onSelectAll={handleSelectAll}
-      onBatchMarkUpgraded={handleBatchMarkUpgraded}
-      compactLabels={isMobile}
-    />
-  );
-
   return (
     <div className={styles.trackedAppsPage}>
       <TrackedAppsHeader
@@ -202,10 +142,7 @@ function TrackedAppsPage({
         onSearchChange={(e) => setSearchQuery(e.target.value)}
         onCheckUpdates={handleCheckTrackedAppsUpdates}
         checkingUpdates={checkingUpdates}
-        showCheckmark={showCheckmark}
         trackedAppsCount={trackedApps.length}
-        markingUpgraded={markingUpgraded}
-        toolbarActions={toolbarActions}
         mobileSidebarOpen={mobileSidebarOpen}
         onMobileSidebarOpen={openMobileSidebar}
       />
@@ -263,10 +200,8 @@ function TrackedAppsPage({
             appsWithUpdates={appsWithUpdates}
             appsWithoutUpdates={appsWithoutUpdates}
             displayedApps={displayedApps}
-            selectedApps={selectedApps}
             collapsedSections={collapsedSections}
             onToggleSection={handleToggleSection}
-            onToggleSelect={handleToggleSelect}
             onEdit={handleEditTrackedApp}
             onUpgrade={handleUpgrade}
             onAddNew={handleAddNew}

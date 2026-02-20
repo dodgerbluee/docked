@@ -1,11 +1,12 @@
-import React, { useMemo } from "react";
+import React, { lazy, Suspense, useMemo } from "react";
 import PropTypes from "prop-types";
 import Header from "./Header/Header";
 import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import HomePageContent from "./HomePage/components/HomePageContent";
-import HomePageModals from "./HomePage/components/HomePageModals";
 import { computeHasUpdate } from "../utils/containerUpdateHelpers";
+
+const HomePageModals = lazy(() => import("./HomePage/components/HomePageModals"));
 
 /**
  * HomePage Component
@@ -233,12 +234,14 @@ function HomePage({
           <VersionFooter version={version} isDevBuild={isDevBuild} />
         </div>
 
-        <HomePageModals
-          showAddPortainerModal={showAddPortainerModal}
-          editingPortainerInstance={editingPortainerInstance}
-          closeModal={closeModal}
-          handleModalSuccess={handleModalSuccess}
-        />
+        <Suspense fallback={null}>
+          <HomePageModals
+            showAddPortainerModal={showAddPortainerModal}
+            editingPortainerInstance={editingPortainerInstance}
+            closeModal={closeModal}
+            handleModalSuccess={handleModalSuccess}
+          />
+        </Suspense>
       </div>
     </BatchConfigContext.Provider>
   );
