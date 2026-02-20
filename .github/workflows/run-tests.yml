@@ -4,25 +4,25 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       run-coverage:
-        description: 'Run tests with coverage'
+        description: "Run tests with coverage"
         required: false
         type: boolean
         default: false
       upload-coverage:
-        description: 'Upload coverage to Codecov'
+        description: "Upload coverage to Codecov"
         required: false
         type: boolean
         default: false
     outputs:
       server-tests-passed:
-        description: 'Whether server tests passed'
+        description: "Whether server tests passed"
         value: ${{ jobs.test.outputs.server-tests-passed }}
       client-tests-passed:
-        description: 'Whether client tests passed'
+        description: "Whether client tests passed"
         value: ${{ jobs.test.outputs.client-tests-passed }}
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
@@ -71,9 +71,9 @@ jobs:
         run: |
           cd client
           if [ "${{ inputs.run-coverage }}" = "true" ]; then
-            CI=true npm test -- --coverage --watchAll=false
+            npm test -- --coverage
           else
-            CI=true npm test -- --watchAll=false
+            npm test
           fi
           echo "passed=true" >> $GITHUB_OUTPUT
         continue-on-error: false
@@ -86,4 +86,3 @@ jobs:
           flags: server,client
           name: test-coverage
           fail_ci_if_error: false
-

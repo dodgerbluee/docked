@@ -1,0 +1,12 @@
+{
+  "1113214": {
+    "active": true,
+    "notes": "ajv <8.18.0 ReDoS via $data option. eslint hard-pins ajv@^6 — API-incompatible with ajv 8. Trusted input only.",
+    "expiry": "2026-08-20"
+  },
+  "1113371": {
+    "active": true,
+    "notes": "minimatch <10.2.1 ReDoS. Only fixed in 10+ which breaks glob@7 API. Glob patterns are hardcoded — not exploitable.",
+    "expiry": "2026-08-20"
+  }
+}
