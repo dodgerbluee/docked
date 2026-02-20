@@ -13,3 +13,13 @@ ignore:
           using glob@10+ or when minimatch backports a fix to 3.x-9.x.
         expires: 2026-08-20T00:00:00.000Z
         created: 2026-02-20T00:00:00.000Z
+  SNYK-JS-AJV-15274295:
+    - "eslint > ajv":
+        reason: >-
+          ajv <8.18.0 ReDoS via $data option. eslint 10 hard-pins ajv@^6.12.4
+          and is API-incompatible with ajv 8 (removed draft-04 schema refs,
+          changed constructor options). eslint uses ajv only for config schema
+          validation with trusted input — not exploitable. Will re-evaluate
+          when eslint migrates to ajv 8.
+        expires: 2026-08-20T00:00:00.000Z
+        created: 2026-02-20T00:00:00.000Z
