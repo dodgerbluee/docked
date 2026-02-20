@@ -11,11 +11,28 @@
  * - Complex authentication flows
  */
 
-const { exec } = require("child_process");
+const { execFile } = require("child_process");
 const { promisify } = require("util");
 const logger = require("./logger");
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Validate a container image reference to prevent injection attacks.
+ * Allows: registry/namespace/repo:tag@sha256:digest
+ * Rejects: shell metacharacters, spaces, semicolons, pipes, etc.
+ */
+const IMAGE_REF_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._\-/:@]+$/;
+
+function isValidImageRef(imageRef) {
+  if (!imageRef || typeof imageRef !== "string") {
+    return false;
+  }
+  if (imageRef.length > 512) {
+    return false;
+  }
+  return IMAGE_REF_PATTERN.test(imageRef);
+}
 
 /**
  * Check if a command is available
@@ -24,12 +41,12 @@ const execAsync = promisify(exec);
  */
 async function isCommandAvailable(command) {
   try {
-    const { stdout } = await execAsync(`which ${command}`, { timeout: 5000 });
+    const { stdout } = await execFileAsync("which", [command], { timeout: 5000 });
     return Boolean(stdout.trim());
   } catch (_error) {
     // On Windows, try 'where' instead of 'which'
     try {
-      const { stdout } = await execAsync(`where ${command}`, { timeout: 5000 });
+      const { stdout } = await execFileAsync("where", [command], { timeout: 5000 });
       return Boolean(stdout.trim());
     } catch (_winError) {
       return false;
@@ -44,7 +61,12 @@ async function isCommandAvailable(command) {
  */
 async function getDigestWithCrane(imageRef) {
   try {
-    const { stdout, stderr } = await execAsync(`crane digest ${imageRef}`, {
+    if (!isValidImageRef(imageRef)) {
+      logger.warn(`[crane] Invalid image reference rejected: ${imageRef}`);
+      return null;
+    }
+
+    const { stdout, stderr } = await execFileAsync("crane", ["digest", imageRef], {
       timeout: 30000, // 30 second timeout
       maxBuffer: 1024 * 1024, // 1MB buffer
     });
@@ -73,11 +95,20 @@ async function getDigestWithCrane(imageRef) {
  */
 async function getDigestWithSkopeo(imageRef) {
   try {
+    if (!isValidImageRef(imageRef)) {
+      logger.warn(`[skopeo] Invalid image reference rejected: ${imageRef}`);
+      return null;
+    }
+
     // skopeo inspect returns JSON, we need to parse it
-    const { stdout, stderr } = await execAsync(`skopeo inspect --no-tags docker://${imageRef}`, {
-      timeout: 30000, // 30 second timeout
-      maxBuffer: 1024 * 1024, // 1MB buffer
-    });
+    const { stdout, stderr } = await execFileAsync(
+      "skopeo",
+      ["inspect", "--no-tags", `docker://${imageRef}`],
+      {
+        timeout: 30000, // 30 second timeout
+        maxBuffer: 1024 * 1024, // 1MB buffer
+      }
+    );
 
     if (stderr && !stderr.includes("Getting image source")) {
       logger.debug(`[skopeo] stderr for ${imageRef}:`, stderr);
