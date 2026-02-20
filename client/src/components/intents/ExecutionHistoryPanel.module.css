@@ -1,0 +1,496 @@
+/**
+ * ExecutionHistoryPanel Styles
+ * Covers both the list view and the inline detail view
+ */
+
+.panel {
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.intentName {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.executionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  gap: 12px;
+  font-family: inherit;
+}
+
+.executionRow:last-child {
+  border-bottom: none;
+}
+
+.executionRow:hover {
+  background: var(--bg-tertiary, var(--bg-primary));
+}
+
+.rowLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.statusIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.rowInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowStatus {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rowMeta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.rowCounts {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.countChip {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.countSuccess {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success-green);
+}
+
+.countFailed {
+  background: rgba(239, 62, 66, 0.12);
+  color: var(--dodger-red);
+}
+
+.countSkipped {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+body.dark-mode .countSuccess {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+body.dark-mode .countFailed {
+  background: rgba(239, 62, 66, 0.18);
+}
+
+body.dark-mode .countSkipped {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.duration {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.error {
+  padding: 16px;
+  color: var(--dodger-red);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* ==========================================
+   Back Button
+   ========================================== */
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  margin-bottom: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dodger-blue);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.backButton:hover {
+  color: var(--dodger-blue-light, var(--dodger-blue));
+  background: rgba(30, 144, 255, 0.08);
+}
+
+body.dark-mode .backButton:hover {
+  background: rgba(30, 144, 255, 0.12);
+}
+
+/* ==========================================
+   Detail View (inline)
+   ========================================== */
+
+.detailView {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Summary Section */
+.detailSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summaryLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.summaryValue {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.summaryCounters {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  min-width: 60px;
+}
+
+.counterNumber {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.counterLabel {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.counterSuccess .counterNumber {
+  color: var(--success-green);
+}
+
+.counterFailed .counterNumber {
+  color: var(--dodger-red);
+}
+
+.counterSkipped .counterNumber {
+  color: #d97706;
+}
+
+body.dark-mode .counterSkipped .counterNumber {
+  color: #fbbf24;
+}
+
+.executionError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239, 62, 66, 0.08);
+  border: 1px solid rgba(239, 62, 66, 0.2);
+  border-radius: 8px;
+  color: var(--dodger-red);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+/* Container Section */
+.containerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.containerTitle {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.noContainers {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px 0;
+}
+
+.containerList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.containerRow {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s;
+}
+
+.containerRow:hover {
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .containerRow:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.containerHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.containerStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.containerName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerDuration {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  flex-shrink: 0;
+}
+
+.containerDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 18px;
+}
+
+.containerDetail {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.detailLabel {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.detailValue {
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailValueCode {
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  font-size: 0.72rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--dodger-red);
+  font-size: 0.73rem;
+  margin-top: 2px;
+}
+
+/* ==========================================
+   Responsive
+   ========================================== */
+
+@media (max-width: 768px) {
+  .header {
+    padding: 12px 14px;
+  }
+
+  .executionRow {
+    padding: 10px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .rowRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rowCounts {
+    flex-wrap: wrap;
+  }
+
+  .summaryCounters {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .containerHeader {
+    flex-wrap: wrap;
+  }
+
+  .containerDetails {
+    padding-left: 0;
+  }
+}

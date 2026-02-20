@@ -1,11 +1,14 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, lazy, Suspense } from "react";
 import PropTypes from "prop-types";
-import { Lock, Package, Plus } from "lucide-react";
+import { Lock, Package, Plus, Pencil, Trash2 } from "lucide-react";
+import PortainerIcon from "../icons/PortainerIcon";
 import Card from "../ui/Card";
-import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
+import LoadingSpinner from "../ui/LoadingSpinner";
 import styles from "./PortainerTab.module.css";
+
+const IntentsPage = lazy(() => import("../../pages/IntentsPage"));
 
 /**
  * PortainerTab Component
@@ -18,6 +21,8 @@ const PortainerTab = React.memo(function PortainerTab({
   handleDeleteInstance,
   onClearPortainerData,
   clearingPortainerData,
+  containers = [],
+  portainerInstancesProp = [],
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
@@ -86,49 +91,71 @@ const PortainerTab = React.memo(function PortainerTab({
         </div>
         <div className={styles.instancesList}>
           {portainerInstances.map((instance) => (
-            <Card key={instance.id} variant="default" padding="md" className={styles.instanceCard}>
+            <Card key={instance.id} variant="default" padding="sm" className={styles.instanceCard}>
               <div className={styles.instanceContent}>
                 <div className={styles.instanceInfo}>
                   <div className={styles.instanceHeader}>
                     <strong className={styles.instanceName}>{instance.name}</strong>
+                  </div>
+                  <div className={styles.instanceBadges}>
                     {instance.auth_type === "apikey" ? (
                       <span className={styles.authBadge}>
-                        <Package size={14} className={styles.badgeIcon} />
+                        <Package size={11} className={styles.badgeIcon} />
                         API Key
                       </span>
                     ) : (
                       <span className={styles.authBadge}>
-                        <Lock size={14} className={styles.badgeIcon} />
-                        Username / Password
+                        <Lock size={11} className={styles.badgeIcon} />
+                        Password
                       </span>
                     )}
                   </div>
                   <div className={styles.instanceUrl}>{instance.url}</div>
                   {instance.auth_type === "password" && instance.username && (
-                    <div className={styles.instanceUsername}>Username: {instance.username}</div>
+                    <div className={styles.instanceUsername}>{instance.username}</div>
                   )}
                 </div>
-                <ActionButtons
-                  onEdit={() => handleEditInstanceClick(instance)}
-                  onDelete={() => handleDeleteClick(instance.id)}
-                />
+                <div className={styles.instanceFooter}>
+                  <div className={styles.instanceActions}>
+                    <button
+                      className={styles.instanceActionButton}
+                      onClick={() => handleEditInstanceClick(instance)}
+                      aria-label="Edit instance"
+                      title="Edit"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      className={`${styles.instanceActionButton} ${styles.instanceDangerAction}`}
+                      onClick={() => handleDeleteClick(instance.id)}
+                      aria-label="Delete instance"
+                      title="Delete"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </Card>
           ))}
-          <Card
-            variant="default"
-            padding="md"
+          <div
             className={styles.addInstanceCard}
             onClick={handleAddInstanceClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && handleAddInstanceClick()}
           >
-            <div className={styles.addInstanceContent}>
-              <div className={styles.addInstanceText}>
-                <Plus size={20} className={styles.addInstanceIcon} />
-                <span>Add Instance</span>
-              </div>
-            </div>
-          </Card>
+            <PortainerIcon size={24} className={styles.addInstanceIcon} />
+            <span className={styles.addInstanceText}>Add Instance</span>
+          </div>
         </div>
+      </div>
+
+      {/* Intents Section */}
+      <div className={styles.intentsSection}>
+        <Suspense fallback={<LoadingSpinner size="sm" message="Loading intents..." />}>
+          <IntentsPage containers={containers} portainerInstances={portainerInstancesProp} />
+        </Suspense>
       </div>
 
       <ConfirmDialog
@@ -185,6 +212,8 @@ PortainerTab.propTypes = {
   handleDeleteInstance: PropTypes.func.isRequired,
   onClearPortainerData: PropTypes.func,
   clearingPortainerData: PropTypes.bool,
+  containers: PropTypes.array,
+  portainerInstancesProp: PropTypes.array,
 };
 
 export default PortainerTab;

@@ -60,27 +60,30 @@ body.dark-mode .addButton:hover:not(:disabled) {
 }
 
 .instancesList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
 .instanceCard {
   transition:
-    transform 0.2s,
+    border-color 0.2s,
     box-shadow 0.2s;
 }
 
 .instanceCard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .instanceCard:hover {
+  border-color: var(--dodger-blue-light);
 }
 
 .instanceContent {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .instanceInfo {
@@ -91,27 +94,42 @@ body.dark-mode .addButton:hover:not(:disabled) {
 .instanceHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 
 .instanceName {
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.instanceBadges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 
 .authBadge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.65rem;
   font-weight: 600;
-  background: rgba(30, 136, 229, 0.15);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(30, 136, 229, 0.12);
   color: var(--dodger-blue);
-  border: 1px solid var(--dodger-blue);
+}
+
+body.dark-mode .authBadge {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
 }
 
 .badgeIcon {
@@ -122,15 +140,68 @@ body.dark-mode .addButton:hover:not(:disabled) {
 
 .instanceUrl {
   color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin-top: 4px;
+  font-size: 0.78rem;
+  margin-top: 2px;
   word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .instanceUsername {
   color: var(--text-tertiary);
-  font-size: 0.85rem;
-  margin-top: 4px;
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.instanceFooter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.instanceActions {
+  display: flex;
+  gap: 4px;
+}
+
+.instanceActionButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.instanceActionButton:hover {
+  color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.08);
+}
+
+body.dark-mode .instanceActionButton:hover {
+  color: var(--dodger-blue-light);
+  background: rgba(30, 144, 255, 0.15);
+}
+
+.instanceDangerAction:hover {
+  color: var(--dodger-red) !important;
+  background: rgba(239, 62, 66, 0.08) !important;
+}
+
+body.dark-mode .instanceDangerAction:hover {
+  color: #f87171 !important;
+  background: rgba(239, 62, 66, 0.15) !important;
 }
 
 .emptyState {
@@ -161,52 +232,57 @@ body.dark-mode .addButton:hover:not(:disabled) {
 }
 
 .addInstanceCard {
-  border: 2px dashed var(--border-color) !important;
+  background: var(--bg-secondary);
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 2px dashed var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  background: var(--bg-primary) !important;
+  gap: 10px;
+  height: 100%;
+  min-height: 120px;
 }
 
 .addInstanceCard:hover {
-  border-color: var(--dodger-blue) !important;
-  background: var(--bg-secondary) !important;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow);
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
 }
 
-body.dark-mode .addInstanceCard:hover {
-  border-color: var(--dodger-blue-light) !important;
-}
-
-.addInstanceContent {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 60px;
-}
-
-.addInstanceText {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-.addInstanceCard:hover .addInstanceText {
+.addInstanceCard:hover .addInstanceIcon {
   color: var(--dodger-blue);
 }
 
-body.dark-mode .addInstanceCard:hover .addInstanceText {
+body.dark-mode .addInstanceCard:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .addInstanceCard:hover .addInstanceIcon {
   color: var(--dodger-blue-light);
 }
 
 .addInstanceIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
   flex-shrink: 0;
 }
 
+.addInstanceText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .dataManagement {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.intentsSection {
   margin-top: 40px;
   padding-top: 30px;
   border-top: 1px solid var(--border-color);
@@ -499,7 +575,19 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   margin-left: 28px;
 }
 
-/* ==================== Mobile Responsive ==================== */
+/* ==================== Responsive ==================== */
+@media (max-width: 1100px) {
+  .instancesList {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 850px) {
+  .instancesList {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .updateSection {
     padding: 16px;
@@ -509,10 +597,13 @@ body.dark-mode .saveButton:hover:not(:disabled) {
     font-size: 1.25rem;
   }
 
+  .instancesList {
+    grid-template-columns: 1fr;
+  }
+
   .instanceContent {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
   }
 
   .tokenContent {
@@ -538,6 +629,11 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   }
 
   .dataManagement {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .intentsSection {
     margin-top: 24px;
     padding-top: 20px;
   }

@@ -24,6 +24,8 @@
  *     description: Docker image management
  *   - name: Repository Tokens
  *     description: Repository access token management
+ *   - name: Intents
+ *     description: Automated upgrade intent management
  *   - name: Logs
  *     description: Application log management
  */
@@ -44,6 +46,7 @@ const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
+const intentController = require("../controllers/intentController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validate, validationChains } = require("../middleware/validation");
@@ -883,6 +886,35 @@ router.put("/batch/runs/:id", writeLimiter, asyncHandler(batchController.updateB
 router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
 router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 router.get("/batch/runs/:id", asyncHandler(batchController.getBatchRunByIdHandler));
+
+// Intent routes
+// IMPORTANT: Specific/static routes must come before parameterized routes
+router.get("/intents", asyncHandler(intentController.listIntents));
+router.post("/intents", writeLimiter, asyncHandler(intentController.createIntentHandler));
+router.get("/intents/executions/recent", asyncHandler(intentController.getRecentExecutionsHandler));
+router.get(
+  "/intents/executions/:executionId",
+  asyncHandler(intentController.getExecutionDetailHandler)
+);
+router.get("/intents/:id", asyncHandler(intentController.getIntent));
+router.put("/intents/:id", writeLimiter, asyncHandler(intentController.updateIntentHandler));
+router.delete(
+  "/intents/:id",
+  destructiveLimiter,
+  asyncHandler(intentController.deleteIntentHandler)
+);
+router.post(
+  "/intents/:id/toggle",
+  writeLimiter,
+  asyncHandler(intentController.toggleIntentHandler)
+);
+router.post(
+  "/intents/:id/execute",
+  destructiveLimiter,
+  asyncHandler(intentController.executeIntentHandler)
+);
+router.post("/intents/:id/dry-run", asyncHandler(intentController.dryRunIntentHandler));
+router.get("/intents/:id/executions", asyncHandler(intentController.getIntentExecutionsHandler));
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes

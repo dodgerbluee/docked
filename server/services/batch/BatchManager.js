@@ -9,9 +9,11 @@ const {
   updateBatchRun,
   checkAndAcquireBatchJobLock,
   cleanupStaleBatchJobs,
+  cleanupStaleIntentExecutions,
 } = require("../../db/index");
 const BatchLogger = require("./Logger");
 const Scheduler = require("./Scheduler");
+const intentEvaluator = require("../intents/intentEvaluator");
 const logger = require("../../utils/logger");
 
 class BatchManager {
@@ -74,7 +76,7 @@ class BatchManager {
     const lockCheck = await checkAndAcquireBatchJobLock(userId, jobType);
     if (lockCheck.isRunning) {
       throw new Error(
-        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`
+        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`,
       );
     }
 
@@ -118,6 +120,19 @@ class BatchManager {
       this.scheduler.updateLastRunTime(userId, jobType, Date.now());
 
       logger.info("Batch run marked as completed", { runId, userId });
+
+      // Post-scan hook: evaluate immediate intents if updates were found
+      // Fire-and-forget — don't block the batch job response
+      try {
+        intentEvaluator.evaluateImmediateIntents(userId, {
+          itemsUpdated: result.itemsUpdated || 0,
+        });
+      } catch (hookErr) {
+        logger.error("Error triggering immediate intent evaluation (non-fatal):", {
+          userId,
+          error: hookErr.message,
+        });
+      }
 
       return {
         runId,
@@ -186,7 +201,29 @@ class BatchManager {
         // Don't fail startup if cleanup fails
       }
 
+      // Clean up any stale intent executions from previous server instance
+      try {
+        const cleanedIntents = await cleanupStaleIntentExecutions();
+        if (cleanedIntents > 0) {
+          logger.info(`Cleaned up ${cleanedIntents} stale intent execution(s) on startup`);
+        }
+      } catch (cleanupErr) {
+        logger.warn("Failed to cleanup stale intent executions on startup (non-fatal):", {
+          error: cleanupErr.message,
+        });
+      }
+
       await this.scheduler.start();
+
+      // Start the intent evaluator for scheduled intent polling
+      try {
+        intentEvaluator.start();
+        logger.info("Intent evaluator started alongside batch scheduler");
+      } catch (evalErr) {
+        logger.warn("Failed to start intent evaluator (non-fatal):", {
+          error: evalErr.message,
+        });
+      }
     } catch (err) {
       logger.error("❌ Failed to start batch system:", err);
       throw err;
@@ -198,6 +235,7 @@ class BatchManager {
    */
   stop() {
     this.scheduler.stop();
+    intentEvaluator.stop();
     logger.info("⏹️  Batch manager stopped");
   }
 
