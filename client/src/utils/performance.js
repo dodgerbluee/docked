@@ -2,8 +2,6 @@
  * Performance monitoring utilities for mobile optimization
  */
 
-import React from "react";
-
 // Simple performance metrics tracking
 class PerformanceMonitor {
   constructor() {
