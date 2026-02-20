@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Plus, History } from "lucide-react";
+import { Plus, History, Zap } from "lucide-react";
 import {
   PORTAINER_CONTENT_TABS,
   PORTAINER_CONTENT_TAB_LABELS,
@@ -22,6 +22,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
   selectedImageSourceFilters,
   onSelectedImageSourceFiltersChange,
   onAddInstance,
+  onManageIntents,
 }) {
   const handleInstanceToggle = (instanceName, checked) => {
     onSelectedPortainerInstancesChange((prev) => {
@@ -230,6 +231,26 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           ))}
         </div>
       </div>
+
+      {/* Manage */}
+      {onManageIntents && (
+        <div className={`${styles.sidebarHeader} ${styles.filterSectionSpacing}`}>
+          <h3>Manage</h3>
+        </div>
+      )}
+      {onManageIntents && (
+        <div className={styles.filterContainer}>
+          <button
+            className={`${styles.sidebarItem} ${styles.manageIntentsButton}`}
+            onClick={onManageIntents}
+            title="Manage Intents"
+            aria-label="Manage Intents"
+          >
+            <Zap size={16} aria-hidden="true" />
+            <span>Intents</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 });
@@ -243,6 +264,7 @@ PortainerSidebar.propTypes = {
   selectedImageSourceFilters: PropTypes.instanceOf(Set).isRequired,
   onSelectedImageSourceFiltersChange: PropTypes.func.isRequired,
   onAddInstance: PropTypes.func.isRequired,
+  onManageIntents: PropTypes.func,
 };
 
 PortainerSidebar.displayName = "PortainerSidebar";

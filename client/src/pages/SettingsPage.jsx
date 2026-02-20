@@ -16,6 +16,8 @@ function SettingsPage({
   username,
   avatar,
   recentAvatars,
+  containers = [],
+  portainerInstances = [],
   onUsernameUpdate,
   onLogout,
   onPasswordUpdateSuccess,
@@ -144,6 +146,8 @@ function SettingsPage({
             onColorSchemeChange={onColorSchemeChange}
             onClearPortainerData={onClearPortainerData}
             onClearTrackedAppData={onClearTrackedAppData}
+            containers={containers}
+            portainerInstances={portainerInstances}
           />
         </ErrorBoundary>
       </div>
@@ -155,6 +159,8 @@ SettingsPage.propTypes = {
   username: PropTypes.string.isRequired,
   avatar: PropTypes.string,
   recentAvatars: PropTypes.arrayOf(PropTypes.string),
+  containers: PropTypes.array,
+  portainerInstances: PropTypes.array,
   onUsernameUpdate: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   onPasswordUpdateSuccess: PropTypes.func.isRequired,
