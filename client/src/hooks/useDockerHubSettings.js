@@ -20,14 +20,6 @@ export function useDockerHubSettings() {
       "Docker Hub credentials are configured on the host (run `docker login`)."
     );
     return;
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/docker-hub/credentials`);
-      if (response.data.success) {
-        setDockerHubCredentials(response.data.credentials);
-      }
-    } catch (err) {
-      console.error("Error fetching Docker Hub credentials:", err);
-    }
   }, []);
 
   useEffect(() => {
@@ -47,17 +39,6 @@ export function useDockerHubSettings() {
     );
     setTimeout(() => setDockerHubSuccess(""), 3000);
     return;
-    try {
-      const response = await axios.delete(`${API_BASE_URL}/api/docker-hub/credentials`);
-      if (response.data.success) {
-        setDockerHubSuccess("Docker Hub credentials removed successfully!");
-        setDockerHubCredentials(null);
-        await fetchDockerHubCredentials();
-        setTimeout(() => setDockerHubSuccess(""), 3000);
-      }
-    } catch (err) {
-      console.error("Failed to remove Docker Hub credentials:", err);
-    }
   }, [fetchDockerHubCredentials]);
 
   return {
