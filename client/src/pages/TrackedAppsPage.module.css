@@ -366,8 +366,8 @@ body.dark-mode .stackCount {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
   padding-bottom: 20px;
 }
 
@@ -378,8 +378,8 @@ body.dark-mode .stackCount {
 
 .gridWithUpdates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
   padding-bottom: 20px;
 }
 
@@ -390,8 +390,8 @@ body.dark-mode .stackCount {
 
 .gridWithoutUpdates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
   padding-bottom: 20px;
 }
 
@@ -413,6 +413,7 @@ body.dark-mode .stackCount {
   .gridWithUpdates,
   .gridWithoutUpdates {
     grid-template-columns: 1fr;
+    gap: 15px;
   }
 
   .stackHeader {
@@ -489,8 +490,8 @@ body.dark-mode .emptyStateLink:hover {
 
 .addCard {
   background: var(--bg-secondary);
-  padding: 10px;
-  border-radius: 8px;
+  padding: 16px 18px;
+  border-radius: 12px;
   border: 2px dashed var(--border-color);
   display: flex;
   flex-direction: column;

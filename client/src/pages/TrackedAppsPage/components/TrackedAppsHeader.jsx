@@ -4,7 +4,7 @@
 
 import React, { useMemo, useState } from "react";
 import PropTypes from "prop-types";
-import { RefreshCw, Check, SlidersHorizontal, Search, X } from "lucide-react";
+import { RefreshCw, SlidersHorizontal, Search, X } from "lucide-react";
 import Button from "../../../components/ui/Button";
 import SearchInput from "../../../components/ui/SearchInput";
 import styles from "../../TrackedAppsPage.module.css";
@@ -16,20 +16,14 @@ import styles from "../../TrackedAppsPage.module.css";
  * @param {Function} props.onSearchChange - Search change handler
  * @param {Function} props.onCheckUpdates - Check for updates handler
  * @param {boolean} props.checkingUpdates - Whether checking for updates
- * @param {boolean} props.showCheckmark - Whether to show success checkmark
  * @param {number} props.trackedAppsCount - Number of tracked images
- * @param {boolean} props.markingUpgraded - Whether marking apps as upgraded
- * @param {React.ReactNode} props.toolbarActions - Toolbar action buttons
  */
 const TrackedAppsHeader = ({
   searchQuery,
   onSearchChange,
   onCheckUpdates,
   checkingUpdates,
-  showCheckmark,
   trackedAppsCount,
-  markingUpgraded,
-  toolbarActions,
   mobileSidebarOpen,
   onMobileSidebarOpen,
 }) => {
@@ -69,10 +63,9 @@ const TrackedAppsHeader = ({
         <div className={styles.headerActions}>
           <div className={styles.desktopActionGroup}>
             <div className={styles.buttonContainer}>
-              {toolbarActions}
               <Button
                 onClick={onCheckUpdates}
-                disabled={checkingUpdates || trackedAppsCount === 0 || markingUpgraded}
+                disabled={checkingUpdates || trackedAppsCount === 0}
                 title={mobileRefreshTitle}
                 variant="outline"
                 icon={RefreshCw}
@@ -80,7 +73,6 @@ const TrackedAppsHeader = ({
               >
                 {checkingUpdates ? "Checking for Updates..." : "Check for Updates"}
               </Button>
-              {showCheckmark && <Check className={styles.checkmark} size={20} />}
             </div>
           </div>
 
@@ -111,11 +103,9 @@ const TrackedAppsHeader = ({
               <span className="sr-only">Search</span>
             </Button>
 
-            {toolbarActions && <div className={styles.mobileToolbarActions}>{toolbarActions}</div>}
-
             <Button
               onClick={onCheckUpdates}
-              disabled={checkingUpdates || trackedAppsCount === 0 || markingUpgraded}
+              disabled={checkingUpdates || trackedAppsCount === 0}
               title={mobileRefreshTitle}
               aria-label={mobileRefreshTitle}
               variant="outline"
@@ -160,10 +150,7 @@ TrackedAppsHeader.propTypes = {
   onSearchChange: PropTypes.func.isRequired,
   onCheckUpdates: PropTypes.func.isRequired,
   checkingUpdates: PropTypes.bool.isRequired,
-  showCheckmark: PropTypes.bool.isRequired,
   trackedAppsCount: PropTypes.number.isRequired,
-  markingUpgraded: PropTypes.bool.isRequired,
-  toolbarActions: PropTypes.node,
   mobileSidebarOpen: PropTypes.bool,
   onMobileSidebarOpen: PropTypes.func,
 };

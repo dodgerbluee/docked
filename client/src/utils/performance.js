@@ -96,7 +96,7 @@ class PerformanceMonitor {
 
   // Log metrics to console and optionally to analytics
   logMetrics(name, metrics) {
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.DEV) {
       console.group(`🔍 Performance: ${name}`);
       Object.entries(metrics).forEach(([key, value]) => {
         const status = this.getMetricStatus(key, value);

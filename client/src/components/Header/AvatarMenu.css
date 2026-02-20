@@ -5,7 +5,6 @@
   gap: 10px;
   position: relative;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  isolation: isolate;
   z-index: calc(var(--z-header) + 1);
 }
 
@@ -108,11 +107,9 @@ body.dark-mode .user-role-text {
   box-shadow: 0 4px 12px var(--shadow);
   min-width: 200px;
   z-index: var(--z-dropdown) !important;
-  isolation: isolate;
   backdrop-filter: none !important;
   opacity: 1 !important;
   mix-blend-mode: normal !important;
-  contain: layout style paint;
 }
 
 /* Ensure solid background in light mode */

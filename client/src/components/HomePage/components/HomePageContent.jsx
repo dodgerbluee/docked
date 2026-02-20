@@ -2,20 +2,23 @@
  * HomePage content component
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
 import MobileNavigation from "../../Navigation/MobileNavigation";
 import RateLimitError from "../../ErrorDisplay/RateLimitError";
-import SummaryPage from "../../../pages/SummaryPage";
-import TrackedAppsPage from "../../../pages/TrackedAppsPage";
-import PortainerPage from "../../../pages/PortainerPage";
-import AnalyticsPage from "../../../pages/AnalyticsPage";
-import SettingsPage from "../../../pages/SettingsPage";
-import BatchPage from "../../../pages/BatchPage";
-import AdminPage from "../../../pages/AdminPage";
+import LoadingSpinner from "../../ui/LoadingSpinner";
 import { TAB_NAMES, CONTENT_TABS } from "../../../constants/apiConstants";
 import { SETTINGS_TABS } from "../../../constants/settings";
+
+// Lazy-loaded tab pages — only one is active at a time
+const SummaryPage = lazy(() => import("../../../pages/SummaryPage"));
+const TrackedAppsPage = lazy(() => import("../../../pages/TrackedAppsPage"));
+const PortainerPage = lazy(() => import("../../../pages/PortainerPage"));
+const AnalyticsPage = lazy(() => import("../../../pages/AnalyticsPage"));
+const SettingsPage = lazy(() => import("../../../pages/SettingsPage"));
+const BatchPage = lazy(() => import("../../../pages/BatchPage"));
+const AdminPage = lazy(() => import("../../../pages/AdminPage"));
 
 /**
  * HomePage content component
@@ -252,111 +255,113 @@ const HomePageContent = ({
 
       {/* Tab Content */}
       <div className="tab-content">
-        {activeTab === TAB_NAMES.SETTINGS ? (
-          <SettingsPage
-            key={username || authToken || "settings"}
-            username={username}
-            avatar={avatar}
-            recentAvatars={recentAvatars || []}
-            onUsernameUpdate={handleUsernameUpdate}
-            onLogout={handleLogoutWithCleanup}
-            onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
-            onPortainerInstancesChange={handlePortainerInstancesChange}
-            onAvatarChange={handleAvatarChange}
-            onRecentAvatarsChange={handleRecentAvatarsChange}
-            onAvatarUploaded={handleAvatarUploaded}
-            onBatchConfigUpdate={handleBatchConfigUpdate}
-            colorScheme={colorScheme}
-            onColorSchemeChange={handleColorSchemeChange}
-            onClearPortainerData={handleClear}
-            onClearTrackedAppData={handleClearGitHubCache}
-            onEditInstance={openModal}
-            editingPortainerInstance={editingPortainerInstance}
-            refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
-            activeTab={settingsTab}
-            onTabChange={setSettingsTab}
-          />
-        ) : activeTab === TAB_NAMES.CONFIGURATION ? (
-          <BatchPage
-            onBatchConfigUpdate={handleBatchConfigUpdate}
-            colorScheme={colorScheme}
-            onColorSchemeChange={handleColorSchemeChange}
-            onTriggerBatch={handleBatchPull}
-            onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
-            activeTab={configurationTab}
-            onTabChange={setConfigurationTab}
-          />
-        ) : activeTab === TAB_NAMES.BATCH_LOGS ? (
-          <BatchPage
-            onBatchConfigUpdate={handleBatchConfigUpdate}
-            colorScheme={colorScheme}
-            onColorSchemeChange={handleColorSchemeChange}
-            onTriggerBatch={handleBatchPull}
-            onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
-            activeTab="history"
-          />
-        ) : (
-          <>
-            {loading && containers.length === 0 && !pulling && (
-              <div className="loading">Loading containers...</div>
-            )}
-
-            <RateLimitError
-              error={error}
-              onDismiss={() => setError(null)}
-              onRetry={handlePull}
-              pulling={pulling}
-              loading={loading}
+        <Suspense fallback={<LoadingSpinner />}>
+          {activeTab === TAB_NAMES.SETTINGS ? (
+            <SettingsPage
+              key={username || authToken || "settings"}
+              username={username}
+              avatar={avatar}
+              recentAvatars={recentAvatars || []}
+              onUsernameUpdate={handleUsernameUpdate}
+              onLogout={handleLogoutWithCleanup}
+              onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
+              onPortainerInstancesChange={handlePortainerInstancesChange}
+              onAvatarChange={handleAvatarChange}
+              onRecentAvatarsChange={handleRecentAvatarsChange}
+              onAvatarUploaded={handleAvatarUploaded}
+              onBatchConfigUpdate={handleBatchConfigUpdate}
+              colorScheme={colorScheme}
+              onColorSchemeChange={handleColorSchemeChange}
+              onClearPortainerData={handleClear}
+              onClearTrackedAppData={handleClearGitHubCache}
+              onEditInstance={openModal}
+              editingPortainerInstance={editingPortainerInstance}
+              refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
+              activeTab={settingsTab}
+              onTabChange={setSettingsTab}
             />
+          ) : activeTab === TAB_NAMES.CONFIGURATION ? (
+            <BatchPage
+              onBatchConfigUpdate={handleBatchConfigUpdate}
+              colorScheme={colorScheme}
+              onColorSchemeChange={handleColorSchemeChange}
+              onTriggerBatch={handleBatchPull}
+              onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+              activeTab={configurationTab}
+              onTabChange={setConfigurationTab}
+            />
+          ) : activeTab === TAB_NAMES.BATCH_LOGS ? (
+            <BatchPage
+              onBatchConfigUpdate={handleBatchConfigUpdate}
+              colorScheme={colorScheme}
+              onColorSchemeChange={handleColorSchemeChange}
+              onTriggerBatch={handleBatchPull}
+              onTriggerTrackedAppsBatch={handleBatchTrackedAppsCheck}
+              activeTab="history"
+            />
+          ) : (
+            <>
+              {loading && containers.length === 0 && !pulling && (
+                <div className="loading">Loading containers...</div>
+              )}
 
-            {!loading && (
-              <>
-                {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                {activeTab === TAB_NAMES.ANALYTICS && (
-                  <AnalyticsPage portainerInstances={portainerInstances} />
-                )}
-                {activeTab === TAB_NAMES.PORTAINER && (
-                  <PortainerPage
-                    portainerInstances={portainerInstances}
-                    containers={containers}
-                    unusedImages={unusedImages}
-                    unusedImagesCount={unusedImagesCount}
-                    containersByPortainer={containersByPortainer}
-                    loadingInstances={loadingInstances}
-                    dockerHubDataPulled={dockerHubDataPulled}
-                    lastPullTime={lastPullTime}
-                    successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-                    onContainersUpdate={setContainers}
-                    onUnusedImagesUpdate={setUnusedImages}
-                    onUnusedImagesCountUpdate={setUnusedImagesCount}
-                    onAddInstance={openModal}
-                    onPullDockerHub={handlePull}
-                    pullingDockerHub={pulling}
-                    pullError={pullError}
-                    pullSuccess={pullSuccess}
-                    selectedPortainerInstances={selectedPortainerInstances}
-                    onSetSelectedPortainerInstances={setSelectedPortainerInstances}
-                    contentTab={contentTab}
-                    onSetContentTab={setContentTab}
-                    portainerUpgradeFromProps={portainerUpgrade}
-                    fetchContainers={fetchContainers}
-                    fetchUnusedImages={fetchUnusedImages}
-                    onNavigateToLogs={() => {
-                      setActiveTab(TAB_NAMES.SETTINGS);
-                      requestAnimationFrame(() => {
+              <RateLimitError
+                error={error}
+                onDismiss={() => setError(null)}
+                onRetry={handlePull}
+                pulling={pulling}
+                loading={loading}
+              />
+
+              {!loading && (
+                <>
+                  {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
+                  {activeTab === TAB_NAMES.ANALYTICS && (
+                    <AnalyticsPage portainerInstances={portainerInstances} />
+                  )}
+                  {activeTab === TAB_NAMES.PORTAINER && (
+                    <PortainerPage
+                      portainerInstances={portainerInstances}
+                      containers={containers}
+                      unusedImages={unusedImages}
+                      unusedImagesCount={unusedImagesCount}
+                      containersByPortainer={containersByPortainer}
+                      loadingInstances={loadingInstances}
+                      dockerHubDataPulled={dockerHubDataPulled}
+                      lastPullTime={lastPullTime}
+                      successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
+                      onContainersUpdate={setContainers}
+                      onUnusedImagesUpdate={setUnusedImages}
+                      onUnusedImagesCountUpdate={setUnusedImagesCount}
+                      onAddInstance={openModal}
+                      onPullDockerHub={handlePull}
+                      pullingDockerHub={pulling}
+                      pullError={pullError}
+                      pullSuccess={pullSuccess}
+                      selectedPortainerInstances={selectedPortainerInstances}
+                      onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+                      contentTab={contentTab}
+                      onSetContentTab={setContentTab}
+                      portainerUpgradeFromProps={portainerUpgrade}
+                      fetchContainers={fetchContainers}
+                      fetchUnusedImages={fetchUnusedImages}
+                      onNavigateToLogs={() => {
+                        setActiveTab(TAB_NAMES.SETTINGS);
                         requestAnimationFrame(() => {
-                          setTimeout(() => setSettingsTab(SETTINGS_TABS.LOGS), 200);
+                          requestAnimationFrame(() => {
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.LOGS), 200);
+                          });
                         });
-                      });
-                    }}
-                  />
-                )}
-                {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
-                {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
-              </>
-            )}
-          </>
-        )}
+                      }}
+                    />
+                  )}
+                  {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
+                  {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
+                </>
+              )}
+            </>
+          )}
+        </Suspense>
       </div>
     </div>
   );

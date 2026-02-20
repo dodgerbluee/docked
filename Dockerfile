@@ -14,10 +14,7 @@ RUN npm install
 COPY client/ ./
 
 # Build React app
-# Use NODE_OPTIONS to provide localStorage file path for Node.js 25+
-# Disable ESLint plugin during build: we override ESLint to 9.x for security, but react-scripts
-# passes options removed in ESLint 9 (extensions, resolvePluginsRelativeTo).
-RUN NODE_OPTIONS="--localstorage-file=/tmp/.localstorage" DISABLE_ESLINT_PLUGIN=true npm run build
+RUN npm run build
 
 # Stage 2: Build backend and serve frontend
 FROM node:25-alpine

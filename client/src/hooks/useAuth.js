@@ -134,7 +134,7 @@ export const useAuth = () => {
       localStorage.setItem("authToken", newToken);
       axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     } else {
-      const token = Buffer.from(`${newUsername}:${Date.now()}`).toString("base64");
+      const token = btoa(`${newUsername}:${Date.now()}`);
       setAuthToken(token);
       localStorage.setItem("authToken", token);
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
