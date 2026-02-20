@@ -15,6 +15,7 @@
    ============================================ */
 .homepage-container {
   width: 100%;
+  max-width: 1500px;
   margin: 0 auto;
   background: var(--bg-primary);
   border-radius: 12px;
@@ -27,24 +28,6 @@
     padding: 10px 16px;
     border-radius: 0;
     box-shadow: none;
-  }
-}
-
-@media (min-width: 768px) {
-  .homepage-container {
-    max-width: 100%;
-  }
-}
-
-@media (min-width: 1024px) {
-  .homepage-container {
-    max-width: 100%;
-  }
-}
-
-@media (min-width: 1200px) {
-  .homepage-container {
-    max-width: 100%;
   }
 }
 
