@@ -101,17 +101,17 @@ jobs:
           cd ../client && npm ci
 
       - name: Run npm audit (root)
-        run: npm audit --audit-level=moderate
+        run: npx better-npm-audit audit --level moderate
 
       - name: Run npm audit (server)
         run: |
           cd server
-          npm audit --audit-level=moderate
+          npx better-npm-audit audit --level moderate
 
       - name: Run npm audit (client)
         run: |
           cd client
-          npm audit --audit-level=moderate
+          npx better-npm-audit audit --level moderate
 
   # Snyk security scan
   snyk-scan:
@@ -143,7 +143,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --severity-threshold=high --all-projects
+          args: --severity-threshold=high --all-projects --policy-path=.
 
   # CodeQL Analysis
   codeql-analysis:
