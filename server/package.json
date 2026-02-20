@@ -4,7 +4,7 @@
   "description": "Backend server for Docked",
   "main": "server.js",
   "scripts": {
-    "start": "DATA_DIR=../data node server.js",
+    "start": "node server.js",
     "dev": "DATA_DIR=../data nodemon server.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -13,7 +13,7 @@
     "docs:schema": "node scripts/generateSchemaDoc.js"
   },
   "dependencies": {
-    "axios": "^1.13.4",
+    "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",

@@ -152,6 +152,7 @@ const PortainerToolbarActions = ({
     onToggleImageSelect,
     onBatchUpgrade,
     onBatchDelete,
+    compactLabels,
   ]);
 
   return toolbarActions;

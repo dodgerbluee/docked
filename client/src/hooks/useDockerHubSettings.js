@@ -1,6 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 
 /**
  * useDockerHubSettings Hook
@@ -39,7 +37,7 @@ export function useDockerHubSettings() {
     );
     setTimeout(() => setDockerHubSuccess(""), 3000);
     return;
-  }, [fetchDockerHubCredentials]);
+  }, []);
 
   return {
     dockerHubCredentials,
