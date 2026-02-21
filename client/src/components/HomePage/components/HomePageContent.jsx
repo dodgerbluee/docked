@@ -2,7 +2,7 @@
  * HomePage content component
  */
 
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
 import MobileNavigation from "../../Navigation/MobileNavigation";
@@ -184,12 +184,7 @@ const HomePageContent = ({
     previousTabRef.current = currentTab;
   }, [activeTab, fetchContainers]);
 
-  // Mobile menu state
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const handleMobileMenuToggle = (isOpen) => {
-    setIsMobileMenuOpen(isOpen);
-  };
+  // Mobile menu removed; avatar menu handles mobile options
 
   return (
     <div className="homepage-container">
@@ -228,8 +223,6 @@ const HomePageContent = ({
               instanceAdmin={instanceAdmin}
               onThemeToggle={onTemporaryThemeToggle}
               onLogout={handleLogoutWithCleanup}
-              onMenuToggle={handleMobileMenuToggle}
-              isMenuOpen={isMobileMenuOpen}
             />
           </>
         )}
@@ -248,8 +241,6 @@ const HomePageContent = ({
           instanceAdmin={instanceAdmin}
           onThemeToggle={onTemporaryThemeToggle}
           onLogout={handleLogoutWithCleanup}
-          onMenuToggle={handleMobileMenuToggle}
-          isMenuOpen={isMobileMenuOpen}
         />
       ) : null}
 

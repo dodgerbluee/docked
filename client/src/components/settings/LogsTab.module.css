@@ -371,21 +371,26 @@ body.dark-mode .logDebug {
     width: 100%;
     margin: 0;
     justify-content: flex-start;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap;
-    padding-bottom: 4px;
+    flex-wrap: wrap;
+    padding-bottom: 0;
   }
 
   .levelFilterBtn {
     flex-shrink: 0;
-    min-height: var(--touch-target-min);
-    padding: 8px 14px;
+    min-width: unset;
+    min-height: unset;
+    padding: 6px 12px;
+    font-size: 0.75rem;
   }
 
   .actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .actions button {
+    min-width: unset;
+    font-size: 0.8rem;
   }
 
   .content {

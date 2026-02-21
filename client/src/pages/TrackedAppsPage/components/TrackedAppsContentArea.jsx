@@ -16,7 +16,15 @@ const SectionHeader = ({ sectionKey, title, count, isCollapsed, onToggle }) => {
   return (
     <div
       className={styles.stackHeader}
-      onClick={() => onToggle(sectionKey)}
+      onClick={(e) => {
+        // Focus the header before toggling to avoid aria-hidden on focused descendants
+        try {
+          e.currentTarget?.focus();
+        } catch {
+          // ignore focus errors
+        }
+        onToggle(sectionKey);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

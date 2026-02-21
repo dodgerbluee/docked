@@ -282,6 +282,8 @@ function ExecutionHistoryPanel({ intentId, intentName, fetchExecutions, fetchExe
         setError(result.error || "Failed to load executions");
       }
     } catch (err) {
+      // Log for debugging while keeping the user-facing message generic
+      console.error("loadExecutions error:", err);
       setError("Failed to load executions");
     } finally {
       setIsLoading(false);
@@ -310,6 +312,7 @@ function ExecutionHistoryPanel({ intentId, intentName, fetchExecutions, fetchExe
           setDetailError(result.error || "Failed to load execution detail");
         }
       } catch (err) {
+        console.error("handleViewDetail error:", err);
         setDetailError("Failed to load execution detail");
       } finally {
         setIsLoadingDetail(false);

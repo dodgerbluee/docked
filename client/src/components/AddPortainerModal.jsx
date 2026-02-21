@@ -12,6 +12,7 @@ import Input from "./ui/Input";
 import Button from "./ui/Button";
 import ToggleButton from "./ui/ToggleButton";
 import Alert from "./ui/Alert";
+import PortainerIcon from "./icons/PortainerIcon";
 import { API_BASE_URL } from "../utils/api";
 import styles from "./AddPortainerModal.module.css";
 
@@ -28,7 +29,7 @@ const AUTH_TYPE_OPTIONS = [
   },
   {
     value: "password",
-    label: "Username / Password",
+    label: "Credentials",
     icon: Lock,
   },
 ];
@@ -258,12 +259,20 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
     }
   };
 
+  const modalTitle = (
+    <span className={styles.modalTitle}>
+      <PortainerIcon size={20} className={styles.modalTitleIcon} />
+      {instanceId ? "Edit Portainer Instance" : "Add Portainer Instance"}
+    </span>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={instanceId ? "Edit Portainer Instance" : "Add Portainer Instance"}
-      size="md"
+      title={modalTitle}
+      size="sm"
+      className={styles.modal}
     >
       <form onSubmit={handleSubmit} className={styles.form}>
         <Input
@@ -277,32 +286,40 @@ function AddPortainerModal({ isOpen, onClose, onSuccess, initialData = null, ins
         />
 
         <div className={styles.urlGroup}>
-          <div className={styles.urlHeader}>
-            <label htmlFor="url" className={styles.urlLabel}>
-              Portainer URL <span className={styles.required}>*</span>
-            </label>
-            <ToggleButton
-              options={PROTOCOL_OPTIONS}
-              value={protocol}
-              onChange={setProtocol}
-              className={styles.protocolToggle}
-            />
-          </div>
-          <div className={styles.urlInput}>
-            <span className={styles.protocolPrefix}>{protocol}://</span>
-            <input
-              type="text"
-              id="url"
-              name="url"
-              value={formData.url}
-              onChange={handleChange}
-              required
-              placeholder="portainer.example.com:9000"
-              disabled={loading}
-              className={styles.urlField}
-            />
+          <label htmlFor="url" className={styles.urlLabel}>
+            Portainer URL <span className={styles.required}>*</span>
+          </label>
+          <div className={styles.urlRow}>
+            <div className={styles.protocolSwitch}>
+              {PROTOCOL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`${styles.protocolBtn} ${protocol === opt.value ? styles.protocolBtnActive : ""}`}
+                  onClick={() => setProtocol(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.urlInputWrap}>
+              <span className={styles.protocolSep}>{protocol}://</span>
+              <input
+                type="text"
+                id="url"
+                name="url"
+                value={formData.url}
+                onChange={handleChange}
+                required
+                placeholder="portainer.example.com:9000"
+                disabled={loading}
+                className={styles.urlField}
+              />
+            </div>
           </div>
         </div>
+
+        <hr className={styles.divider} />
 
         <div className={styles.formGroup}>
           <label className={styles.label}>

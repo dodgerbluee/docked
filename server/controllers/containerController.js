@@ -69,12 +69,12 @@ async function getContainers(req, res, _next) {
         if (cached && cached.containers && cached.containers.length > 0) {
           // Create a map of cached containers by ID for quick lookup
           const cachedMap = new Map();
-          cached.containers.forEach(c => {
+          cached.containers.forEach((c) => {
             cachedMap.set(c.id, c);
           });
 
           // Merge: use fresh Portainer data (status, state, names) but preserve update info from cache
-          const mergedContainers = portainerResult.containers.map(portainerContainer => {
+          const mergedContainers = portainerResult.containers.map((portainerContainer) => {
             const cachedContainer = cachedMap.get(portainerContainer.id);
 
             if (cachedContainer) {
@@ -147,15 +147,15 @@ async function getContainers(req, res, _next) {
           // Update stacks and portainerInstances with merged data
           const { stacks } = containerGroupingService.groupContainersByStackWithUnstacked(
             mergedContainers,
-            "Unstacked",
+            "Unstacked"
           );
 
           const userInstances = await getAllPortainerInstances(userId);
           const portainerInstancesArray = containerGroupingService
             .groupContainersByPortainerInstance(mergedContainers, userInstances)
-            .map(instance => {
-              const withUpdates = instance.containers.filter(c => c.hasUpdate);
-              const upToDate = instance.containers.filter(c => !c.hasUpdate);
+            .map((instance) => {
+              const withUpdates = instance.containers.filter((c) => c.hasUpdate);
+              const upToDate = instance.containers.filter((c) => !c.hasUpdate);
               return {
                 ...instance,
                 withUpdates,
@@ -201,8 +201,8 @@ async function getContainers(req, res, _next) {
     // Check if cached data has network mode flags (providesNetwork, usesNetworkMode)
     // If not, it's old cached data and we need to refresh from Portainer to add these flags
     const hasNetworkModeFlags = cached.containers.some(
-      container =>
-        Object.hasOwn(container, "providesNetwork") || Object.hasOwn(container, "usesNetworkMode"),
+      (container) =>
+        Object.hasOwn(container, "providesNetwork") || Object.hasOwn(container, "usesNetworkMode")
     );
 
     if (!hasNetworkModeFlags && cached.containers.length > 0) {
@@ -216,12 +216,12 @@ async function getContainers(req, res, _next) {
 
       // Merge Portainer network mode flags into cached data (preserve registry update info)
       const portainerContainersMap = new Map();
-      portainerResult.containers.forEach(c => {
+      portainerResult.containers.forEach((c) => {
         portainerContainersMap.set(c.id, c);
       });
 
       // Update cached containers with network mode flags from Portainer data
-      const updatedContainers = cached.containers.map(cachedContainer => {
+      const updatedContainers = cached.containers.map((cachedContainer) => {
         const portainerContainer = portainerContainersMap.get(cachedContainer.id);
         if (portainerContainer) {
           return {
@@ -410,7 +410,7 @@ async function upgradeContainer(req, res, next) {
 
     // Get instance credentials from database for this user
     const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find(inst => inst.url === portainerUrl);
+    const instance = instances.find((inst) => inst.url === portainerUrl);
     if (!instance) {
       return res.status(404).json({
         success: false,
@@ -430,7 +430,7 @@ async function upgradeContainer(req, res, next) {
       endpointId,
       containerId,
       imageName,
-      userId,
+      userId
     );
 
     return res.json({
@@ -481,7 +481,7 @@ async function batchUpgradeContainers(req, res, next) {
 
     // Get all instances once to avoid repeated DB queries (for this user)
     const instances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(instances.map(inst => [inst.url, inst]));
+    const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Group containers by Portainer instance for efficient authentication
     const containersByInstance = new Map();
@@ -520,12 +520,12 @@ async function batchUpgradeContainers(req, res, next) {
           });
           return { portainerUrl, success: false, error: error.message };
         }
-      },
+      }
     );
     await Promise.all(authPromises);
 
     // Upgrade all containers concurrently (with per-container upgrade locking)
-    const upgradePromises = containers.map(async container => {
+    const upgradePromises = containers.map(async (container) => {
       // Attempt to acquire upgrade lock to prevent conflicts with intent-driven upgrades
       const lockOpts = { portainerInstanceId: container.portainerInstanceId };
       const acquired = upgradeLockManager.acquire(container.containerId, {
@@ -570,7 +570,7 @@ async function batchUpgradeContainers(req, res, next) {
           container.endpointId,
           container.containerId,
           container.imageName,
-          userId,
+          userId
         );
         return { success: true, result, containerId: container.containerId };
       } catch (error) {
@@ -652,7 +652,7 @@ async function batchUpgradeContainers(req, res, next) {
 // eslint-disable-next-line max-lines-per-function -- Complex correlation logic
 function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstances) {
   const correlated = {};
-  const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+  const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
   // Helper to extract image repo and tag from various formats
   const extractImageInfo = (imageName, imageRepo, imageTag) => {
@@ -681,7 +681,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   // First pass: Group containers by image_repo:tag
   const containersByImage = new Map();
 
-  (rawDatabaseRecords.containers || []).forEach(container => {
+  (rawDatabaseRecords.containers || []).forEach((container) => {
     const { repo, tag } = extractImageInfo(container.image_name, container.image_repo, null);
     const imageKey = `${repo}:${tag}`;
 
@@ -713,7 +713,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
 
   // Second pass: Correlate deployed_images by image_repo and by ID
   const deployedImageMap = new Map();
-  (rawDatabaseRecords.deployed_images || []).forEach(deployedImage => {
+  (rawDatabaseRecords.deployed_images || []).forEach((deployedImage) => {
     deployedImageMap.set(deployedImage.id, deployedImage);
 
     const { repo, tag } = extractImageInfo(null, deployedImage.image_repo, deployedImage.image_tag);
@@ -738,11 +738,11 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   });
 
   // Third pass: Match deployed_images to containers by deployed_image_id
-  containersByImage.forEach(data => {
+  containersByImage.forEach((data) => {
     if (data.deployedImageIds) {
-      data.deployedImageIds.forEach(deployedImageId => {
+      data.deployedImageIds.forEach((deployedImageId) => {
         const deployedImage = deployedImageMap.get(deployedImageId);
-        if (deployedImage && !data.deployedImages.find(di => di.id === deployedImage.id)) {
+        if (deployedImage && !data.deployedImages.find((di) => di.id === deployedImage.id)) {
           data.deployedImages.push(deployedImage);
         }
       });
@@ -751,7 +751,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   });
 
   // Fourth pass: Correlate registry_image_versions by image_repo
-  (rawDatabaseRecords.registry_image_versions || []).forEach(version => {
+  (rawDatabaseRecords.registry_image_versions || []).forEach((version) => {
     const imageRepo = version.image_repo || "";
     // Try to match by current_tag, latest_tag, or any tag
     const imageTag = version.current_tag || version.latest_tag || version.image_tag || "latest";
@@ -791,7 +791,7 @@ function correlateRecordsByImage(rawDatabaseRecords, allContainers, userInstance
   // Convert to object format and add Portainer instance details
   containersByImage.forEach((data, imageKey) => {
     const portainerInstances = Array.from(data.portainerInstances)
-      .map(instanceId => {
+      .map((instanceId) => {
         const instance = instanceMap.get(instanceId);
         return instance || { id: instanceId, error: "Instance not found" };
       })
@@ -833,10 +833,10 @@ async function getContainerData(req, res, _next) {
     } = require("../db/index");
     const allContainers = await getPortainerContainersWithUpdatesLocal(userId);
     const userInstances = await getAllPortainerInstances(userId);
-    const instanceMap = new Map(userInstances.map(inst => [inst.id, inst]));
+    const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
     // Normalize digests for comparison (ensure both have sha256: prefix or both don't)
-    const _normalizeDigest = digest => {
+    const _normalizeDigest = (digest) => {
       if (!digest) {
         return null;
       }
@@ -847,7 +847,7 @@ async function getContainerData(req, res, _next) {
     // Format containers for display (include Portainer data even if no registry update data)
     // Also preserve portainerInstanceId for grouping
     // eslint-disable-next-line complexity -- Complex formatting logic needed for container display
-    const formattedContainers = allContainers.map(c => {
+    const formattedContainers = allContainers.map((c) => {
       const instance = instanceMap.get(c.portainerInstanceId);
 
       // Data is already joined from getPortainerContainersWithUpdates
@@ -891,7 +891,7 @@ async function getContainerData(req, res, _next) {
 
     // Group by image (repo:tag) for formatted view - show all containers using same image together
     const containersByImage = new Map();
-    formattedContainers.forEach(c => {
+    formattedContainers.forEach((c) => {
       if (c.imageRepo) {
         const imageKey = `${c.imageRepo}:${c.currentTag || "latest"}`;
         if (!containersByImage.has(imageKey)) {
@@ -919,7 +919,7 @@ async function getContainerData(req, res, _next) {
 
     // Also group by portainer instance for instance-based view
     const containersByInstanceId = new Map();
-    formattedContainers.forEach(c => {
+    formattedContainers.forEach((c) => {
       if (c.portainerInstanceId) {
         if (!containersByInstanceId.has(c.portainerInstanceId)) {
           containersByInstanceId.set(c.portainerInstanceId, []);
@@ -934,7 +934,7 @@ async function getContainerData(req, res, _next) {
       imageRepo: imageData.imageRepo,
       imageTag: imageData.imageTag,
       containerCount: imageData.containers.length,
-      containerNames: imageData.containers.map(c => c.name || c.id || "Unknown"),
+      containerNames: imageData.containers.map((c) => c.name || c.id || "Unknown"),
       data: {
         imageRepo: imageData.imageRepo,
         imageTag: imageData.imageTag,
@@ -953,12 +953,12 @@ async function getContainerData(req, res, _next) {
     }));
 
     // Also create entries grouped by instance (for instance-based view)
-    const _instanceEntries = userInstances.map(instance => {
+    const _instanceEntries = userInstances.map((instance) => {
       const instanceContainers = containersByInstanceId.get(instance.id) || [];
       return {
         key: `portainer-${instance.id}`,
         containerCount: instanceContainers.length,
-        containerNames: instanceContainers.map(c => c.name || c.id || "Unknown"),
+        containerNames: instanceContainers.map((c) => c.name || c.id || "Unknown"),
         data: {
           instanceName: instance.name,
           instanceUrl: instance.url,
@@ -982,7 +982,7 @@ async function getContainerData(req, res, _next) {
         ([id, containers]) => ({
           instanceId: id,
           containerCount: containers.length,
-        }),
+        })
       ),
     });
 
@@ -993,7 +993,7 @@ async function getContainerData(req, res, _next) {
     const correlatedRecords = correlateRecordsByImage(
       rawDatabaseRecords,
       allContainers,
-      userInstances,
+      userInstances
     );
 
     return res.json({

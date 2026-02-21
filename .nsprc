@@ -1,7 +1,12 @@
 {
-  "1113214": {
+  "1113398": {
     "active": true,
     "notes": "ajv <8.18.0 ReDoS via $data option (GHSA-2g4f-4pwh-qvx6). eslint hard-pins ajv@^6.12.4 and is API-incompatible with ajv 8. eslint uses ajv only for config schema validation with trusted input. Re-evaluate when eslint migrates to ajv 8.",
+    "expiry": "2026-08-20"
+  },
+  "1113371": {
+    "active": true,
+    "notes": "minimatch ReDoS (GHSA-3ppc-4f35-3m26). The project depends on older glob/minimatch via tooling; fixing requires major bumps that break APIs. The affected glob patterns are hardcoded and not user-controlled in this repo, so risk is low. Re-evaluate dependency tree periodically.",
     "expiry": "2026-08-20"
   }
 }

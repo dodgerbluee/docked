@@ -417,8 +417,9 @@ body.dark-mode .presetButtonActive {
     flex-wrap: wrap;
   }
 
+  /* 2 per row for comfortable tap targets */
   .matchTypeButton {
-    flex: 0 1 auto;
+    flex: 0 1 calc(50% - 4px);
     min-width: calc(50% - 4px);
   }
 
@@ -548,4 +549,36 @@ body.dark-mode .submitButton:hover:not(:disabled) {
   background: rgba(30, 136, 229, 0.15) !important;
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
+}
+
+/* ── Mobile optimizations ── */
+
+@media (max-width: 768px) {
+  /* Override global responsive.css min-width: 44px on small buttons */
+  .tagAddButton,
+  .tagRemove,
+  .presetButton,
+  .dropdownItem,
+  .matchTypeButton,
+  .scheduleTypeButton {
+    min-width: unset;
+  }
+
+  /* Override global responsive.css min-height on inputs inside this form */
+  .form input,
+  .form textarea,
+  .form select {
+    min-height: unset;
+  }
+
+  /* Give the input wrapper scroll margin so scrollIntoView lands it
+     below the sticky modal header instead of hidden behind it */
+  .tagInputWrapper {
+    scroll-margin-top: 8px;
+  }
+
+  /* Reduce dropdown height on mobile so it fits above the virtual keyboard */
+  .dropdown {
+    max-height: 160px;
+  }
 }
