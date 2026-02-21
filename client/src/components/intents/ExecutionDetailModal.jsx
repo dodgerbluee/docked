@@ -5,16 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
-import {
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  SkipForward,
-  Eye,
-  Clock,
-  Loader2,
-  Container,
-} from "lucide-react";
+import { CheckCircle2, XCircle, SkipForward, Eye, Clock, Container } from "lucide-react";
 import Modal from "../ui/Modal";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import {
@@ -96,6 +87,8 @@ function ExecutionDetailModal({ isOpen, onClose, executionId, fetchExecutionDeta
         setError(result.error || "Failed to load execution detail");
       }
     } catch (err) {
+      // Log the error for debugging and show a generic message
+      console.error("loadDetail error:", err);
       setError("Failed to load execution detail");
     } finally {
       setIsLoading(false);

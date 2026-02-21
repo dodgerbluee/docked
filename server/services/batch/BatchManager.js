@@ -76,7 +76,7 @@ class BatchManager {
     const lockCheck = await checkAndAcquireBatchJobLock(userId, jobType);
     if (lockCheck.isRunning) {
       throw new Error(
-        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`,
+        `Job ${jobType} is already running for user ${userId} (run ID: ${lockCheck.runId})`
       );
     }
 

@@ -304,4 +304,10 @@ body.dark-mode .dryRunAction:hover {
   .name {
     font-size: 0.95rem;
   }
+
+  /* Override global responsive.css min-width: 44px on buttons */
+  .actionButton,
+  .toggleButton {
+    min-width: unset;
+  }
 }

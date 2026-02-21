@@ -47,60 +47,24 @@
   border-radius: 4px;
 }
 
-/* Mobile: horizontal scroll + touch targets */
+/* Mobile: wrapped two-row tabs + touch targets */
 @media (max-width: 768px) {
   .tabsContainer {
     margin-bottom: 16px;
-    position: relative;
-  }
-
-  /* Scroll fade indicators */
-  .tabsContainer::before,
-  .tabsContainer::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 32px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    z-index: 1;
-  }
-
-  .tabsContainer::before {
-    left: 0;
-    background: linear-gradient(to right, var(--bg-primary) 0%, transparent 100%);
-  }
-
-  .tabsContainer::after {
-    right: 0;
-    background: linear-gradient(to left, var(--bg-primary) 0%, transparent 100%);
-  }
-
-  .fadeLeft::before {
-    opacity: 1;
-  }
-
-  .fadeRight::after {
-    opacity: 1;
   }
 
   .tabsLeft {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .tabsLeft::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .tab {
-    padding: 10px 16px;
-    font-size: 0.875rem;
+    flex: 1 1 calc(33.33%);
+    padding: 10px 8px;
+    font-size: 0.85rem;
     min-height: var(--touch-target-min);
-    flex-shrink: 0;
+    text-align: center;
+    justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
 }

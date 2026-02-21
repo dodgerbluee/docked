@@ -1,22 +1,8 @@
-import React, { memo, useEffect, useCallback, useRef } from "react";
-import {
-  MonitorSmartphone,
-  BarChart3,
-  Menu,
-  X,
-  Home,
-  Settings,
-  Package,
-  FileText,
-  Sun,
-  Moon,
-  Shield,
-  LogOut,
-} from "lucide-react";
+import React, { memo, useCallback } from "react";
+import { MonitorSmartphone, BarChart3, Home, Package } from "lucide-react";
 import PropTypes from "prop-types";
 import { containerShape } from "../../utils/propTypes";
 import { TAB_NAMES } from "../../constants/apiConstants";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import styles from "./MobileNavigation.module.css";
 
 /**
@@ -28,58 +14,18 @@ const MobileNavigation = ({
   onTabChange,
   containersWithUpdates = [],
   trackedAppsBehind = 0,
-  onMenuToggle,
-  isMenuOpen,
   darkMode,
   instanceAdmin,
   onThemeToggle,
   onLogout,
 }) => {
-  // Lock body scroll when slide-out menu is open
-  useBodyScrollLock(isMenuOpen);
-
-  // Reference for the slide-out menu panel (focus trap)
-  const menuRef = useRef(null);
-
-  const closeMenu = useCallback(() => {
-    if (typeof onMenuToggle === "function") {
-      onMenuToggle(false);
-    }
-  }, [onMenuToggle]);
-
-  const toggleMenu = useCallback(() => {
-    if (typeof onMenuToggle === "function") {
-      onMenuToggle(!isMenuOpen);
-    }
-  }, [onMenuToggle, isMenuOpen]);
-
-  // Escape key closes the slide-out menu
-  useEffect(() => {
-    if (!isMenuOpen) return;
-
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        closeMenu();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isMenuOpen, closeMenu]);
-
-  // Focus the menu panel when it opens
-  useEffect(() => {
-    if (isMenuOpen && menuRef.current) {
-      menuRef.current.focus();
-    }
-  }, [isMenuOpen]);
+  // Mobile menu removed — avatar will open menu options instead
 
   const handleTabChange = useCallback(
     (tab) => {
       onTabChange(tab);
-      closeMenu();
     },
-    [onTabChange, closeMenu]
+    [onTabChange]
   );
 
   return (
@@ -136,105 +82,10 @@ const MobileNavigation = ({
           <span className={styles.navLabel}>Analytics</span>
         </button>
 
-        <button
-          className={styles.navItem}
-          onClick={toggleMenu}
-          aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={isMenuOpen}
-          aria-controls="mobile-slide-menu"
-        >
-          {isMenuOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
-          <span className={styles.navLabel}>Menu</span>
-        </button>
+        {/* Removed menu button per mobile UX change; avatar opens menu now */}
       </nav>
 
-      {/* Mobile Slide-out Menu */}
-      {isMenuOpen && (
-        <div className={styles.mobileMenuOverlay} onClick={closeMenu} aria-hidden="true">
-          <nav
-            id="mobile-slide-menu"
-            ref={menuRef}
-            className={styles.mobileMenu}
-            onClick={(e) => e.stopPropagation()}
-            role="navigation"
-            aria-label="Secondary navigation"
-            tabIndex={-1}
-          >
-            <div className={styles.mobileMenuHeader}>
-              <h3>Menu</h3>
-              <button className={styles.closeButton} onClick={closeMenu} aria-label="Close menu">
-                <X size={24} aria-hidden="true" />
-              </button>
-            </div>
-            <div className={styles.mobileMenuContent}>
-              <button
-                className={styles.menuItem}
-                onClick={() => handleTabChange(TAB_NAMES.SUMMARY)}
-              >
-                <Home size={20} aria-hidden="true" />
-                <span>Home</span>
-              </button>
-
-              <button
-                className={styles.menuItem}
-                onClick={() => handleTabChange(TAB_NAMES.BATCH_LOGS)}
-              >
-                <FileText size={20} aria-hidden="true" />
-                <span>Batch</span>
-              </button>
-
-              <button
-                className={styles.menuItem}
-                onClick={() => handleTabChange(TAB_NAMES.SETTINGS)}
-              >
-                <Settings size={20} aria-hidden="true" />
-                <span>Settings</span>
-              </button>
-
-              <button
-                className={styles.menuItem}
-                onClick={() => {
-                  if (typeof onThemeToggle === "function") {
-                    onThemeToggle();
-                  }
-                }}
-              >
-                {darkMode ? (
-                  <Sun size={20} aria-hidden="true" />
-                ) : (
-                  <Moon size={20} aria-hidden="true" />
-                )}
-                <span>{darkMode ? "Light Mode" : "Dark Mode"}</span>
-              </button>
-
-              {instanceAdmin && (
-                <button
-                  className={styles.menuItem}
-                  onClick={() => handleTabChange(TAB_NAMES.ADMIN)}
-                >
-                  <Shield size={20} aria-hidden="true" />
-                  <span>Admin</span>
-                </button>
-              )}
-
-              <div className={styles.menuDivider} />
-
-              <button
-                className={styles.menuItem}
-                onClick={() => {
-                  if (typeof onLogout === "function") {
-                    onLogout();
-                  }
-                  closeMenu();
-                }}
-              >
-                <LogOut size={20} aria-hidden="true" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </nav>
-        </div>
-      )}
+      {/* Mobile slide-out menu removed */}
     </>
   );
 };
@@ -254,8 +105,6 @@ MobileNavigation.propTypes = {
   onTabChange: PropTypes.func.isRequired,
   containersWithUpdates: PropTypes.arrayOf(containerShape),
   trackedAppsBehind: PropTypes.number,
-  onMenuToggle: PropTypes.func,
-  isMenuOpen: PropTypes.bool,
   darkMode: PropTypes.bool,
   instanceAdmin: PropTypes.bool,
   onThemeToggle: PropTypes.func,

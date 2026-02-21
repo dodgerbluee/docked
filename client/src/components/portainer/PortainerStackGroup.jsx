@@ -47,7 +47,15 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
     <div className={styles.stackGroup}>
       <div
         className={styles.stackHeader}
-        onClick={() => onToggleStack(stackKey)}
+        onClick={(e) => {
+          // Ensure header receives focus before toggling to avoid hiding a focused descendant
+          try {
+            e.currentTarget?.focus();
+          } catch {
+            // Ignore focus errors (some environments may throw)
+          }
+          onToggleStack(stackKey);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -63,6 +71,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
           <button
             className={styles.stackToggle}
             aria-label={isCollapsed ? "Expand stack" : "Collapse stack"}
+            // This toggle icon is purely decorative; using aria-hidden is fine
             aria-hidden="true"
             tabIndex={-1}
           >
