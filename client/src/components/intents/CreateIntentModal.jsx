@@ -42,6 +42,7 @@ function CreateIntentModal({
       onClose={onClose}
       title={isEditing ? "Edit Intent" : "Create Intent"}
       size="lg"
+      fullScreenMobile
     >
       <IntentForm
         initialData={initialData}

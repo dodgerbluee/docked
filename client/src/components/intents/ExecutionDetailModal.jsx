@@ -118,7 +118,7 @@ function ExecutionDetailModal({ isOpen, onClose, executionId, fetchExecutionDeta
   }, [isOpen]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Execution Detail" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Execution Detail" size="lg" fullScreenMobile>
       <div className={styles.content}>
         {isLoading && <LoadingSpinner message="Loading execution detail..." />}
         {error && <div className={styles.error}>{error}</div>}

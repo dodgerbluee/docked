@@ -417,10 +417,10 @@ body.dark-mode .presetButtonActive {
     flex-wrap: wrap;
   }
 
-  /* 3 on first row, 2 on second — better than 4+1 */
+  /* 2 per row for comfortable tap targets */
   .matchTypeButton {
-    flex: 0 1 auto;
-    min-width: calc(33.33% - 4px);
+    flex: 0 1 calc(50% - 4px);
+    min-width: calc(50% - 4px);
   }
 
   .cronRow {
@@ -569,5 +569,16 @@ body.dark-mode .submitButton:hover:not(:disabled) {
   .form textarea,
   .form select {
     min-height: unset;
+  }
+
+  /* Give the input wrapper scroll margin so scrollIntoView lands it
+     below the sticky modal header instead of hidden behind it */
+  .tagInputWrapper {
+    scroll-margin-top: 8px;
+  }
+
+  /* Reduce dropdown height on mobile so it fits above the virtual keyboard */
+  .dropdown {
+    max-height: 160px;
   }
 }

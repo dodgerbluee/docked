@@ -122,7 +122,6 @@
   transition: all 0.2s;
   gap: 10px;
   height: 100%;
-  min-height: 120px;
 }
 
 .addCard:hover {

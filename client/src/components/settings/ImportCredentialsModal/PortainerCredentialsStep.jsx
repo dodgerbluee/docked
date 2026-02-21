@@ -13,7 +13,7 @@ const AUTH_TYPE_OPTIONS = [
   },
   {
     value: "password",
-    label: "Username / Password",
+    label: "Credentials",
     icon: Lock,
   },
 ];

@@ -235,6 +235,20 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
   const [showDropdown, setShowDropdown] = useState(false);
   const inputRef = useRef(null);
   const blurTimeoutRef = useRef(null);
+  const wrapperRef = useRef(null);
+
+  /**
+   * On mobile, when the virtual keyboard opens it halves the visible viewport.
+   * Scroll the input wrapper to the top of its scroll container so the
+   * absolutely-positioned suggestions dropdown has room below the input.
+   */
+  const scrollInputIntoView = useCallback(() => {
+    if (window.innerWidth > 768 || !wrapperRef.current) return;
+    // Small delay lets the keyboard animation begin so scroll target is accurate
+    setTimeout(() => {
+      wrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+  }, []);
 
   const currentSuggestions = suggestions[matchType] || [];
 
@@ -316,7 +330,7 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
 
       {/* Input field with dropdown */}
       <div className={styles.inputArea}>
-        <div className={styles.tagInputWrapper}>
+        <div className={styles.tagInputWrapper} ref={wrapperRef}>
           <div className={styles.tagInputRow}>
             <input
               ref={inputRef}
@@ -326,7 +340,10 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
                 setInputValue(e.target.value);
                 setShowDropdown(true);
               }}
-              onFocus={() => setShowDropdown(true)}
+              onFocus={() => {
+                setShowDropdown(true);
+                scrollInputIntoView();
+              }}
               onBlur={() => {
                 blurTimeoutRef.current = setTimeout(() => setShowDropdown(false), 150);
               }}

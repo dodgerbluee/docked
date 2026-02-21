@@ -150,7 +150,7 @@ const MobileNavigation = ({
 
       {/* Mobile Slide-out Menu */}
       {isMenuOpen && (
-        <div className={styles.mobileMenuOverlay} onClick={closeMenu} aria-hidden="true">
+        <div className={styles.mobileMenuOverlay} onClick={closeMenu}>
           <nav
             id="mobile-slide-menu"
             ref={menuRef}
