@@ -184,7 +184,6 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
         onClose={handleCloseHistory}
         title={`Execution History${historyIntent?.name ? ` — ${historyIntent.name}` : ""}`}
         size="lg"
-        fullScreenMobile
       >
         {historyIntentId && (
           <ExecutionHistoryPanel

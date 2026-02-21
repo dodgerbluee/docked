@@ -1,41 +1,61 @@
+/* ── Modal override ── */
+.modal {
+  max-width: 480px;
+}
+
+/* ── Modal title with icon ── */
+.modalTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modalTitleIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+body.dark-mode .modalTitleIcon {
+  color: var(--dodger-blue-light);
+}
+
+/* ── Form layout ── */
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
+}
+
+/* Remove default margin-bottom from Input's formGroup inside this modal */
+.form :global(.formGroup) {
+  margin-bottom: 0;
 }
 
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .label {
   display: block;
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
+/* ── URL row: protocol toggle + separator + input on one line ── */
 .urlGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.urlHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  gap: 6px;
 }
 
 .urlLabel {
   display: block;
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.95rem;
-  flex: 1;
+  font-size: 0.85rem;
   margin: 0;
 }
 
@@ -44,44 +64,119 @@
   margin-left: 4px;
 }
 
-.protocolToggle {
-  flex-shrink: 0;
-}
-
-.urlInput {
+.urlRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.protocolPrefix {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  white-space: nowrap;
-  padding: 12px 0;
-}
-
-.urlField {
+.urlInputWrap {
+  display: flex;
+  align-items: center;
   flex: 1;
-  padding: 12px 16px;
+  min-width: 0;
   border: 2px solid var(--border-color);
   border-radius: 8px;
-  font-size: 1rem;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all 0.3s;
-  box-sizing: border-box;
+  background: var(--bg-secondary);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
-.urlField:focus {
-  outline: none;
+.urlInputWrap:focus-within {
   border-color: var(--dodger-blue);
   box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.1);
 }
 
-body.dark-mode .urlField:focus {
+body.dark-mode .urlInputWrap:focus-within {
   border-color: var(--dodger-blue-light);
   box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+}
+
+.urlRow:focus-within {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.1);
+}
+
+body.dark-mode .urlRow:focus-within {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+}
+
+/* Compact protocol toggle buttons */
+.protocolSwitch {
+  display: flex;
+  flex-shrink: 0;
+  padding: 3px;
+  gap: 2px;
+}
+
+.protocolBtn {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.protocolBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.protocolBtnActive {
+  background: rgba(30, 144, 255, 0.15);
+  color: var(--dodger-blue);
+}
+
+.protocolBtnActive:hover {
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .protocolBtnActive {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .protocolBtnActive:hover {
+  background: rgba(30, 136, 229, 0.28);
+  color: var(--dodger-blue-light);
+}
+
+.protocolSep {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  opacity: 0.6;
+  flex-shrink: 0;
+  user-select: none;
+  padding-right: 2px;
+  padding-left: 10px;
+}
+
+.urlField {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px 10px 0;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.urlField::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.5;
 }
 
 .urlField:disabled {
@@ -89,6 +184,14 @@ body.dark-mode .urlField:focus {
   cursor: not-allowed;
 }
 
+/* ── Section divider ── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 2px 0;
+}
+
+/* ── Auth section ── */
 .authToggle {
   width: 100%;
 }
@@ -100,19 +203,20 @@ body.dark-mode .urlField:focus {
 }
 
 .passwordFields :global(.formGroup) {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .passwordFields :global(.formGroup:last-child) {
   margin-bottom: 0;
 }
 
+/* ── Action bar ── */
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 24px;
+  margin-top: 2px;
+  padding-top: 14px;
   border-top: 1px solid var(--border-color);
 }
 
@@ -138,4 +242,12 @@ body.dark-mode .submitButton:hover:not(:disabled) {
   background: rgba(30, 136, 229, 0.15) !important;
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .protocolBtn {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
 }

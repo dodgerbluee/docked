@@ -606,6 +606,10 @@ body.dark-mode .saveButton:hover:not(:disabled) {
     align-items: flex-start;
   }
 
+  .instanceFooter {
+    align-self: stretch;
+  }
+
   .tokenContent {
     flex-direction: column;
     align-items: flex-start;

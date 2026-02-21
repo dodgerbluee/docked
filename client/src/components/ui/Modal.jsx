@@ -193,7 +193,7 @@ const Modal = React.memo(function Modal({
 Modal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  title: PropTypes.string,
+  title: PropTypes.node,
   children: PropTypes.node.isRequired,
   size: PropTypes.oneOf(["sm", "md", "lg", "xl"]),
   showCloseButton: PropTypes.bool,

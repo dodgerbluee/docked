@@ -417,9 +417,10 @@ body.dark-mode .presetButtonActive {
     flex-wrap: wrap;
   }
 
+  /* 3 on first row, 2 on second — better than 4+1 */
   .matchTypeButton {
     flex: 0 1 auto;
-    min-width: calc(50% - 4px);
+    min-width: calc(33.33% - 4px);
   }
 
   .cronRow {
@@ -548,4 +549,25 @@ body.dark-mode .submitButton:hover:not(:disabled) {
   background: rgba(30, 136, 229, 0.15) !important;
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
+}
+
+/* ── Mobile optimizations ── */
+
+@media (max-width: 768px) {
+  /* Override global responsive.css min-width: 44px on small buttons */
+  .tagAddButton,
+  .tagRemove,
+  .presetButton,
+  .dropdownItem,
+  .matchTypeButton,
+  .scheduleTypeButton {
+    min-width: unset;
+  }
+
+  /* Override global responsive.css min-height on inputs inside this form */
+  .form input,
+  .form textarea,
+  .form select {
+    min-height: unset;
+  }
 }
