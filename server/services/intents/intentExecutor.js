@@ -33,12 +33,15 @@ const { updateIntent } = require("../../db/index");
  * @param {number} userId - User ID
  * @param {Object} [options] - Options
  * @param {string} [options.triggerType='manual'] - 'manual' | 'scan_detected' | 'scheduled_window'
+ * @param {Date} [options.triggerTime] - The cron trigger time (for scheduled intents).
+ *   Used to set last_evaluated_at so the same cron point never fires twice.
  * @param {boolean} [options.dryRun] - Override intent's dryRun setting (true = no upgrades)
  * @returns {Promise<Object>} - Execution summary
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Intent execution requires comprehensive orchestration
 async function executeIntent(intent, userId, options = {}) {
   const triggerType = options.triggerType || "manual";
+  const triggerTime = options.triggerTime || null;
   const isDryRun = options.dryRun !== undefined ? options.dryRun : intent.dry_run;
   const executionStartTime = Date.now();
 
@@ -68,7 +71,7 @@ async function executeIntent(intent, userId, options = {}) {
         durationMs,
       });
 
-      await updateLastEvaluated(intent.id, userId, executionId);
+      await updateLastEvaluated(intent.id, userId, executionId, triggerTime);
 
       return {
         executionId,
@@ -115,7 +118,7 @@ async function executeIntent(intent, userId, options = {}) {
         durationMs,
       });
 
-      await updateLastEvaluated(intent.id, userId, executionId);
+      await updateLastEvaluated(intent.id, userId, executionId, triggerTime);
 
       return {
         executionId,
@@ -191,7 +194,7 @@ async function executeIntent(intent, userId, options = {}) {
       durationMs,
     });
 
-    await updateLastEvaluated(intent.id, userId, executionId);
+    await updateLastEvaluated(intent.id, userId, executionId, triggerTime);
 
     logger.info("Intent execution complete", {
       intentId: intent.id,
@@ -381,14 +384,25 @@ async function upgradeContainer(container, userId, executionId, intentId) {
 /**
  * Update the intent's last_evaluated_at and last_execution_id.
  *
+ * IMPORTANT: `lastEvaluatedAt` is set to the cron trigger time, NOT
+ * the current wall-clock time. This ensures that once a cron point is
+ * processed, `nextRun(lastEvaluatedAt)` advances to the *next* cron
+ * point, preventing the same trigger from firing twice.
+ *
+ * For manual or scan-triggered executions (no triggerTime), we fall
+ * back to the current time since there's no cron point to anchor to.
+ *
  * @param {number} intentId - Intent ID
  * @param {number} userId - User ID
  * @param {number} executionId - Most recent execution ID
+ * @param {Date|null} triggerTime - The cron trigger time, or null for non-scheduled runs
  */
-async function updateLastEvaluated(intentId, userId, executionId) {
+async function updateLastEvaluated(intentId, userId, executionId, triggerTime) {
   try {
+    const evaluatedAt = triggerTime ? triggerTime.toISOString() : new Date().toISOString();
+
     await updateIntent(intentId, userId, {
-      lastEvaluatedAt: new Date().toISOString(),
+      lastEvaluatedAt: evaluatedAt,
       lastExecutionId: executionId,
     });
   } catch (error) {
