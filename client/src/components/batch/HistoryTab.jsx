@@ -92,7 +92,15 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
       <div className={styles.section}>
         <div
           className={styles.stackHeader}
-          onClick={() => handleToggleSection("next-scheduled-runs")}
+          onClick={(e) => {
+            // Focus header to prevent hiding a focused descendant via aria-hidden
+            try {
+              e.currentTarget?.focus();
+            } catch {
+              // Intentionally ignore focus errors (some browsers may throw when focusing)
+            }
+            handleToggleSection("next-scheduled-runs");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
@@ -177,7 +185,14 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
       <div className={styles.section}>
         <div
           className={styles.stackHeader}
-          onClick={() => handleToggleSection("run-history")}
+          onClick={(e) => {
+            try {
+              e.currentTarget?.focus();
+            } catch {
+              // Intentionally ignore focus errors
+            }
+            handleToggleSection("run-history");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();

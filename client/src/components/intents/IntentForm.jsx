@@ -250,7 +250,7 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
     }, 120);
   }, []);
 
-  const currentSuggestions = suggestions[matchType] || [];
+  const currentSuggestions = useMemo(() => suggestions[matchType] || [], [suggestions, matchType]);
 
   // Compute which match values are glob patterns and their resolved matches
   const resolvedMatches = useMemo(() => {

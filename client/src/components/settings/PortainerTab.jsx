@@ -1,6 +1,6 @@
 import React, { useState, useCallback, lazy, Suspense } from "react";
 import PropTypes from "prop-types";
-import { Lock, Package, Plus, Pencil, Trash2 } from "lucide-react";
+import { Lock, Package, Pencil, Trash2 } from "lucide-react";
 import PortainerIcon from "../icons/PortainerIcon";
 import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";

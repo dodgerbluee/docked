@@ -42,14 +42,14 @@ class IntentEvaluator {
 
     // Run initial check after a short delay (let the system settle on startup)
     setTimeout(() => {
-      this.evaluateScheduledIntents().catch(err => {
+      this.evaluateScheduledIntents().catch((err) => {
         logger.error("Error in initial intent evaluation:", { error: err.message });
       });
     }, 10 * 1000); // 10 second startup delay
 
     // Start periodic check
     this.checkInterval = setInterval(() => {
-      this.evaluateScheduledIntents().catch(err => {
+      this.evaluateScheduledIntents().catch((err) => {
         logger.error("Error in scheduled intent evaluation:", { error: err.message });
       });
     }, this.checkIntervalMs);
@@ -104,7 +104,7 @@ class IntentEvaluator {
     }
 
     // Only process scheduled intents (immediate intents are triggered by scan hook)
-    const scheduledIntents = intents.filter(i => i.schedule_type === "scheduled");
+    const scheduledIntents = intents.filter((i) => i.schedule_type === "scheduled");
 
     for (const intent of scheduledIntents) {
       try {
@@ -165,7 +165,7 @@ class IntentEvaluator {
         return;
       }
 
-      const immediateIntents = intents.filter(i => i.schedule_type === "immediate");
+      const immediateIntents = intents.filter((i) => i.schedule_type === "immediate");
 
       if (immediateIntents.length === 0) {
         return;
@@ -205,7 +205,7 @@ class IntentEvaluator {
     this.evaluationInProgress.add(intent.id);
 
     executeIntent(intent, userId, { triggerType })
-      .then(result => {
+      .then((result) => {
         logger.info("Intent execution completed via evaluator", {
           intentId: intent.id,
           intentName: intent.name,
@@ -217,7 +217,7 @@ class IntentEvaluator {
           skipped: result.containersSkipped,
         });
       })
-      .catch(err => {
+      .catch((err) => {
         logger.error("Intent execution failed via evaluator:", {
           intentId: intent.id,
           intentName: intent.name,

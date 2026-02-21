@@ -515,7 +515,8 @@ body.dark-mode .emptyStateLink:hover {
 
 .lastScanTime {
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
+  font-style: italic;
   text-align: right;
   margin-top: 20px;
   padding-right: 10px;
