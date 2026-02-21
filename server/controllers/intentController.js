@@ -183,6 +183,15 @@ async function createIntentHandler(req, res) {
       sequentialDelaySec: 0,
     });
 
+    // For scheduled intents, set last_evaluated_at to creation time so the
+    // evaluator waits for the first cron point after creation rather than
+    // treating a missing timestamp as "immediately due".
+    if (scheduleType === "scheduled") {
+      await updateIntent(intentId, userId, {
+        lastEvaluatedAt: new Date().toISOString(),
+      });
+    }
+
     const intent = await getIntentById(intentId, userId);
 
     return res.status(201).json({ success: true, intent });
@@ -307,6 +316,24 @@ async function updateIntentHandler(req, res) {
       });
     }
 
+    // Reset lastEvaluatedAt when the schedule changes so the evaluator waits
+    // for the first cron point after the change instead of potentially firing
+    // immediately based on stale timestamps.
+    const scheduleTypeChanging =
+      "scheduleType" in updates && updates.scheduleType !== existing.schedule_type;
+    const cronChanging =
+      "scheduleCron" in updates && updates.scheduleCron !== existing.schedule_cron;
+
+    if (finalScheduleType === "scheduled" && (scheduleTypeChanging || cronChanging)) {
+      updates.lastEvaluatedAt = new Date().toISOString();
+      logger.info("Resetting lastEvaluatedAt due to schedule change", {
+        intentId,
+        scheduleTypeChanging,
+        cronChanging,
+        newLastEvaluatedAt: updates.lastEvaluatedAt,
+      });
+    }
+
     if (dryRun !== undefined) {
       updates.dryRun = Boolean(dryRun);
     }
@@ -374,18 +401,31 @@ async function toggleIntentHandler(req, res) {
 
     let { enabled } = req.body || {};
 
-    // If enabled is not provided, look up the current state and invert it
+    // Always fetch current state — we need it for toggle logic and schedule check
+    const current = await getIntentById(intentId, userId);
+    if (!current) {
+      return res.status(404).json({ success: false, error: "Intent not found" });
+    }
+
     if (typeof enabled !== "boolean") {
-      const current = await getIntentById(intentId, userId);
-      if (!current) {
-        return res.status(404).json({ success: false, error: "Intent not found" });
-      }
       enabled = !current.enabled;
     }
 
     const toggled = await toggleIntent(intentId, userId, enabled);
     if (!toggled) {
       return res.status(404).json({ success: false, error: "Intent not found" });
+    }
+
+    // When re-enabling a scheduled intent, reset lastEvaluatedAt to now
+    // so the evaluator waits for the next cron point instead of firing
+    // for all cron points missed while the intent was disabled.
+    if (enabled && !current.enabled && current.schedule_type === "scheduled") {
+      await updateIntent(intentId, userId, {
+        lastEvaluatedAt: new Date().toISOString(),
+      });
+      logger.info("Reset lastEvaluatedAt on re-enable of scheduled intent", {
+        intentId,
+      });
     }
 
     const intent = await getIntentById(intentId, userId);

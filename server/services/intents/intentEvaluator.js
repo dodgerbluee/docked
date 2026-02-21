@@ -5,7 +5,7 @@
  *
  * Two trigger paths:
  * 1. **Scheduled intents** — Evaluated on a polling interval. Uses `isIntentDue()`
- *    to determine if the cron window has passed since last evaluation.
+ *    to determine if a cron point has passed since last evaluation.
  * 2. **Immediate intents** — Triggered after a batch scan completes and finds
  *    container updates. Called directly by BatchManager post-scan hook.
  *
@@ -13,7 +13,7 @@
  */
 
 const logger = require("../../utils/logger");
-const { getAllUsers, getEnabledIntents } = require("../../db/index");
+const { getAllUsers, getEnabledIntents, updateIntent } = require("../../db/index");
 const { isIntentDue } = require("./scheduleEvaluator");
 const { executeIntent } = require("./intentExecutor");
 
@@ -117,7 +117,7 @@ class IntentEvaluator {
           continue;
         }
 
-        const { isDue, reason } = isIntentDue(intent);
+        const { isDue, reason, triggerTime } = isIntentDue(intent);
 
         if (!isDue) {
           continue;
@@ -127,10 +127,37 @@ class IntentEvaluator {
           intentId: intent.id,
           intentName: intent.name,
           reason,
+          triggerTime: triggerTime ? triggerTime.toISOString() : null,
           userId,
         });
 
-        this._executeIntentSafe(intent, userId, "scheduled_window");
+        // Mark as in-progress immediately to prevent concurrent triggers
+        this.evaluationInProgress.add(intent.id);
+
+        // Pre-mark lastEvaluatedAt to the cron trigger time BEFORE starting
+        // execution. This is the critical step that prevents double-runs:
+        // subsequent evaluator ticks will see the updated timestamp and
+        // compute the next cron point as being in the future.
+        if (triggerTime) {
+          try {
+            await updateIntent(intent.id, userId, {
+              lastEvaluatedAt: triggerTime.toISOString(),
+            });
+            logger.debug("Pre-marked intent lastEvaluatedAt to trigger time", {
+              intentId: intent.id,
+              triggerTime: triggerTime.toISOString(),
+            });
+          } catch (err) {
+            logger.warn("Failed to pre-mark intent lastEvaluatedAt (non-fatal)", {
+              intentId: intent.id,
+              error: err.message,
+            });
+          }
+        }
+
+        // Fire-and-forget execution — pass triggerTime so the executor
+        // records the correct cron time (not wall-clock) on completion.
+        this._executeIntentFireAndForget(intent, userId, triggerTime);
       } catch (err) {
         logger.error("Error checking if intent is due:", {
           intentId: intent.id,
@@ -183,7 +210,8 @@ class IntentEvaluator {
           continue;
         }
 
-        this._executeIntentSafe(intent, userId, "scan_detected");
+        this.evaluationInProgress.add(intent.id);
+        this._executeIntentFireAndForget(intent, userId, null);
       }
     } catch (err) {
       logger.error("Error evaluating immediate intents:", {
@@ -199,12 +227,12 @@ class IntentEvaluator {
    *
    * @param {Object} intent - Intent object
    * @param {number} userId - User ID
-   * @param {string} triggerType - 'scheduled_window' | 'scan_detected'
+   * @param {Date|null} triggerTime - The cron trigger time (for scheduled intents)
    */
-  _executeIntentSafe(intent, userId, triggerType) {
-    this.evaluationInProgress.add(intent.id);
+  _executeIntentFireAndForget(intent, userId, triggerTime) {
+    const triggerType = triggerTime ? "scheduled_window" : "scan_detected";
 
-    executeIntent(intent, userId, { triggerType })
+    executeIntent(intent, userId, { triggerType, triggerTime })
       .then((result) => {
         logger.info("Intent execution completed via evaluator", {
           intentId: intent.id,
