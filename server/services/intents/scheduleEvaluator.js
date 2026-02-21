@@ -119,6 +119,14 @@ function isIntentDue(intent) {
   const now = new Date();
   const nextRun = getNextRun(intent.schedule_cron, now);
 
+  // Only treat a cron trigger as "due" if it is reasonably close to now.
+  // Prevents duplicate/early executions when the evaluator runs slightly
+  // before a scheduled time (observed as a run ~5 minutes early then on-time).
+  // Tolerance window controls how far in the past a trigger may be and still
+  // considered "due" — missed triggers older than this are ignored to avoid
+  // surprising double-runs. Make this conservative (2 minutes).
+  const TRIGGER_TOLERANCE_MS = 2 * 60 * 1000; // 2 minutes
+
   // If the intent has never been evaluated, it's due immediately
   if (!intent.last_evaluated_at) {
     return { isDue: true, nextRun, reason: "never evaluated" };
@@ -132,10 +140,20 @@ function isIntentDue(intent) {
   const nextAfterLastEval = job.nextRun(lastEval);
 
   if (nextAfterLastEval && nextAfterLastEval <= now) {
+    const deltaMs = now.getTime() - nextAfterLastEval.getTime();
+    if (deltaMs <= TRIGGER_TOLERANCE_MS) {
+      return {
+        isDue: true,
+        nextRun,
+        reason: `cron triggered at ${nextAfterLastEval.toISOString()} (delta ${deltaMs}ms)`,
+      };
+    }
+
+    // Trigger point exists but is older than our tolerance window — treat as not yet due.
     return {
-      isDue: true,
+      isDue: false,
       nextRun,
-      reason: `cron triggered at ${nextAfterLastEval.toISOString()}`,
+      reason: `cron triggered at ${nextAfterLastEval.toISOString()} but outside tolerance (delta ${deltaMs}ms)`,
     };
   }
 
