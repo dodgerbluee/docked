@@ -129,7 +129,7 @@ async function initiateLogin(req, res, next) {
       redirectUri: callbackUrl,
     });
 
-    logger.info(`OAuth login initiated for provider: ${providerName}`);
+    logger.info("OAuth login initiated");
 
     // Redirect the user's browser to the provider
     return res.redirect(authorizationUrl);
@@ -231,9 +231,7 @@ async function handleCallback(req, res, next) {
 
     // Normalize user info
     const normalizedUser = provider.normalizeUserInfo(rawUserInfo, idTokenClaims);
-    logger.info(
-      `OAuth user info normalized: ${normalizedUser.username} (${providerName}:${normalizedUser.id})`
-    );
+    logger.info(`OAuth user info normalized: ${normalizedUser.username} (${normalizedUser.id})`);
 
     // Account resolution
     const result = await resolveOAuthUser(providerName, normalizedUser);

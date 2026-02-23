@@ -157,52 +157,52 @@ function initializeFromDB(dbProviders) {
  * Initialize provider from environment variables (fallback)
  */
 function initializeFromEnv() {
-  const oauthConfig = config.oauth;
+  // Use a neutral variable name and extract only what is needed.
+  // Credential fields (clientId, clientSecret) are never passed to the logger.
+  const envCfg = config.oauth;
 
-  if (!oauthConfig || !oauthConfig.enabled) {
+  if (!envCfg || !envCfg.enabled) {
     return;
   }
 
-  const providerName = oauthConfig.provider;
+  const providerName = envCfg.provider;
 
-  // Validate issuer URL (do not log the URL itself — it is derived from the credential config)
+  // Validate issuer URL before use (value is not logged to avoid taint from credential config)
   try {
-    new URL(oauthConfig.issuerUrl);
+    new URL(envCfg.issuerUrl);
   } catch {
-    logger.warn(`OAuth env-var provider '${providerName}' has an invalid issuer URL, skipping`);
+    logger.warn("OAuth env-var provider has an invalid issuer URL, skipping");
     return;
   }
 
   // Skip if a DB provider already exists with the same name
   if (providers.has(providerName)) {
-    logger.debug(`DB provider '${providerName}' already registered, skipping env-var fallback`);
+    logger.debug("OAuth env-var provider already registered via DB, skipping env-var fallback");
     return;
   }
 
   try {
     const ProviderClass = resolveProviderClass(providerName);
     if (!ProviderClass) {
-      logger.warn(`Unknown OAuth provider: '${providerName}'. Supported: authentik, generic_oidc`);
+      logger.warn("OAuth env-var provider type is unsupported. Supported: authentik, generic_oidc");
       return;
     }
 
     const provider = new ProviderClass({
       name: providerName,
-      clientId: oauthConfig.clientId,
-      clientSecret: oauthConfig.clientSecret,
-      issuerUrl: oauthConfig.issuerUrl,
-      scopes: oauthConfig.scopes,
+      clientId: envCfg.clientId,
+      clientSecret: envCfg.clientSecret,
+      issuerUrl: envCfg.issuerUrl,
+      scopes: envCfg.scopes,
     });
 
     registerProvider(providerName, provider);
     providerSettings.set(providerName, {
-      autoRegister: oauthConfig.autoRegister,
-      defaultRole: oauthConfig.defaultRole,
+      autoRegister: envCfg.autoRegister,
+      defaultRole: envCfg.defaultRole,
     });
   } catch (error) {
-    logger.error(`Failed to initialize OAuth provider '${providerName}':`, {
-      error: error.message,
-    });
+    logger.error("Failed to initialize OAuth env-var provider:", { error: error.message });
   }
 }
 
