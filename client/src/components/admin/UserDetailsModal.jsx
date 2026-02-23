@@ -336,7 +336,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
                       <span className={styles.statValue}>{stats.portainerInstancesCount}</span>
                     </div>
                     <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tracked Apps</span>
+                      <span className={styles.statLabel}>Apps</span>
                       <span className={styles.statValue}>{stats.trackedAppsCount}</span>
                     </div>
                   </div>

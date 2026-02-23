@@ -173,7 +173,7 @@ async function upgradeSingleContainer(
       containerName: originalContainerName,
       containerId: workingContainerId.substring(0, 12),
     });
-    await portainerService.stopContainer(portainerUrl, endpointId, workingContainerId);
+    await portainerService.stopContainer(portainerUrl, endpointId, workingContainerId, userId);
 
     // Wait for container to fully stop (important for databases and services)
     // For nginx upgrades, use IP URL directly after stop (nginx is down now)
@@ -198,7 +198,13 @@ async function upgradeSingleContainer(
       usingUrl: pullImageUrl,
       originalUrl: pullImageOriginalUrl,
     });
-    await portainerService.pullImage(pullImageUrl, endpointId, newImageName, pullImageOriginalUrl);
+    await portainerService.pullImage(
+      pullImageUrl,
+      endpointId,
+      newImageName,
+      pullImageOriginalUrl,
+      userId
+    );
 
     // Remove old container
     // For nginx upgrades, use IP URL directly (nginx is down now)
@@ -210,7 +216,12 @@ async function upgradeSingleContainer(
       containerId: workingContainerId.substring(0, 12),
       usingUrl: removeContainerUrl,
     });
-    await portainerService.removeContainer(removeContainerUrl, endpointId, workingContainerId);
+    await portainerService.removeContainer(
+      removeContainerUrl,
+      endpointId,
+      workingContainerId,
+      userId
+    );
 
     // Prepare container configuration using the service
     logger.info("Creating new container", {
@@ -236,7 +247,8 @@ async function upgradeSingleContainer(
         createContainerUrl,
         endpointId,
         containerConfig,
-        originalContainerName
+        originalContainerName,
+        userId
       );
     } catch (error) {
       // Provide more detailed error information
@@ -272,7 +284,7 @@ async function upgradeSingleContainer(
         newContainerId: newContainer.Id.substring(0, 12),
         usingUrl: startContainerUrl,
       });
-      await portainerService.startContainer(startContainerUrl, endpointId, newContainer.Id);
+      await portainerService.startContainer(startContainerUrl, endpointId, newContainer.Id, userId);
 
       // Wait for container to be healthy/ready (CRITICAL for databases)
       startTime = Date.now();

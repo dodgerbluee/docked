@@ -102,7 +102,7 @@ startCleanupInterval();
  * @returns {Promise<void>}
  */
 function sleep(ms) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     setTimeout(() => {
       resolve();
     }, ms);
@@ -151,7 +151,7 @@ async function testWebhook(webhookUrl) {
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -519,7 +519,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -625,7 +625,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
     } catch (error) {
       logger.error(
         `Error sending Discord notification (attempt ${attempt + 1}/${retries + 1}):`,
-        error
+        error,
       );
 
       if (attempt < retries) {
@@ -875,13 +875,13 @@ async function queueNotification(imageData) {
   const isDup = await isDuplicate(dedupKey, userId);
   if (isDup) {
     logger.debug(
-      `Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
+      `Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`,
     );
     return;
   }
 
   logger.debug(
-    `Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
+    `Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`,
   );
 
   // isDuplicate() already recorded in memory, so we don't need to call recordNotificationInMemory() again
@@ -944,14 +944,14 @@ async function processNotificationQueue() {
         await recordNotification(
           notification.dedupKey,
           userId,
-          notification.imageData.notificationType || "tracked-app"
+          notification.imageData.notificationType || "tracked-app",
         );
         logger.info(`Discord notification sent for ${notification.imageData.name}`);
       } else {
         // Allow future attempts for this notification since delivery failed
         recentNotifications.delete(notification.dedupKey);
         logger.error(
-          `Failed to send Discord notification for ${notification.imageData.name}: ${result.error}`
+          `Failed to send Discord notification for ${notification.imageData.name}: ${result.error}`,
         );
         // Could implement a dead letter queue here if needed
       }
@@ -1005,10 +1005,130 @@ async function sendNotificationImmediate(imageData) {
 }
 
 /**
- * Get webhook information from Discord API
- * @param {string} webhookUrl - Webhook URL
- * @returns {Promise<{success: boolean, name?: string, channelId?: string, guildId?: string, avatar?: string, avatarUrl?: string, error?: string}>}
+ * Truncate an array of lines to fit within Discord's field value limit.
+ * @param {string[]} lines - Lines to join
+ * @param {number} maxLength - Maximum character length (default 1024)
+ * @returns {string} - Joined and possibly truncated string
  */
+function truncateFieldLines(lines, maxLength = 1024) {
+  const joined = lines.join("\n");
+  if (joined.length <= maxLength) {
+    return joined;
+  }
+  const truncated = [];
+  let currentLength = 0;
+  for (const line of lines) {
+    if (currentLength + line.length + 1 > maxLength - 30) {
+      truncated.push(`_...and ${lines.length - truncated.length} more_`);
+      break;
+    }
+    truncated.push(line);
+    currentLength += line.length + 1;
+  }
+  return truncated.join("\n");
+}
+
+/**
+ * Build a Discord embed field for containers with a given status.
+ * @param {Array} containerResults - All container results
+ * @param {string} filterStatus - Status to filter by ("upgraded" or "failed")
+ * @returns {Object|null} - Discord embed field object or null
+ */
+function buildContainerField(containerResults, filterStatus) {
+  const items = containerResults.filter(c => c.status === filterStatus);
+  if (items.length === 0) {
+    return null;
+  }
+  const icon = filterStatus === "upgraded" ? "✅" : "❌";
+  const label = filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1);
+  const lines = items.map(c => {
+    if (filterStatus === "upgraded" && c.oldImage && c.newImage && c.oldImage !== c.newImage) {
+      return `${icon} **${c.containerName}**\n\u2003${c.oldImage} → ${c.newImage}`;
+    }
+    if (filterStatus === "failed") {
+      const errSnippet = c.errorMessage ? `: ${c.errorMessage.slice(0, 80)}` : "";
+      return `${icon} **${c.containerName}**${errSnippet}`;
+    }
+    return `${icon} **${c.containerName}** (${c.imageName || "unknown"})`;
+  });
+  return {
+    name: `${label} (${items.length})`,
+    value: truncateFieldLines(lines),
+    inline: false,
+  };
+}
+
+/**
+ * Format intent execution notification payload for Discord
+ * @param {Object} intentExecutionData - Intent execution data
+ * @returns {Object} - Discord embed payload
+ */
+function formatIntentExecutionNotification(intentExecutionData) {
+  const {
+    intentName,
+    status,
+    containersMatched,
+    containersUpgraded,
+    containersFailed,
+    containersSkipped,
+    durationMs,
+    triggerType,
+    containerResults,
+  } = intentExecutionData;
+
+  const colorMap = { completed: 3066993, partial: 16776960 };
+  const embed = {
+    title: "🤖 Intent Execution Complete",
+    description: `Intent **${intentName}** has finished executing.`,
+    color: colorMap[status] || 15158332,
+    fields: [
+      { name: "Trigger", value: triggerType, inline: true },
+      { name: "Status", value: status.charAt(0).toUpperCase() + status.slice(1), inline: true },
+      { name: "Duration", value: `${Math.round(durationMs / 1000)}s`, inline: true },
+      {
+        name: "Containers",
+        value: `${containersMatched} matched · ${containersUpgraded} upgraded · ${containersFailed} failed · ${containersSkipped} skipped`,
+        inline: false,
+      },
+    ],
+    timestamp: new Date().toISOString(),
+    footer: { text: "Docked System" },
+  };
+
+  if (Array.isArray(containerResults) && containerResults.length > 0) {
+    const upgradedField = buildContainerField(containerResults, "upgraded");
+    if (upgradedField) embed.fields.push(upgradedField);
+
+    const failedField = buildContainerField(containerResults, "failed");
+    if (failedField) embed.fields.push(failedField);
+  }
+
+  return { embeds: [embed] };
+}
+/**
+ * Send notification for intent execution
+ * @param {Object} intentExecutionData - Intent execution data (must include userId)
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function sendIntentExecutionNotification(intentExecutionData) {
+  // Get enabled webhooks for this user only
+  const { getEnabledDiscordWebhooks } = getDatabase();
+  const userId = intentExecutionData.userId;
+  if (!userId) {
+    return { success: false, error: "No userId provided in intentExecutionData" };
+  }
+  const webhooks = await getEnabledDiscordWebhooks(userId);
+  if (!webhooks || webhooks.length === 0) {
+    return { success: false, error: `No enabled Discord webhooks configured for user ${userId}` };
+  }
+
+  const payload = formatIntentExecutionNotification(intentExecutionData);
+
+  // Send to first enabled webhook
+  const result = await sendNotificationWithRetry(webhooks[0].webhook_url, payload);
+
+  return result;
+}
 // eslint-disable-next-line max-lines-per-function, complexity -- Webhook info retrieval requires comprehensive API handling
 async function getWebhookInfo(webhookUrl) {
   // Validate webhook URL format before use
@@ -1031,7 +1151,7 @@ async function getWebhookInfo(webhookUrl) {
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -1111,7 +1231,7 @@ async function getWebhookInfo(webhookUrl) {
             // Final validation: Ensure the constructed URL is actually a Discord CDN URL
             // This provides defense-in-depth against any potential injection
             const isValidDiscordUrl = constructedUrl.startsWith(
-              "https://cdn.discordapp.com/avatars/"
+              "https://cdn.discordapp.com/avatars/",
             );
             if (isValidDiscordUrl) {
               avatarUrl = constructedUrl;
@@ -1150,16 +1270,16 @@ async function getWebhookInfo(webhookUrl) {
         applicationId: data.application_id || null,
         sourceGuild: data.source_guild
           ? {
-              id: data.source_guild.id,
-              name: data.source_guild.name,
-              icon: data.source_guild.icon ? "***present***" : null,
-            }
+            id: data.source_guild.id,
+            name: data.source_guild.name,
+            icon: data.source_guild.icon ? "***present***" : null,
+          }
           : null,
         sourceChannel: data.source_channel
           ? {
-              id: data.source_channel.id,
-              name: data.source_channel.name,
-            }
+            id: data.source_channel.id,
+            name: data.source_channel.name,
+          }
           : null,
       };
     }
@@ -1185,7 +1305,9 @@ module.exports = {
   getWebhookInfo,
   queueNotification,
   sendNotificationImmediate,
+  sendIntentExecutionNotification,
   formatVersionUpdateNotification,
+  formatIntentExecutionNotification,
   startCleanupInterval,
   stopCleanupInterval,
   cleanupExpiredEntries, // Exported for testing

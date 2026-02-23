@@ -24,7 +24,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   onOpenDebugModal,
 }) {
   // Use extracted hook for image info
-  const { imageVersion, imageNameWithoutVersion, handleVersionClick } =
+  const { imageVersion, imageNameWithoutVersion, handleVersionClick, handleImageClick } =
     useContainerImageInfo(container);
 
   // Handle container name click - open container details modal
@@ -166,6 +166,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             <h4
               className={`${styles.imageHeader} ${showUpdates ? styles.imageHeaderWithUpdates : ""}`}
               title={imageNameWithoutVersion}
+              onClick={handleImageClick}
             >
               {imageNameWithoutVersion}
             </h4>

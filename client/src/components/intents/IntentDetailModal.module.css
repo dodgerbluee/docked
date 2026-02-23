@@ -1,0 +1,819 @@
+/**
+ * IntentDetailModal Styles
+ * Polished design matching ExecutionHistoryPanel patterns
+ */
+
+/* ==========================================
+   Modal Layout
+   ========================================== */
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 300px;
+}
+
+.tabContent {
+  padding: 16px 0 0;
+  min-height: 200px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.tabsWrapper > div {
+  margin-bottom: 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.footerRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.editButton {
+  background: var(--bg-secondary);
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 2px dashed var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.editButton:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.editButton:hover .editButtonIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .editButton:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .editButton:hover .editButtonIcon {
+  color: var(--dodger-blue-light);
+}
+
+.editButtonIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.editButtonText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ==========================================
+   Animations
+   ========================================== */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* ==========================================
+   Configuration Tab
+   ========================================== */
+
+.configContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statusRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.statusEnabled {
+  color: var(--success-green);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.statusDisabled {
+  color: var(--text-secondary);
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.statusImmediate {
+  color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.1);
+}
+
+.statusScheduled {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.statusDryRun {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+body.dark-mode .statusEnabled {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+body.dark-mode .statusScheduled,
+body.dark-mode .statusDryRun {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.descriptionBlock {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  border-radius: 8px;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sectionTitleExclude {
+  color: var(--dodger-red);
+}
+
+.emptySection {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+/* Criteria cards */
+.criteriaGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.criteriaCard {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: border-color 0.15s;
+}
+
+.criteriaCard:hover {
+  border-color: var(--dodger-blue);
+}
+
+.criteriaCardExclude:hover {
+  border-color: var(--dodger-red);
+}
+
+body.dark-mode .criteriaCard:hover {
+  border-color: var(--dodger-blue-light, var(--dodger-blue));
+}
+
+body.dark-mode .criteriaCardExclude:hover {
+  border-color: var(--dodger-red);
+}
+
+.criteriaHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+
+.criteriaLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.criteriaCount {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+.criteriaCountExclude {
+  background: rgba(239, 62, 66, 0.1);
+  color: var(--dodger-red);
+}
+
+.criteriaValues {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.criteriaChip {
+  font-size: 0.73rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  border: 1px solid var(--border-color);
+}
+
+.criteriaChipExclude {
+  background: rgba(239, 62, 66, 0.06);
+  border-color: rgba(239, 62, 66, 0.15);
+}
+
+/* Schedule */
+.scheduleDisplay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cronCode {
+  font-size: 0.82rem;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  border: 1px solid var(--border-color);
+}
+
+.cronDescription {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Metadata */
+.metaRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.metaItem {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* ==========================================
+   Matches & Preview Tabs
+   ========================================== */
+
+.matchesContent,
+.previewContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.matchesHeader {
+  display: flex;
+  justify-content: flex-start;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.matchesCount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Container cards (shared by Matches, Preview, History detail) */
+.containerList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.containerCard {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s;
+}
+
+.containerCard:hover {
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .containerCard:hover {
+  border-color: var(--dodger-blue-light, var(--dodger-blue));
+}
+
+.containerCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.containerIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.containerCardName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerCardDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 22px;
+}
+
+.containerDetail {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.detailLabel {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.detailValue {
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailValueCode {
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  font-size: 0.72rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerDuration {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  flex-shrink: 0;
+}
+
+.containerError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--dodger-red);
+  font-size: 0.73rem;
+  margin-top: 2px;
+}
+
+/* Preview status (in container card headers) */
+.previewStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   Preview Summary Counters
+   ========================================== */
+
+.previewSummary {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.summaryCounters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  min-width: 60px;
+}
+
+.counterNumber {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.counterLabel {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.counterSuccess .counterNumber {
+  color: var(--success-green);
+}
+
+.counterFailed .counterNumber {
+  color: var(--dodger-red);
+}
+
+.counterSkipped .counterNumber {
+  color: #d97706;
+}
+
+.counterDryRun .counterNumber {
+  color: #d97706;
+}
+
+body.dark-mode .counterSkipped .counterNumber,
+body.dark-mode .counterDryRun .counterNumber {
+  color: #fbbf24;
+}
+
+/* ==========================================
+   History Tab
+   ========================================== */
+
+.historyContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.historyHeader {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.historyCount {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.historyList {
+  overflow-y: auto;
+}
+
+.executionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  gap: 12px;
+  font-family: inherit;
+}
+
+.executionRow:last-child {
+  border-bottom: none;
+}
+
+.executionRow:hover {
+  background: var(--bg-tertiary, var(--bg-primary));
+}
+
+.execRowLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.execStatusIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.execRowInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.execRowStatus {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.execRowMeta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.execRowRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.execRowCounts {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.countChip {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.countSuccess {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success-green);
+}
+
+.countFailed {
+  background: rgba(239, 62, 66, 0.12);
+  color: var(--dodger-red);
+}
+
+body.dark-mode .countSuccess {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+body.dark-mode .countFailed {
+  background: rgba(239, 62, 66, 0.18);
+}
+
+.execDuration {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   History Detail View
+   ========================================== */
+
+.historyDetail {
+  display: flex;
+  flex-direction: column;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  margin-bottom: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dodger-blue);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.backButton:hover {
+  color: var(--dodger-blue-light, var(--dodger-blue));
+  background: rgba(30, 144, 255, 0.08);
+}
+
+body.dark-mode .backButton:hover {
+  background: rgba(30, 144, 255, 0.12);
+}
+
+.detailSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summaryLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.summaryValue {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.executionError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239, 62, 66, 0.08);
+  border: 1px solid rgba(239, 62, 66, 0.2);
+  border-radius: 8px;
+  color: var(--dodger-red);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.containerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.containerSectionTitle {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.errorText {
+  padding: 16px;
+  color: var(--dodger-red);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ==========================================
+   Responsive
+   ========================================== */
+
+@media (max-width: 768px) {
+  .tabContent {
+    max-height: none;
+  }
+
+  .statusRow {
+    gap: 6px;
+  }
+
+  .criteriaGrid {
+    gap: 6px;
+  }
+
+  .summaryCounters {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .executionRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .execRowRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .containerCardDetails {
+    padding-left: 0;
+  }
+
+  .containerCardHeader {
+    flex-wrap: wrap;
+  }
+
+  .metaRow {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

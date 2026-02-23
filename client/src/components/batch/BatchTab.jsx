@@ -113,7 +113,7 @@ const BatchTab = React.memo(function BatchTab({
           )}
         </div>
 
-        {/* Tracked Apps Check Configuration */}
+        {/* Apps Check Configuration */}
         <div className={styles.jobConfig}>
           <h4 className={styles.jobTitle}>
             {BATCH_JOB_TYPE_LABELS[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
@@ -135,7 +135,7 @@ const BatchTab = React.memo(function BatchTab({
               <span className={styles.toggleTrack} aria-hidden="true">
                 <span className={styles.toggleKnob} />
               </span>
-              <span>Enable automatic tracked apps checking</span>
+              <span>Enable automatic apps checking</span>
             </label>
           </div>
           {localConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled && (

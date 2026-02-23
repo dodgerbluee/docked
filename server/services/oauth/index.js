@@ -102,6 +102,24 @@ function getProviderSettings(name) {
 function initializeFromDB(dbProviders) {
   for (const row of dbProviders) {
     try {
+      // Validate required fields
+      if (!row.client_id || !row.client_secret || !row.issuer_url) {
+        logger.warn(
+          `OAuth provider '${row.name}' is missing required fields (client_id, client_secret, issuer_url), skipping`
+        );
+        continue;
+      }
+
+      // Validate issuer URL
+      try {
+        new URL(row.issuer_url);
+      } catch {
+        logger.warn(
+          `OAuth provider '${row.name}' has invalid issuer URL '${row.issuer_url}', skipping`
+        );
+        continue;
+      }
+
       const ProviderClass = resolveProviderClass(row.provider_type);
       if (!ProviderClass) {
         logger.warn(`Unknown provider type '${row.provider_type}' for '${row.name}', skipping`);
@@ -147,8 +165,13 @@ function initializeFromEnv() {
 
   const providerName = oauthConfig.provider;
 
-  if (!oauthConfig.clientId || !oauthConfig.clientSecret || !oauthConfig.issuerUrl) {
-    logger.warn(`OAuth env-var provider '${providerName}' is missing required fields, skipping`);
+  // Validate issuer URL
+  try {
+    new URL(oauthConfig.issuerUrl);
+  } catch {
+    logger.warn(
+      `OAuth env-var provider '${providerName}' has invalid issuer URL '${oauthConfig.issuerUrl}', skipping`
+    );
     return;
   }
 

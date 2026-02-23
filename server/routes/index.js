@@ -931,6 +931,7 @@ router.get(
   asyncHandler(intentController.getExecutionDetailHandler)
 );
 router.get("/intents/:id", asyncHandler(intentController.getIntent));
+router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPreviewHandler));
 router.put("/intents/:id", writeLimiter, asyncHandler(intentController.updateIntentHandler));
 router.delete(
   "/intents/:id",

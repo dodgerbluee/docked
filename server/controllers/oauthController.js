@@ -161,8 +161,19 @@ async function handleCallback(req, res, next) {
 
     // Handle provider errors (user denied, etc.)
     if (oauthError) {
-      const message = errorDescription || oauthError;
-      logger.warn(`OAuth callback error: ${message}`);
+      let message = errorDescription || oauthError;
+      if (oauthError === "access_denied") {
+        message = "Sign-in was cancelled.";
+      } else if (oauthError === "invalid_request") {
+        message = "Invalid sign-in request. Please try again.";
+      } else if (oauthError === "unauthorized_client") {
+        message = "Sign-in service configuration error. Please contact your administrator.";
+      } else if (oauthError === "server_error" || oauthError === "temporarily_unavailable") {
+        message = "Sign-in service is temporarily unavailable. Please try again later.";
+      } else {
+        message = "Sign-in failed. Please try again or contact your administrator.";
+      }
+      logger.warn(`OAuth callback error: ${oauthError} - ${message}`);
       return res.redirect(
         `${frontendBase}/auth/oauth/complete?error=${encodeURIComponent(message)}`
       );
@@ -218,7 +229,9 @@ async function handleCallback(req, res, next) {
 
     // Normalize user info
     const normalizedUser = provider.normalizeUserInfo(rawUserInfo, idTokenClaims);
-    logger.info(`OAuth user info normalized: ${normalizedUser.username} (${providerName}:${normalizedUser.id})`);
+    logger.info(
+      `OAuth user info normalized: ${normalizedUser.username} (${providerName}:${normalizedUser.id})`
+    );
 
     // Account resolution
     const result = await resolveOAuthUser(providerName, normalizedUser);
@@ -272,16 +285,30 @@ async function handleCallback(req, res, next) {
       logger.warn("Failed to update last login for OAuth user:", { error: err });
     }
 
-    // Redirect to frontend callback page with token data
-    const params = new URLSearchParams({
-      token,
-      refreshToken,
-      username: resolvedUser.username,
-      role: resolvedUser.role,
-      instanceAdmin: resolvedUser.instanceAdmin ? "true" : "false",
+    // Set tokens and user data in cookies for secure transmission
+    res.cookie("authToken", token, { httpOnly: false, secure: req.secure, sameSite: "lax" });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: false,
+      secure: req.secure,
+      sameSite: "lax",
+    });
+    res.cookie("username", resolvedUser.username, {
+      httpOnly: false,
+      secure: req.secure,
+      sameSite: "lax",
+    });
+    res.cookie("userRole", resolvedUser.role, {
+      httpOnly: false,
+      secure: req.secure,
+      sameSite: "lax",
+    });
+    res.cookie("instanceAdmin", resolvedUser.instanceAdmin ? "true" : "false", {
+      httpOnly: false,
+      secure: req.secure,
+      sameSite: "lax",
     });
 
-    return res.redirect(`${frontendBase}/auth/oauth/complete?${params.toString()}`);
+    return res.redirect(`${frontendBase}/auth/oauth/complete`);
   } catch (error) {
     logger.error("OAuth callback failed:", { error: error.message });
 
@@ -290,8 +317,20 @@ async function handleCallback(req, res, next) {
     const host = req.get("x-forwarded-host") || req.get("host");
     const frontendBase = `${protocol}://${host}`;
 
+    let userMessage = error.message || "Authentication failed";
+    if (userMessage.includes("Token exchange failed")) {
+      userMessage =
+        "Unable to complete sign-in. The sign-in service may be experiencing issues. Please try again.";
+    } else if (userMessage.includes("ID token validation failed")) {
+      userMessage = "Sign-in verification failed. Please try again or contact your administrator.";
+    } else if (userMessage.includes("SSO provider unavailable")) {
+      userMessage = "Sign-in service is currently unavailable. Please try again later.";
+    } else {
+      userMessage = "Authentication failed. Please try again or contact your administrator.";
+    }
+
     return res.redirect(
-      `${frontendBase}/auth/oauth/complete?error=${encodeURIComponent(error.message || "Authentication failed")}`
+      `${frontendBase}/auth/oauth/complete?error=${encodeURIComponent(userMessage)}`
     );
   }
 }
@@ -308,7 +347,9 @@ async function completeAccountLink(req, res) {
     const { linkToken, password } = req.body;
 
     if (!linkToken || !password) {
-      return res.status(400).json({ success: false, error: "Link token and password are required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Link token and password are required" });
     }
 
     // Verify the link token
@@ -319,9 +360,10 @@ async function completeAccountLink(req, res) {
         audience: "docked-oauth-link",
       });
     } catch (err) {
-      const msg = err.name === "TokenExpiredError"
-        ? "This linking session has expired. Please try signing in with SSO again."
-        : "Invalid linking session. Please try signing in with SSO again.";
+      const msg =
+        err.name === "TokenExpiredError"
+          ? "This linking session has expired. Please try signing in with SSO again."
+          : "Invalid linking session. Please try signing in with SSO again.";
       return res.status(400).json({ success: false, error: msg });
     }
 
@@ -343,7 +385,9 @@ async function completeAccountLink(req, res) {
 
     // Link OAuth identity to the existing account
     await linkOAuthToUser(user.id, payload.providerName, payload.oauthId);
-    logger.info(`Linked OAuth ${payload.providerName} to existing user: ${user.username} (confirmed with password)`);
+    logger.info(
+      `Linked OAuth ${payload.providerName} to existing user: ${user.username} (confirmed with password)`
+    );
 
     // Issue auth tokens
     const token = generateToken({
@@ -414,7 +458,7 @@ async function resolveOAuthUser(providerName, normalizedUser) {
       if (existingEmailUser.oauth_provider && existingEmailUser.oauth_provider !== providerName) {
         throw new Error(
           `This email is already linked to a different SSO provider (${existingEmailUser.oauth_provider}). ` +
-          "Please sign in with that provider instead."
+            "Please sign in with that provider instead."
         );
       }
 
@@ -431,7 +475,9 @@ async function resolveOAuthUser(providerName, normalizedUser) {
 
       // No password (OAuth-only) — link directly
       await linkOAuthToUser(existingEmailUser.id, providerName, normalizedUser.id);
-      logger.info(`Linked OAuth provider ${providerName} to existing user: ${existingEmailUser.username}`);
+      logger.info(
+        `Linked OAuth provider ${providerName} to existing user: ${existingEmailUser.username}`
+      );
 
       return {
         id: existingEmailUser.id,
@@ -457,16 +503,21 @@ async function resolveOAuthUser(providerName, normalizedUser) {
     }
 
     // If the existing user already has a different OAuth provider, don't auto-link
-    if (existingUserWithName.oauth_provider && existingUserWithName.oauth_provider !== providerName) {
+    if (
+      existingUserWithName.oauth_provider &&
+      existingUserWithName.oauth_provider !== providerName
+    ) {
       throw new Error(
         `An account with this username already exists and is linked to a different SSO provider. ` +
-        "Please contact your administrator."
+          "Please contact your administrator."
       );
     }
 
     // No password, same or no provider — link directly
     await linkOAuthToUser(existingUserWithName.id, providerName, normalizedUser.id);
-    logger.info(`Linked OAuth provider ${providerName} to existing user by username: ${existingUserWithName.username}`);
+    logger.info(
+      `Linked OAuth provider ${providerName} to existing user by username: ${existingUserWithName.username}`
+    );
 
     return {
       id: existingUserWithName.id,
@@ -496,7 +547,9 @@ async function resolveOAuthUser(providerName, normalizedUser) {
     instanceAdmin: isFirstUser,
   });
 
-  logger.info(`Created new OAuth user: ${normalizedUser.username} (provider: ${providerName}, first user: ${isFirstUser})`);
+  logger.info(
+    `Created new OAuth user: ${normalizedUser.username} (provider: ${providerName}, first user: ${isFirstUser})`
+  );
 
   return {
     id: userId,

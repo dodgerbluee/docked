@@ -37,7 +37,7 @@ const QuickActions = ({
   actions.push({
     id: "tracked-apps",
     icon: Package,
-    label: "Tracked Apps",
+    label: "Apps",
     description: "Monitor app versions",
     color: "indigo",
     onClick: onNavigateToTrackedApps,

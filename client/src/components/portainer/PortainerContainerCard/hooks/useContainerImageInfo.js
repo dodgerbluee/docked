@@ -3,7 +3,13 @@
  */
 
 import { useMemo, useCallback } from "react";
-import { extractVersion, extractImageName } from "../utils/containerImageParsing";
+import {
+  extractVersion,
+  extractImageName,
+  getGitHubContainerUrl,
+  getGitLabRepoUrl,
+  getDockerHubUrl,
+} from "../utils/containerImageParsing";
 import { showToast } from "../../../../utils/toast";
 
 /**
@@ -18,7 +24,7 @@ export const useContainerImageInfo = (container) => {
     [container.image]
   );
 
-  // Determine icon based on provider field (primary source of truth)
+  // Handle version click - copy to clipboard
   const handleVersionClick = useCallback(
     async (e) => {
       e.stopPropagation();
@@ -35,9 +41,35 @@ export const useContainerImageInfo = (container) => {
     [imageVersion]
   );
 
+  // Handle image name click - open registry URL
+  const handleImageClick = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      let url = null;
+      const fullImageName = imageNameWithoutVersion;
+
+      if (fullImageName.startsWith("ghcr.io/")) {
+        url = getGitHubContainerUrl(container.image);
+      } else if (fullImageName.startsWith("registry.gitlab.com/")) {
+        url = getGitLabRepoUrl(container.image);
+      } else {
+        // Assume Docker Hub for others
+        url = getDockerHubUrl(container.image);
+      }
+
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        showToast("Unable to determine image registry URL", "error");
+      }
+    },
+    [imageNameWithoutVersion, container.image]
+  );
+
   return {
     imageVersion,
     imageNameWithoutVersion,
     handleVersionClick,
+    handleImageClick,
   };
 };

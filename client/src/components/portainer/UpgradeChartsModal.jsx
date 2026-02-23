@@ -455,7 +455,7 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
   const tabs = [
     { id: "overview", label: "Overview", icon: TrendingUp },
     { id: "containers", label: "Containers", icon: BarChart3 },
-    { id: "tracked-apps", label: "Tracked Apps", icon: Package },
+    { id: "tracked-apps", label: "Apps", icon: Package },
     { id: "performance", label: "Performance", icon: Zap },
     { id: "patterns", label: "Patterns", icon: Calendar },
     { id: "insights", label: "Insights", icon: Award },
@@ -752,7 +752,7 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
                 <>
                   {/* Top Upgraded Tracked Apps */}
                   <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>Top 10 Most Upgraded Tracked Apps</h3>
+                    <h3 className={styles.chartTitle}>Top 10 Most Upgraded Apps</h3>
                     <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={trackedAppChartData.topContainers} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -771,7 +771,7 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
 
                   {/* Success Rate by Tracked App */}
                   <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>Success Rate by Tracked App (Top 10)</h3>
+                    <h3 className={styles.chartTitle}>Success Rate by App (Top 10)</h3>
                     <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={trackedAppChartData.successRateByContainer}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -791,7 +791,7 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
 
                   {/* Upgrades Over Time */}
                   <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>Tracked App Upgrades Over Time</h3>
+                    <h3 className={styles.chartTitle}>App Upgrades Over Time</h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={trackedAppChartData.upgradesOverTime}>
                         <defs>
@@ -851,8 +851,8 @@ function UpgradeChartsModal({ isOpen, onClose, history = [] }) {
                 <div className={styles.chartCardWide}>
                   <div className={styles.emptyMessage}>
                     <Package size={64} className={styles.emptyIcon} />
-                    <h3>No Tracked App Data</h3>
-                    <p>Start upgrading tracked apps to see analytics!</p>
+                    <h3>No App Data</h3>
+                    <p>Start upgrading apps to see analytics!</p>
                   </div>
                 </div>
               )}

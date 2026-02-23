@@ -18,8 +18,9 @@ const {
   getIntentExecutionContainers,
 } = require("../db/index");
 const logger = require("../utils/logger");
-const { executeIntent, dryRunIntent } = require("../services/intents/intentExecutor");
+const { findMatchingContainers } = require("../services/intents/matchingEngine");
 const { validateCron } = require("../services/intents/scheduleEvaluator");
+const { dryRunIntent, executeIntent } = require("../services/intents/intentExecutor");
 
 const VALID_SCHEDULE_TYPES = ["immediate", "scheduled"];
 const MAX_QUERY_LIMIT = 200;
@@ -95,12 +96,14 @@ async function createIntentHandler(req, res) {
       matchInstances,
       matchStacks,
       matchRegistries,
+      excludeContainers,
+      excludeImages,
+      excludeStacks,
+      excludeRegistries,
       scheduleType,
       scheduleCron,
       dryRun,
     } = req.body;
-
-    // Validate required fields
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return res.status(400).json({ success: false, error: "name is required" });
     }
@@ -142,6 +145,10 @@ async function createIntentHandler(req, res) {
       matchInstances,
       matchStacks,
       matchRegistries,
+      excludeContainers,
+      excludeImages,
+      excludeStacks,
+      excludeRegistries,
     };
     for (const [fieldName, value] of Object.entries(arrayFields)) {
       if (value !== undefined && value !== null && !Array.isArray(value)) {
@@ -176,6 +183,10 @@ async function createIntentHandler(req, res) {
       matchInstances: matchInstances || null,
       matchStacks: matchStacks || null,
       matchRegistries: matchRegistries || null,
+      excludeContainers: excludeContainers || null,
+      excludeImages: excludeImages || null,
+      excludeStacks: excludeStacks || null,
+      excludeRegistries: excludeRegistries || null,
       scheduleType: scheduleType || "immediate",
       scheduleCron: scheduleCron || null,
       maxConcurrent: 1,
@@ -236,6 +247,10 @@ async function updateIntentHandler(req, res) {
       matchInstances,
       matchStacks,
       matchRegistries,
+      excludeContainers,
+      excludeImages,
+      excludeStacks,
+      excludeRegistries,
       scheduleType,
       scheduleCron,
       dryRun,
@@ -269,6 +284,10 @@ async function updateIntentHandler(req, res) {
       matchInstances,
       matchStacks,
       matchRegistries,
+      excludeContainers,
+      excludeImages,
+      excludeStacks,
+      excludeRegistries,
     };
     for (const [fieldName, value] of Object.entries(arrayFields)) {
       if (value !== undefined) {
@@ -563,8 +582,60 @@ async function getRecentExecutionsHandler(req, res) {
 }
 
 /**
- * Get execution detail including per-container results
+ * Get intent preview: current matches and next execution simulation
  */
+async function getIntentPreviewHandler(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+
+    const intentId = parseInt(req.params.id, 10);
+    if (isNaN(intentId)) {
+      return res.status(400).json({ success: false, error: "Invalid intent ID" });
+    }
+
+    const intent = await getIntentById(intentId, userId);
+    if (!intent) {
+      return res.status(404).json({ success: false, error: "Intent not found" });
+    }
+
+    // Get current matches (all containers matching the intent, regardless of update status)
+    const allMatchingContainers = await findMatchingContainers(intent, userId, false);
+
+    // Get containers that would be upgraded (matches with updates available)
+    // This is read-only — no execution records are created
+    const upgradeableContainers = await findMatchingContainers(intent, userId, true);
+
+    return res.json({
+      success: true,
+      currentMatches: allMatchingContainers.map(c => ({
+        containerId: c.containerId,
+        containerName: c.containerName,
+        imageName: c.imageName,
+        stackName: c.stackName || null,
+        portainerInstanceId: c.portainerInstanceId,
+        hasUpdate: c.hasUpdate || false,
+      })),
+      nextExecutionPreview: {
+        containers: upgradeableContainers.map(c => ({
+          containerId: c.containerId,
+          containerName: c.containerName,
+          imageName: c.imageName,
+          stackName: c.stackName || null,
+          status: "would_upgrade",
+        })),
+      },
+    });
+  } catch (error) {
+    logger.error("Error getting intent preview:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to get intent preview",
+    });
+  }
+}
 async function getExecutionDetailHandler(req, res) {
   try {
     const userId = req.user?.id;
@@ -606,4 +677,5 @@ module.exports = {
   getIntentExecutionsHandler,
   getRecentExecutionsHandler,
   getExecutionDetailHandler,
+  getIntentPreviewHandler,
 };

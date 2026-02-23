@@ -18,6 +18,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import Cookies from "js-cookie";
 import LoadingSpinner from "./ui/LoadingSpinner";
 import { API_BASE_URL } from "../constants/api";
 
@@ -55,11 +56,11 @@ function OAuthCallback({ onLogin }) {
       return;
     }
 
-    const token = searchParams.get("token");
-    const username = searchParams.get("username");
-    const role = searchParams.get("role");
-    const instanceAdmin = searchParams.get("instanceAdmin") === "true";
-    const refreshToken = searchParams.get("refreshToken");
+    const token = Cookies.get("authToken");
+    const username = Cookies.get("username");
+    const role = Cookies.get("userRole");
+    const instanceAdmin = Cookies.get("instanceAdmin") === "true";
+    const refreshToken = Cookies.get("refreshToken");
 
     if (!token || !username) {
       setError("Invalid authentication response. Please try again.");
@@ -85,6 +86,13 @@ function OAuthCallback({ onLogin }) {
     localStorage.setItem("instanceAdmin", instanceAdmin ? "true" : "false");
     // Clear welcome modal flag on new login
     localStorage.removeItem("welcomeModalShown");
+
+    // Clear cookies after reading
+    Cookies.remove("authToken");
+    Cookies.remove("refreshToken");
+    Cookies.remove("username");
+    Cookies.remove("userRole");
+    Cookies.remove("instanceAdmin");
 
     // Complete login via the App's auth handler
     onLogin(token, username, role || "Administrator", instanceAdmin);
@@ -146,13 +154,22 @@ function OAuthCallback({ onLogin }) {
             width: "100%",
           }}
         >
-          <h2 style={{ margin: "0 0 8px 0", color: "var(--text-primary, #222)", fontSize: "1.3rem" }}>
+          <h2
+            style={{ margin: "0 0 8px 0", color: "var(--text-primary, #222)", fontSize: "1.3rem" }}
+          >
             Link your account
           </h2>
-          <p style={{ color: "var(--text-secondary, #666)", margin: "0 0 20px 0", fontSize: "0.95rem", lineHeight: 1.5 }}>
-            An account with the username <strong>{linkState.username}</strong> already exists.
-            Enter your password to link your SSO identity to this account.
-            Once linked, you can sign in with either method.
+          <p
+            style={{
+              color: "var(--text-secondary, #666)",
+              margin: "0 0 20px 0",
+              fontSize: "0.95rem",
+              lineHeight: 1.5,
+            }}
+          >
+            An account with the username <strong>{linkState.username}</strong> already exists. Enter
+            your password to link your SSO identity to this account. Once linked, you can sign in
+            with either method.
           </p>
           <form onSubmit={handleLinkSubmit}>
             <div style={{ marginBottom: "16px" }}>

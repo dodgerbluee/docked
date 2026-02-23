@@ -16,6 +16,7 @@ const crypto = require("crypto");
 const axios = require("axios");
 const { createRemoteJWKSet, jwtVerify } = require("jose");
 const logger = require("../../../utils/logger");
+const { retry } = require("../../../utils/retry");
 
 class BaseProvider {
   /**
@@ -62,7 +63,10 @@ class BaseProvider {
     logger.debug(`Fetching OIDC discovery from: ${discoveryUrl}`);
 
     try {
-      const response = await axios.get(discoveryUrl, { timeout: 10000 });
+      const response = await retry(() => axios.get(discoveryUrl, { timeout: 10000 }), {
+        maxRetries: 2,
+        baseDelay: 1000,
+      });
       this._discoveryDoc = response.data;
       this._discoveryFetchedAt = Date.now();
 
@@ -110,10 +114,7 @@ class BaseProvider {
     const codeVerifier = crypto.randomBytes(32).toString("base64url");
 
     // code_challenge: base64url(sha256(code_verifier))
-    const codeChallenge = crypto
-      .createHash("sha256")
-      .update(codeVerifier)
-      .digest("base64url");
+    const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
 
     return { codeVerifier, codeChallenge };
   }
@@ -181,14 +182,19 @@ class BaseProvider {
     });
 
     try {
-      const response = await axios.post(discovery.token_endpoint, body.toString(), {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        timeout: 15000,
-      });
+      const response = await retry(
+        () =>
+          axios.post(discovery.token_endpoint, body.toString(), {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            timeout: 15000,
+          }),
+        { maxRetries: 2, baseDelay: 1000 }
+      );
 
       return response.data;
     } catch (error) {
-      const detail = error.response?.data?.error_description || error.response?.data?.error || error.message;
+      const detail =
+        error.response?.data?.error_description || error.response?.data?.error || error.message;
       logger.error("OAuth code exchange failed:", { error: detail });
       throw new Error(`Token exchange failed: ${detail}`);
     }
@@ -239,10 +245,14 @@ class BaseProvider {
     }
 
     try {
-      const response = await axios.get(discovery.userinfo_endpoint, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        timeout: 10000,
-      });
+      const response = await retry(
+        () =>
+          axios.get(discovery.userinfo_endpoint, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 10000,
+          }),
+        { maxRetries: 2, baseDelay: 1000 }
+      );
 
       return response.data;
     } catch (error) {

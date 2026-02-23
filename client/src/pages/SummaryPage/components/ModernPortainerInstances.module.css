@@ -36,7 +36,7 @@
 
 .instancesGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -168,6 +168,12 @@
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .instancesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .instancesGrid {
     grid-template-columns: 1fr;
