@@ -383,7 +383,7 @@ if (shouldStartServer) {
           } catch (oauthError) {
             logger.error("Failed to initialize OAuth providers", {
               module: "server",
-              error: oauthError,
+              error: oauthError instanceof Error ? oauthError.message : String(oauthError),
             });
             // Don't crash if OAuth initialization fails
           }

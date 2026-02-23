@@ -216,7 +216,7 @@ function createOAuthUser({
                 logger.error("Error creating OAuth user:", { error: err });
                 return reject(err);
               }
-              logger.info(`Created OAuth user: ${username} (provider: ${oauthProvider})`);
+              logger.info(`Created OAuth user: ${username}`);
               resolve(this.lastID);
             }
           );

@@ -165,13 +165,11 @@ function initializeFromEnv() {
 
   const providerName = oauthConfig.provider;
 
-  // Validate issuer URL
+  // Validate issuer URL (do not log the URL itself — it is derived from the credential config)
   try {
     new URL(oauthConfig.issuerUrl);
   } catch {
-    logger.warn(
-      `OAuth env-var provider '${providerName}' has invalid issuer URL '${oauthConfig.issuerUrl}', skipping`
-    );
+    logger.warn(`OAuth env-var provider '${providerName}' has an invalid issuer URL, skipping`);
     return;
   }
 
