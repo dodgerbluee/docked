@@ -266,28 +266,56 @@ body.dark-mode .tag {
   color: var(--text-secondary);
 }
 
-.globNoMatches {
-  padding-left: 12px;
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
 .tagRemove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.6;
-  padding: 0;
   display: flex;
   align-items: center;
-  transition: opacity 0.15s;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--dodger-blue);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: 2px;
 }
 
 .tagRemove:hover {
-  opacity: 1;
+  background: rgba(239, 62, 66, 0.1);
   color: var(--dodger-red);
+}
+
+body.dark-mode .tagRemove {
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .tagRemove:hover {
+  background: rgba(239, 62, 66, 0.2);
+  color: var(--dodger-red);
+}
+
+/* ── Exclusion Criteria ── */
+
+.exclusionSections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.exclusionSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exclusionLabel {
+  display: block;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
 }
 
 /* ── Schedule type buttons ── */

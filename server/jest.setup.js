@@ -3,6 +3,12 @@
  * Runs before all tests to configure the test environment
  */
 
+// Mock jose to avoid ES module issues in tests (jose v6 is ESM-only)
+jest.mock("jose", () => ({
+  createRemoteJWKSet: jest.fn(() => jest.fn()),
+  jwtVerify: jest.fn(),
+}));
+
 // Mock nanoid to avoid ES module issues in tests
 jest.mock("nanoid", () => {
   const customAlphabet = (alphabet, size) => () => {

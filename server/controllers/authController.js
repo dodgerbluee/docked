@@ -22,6 +22,7 @@ const {
   createUser,
   updateVerificationToken,
   verifyAndClearToken,
+  deleteUser,
   getAllPortainerInstances,
   getAllDiscordWebhooks,
   getAllTrackedApps,
@@ -319,6 +320,14 @@ async function login(req, res, next) {
       return res.status(401).json({
         success: false,
         error: "Invalid username or password",
+      });
+    }
+
+    // Reject OAuth-only users (no password set) with a helpful message
+    if (!user.password_hash && user.oauth_provider) {
+      return res.status(401).json({
+        success: false,
+        error: `This account uses SSO. Please sign in with ${user.oauth_provider}.`,
       });
     }
 
@@ -1958,6 +1967,71 @@ async function adminUpdateUserRole(req, res, next) {
   }
 }
 
+/**
+ * Admin delete user (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function adminDeleteUser(req, res, next) {
+  try {
+    // Only instance admins can delete users
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const targetId = parseInt(userId, 10);
+
+    // Prevent deleting yourself
+    if (req.user.userId === targetId) {
+      return res.status(400).json({
+        success: false,
+        error: "You cannot delete your own account",
+      });
+    }
+
+    // Verify user exists
+    const user = await getUserById(targetId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Delete user and associated data
+    const changes = await deleteUser(targetId);
+
+    if (changes === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    logger.info(
+      `User "${user.username}" (ID: ${targetId}) deleted by admin "${req.user.username}"`
+    );
+
+    return res.json({
+      success: true,
+      message: `User "${user.username}" deleted successfully`,
+    });
+  } catch (error) {
+    logger.error("Error deleting user:", error);
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1981,4 +2055,5 @@ module.exports = {
   getUserStatsEndpoint,
   adminUpdateUserPassword,
   adminUpdateUserRole,
+  adminDeleteUser,
 };

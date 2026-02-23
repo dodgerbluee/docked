@@ -203,6 +203,7 @@ const UsersTab = React.memo(function UsersTab() {
           onClose={handleUserDetailsClose}
           user={selectedUser}
           onUserUpdated={handleUserUpdated}
+          currentUsername={localStorage.getItem("username")}
         />
       )}
     </div>

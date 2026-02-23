@@ -1,6 +1,33 @@
 /**
  * Retry utility with exponential backoff
+ *
+ * @param {Function} fn - Async function to retry
+ * @param {Object} options - Retry options
+ * @param {number} options.maxRetries - Maximum number of retries (default: 3)
+ * @param {number} options.baseDelay - Base delay in ms (default: 1000)
+ * @param {number} options.backoffFactor - Exponential backoff factor (default: 2)
+ * @returns {Promise} - Result of the function call
+ * @throws {Error} - Last error if all retries fail
  */
+async function retry(fn, options = {}) {
+  const { maxRetries = 3, baseDelay = 1000, backoffFactor = 2 } = options;
+
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(backoffFactor, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 const { recordRateLimitError, recordSuccess } = require("./rateLimiter");
 const logger = require("./logger");
@@ -113,6 +140,7 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000, userId = n
 }
 
 module.exports = {
+  retry,
   retryWithBackoff,
   RateLimitExceededError,
 };

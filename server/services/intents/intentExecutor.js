@@ -25,6 +25,7 @@ const {
   addIntentExecutionContainer,
 } = require("../../db/index");
 const { updateIntent } = require("../../db/index");
+const { sendIntentExecutionNotification } = require("../discordService");
 
 /**
  * Execute an intent: match containers and upgrade them.
@@ -207,6 +208,26 @@ async function executeIntent(intent, userId, options = {}) {
       skipped,
       durationMs,
     });
+
+    // Send Discord notification for intent execution (only for actual executions, not dry runs)
+    if (!isDryRun) {
+      try {
+        await sendIntentExecutionNotification({
+          intentName: intent.name,
+          status: finalStatus,
+          containersMatched: matchedContainers.length,
+          containersUpgraded: upgraded,
+          containersFailed: failed,
+          containersSkipped: skipped,
+          durationMs,
+          triggerType,
+          userId,
+          containerResults,
+        });
+      } catch (error) {
+        logger.error("Failed to send Discord notification for intent execution:", error);
+      }
+    }
 
     return {
       executionId,

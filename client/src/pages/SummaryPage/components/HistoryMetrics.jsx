@@ -282,7 +282,7 @@ const HistoryMetrics = () => {
 
             {/* Most Upgraded Tracked Apps */}
             <div className={styles.miniChartCard}>
-              <h4 className={styles.miniChartTitle}>Most Upgraded Tracked Apps</h4>
+              <h4 className={styles.miniChartTitle}>Most Upgraded Apps</h4>
               <div className={styles.horizontalBarChart}>
                 {topUpgradedTrackedApps.length > 0 ? (
                   topUpgradedTrackedApps.map((app, index) => {
@@ -305,14 +305,14 @@ const HistoryMetrics = () => {
                     );
                   })
                 ) : (
-                  <div className={styles.emptyChartMessage}>No tracked app upgrades yet</div>
+                  <div className={styles.emptyChartMessage}>No app upgrades yet</div>
                 )}
               </div>
             </div>
 
             {/* Tracked App Frequency */}
             <div className={styles.miniChartCard}>
-              <h4 className={styles.miniChartTitle}>Tracked App Frequency (7 Days)</h4>
+              <h4 className={styles.miniChartTitle}>App Frequency (7 Days)</h4>
               <div className={styles.barChart}>
                 {trackedAppSparklineData.length > 0 ? (
                   trackedAppSparklineData.map((day, index) => {

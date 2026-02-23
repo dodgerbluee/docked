@@ -1,11 +1,12 @@
 import React, { useState, useCallback, lazy, Suspense } from "react";
 import PropTypes from "prop-types";
-import { Lock, Package, Pencil, Trash2 } from "lucide-react";
+import { Lock, Package } from "lucide-react";
 import PortainerIcon from "../icons/PortainerIcon";
 import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import InstanceDetailModal from "./InstanceDetailModal";
 import styles from "./PortainerTab.module.css";
 
 const IntentsPage = lazy(() => import("../../pages/IntentsPage"));
@@ -26,6 +27,7 @@ const PortainerTab = React.memo(function PortainerTab({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, instanceId: null });
   const [portainerConfirm, setPortainerConfirm] = useState(false);
+  const [detailInstance, setDetailInstance] = useState(null);
 
   const handleDeleteClick = useCallback((instanceId) => {
     setDeleteConfirm({ isOpen: true, instanceId });
@@ -91,7 +93,16 @@ const PortainerTab = React.memo(function PortainerTab({
         </div>
         <div className={styles.instancesList}>
           {portainerInstances.map((instance) => (
-            <Card key={instance.id} variant="default" padding="sm" className={styles.instanceCard}>
+            <Card
+              key={instance.id}
+              variant="default"
+              padding="sm"
+              className={styles.instanceCard}
+              onClick={() => setDetailInstance(instance)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setDetailInstance(instance)}
+            >
               <div className={styles.instanceContent}>
                 <div className={styles.instanceInfo}>
                   <div className={styles.instanceHeader}>
@@ -115,26 +126,6 @@ const PortainerTab = React.memo(function PortainerTab({
                     <div className={styles.instanceUsername}>{instance.username}</div>
                   )}
                 </div>
-                <div className={styles.instanceFooter}>
-                  <div className={styles.instanceActions}>
-                    <button
-                      className={styles.instanceActionButton}
-                      onClick={() => handleEditInstanceClick(instance)}
-                      aria-label="Edit instance"
-                      title="Edit"
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      className={`${styles.instanceActionButton} ${styles.instanceDangerAction}`}
-                      onClick={() => handleDeleteClick(instance.id)}
-                      aria-label="Delete instance"
-                      title="Delete"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
               </div>
             </Card>
           ))}
@@ -157,6 +148,19 @@ const PortainerTab = React.memo(function PortainerTab({
           <IntentsPage containers={containers} portainerInstances={portainerInstancesProp} />
         </Suspense>
       </div>
+
+      <InstanceDetailModal
+        instance={detailInstance}
+        isOpen={!!detailInstance}
+        onClose={() => setDetailInstance(null)}
+        onEdit={(inst) => {
+          setDetailInstance(null);
+          handleEditInstanceClick(inst);
+        }}
+        onDelete={(instanceId) => {
+          handleDeleteClick(instanceId);
+        }}
+      />
 
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}

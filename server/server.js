@@ -170,6 +170,29 @@ logger.info("Global rate limiter enabled: 300 req/min per IP", {
   module: "server",
 });
 
+// OAuth-specific rate limiter - stricter limits for OAuth endpoints
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 OAuth attempts per window per IP
+  message: { success: false, error: "Too many OAuth attempts, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Use IP for rate limiting
+  keyGenerator: (req) => req.ip,
+  // Skip rate limiting for localhost in development
+  skip: (req) => {
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+    const ip = req.ip || req.connection?.remoteAddress || "";
+    return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1";
+  },
+});
+
+logger.info("OAuth rate limiter enabled: 10 req/15min per IP", {
+  module: "server",
+});
+
 // API Documentation
 app.use(
   "/api-docs",
@@ -351,6 +374,38 @@ if (shouldStartServer) {
               error: logLevelError,
             });
             // Don't crash if log level initialization fails
+          }
+
+          // Initialize OAuth providers (if configured)
+          try {
+            const { initializeProviders } = require("./services/oauth");
+            await initializeProviders();
+          } catch (oauthError) {
+            logger.error("Failed to initialize OAuth providers", {
+              module: "server",
+              error: oauthError instanceof Error ? oauthError.message : String(oauthError),
+            });
+            // Don't crash if OAuth initialization fails
+          }
+
+          // Start OAuth state cleanup interval (every 5 minutes)
+          try {
+            const { cleanExpiredOAuthStates } = require("./db/oauth");
+            // Run once at startup
+            cleanExpiredOAuthStates().catch(() => {});
+            // Then every 5 minutes
+            setInterval(
+              () => {
+                cleanExpiredOAuthStates().catch((err) => {
+                  logger.debug("OAuth state cleanup error:", { error: err.message });
+                });
+              },
+              5 * 60 * 1000
+            );
+          } catch (cleanupError) {
+            logger.debug("OAuth state cleanup setup skipped:", {
+              error: cleanupError.message,
+            });
           }
         } catch (dbError) {
           logger.error("Database not ready, batch system will not start", {

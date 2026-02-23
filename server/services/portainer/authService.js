@@ -168,13 +168,14 @@ function extractCredentials(instance) {
 
 /**
  * Fetch credentials from database for a Portainer instance
+ * @param {number} userId - User ID
  * @param {string} portainerUrl - Portainer URL (may be IP URL)
  * @param {string} originalUrl - Original URL with domain
  * @returns {Promise<{username: string|null, password: string|null, apiKey: string|null, authType: string, originalUrl: string|null}>}
  */
-async function fetchCredentialsFromDatabase(portainerUrl, originalUrl = null) {
+async function fetchCredentialsFromDatabase(userId, portainerUrl, originalUrl = null) {
   try {
-    const instances = await getAllPortainerInstances();
+    const instances = await getAllPortainerInstances(userId);
     const instance = findMatchingInstance(instances, portainerUrl, originalUrl);
 
     if (!instance) {
@@ -502,6 +503,7 @@ async function authenticateWithPassword(
 
 /**
  * Load credentials from database if not provided
+ * @param {number} userId - User ID
  * @param {string} portainerUrl - Portainer URL
  * @param {string|null} originalUrl - Original URL
  * @param {string|null} apiKey - API key
@@ -509,12 +511,19 @@ async function authenticateWithPassword(
  * @param {string|null} password - Password
  * @returns {Promise<Object>} - Credentials object
  */
-async function loadCredentialsIfNeeded(portainerUrl, originalUrl, apiKey, username, password) {
+async function loadCredentialsIfNeeded(
+  userId,
+  portainerUrl,
+  originalUrl,
+  apiKey,
+  username,
+  password
+) {
   if (apiKey || username || password) {
     return { apiKey, username, password, originalUrl };
   }
 
-  const credentials = await fetchCredentialsFromDatabase(portainerUrl, originalUrl);
+  const credentials = await fetchCredentialsFromDatabase(userId, portainerUrl, originalUrl);
   return {
     apiKey: credentials.apiKey,
     username: credentials.username,
@@ -527,6 +536,7 @@ async function loadCredentialsIfNeeded(portainerUrl, originalUrl, apiKey, userna
 /**
  * Authenticate with a Portainer instance
  * @param {Object} options - Options object
+ * @param {number} options.userId - User ID
  * @param {string} options.portainerUrl - Portainer URL
  * @param {string|null} [options.username=null] - Username for password authentication
  * @param {string|null} [options.password=null] - Password for password authentication
@@ -539,6 +549,7 @@ async function loadCredentialsIfNeeded(portainerUrl, originalUrl, apiKey, userna
  */
 // eslint-disable-next-line complexity -- Portainer authentication requires complex auth logic
 async function authenticatePortainer({
+  userId,
   portainerUrl,
   username = null,
   password = null,
@@ -554,6 +565,7 @@ async function authenticatePortainer({
   }
 
   const credentials = await loadCredentialsIfNeeded(
+    userId,
     portainerUrl,
     originalUrl,
     apiKey,
