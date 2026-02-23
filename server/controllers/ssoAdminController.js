@@ -258,7 +258,21 @@ async function testProvider(req, res) {
       return res.status(400).json({ success: false, error: "issuerUrl is required" });
     }
 
-    const discoveryUrl = issuerUrl.replace(/\/+$/, "") + "/.well-known/openid-configuration";
+    // Validate issuerUrl is a proper http/https URL before making any request (prevents SSRF via
+    // arbitrary schemes and ensures safe URL construction without regex on uncontrolled input)
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(issuerUrl);
+    } catch {
+      return res.status(400).json({ success: false, error: "issuerUrl is not a valid URL" });
+    }
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return res.status(400).json({ success: false, error: "issuerUrl must use http or https" });
+    }
+
+    // Build the discovery URL using URL resolution to handle trailing slashes safely
+    const safeBase = parsedUrl.href.endsWith("/") ? parsedUrl.href : `${parsedUrl.href}/`;
+    const discoveryUrl = new URL(".well-known/openid-configuration", safeBase).href;
 
     const response = await axios.get(discoveryUrl, { timeout: 10000 });
     const doc = response.data;

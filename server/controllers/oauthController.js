@@ -152,6 +152,8 @@ async function initiateLogin(req, res, next) {
 // eslint-disable-next-line max-lines-per-function, complexity -- OAuth callback requires comprehensive validation and account resolution
 async function handleCallback(req, res, next) {
   try {
+    // OAuth2 authorization code is delivered via GET query params per RFC 6749 §4.1.2 —
+    // this is required by the spec and cannot be changed to a POST body.
     const { code, state, error: oauthError, error_description: errorDescription } = req.query;
 
     // Build frontend base URL for redirects
@@ -285,28 +287,16 @@ async function handleCallback(req, res, next) {
       logger.warn("Failed to update last login for OAuth user:", { error: err });
     }
 
-    // Set tokens and user data in cookies for secure transmission
-    res.cookie("authToken", token, { httpOnly: false, secure: req.secure, sameSite: "lax" });
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: false,
-      secure: req.secure,
-      sameSite: "lax",
-    });
-    res.cookie("username", resolvedUser.username, {
-      httpOnly: false,
-      secure: req.secure,
-      sameSite: "lax",
-    });
-    res.cookie("userRole", resolvedUser.role, {
-      httpOnly: false,
-      secure: req.secure,
-      sameSite: "lax",
-    });
-    res.cookie("instanceAdmin", resolvedUser.instanceAdmin ? "true" : "false", {
-      httpOnly: false,
-      secure: req.secure,
-      sameSite: "lax",
-    });
+    // Cookies are a short-lived transport mechanism for the OAuth redirect flow. The client
+    // (OAuthCallback.jsx) reads them immediately on the redirect page, moves the values to
+    // localStorage, then clears the cookies. httpOnly:false is required so the client-side
+    // js-cookie library can read them. maxAge:60s limits the exposure window.
+    const cookieOpts = { httpOnly: false, secure: req.secure, sameSite: "lax", maxAge: 60 * 1000 };
+    res.cookie("authToken", token, cookieOpts);
+    res.cookie("refreshToken", refreshToken, cookieOpts);
+    res.cookie("username", resolvedUser.username, cookieOpts);
+    res.cookie("userRole", resolvedUser.role, cookieOpts);
+    res.cookie("instanceAdmin", resolvedUser.instanceAdmin ? "true" : "false", cookieOpts);
 
     return res.redirect(`${frontendBase}/auth/oauth/complete`);
   } catch (error) {
