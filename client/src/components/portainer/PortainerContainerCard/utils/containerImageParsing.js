@@ -64,12 +64,19 @@ export const getGitHubContainerUrl = (imageName) => {
 };
 
 /**
- * Check if image is from GitLab Container Registry
+ * Get Docker Hub URL
  * @param {string} imageName - Full image name
- * @returns {boolean} True if image is from GitLab Container Registry
+ * @returns {string|null} Docker Hub URL or null
  */
-export const isGitLabContainer = (imageName) => {
-  return imageName && imageName.startsWith("registry.gitlab.com/");
+export const getDockerHubUrl = (imageName) => {
+  if (!imageName) return null;
+  // Remove version/tag if present
+  const imageWithoutVersion = extractImageName(imageName);
+  // Remove docker.io/ prefix if present
+  const imageWithoutRegistry = imageWithoutVersion.replace(/^docker\.io\//, "");
+  // For Docker Hub, official images are under /_/, user images under /r/
+  const path = imageWithoutRegistry.includes("/") ? "r" : "_";
+  return `https://hub.docker.com/${path}/${imageWithoutRegistry}`;
 };
 
 /**

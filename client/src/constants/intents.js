@@ -66,6 +66,8 @@ export const DEFAULT_INTENT_FORM = {
   enabled: true,
   matchType: MATCH_TYPES.CONTAINERS,
   matchValues: [],
+  excludeType: MATCH_TYPES.CONTAINERS,
+  excludeValues: [],
   scheduleType: SCHEDULE_TYPES.IMMEDIATE,
   scheduleCron: "0 0 * * *",
   dryRun: true,
@@ -110,6 +112,7 @@ export const CONTAINER_STATUSES = {
   FAILED: "failed",
   SKIPPED: "skipped",
   DRY_RUN: "dry_run",
+  WOULD_UPGRADE: "would_upgrade",
 };
 
 // Container execution status labels
@@ -118,6 +121,7 @@ export const CONTAINER_STATUS_LABELS = {
   [CONTAINER_STATUSES.FAILED]: "Failed",
   [CONTAINER_STATUSES.SKIPPED]: "Skipped",
   [CONTAINER_STATUSES.DRY_RUN]: "Dry Run",
+  [CONTAINER_STATUSES.WOULD_UPGRADE]: "Would Upgrade",
 };
 
 // Container status color map
@@ -126,6 +130,7 @@ export const CONTAINER_STATUS_COLORS = {
   [CONTAINER_STATUSES.FAILED]: "var(--dodger-red)",
   [CONTAINER_STATUSES.SKIPPED]: "var(--text-secondary)",
   [CONTAINER_STATUSES.DRY_RUN]: "#d97706",
+  [CONTAINER_STATUSES.WOULD_UPGRADE]: "#d97706",
 };
 
 // Timeout constants (in milliseconds)

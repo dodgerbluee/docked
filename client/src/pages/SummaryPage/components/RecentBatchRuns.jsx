@@ -72,9 +72,7 @@ const RecentBatchRuns = ({ recentRuns, latestRunsByJobType }) => {
                   <div className={styles.runContent}>
                     <div className={styles.runHeader}>
                       <span className={styles.runType}>
-                        {run.job_type === "docker-hub-pull"
-                          ? "Container Check"
-                          : "Tracked Apps Check"}
+                        {run.job_type === "docker-hub-pull" ? "Container Check" : "Apps Check"}
                       </span>
                       <span className={styles.runTime}>{timeDisplay}</span>
                     </div>

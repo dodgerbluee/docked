@@ -38,8 +38,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
 
   return (
     <div className={styles.updateSection}>
-      <h3 className={styles.title}>Tracked Apps Settings</h3>
-      <p className={styles.description}>Manage your tracked app data and configurations.</p>
+      <h3 className={styles.title}>Apps Settings</h3>
+      <p className={styles.description}>Manage your app data and configurations.</p>
 
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>
@@ -52,13 +52,13 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
               disabled={clearingTrackedAppData}
               className={styles.dangerButton}
             >
-              {clearingTrackedAppData ? "Clearing..." : "Clear Tracked App Data"}
+              {clearingTrackedAppData ? "Clearing..." : "Clear App Data"}
             </Button>
             <small className={styles.dataActionHelper}>
-              Clears the latest version data for all tracked apps. This will reset the {'"'}Latest
+              Clears the latest version data for all apps. This will reset the {'"'}Latest
               {'"'}
-              version information and force fresh data to be fetched on the next check. Your tracked
-              app configurations will be preserved.
+              version information and force fresh data to be fetched on the next check. Your app
+              configurations will be preserved.
             </small>
           </div>
         </div>
@@ -68,8 +68,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
         isOpen={trackedAppConfirm}
         onClose={handleConfirmClose}
         onConfirm={handleClearTrackedAppData}
-        title="Clear Tracked Application Data?"
-        message="This will clear the latest version data for all tracked apps. This action cannot be undone."
+        title="Clear Application Data?"
+        message="This will clear the latest version data for all apps. This action cannot be undone."
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"

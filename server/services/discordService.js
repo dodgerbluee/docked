@@ -1005,10 +1005,130 @@ async function sendNotificationImmediate(imageData) {
 }
 
 /**
- * Get webhook information from Discord API
- * @param {string} webhookUrl - Webhook URL
- * @returns {Promise<{success: boolean, name?: string, channelId?: string, guildId?: string, avatar?: string, avatarUrl?: string, error?: string}>}
+ * Truncate an array of lines to fit within Discord's field value limit.
+ * @param {string[]} lines - Lines to join
+ * @param {number} maxLength - Maximum character length (default 1024)
+ * @returns {string} - Joined and possibly truncated string
  */
+function truncateFieldLines(lines, maxLength = 1024) {
+  const joined = lines.join("\n");
+  if (joined.length <= maxLength) {
+    return joined;
+  }
+  const truncated = [];
+  let currentLength = 0;
+  for (const line of lines) {
+    if (currentLength + line.length + 1 > maxLength - 30) {
+      truncated.push(`_...and ${lines.length - truncated.length} more_`);
+      break;
+    }
+    truncated.push(line);
+    currentLength += line.length + 1;
+  }
+  return truncated.join("\n");
+}
+
+/**
+ * Build a Discord embed field for containers with a given status.
+ * @param {Array} containerResults - All container results
+ * @param {string} filterStatus - Status to filter by ("upgraded" or "failed")
+ * @returns {Object|null} - Discord embed field object or null
+ */
+function buildContainerField(containerResults, filterStatus) {
+  const items = containerResults.filter((c) => c.status === filterStatus);
+  if (items.length === 0) {
+    return null;
+  }
+  const icon = filterStatus === "upgraded" ? "✅" : "❌";
+  const label = filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1);
+  const lines = items.map((c) => {
+    if (filterStatus === "upgraded" && c.oldImage && c.newImage && c.oldImage !== c.newImage) {
+      return `${icon} **${c.containerName}**\n\u2003${c.oldImage} → ${c.newImage}`;
+    }
+    if (filterStatus === "failed") {
+      const errSnippet = c.errorMessage ? `: ${c.errorMessage.slice(0, 80)}` : "";
+      return `${icon} **${c.containerName}**${errSnippet}`;
+    }
+    return `${icon} **${c.containerName}** (${c.imageName || "unknown"})`;
+  });
+  return {
+    name: `${label} (${items.length})`,
+    value: truncateFieldLines(lines),
+    inline: false,
+  };
+}
+
+/**
+ * Format intent execution notification payload for Discord
+ * @param {Object} intentExecutionData - Intent execution data
+ * @returns {Object} - Discord embed payload
+ */
+function formatIntentExecutionNotification(intentExecutionData) {
+  const {
+    intentName,
+    status,
+    containersMatched,
+    containersUpgraded,
+    containersFailed,
+    containersSkipped,
+    durationMs,
+    triggerType,
+    containerResults,
+  } = intentExecutionData;
+
+  const colorMap = { completed: 3066993, partial: 16776960 };
+  const embed = {
+    title: "🤖 Intent Execution Complete",
+    description: `Intent **${intentName}** has finished executing.`,
+    color: colorMap[status] || 15158332,
+    fields: [
+      { name: "Trigger", value: triggerType, inline: true },
+      { name: "Status", value: status.charAt(0).toUpperCase() + status.slice(1), inline: true },
+      { name: "Duration", value: `${Math.round(durationMs / 1000)}s`, inline: true },
+      {
+        name: "Containers",
+        value: `${containersMatched} matched · ${containersUpgraded} upgraded · ${containersFailed} failed · ${containersSkipped} skipped`,
+        inline: false,
+      },
+    ],
+    timestamp: new Date().toISOString(),
+    footer: { text: "Docked System" },
+  };
+
+  if (Array.isArray(containerResults) && containerResults.length > 0) {
+    const upgradedField = buildContainerField(containerResults, "upgraded");
+    if (upgradedField) embed.fields.push(upgradedField);
+
+    const failedField = buildContainerField(containerResults, "failed");
+    if (failedField) embed.fields.push(failedField);
+  }
+
+  return { embeds: [embed] };
+}
+/**
+ * Send notification for intent execution
+ * @param {Object} intentExecutionData - Intent execution data (must include userId)
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function sendIntentExecutionNotification(intentExecutionData) {
+  // Get enabled webhooks for this user only
+  const { getEnabledDiscordWebhooks } = getDatabase();
+  const userId = intentExecutionData.userId;
+  if (!userId) {
+    return { success: false, error: "No userId provided in intentExecutionData" };
+  }
+  const webhooks = await getEnabledDiscordWebhooks(userId);
+  if (!webhooks || webhooks.length === 0) {
+    return { success: false, error: `No enabled Discord webhooks configured for user ${userId}` };
+  }
+
+  const payload = formatIntentExecutionNotification(intentExecutionData);
+
+  // Send to first enabled webhook
+  const result = await sendNotificationWithRetry(webhooks[0].webhook_url, payload);
+
+  return result;
+}
 // eslint-disable-next-line max-lines-per-function, complexity -- Webhook info retrieval requires comprehensive API handling
 async function getWebhookInfo(webhookUrl) {
   // Validate webhook URL format before use
@@ -1185,7 +1305,9 @@ module.exports = {
   getWebhookInfo,
   queueNotification,
   sendNotificationImmediate,
+  sendIntentExecutionNotification,
   formatVersionUpdateNotification,
+  formatIntentExecutionNotification,
   startCleanupInterval,
   stopCleanupInterval,
   cleanupExpiredEntries, // Exported for testing

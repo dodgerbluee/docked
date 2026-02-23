@@ -5,18 +5,7 @@
 
 import React, { useCallback, useState } from "react";
 import PropTypes from "prop-types";
-import {
-  Pencil,
-  Trash2,
-  Play,
-  Eye,
-  Zap,
-  Clock,
-  ToggleLeft,
-  ToggleRight,
-  History,
-  Loader2,
-} from "lucide-react";
+import { Play, Eye, Zap, Clock, ToggleLeft, ToggleRight, History, Loader2 } from "lucide-react";
 import {
   SCHEDULE_TYPES,
   EXECUTION_STATUS_LABELS,
@@ -24,25 +13,9 @@ import {
 } from "../../constants/intents";
 import styles from "./IntentCard.module.css";
 
-function IntentCard({ intent, onEdit, onDelete, onToggle, onExecute, onDryRun, onViewHistory }) {
+function IntentCard({ intent, onToggle, onExecute, onDryRun, onViewHistory, onViewDetails }) {
   const [executing, setExecuting] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
-
-  const handleEdit = useCallback(
-    (e) => {
-      e.stopPropagation();
-      if (onEdit) onEdit(intent);
-    },
-    [intent, onEdit]
-  );
-
-  const handleDelete = useCallback(
-    (e) => {
-      e.stopPropagation();
-      if (onDelete) onDelete(intent.id, intent.name);
-    },
-    [intent.id, intent.name, onDelete]
-  );
 
   const handleToggle = useCallback(
     (e) => {
@@ -88,6 +61,10 @@ function IntentCard({ intent, onEdit, onDelete, onToggle, onExecute, onDryRun, o
     [intent.id, onViewHistory]
   );
 
+  const handleViewDetails = useCallback(() => {
+    if (onViewDetails) onViewDetails(intent);
+  }, [intent, onViewDetails]);
+
   // Build match summary text
   const matchSummary = [];
   if (intent.matchContainers?.length) {
@@ -105,11 +82,33 @@ function IntentCard({ intent, onEdit, onDelete, onToggle, onExecute, onDryRun, o
   if (intent.matchRegistries?.length) {
     matchSummary.push(`${intent.matchRegistries.length} registry(ies)`);
   }
+  const exclusions = {
+    containers: intent.excludeContainers || [],
+    images: intent.excludeImages || [],
+    stacks: intent.excludeStacks || [],
+    registries: intent.excludeRegistries || [],
+  };
+
+  if (exclusions.containers.length) {
+    matchSummary.push(`exclude ${exclusions.containers.length} container(s)`);
+  }
+  if (exclusions.images.length) {
+    matchSummary.push(`exclude ${exclusions.images.length} image(s)`);
+  }
+  if (exclusions.stacks.length) {
+    matchSummary.push(`exclude ${exclusions.stacks.length} stack(s)`);
+  }
+  if (exclusions.registries.length) {
+    matchSummary.push(`exclude ${exclusions.registries.length} registry(ies)`);
+  }
 
   const isImmediate = intent.scheduleType === SCHEDULE_TYPES.IMMEDIATE;
 
   return (
-    <div className={`${styles.card} ${!intent.enabled ? styles.disabled : ""}`}>
+    <div
+      className={`${styles.card} ${!intent.enabled ? styles.disabled : ""}`}
+      onClick={handleViewDetails}
+    >
       <div className={styles.cardHeader}>
         <div className={styles.headerLeft}>
           <h3 className={styles.name}>{intent.name}</h3>
@@ -211,23 +210,6 @@ function IntentCard({ intent, onEdit, onDelete, onToggle, onExecute, onDryRun, o
           >
             <History size={15} />
           </button>
-          <span className={styles.actionSeparator} />
-          <button
-            className={styles.actionButton}
-            onClick={handleEdit}
-            aria-label="Edit intent"
-            title="Edit"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            className={`${styles.actionButton} ${styles.dangerAction}`}
-            onClick={handleDelete}
-            aria-label="Delete intent"
-            title="Delete"
-          >
-            <Trash2 size={15} />
-          </button>
         </div>
         {intent.lastEvaluatedAt && (
           <span className={styles.lastRun}>
@@ -257,18 +239,21 @@ IntentCard.propTypes = {
     matchInstances: PropTypes.array,
     matchStacks: PropTypes.array,
     matchRegistries: PropTypes.array,
+    excludeContainers: PropTypes.array,
+    excludeImages: PropTypes.array,
+    excludeStacks: PropTypes.array,
+    excludeRegistries: PropTypes.array,
     scheduleType: PropTypes.string,
     scheduleCron: PropTypes.string,
     dryRun: PropTypes.oneOfType([PropTypes.bool, PropTypes.number]),
     lastEvaluatedAt: PropTypes.string,
     lastExecutionStatus: PropTypes.string,
   }).isRequired,
-  onEdit: PropTypes.func,
-  onDelete: PropTypes.func,
   onToggle: PropTypes.func,
   onExecute: PropTypes.func,
   onDryRun: PropTypes.func,
   onViewHistory: PropTypes.func,
+  onViewDetails: PropTypes.func,
 };
 
 export default React.memo(IntentCard);

@@ -58,10 +58,10 @@ const TabNavigation = ({
         <button
           className={`tab ${activeTab === "tracked-apps" ? "active" : ""}`}
           onClick={handleTrackedAppsClick}
-          aria-label="Tracked Apps tab"
+          aria-label="Apps tab"
         >
           <MonitorSmartphone size={18} />
-          Tracked Apps
+          Apps
           {trackedAppsBehind > 0 && <span className="tab-badge">{trackedAppsBehind}</span>}
         </button>
         <button

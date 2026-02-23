@@ -29,6 +29,8 @@ const upgradeHistory = require("./upgradeHistory");
 const trackedAppUpgradeHistory = require("./trackedAppUpgradeHistory");
 const intents = require("./intents");
 const intentExecutions = require("./intentExecutions");
+const oauth = require("./oauth");
+const oauthProviders = require("./oauthProviders");
 const logger = require("../utils/logger");
 
 /**
@@ -132,6 +134,8 @@ module.exports = {
   ...trackedAppUpgradeHistory,
   ...intents,
   ...intentExecutions,
+  ...oauth,
+  ...oauthProviders,
 
   // Utility functions
   getRawDatabaseRecords,

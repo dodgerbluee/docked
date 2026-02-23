@@ -121,7 +121,7 @@ const ContainersTab = React.memo(function ContainersTab({
                     </span>
                   </div>
                   {!isCollapsed && stack.containers.length > 0 && (
-                    <div className={styles.containersGrid}>
+                    <div className={styles.portainerGrid}>
                       {[...stack.containers]
                         .sort((a, b) => {
                           // First sort by hasUpdate (updates first)
@@ -210,7 +210,7 @@ const ContainersTab = React.memo(function ContainersTab({
         <div className={styles.stacksContainer}>
           {/* Updating cards float above Updates (no header) */}
           {hasUpdating && (
-            <div className={`${styles.containersGrid} ${styles.updatingSection}`}>
+            <div className={`${styles.portainerGrid} ${styles.updatingSection}`}>
               {activeUpgrades.map((item) => (
                 <UpdatingCard
                   key={item.key}
@@ -251,7 +251,7 @@ const ContainersTab = React.memo(function ContainersTab({
               </div>
             </div>
             {!isUpdatesCollapsed && (
-              <div className={styles.containersGrid}>
+              <div className={styles.portainerGrid}>
                 {hasUpdates ? (
                   sortedPortainerNames.map((portainerName) =>
                     containersByPortainer[portainerName].map((container) => {

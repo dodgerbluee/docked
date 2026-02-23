@@ -234,6 +234,12 @@ body.dark-mode .roleBadgeMember:hover {
   border-top: 1px solid var(--border-color);
 }
 
+.dangerActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .changePasswordButton {
   width: auto;
   display: inline-block;
@@ -259,6 +265,36 @@ body.dark-mode .changePasswordButton {
 }
 
 body.dark-mode .changePasswordButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.deleteUserButton {
+  width: auto;
+  display: inline-block;
+  align-self: flex-start;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+  padding: 10px 20px !important;
+  font-size: 1rem;
+  min-height: 42px;
+}
+
+.deleteUserButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteUserButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .deleteUserButton:hover:not(:disabled) {
   background: rgba(239, 62, 66, 0.15) !important;
   border-color: var(--dodger-red) !important;
   color: var(--dodger-red) !important;
@@ -299,4 +335,63 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   background: rgba(30, 136, 229, 0.15) !important;
   border-color: var(--dodger-blue-light) !important;
   color: var(--dodger-blue-light) !important;
+}
+
+/* Delete confirmation modal */
+.deleteConfirmContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.deleteConfirmMessage {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.deleteConfirmLabel {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.deleteConfirmInput {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.deleteConfirmInput:focus {
+  outline: none;
+  border-color: var(--dodger-red);
+}
+
+.deleteConfirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.deleteConfirmButton {
+  background: var(--dodger-red) !important;
+  color: #fff !important;
+  border-color: var(--dodger-red) !important;
+}
+
+.deleteConfirmButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.deleteConfirmButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

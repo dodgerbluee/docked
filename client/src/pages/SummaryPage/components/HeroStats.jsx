@@ -71,7 +71,7 @@ const HeroStats = ({ stats, shouldShowEmptyState, onPortainerStatClick, onTracke
   heroCards.push({
     id: "trackedApps",
     icon: Package,
-    label: "Tracked Apps",
+    label: "Apps",
     value: stats.totalTrackedApps,
     color: "indigo",
     clickable: true,

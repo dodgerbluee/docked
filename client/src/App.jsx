@@ -20,6 +20,7 @@ const registerServiceWorker = () => {
   }
 };
 import Login from "./components/Login";
+import OAuthCallback from "./components/OAuthCallback";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
 const LogsPage = lazy(() => import("./pages/LogsPage"));
@@ -507,7 +508,17 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    return <Login onLogin={handleLoginWithNavigation} />;
+    // OAuth callback must be accessible while unauthenticated
+    // (user is in the middle of the SSO login flow)
+    return (
+      <Routes>
+        <Route
+          path="/auth/oauth/complete"
+          element={<OAuthCallback onLogin={handleLoginWithNavigation} />}
+        />
+        <Route path="*" element={<Login onLogin={handleLoginWithNavigation} />} />
+      </Routes>
+    );
   }
 
   // Use React Router for routing

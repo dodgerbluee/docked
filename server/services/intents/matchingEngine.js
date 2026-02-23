@@ -6,8 +6,11 @@
  * - Glob patterns for container names (matchContainers)
  * - Glob patterns for images (matchImages), stacks (matchStacks), registries (matchRegistries)
  * - ID match for Portainer instances (matchInstances)
+ * - Exclusion glob patterns for containers (excludeContainers), images (excludeImages),
+ *   stacks (excludeStacks), registries (excludeRegistries)
  *
  * Only containers with hasUpdate === true are eligible for matching.
+ * Inclusion criteria are AND-ed; exclusion criteria filter out matches after inclusion.
  */
 
 const logger = require("../../utils/logger");
@@ -69,6 +72,10 @@ function containerMatchesIntent(container, intent) {
   const matchInstances = intent.match_instances;
   const matchStacks = intent.match_stacks;
   const matchRegistries = intent.match_registries;
+  const excludeContainers = intent.exclude_containers;
+  const excludeImages = intent.exclude_images;
+  const excludeStacks = intent.exclude_stacks;
+  const excludeRegistries = intent.exclude_registries;
 
   // Check container names (glob match)
   if (matchContainers && matchContainers.length > 0) {
@@ -107,17 +114,43 @@ function containerMatchesIntent(container, intent) {
     }
   }
 
+  // Exclusion checks: if any exclusion matches, exclude the container
+  if (excludeContainers && excludeContainers.length > 0) {
+    if (matchesAnyGlob(container.containerName, excludeContainers)) {
+      return false;
+    }
+  }
+
+  if (excludeImages && excludeImages.length > 0) {
+    if (matchesAnyGlob(container.imageName, excludeImages)) {
+      return false;
+    }
+  }
+
+  if (excludeStacks && excludeStacks.length > 0) {
+    if (matchesAnyGlob(container.stackName, excludeStacks)) {
+      return false;
+    }
+  }
+
+  if (excludeRegistries && excludeRegistries.length > 0) {
+    if (matchesAnyGlob(container.registry, excludeRegistries)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
 /**
- * Find all containers that match an intent's criteria and have available updates.
+ * Find all containers that match an intent's criteria.
  *
  * @param {Object} intent - Intent object (parsed from DB)
  * @param {number} userId - User ID
+ * @param {boolean} [requireUpdate=true] - If true, only include containers with available updates
  * @returns {Promise<Array<Object>>} - Matched containers, each enriched with portainerUrl
  */
-async function findMatchingContainers(intent, userId) {
+async function findMatchingContainers(intent, userId, requireUpdate = true) {
   try {
     // Fetch all containers with update info (no portainerUrl filter = all instances)
     const allContainers = await getPortainerContainersWithUpdates(userId);
@@ -129,10 +162,10 @@ async function findMatchingContainers(intent, userId) {
       instanceUrlMap.set(inst.id, inst.url);
     }
 
-    // Filter: must have an update available AND match intent criteria
+    // Filter: must match intent criteria (and optionally have update available)
     const matched = [];
     for (const container of allContainers) {
-      if (!container.hasUpdate) {
+      if (requireUpdate && !container.hasUpdate) {
         continue;
       }
 
@@ -165,6 +198,7 @@ async function findMatchingContainers(intent, userId) {
       totalContainers: allContainers.length,
       containersWithUpdates: allContainers.filter((c) => c.hasUpdate).length,
       matchedContainers: matched.length,
+      requireUpdate,
     });
 
     return matched;

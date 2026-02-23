@@ -85,6 +85,20 @@ const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "24h",
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   },
+  oauth: {
+    enabled: !!process.env.OAUTH_PROVIDER,
+    provider: process.env.OAUTH_PROVIDER || null,
+    clientId: process.env.OAUTH_CLIENT_ID || null,
+    clientSecret: process.env.OAUTH_CLIENT_SECRET || null,
+    issuerUrl: process.env.OAUTH_ISSUER_URL || null,
+    scopes: (process.env.OAUTH_SCOPES || "openid,profile,email")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+    autoRegister: process.env.OAUTH_AUTO_REGISTER !== "false",
+    defaultRole: process.env.OAUTH_DEFAULT_ROLE || "Administrator",
+    allowLocalLogin: process.env.OAUTH_ALLOW_LOCAL_LOGIN !== "false",
+  },
   cors: {
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())

@@ -23,7 +23,7 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.PASSWORD]: "Password",
   [SETTINGS_TABS.AVATAR]: "Avatar",
   [SETTINGS_TABS.PORTAINER]: "Portainer",
-  [SETTINGS_TABS.TRACKED_APPS]: "Tracked Apps",
+  [SETTINGS_TABS.TRACKED_APPS]: "Apps",
   // Docker Hub tab removed
   [SETTINGS_TABS.DISCORD]: "Notifications",
   [SETTINGS_TABS.USER_DETAILS]: "User",

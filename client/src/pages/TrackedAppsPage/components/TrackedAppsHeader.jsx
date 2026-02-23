@@ -46,7 +46,7 @@ const TrackedAppsHeader = ({
     <div className={styles.summaryHeader}>
       <div className={styles.headerContent}>
         <h2 className={styles.summaryHeaderTitle}>
-          <span className="sr-only">Tracked Apps</span>
+          <span className="sr-only">Apps</span>
         </h2>
 
         <div className={styles.headerLeft}>

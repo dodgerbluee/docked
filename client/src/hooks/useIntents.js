@@ -26,6 +26,10 @@ function transformIntent(row) {
     matchInstances: row.match_instances || [],
     matchStacks: row.match_stacks || [],
     matchRegistries: row.match_registries || [],
+    excludeContainers: row.exclude_containers || [],
+    excludeImages: row.exclude_images || [],
+    excludeStacks: row.exclude_stacks || [],
+    excludeRegistries: row.exclude_registries || [],
     scheduleType: row.schedule_type,
     scheduleCron: row.schedule_cron,
     dryRun: Boolean(row.dry_run),
@@ -351,6 +355,19 @@ export function useIntents(isAuthenticated, authToken) {
     }
   }, []);
 
+  // Fetch intent preview (matched containers for next execution)
+  const fetchIntentPreview = useCallback(async (intentId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/intents/${intentId}/preview`);
+      if (response.data.success) {
+        return response.data;
+      }
+      throw new Error("Failed to fetch preview");
+    } catch (err) {
+      throw new Error(err.response?.data?.error || "Failed to fetch preview");
+    }
+  }, []);
+
   // Fetch recent executions across all intents
   const fetchRecentExecutions = useCallback(async (limit = 20) => {
     try {
@@ -416,6 +433,7 @@ export function useIntents(isAuthenticated, authToken) {
     fetchExecutions,
     fetchRecentExecutions,
     fetchExecutionDetail,
+    fetchIntentPreview,
     // Setters
     setIntents,
     setError,

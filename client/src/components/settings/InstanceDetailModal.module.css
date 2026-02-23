@@ -1,0 +1,161 @@
+/**
+ * InstanceDetailModal Styles
+ * Follows IntentDetailModal footer pattern
+ */
+
+/* ==========================================
+   Modal Layout
+   ========================================== */
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ==========================================
+   Detail Section
+   ========================================== */
+
+.detailSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+.detailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.detailValue {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.authBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(30, 136, 229, 0.12);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .authBadge {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
+.badgeIcon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   Footer
+   ========================================== */
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.footerRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.editButton {
+  background: var(--bg-secondary);
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 2px dashed var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.editButton:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.editButton:hover .editButtonIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .editButton:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .editButton:hover .editButtonIcon {
+  color: var(--dodger-blue-light);
+}
+
+.editButtonIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.editButtonText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ==========================================
+   Responsive
+   ========================================== */
+
+@media (max-width: 768px) {
+  .footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footer > button {
+    width: 100%;
+  }
+
+  .footerRight {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .footerRight > * {
+    flex: 1;
+  }
+
+  .editButton {
+    flex: 1;
+    justify-content: center;
+  }
+}

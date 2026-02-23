@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import LogsTab from "../components/settings/LogsTab";
 import UsersTab from "../components/admin/UsersTab";
 import AdminGeneralTab from "../components/admin/AdminGeneralTab";
+import SSOTab from "../components/admin/SSOTab";
 import AdminTabNavigation from "../components/admin/AdminTabNavigation";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import { ADMIN_TABS } from "../constants/admin";
@@ -33,6 +34,8 @@ function AdminPage() {
         );
       case ADMIN_TABS.USERS:
         return <UsersTab />;
+      case ADMIN_TABS.SSO:
+        return <SSOTab />;
       case ADMIN_TABS.LOGS:
         return <LogsTab />;
       default:

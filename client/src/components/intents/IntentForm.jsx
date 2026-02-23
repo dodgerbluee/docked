@@ -230,6 +230,8 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
   onChangeType,
   onChangeValues,
   suggestions,
+  noTypeSelector = false,
+  allowedTypes = Object.values(MATCH_TYPES),
 }) {
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
@@ -311,22 +313,26 @@ const MatchCriteriaInput = React.memo(function MatchCriteriaInput({
   return (
     <div className={styles.matchCriteria}>
       {/* Type selector buttons */}
-      <div className={styles.matchTypeToggle}>
-        {Object.values(MATCH_TYPES).map((type) => {
-          const Icon = MATCH_TYPE_ICONS[type];
-          return (
-            <button
-              key={type}
-              type="button"
-              className={`${styles.matchTypeButton} ${matchType === type ? styles.matchTypeActive : ""}`}
-              onClick={() => handleTypeChange(type)}
-            >
-              {Icon && <Icon size={14} />}
-              {MATCH_TYPE_LABELS[type]}
-            </button>
-          );
-        })}
-      </div>
+      {!noTypeSelector && (
+        <div className={styles.matchTypeToggle}>
+          {Object.values(MATCH_TYPES)
+            .filter((type) => allowedTypes.includes(type))
+            .map((type) => {
+              const Icon = MATCH_TYPE_ICONS[type];
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  className={`${styles.matchTypeButton} ${matchType === type ? styles.matchTypeActive : ""}`}
+                  onClick={() => handleTypeChange(type)}
+                >
+                  {Icon && <Icon size={14} />}
+                  {MATCH_TYPE_LABELS[type]}
+                </button>
+              );
+            })}
+        </div>
+      )}
 
       {/* Input field with dropdown */}
       <div className={styles.inputArea}>
@@ -418,6 +424,8 @@ MatchCriteriaInput.propTypes = {
   onChangeType: PropTypes.func.isRequired,
   onChangeValues: PropTypes.func.isRequired,
   suggestions: PropTypes.object.isRequired,
+  noTypeSelector: PropTypes.bool,
+  allowedTypes: PropTypes.arrayOf(PropTypes.string),
 };
 
 /**
@@ -439,11 +447,36 @@ const IntentForm = React.memo(function IntentForm({
     if (initialData) {
       const matchType = detectMatchType(initialData);
       const matchValues = getMatchValues(initialData, matchType, idToName);
+
+      // Parse exclusions
+      const parsedExclusions = {
+        containers: initialData.excludeContainers || [],
+        images: initialData.excludeImages || [],
+        stacks: initialData.excludeStacks || [],
+        registries: initialData.excludeRegistries || [],
+      };
+
+      // Determine excludeType and excludeValues
+      let excludeType = MATCH_TYPES.CONTAINERS;
+      let excludeValues = parsedExclusions.containers;
+      if (parsedExclusions.images.length > 0) {
+        excludeType = MATCH_TYPES.IMAGES;
+        excludeValues = parsedExclusions.images;
+      } else if (parsedExclusions.stacks.length > 0) {
+        excludeType = MATCH_TYPES.STACKS;
+        excludeValues = parsedExclusions.stacks;
+      } else if (parsedExclusions.registries.length > 0) {
+        excludeType = MATCH_TYPES.REGISTRIES;
+        excludeValues = parsedExclusions.registries;
+      }
+
       return {
         name: initialData.name || "",
         enabled: initialData.enabled !== undefined ? Boolean(initialData.enabled) : true,
         matchType,
         matchValues,
+        excludeType,
+        excludeValues,
         scheduleType: initialData.scheduleType || SCHEDULE_TYPES.IMMEDIATE,
         scheduleCron: initialData.scheduleCron || "",
         dryRun: initialData.dryRun !== undefined ? Boolean(initialData.dryRun) : true,
@@ -484,6 +517,16 @@ const IntentForm = React.memo(function IntentForm({
     setFormError("");
   }, []);
 
+  // When changing exclude type, clear the values
+  const handleExcludeTypeChange = useCallback((newType) => {
+    setFormData((prev) => ({
+      ...prev,
+      excludeType: newType,
+      excludeValues: [],
+    }));
+    setFormError("");
+  }, []);
+
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -519,6 +562,12 @@ const IntentForm = React.memo(function IntentForm({
         matchStacks: formData.matchType === MATCH_TYPES.STACKS ? matchValues : [],
         matchRegistries: formData.matchType === MATCH_TYPES.REGISTRIES ? matchValues : [],
         matchInstances: formData.matchType === MATCH_TYPES.INSTANCES ? matchValues : [],
+        excludeContainers:
+          formData.excludeType === MATCH_TYPES.CONTAINERS ? formData.excludeValues : [],
+        excludeImages: formData.excludeType === MATCH_TYPES.IMAGES ? formData.excludeValues : [],
+        excludeStacks: formData.excludeType === MATCH_TYPES.STACKS ? formData.excludeValues : [],
+        excludeRegistries:
+          formData.excludeType === MATCH_TYPES.REGISTRIES ? formData.excludeValues : [],
         scheduleType: formData.scheduleType,
         scheduleCron: formData.scheduleCron,
         dryRun: formData.dryRun,
@@ -561,7 +610,22 @@ const IntentForm = React.memo(function IntentForm({
         />
       </div>
 
-      {/* Schedule */}
+      {/* Exclusion criteria */}
+      <div className={styles.formGroup}>
+        <label className={styles.label}>Exclusion Criteria</label>
+        <span className={styles.helperText}>
+          Optionally exclude specific containers, images, or stacks from matching.
+        </span>
+
+        <MatchCriteriaInput
+          matchType={formData.excludeType}
+          matchValues={formData.excludeValues}
+          onChangeType={handleExcludeTypeChange}
+          onChangeValues={(values) => updateField("excludeValues", values)}
+          suggestions={suggestions}
+          allowedTypes={[MATCH_TYPES.CONTAINERS, MATCH_TYPES.IMAGES, MATCH_TYPES.STACKS]}
+        />
+      </div>
       <div className={styles.formGroup}>
         <label className={styles.label}>Schedule Type</label>
         <div className={styles.scheduleTypeButtons}>

@@ -24,6 +24,10 @@ const MAX_INTENTS_PER_USER = 50;
  * @param {Array} [intentData.matchInstances] - Portainer instance IDs
  * @param {Array} [intentData.matchStacks] - Stack name glob patterns
  * @param {Array} [intentData.matchRegistries] - Registry filters
+ * @param {Array} [intentData.excludeContainers] - Container name exclusion filters
+ * @param {Array} [intentData.excludeImages] - Image exclusion glob patterns
+ * @param {Array} [intentData.excludeStacks] - Stack name exclusion glob patterns
+ * @param {Array} [intentData.excludeRegistries] - Registry exclusion filters
  * @param {string} [intentData.scheduleType] - 'immediate' or 'scheduled'
  * @param {string} [intentData.scheduleCron] - Cron expression
  * @param {number} [intentData.maxConcurrent] - Max concurrent upgrades
@@ -45,6 +49,10 @@ function createIntent(intentData) {
         matchInstances = null,
         matchStacks = null,
         matchRegistries = null,
+        excludeContainers = null,
+        excludeImages = null,
+        excludeStacks = null,
+        excludeRegistries = null,
         scheduleType = "immediate",
         scheduleCron = null,
         maxConcurrent = 1,
@@ -92,8 +100,9 @@ function createIntent(intentData) {
                 `INSERT INTO intents (
                   user_id, name, description, enabled,
                   match_containers, match_images, match_instances, match_stacks, match_registries,
+                  exclude_containers, exclude_images, exclude_stacks, exclude_registries,
                   schedule_type, schedule_cron, max_concurrent, dry_run, sequential_delay_sec
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                   userId,
                   name,
@@ -104,6 +113,10 @@ function createIntent(intentData) {
                   matchInstances ? JSON.stringify(matchInstances) : null,
                   matchStacks ? JSON.stringify(matchStacks) : null,
                   matchRegistries ? JSON.stringify(matchRegistries) : null,
+                  excludeContainers ? JSON.stringify(excludeContainers) : null,
+                  excludeImages ? JSON.stringify(excludeImages) : null,
+                  excludeStacks ? JSON.stringify(excludeStacks) : null,
+                  excludeRegistries ? JSON.stringify(excludeRegistries) : null,
                   scheduleType,
                   scheduleCron,
                   maxConcurrent,
@@ -227,6 +240,10 @@ function updateIntent(intentId, userId, updates) {
         matchInstances: (v) => (v ? JSON.stringify(v) : null),
         matchStacks: (v) => (v ? JSON.stringify(v) : null),
         matchRegistries: (v) => (v ? JSON.stringify(v) : null),
+        excludeContainers: (v) => (v ? JSON.stringify(v) : null),
+        excludeImages: (v) => (v ? JSON.stringify(v) : null),
+        excludeStacks: (v) => (v ? JSON.stringify(v) : null),
+        excludeRegistries: (v) => (v ? JSON.stringify(v) : null),
         scheduleType: (v) => v,
         scheduleCron: (v) => v,
         maxConcurrent: (v) => v,
@@ -246,6 +263,10 @@ function updateIntent(intentId, userId, updates) {
         matchInstances: "match_instances",
         matchStacks: "match_stacks",
         matchRegistries: "match_registries",
+        excludeContainers: "exclude_containers",
+        excludeImages: "exclude_images",
+        excludeStacks: "exclude_stacks",
+        excludeRegistries: "exclude_registries",
         scheduleType: "schedule_type",
         scheduleCron: "schedule_cron",
         maxConcurrent: "max_concurrent",
@@ -440,6 +461,10 @@ function parseIntentRow(row) {
     match_instances: safeParseJson(row.match_instances),
     match_stacks: safeParseJson(row.match_stacks),
     match_registries: safeParseJson(row.match_registries),
+    exclude_containers: safeParseJson(row.exclude_containers),
+    exclude_images: safeParseJson(row.exclude_images),
+    exclude_stacks: safeParseJson(row.exclude_stacks),
+    exclude_registries: safeParseJson(row.exclude_registries),
   };
 }
 

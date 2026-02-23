@@ -9,9 +9,8 @@ import { Zap } from "lucide-react";
 import { useIntents } from "../hooks/useIntents";
 import IntentCard from "../components/intents/IntentCard";
 import CreateIntentModal from "../components/intents/CreateIntentModal";
-import ExecutionHistoryPanel from "../components/intents/ExecutionHistoryPanel";
+import IntentDetailModal from "../components/intents/IntentDetailModal";
 import ExecutionDetailModal from "../components/intents/ExecutionDetailModal"; // Used for standalone detail (e.g. after dry run)
-import Modal from "../components/ui/Modal";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import { MAX_INTENTS_PER_USER } from "../constants/intents";
@@ -35,7 +34,6 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
     handleModalSuccess,
     handleExecuteIntent,
     handleDryRunIntent,
-    fetchExecutions,
     fetchExecutionDetail,
     setEditingIntentData,
     setShowCreateModal,
@@ -45,9 +43,10 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
   } = useIntents();
 
   // Execution history state
-  const [historyIntentId, setHistoryIntentId] = useState(null);
   const [detailExecutionId, setDetailExecutionId] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailIntent, setDetailIntent] = useState(null);
+  const [detailInitialTab, setDetailInitialTab] = useState(null);
 
   const handleAddNew = useCallback(() => {
     setEditingIntentData(null);
@@ -76,12 +75,20 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
     [editingIntentData, handleCreateIntent, handleUpdateIntent, handleModalSuccess]
   );
 
-  const handleViewHistory = useCallback((intentId) => {
-    setHistoryIntentId(intentId);
-  }, []);
+  const handleViewHistory = useCallback(
+    (intentId) => {
+      const intent = intents.find((i) => i.id === intentId);
+      if (intent) {
+        setDetailIntent(intent);
+        setDetailInitialTab("history");
+      }
+    },
+    [intents]
+  );
 
-  const handleCloseHistory = useCallback(() => {
-    setHistoryIntentId(null);
+  const handleViewDetails = useCallback((intent) => {
+    setDetailIntent(intent);
+    setDetailInitialTab(null);
   }, []);
 
   const handleCloseDetailModal = useCallback(() => {
@@ -109,9 +116,6 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
   );
 
   const canCreateMore = intents.length < MAX_INTENTS_PER_USER;
-
-  // Find the intent name for the history modal
-  const historyIntent = historyIntentId ? intents.find((i) => i.id === historyIntentId) : null;
 
   return (
     <div className={styles.intentsPage}>
@@ -146,12 +150,11 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
             <IntentCard
               key={intent.id}
               intent={intent}
-              onEdit={handleEditIntent}
-              onDelete={handleDeleteIntent}
               onToggle={handleToggleIntent}
               onExecute={handleExecuteIntent}
               onDryRun={handleDryRun}
               onViewHistory={handleViewHistory}
+              onViewDetails={handleViewDetails}
             />
           ))}
           {/* Add card — always visible when under the limit */}
@@ -178,30 +181,26 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
         portainerInstances={portainerInstances}
       />
 
-      {/* Execution History Modal */}
-      <Modal
-        isOpen={!!historyIntentId}
-        onClose={handleCloseHistory}
-        title={`Execution History${historyIntent?.name ? ` — ${historyIntent.name}` : ""}`}
-        size="lg"
-        fullScreenMobile
-      >
-        {historyIntentId && (
-          <ExecutionHistoryPanel
-            intentId={historyIntentId}
-            intentName={historyIntent?.name}
-            fetchExecutions={fetchExecutions}
-            fetchExecutionDetail={fetchExecutionDetail}
-          />
-        )}
-      </Modal>
-
       {/* Execution Detail Modal (standalone — e.g. after dry run) */}
       <ExecutionDetailModal
         isOpen={showDetailModal}
         onClose={handleCloseDetailModal}
         executionId={detailExecutionId}
         fetchExecutionDetail={fetchExecutionDetail}
+      />
+
+      {/* Intent Detail Modal */}
+      <IntentDetailModal
+        intent={detailIntent}
+        isOpen={!!detailIntent}
+        onClose={() => {
+          setDetailIntent(null);
+          setDetailInitialTab(null);
+        }}
+        onEdit={handleEditIntent}
+        onDelete={handleDeleteIntent}
+        initialTab={detailInitialTab}
+        portainerInstances={portainerInstances}
       />
 
       {/* Confirm Dialog */}
