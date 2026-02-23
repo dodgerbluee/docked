@@ -47,6 +47,8 @@ const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const intentController = require("../controllers/intentController");
+const oauthController = require("../controllers/oauthController");
+const ssoAdminController = require("../controllers/ssoAdminController");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validate, validationChains } = require("../middleware/validation");
@@ -258,6 +260,12 @@ router.post(
   asyncHandler(authController.verifyInstanceAdminToken)
 );
 
+// OAuth/SSO routes (public - always registered; providers checked at runtime)
+router.get("/auth/oauth/providers", publicLimiter, asyncHandler(oauthController.getProviders));
+router.get("/auth/oauth/login", authLimiter, asyncHandler(oauthController.initiateLogin));
+router.get("/auth/oauth/callback", authLimiter, asyncHandler(oauthController.handleCallback));
+router.post("/auth/oauth/link", authLimiter, asyncHandler(oauthController.completeAccountLink));
+
 /**
  * @swagger
  * /auth/verify:
@@ -286,6 +294,27 @@ router.post("/discord/test", publicLimiter, asyncHandler(discordController.testD
 // All routes below this line require authentication
 router.use(authenticate);
 
+// Admin SSO provider management routes (protected - instanceAdmin checked inside handlers)
+router.get("/admin/sso/providers", asyncHandler(ssoAdminController.listProviders));
+router.post("/admin/sso/providers", writeLimiter, asyncHandler(ssoAdminController.createProvider));
+router.post(
+  "/admin/sso/providers/test",
+  writeLimiter,
+  asyncHandler(ssoAdminController.testProvider)
+);
+router.put(
+  "/admin/sso/providers/:id",
+  writeLimiter,
+  asyncHandler(ssoAdminController.updateProvider)
+);
+router.delete(
+  "/admin/sso/providers/:id",
+  destructiveLimiter,
+  asyncHandler(ssoAdminController.deleteProvider)
+);
+router.get("/admin/sso/settings", asyncHandler(ssoAdminController.getSettings));
+router.put("/admin/sso/settings", writeLimiter, asyncHandler(ssoAdminController.updateSettings));
+
 // User management routes (protected)
 router.get("/auth/me", asyncHandler(authController.getCurrentUser));
 router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
@@ -302,6 +331,11 @@ router.put(
   "/auth/users/:userId/role",
   writeLimiter,
   asyncHandler(authController.adminUpdateUserRole)
+);
+router.delete(
+  "/auth/users/:userId",
+  destructiveLimiter,
+  asyncHandler(authController.adminDeleteUser)
 );
 router.get("/user/export-config", asyncHandler(authController.exportUserConfig));
 router.post("/user/import-config", writeLimiter, asyncHandler(authController.importUserConfig));

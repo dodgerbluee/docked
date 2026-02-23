@@ -352,6 +352,35 @@ if (shouldStartServer) {
             });
             // Don't crash if log level initialization fails
           }
+
+          // Initialize OAuth providers (if configured)
+          try {
+            const { initializeProviders } = require("./services/oauth");
+            await initializeProviders();
+          } catch (oauthError) {
+            logger.error("Failed to initialize OAuth providers", {
+              module: "server",
+              error: oauthError,
+            });
+            // Don't crash if OAuth initialization fails
+          }
+
+          // Start OAuth state cleanup interval (every 5 minutes)
+          try {
+            const { cleanExpiredOAuthStates } = require("./db/oauth");
+            // Run once at startup
+            cleanExpiredOAuthStates().catch(() => {});
+            // Then every 5 minutes
+            setInterval(() => {
+              cleanExpiredOAuthStates().catch((err) => {
+                logger.debug("OAuth state cleanup error:", { error: err.message });
+              });
+            }, 5 * 60 * 1000);
+          } catch (cleanupError) {
+            logger.debug("OAuth state cleanup setup skipped:", {
+              error: cleanupError.message,
+            });
+          }
         } catch (dbError) {
           logger.error("Database not ready, batch system will not start", {
             module: "server",

@@ -204,7 +204,7 @@ async function initializeDatabase() {
             `CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
+            password_hash TEXT,
             email TEXT,
             role TEXT DEFAULT 'Administrator',
             password_changed INTEGER DEFAULT 0,

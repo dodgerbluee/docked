@@ -66,6 +66,10 @@ function getUserById(id) {
  * @returns {Promise<boolean>} - True if password matches
  */
 async function verifyPassword(plainPassword, hashedPassword) {
+  // OAuth-only users have NULL password_hash — always reject password login
+  if (!hashedPassword) {
+    return false;
+  }
   return bcrypt.compare(plainPassword, hashedPassword);
 }
 
@@ -410,6 +414,42 @@ function verifyAndClearToken(username, token) {
   });
 }
 
+/**
+ * Delete a user and all their associated data
+ * @param {number} userId - User ID to delete
+ * @returns {Promise<number>} - Number of rows deleted (0 or 1)
+ */
+function deleteUser(userId) {
+  return queueDatabaseOperation(
+    () =>
+      new Promise((resolve, reject) => {
+        try {
+          const db = getDatabase();
+          db.serialize(() => {
+            // Delete user's associated data first
+            db.run("DELETE FROM portainer_instances WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM tracked_apps WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM discord_webhooks WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM containers WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM deployed_images WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM settings WHERE user_id = ?", [userId]);
+            db.run("DELETE FROM batch_config WHERE user_id = ?", [userId]);
+            // Delete the user
+            db.run("DELETE FROM users WHERE id = ?", [userId], function (err) {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(this.changes);
+              }
+            });
+          });
+        } catch (err) {
+          reject(err);
+        }
+      })
+  );
+}
+
 module.exports = {
   getUserByUsername,
   getUserById,
@@ -425,4 +465,5 @@ module.exports = {
   updateVerificationToken,
   verifyAndClearToken,
   getAllUsers,
+  deleteUser,
 };

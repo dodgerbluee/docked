@@ -9,6 +9,7 @@
 
 import React, { useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
+import { getDockerHubRepoUrl } from "../utils/formatters";
 import styles from "./TrackedAppCard.module.css";
 
 /**
@@ -198,6 +199,17 @@ const TrackedAppCard = React.memo(function TrackedAppCard({ image, onEdit, onUpg
                       ? `https://gitlab.com/${image.github_repo}`
                       : `https://github.com/${image.github_repo}`
                 }
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.repoName}
+                title={subheaderText}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {subheaderText}
+              </a>
+            ) : image.image_name ? (
+              <a
+                href={getDockerHubRepoUrl(image.image_name)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.repoName}

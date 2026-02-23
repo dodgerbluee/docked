@@ -18,11 +18,14 @@ import styles from "./UserDetailsModal.module.css";
  * UserDetailsModal Component
  * Displays detailed user information and allows admin actions
  */
-const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
+const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsername }) => {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [error, setError] = useState(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [role, setRole] = useState("");
   const [updatingRole, setUpdatingRole] = useState(false);
   const [roleUpdateError, setRoleUpdateError] = useState(null);
@@ -195,6 +198,31 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!user?.id) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/api/auth/users/${user.id}`);
+      if (response.data.success) {
+        onClose();
+        if (onUserUpdated) {
+          onUserUpdated();
+        }
+      } else {
+        setError(response.data.error || "Failed to delete user");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || "Failed to delete user");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isCurrentUser = currentUsername === user?.username;
+
   const getRoleBadge = () => {
     const currentRole = role || "Member";
     if (currentRole === "Instance Admin") {
@@ -273,14 +301,27 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
                   </div>
                 </div>
                 <div className={styles.passwordSection}>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    onClick={() => setShowChangePasswordModal(true)}
-                    className={styles.changePasswordButton}
-                  >
-                    Change Password
-                  </Button>
+                  <div className={styles.dangerActions}>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={() => setShowChangePasswordModal(true)}
+                      className={styles.changePasswordButton}
+                    >
+                      Change Password
+                    </Button>
+                    {!isCurrentUser && (
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={deleting}
+                        className={styles.deleteUserButton}
+                      >
+                        {deleting ? "Deleting..." : "Delete User"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
 
@@ -340,18 +381,73 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated }) => {
       </Modal>
 
       {user && (
-        <ChangePasswordModal
-          isOpen={showChangePasswordModal}
-          onClose={() => setShowChangePasswordModal(false)}
-          userId={user.id}
-          username={user.username}
-          onPasswordUpdated={() => {
-            setShowChangePasswordModal(false);
-            if (onUserUpdated) {
-              onUserUpdated();
-            }
-          }}
-        />
+        <>
+          <ChangePasswordModal
+            isOpen={showChangePasswordModal}
+            onClose={() => setShowChangePasswordModal(false)}
+            userId={user.id}
+            username={user.username}
+            onPasswordUpdated={() => {
+              setShowChangePasswordModal(false);
+              if (onUserUpdated) {
+                onUserUpdated();
+              }
+            }}
+          />
+          <Modal
+            isOpen={showDeleteConfirm}
+            onClose={() => {
+              setShowDeleteConfirm(false);
+              setDeleteConfirmInput("");
+            }}
+            title="Delete User"
+            size="sm"
+            zIndex={4000}
+          >
+            <div className={styles.deleteConfirmContent}>
+              <p className={styles.deleteConfirmMessage}>
+                This will permanently remove <strong>{user.username}</strong> and all their
+                associated data (instances, tracked apps, webhooks, etc.). This action cannot be
+                undone.
+              </p>
+              <label htmlFor="deleteConfirmInput" className={styles.deleteConfirmLabel}>
+                Type <strong>{user.username}</strong> to confirm
+              </label>
+              <input
+                id="deleteConfirmInput"
+                type="text"
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={user.username}
+                autoComplete="off"
+                className={styles.deleteConfirmInput}
+              />
+              <div className={styles.deleteConfirmActions}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmInput("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmInput("");
+                    handleDeleteUser();
+                  }}
+                  disabled={deleteConfirmInput !== user.username}
+                  className={styles.deleteConfirmButton}
+                >
+                  Delete User
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        </>
       )}
     </>
   );
@@ -370,6 +466,7 @@ UserDetailsModal.propTypes = {
     lastLogin: PropTypes.string,
   }),
   onUserUpdated: PropTypes.func,
+  currentUsername: PropTypes.string,
 };
 
 export default UserDetailsModal;
