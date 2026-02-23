@@ -102,7 +102,7 @@ startCleanupInterval();
  * @returns {Promise<void>}
  */
 function sleep(ms) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
     }, ms);
@@ -151,7 +151,7 @@ async function testWebhook(webhookUrl) {
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -519,7 +519,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -625,7 +625,7 @@ async function sendNotificationWithRetry(webhookUrl, payload, retries = MAX_RETR
     } catch (error) {
       logger.error(
         `Error sending Discord notification (attempt ${attempt + 1}/${retries + 1}):`,
-        error,
+        error
       );
 
       if (attempt < retries) {
@@ -875,13 +875,13 @@ async function queueNotification(imageData) {
   const isDup = await isDuplicate(dedupKey, userId);
   if (isDup) {
     logger.debug(
-      `Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`,
+      `Skipping duplicate notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
     );
     return;
   }
 
   logger.debug(
-    `Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`,
+    `Queueing notification for ${imageData.name || imageData.imageName || "unknown"} (key: ${dedupKey})`
   );
 
   // isDuplicate() already recorded in memory, so we don't need to call recordNotificationInMemory() again
@@ -944,14 +944,14 @@ async function processNotificationQueue() {
         await recordNotification(
           notification.dedupKey,
           userId,
-          notification.imageData.notificationType || "tracked-app",
+          notification.imageData.notificationType || "tracked-app"
         );
         logger.info(`Discord notification sent for ${notification.imageData.name}`);
       } else {
         // Allow future attempts for this notification since delivery failed
         recentNotifications.delete(notification.dedupKey);
         logger.error(
-          `Failed to send Discord notification for ${notification.imageData.name}: ${result.error}`,
+          `Failed to send Discord notification for ${notification.imageData.name}: ${result.error}`
         );
         // Could implement a dead letter queue here if needed
       }
@@ -1035,13 +1035,13 @@ function truncateFieldLines(lines, maxLength = 1024) {
  * @returns {Object|null} - Discord embed field object or null
  */
 function buildContainerField(containerResults, filterStatus) {
-  const items = containerResults.filter(c => c.status === filterStatus);
+  const items = containerResults.filter((c) => c.status === filterStatus);
   if (items.length === 0) {
     return null;
   }
   const icon = filterStatus === "upgraded" ? "✅" : "❌";
   const label = filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1);
-  const lines = items.map(c => {
+  const lines = items.map((c) => {
     if (filterStatus === "upgraded" && c.oldImage && c.newImage && c.oldImage !== c.newImage) {
       return `${icon} **${c.containerName}**\n\u2003${c.oldImage} → ${c.newImage}`;
     }
@@ -1151,7 +1151,7 @@ async function getWebhookInfo(webhookUrl) {
     // Validate and extract pathname components to prevent request forgery
     // Discord webhook URLs follow pattern: /api/webhooks/{id}/{token}
     const pathMatch = parsedUrl.pathname.match(
-      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/,
+      /^\/api\/webhooks\/(?<id>\d+)\/(?<token>[A-Za-z0-9_-]+)$/
     );
     if (!pathMatch) {
       return { success: false, error: "Invalid webhook URL path format" };
@@ -1231,7 +1231,7 @@ async function getWebhookInfo(webhookUrl) {
             // Final validation: Ensure the constructed URL is actually a Discord CDN URL
             // This provides defense-in-depth against any potential injection
             const isValidDiscordUrl = constructedUrl.startsWith(
-              "https://cdn.discordapp.com/avatars/",
+              "https://cdn.discordapp.com/avatars/"
             );
             if (isValidDiscordUrl) {
               avatarUrl = constructedUrl;
@@ -1270,16 +1270,16 @@ async function getWebhookInfo(webhookUrl) {
         applicationId: data.application_id || null,
         sourceGuild: data.source_guild
           ? {
-            id: data.source_guild.id,
-            name: data.source_guild.name,
-            icon: data.source_guild.icon ? "***present***" : null,
-          }
+              id: data.source_guild.id,
+              name: data.source_guild.name,
+              icon: data.source_guild.icon ? "***present***" : null,
+            }
           : null,
         sourceChannel: data.source_channel
           ? {
-            id: data.source_channel.id,
-            name: data.source_channel.name,
-          }
+              id: data.source_channel.id,
+              name: data.source_channel.name,
+            }
           : null,
       };
     }

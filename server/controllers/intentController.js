@@ -610,7 +610,7 @@ async function getIntentPreviewHandler(req, res) {
 
     return res.json({
       success: true,
-      currentMatches: allMatchingContainers.map(c => ({
+      currentMatches: allMatchingContainers.map((c) => ({
         containerId: c.containerId,
         containerName: c.containerName,
         imageName: c.imageName,
@@ -619,7 +619,7 @@ async function getIntentPreviewHandler(req, res) {
         hasUpdate: c.hasUpdate || false,
       })),
       nextExecutionPreview: {
-        containers: upgradeableContainers.map(c => ({
+        containers: upgradeableContainers.map((c) => ({
           containerId: c.containerId,
           containerName: c.containerName,
           imageName: c.imageName,

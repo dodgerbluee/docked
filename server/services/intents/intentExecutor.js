@@ -158,7 +158,7 @@ async function executeIntent(intent, userId, options = {}) {
     });
 
     // Process each stack group: sequential within stack, parallel across stacks
-    const stackPromises = Array.from(byStack.values()).map(async stackContainers => {
+    const stackPromises = Array.from(byStack.values()).map(async (stackContainers) => {
       const stackResults = [];
       for (const container of stackContainers) {
         const result = await upgradeContainer(container, userId, executionId, intent.id);
@@ -332,7 +332,7 @@ async function upgradeContainer(container, userId, executionId, intentId) {
       container.endpointId,
       container.containerId,
       container.imageName,
-      userId,
+      userId
     );
 
     const durationMs = Date.now() - startTime;

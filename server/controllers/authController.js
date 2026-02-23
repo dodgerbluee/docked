@@ -2018,7 +2018,9 @@ async function adminDeleteUser(req, res, next) {
       });
     }
 
-    logger.info(`User "${user.username}" (ID: ${targetId}) deleted by admin "${req.user.username}"`);
+    logger.info(
+      `User "${user.username}" (ID: ${targetId}) deleted by admin "${req.user.username}"`
+    );
 
     return res.json({
       success: true,

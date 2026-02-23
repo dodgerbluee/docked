@@ -131,12 +131,7 @@ function SSOTab() {
         </p>
       )}
 
-      <Button
-        type="button"
-        variant="primary"
-        onClick={handleAdd}
-        className={styles.addButton}
-      >
+      <Button type="button" variant="primary" onClick={handleAdd} className={styles.addButton}>
         Add Provider
       </Button>
 

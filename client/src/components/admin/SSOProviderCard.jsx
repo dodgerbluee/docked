@@ -41,9 +41,7 @@ const SSOProviderCard = React.memo(function SSOProviderCard({ provider, onEdit, 
             </div>
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Auto-register:</span>
-              <span className={styles.detailValue}>
-                {provider.autoRegister ? "Yes" : "No"}
-              </span>
+              <span className={styles.detailValue}>{provider.autoRegister ? "Yes" : "No"}</span>
             </div>
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Default role:</span>

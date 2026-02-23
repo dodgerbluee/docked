@@ -113,14 +113,16 @@ async function createProviderHandler(req, res) {
     if (!name || !displayName || !providerType || !clientId || !clientSecret || !issuerUrl) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: name, displayName, providerType, clientId, clientSecret, issuerUrl",
+        error:
+          "Missing required fields: name, displayName, providerType, clientId, clientSecret, issuerUrl",
       });
     }
 
     if (!isValidSlug(name)) {
       return res.status(400).json({
         success: false,
-        error: "Provider name must be a lowercase slug (letters, numbers, hyphens, underscores), 2-50 characters",
+        error:
+          "Provider name must be a lowercase slug (letters, numbers, hyphens, underscores), 2-50 characters",
       });
     }
 
@@ -312,9 +314,7 @@ async function testProvider(req, res) {
       },
     });
   } catch (error) {
-    const detail = error.response?.status
-      ? `HTTP ${error.response.status}`
-      : error.message;
+    const detail = error.response?.status ? `HTTP ${error.response.status}` : error.message;
     return res.json({
       success: true,
       valid: false,

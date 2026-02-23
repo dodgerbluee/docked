@@ -48,10 +48,7 @@ export function useSSOProviders() {
 
   const createProvider = useCallback(
     async (providerData) => {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/admin/sso/providers`,
-        providerData
-      );
+      const response = await axios.post(`${API_BASE_URL}/api/admin/sso/providers`, providerData);
       if (response.data.success) {
         await fetchProviders();
       }
@@ -76,9 +73,7 @@ export function useSSOProviders() {
 
   const deleteProvider = useCallback(
     async (id) => {
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/admin/sso/providers/${id}`
-      );
+      const response = await axios.delete(`${API_BASE_URL}/api/admin/sso/providers/${id}`);
       if (response.data.success) {
         await fetchProviders();
       }
@@ -88,19 +83,15 @@ export function useSSOProviders() {
   );
 
   const testConnection = useCallback(async (issuerUrl) => {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/admin/sso/providers/test`,
-      { issuerUrl }
-    );
+    const response = await axios.post(`${API_BASE_URL}/api/admin/sso/providers/test`, {
+      issuerUrl,
+    });
     return response.data;
   }, []);
 
   const updateSettings = useCallback(
     async (newSettings) => {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/admin/sso/settings`,
-        newSettings
-      );
+      const response = await axios.put(`${API_BASE_URL}/api/admin/sso/settings`, newSettings);
       if (response.data.success) {
         await fetchSettings();
       }

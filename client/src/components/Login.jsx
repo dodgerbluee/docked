@@ -230,7 +230,12 @@ function Login({ onLogin }) {
           </>
         )}
         {!allowLocalLogin && error && (
-          <div className="error-message" role="alert" aria-live="assertive" style={{ marginTop: "16px" }}>
+          <div
+            className="error-message"
+            role="alert"
+            aria-live="assertive"
+            style={{ marginTop: "16px" }}
+          >
             {error}
           </div>
         )}

@@ -15,7 +15,7 @@
  *   Shows a password prompt to confirm linking OAuth to existing account.
  */
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Cookies from "js-cookie";
@@ -31,6 +31,37 @@ function OAuthCallback({ onLogin }) {
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState("");
   const processedRef = useRef(false);
+
+  const completeLogin = useCallback(
+    ({ token, refreshToken, username, role, instanceAdmin }) => {
+      // Store tokens in localStorage (same as Login.jsx)
+      localStorage.setItem("authToken", token);
+      localStorage.setItem("username", username);
+      if (refreshToken) {
+        localStorage.setItem("refreshToken", refreshToken);
+      }
+      if (role) {
+        localStorage.setItem("userRole", role);
+      }
+      localStorage.setItem("instanceAdmin", instanceAdmin ? "true" : "false");
+      // Clear welcome modal flag on new login
+      localStorage.removeItem("welcomeModalShown");
+
+      // Clear cookies after reading
+      Cookies.remove("authToken");
+      Cookies.remove("refreshToken");
+      Cookies.remove("username");
+      Cookies.remove("userRole");
+      Cookies.remove("instanceAdmin");
+
+      // Complete login via the App's auth handler
+      onLogin(token, username, role || "Administrator", instanceAdmin);
+
+      // Navigate to home
+      navigate("/", { replace: true });
+    },
+    [onLogin, navigate]
+  );
 
   useEffect(() => {
     // Prevent double-processing in React strict mode
@@ -71,35 +102,7 @@ function OAuthCallback({ onLogin }) {
     }
 
     completeLogin({ token, refreshToken, username, role, instanceAdmin });
-  }, [searchParams, onLogin, navigate]);
-
-  function completeLogin({ token, refreshToken, username, role, instanceAdmin }) {
-    // Store tokens in localStorage (same as Login.jsx)
-    localStorage.setItem("authToken", token);
-    localStorage.setItem("username", username);
-    if (refreshToken) {
-      localStorage.setItem("refreshToken", refreshToken);
-    }
-    if (role) {
-      localStorage.setItem("userRole", role);
-    }
-    localStorage.setItem("instanceAdmin", instanceAdmin ? "true" : "false");
-    // Clear welcome modal flag on new login
-    localStorage.removeItem("welcomeModalShown");
-
-    // Clear cookies after reading
-    Cookies.remove("authToken");
-    Cookies.remove("refreshToken");
-    Cookies.remove("username");
-    Cookies.remove("userRole");
-    Cookies.remove("instanceAdmin");
-
-    // Complete login via the App's auth handler
-    onLogin(token, username, role || "Administrator", instanceAdmin);
-
-    // Navigate to home
-    navigate("/", { replace: true });
-  }
+  }, [searchParams, completeLogin, navigate]);
 
   async function handleLinkSubmit(e) {
     e.preventDefault();

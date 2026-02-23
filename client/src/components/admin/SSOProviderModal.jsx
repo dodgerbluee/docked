@@ -102,7 +102,12 @@ function SSOProviderModal({
     setLoading(true);
 
     try {
-      if (!formData.name.trim() || !formData.displayName.trim() || !formData.clientId.trim() || !formData.issuerUrl.trim()) {
+      if (
+        !formData.name.trim() ||
+        !formData.displayName.trim() ||
+        !formData.clientId.trim() ||
+        !formData.issuerUrl.trim()
+      ) {
         setError("Please fill in all required fields");
         setLoading(false);
         return;
@@ -190,9 +195,7 @@ function SSOProviderModal({
             placeholder="e.g. Company SSO"
             className={styles.input}
           />
-          <small className={styles.helperText}>
-            Shown on the login page button.
-          </small>
+          <small className={styles.helperText}>Shown on the login page button.</small>
         </div>
 
         <div className={styles.formGroup}>
@@ -241,7 +244,9 @@ function SSOProviderModal({
               {testing ? "Testing..." : "Test Connection"}
             </Button>
             {testResult && testResult.valid && (
-              <span className={styles.testSuccess}>Discovery OK - {testResult.discovery?.issuer}</span>
+              <span className={styles.testSuccess}>
+                Discovery OK - {testResult.discovery?.issuer}
+              </span>
             )}
             {testResult && !testResult.valid && (
               <span className={styles.testFail}>{testResult.error}</span>
@@ -302,9 +307,7 @@ function SSOProviderModal({
             placeholder="openid,profile,email"
             className={styles.input}
           />
-          <small className={styles.helperText}>
-            Comma-separated list of OAuth scopes.
-          </small>
+          <small className={styles.helperText}>Comma-separated list of OAuth scopes.</small>
         </div>
 
         <div className={styles.formGroup}>

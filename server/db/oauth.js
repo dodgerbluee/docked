@@ -194,7 +194,14 @@ function getUserByEmail(email) {
  * @param {boolean} params.instanceAdmin - Whether user is instance admin
  * @returns {Promise<number>} - Created user's ID
  */
-function createOAuthUser({ username, email, oauthProvider, oauthProviderId, role = "Administrator", instanceAdmin = false }) {
+function createOAuthUser({
+  username,
+  email,
+  oauthProvider,
+  oauthProviderId,
+  role = "Administrator",
+  instanceAdmin = false,
+}) {
   return queueDatabaseOperation(
     () =>
       new Promise((resolve, reject) => {
