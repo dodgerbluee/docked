@@ -2,7 +2,7 @@
  * HomePage content component
  */
 
-import React, { lazy, Suspense, useCallback, useEffect, useRef } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import TabNavigation from "../../TabNavigation/TabNavigation";
 import MobileNavigation from "../../Navigation/MobileNavigation";
@@ -15,6 +15,7 @@ import { SETTINGS_TABS } from "../../../constants/settings";
 const SummaryPage = lazy(() => import("../../../pages/SummaryPage"));
 const TrackedAppsPage = lazy(() => import("../../../pages/TrackedAppsPage"));
 const PortainerPage = lazy(() => import("../../../pages/PortainerPage"));
+const AppsPage = lazy(() => import("../../../pages/AppsPage"));
 const AnalyticsPage = lazy(() => import("../../../pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("../../../pages/SettingsPage"));
 const BatchPage = lazy(() => import("../../../pages/BatchPage"));
@@ -89,6 +90,8 @@ const HomePageContent = ({
   fetchPortainerInstances,
   portainerUpgrade,
 }) => {
+  const [appsWithUpdates, setAppsWithUpdates] = useState(0);
+
   // Render summary page
   const renderSummary = useCallback(() => {
     const isLoading = loading;
@@ -205,6 +208,7 @@ const HomePageContent = ({
               }}
               containersWithUpdates={containersWithUpdates}
               trackedAppsBehind={trackedAppsBehind}
+              appsWithUpdates={appsWithUpdates}
             />
 
             {/* Mobile Navigation - Bottom Navigation Bar */}
@@ -217,8 +221,10 @@ const HomePageContent = ({
                   setContentTab(CONTENT_TABS.UPDATES);
                 }
               }}
+
               containersWithUpdates={containersWithUpdates}
               trackedAppsBehind={trackedAppsBehind}
+              appsWithUpdates={appsWithUpdates}
               darkMode={darkMode}
               instanceAdmin={instanceAdmin}
               onThemeToggle={onTemporaryThemeToggle}
@@ -237,6 +243,7 @@ const HomePageContent = ({
           onTabChange={setActiveTab}
           containersWithUpdates={containersWithUpdates}
           trackedAppsBehind={trackedAppsBehind}
+          appsWithUpdates={appsWithUpdates}
           darkMode={darkMode}
           instanceAdmin={instanceAdmin}
           onThemeToggle={onTemporaryThemeToggle}
@@ -309,6 +316,9 @@ const HomePageContent = ({
               {!loading && (
                 <>
                   {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
+                  {activeTab === TAB_NAMES.APPS && (
+                    <AppsPage onAppsUpdatesChange={setAppsWithUpdates} />
+                  )}
                   {activeTab === TAB_NAMES.ANALYTICS && (
                     <AnalyticsPage portainerInstances={portainerInstances} />
                   )}

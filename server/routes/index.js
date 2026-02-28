@@ -49,12 +49,49 @@ const repositoryAccessTokenController = require("../controllers/repositoryAccess
 const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
 const ssoAdminController = require("../controllers/ssoAdminController");
+const runnerController = require("../controllers/runnerController");
+const { getAllRunners } = require("../db/runners");
+const { getContainersFromRunners } = require("../services/runnerService");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validate, validationChains } = require("../middleware/validation");
 const { param } = require("express-validator");
 
 const router = express.Router();
+const logger = require("../utils/logger");
+
+/**
+ * Middleware that appends runner-sourced containers to the /containers response.
+ * Runner fetch failures are non-fatal — Portainer containers are always returned.
+ */
+function appendRunnerContainers(req, res, next) {
+  const originalJson = res.json.bind(res);
+  res.json = (data) => {
+    // Restore immediately so we never double-intercept
+    res.json = originalJson;
+
+    if (!Array.isArray(data?.containers) || !req.user?.id) {
+      return originalJson(data);
+    }
+
+    getAllRunners(req.user.id)
+      .then((runners) => getContainersFromRunners(runners))
+      .then((runnerContainers) => {
+        if (runnerContainers.length > 0) {
+          data = { ...data, containers: [...data.containers, ...runnerContainers] };
+        }
+        originalJson(data);
+      })
+      .catch((err) => {
+        logger.warn("Runner container fetch failed, returning Portainer-only results:", {
+          module: "routes",
+          error: err.message,
+        });
+        originalJson(data);
+      });
+  };
+  next();
+}
 
 // Rate limiters for specific routes
 // Avatar routes rate limiter: 100 requests per 15 minutes per IP
@@ -290,6 +327,14 @@ router.post(
 );
 router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
 
+// Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
+router.get(
+  "/runners/install/:token",
+  publicLimiter,
+  asyncHandler(runnerController.serveInstallScript)
+);
+router.post("/runners/register", publicLimiter, asyncHandler(runnerController.registerRunner));
+
 // Protected routes - require authentication
 // All routes below this line require authentication
 router.use(authenticate);
@@ -375,7 +420,7 @@ router.post("/user/import-config", writeLimiter, asyncHandler(authController.imp
  *       401:
  *         description: Unauthorized
  */
-router.get("/containers", asyncHandler(containerController.getContainers));
+router.get("/containers", appendRunnerContainers, asyncHandler(containerController.getContainers));
 
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
@@ -1282,6 +1327,16 @@ router.post(
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
 );
 
+router.get(
+  "/settings/disallowed-containers",
+  asyncHandler(settingsController.getDisallowedContainersHandler)
+);
+router.put(
+  "/settings/disallowed-containers",
+  writeLimiter,
+  asyncHandler(settingsController.setDisallowedContainersHandler)
+);
+
 // Repository access token routes
 router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
 router.get(
@@ -1315,5 +1370,61 @@ router.post(
 
 // Logs routes
 router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
+
+// Runner routes (docked-runner agent instances)
+// IMPORTANT: Specific/static routes must come before parameterized routes
+router.get("/runners", asyncHandler(runnerController.getRunners));
+router.post("/runners", writeLimiter, asyncHandler(runnerController.createRunnerHandler));
+router.post("/runners/enrollment", writeLimiter, asyncHandler(runnerController.createEnrollment));
+router.get("/runners/enrollment-status", asyncHandler(runnerController.getEnrollmentStatus));
+router.get("/runners/:id", asyncHandler(runnerController.getRunner));
+router.put("/runners/:id", writeLimiter, asyncHandler(runnerController.updateRunnerHandler));
+router.delete(
+  "/runners/:id",
+  destructiveLimiter,
+  asyncHandler(runnerController.deleteRunnerHandler)
+);
+router.post("/runners/:id/health", asyncHandler(runnerController.healthCheckRunner));
+router.post("/runners/:id/update", writeLimiter, asyncHandler(runnerController.updateRunnerBinary));
+router.post("/runners/:id/uninstall", destructiveLimiter, asyncHandler(runnerController.uninstallRunnerHandler));
+// Runner container SSE proxy routes
+router.post(
+  "/runners/:runnerId/containers/:containerId/upgrade",
+  destructiveLimiter,
+  asyncHandler(runnerController.upgradeRunnerContainer)
+);
+router.get(
+  "/runners/:runnerId/containers/:containerId/logs",
+  asyncHandler(runnerController.streamRunnerContainerLogs)
+);
+// Runner operation routes
+router.get(
+  "/runners/:runnerId/operations",
+  asyncHandler(runnerController.getRunnerOperations)
+);
+router.get(
+  "/runners/:runnerId/operations/:name/history",
+  asyncHandler(runnerController.getRunnerOperationHistory)
+);
+router.post(
+  "/runners/:runnerId/operations/:name/run",
+  writeLimiter,
+  asyncHandler(runnerController.runRunnerOperation)
+);
+
+// Runner app routes
+router.get(
+  "/runners/:runnerId/apps",
+  asyncHandler(runnerController.getRunnerApps)
+);
+router.post(
+  "/runners/:runnerId/apps/:appName/operations/:opName/run",
+  writeLimiter,
+  asyncHandler(runnerController.runRunnerAppOperation)
+);
+router.get(
+  "/runners/:runnerId/apps/:appName/operations/:opName/history",
+  asyncHandler(runnerController.getRunnerAppOperationHistory)
+);
 
 module.exports = router;

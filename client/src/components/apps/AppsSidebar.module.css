@@ -1,0 +1,265 @@
+/* AppsSidebar — mirrors TrackedAppsSidebar.module.css */
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid var(--border-color);
+    padding: var(--spacing-mobile-md);
+    margin-top: var(--spacing-mobile-lg);
+  }
+
+  .viewsToolbar {
+    gap: 6px;
+    margin-bottom: 22px;
+  }
+
+  .sidebarItem {
+    padding: 9px 14px;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .sidebarHeader h3 {
+    font-size: 1rem;
+  }
+
+  .filterLabel {
+    padding: 9px 10px;
+  }
+}
+
+/* Views toolbar */
+.viewsToolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+  gap: 8px;
+}
+
+.sidebarItem:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+  color: var(--text-primary);
+}
+
+body.dark-mode .sidebarItem:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.sidebarItem.active {
+  background: rgba(30, 144, 255, 0.1);
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+body.dark-mode .sidebarItem.active {
+  background: rgba(30, 144, 255, 0.15);
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+}
+
+.sidebarItemIcon {
+  flex-shrink: 0;
+}
+
+.sidebarItemName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.countBadge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(30, 144, 255, 0.15);
+  color: var(--dodger-blue);
+  font-weight: 600;
+}
+
+.sidebarItem.active .countBadge {
+  background: rgba(30, 144, 255, 0.25);
+}
+
+body.dark-mode .countBadge {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
+/* Runner filter */
+.sidebarHeader {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.sidebarHeader h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.filterContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filterBox {
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s;
+}
+
+.filterLabel:hover {
+  background-color: var(--bg-secondary);
+}
+
+.filterLabel:last-child {
+  border-bottom: none;
+}
+
+/* Custom checkbox — identical to TrackedAppsSidebar */
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.checkbox input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+.checkbox::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+}
+
+.checkbox:hover::before {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+body.dark-mode .checkbox:hover::before {
+  border-color: var(--dodger-blue-light);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15);
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--dodger-blue-light);
+  border-color: var(--dodger-blue-light);
+}
+
+.checkbox::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+  opacity: 0;
+  z-index: 2;
+}
+
+.checkbox:has(input[type="checkbox"]:checked)::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
+  border-color: var(--dodger-blue-light);
+}
+
+.filterText {
+  color: var(--text-primary);
+  flex: 1;
+  cursor: pointer;
+  font-size: 0.9rem;
+}

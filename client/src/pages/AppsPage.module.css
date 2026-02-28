@@ -1,0 +1,555 @@
+/* AppsPage — mirrors TrackedAppsPage.module.css layout */
+
+.appsPage {
+  padding: 0;
+}
+
+/* ── Sidebar layout ──────────────────────────────────────────────────── */
+
+.sidebarLayout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+  align-items: flex-start;
+}
+
+.sidebar {
+  flex: 0 0 auto;
+}
+
+.contentArea {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .sidebarLayout {
+    flex-direction: column;
+    gap: 0;
+    min-height: auto;
+    align-items: stretch;
+  }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+
+.summaryHeader {
+  /* intentionally unstyled — inherits from summary-header in App.css */
+}
+
+.headerContent {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.summaryHeaderTitle {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.desktopOnly {
+  display: block;
+}
+
+.desktopActionGroup {
+  display: block;
+}
+
+.mobileActionRow {
+  display: none;
+}
+
+.mobileToolbarActions {
+  display: contents;
+}
+
+.mobileSearchOverlay {
+  display: none;
+}
+
+.buttonContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchInput {
+  flex: 0 1 auto;
+}
+
+/* Mobile header overrides */
+@media (max-width: 768px) {
+  .headerContent {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .headerLeft {
+    display: none;
+  }
+
+  .headerActions {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  .desktopActionGroup {
+    display: none;
+  }
+
+  .mobileActionRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .iconOnlyButton {
+    width: 36px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    justify-content: center;
+  }
+
+  .mobileToolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .mobileActionRow :global(button) {
+    white-space: nowrap;
+    flex: 0 0 auto;
+    min-width: 36px;
+  }
+
+  .mobileToolbarActions :global(button) {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .mobileSearchOverlay {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-top: 10px;
+  }
+
+  .mobileSearchOverlay :global(input) {
+    min-width: 0;
+  }
+
+  .mobileSearchInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobileActionRow {
+    gap: 6px;
+  }
+
+  .mobileToolbarActions {
+    gap: 6px;
+  }
+
+  .mobileToolbarActions :global(button) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
+
+/* ── Sub-tab bar ─────────────────────────────────────────────────────── */
+
+.subTabBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0;
+}
+
+.subTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.subTab:hover {
+  color: var(--text-primary);
+}
+
+.subTabActive {
+  color: var(--dodger-blue);
+  border-bottom-color: var(--dodger-blue);
+}
+
+body.dark-mode .subTabActive {
+  color: var(--dodger-blue-light);
+  border-bottom-color: var(--dodger-blue-light);
+}
+
+.subTabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Content grid ────────────────────────────────────────────────────── */
+
+.appsContainer {
+  margin-top: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+.grid > * {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .appsContainer {
+    margin-top: 16px;
+  }
+}
+
+/* ── Grouped view: runner section headers ─────────────────────────────── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.stackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.stackHeader:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .stackHeader:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.stackHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stackToggle {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.stackName {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.runnerUrl {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.runnerVersionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.runnerVersionOutdated {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.updateDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+}
+
+.stackCount {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+body.dark-mode .stackCount {
+  color: var(--text-primary);
+}
+
+/* ── Empty / error states ────────────────────────────────────────────── */
+
+.emptyState {
+  margin-top: 20px;
+}
+
+.emptyStateMessage {
+  padding: 48px 20px;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.emptyStateText {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+.emptyStateLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--dodger-blue);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.emptyStateLink:hover {
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .emptyStateLink {
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .emptyStateLink:hover {
+  color: var(--dodger-blue);
+}
+
+/* ── Runner update card ─────────────────────────────────────────────── */
+
+.updateCards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.updateCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+}
+
+.updateCardLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.updateCardIcon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.updateCardText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.updateCardTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.updateCardVersions {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.updateCardArrow {
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.updateCardBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 6px;
+  color: #f59e0b;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.updateCardBtn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #f59e0b;
+}
+
+.updateCardBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+.runnerError {
+  color: var(--dodger-red, #ef4444);
+  font-size: 0.85rem;
+  margin: 0 0 12px 0;
+}
+
+.noOps {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-style: italic;
+  margin: 0 0 12px 0;
+}
