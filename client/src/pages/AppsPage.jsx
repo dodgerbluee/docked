@@ -476,11 +476,40 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
     setUpdatingRunner(runner.id);
     try {
       await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
-      setTimeout(() => fetchAll(true), 8000);
+
+      // Poll health until the runner comes back with the new version (up to 90s)
+      const targetVersion = runner.latest_version?.replace(/^v/, "");
+      let attempts = 0;
+      const maxAttempts = 30; // 30 × 3s = 90s
+
+      const poll = async () => {
+        if (attempts >= maxAttempts) {
+          setUpdatingRunner(null);
+          fetchAll(true);
+          return;
+        }
+        attempts++;
+        try {
+          const { data } = await axios.post(
+            `${API_BASE_URL}/api/runners/${runner.id}/health`
+          );
+          const currentVersion = data.health?.version?.replace(/^v/, "");
+          if (data.online && currentVersion && currentVersion === targetVersion) {
+            setUpdatingRunner(null);
+            fetchAll(true);
+            return;
+          }
+        } catch {
+          // Runner still restarting — keep polling
+        }
+        setTimeout(poll, 3000);
+      };
+
+      // Give the runner a few seconds to begin the update before polling
+      setTimeout(poll, 5000);
     } catch (err) {
       console.error("AppsPage: runner update failed", err);
-    } finally {
-      setTimeout(() => setUpdatingRunner(null), 8000);
+      setUpdatingRunner(null);
     }
   }, [fetchAll]);
 
