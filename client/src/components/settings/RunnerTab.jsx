@@ -462,6 +462,8 @@ export default function RunnerTab() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [healthStatus, setHealthStatus] = useState({}); // id → { online, checking, health }
   const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId
+  const [updatedRunners, setUpdatedRunners] = useState(new Set()); // ids that finished updating
+  const updatePollRef = useRef({}); // runnerId → intervalId
   const [runOp, setRunOp] = useState(null); // { runner, operationName }
   const [showOpsRunner, setShowOpsRunner] = useState(null); // runner to show ops modal for
 
@@ -505,15 +507,40 @@ export default function RunnerTab() {
     setUpdatingRunner(runner.id);
     try {
       await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
-      setTimeout(() => {
-        fetchRunners();
-        setUpdatingRunner(null);
-      }, 8000);
+      const targetVersion = (runner.latest_version || "").replace(/^v/, "");
+      let attempts = 0;
+      updatePollRef.current[runner.id] = setInterval(async () => {
+        attempts++;
+        try {
+          const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+          const liveVersion = (data.health?.version || "").replace(/^v/, "");
+          if (liveVersion === targetVersion) {
+            clearInterval(updatePollRef.current[runner.id]);
+            delete updatePollRef.current[runner.id];
+            setUpdatingRunner(null);
+            setUpdatedRunners((prev) => new Set([...prev, runner.id]));
+            fetchRunners();
+            return;
+          }
+        } catch { /* runner still restarting, keep polling */ }
+        if (attempts >= 24) { // 2 min max
+          clearInterval(updatePollRef.current[runner.id]);
+          delete updatePollRef.current[runner.id];
+          setUpdatingRunner(null);
+          fetchRunners();
+        }
+      }, 5000);
     } catch (err) {
       console.error("Failed to update runner:", err);
       setUpdatingRunner(null);
     }
   }, [fetchRunners]);
+
+  // Clean up any active update polls on unmount
+  useEffect(() => {
+    const polls = updatePollRef.current;
+    return () => { Object.values(polls).forEach(clearInterval); };
+  }, []);
 
   const handlePing = useCallback(async (runner) => {
     setHealthStatus((prev) => ({ ...prev, [runner.id]: { checking: true } }));
@@ -604,7 +631,8 @@ export default function RunnerTab() {
                 )}
 
                 {runner.version && runner.latest_version &&
-                  runner.latest_version.replace(/^v/, "") !== runner.version.replace(/^v/, "") && (
+                  runner.latest_version.replace(/^v/, "") !== runner.version.replace(/^v/, "") &&
+                  !updatedRunners.has(runner.id) && (
                   <div className={styles.updateBanner}>
                     <ArrowUpCircle size={13} />
                     Update available: v{runner.version.replace(/^v/, "")} → v{runner.latest_version.replace(/^v/, "")}
