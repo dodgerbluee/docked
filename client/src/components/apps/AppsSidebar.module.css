@@ -290,24 +290,47 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   font-size: 0.9rem;
 }
 
-/* + Add Runner — dashed border affordance */
-.addButton {
-  border: 2px dashed var(--border-color) !important;
-  background: var(--bg-secondary) !important;
-  color: var(--text-tertiary) !important;
+/* Add Runner card — matches RunnerTab addCard tile */
+.addCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  margin-top: 4px !important;
+  gap: 8px;
+  width: 100%;
+  padding: 20px 16px;
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  margin-top: 4px;
 }
 
-.addButton:hover {
-  border-color: var(--dodger-blue) !important;
-  background: var(--bg-tertiary) !important;
-  color: var(--dodger-blue) !important;
+.addCard:hover,
+.addCard:focus {
+  border-color: var(--dodger-blue);
+  color: var(--dodger-blue);
+  background: rgba(30, 144, 255, 0.04);
+  outline: none;
 }
 
-body.dark-mode .addButton:hover {
-  border-color: var(--dodger-blue-light) !important;
-  color: var(--dodger-blue-light) !important;
+body.dark-mode .addCard:hover,
+body.dark-mode .addCard:focus {
+  border-color: var(--dodger-blue-light);
+  color: var(--dodger-blue-light);
+  background: rgba(30, 136, 229, 0.08);
+}
+
+.addCardIcon {
+  opacity: 0.7;
+}
+
+.addCardText {
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 /* Manage section */

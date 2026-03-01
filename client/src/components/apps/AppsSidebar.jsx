@@ -123,13 +123,13 @@ const AppsSidebar = memo(function AppsSidebar({
 
             {onAddRunner && (
               <button
-                className={`${styles.sidebarItem} ${styles.addButton}`}
+                className={styles.addCard}
                 onClick={onAddRunner}
                 title="Add Runner"
                 aria-label="Add Runner"
               >
-                <Plus size={16} aria-hidden="true" />
-                <span>+ Add Runner</span>
+                <Plus size={24} className={styles.addCardIcon} aria-hidden="true" />
+                <span className={styles.addCardText}>Add Runner</span>
               </button>
             )}
           </div>
