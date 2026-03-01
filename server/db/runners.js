@@ -176,6 +176,28 @@ function updateRunnerVersion(id, userId, version, latestVersion) {
   });
 }
 
+/**
+ * Get all enabled runners across all users (includes api_key for background jobs).
+ * @returns {Promise<Array>}
+ */
+function getAllRunnersWithKeys() {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.all(
+        "SELECT id, user_id, name, url, api_key, enabled, version, latest_version, version_checked_at FROM runners WHERE enabled = 1 ORDER BY created_at ASC",
+        [],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   getAllRunners,
   getRunnerById,
@@ -183,4 +205,5 @@ module.exports = {
   updateRunner,
   deleteRunner,
   updateRunnerVersion,
+  getAllRunnersWithKeys,
 };

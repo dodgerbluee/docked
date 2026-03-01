@@ -387,6 +387,12 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Refresh runner/app data every 5 minutes to pick up version updates
+  useEffect(() => {
+    const id = setInterval(() => fetchAll(true), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [fetchAll]);
+
   /* ── Derived data ──────────────────────────────────────────────────── */
 
   const enabledRunners = useMemo(
