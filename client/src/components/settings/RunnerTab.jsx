@@ -269,8 +269,7 @@ function formatAge(ts) {
 }
 
 function OperationsModal({ runner, onClose, onRun }) {
-  const [operations, setOperations] = useState([]);
-  const [history, setHistory] = useState({});
+  const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -280,22 +279,8 @@ function OperationsModal({ runner, onClose, onRun }) {
     else setLoading(true);
     setError(null);
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/operations`);
-      const ops = data.operations || [];
-      setOperations(ops);
-      await Promise.all(
-        ops.map(async (op) => {
-          try {
-            const { data: hData } = await axios.get(
-              `${API_BASE_URL}/api/runners/${runner.id}/operations/${encodeURIComponent(op.name)}/history?limit=1`
-            );
-            const last = (hData.history || [])[0] || null;
-            setHistory((prev) => ({ ...prev, [op.name]: last }));
-          } catch {
-            // ignore per-op history errors
-          }
-        })
-      );
+      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
+      setApps(data.apps || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
     } finally {
@@ -305,6 +290,9 @@ function OperationsModal({ runner, onClose, onRun }) {
   }, [runner.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const totalOps = apps.reduce((sum, app) => sum + (app.operations?.length || 0), 0);
+  const multiApp = apps.length > 1;
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -337,39 +325,46 @@ function OperationsModal({ runner, onClose, onRun }) {
         <div className={styles.opsModalBody}>
           {loading && <LoadingSpinner size="sm" message="Loading operations…" />}
           {error && <p className={styles.formError}>{error}</p>}
-          {!loading && !error && operations.length === 0 && (
+          {!loading && !error && totalOps === 0 && (
             <p className={styles.opsEmpty}>No operations configured on this runner.</p>
           )}
-          {!loading && operations.map((op) => {
-            const last = history[op.name];
-            return (
-              <div key={op.name} className={styles.opsModalRow}>
-                <div className={styles.opsModalOpInfo}>
-                  <span className={styles.opsModalOpName}>{op.name}</span>
-                  {op.description && (
-                    <span className={styles.opsModalOpDesc}>{op.description}</span>
-                  )}
-                  {last && (
-                    <span
-                      className={`${styles.opsModalLastRun} ${last.exit_code === 0 ? styles.opLastRunOk : styles.opLastRunFail}`}
-                      title={`Exit code: ${last.exit_code}`}
+          {!loading && apps.map((app) => (
+            <React.Fragment key={app.name}>
+              {multiApp && (
+                <div className={styles.opsAppGroup}>{app.name}</div>
+              )}
+              {(app.operations || []).map((op) => {
+                const last = op.lastRun;
+                return (
+                  <div key={`${app.name}:${op.name}`} className={styles.opsModalRow}>
+                    <div className={styles.opsModalOpInfo}>
+                      <span className={styles.opsModalOpName}>{op.label || op.name}</span>
+                      {app.description && !multiApp && (
+                        <span className={styles.opsModalOpDesc}>{app.description}</span>
+                      )}
+                      {last && (
+                        <span
+                          className={`${styles.opsModalLastRun} ${last.exitCode === 0 ? styles.opLastRunOk : styles.opLastRunFail}`}
+                          title={`Exit code: ${last.exitCode}`}
+                        >
+                          <Clock size={11} />
+                          {formatAge(last.startedAt)} · exit {last.exitCode}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className={styles.opRunBtn}
+                      onClick={() => onRun(runner, app.name, op.name)}
+                      title={`Run ${op.label || op.name}`}
                     >
-                      <Clock size={11} />
-                      {formatAge(last.started_at)} · exit {last.exit_code}
-                    </span>
-                  )}
-                </div>
-                <button
-                  className={styles.opRunBtn}
-                  onClick={() => onRun(runner, op.name)}
-                  title={`Run ${op.name}`}
-                >
-                  <Play size={12} />
-                  Run
-                </button>
-              </div>
-            );
-          })}
+                      <Play size={12} />
+                      Run
+                    </button>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
         </div>
 
         <div className={styles.modalFooter}>
@@ -740,9 +735,9 @@ export default function RunnerTab() {
         <OperationsModal
           runner={showOpsRunner}
           onClose={() => setShowOpsRunner(null)}
-          onRun={(runner, operationName) => {
+          onRun={(runner, appName, operationName) => {
             setShowOpsRunner(null);
-            setRunOp({ runner, operationName });
+            setRunOp({ runner, appName, operationName });
           }}
         />
       )}
@@ -750,6 +745,7 @@ export default function RunnerTab() {
       <RunOperationModal
         isOpen={!!runOp}
         runnerId={runOp?.runner?.id}
+        appName={runOp?.appName}
         operationName={runOp?.operationName}
         onClose={() => setRunOp(null)}
       />

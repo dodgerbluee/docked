@@ -715,6 +715,23 @@ body.dark-mode .opsModalRunner {
   gap: 4px;
 }
 
+.opsAppGroup {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  padding: 8px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color);
+}
+
+.opsAppGroup:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 .opsEmpty {
   font-size: 0.85rem;
   color: var(--text-secondary);
