@@ -91,6 +91,19 @@ function errorHandler(err, req, res, _next) {
     });
   }
 
+  // Axios errors from upstream services (e.g. dockhand runner).
+  // Never forward a 401/403 from an upstream service as a 401 to the browser
+  // — that would trigger the client's global logout interceptor for what is
+  // really just a misconfigured runner API key or an offline service.
+  if (err.isAxiosError) {
+    const upstreamStatus = err.response?.status;
+    const outboundStatus =
+      upstreamStatus === 401 || upstreamStatus === 403 ? 502 : upstreamStatus || 502;
+    return sendErrorResponse(res, `Runner connection error: ${err.message}`, outboundStatus, {
+      errorCode: "RUNNER_CONNECTION_ERROR",
+    });
+  }
+
   // Handle unknown errors
   const status = err.statusCode || err.status || 500;
   const message =
