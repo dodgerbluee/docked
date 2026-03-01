@@ -667,7 +667,7 @@ export default function RunnerTab() {
             tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && setShowEnrollment(true)}
           >
-            <Plus size={24} className={styles.addIcon} />
+            <Server size={24} className={styles.addIcon} />
             <span className={styles.addText}>Add Runner</span>
           </div>
         </div>
