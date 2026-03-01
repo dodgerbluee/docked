@@ -1,6 +1,6 @@
 /**
  * RunnerTab Component
- * Manages docked-runner instances — lightweight agents that manage Docker
+ * Manages dockhand instances — lightweight agents that manage Docker
  * containers directly without requiring Portainer.
  *
  * New runners are added via an automated enrollment flow:

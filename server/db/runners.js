@@ -2,7 +2,7 @@
  * Runners Database Module
  *
  * Handles all runner-related database operations including:
- * - Runner CRUD operations (runners are docked-runner instances)
+ * - Runner CRUD operations (runners are dockhand instances)
  */
 
 const { getDatabase } = require("./connection");

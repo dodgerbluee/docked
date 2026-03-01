@@ -14,6 +14,7 @@ import UpgradeHistoryTab from "../components/portainer/UpgradeHistoryTab";
 import ContainerDebugModal from "../components/portainer/ContainerDebugModal";
 import UpgradeProgressModal from "../components/ui/UpgradeProgressModal";
 import BatchUpgradeProgressModal from "../components/ui/BatchUpgradeProgressModal";
+import RunnerUpgradeModal from "../components/ui/RunnerUpgradeModal";
 import { usePortainerPage } from "../hooks/usePortainerPage";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { PORTAINER_CONTENT_TABS } from "../constants/portainerPage";
@@ -118,6 +119,21 @@ function PortainerPage({
   const openMobileSidebar = useCallback(() => {
     setMobileSidebarOpen(true);
   }, []);
+
+  // Runner upgrade modal state — routes runner containers away from UpgradeProgressModal
+  const [runnerUpgradeContainer, setRunnerUpgradeContainer] = useState(null);
+
+  // Intercept handleUpgrade: runner containers go to RunnerUpgradeModal
+  const handleUpgradeWithRunnerSupport = useCallback(
+    (container) => {
+      if (container?.source === "runner") {
+        setRunnerUpgradeContainer(container);
+      } else {
+        portainerPage.handleUpgrade(container);
+      }
+    },
+    [portainerPage]
+  );
 
   // Debug modal state - centralized at page level for better performance
   const [debugModalContainer, setDebugModalContainer] = useState(null);
@@ -316,7 +332,7 @@ function PortainerPage({
                       isPortainerContainer={portainerPage.isPortainerContainer}
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
-                      onUpgrade={portainerPage.handleUpgrade}
+                      onUpgrade={handleUpgradeWithRunnerSupport}
                       developerModeEnabled={developerModeEnabled}
                       onOpenDebugModal={setDebugModalContainer}
                       activeUpgrades={portainerPage.activeUpgrades}
@@ -340,7 +356,7 @@ function PortainerPage({
                       isPortainerContainer={portainerPage.isPortainerContainer}
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
-                      onUpgrade={portainerPage.handleUpgrade}
+                      onUpgrade={handleUpgradeWithRunnerSupport}
                       developerModeEnabled={developerModeEnabled}
                       onOpenDebugModal={setDebugModalContainer}
                       activeUpgrades={portainerPage.activeUpgrades}
@@ -433,6 +449,17 @@ function PortainerPage({
           developerModeEnabled={developerModeEnabled}
         />
       )}
+
+      {/* Runner upgrade modal — streams SSE output from dockhand */}
+      <RunnerUpgradeModal
+        isOpen={!!runnerUpgradeContainer}
+        container={runnerUpgradeContainer}
+        onClose={() => setRunnerUpgradeContainer(null)}
+        onSuccess={() => {
+          setRunnerUpgradeContainer(null);
+          fetchContainers();
+        }}
+      />
     </div>
   );
 }

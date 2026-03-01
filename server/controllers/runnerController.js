@@ -1,6 +1,6 @@
 /**
  * Runner Controller
- * Handles CRUD operations for docked-runner instances, automated
+ * Handles CRUD operations for dockhand instances, automated
  * enrollment/registration, and proxies upgrade/log SSE streams.
  */
 
@@ -449,8 +449,8 @@ ENROLLMENT_TOKEN="${token}"
 DOCKHAND_VERSION="${dockhandVersion}"
 PORT=${port}
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/etc/docked-runner"
-DATA_DIR="/var/lib/docked-runner"
+CONFIG_DIR="/etc/dockhand"
+DATA_DIR="/var/lib/dockhand"
 SERVICE_USER="$(whoami)"
 SERVICE_HOME="$(eval echo ~$SERVICE_USER)"
 

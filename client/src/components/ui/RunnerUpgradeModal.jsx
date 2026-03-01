@@ -1,7 +1,7 @@
 /**
  * RunnerUpgradeModal
  *
- * Streams real upgrade output from a docked-runner instance via SSE.
+ * Streams real upgrade output from a dockhand instance via SSE.
  * Shown instead of UpgradeProgressModal when container.source === "runner".
  */
 

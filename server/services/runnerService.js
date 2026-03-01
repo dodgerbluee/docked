@@ -1,7 +1,7 @@
 /**
  * Runner Service
  *
- * HTTP client for communicating with docked-runner instances.
+ * HTTP client for communicating with dockhand instances.
  * Handles container listing, health checks, and SSE stream proxying
  * for upgrade and log operations.
  */

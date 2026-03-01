@@ -1371,7 +1371,7 @@ router.post(
 // Logs routes
 router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
 
-// Runner routes (docked-runner agent instances)
+// Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes
 router.get("/runners", asyncHandler(runnerController.getRunners));
 router.post("/runners", writeLimiter, asyncHandler(runnerController.createRunnerHandler));

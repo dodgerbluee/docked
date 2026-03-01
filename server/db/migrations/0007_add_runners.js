@@ -1,7 +1,7 @@
 /**
  * Migration 7: Add Runners Table
  *
- * Creates the runners table for managing docked-runner instances.
+ * Creates the runners table for managing dockhand instances.
  * Runners are lightweight agents that manage Docker containers directly
  * without requiring Portainer.
  *
