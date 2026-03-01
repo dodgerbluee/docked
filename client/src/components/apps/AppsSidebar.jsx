@@ -7,12 +7,14 @@
 
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { Layers, Server } from "lucide-react";
+import { Layers, Server, ArrowUpCircle, History } from "lucide-react";
 import styles from "./AppsSidebar.module.css";
 
 export const APPS_VIEWS = {
+  UPDATES: "updates",
   ALL: "all",
   GROUPED: "grouped",
+  HISTORY: "history",
 };
 
 const AppsSidebar = memo(function AppsSidebar({
@@ -22,6 +24,7 @@ const AppsSidebar = memo(function AppsSidebar({
   selectedRunners,
   onSelectedRunnersChange,
   totalOps,
+  updatesCount = 0,
 }) {
   const handleRunnerToggle = (runnerId, checked) => {
     onSelectedRunnersChange((prev) => {
@@ -50,6 +53,14 @@ const AppsSidebar = memo(function AppsSidebar({
       {/* Views toolbar */}
       <div className={styles.viewsToolbar}>
         <button
+          className={`${styles.sidebarItem} ${styles.updatesItem} ${view === APPS_VIEWS.UPDATES ? styles.active : ""}`}
+          onClick={() => onViewChange(APPS_VIEWS.UPDATES)}
+        >
+          <ArrowUpCircle size={16} className={styles.sidebarItemIcon} />
+          <span className={styles.sidebarItemName}>Updates</span>
+          {updatesCount > 0 && <span className={styles.updatesBadge}>{updatesCount}</span>}
+        </button>
+        <button
           className={`${styles.sidebarItem} ${view === APPS_VIEWS.ALL ? styles.active : ""}`}
           onClick={() => onViewChange(APPS_VIEWS.ALL)}
         >
@@ -63,6 +74,13 @@ const AppsSidebar = memo(function AppsSidebar({
         >
           <Server size={16} className={styles.sidebarItemIcon} />
           <span className={styles.sidebarItemName}>By Runner</span>
+        </button>
+        <button
+          className={`${styles.sidebarItem} ${view === APPS_VIEWS.HISTORY ? styles.active : ""}`}
+          onClick={() => onViewChange(APPS_VIEWS.HISTORY)}
+        >
+          <History size={16} className={styles.sidebarItemIcon} />
+          <span className={styles.sidebarItemName}>History</span>
         </button>
       </div>
 
@@ -114,7 +132,7 @@ const AppsSidebar = memo(function AppsSidebar({
 AppsSidebar.displayName = "AppsSidebar";
 
 AppsSidebar.propTypes = {
-  view: PropTypes.oneOf([APPS_VIEWS.ALL, APPS_VIEWS.GROUPED]).isRequired,
+  view: PropTypes.oneOf([APPS_VIEWS.UPDATES, APPS_VIEWS.ALL, APPS_VIEWS.GROUPED, APPS_VIEWS.HISTORY]).isRequired,
   onViewChange: PropTypes.func.isRequired,
   runners: PropTypes.arrayOf(
     PropTypes.shape({
@@ -125,6 +143,7 @@ AppsSidebar.propTypes = {
   selectedRunners: PropTypes.instanceOf(Set).isRequired,
   onSelectedRunnersChange: PropTypes.func.isRequired,
   totalOps: PropTypes.number.isRequired,
+  updatesCount: PropTypes.number,
 };
 
 export default AppsSidebar;

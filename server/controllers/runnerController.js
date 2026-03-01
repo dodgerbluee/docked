@@ -23,6 +23,7 @@ const {
   enrichOperationsWithVersions,
   fetchRunnerApps,
   fetchRunnerAppOperationHistory,
+  fetchRunnerAppsAllHistory,
   enrichAppsWithVersions,
   proxyAppOperationRunStream,
   triggerRunnerUpdate,
@@ -745,6 +746,38 @@ async function getRunnerAppOperationHistory(req, res, next) {
 }
 
 /**
+ * GET /api/runners/:runnerId/apps/history
+ * Returns all app operation run history from the runner.
+ */
+async function getRunnerAppsHistory(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const runnerId = parseInt(req.params.runnerId, 10);
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const runner = await getRunnerById(runnerId, userId);
+    if (!runner) {
+      return res.status(404).json({ success: false, error: "Runner not found" });
+    }
+    if (!runner.enabled) {
+      return res.status(400).json({ success: false, error: "Runner is disabled" });
+    }
+    const data = await fetchRunnerAppsAllHistory(runner.url, runner.api_key, limit);
+    // Attach runnerId/runnerName to each record for the client to group/label
+    const history = (data.history || []).map((r) => ({
+      ...r,
+      runnerId: runner.id,
+      runnerName: runner.name,
+    }));
+    res.json({ success: true, history });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * POST /api/runners/:id/update
  * Tells the runner to download and apply a new binary, then restart.
  */
@@ -876,6 +909,7 @@ module.exports = {
   getRunnerApps,
   runRunnerAppOperation,
   getRunnerAppOperationHistory,
+  getRunnerAppsHistory,
   createEnrollment,
   getEnrollmentStatus,
   serveInstallScript,

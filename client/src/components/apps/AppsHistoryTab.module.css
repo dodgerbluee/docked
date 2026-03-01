@@ -1,0 +1,355 @@
+/* AppsHistoryTab — mirrors UpgradeHistoryTab.module.css */
+
+.container {
+  padding: 0;
+}
+
+/* ── Stats bar ────────────────────────────────────────────────────── */
+
+.statsBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.statIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+}
+
+.statIconSuccess {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.statIconError {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.statContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statValue {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* ── Filters ──────────────────────────────────────────────────────── */
+
+.filtersBar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.searchContainer {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 9px 12px 9px 38px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--dodger-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+.searchInput::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+
+.filterGroup:focus-within {
+  border-color: var(--dodger-blue);
+}
+
+.filterIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.filterSelect {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  padding-right: 20px;
+  min-width: 110px;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 12px;
+  color-scheme: light;
+}
+
+body.dark-mode .filterSelect {
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+.filterSelect option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+body.dark-mode .filterSelect option {
+  background: #1e1e1e;
+  color: var(--text-primary);
+}
+
+.sortButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sortButton:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--dodger-blue);
+}
+
+/* ── History list ─────────────────────────────────────────────────── */
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historyCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.historyCard:hover {
+  border-color: var(--dodger-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body.dark-mode .historyCard:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.historyCardFailed {
+  border-left: 3px solid #ef4444;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.successIcon {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.errorIcon {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.pendingIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.appName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opBadge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(30, 144, 255, 0.1);
+  color: var(--dodger-blue);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+body.dark-mode .opBadge {
+  background: rgba(30, 144, 255, 0.18);
+  color: var(--dodger-blue-light);
+}
+
+.runnerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.exitBadge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.exitOk {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.exitFail {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .statsBar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filtersBar {
+    flex-direction: column;
+  }
+
+  .searchContainer {
+    min-width: 100%;
+  }
+
+  .cardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .cardMeta {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

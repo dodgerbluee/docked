@@ -468,6 +468,21 @@ async function fetchRunnerAppOperationHistory(url, apiKey, appName, opName, limi
 }
 
 /**
+ * Fetch all app operation run history from a runner.
+ * @param {string} url - Runner base URL
+ * @param {string} apiKey
+ * @param {number} limit
+ * @returns {Promise<Object>} { history: [...] }
+ */
+async function fetchRunnerAppsAllHistory(url, apiKey, limit = 100) {
+  const response = await axios.get(
+    `${url}/apps/history?limit=${limit}`,
+    runnerAxiosConfig(apiKey)
+  );
+  return response.data;
+}
+
+/**
  * Enrich a list of app summaries with latestVersion from GitHub.
  * For each app with versionSource.type === "github", fetches the latest release
  * and appends latestVersion. Failures are non-fatal — app gets latestVersion: null.
@@ -577,6 +592,7 @@ module.exports = {
   enrichOperationsWithVersions,
   fetchRunnerApps,
   fetchRunnerAppOperationHistory,
+  fetchRunnerAppsAllHistory,
   enrichAppsWithVersions,
   proxyAppOperationRunStream,
   triggerRunnerUpdate,

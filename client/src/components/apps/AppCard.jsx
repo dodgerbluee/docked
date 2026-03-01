@@ -99,7 +99,7 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
               <button
                 key={op.name}
                 className={`${styles.opBtn} ${op.active ? styles.opBtnActive : ""}`}
-                onClick={() => onRun(runner.id, app.name, op.name)}
+                onClick={() => onRun(runner, app, op)}
                 disabled={op.active}
                 title={op.active ? `${op.label || op.name} is running…` : `Run ${op.label || op.name}`}
               >

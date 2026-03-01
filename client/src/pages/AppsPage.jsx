@@ -18,6 +18,7 @@ import SearchInput from "../components/ui/SearchInput";
 import RunOperationModal from "../components/ui/RunOperationModal";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
+import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import styles from "./AppsPage.module.css";
 
 function hasVersionUpdate(current, latest) {
@@ -244,6 +245,86 @@ const AppsHeader = memo(function AppsHeader({
   );
 });
 
+/* ── ConfirmRunModal ───────────────────────────────────────────────────── */
+
+function formatAge(ts) {
+  if (!ts) return null;
+  const secs = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
+const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCancel }) {
+  const { runner, app, op } = pending;
+  const lastRun = op.lastRun;
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className={styles.confirmOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-run-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className={styles.confirmModal}>
+        <div className={styles.confirmHeader}>
+          <span id="confirm-run-title" className={styles.confirmTitle}>Run Operation?</span>
+          <button className={styles.confirmCloseBtn} onClick={onCancel} aria-label="Cancel">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className={styles.confirmBody}>
+          <div className={styles.confirmAppName}>{app.name}</div>
+          {app.description && (
+            <p className={styles.confirmAppDesc}>{app.description}</p>
+          )}
+
+          <div className={styles.confirmMeta}>
+            <div className={styles.confirmMetaRow}>
+              <span className={styles.confirmMetaLabel}>Operation</span>
+              <span className={styles.confirmMetaValue}>{op.label || op.name}</span>
+            </div>
+            <div className={styles.confirmMetaRow}>
+              <span className={styles.confirmMetaLabel}>Runner</span>
+              <span className={styles.confirmMetaValue}>{runner.name}</span>
+            </div>
+            {lastRun && (
+              <div className={styles.confirmMetaRow}>
+                <span className={styles.confirmMetaLabel}>Last run</span>
+                <span
+                  className={`${styles.confirmMetaValue} ${
+                    lastRun.exitCode === 0 ? styles.confirmLastRunOk : styles.confirmLastRunFail
+                  }`}
+                >
+                  {formatAge(lastRun.startedAt)} · exit {lastRun.exitCode}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.confirmFooter}>
+          <button className={styles.confirmCancelBtn} onClick={onCancel}>
+            Cancel
+          </button>
+          <button className={styles.confirmRunBtn} onClick={onConfirm} autoFocus>
+            Run {op.label || op.name}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 /* ── AppsPage ──────────────────────────────────────────────────────────── */
 
 export default function AppsPage({ onAppsUpdatesChange }) {
@@ -258,12 +339,12 @@ export default function AppsPage({ onAppsUpdatesChange }) {
 
   // UI state
   const [search, setSearch] = useState("");
-  const [appsTab, setAppsTab] = useState("all"); // "all" | "updates"
   const [view, setView] = useState(APPS_VIEWS.ALL);
   const [selectedRunners, setSelectedRunners] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName }
+  const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
+  const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
   const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId being updated
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
@@ -369,9 +450,16 @@ export default function AppsPage({ onAppsUpdatesChange }) {
     });
   }, []);
 
-  const handleRun = useCallback((runnerId, appName, opName) => {
-    setRunOp({ runnerId, appName, operationName: opName });
+  const handleRun = useCallback((runner, app, op) => {
+    setPendingRun({ runner, app, op });
   }, []);
+
+  const handleConfirmRun = useCallback(() => {
+    if (!pendingRun) return;
+    const { runner, app, op } = pendingRun;
+    setPendingRun(null);
+    setRunOp({ runnerId: runner.id, appName: app.name, operationName: op.name });
+  }, [pendingRun]);
 
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
@@ -414,11 +502,7 @@ export default function AppsPage({ onAppsUpdatesChange }) {
           (app.description || "").toLowerCase().includes(q)
       );
 
-      // In updates sub-tab, only show apps with updates
-      const visibleApps =
-        appsTab === "updates" ? runnerApps.filter(appHasUpdate) : runnerApps;
-
-      if (appsTab === "updates" && visibleApps.length === 0) return null;
+      const visibleApps = runnerApps;
 
       const sectionKey = String(runner.id);
       const isCollapsed = collapsedSections.has(sectionKey);
@@ -484,8 +568,13 @@ export default function AppsPage({ onAppsUpdatesChange }) {
       );
     }
 
-    // Updates sub-tab
-    if (appsTab === "updates") {
+    // History view — full-width, bypasses sidebar grid layout
+    if (view === APPS_VIEWS.HISTORY) {
+      return <AppsHistoryTab runners={enabledRunners} />;
+    }
+
+    // Updates filter
+    if (view === APPS_VIEWS.UPDATES) {
       const updateItems = appsWithUpdatesList.filter(({ app, runner }) => {
         if (selectedRunners.size > 0 && !selectedRunners.has(runner.id)) return false;
         const q = search.trim().toLowerCase();
@@ -500,9 +589,6 @@ export default function AppsPage({ onAppsUpdatesChange }) {
         );
       }
 
-      if (view === APPS_VIEWS.GROUPED) {
-        return <div className={styles.appsContainer}>{renderGrouped(updateItems)}</div>;
-      }
       return <div className={styles.appsContainer}>{renderGrid(updateItems)}</div>;
     }
 
@@ -554,6 +640,7 @@ export default function AppsPage({ onAppsUpdatesChange }) {
       selectedRunners={selectedRunners}
       onSelectedRunnersChange={setSelectedRunners}
       totalOps={totalApps}
+      updatesCount={appsWithUpdatesList.length}
     />
   );
 
@@ -567,25 +654,6 @@ export default function AppsPage({ onAppsUpdatesChange }) {
         mobileSidebarOpen={mobileSidebarOpen}
         onMobileSidebarOpen={openMobileSidebar}
       />
-
-      {/* Sub-tab bar */}
-      <div className={styles.subTabBar}>
-        <button
-          className={`${styles.subTab} ${appsTab === "all" ? styles.subTabActive : ""}`}
-          onClick={() => setAppsTab("all")}
-        >
-          All Apps
-        </button>
-        <button
-          className={`${styles.subTab} ${appsTab === "updates" ? styles.subTabActive : ""}`}
-          onClick={() => setAppsTab("updates")}
-        >
-          Updates
-          {appsWithUpdatesList.length > 0 && (
-            <span className={styles.subTabCount}>{appsWithUpdatesList.length}</span>
-          )}
-        </button>
-      </div>
 
       <div className={styles.sidebarLayout}>
         {/* Desktop sidebar */}
@@ -616,6 +684,7 @@ export default function AppsPage({ onAppsUpdatesChange }) {
               selectedRunners={selectedRunners}
               onSelectedRunnersChange={setSelectedRunners}
               totalOps={totalApps}
+              updatesCount={appsWithUpdatesList.length}
             />
           </MobileDrawer>
         </ErrorBoundary>
@@ -625,6 +694,14 @@ export default function AppsPage({ onAppsUpdatesChange }) {
           {renderContent()}
         </div>
       </div>
+
+      {pendingRun && (
+        <ConfirmRunModal
+          pending={pendingRun}
+          onConfirm={handleConfirmRun}
+          onCancel={() => setPendingRun(null)}
+        />
+      )}
 
       <RunOperationModal
         isOpen={!!runOp}

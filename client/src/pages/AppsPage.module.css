@@ -196,63 +196,6 @@
   }
 }
 
-/* ── Sub-tab bar ─────────────────────────────────────────────────────── */
-
-.subTabBar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 12px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0;
-}
-
-.subTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.subTab:hover {
-  color: var(--text-primary);
-}
-
-.subTabActive {
-  color: var(--dodger-blue);
-  border-bottom-color: var(--dodger-blue);
-}
-
-body.dark-mode .subTabActive {
-  color: var(--dodger-blue-light);
-  border-bottom-color: var(--dodger-blue-light);
-}
-
-.subTabCount {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: #f59e0b;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 /* ── Content grid ────────────────────────────────────────────────────── */
 
 .appsContainer {
@@ -552,4 +495,161 @@ body.dark-mode .emptyStateLink:hover {
   font-size: 0.875rem;
   font-style: italic;
   margin: 0 0 12px 0;
+}
+
+/* ── Confirm run modal ───────────────────────────────────────────────── */
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.confirmModal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+}
+
+.confirmHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.confirmTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.confirmCloseBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.confirmCloseBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.confirmBody {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.confirmAppName {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.confirmAppDesc {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirmMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.confirmMetaRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.confirmMetaLabel {
+  color: var(--text-secondary);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.confirmMetaValue {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.confirmLastRunOk {
+  color: #22c55e;
+}
+
+.confirmLastRunFail {
+  color: var(--text-error, #ef4444);
+}
+
+.confirmFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.confirmCancelBtn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.confirmCancelBtn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--text-secondary);
+}
+
+.confirmRunBtn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--dodger-blue);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.confirmRunBtn:hover {
+  opacity: 0.88;
+}
+
+body.dark-mode .confirmRunBtn {
+  background: var(--dodger-blue-light);
 }

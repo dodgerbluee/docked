@@ -122,6 +122,32 @@ body.dark-mode .countBadge {
   color: var(--dodger-blue-light);
 }
 
+/* Updates item — amber accent */
+.updatesItem:hover {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.updatesItem.active {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.updatesBadge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.updatesItem.active .updatesBadge {
+  background: rgba(245, 158, 11, 0.25);
+}
+
 /* Runner filter */
 .sidebarHeader {
   margin-bottom: 16px;

@@ -1412,10 +1412,14 @@ router.post(
   asyncHandler(runnerController.runRunnerOperation)
 );
 
-// Runner app routes
+// Runner app routes — static paths before parameterized ones
 router.get(
   "/runners/:runnerId/apps",
   asyncHandler(runnerController.getRunnerApps)
+);
+router.get(
+  "/runners/:runnerId/apps/history",
+  asyncHandler(runnerController.getRunnerAppsHistory)
 );
 router.post(
   "/runners/:runnerId/apps/:appName/operations/:opName/run",
