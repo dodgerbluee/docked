@@ -86,7 +86,7 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
             </span>
             {app.systemUpdatesAvailable && (
               <span className={styles.sysUpdateBadge} title="System package updates available">
-                System updates
+                {app.systemUpdateCount > 0 ? `${app.systemUpdateCount} packages` : "System updates"}
               </span>
             )}
           </div>
@@ -138,6 +138,7 @@ AppCard.propTypes = {
     currentVersion: PropTypes.string,
     latestVersion: PropTypes.string,
     systemUpdatesAvailable: PropTypes.bool,
+    systemUpdateCount: PropTypes.number,
     versionSource: PropTypes.shape({
       type: PropTypes.string,
       repo: PropTypes.string,
