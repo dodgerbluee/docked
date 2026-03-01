@@ -97,7 +97,7 @@ function RunnerEditForm({ runner, onSave, onCancel, saving }) {
 
 /* ── Enrollment modal ─────────────────────────────────────────────────── */
 
-function EnrollmentModal({ onClose, onEnrolled }) {
+export function EnrollmentModal({ onClose, onEnrolled }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [enrollment, setEnrollment] = useState(null);

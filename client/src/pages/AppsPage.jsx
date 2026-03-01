@@ -19,6 +19,7 @@ import RunOperationModal from "../components/ui/RunOperationModal";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
+import { EnrollmentModal } from "../components/settings/RunnerTab";
 import styles from "./AppsPage.module.css";
 
 function hasVersionUpdate(current, latest) {
@@ -327,7 +328,7 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 
 /* ── AppsPage ──────────────────────────────────────────────────────────── */
 
-export default function AppsPage({ onAppsUpdatesChange }) {
+export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const isMobile = useIsMobile();
 
   // Data
@@ -339,13 +340,14 @@ export default function AppsPage({ onAppsUpdatesChange }) {
 
   // UI state
   const [search, setSearch] = useState("");
-  const [view, setView] = useState(APPS_VIEWS.ALL);
+  const [view, setView] = useState(APPS_VIEWS.UPDATES);
   const [selectedRunners, setSelectedRunners] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
   const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
   const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId being updated
+  const [showAddRunner, setShowAddRunner] = useState(false);
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
 
@@ -641,6 +643,8 @@ export default function AppsPage({ onAppsUpdatesChange }) {
       onSelectedRunnersChange={setSelectedRunners}
       totalOps={totalApps}
       updatesCount={appsWithUpdatesList.length}
+      onAddRunner={() => setShowAddRunner(true)}
+      onManageRunners={onNavigateToRunners}
     />
   );
 
@@ -685,6 +689,8 @@ export default function AppsPage({ onAppsUpdatesChange }) {
               onSelectedRunnersChange={setSelectedRunners}
               totalOps={totalApps}
               updatesCount={appsWithUpdatesList.length}
+              onAddRunner={() => { setShowAddRunner(true); closeMobileSidebar(); }}
+              onManageRunners={onNavigateToRunners}
             />
           </MobileDrawer>
         </ErrorBoundary>
@@ -694,6 +700,16 @@ export default function AppsPage({ onAppsUpdatesChange }) {
           {renderContent()}
         </div>
       </div>
+
+      {showAddRunner && (
+        <EnrollmentModal
+          onClose={() => setShowAddRunner(false)}
+          onEnrolled={() => {
+            setShowAddRunner(false);
+            fetchAll(true);
+          }}
+        />
+      )}
 
       {pendingRun && (
         <ConfirmRunModal

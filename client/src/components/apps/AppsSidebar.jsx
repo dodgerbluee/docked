@@ -7,7 +7,7 @@
 
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { Layers, Server, ArrowUpCircle, History } from "lucide-react";
+import { Layers, Server, ArrowUpCircle, History, Plus, Settings } from "lucide-react";
 import styles from "./AppsSidebar.module.css";
 
 export const APPS_VIEWS = {
@@ -25,22 +25,18 @@ const AppsSidebar = memo(function AppsSidebar({
   onSelectedRunnersChange,
   totalOps,
   updatesCount = 0,
+  onAddRunner,
+  onManageRunners,
 }) {
   const handleRunnerToggle = (runnerId, checked) => {
     onSelectedRunnersChange((prev) => {
       if (checked) {
         const next = new Set(prev);
         next.add(runnerId);
-        // If all runners are now in the set, clear it to mean "show all"
+        // If all runners are now in the set, clear it to mean "show all" (no filter)
         if (runners.every((r) => next.has(r.id))) return new Set();
         return next;
       } else {
-        if (prev.size === 0) {
-          // Was "all selected" → populate with everyone except this runner
-          const next = new Set(runners.map((r) => r.id));
-          next.delete(runnerId);
-          return next;
-        }
         const next = new Set(prev);
         next.delete(runnerId);
         return next;
@@ -84,44 +80,78 @@ const AppsSidebar = memo(function AppsSidebar({
         </button>
       </div>
 
-      {/* Runner filter — only shown when there are multiple runners */}
-      {runners.length > 1 && (
+      {/* Runner filter — checkboxes only shown when multiple runners */}
+      {(runners.length > 1 || onAddRunner) && (
         <>
           <div className={styles.sidebarHeader}>
             <h3>Filter by Runner</h3>
           </div>
           <div className={styles.filterContainer}>
-            <div className={styles.filterBox}>
-              {runners.map((runner) => {
-                const isChecked = selectedRunners.size === 0 || selectedRunners.has(runner.id);
-                return (
-                  <div key={runner.id} className={styles.filterLabel}>
-                    <label className={styles.checkbox}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
-                        aria-label={`Filter by ${runner.name}`}
-                      />
-                    </label>
-                    <span
-                      className={styles.filterText}
-                      onClick={() => handleRunnerToggle(runner.id, !isChecked)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleRunnerToggle(runner.id, !isChecked);
-                        }
-                      }}
-                    >
-                      {runner.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            {runners.length > 1 && (
+              <div className={styles.filterBox}>
+                {runners.map((runner) => {
+                  const isChecked = selectedRunners.has(runner.id);
+                  return (
+                    <div key={runner.id} className={styles.filterLabel}>
+                      <label className={styles.checkbox}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
+                          aria-label={`Filter by ${runner.name}`}
+                        />
+                      </label>
+                      <span
+                        className={styles.filterText}
+                        onClick={() => handleRunnerToggle(runner.id, !isChecked)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleRunnerToggle(runner.id, !isChecked);
+                          }
+                        }}
+                      >
+                        {runner.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {onAddRunner && (
+              <button
+                className={`${styles.sidebarItem} ${styles.addButton}`}
+                onClick={onAddRunner}
+                title="Add Runner"
+                aria-label="Add Runner"
+              >
+                <Plus size={16} aria-hidden="true" />
+                <span>+ Add Runner</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Manage section */}
+      {onManageRunners && (
+        <>
+          <div className={`${styles.sidebarHeader} ${styles.manageSectionSpacing}`}>
+            <h3>Manage</h3>
+          </div>
+          <div className={styles.filterContainer}>
+            <button
+              className={`${styles.sidebarItem} ${styles.manageButton}`}
+              onClick={onManageRunners}
+              title="Manage Runners"
+              aria-label="Manage Runners"
+            >
+              <Settings size={16} aria-hidden="true" />
+              <span>Runners</span>
+            </button>
           </div>
         </>
       )}
@@ -144,6 +174,8 @@ AppsSidebar.propTypes = {
   onSelectedRunnersChange: PropTypes.func.isRequired,
   totalOps: PropTypes.number.isRequired,
   updatesCount: PropTypes.number,
+  onAddRunner: PropTypes.func,
+  onManageRunners: PropTypes.func,
 };
 
 export default AppsSidebar;

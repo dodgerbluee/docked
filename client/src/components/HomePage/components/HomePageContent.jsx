@@ -317,7 +317,17 @@ const HomePageContent = ({
                 <>
                   {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
                   {activeTab === TAB_NAMES.APPS && (
-                    <AppsPage onAppsUpdatesChange={setAppsWithUpdates} />
+                    <AppsPage
+                      onAppsUpdatesChange={setAppsWithUpdates}
+                      onNavigateToRunners={() => {
+                        setActiveTab(TAB_NAMES.SETTINGS);
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.RUNNERS), 200);
+                          });
+                        });
+                      }}
+                    />
                   )}
                   {activeTab === TAB_NAMES.ANALYTICS && (
                     <AnalyticsPage portainerInstances={portainerInstances} />

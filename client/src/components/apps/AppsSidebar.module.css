@@ -289,3 +289,46 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   cursor: pointer;
   font-size: 0.9rem;
 }
+
+/* + Add Runner — dashed border affordance */
+.addButton {
+  border: 2px dashed var(--border-color) !important;
+  background: var(--bg-secondary) !important;
+  color: var(--text-tertiary) !important;
+  justify-content: center;
+  margin-top: 4px !important;
+}
+
+.addButton:hover {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-tertiary) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .addButton:hover {
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
+
+/* Manage section */
+.manageSectionSpacing {
+  margin-top: 28px;
+}
+
+.manageButton {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-secondary) !important;
+  justify-content: flex-start;
+}
+
+.manageButton:hover {
+  border-color: var(--dodger-blue) !important;
+  background: var(--bg-tertiary) !important;
+  color: var(--dodger-blue) !important;
+}
+
+body.dark-mode .manageButton:hover {
+  border-color: var(--dodger-blue-light) !important;
+  color: var(--dodger-blue-light) !important;
+}
