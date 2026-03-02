@@ -230,13 +230,7 @@ function App() {
     fetchTrackedApps,
     fetchContainers,
   });
-  const {
-    handleBatchPull,
-    handleBatchTrackedAppsCheck,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
-  } = batchProcessing;
+  const { handleBatchPull, handleBatchTrackedAppsCheck } = batchProcessing;
 
   // New Portainer instance handler - using custom hook
   const { handleNewInstanceDataFetch } = useNewPortainerInstance({
@@ -330,9 +324,6 @@ function App() {
     setSettingsTab,
     setError,
     setPullError,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
   });
   const {
     handleLoginWithNavigation,
@@ -367,7 +358,6 @@ function App() {
     setUnusedImages,
     setUnusedImagesCount,
     setTrackedApps,
-    batchIntervalRef,
     showAvatarMenu,
     showNotificationMenu,
     setShowAvatarMenu,

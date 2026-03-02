@@ -13,9 +13,6 @@ export function useEnhancedNavigation({
   setSettingsTab,
   setError,
   setPullError,
-  batchIntervalRef,
-  batchInitialTimeoutRef,
-  hasRunInitialPullRef,
 }) {
   const handleLoginWithNavigation = useCallback(
     (token, user, pwdChanged, role, isInstanceAdmin = false) => {
@@ -40,22 +37,8 @@ export function useEnhancedNavigation({
     setPullError(null);
     handleLogout();
     setActiveTab(TAB_NAMES.SUMMARY);
-    // Reset initial pull flag on logout
-    hasRunInitialPullRef.current = false;
-    // Clear any running intervals
-    if (batchIntervalRef.current) {
-      clearInterval(batchIntervalRef.current);
-      batchIntervalRef.current = null;
-    }
-    if (batchInitialTimeoutRef.current) {
-      clearTimeout(batchInitialTimeoutRef.current);
-      batchInitialTimeoutRef.current = null;
-    }
   }, [
     handleLogout,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
     setActiveTab,
     setError,
     setPullError,

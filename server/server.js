@@ -24,7 +24,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -56,7 +56,9 @@ logger.debug("Express app created", { module: "server" });
 
 // Trust proxy - required when running behind a reverse proxy (Docker, nginx, etc.)
 // This allows Express to correctly identify the client IP from X-Forwarded-For headers
-app.set("trust proxy", true);
+const shouldTrustProxy =
+  process.env.TRUST_PROXY === "true" || process.env.NODE_ENV === "production";
+app.set("trust proxy", shouldTrustProxy);
 
 // Security middleware configuration - must be defined before middleware
 // CSP is always enabled but uses a permissive policy in dev/localhost for Safari compatibility.
@@ -177,8 +179,8 @@ const oauthLimiter = rateLimit({
   message: { success: false, error: "Too many OAuth attempts, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use IP for rate limiting
-  keyGenerator: (req) => req.ip,
+  // Use IP for rate limiting (ipKeyGenerator normalizes IPv6 addresses)
+  keyGenerator: ipKeyGenerator,
   // Skip rate limiting for localhost in development
   skip: (req) => {
     if (process.env.NODE_ENV === "production") {

@@ -22,7 +22,6 @@ export function useAppInitialization({
   setUnusedImages,
   setUnusedImagesCount,
   setTrackedApps,
-  batchIntervalRef,
   showAvatarMenu,
   showNotificationMenu,
   setShowAvatarMenu,
@@ -67,11 +66,6 @@ export function useAppInitialization({
       setUnusedImages([]);
       setUnusedImagesCount(0);
       setTrackedApps([]);
-      // Clear batch interval on logout
-      if (batchIntervalRef.current) {
-        clearInterval(batchIntervalRef.current);
-        batchIntervalRef.current = null;
-      }
     }
   }, [
     isAuthenticated,
@@ -83,7 +77,6 @@ export function useAppInitialization({
     setUnusedImages,
     setUnusedImagesCount,
     setTrackedApps,
-    batchIntervalRef,
   ]);
 
   // Fetch Portainer instances and avatar on app load

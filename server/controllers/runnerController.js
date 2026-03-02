@@ -625,6 +625,7 @@ echo "==> Detected architecture: $ARCH"
 # Download binary
 DOWNLOAD_URL="https://github.com/dockedapp/dockhand/releases/download/v$DOCKHAND_VERSION/dockhand-linux-$ARCH"
 echo "==> Downloading from $DOWNLOAD_URL"
+mkdir -p "$INSTALL_DIR"
 curl -fsSL -o "$INSTALL_DIR/dockhand" "$DOWNLOAD_URL"
 chmod +x "$INSTALL_DIR/dockhand"
 

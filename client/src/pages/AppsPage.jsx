@@ -23,6 +23,11 @@ import { EnrollmentModal } from "../components/settings/RunnerTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import styles from "./AppsPage.module.css";
 
+// Module-level cache – survives unmount/remount so the tab renders instantly
+// on re-navigation instead of showing a loading spinner.
+let cachedRunners = null;
+let cachedApps = null;
+
 function appHasUpdate(app) {
   return (
     hasVersionUpdate(app.currentVersion, app.latestVersion) || app.systemUpdatesAvailable === true
@@ -335,10 +340,11 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const isMobile = useIsMobile();
 
-  // Data
-  const [runners, setRunners] = useState([]);
-  const [apps, setApps] = useState({}); // runnerId → app[]
-  const [loading, setLoading] = useState(true);
+  // Data – initialise from module-level cache when available
+  const hasCachedData = cachedRunners !== null;
+  const [runners, setRunners] = useState(cachedRunners || []);
+  const [apps, setApps] = useState(cachedApps || {}); // runnerId → app[]
+  const [loading, setLoading] = useState(!hasCachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [appErrors, setAppErrors] = useState({}); // runnerId → string
 
@@ -359,14 +365,22 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
       const runnerApps = data.apps || [];
-      setApps((prev) => ({ ...prev, [runner.id]: runnerApps }));
+      setApps((prev) => {
+        const next = { ...prev, [runner.id]: runnerApps };
+        cachedApps = next;
+        return next;
+      });
       setAppErrors((prev) => ({ ...prev, [runner.id]: null }));
     } catch (err) {
       setAppErrors((prev) => ({
         ...prev,
         [runner.id]: err.response?.data?.error || err.message,
       }));
-      setApps((prev) => ({ ...prev, [runner.id]: [] }));
+      setApps((prev) => {
+        const next = { ...prev, [runner.id]: [] };
+        cachedApps = next;
+        return next;
+      });
     }
   }, []);
 
@@ -379,6 +393,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
         const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
         const list = (data.runners || []).filter((r) => r.enabled !== 0);
         setRunners(list);
+        cachedRunners = list;
         await Promise.all(list.map(fetchAppsForRunner));
       } catch (err) {
         console.error("AppsPage: failed to fetch runners", err);
@@ -391,13 +406,32 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   );
 
   useEffect(() => {
-    fetchAll();
+    // If we have cached data, refresh silently in the background;
+    // otherwise do a full load (shows spinner).
+    fetchAll(hasCachedData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hasCachedData is captured once at mount
   }, [fetchAll]);
 
   // Refresh runner/app data every 5 minutes to pick up version updates
   useEffect(() => {
-    const id = setInterval(() => fetchAll(true), 5 * 60 * 1000);
-    return () => clearInterval(id);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchAll(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchAll(true);
+      }
+    }, 5 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(id);
+    };
   }, [fetchAll]);
 
   // Stable callback for EnrollmentModal so the polling effect doesn't re-fire

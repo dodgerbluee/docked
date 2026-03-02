@@ -165,6 +165,10 @@ const HomePageContent = ({
     const previousTab = previousTabRef.current;
     const currentTab = activeTab;
 
+    // Update ref unconditionally so the guard never re-fires due to a stale ref
+    // (e.g. when fetchContainers identity changes but the tab didn't)
+    previousTabRef.current = currentTab;
+
     // Only refresh if we're navigating TO Portainer or Summary (not FROM them)
     // This prevents unnecessary refreshes when already on those tabs
     if (
@@ -183,8 +187,6 @@ const HomePageContent = ({
         return () => clearTimeout(timeoutId);
       }
     }
-
-    previousTabRef.current = currentTab;
   }, [activeTab, fetchContainers]);
 
   // Mobile menu removed; avatar menu handles mobile options

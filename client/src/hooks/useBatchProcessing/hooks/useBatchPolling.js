@@ -135,7 +135,11 @@ export const useBatchPolling = ({
     };
 
     checkBatchRuns();
-    const interval = setInterval(checkBatchRuns, 5000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        checkBatchRuns();
+      }
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated, authToken, setLastPullTime, batchConfig, fetchContainers, fetchTrackedApps]);
