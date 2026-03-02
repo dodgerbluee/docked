@@ -921,7 +921,7 @@ async function initializeDatabase() {
         portainer_instance_name TEXT,
         container_id TEXT NOT NULL,
         container_name TEXT NOT NULL,
-        endpoint_id TEXT NOT NULL,
+        endpoint_id TEXT,
         portainer_url TEXT,
         old_image TEXT NOT NULL,
         new_image TEXT NOT NULL,

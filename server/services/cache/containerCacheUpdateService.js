@@ -17,11 +17,12 @@ const containerCacheService = require("./containerCacheService");
  * Updates the database cache with the new container digest.
  *
  * @param {number} userId - User ID
- * @param {string} portainerUrl - Portainer URL
+ * @param {string|null} portainerUrl - Portainer URL (null for runner backends)
  * @param {string} containerId - New container ID (after upgrade)
  * @param {string} containerName - Container name
  * @param {string} newDigest - New container digest
  * @param {Object} containerData - Additional container data
+ * @param {number} [containerData.runnerId] - Runner ID (for runner-backed containers)
  * @returns {Promise<void>}
  */
 async function updateCacheAfterUpgrade(
@@ -33,13 +34,20 @@ async function updateCacheAfterUpgrade(
   containerData = {}
 ) {
   try {
-    // Get Portainer instance
-    const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find((inst) => inst.url === portainerUrl);
+    const { runnerId } = containerData;
+    const isRunner = !!runnerId;
 
-    if (!instance) {
-      logger.warn("Portainer instance not found for cache update", { portainerUrl, containerId });
-      return;
+    let instanceId = null;
+    if (!isRunner) {
+      // Get Portainer instance
+      const instances = await getAllPortainerInstances(userId);
+      const instance = instances.find((inst) => inst.url === portainerUrl);
+
+      if (!instance) {
+        logger.warn("Portainer instance not found for cache update", { portainerUrl, containerId });
+        return;
+      }
+      instanceId = instance.id;
     }
 
     const cleanContainerName = containerName.replace("/", "");
@@ -49,10 +57,11 @@ async function updateCacheAfterUpgrade(
     try {
       await deleteOldContainersByName(
         userId,
-        instance.id,
+        instanceId,
         containerData.endpointId,
         cleanContainerName,
-        containerId
+        containerId,
+        runnerId || null
       );
     } catch (deleteError) {
       logger.warn("Error deleting old container records after upgrade:", deleteError);
@@ -62,7 +71,7 @@ async function updateCacheAfterUpgrade(
     // Update database cache with new container
     await upsertContainerWithVersion(
       userId,
-      instance.id,
+      instanceId,
       {
         containerId,
         containerName: cleanContainerName,
@@ -77,18 +86,19 @@ async function updateCacheAfterUpgrade(
         usesNetworkMode: containerData.usesNetworkMode || false,
         providesNetwork: containerData.providesNetwork || false,
       },
-      null // No version data update needed
+      null, // No version data update needed
+      runnerId || null
     );
 
     // Invalidate memory cache for this user/instance
-    containerCacheService.invalidateCache(userId, null, portainerUrl);
+    containerCacheService.invalidateCache(userId, null, portainerUrl || null);
 
     logger.info("Updated cache after container upgrade", {
       userId,
       containerId: containerId.substring(0, 12),
       containerName: cleanContainerName,
-      portainerUrl,
-      newDigest: newDigest.substring(0, 12),
+      ...(isRunner ? { runnerId } : { portainerUrl }),
+      newDigest: newDigest ? newDigest.substring(0, 12) : null,
     });
   } catch (error) {
     logger.error("Error updating cache after upgrade:", error);

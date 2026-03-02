@@ -240,6 +240,24 @@ body.dark-mode .addInstanceCard:hover .addInstanceIcon {
   border-top: 1px solid var(--border-color);
 }
 
+.disallowedSection {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.disallowedSection .sectionTitle {
+  margin-bottom: 8px;
+}
+
+.sectionDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+  max-width: 800px;
+}
+
 .dataManagement .sectionTitle {
   margin-bottom: 20px;
 }
@@ -586,6 +604,11 @@ body.dark-mode .saveButton:hover:not(:disabled) {
   }
 
   .intentsSection {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .disallowedSection {
     margin-top: 24px;
     padding-top: 20px;
   }

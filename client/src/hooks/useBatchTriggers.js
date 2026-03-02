@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import axios from "axios";
+import { API_BASE_URL } from "../utils/api";
 import { REFETCH_DELAY_MS } from "../constants/numbers";
 import { getErrorMessage } from "../utils/errorMessages";
 
@@ -9,6 +11,7 @@ import { getErrorMessage } from "../utils/errorMessages";
 export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refetch) {
   const [triggeringBatch, setTriggeringBatch] = useState(false);
   const [triggeringTrackedAppsBatch, setTriggeringTrackedAppsBatch] = useState(false);
+  const [triggeringAppVersionScanBatch, setTriggeringAppVersionScanBatch] = useState(false);
 
   // Handle batch trigger
   const handleTriggerBatch = useCallback(async () => {
@@ -54,10 +57,31 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
     }
   }, [onTriggerTrackedAppsBatch, refetch]);
 
+  // Handle app version scan batch trigger
+  const handleTriggerAppVersionScanBatch = useCallback(async () => {
+    setTriggeringAppVersionScanBatch(true);
+    try {
+      await axios.post(`${API_BASE_URL}/api/batch/trigger`, { jobType: "app-version-scan" });
+      setTimeout(() => {
+        if (refetch) {
+          refetch();
+        }
+      }, REFETCH_DELAY_MS);
+    } catch (err) {
+      console.error("Error triggering app version scan batch:", err);
+      const errorMessage = getErrorMessage("BATCH", "TRIGGER");
+      throw new Error(errorMessage);
+    } finally {
+      setTriggeringAppVersionScanBatch(false);
+    }
+  }, [refetch]);
+
   return {
     triggeringBatch,
     triggeringTrackedAppsBatch,
+    triggeringAppVersionScanBatch,
     handleTriggerBatch,
     handleTriggerTrackedAppsBatch,
+    handleTriggerAppVersionScanBatch,
   };
 }

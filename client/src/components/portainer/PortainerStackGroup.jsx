@@ -20,6 +20,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
   onToggleSelect,
   onUpgrade,
   developerModeEnabled = false,
+  getBlockedMessage,
 }) {
   const stackContainersWithUpdates = containers.filter((c) => c.hasUpdate);
   const stackContainersUpToDate = containers.filter((c) => !c.hasUpdate);
@@ -101,6 +102,7 @@ const PortainerStackGroup = React.memo(function PortainerStackGroup({
                 onToggleSelect={onToggleSelect}
                 onUpgrade={onUpgrade}
                 developerModeEnabled={developerModeEnabled}
+                disabledMessage={getBlockedMessage?.(container)}
               />
             );
           })}
@@ -121,6 +123,7 @@ PortainerStackGroup.propTypes = {
   onToggleStack: PropTypes.func.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,
+  getBlockedMessage: PropTypes.func,
 };
 
 PortainerStackGroup.displayName = "PortainerStackGroup";

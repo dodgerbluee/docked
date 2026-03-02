@@ -13,9 +13,11 @@ const { getDatabase, queueDatabaseOperation } = require("./connection");
  * @param {number} upgradeData.userId - User ID
  * @param {number} [upgradeData.portainerInstanceId] - Portainer instance ID
  * @param {string} [upgradeData.portainerInstanceName] - Portainer instance name
+ * @param {number} [upgradeData.runnerId] - Runner ID (for runner-backed containers)
+ * @param {string} [upgradeData.runnerName] - Runner name (for display)
  * @param {string} upgradeData.containerId - Container ID
  * @param {string} upgradeData.containerName - Container name
- * @param {string} upgradeData.endpointId - Endpoint ID
+ * @param {string} [upgradeData.endpointId] - Endpoint ID (null for runner containers)
  * @param {string} [upgradeData.portainerUrl] - Portainer URL
  * @param {string} upgradeData.oldImage - Old image name
  * @param {string} upgradeData.newImage - New image name
@@ -40,6 +42,8 @@ function createUpgradeHistory(upgradeData) {
         userId,
         portainerInstanceId,
         portainerInstanceName,
+        runnerId,
+        runnerName,
         containerId,
         containerName,
         endpointId,
@@ -59,12 +63,11 @@ function createUpgradeHistory(upgradeData) {
         upgradeDurationMs,
       } = upgradeData;
 
-      if (!userId || !containerId || !containerName || !endpointId || !oldImage || !newImage) {
+      if (!userId || !containerId || !containerName || !oldImage || !newImage) {
         const missingFields = [];
         if (!userId) missingFields.push("userId");
         if (!containerId) missingFields.push("containerId");
         if (!containerName) missingFields.push("containerName");
-        if (!endpointId) missingFields.push("endpointId");
         if (!oldImage) missingFields.push("oldImage");
         if (!newImage) missingFields.push("newImage");
         reject(
@@ -76,18 +79,21 @@ function createUpgradeHistory(upgradeData) {
       queueDatabaseOperation(() => {
         db.run(
           `INSERT INTO upgrade_history (
-          user_id, portainer_instance_id, portainer_instance_name, container_id, container_name,
-          endpoint_id, portainer_url, old_image, new_image, old_digest, new_digest,
+          user_id, portainer_instance_id, portainer_instance_name, runner_id, runner_name,
+          container_id, container_name, endpoint_id, portainer_url,
+          old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
             portainerInstanceId || null,
             portainerInstanceName || null,
+            runnerId || null,
+            runnerName || null,
             containerId,
             containerName,
-            String(endpointId), // Ensure endpointId is a string
+            endpointId ? String(endpointId) : null,
             portainerUrl || null,
             oldImage,
             newImage,
@@ -136,8 +142,10 @@ function getUpgradeHistory(userId, options = {}) {
       const { limit = 100, offset = 0, containerName, status } = options;
 
       let query = `
-        SELECT 
-          id, user_id, portainer_instance_id, portainer_instance_name, container_id, container_name,
+        SELECT
+          id, user_id, portainer_instance_id, portainer_instance_name,
+          runner_id, runner_name,
+          container_id, container_name,
           endpoint_id, portainer_url, old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms, created_at
@@ -188,8 +196,10 @@ function getUpgradeHistoryById(userId, upgradeId) {
 
       queueDatabaseOperation(() => {
         db.get(
-          `SELECT 
-          id, user_id, portainer_instance_id, portainer_instance_name, container_id, container_name,
+          `SELECT
+          id, user_id, portainer_instance_id, portainer_instance_name,
+          runner_id, runner_name,
+          container_id, container_name,
           endpoint_id, portainer_url, old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms, created_at

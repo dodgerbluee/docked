@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Container, Package, Circle, CheckCircle2, XCircle, User } from "lucide-react";
+import { Container, Package, Tag, Circle, CheckCircle2, XCircle, User } from "lucide-react";
 import {
   BATCH_JOB_TYPES,
   BATCH_JOB_TYPE_LABELS,
@@ -20,6 +20,8 @@ export const JobTypeBadge = React.memo(function JobTypeBadge({ jobType }) {
         return styles.jobTypeDockerHub;
       case BATCH_JOB_TYPES.TRACKED_APPS_CHECK:
         return styles.jobTypeTrackedApps;
+      case BATCH_JOB_TYPES.APP_VERSION_SCAN:
+        return styles.jobTypeAppVersionScan;
       default:
         return styles.jobTypeUnknown;
     }
@@ -30,6 +32,8 @@ export const JobTypeBadge = React.memo(function JobTypeBadge({ jobType }) {
       case BATCH_JOB_TYPES.DOCKER_HUB_PULL:
         return <Container size={14} className={styles.badgeIcon} />;
       case BATCH_JOB_TYPES.TRACKED_APPS_CHECK:
+        return <Tag size={14} className={styles.badgeIcon} />;
+      case BATCH_JOB_TYPES.APP_VERSION_SCAN:
         return <Package size={14} className={styles.badgeIcon} />;
       default:
         return null;

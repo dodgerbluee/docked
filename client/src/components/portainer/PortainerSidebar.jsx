@@ -137,7 +137,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
 
       {/* Instance Filter */}
       <div className={styles.sidebarHeader}>
-        <h3>Filter by Instance</h3>
+        <h3>Filter by Source</h3>
       </div>
       <div className={styles.filterContainer}>
         <div className={styles.filterBox}>
@@ -174,6 +174,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
                   }}
                 >
                   {instance.name}
+                  {instance.isRunner && <span className={styles.runnerBadge}>Runner</span>}
                 </span>
               </div>
             ))}

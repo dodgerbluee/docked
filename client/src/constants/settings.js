@@ -8,6 +8,7 @@ export const SETTINGS_TABS = {
   PASSWORD: "password",
   AVATAR: "avatar",
   PORTAINER: "portainer",
+  RUNNERS: "runners",
   TRACKED_APPS: "trackedapps",
   // DOCKERHUB removed - credentials no longer stored
   DISCORD: "discord",
@@ -22,7 +23,8 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.USERNAME]: "Username",
   [SETTINGS_TABS.PASSWORD]: "Password",
   [SETTINGS_TABS.AVATAR]: "Avatar",
-  [SETTINGS_TABS.PORTAINER]: "Portainer",
+  [SETTINGS_TABS.PORTAINER]: "Containers",
+  [SETTINGS_TABS.RUNNERS]: "Runners",
   [SETTINGS_TABS.TRACKED_APPS]: "Apps",
   // Docker Hub tab removed
   [SETTINGS_TABS.DISCORD]: "Notifications",
@@ -46,6 +48,7 @@ export const LOG_LEVELS = {
 export const BATCH_JOB_TYPES = {
   DOCKER_HUB_PULL: "docker-hub-pull",
   TRACKED_APPS_CHECK: "tracked-apps-check",
+  APP_VERSION_SCAN: "app-version-scan",
 };
 
 export const BATCH_INTERVAL_UNITS = {

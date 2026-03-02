@@ -220,7 +220,10 @@ function UpgradeHistoryTab() {
                     <XCircle size={20} className={styles.errorIcon} />
                   )}
                   <span className={styles.containerName}>{upgrade.container_name}</span>
-                  {upgrade.portainer_instance_name && (
+                  {upgrade.runner_name && (
+                    <span className={styles.instanceBadge}>{upgrade.runner_name}</span>
+                  )}
+                  {!upgrade.runner_name && upgrade.portainer_instance_name && (
                     <span className={styles.instanceBadge}>{upgrade.portainer_instance_name}</span>
                   )}
                 </div>

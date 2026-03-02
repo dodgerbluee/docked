@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { TAB_NAMES } from "../constants/apiConstants";
 
 /**
  * Custom hook for matching sidebar height to stacks container height
@@ -12,7 +13,7 @@ import { useEffect } from "react";
  */
 export const useSidebarHeight = (activeTab) => {
   useEffect(() => {
-    if (activeTab !== "portainer") return;
+    if (activeTab !== TAB_NAMES.PORTAINER) return;
 
     let isUpdating = false;
     let rafId = null;

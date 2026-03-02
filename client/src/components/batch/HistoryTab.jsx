@@ -30,12 +30,15 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
     error,
     triggeringBatch,
     triggeringTrackedAppsBatch,
+    triggeringAppVersionScanBatch,
     nextScheduledRunDockerHub,
     nextScheduledRunTrackedApps,
+    nextScheduledRunAppVersionScan,
     hasEnabledJobs,
     batchConfigs,
     handleTriggerBatch,
     handleTriggerTrackedAppsBatch,
+    handleTriggerAppVersionScanBatch,
   } = useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch);
 
   // Removed scroll listener - no longer needed with grid layout
@@ -56,6 +59,7 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
   const enabledJobsCount = [
     batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled,
     batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled,
+    batchConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled,
   ].filter(Boolean).length;
 
   // Pagination for run history
@@ -165,6 +169,16 @@ const HistoryTab = React.memo(function HistoryTab({ onTriggerBatch, onTriggerTra
                         lastRun={latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
                         isTriggering={triggeringTrackedAppsBatch}
                         onTrigger={handleTriggerTrackedAppsBatch}
+                      />
+                    )}
+                    {batchConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled && (
+                      <ScheduledRunRow
+                        jobType={BATCH_JOB_TYPES.APP_VERSION_SCAN}
+                        config={batchConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]}
+                        nextRunDate={nextScheduledRunAppVersionScan}
+                        lastRun={latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN]}
+                        isTriggering={triggeringAppVersionScanBatch}
+                        onTrigger={handleTriggerAppVersionScanBatch}
                       />
                     )}
                   </tbody>

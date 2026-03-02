@@ -94,20 +94,66 @@ function parseGitHubRepo(repoInput) {
 
 /**
  * Build GitHub API headers
+ * @param {boolean} [withToken=true] - Whether to include the auth token
  * @returns {Object} - Headers object
  */
-function buildGitHubHeaders() {
+function buildGitHubHeaders(withToken = true) {
   const headers = {
     Accept: "application/vnd.github.v3+json",
     "User-Agent": "Docked/1.0",
   };
 
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (githubToken) {
-    headers.Authorization = `token ${githubToken}`;
+  if (withToken) {
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (githubToken) {
+      headers.Authorization = `token ${githubToken}`;
+    }
   }
 
   return headers;
+}
+
+/**
+ * Check whether a 403 response is due to an org token policy rejection
+ * (not a rate limit). If so, the request should be retried without the token.
+ * @param {Object} response - Axios response object
+ * @returns {boolean}
+ */
+function isOrgPolicyRejection(response) {
+  if (response?.status !== 403) return false;
+  const msg = typeof response.data?.message === "string" ? response.data.message : "";
+  // GitHub org-policy rejections mention "organization" + "forbids" or "fine-grained"
+  return msg.includes("organization") && (msg.includes("forbids") || msg.includes("fine-grained"));
+}
+
+/**
+ * Make a GitHub API GET request with automatic retry on org-policy 403.
+ * If the token causes a 403 due to org restrictions, retries without it.
+ * @param {string} url - Full GitHub API URL
+ * @param {Object} [opts] - Additional axios options (timeout, etc.)
+ * @returns {Promise<Object>} - Axios response
+ */
+async function githubGet(url, opts = {}) {
+  const headers = buildGitHubHeaders(true);
+  const response = await axios.get(url, {
+    headers,
+    timeout: 10000,
+    validateStatus: (status) => status < 500,
+    ...opts,
+  });
+
+  // If the token triggered an org-policy 403, retry without it
+  if (isOrgPolicyRejection(response) && process.env.GITHUB_TOKEN) {
+    const retryHeaders = buildGitHubHeaders(false);
+    return axios.get(url, {
+      headers: retryHeaders,
+      timeout: 10000,
+      validateStatus: (status) => status < 500,
+      ...opts,
+    });
+  }
+
+  return response;
 }
 
 /**
@@ -119,13 +165,8 @@ function buildGitHubHeaders() {
  */
 async function tryAllReleasesEndpoint(owner, repo, cacheKey) {
   const allReleasesUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=10`;
-  const headers = buildGitHubHeaders();
 
-  const response = await axios.get(allReleasesUrl, {
-    headers,
-    timeout: 10000,
-    validateStatus: (status) => status < 500,
-  });
+  const response = await githubGet(allReleasesUrl);
 
   if (response.status === 200 && response.data?.length > 0) {
     const releases = response.data.filter((r) => !r.prerelease && !r.draft);
@@ -140,11 +181,6 @@ async function tryAllReleasesEndpoint(owner, repo, cacheKey) {
 }
 
 /**
- * Get latest release from GitHub repository
- * @param {string} repoInput - GitHub repo URL or owner/repo format
- * @returns {Promise<Object|null>} - Latest release info or null
- */
-/**
  * Handle GitHub API error
  * @param {Error} error - Error object
  * @param {string} owner - Repository owner
@@ -157,7 +193,7 @@ function handleGitHubError(error, owner, repo) {
   }
   if (error.response?.status === 403) {
     throw new Error(
-      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
+      "GitHub API rate limit or access restriction. Consider checking your GITHUB_TOKEN."
     );
   }
   throw new Error(`Failed to fetch GitHub releases: ${error.message}`);
@@ -172,14 +208,9 @@ function handleGitHubError(error, owner, repo) {
  */
 async function fetchLatestRelease(owner, repo, cacheKey) {
   const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
-  const headers = buildGitHubHeaders();
 
   try {
-    const response = await axios.get(latestUrl, {
-      headers,
-      timeout: 10000,
-      validateStatus: (status) => status < 500,
-    });
+    const response = await githubGet(latestUrl);
 
     if (response.status === 200 && response.data) {
       releaseCache.set(
@@ -199,7 +230,7 @@ async function fetchLatestRelease(owner, repo, cacheKey) {
   }
 }
 
-async function getLatestRelease(repoInput) {
+async function getLatestRelease(repoInput, { skipCache = false } = {}) {
   const repoInfo = parseGitHubRepo(repoInput);
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository format. Use owner/repo or full GitHub URL.");
@@ -208,9 +239,11 @@ async function getLatestRelease(repoInput) {
   const { owner, repo } = repoInfo;
   const cacheKey = `github:${owner}/${repo}`;
 
-  const cached = releaseCache.get(cacheKey);
-  if (cached?.releases?.length > 0) {
-    return cached.releases[0];
+  if (!skipCache) {
+    const cached = releaseCache.get(cacheKey);
+    if (cached?.releases?.length > 0) {
+      return cached.releases[0];
+    }
   }
 
   try {
@@ -218,30 +251,6 @@ async function getLatestRelease(repoInput) {
   } catch (error) {
     return handleGitHubError(error, owner, repo);
   }
-}
-
-/**
- * Get all releases from GitHub repository
- * @param {string} repoInput - GitHub repo URL or owner/repo format
- * @param {number} limit - Maximum number of releases to return (default: 10)
- * @returns {Promise<Array>} - Array of releases
- */
-/**
- * Build GitHub headers with optional token
- * @returns {Object} - Headers object
- */
-function buildGitHubHeadersWithToken() {
-  const headers = {
-    Accept: "application/vnd.github.v3+json",
-    "User-Agent": "Docked/1.0",
-  };
-
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (githubToken) {
-    headers.Authorization = `token ${githubToken}`;
-  }
-
-  return headers;
 }
 
 /**
@@ -268,7 +277,7 @@ function handleReleaseByTagError(error) {
   }
   if (error.response?.status === 403) {
     throw new Error(
-      "GitHub API rate limit exceeded. Consider setting GITHUB_TOKEN environment variable."
+      "GitHub API rate limit or access restriction. Consider checking your GITHUB_TOKEN."
     );
   }
   return null;
@@ -290,13 +299,8 @@ async function getAllReleases(repoInput, limit = 10) {
 
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=${limit}`;
-    const headers = buildGitHubHeadersWithToken();
 
-    const response = await axios.get(url, {
-      headers,
-      timeout: 10000,
-      validateStatus: (status) => status < 500,
-    });
+    const response = await githubGet(url);
 
     if (response.status === 200 && response.data) {
       return processAndCacheReleases(response.data, limit, cacheKey);
@@ -335,13 +339,8 @@ async function getReleaseByTag(repoInput, tagName) {
 
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tagName}`;
-    const headers = buildGitHubHeadersWithToken();
 
-    const response = await axios.get(url, {
-      headers,
-      timeout: 10000,
-      validateStatus: (status) => status < 500,
-    });
+    const response = await githubGet(url);
 
     if (response.status === 200 && response.data) {
       const release = response.data;
@@ -356,12 +355,94 @@ async function getReleaseByTag(repoInput, tagName) {
 }
 
 /**
+ * Find a release by tag, checking the cached "all releases" list first
+ * to avoid unnecessary API calls. Falls back to getReleaseByTag if not
+ * found in the cached list.
+ *
+ * This is the preferred method for looking up a specific version's release
+ * info (e.g. to get published_at) because it minimizes API calls.
+ *
+ * @param {string} repoInput - GitHub repo URL or owner/repo format
+ * @param {string} tagName - Tag/version name (e.g., 'v1.0.0')
+ * @returns {Promise<Object|null>} - Release info or null
+ */
+async function findReleaseByTag(repoInput, tagName) {
+  if (!tagName) {
+    return null;
+  }
+
+  // Normalize for comparison (case-insensitive, trim)
+  const normalizeTag = (t) => String(t).trim().toLowerCase();
+  const normalizedTarget = normalizeTag(tagName);
+  // Also prepare v-prefix variant for matching
+  const withV = normalizedTarget.startsWith("v") ? normalizedTarget : `v${normalizedTarget}`;
+  const withoutV = normalizedTarget.startsWith("v")
+    ? normalizedTarget.substring(1)
+    : normalizedTarget;
+
+  // Step 1: Check the per-tag cache (already populated by prior getReleaseByTag calls)
+  const repoInfo = parseGitHubRepo(repoInput);
+  if (!repoInfo) {
+    return null;
+  }
+  const { owner, repo } = repoInfo;
+
+  for (const variant of [normalizedTarget, withV, withoutV]) {
+    const tagCacheKey = `github:${owner}/${repo}:${variant}`;
+    const cachedTag = releaseCache.get(tagCacheKey);
+    if (cachedTag) {
+      return cachedTag;
+    }
+  }
+
+  // Step 2: Try to find in the "all releases" cache (or fetch it — 1 API call)
+  try {
+    const allReleases = await getAllReleases(repoInput, 10);
+    if (allReleases && allReleases.length > 0) {
+      const match = allReleases.find((r) => {
+        const rTag = normalizeTag(r.tag_name);
+        return rTag === normalizedTarget || rTag === withV || rTag === withoutV;
+      });
+      if (match) {
+        // Cache the found release under the requested tag key
+        const cacheKey = `github:${owner}/${repo}:${tagName}`;
+        releaseCache.set(cacheKey, match, RELEASE_CACHE_TTL);
+        return match;
+      }
+    }
+  } catch {
+    // Non-fatal — fall through to direct lookup
+  }
+
+  // Step 3: Tag not in recent releases — fall back to direct API call
+  // Try exact tag first, then v-prefix variants
+  let release = await getReleaseByTag(repoInput, tagName);
+  if (release) {
+    return release;
+  }
+
+  if (!tagName.startsWith("v")) {
+    release = await getReleaseByTag(repoInput, `v${tagName}`);
+  } else {
+    release = await getReleaseByTag(repoInput, tagName.substring(1));
+  }
+
+  // Cache negative result to avoid repeated lookups
+  if (!release) {
+    const negativeCacheKey = `github:${owner}/${repo}:${tagName}`;
+    releaseCache.set(negativeCacheKey, null, RELEASE_CACHE_TTL);
+  }
+
+  return release;
+}
+
+/**
  * Clear GitHub release cache
  */
 function clearReleaseCache() {
   releaseCache.clear();
   const logger = require("../utils/logger");
-  logger.info("🗑️ GitHub release cache cleared");
+  logger.info("GitHub release cache cleared");
 }
 
 module.exports = {
@@ -369,5 +450,6 @@ module.exports = {
   getLatestRelease,
   getAllReleases,
   getReleaseByTag,
+  findReleaseByTag,
   clearReleaseCache,
 };

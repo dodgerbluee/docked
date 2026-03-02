@@ -47,6 +47,10 @@ export const CONTAINER_STATUS = {
 export const PORTAINER_CONTAINER_MESSAGE =
   "Portainer cannot be upgraded automatically. It must be upgraded manually.";
 
+// Blocklisted container message
+export const BLOCKLISTED_CONTAINER_MESSAGE =
+  "This container is on the upgrade blocklist and cannot be upgraded. Manage the blocklist in Settings.";
+
 // Date formatting
 export const DEFAULT_TIMEZONE = "America/Chicago";
 export const DATE_FORMAT_OPTIONS = {

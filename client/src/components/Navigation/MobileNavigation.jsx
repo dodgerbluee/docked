@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from "react";
-import { MonitorSmartphone, BarChart3, Home, Package } from "lucide-react";
+import { MonitorSmartphone, BarChart3, Home, Layers, Cpu } from "lucide-react";
 import PropTypes from "prop-types";
 import { containerShape } from "../../utils/propTypes";
 import { TAB_NAMES } from "../../constants/apiConstants";
@@ -14,6 +14,7 @@ const MobileNavigation = ({
   onTabChange,
   containersWithUpdates = [],
   trackedAppsBehind = 0,
+  appsWithUpdates = 0,
   darkMode,
   instanceAdmin,
   onThemeToggle,
@@ -45,11 +46,11 @@ const MobileNavigation = ({
         <button
           className={`${styles.navItem} ${activeTab === TAB_NAMES.PORTAINER ? styles.active : ""}`}
           onClick={() => handleTabChange(TAB_NAMES.PORTAINER)}
-          aria-label={`Portainer${containersWithUpdates.length > 0 ? `, ${containersWithUpdates.length} updates` : ""}`}
+          aria-label={`Containers${containersWithUpdates.length > 0 ? `, ${containersWithUpdates.length} updates` : ""}`}
           aria-current={activeTab === TAB_NAMES.PORTAINER ? "page" : undefined}
         >
-          <Package size={20} aria-hidden="true" />
-          <span className={styles.navLabel}>Portainer</span>
+          <Layers size={20} aria-hidden="true" />
+          <span className={styles.navLabel}>Containers</span>
           {containersWithUpdates.length > 0 && (
             <span className={styles.navBadge} aria-hidden="true">
               {containersWithUpdates.length}
@@ -58,13 +59,28 @@ const MobileNavigation = ({
         </button>
 
         <button
+          className={`${styles.navItem} ${activeTab === TAB_NAMES.APPS ? styles.active : ""}`}
+          onClick={() => handleTabChange(TAB_NAMES.APPS)}
+          aria-label={`Apps${appsWithUpdates > 0 ? `, ${appsWithUpdates} updates` : ""}`}
+          aria-current={activeTab === TAB_NAMES.APPS ? "page" : undefined}
+        >
+          <Cpu size={20} aria-hidden="true" />
+          <span className={styles.navLabel}>Apps</span>
+          {appsWithUpdates > 0 && (
+            <span className={styles.navBadge} aria-hidden="true">
+              {appsWithUpdates}
+            </span>
+          )}
+        </button>
+
+        <button
           className={`${styles.navItem} ${activeTab === TAB_NAMES.TRACKED_APPS ? styles.active : ""}`}
           onClick={() => handleTabChange(TAB_NAMES.TRACKED_APPS)}
-          aria-label={`Apps${trackedAppsBehind > 0 ? `, ${trackedAppsBehind} behind` : ""}`}
+          aria-label={`Repos${trackedAppsBehind > 0 ? `, ${trackedAppsBehind} behind` : ""}`}
           aria-current={activeTab === TAB_NAMES.TRACKED_APPS ? "page" : undefined}
         >
           <MonitorSmartphone size={20} aria-hidden="true" />
-          <span className={styles.navLabel}>Apps</span>
+          <span className={styles.navLabel}>Repos</span>
           {trackedAppsBehind > 0 && (
             <span className={styles.navBadge} aria-hidden="true">
               {trackedAppsBehind}
@@ -94,6 +110,7 @@ MobileNavigation.propTypes = {
   activeTab: PropTypes.oneOf([
     TAB_NAMES.SUMMARY,
     TAB_NAMES.PORTAINER,
+    TAB_NAMES.APPS,
     TAB_NAMES.TRACKED_APPS,
     TAB_NAMES.INTENTS,
     TAB_NAMES.ANALYTICS,
@@ -105,6 +122,7 @@ MobileNavigation.propTypes = {
   onTabChange: PropTypes.func.isRequired,
   containersWithUpdates: PropTypes.arrayOf(containerShape),
   trackedAppsBehind: PropTypes.number,
+  appsWithUpdates: PropTypes.number,
   darkMode: PropTypes.bool,
   instanceAdmin: PropTypes.bool,
   onThemeToggle: PropTypes.func,

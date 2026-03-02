@@ -1,0 +1,318 @@
+/**
+ * RunnerDetailModal Styles
+ * Follows InstanceDetailModal footer pattern
+ */
+
+/* ==========================================
+   Modal Layout
+   ========================================== */
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ==========================================
+   Detail Section
+   ========================================== */
+
+.detailSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+.detailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.detailValue {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+/* Status badge */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.statusOnline {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+body.dark-mode .statusOnline {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.statusOffline {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--text-error, #ef4444);
+}
+
+body.dark-mode .statusOffline {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.statusChecking {
+  background: rgba(156, 163, 175, 0.12);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Version badge */
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-family: monospace;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.versionBadge:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+/* Docker badge */
+.dockerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dockerConnected {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+body.dark-mode .dockerConnected {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.dockerUnavailable {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--text-error, #ef4444);
+}
+
+body.dark-mode .dockerUnavailable {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+/* Update banner inside detail modal */
+.updateBanner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #f59e0b;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.updateBannerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 5px;
+  color: #f59e0b;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.updateBannerBtn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.updateBannerBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Check for updates button */
+.checkUpdatesBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: rgba(30, 144, 255, 0.08);
+  border: 1px solid rgba(30, 144, 255, 0.25);
+  border-radius: 8px;
+  color: var(--dodger-blue);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  margin-top: 4px;
+}
+
+.checkUpdatesBtn:hover:not(:disabled) {
+  background: rgba(30, 144, 255, 0.15);
+  border-color: var(--dodger-blue);
+}
+
+.checkUpdatesBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.dark-mode .checkUpdatesBtn {
+  background: rgba(30, 136, 229, 0.12);
+  border-color: rgba(30, 136, 229, 0.3);
+  color: var(--dodger-blue-light);
+}
+
+body.dark-mode .checkUpdatesBtn:hover:not(:disabled) {
+  background: rgba(30, 136, 229, 0.22);
+  border-color: var(--dodger-blue-light);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+/* ==========================================
+   Footer
+   ========================================== */
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.footerRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.editButton {
+  background: var(--bg-secondary);
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 2px dashed var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.editButton:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.editButton:hover .editButtonIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .editButton:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .editButton:hover .editButtonIcon {
+  color: var(--dodger-blue-light);
+}
+
+.editButtonIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.editButtonText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ==========================================
+   Responsive
+   ========================================== */
+
+@media (max-width: 768px) {
+  .footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footer > button {
+    width: 100%;
+  }
+
+  .footerRight {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .footerRight > * {
+    flex: 1;
+  }
+
+  .editButton {
+    flex: 1;
+    justify-content: center;
+  }
+}

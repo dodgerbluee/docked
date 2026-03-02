@@ -86,13 +86,19 @@ export const usePortainerUpgrade = ({
     async (container) => {
       setUpgrading((prev) => ({ ...prev, [container.id]: true }));
       try {
+        // Runner containers supply runnerId; Portainer containers supply portainerUrl + endpointId.
+        const upgradeBody =
+          container.source === "runner" || container.runnerId
+            ? { imageName: container.image, runnerId: container.runnerId }
+            : {
+                endpointId: container.endpointId,
+                imageName: container.image,
+                portainerUrl: container.portainerUrl,
+              };
+
         const response = await axios.post(
           `${API_BASE_URL}/api/containers/${container.id}/upgrade`,
-          {
-            endpointId: container.endpointId,
-            imageName: container.image,
-            portainerUrl: container.portainerUrl,
-          }
+          upgradeBody
         );
         if (response.data.success) {
           successfullyUpdatedContainersRef.current.add(container.id);

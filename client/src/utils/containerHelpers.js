@@ -22,24 +22,32 @@ export const isPortainerContainer = (container) => {
  */
 export const buildContainersByPortainer = (containers) => {
   return containers.reduce((acc, container) => {
-    const portainerUrl = container.portainerUrl || "Unknown";
-    const portainerName = container.portainerName || portainerUrl || "Unknown";
+    let key, name;
+    if (container.source === "runner") {
+      key = `runner:${container.runnerId}`;
+      name = container.runnerName || "Runner";
+    } else {
+      key = container.portainerUrl || "Unknown";
+      name = container.portainerName || key;
+    }
 
-    if (!acc[portainerUrl]) {
-      acc[portainerUrl] = {
-        name: portainerName,
-        url: portainerUrl,
+    if (!acc[key]) {
+      acc[key] = {
+        name,
+        url: key,
+        isRunner: container.source === "runner",
+        runnerId: container.runnerId || null,
         containers: [],
         withUpdates: [],
         upToDate: [],
       };
     }
-    acc[portainerUrl].containers.push(container);
+    acc[key].containers.push(container);
     // Compute hasUpdate on-the-fly
     if (computeHasUpdate(container)) {
-      acc[portainerUrl].withUpdates.push(container);
+      acc[key].withUpdates.push(container);
     } else {
-      acc[portainerUrl].upToDate.push(container);
+      acc[key].upToDate.push(container);
     }
     return acc;
   }, {});

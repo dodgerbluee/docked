@@ -50,7 +50,7 @@ const PortainerHeader = ({
     <div className={styles.summaryHeader}>
       <div className={styles.headerContent}>
         <h2 className={styles.portainerHeader}>
-          <span className="sr-only">Portainer Containers</span>
+          <span className="sr-only">Containers</span>
         </h2>
         <div className={styles.headerLeft}>
           <div className={styles.desktopOnly}>
