@@ -87,37 +87,37 @@ const AppsSidebar = memo(function AppsSidebar({
             <h3>Filter by Runner</h3>
           </div>
           <div className={styles.filterContainer}>
-              <div className={styles.filterBox}>
-                {runners.map((runner) => {
-                  const isChecked = selectedRunners.has(runner.id);
-                  return (
-                    <div key={runner.id} className={styles.filterLabel}>
-                      <label className={styles.checkbox}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
-                          aria-label={`Filter by ${runner.name}`}
-                        />
-                      </label>
-                      <span
-                        className={styles.filterText}
-                        onClick={() => handleRunnerToggle(runner.id, !isChecked)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            handleRunnerToggle(runner.id, !isChecked);
-                          }
-                        }}
-                      >
-                        {runner.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className={styles.filterBox}>
+              {runners.map((runner) => {
+                const isChecked = selectedRunners.has(runner.id);
+                return (
+                  <div key={runner.id} className={styles.filterLabel}>
+                    <label className={styles.checkbox}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
+                        aria-label={`Filter by ${runner.name}`}
+                      />
+                    </label>
+                    <span
+                      className={styles.filterText}
+                      onClick={() => handleRunnerToggle(runner.id, !isChecked)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleRunnerToggle(runner.id, !isChecked);
+                        }
+                      }}
+                    >
+                      {runner.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

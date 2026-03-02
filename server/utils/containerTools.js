@@ -23,10 +23,7 @@ const execFileAsync = promisify(execFile);
 const IMAGE_REF_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._\-/:@]+$/;
 const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.CONTAINER_TOOL_TIMEOUT_MS || "30000", 10);
 const DEFAULT_MAX_BUFFER = 1024 * 1024;
-const DEFAULT_MAX_ATTEMPTS = Number.parseInt(
-  process.env.CONTAINER_TOOL_MAX_ATTEMPTS || "3",
-  10
-);
+const DEFAULT_MAX_ATTEMPTS = Number.parseInt(process.env.CONTAINER_TOOL_MAX_ATTEMPTS || "3", 10);
 const AUTH_FAILURE_COOLDOWN_MS = Number.parseInt(
   process.env.CONTAINER_TOOL_AUTH_BACKOFF_MS || `${60 * 1000}`,
   10
@@ -100,10 +97,7 @@ function delay(ms) {
 }
 
 function combineErrorOutput(error) {
-  return [error.stderr, error.stdout, error.message]
-    .filter(Boolean)
-    .join("\n")
-    .trim();
+  return [error.stderr, error.stdout, error.message].filter(Boolean).join("\n").trim();
 }
 
 function sanitizeErrorSnippet(error) {
@@ -135,12 +129,7 @@ function extractRegistryHost(imageRef) {
 
 function getsPossibleAuthKeys(host) {
   const normalized = host.toLowerCase();
-  const keys = new Set([
-    normalized,
-    `https://${normalized}`,
-    `http://${normalized}`,
-    host,
-  ]);
+  const keys = new Set([normalized, `https://${normalized}`, `http://${normalized}`, host]);
   if (normalized === "docker.io" || normalized === "registry-1.docker.io") {
     keys.add("https://index.docker.io/v1/");
     keys.add("index.docker.io");
@@ -327,7 +316,12 @@ function classifyToolError(error) {
   return { type: "unknown", message: sanitizeErrorSnippet(error) };
 }
 
-async function runCommandWithRetries(command, args, execOptions, maxAttempts = DEFAULT_MAX_ATTEMPTS) {
+async function runCommandWithRetries(
+  command,
+  args,
+  execOptions,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS
+) {
   let attempt = 0;
   let lastError;
   while (attempt < maxAttempts) {
@@ -549,7 +543,11 @@ async function getImageDigest(imageRef, options = {}) {
     );
   }
 
-  if (!failure && !(await isCommandAvailable(process.env.CRANE_BINARY || "crane")) && !(await isCommandAvailable(process.env.SKOPEO_BINARY || "skopeo"))) {
+  if (
+    !failure &&
+    !(await isCommandAvailable(process.env.CRANE_BINARY || "crane")) &&
+    !(await isCommandAvailable(process.env.SKOPEO_BINARY || "skopeo"))
+  ) {
     logger.warn(
       `[containerTools] Neither crane nor skopeo is available. Please install one of them.`
     );

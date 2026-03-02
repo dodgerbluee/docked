@@ -12,7 +12,7 @@ import { API_BASE_URL } from "../constants/api";
 import { useIsMobile } from "../hooks/useIsMobile";
 import ErrorBoundary from "../components/ErrorBoundary";
 import MobileDrawer from "../components/ui/MobileDrawer";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import AppsPageSkeleton from "../components/apps/AppsPageSkeleton";
 import Button from "../components/ui/Button";
 import SearchInput from "../components/ui/SearchInput";
 import RunOperationModal from "../components/ui/RunOperationModal";
@@ -336,7 +336,11 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 
 /* ── AppsPage ──────────────────────────────────────────────────────────── */
 
-export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners, onNavigateToIntents }) {
+export default function AppsPage({
+  onAppsUpdatesChange,
+  onNavigateToRunners,
+  onNavigateToIntents,
+}) {
   const isMobile = useIsMobile();
 
   // Data – initialise from module-level cache when available
@@ -420,11 +424,14 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners, onN
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchAll(true);
-      }
-    }, 5 * 60 * 1000);
+    const id = setInterval(
+      () => {
+        if (document.visibilityState === "visible") {
+          fetchAll(true);
+        }
+      },
+      5 * 60 * 1000
+    );
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -630,7 +637,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners, onN
 
   const renderContent = () => {
     if (loading) {
-      return <LoadingSpinner size="md" message="Loading apps..." />;
+      return <AppsPageSkeleton />;
     }
 
     if (enabledRunners.length === 0) {

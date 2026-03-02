@@ -441,6 +441,8 @@ async function getContainersFromPortainer(userId = null) {
   }
 
   // Fetch containers from all Portainer instances
+  // OPTIMIZED: Also compute unused images count inline to avoid re-authenticating
+  let totalUnusedImagesCount = 0;
   const allContainersForInstances = await Promise.all(
     portainerInstances.map(async (instance) => {
       const portainerUrl = instance.url;
@@ -466,15 +468,26 @@ async function getContainersFromPortainer(userId = null) {
         }
 
         const endpointId = endpoints[0].Id;
-        const containers = await portainerService.getContainers(portainerUrl, endpointId);
+
+        // Fetch containers and images in parallel (both already authenticated)
+        const [containers, images] = await Promise.all([
+          portainerService.getContainers(portainerUrl, endpointId),
+          portainerService.getImages(portainerUrl, endpointId),
+        ]);
 
         // Detect network mode relationships
+        // OPTIMIZED: detectNetworkModes now reads HostConfig.NetworkMode directly
+        // from the container list data — no per-container API calls needed
 
         const { containerNetworkModes } = await networkModeService.detectNetworkModes(
           containers,
           portainerUrl,
           endpointId
         );
+
+        // Shared image details cache to deduplicate getImageDetails calls
+        // Multiple containers often share the same image, so we cache by imageId
+        const imageDetailsCache = new Map();
 
         const containersBasic = await Promise.all(
           containers.map(async (container) => {
@@ -487,6 +500,7 @@ async function getContainersFromPortainer(userId = null) {
                 instanceName,
                 containerNetworkModes,
                 userId,
+                imageDetailsCache,
               });
             } catch (error) {
               logger.error(`Error processing container ${container.Id}:`, { error });
@@ -494,6 +508,29 @@ async function getContainersFromPortainer(userId = null) {
             }
           })
         );
+
+        // Compute unused images count inline using already-fetched data
+        // Use ImageID from container list (no per-container detail calls needed)
+        const usedImageIds = new Set();
+        const normalizeImageId = (id) => {
+          const cleanId = id.replace(/^sha256:/, "");
+          return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
+        };
+        for (const container of containers) {
+          if (container.ImageID) {
+            usedImageIds.add(container.ImageID);
+            usedImageIds.add(normalizeImageId(container.ImageID));
+          }
+        }
+        let instanceUnusedCount = 0;
+        for (const image of images) {
+          const imageIdNormalized = normalizeImageId(image.Id);
+          const isUsed = usedImageIds.has(image.Id) || usedImageIds.has(imageIdNormalized);
+          if (!isUsed) {
+            instanceUnusedCount++;
+          }
+        }
+        totalUnusedImagesCount += instanceUnusedCount;
 
         // Filter out null results
         const validContainers = containersBasic.filter((c) => c !== null);
@@ -528,9 +565,8 @@ async function getContainersFromPortainer(userId = null) {
     "Unstacked"
   );
 
-  // Get unused images count
-  const unusedImages = await getUnusedImages(userId);
-  const unusedImagesCount = unusedImages.length;
+  // Unused images count was computed inline during the instance loop above
+  const unusedImagesCount = totalUnusedImagesCount;
 
   // Group containers by Portainer instance
   const portainerInstancesArray = containerGroupingService
@@ -598,10 +634,15 @@ async function getUnusedImages(userId = null) {
         }
 
         const endpointId = endpoints[0].Id;
-        const images = await portainerService.getImages(portainerUrl, endpointId);
-        const containers = await portainerService.getContainers(portainerUrl, endpointId);
 
-        // Get all used image IDs
+        // Fetch images and containers in parallel (already authenticated)
+        const [images, containers] = await Promise.all([
+          portainerService.getImages(portainerUrl, endpointId),
+          portainerService.getContainers(portainerUrl, endpointId),
+        ]);
+
+        // OPTIMIZED: Use ImageID from container list response instead of calling
+        // getContainerDetails per container. The list API already includes ImageID.
         const usedIds = new Set();
         const normalizeImageId = (id) => {
           const cleanId = id.replace(/^sha256:/, "");
@@ -609,14 +650,9 @@ async function getUnusedImages(userId = null) {
         };
 
         for (const container of containers) {
-          const details = await portainerService.getContainerDetails(
-            portainerUrl,
-            endpointId,
-            container.Id
-          );
-          if (details.Image) {
-            usedIds.add(details.Image);
-            usedIds.add(normalizeImageId(details.Image));
+          if (container.ImageID) {
+            usedIds.add(container.ImageID);
+            usedIds.add(normalizeImageId(container.ImageID));
           }
         }
 

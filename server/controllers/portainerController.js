@@ -13,6 +13,7 @@ const {
 } = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
 const portainerService = require("../services/portainerService");
+const { isAuthFresh } = require("../services/portainer/authService");
 const logger = require("../utils/logger");
 const { resolveUrlToIp } = require("../utils/dnsResolver");
 
@@ -539,6 +540,12 @@ async function healthCheckInstance(req, res, next) {
     }
 
     try {
+      // Short-TTL optimisation: if we authenticated successfully < 60 s ago,
+      // skip the full re-auth round-trip and return online immediately.
+      if (isAuthFresh(instance.url)) {
+        return res.json({ success: true, online: true });
+      }
+
       await portainerService.authenticatePortainer({
         userId,
         portainerUrl: instance.url,
@@ -547,9 +554,7 @@ async function healthCheckInstance(req, res, next) {
       });
       return res.json({ success: true, online: true });
     } catch (err) {
-      logger.warn(
-        `Portainer instance "${instance.name}" health check failed: ${err.message}`
-      );
+      logger.warn(`Portainer instance "${instance.name}" health check failed: ${err.message}`);
       return res.json({ success: true, online: false, error: err.message });
     }
   } catch (error) {

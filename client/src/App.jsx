@@ -195,6 +195,7 @@ function App() {
     portainerInstancesLoading,
     loadingInstances,
     dockerHubDataPulled,
+    dataFetched,
     setContainers,
     setStacks,
     setError,
@@ -601,6 +602,7 @@ function App() {
               containersByPortainer={containersByPortainer}
               loadingInstances={loadingInstances}
               dockerHubDataPulled={dockerHubDataPulled}
+              dataFetched={dataFetched}
               lastPullTime={lastPullTime}
               successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
               portainerInstancesFromAPI={portainerInstancesFromAPI}

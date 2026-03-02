@@ -302,11 +302,7 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
             onClick={handleConfirm}
             disabled={busy}
           >
-            {busy ? (
-              <Loader size={13} className={runnerStyles.spinIcon} />
-            ) : (
-              <Trash2 size={13} />
-            )}
+            {busy ? <Loader size={13} className={runnerStyles.spinIcon} /> : <Trash2 size={13} />}
             {busy
               ? uninstall
                 ? "Uninstalling..."
@@ -494,7 +490,32 @@ const SourcesTab = React.memo(function SourcesTab({
   if (runner.loading) {
     return (
       <div className={styles.wrapper}>
-        <LoadingSpinner size="md" message="Loading sources..." />
+        {/* Skeleton title + description */}
+        <div className={`${styles.skeletonShimmer} ${styles.skeletonTitle}`} />
+        <div className={`${styles.skeletonShimmer} ${styles.skeletonDesc}`} />
+
+        {/* Skeleton section header */}
+        <div className={`${styles.skeletonShimmer} ${styles.skeletonSectionTitle}`} />
+
+        {/* Skeleton cards grid */}
+        <div className={styles.skeletonGrid}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className={styles.skeletonCard}>
+              <div className={styles.skeletonCardHeader}>
+                <div className={`${styles.skeletonShimmer} ${styles.skeletonCardLogo}`} />
+                <div className={styles.skeletonCardMeta}>
+                  <div className={`${styles.skeletonShimmer} ${styles.skeletonCardName}`} />
+                  <div className={`${styles.skeletonShimmer} ${styles.skeletonCardUrl}`} />
+                </div>
+                <div className={`${styles.skeletonShimmer} ${styles.skeletonCardStatus}`} />
+              </div>
+              <div className={styles.skeletonBadges}>
+                <div className={`${styles.skeletonShimmer} ${styles.skeletonBadge}`} />
+                <div className={`${styles.skeletonShimmer} ${styles.skeletonBadge}`} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -546,9 +567,7 @@ const SourcesTab = React.memo(function SourcesTab({
                         {phs.online ? "Online" : "Offline"}
                       </span>
                     )}
-                    {phs?.checking && (
-                      <span className={styles.statusChecking}>Checking...</span>
-                    )}
+                    {phs?.checking && <span className={styles.statusChecking}>Checking...</span>}
                   </div>
                 </div>
 
@@ -673,10 +692,7 @@ const SourcesTab = React.memo(function SourcesTab({
           {/* Intents Section */}
           <div className={styles.intentsSection}>
             <Suspense fallback={<LoadingSpinner size="sm" message="Loading intents..." />}>
-              <IntentsPage
-                containers={containers}
-                portainerInstances={portainerInstancesProp}
-              />
+              <IntentsPage containers={containers} portainerInstances={portainerInstancesProp} />
             </Suspense>
           </div>
 

@@ -41,7 +41,7 @@ export function useAppInitialization({
       // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
       // Only fetch once on initial mount
       initialFetchDoneRef.current = true;
-      fetchContainers(false); // false = don't show loading, just load data (cache or Portainer)
+      fetchContainers(true); // true = show loading skeleton on cold cache (guard in useContainersData only fires when containers empty + not yet fetched)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -56,6 +56,7 @@ export function useAppInitialization({
   useEffect(() => {
     if (!isAuthenticated) {
       initialFetchDoneRef.current = false;
+      secondaryFetchDoneRef.current = false;
       setDataFetched(false);
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
@@ -79,22 +80,20 @@ export function useAppInitialization({
     setTrackedApps,
   ]);
 
-  // Fetch Portainer instances and avatar on app load
+  // Fetch Portainer instances and avatar on app load (once only)
+  const secondaryFetchDoneRef = useRef(false);
   useEffect(() => {
-    if (isAuthenticated && authToken) {
+    if (isAuthenticated && authToken && !secondaryFetchDoneRef.current) {
+      secondaryFetchDoneRef.current = true;
       fetchPortainerInstances();
       fetchAvatar();
       fetchRecentAvatars();
-      fetchTrackedApps();
+      // Note: fetchTrackedApps is NOT called here because useTrackedApps
+      // already auto-fetches on mount via its own useEffect. Calling it
+      // here would cause a duplicate API request.
     }
-  }, [
-    isAuthenticated,
-    authToken,
-    fetchPortainerInstances,
-    fetchAvatar,
-    fetchRecentAvatars,
-    fetchTrackedApps,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, authToken]);
 
   // Close avatar menu and notification menu when clicking outside
   useEffect(() => {

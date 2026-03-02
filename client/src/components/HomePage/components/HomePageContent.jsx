@@ -49,6 +49,7 @@ const HomePageContent = ({
   containersByPortainer,
   loadingInstances,
   dockerHubDataPulled,
+  dataFetched,
   lastPullTime,
   successfullyUpdatedContainersRef,
   selectedPortainerInstances,
@@ -109,11 +110,13 @@ const HomePageContent = ({
         onSetSelectedPortainerInstances={setSelectedPortainerInstances}
         onSetContentTab={setContentTab}
         isLoading={isLoading}
+        dataFetched={dataFetched}
         onAddInstance={openModal}
       />
     );
   }, [
     loading,
+    dataFetched,
     containers,
     portainerInstances,
     unusedImages,
@@ -151,6 +154,9 @@ const HomePageContent = ({
 
   // Track previous tab to detect navigation
   const previousTabRef = useRef(activeTab);
+  // Track last fetchContainers time to avoid re-fetching on rapid tab switches
+  const lastContainerFetchRef = useRef(0);
+  const MIN_FETCH_INTERVAL_MS = 30000; // 30 seconds minimum between tab-switch fetches
 
   // Scroll to top on tab change (important for mobile UX)
   useEffect(() => {
@@ -175,12 +181,19 @@ const HomePageContent = ({
       previousTab !== currentTab &&
       (currentTab === TAB_NAMES.PORTAINER || currentTab === TAB_NAMES.SUMMARY)
     ) {
+      // Skip if we fetched recently (e.g. user switching tabs rapidly)
+      const now = Date.now();
+      if (now - lastContainerFetchRef.current < MIN_FETCH_INTERVAL_MS) {
+        return;
+      }
+
       // Refresh containers with update status re-evaluation
       // This fetches fresh data from Portainer and re-checks if updates are still needed
       if (fetchContainers) {
         // Use a small delay to avoid refreshing too frequently during rapid navigation
         // But don't delay too much - we want fresh data quickly
         const timeoutId = setTimeout(() => {
+          lastContainerFetchRef.current = Date.now();
           fetchContainers(false, null, true, true); // showLoading=false, instanceUrl=null, portainerOnly=true, refreshUpdates=true
         }, 100); // Reduced delay from 300ms to 100ms for faster refresh
 
@@ -302,100 +315,95 @@ const HomePageContent = ({
             />
           ) : (
             <>
-              {loading && containers.length === 0 && !pulling && (
-                <div className="loading">Loading containers...</div>
+              {/* Only show container-fetch errors on tabs that use container data */}
+              {(activeTab === TAB_NAMES.SUMMARY || activeTab === TAB_NAMES.PORTAINER) && (
+                <RateLimitError
+                  error={error}
+                  onDismiss={() => setError(null)}
+                  onRetry={handlePull}
+                  pulling={pulling}
+                  loading={loading}
+                />
               )}
 
-              <RateLimitError
-                error={error}
-                onDismiss={() => setError(null)}
-                onRetry={handlePull}
-                pulling={pulling}
-                loading={loading}
-              />
-
-              {!loading && (
-                <>
-                  {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-                  {activeTab === TAB_NAMES.APPS && (
-                    <AppsPage
-                      onAppsUpdatesChange={setAppsWithUpdates}
-                      onNavigateToRunners={() => {
-                        setActiveTab(TAB_NAMES.SETTINGS);
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
-                          });
-                        });
-                      }}
-                      onNavigateToIntents={() => {
-                        setActiveTab(TAB_NAMES.SETTINGS);
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
-                          });
-                        });
-                      }}
-                    />
-                  )}
-                  {activeTab === TAB_NAMES.ANALYTICS && (
-                    <AnalyticsPage portainerInstances={portainerInstances} />
-                  )}
-                  {activeTab === TAB_NAMES.PORTAINER && (
-                    <PortainerPage
-                      portainerInstances={portainerInstances}
-                      containers={containers}
-                      unusedImages={unusedImages}
-                      unusedImagesCount={unusedImagesCount}
-                      containersByPortainer={containersByPortainer}
-                      loadingInstances={loadingInstances}
-                      dockerHubDataPulled={dockerHubDataPulled}
-                      lastPullTime={lastPullTime}
-                      successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-                      onContainersUpdate={setContainers}
-                      onUnusedImagesUpdate={setUnusedImages}
-                      onUnusedImagesCountUpdate={setUnusedImagesCount}
-                      onAddInstance={openModal}
-                      onPullDockerHub={handlePull}
-                      pullingDockerHub={pulling}
-                      pullError={pullError}
-                      pullSuccess={pullSuccess}
-                      selectedPortainerInstances={selectedPortainerInstances}
-                      onSetSelectedPortainerInstances={setSelectedPortainerInstances}
-                      contentTab={contentTab}
-                      onSetContentTab={setContentTab}
-                      portainerUpgradeFromProps={portainerUpgrade}
-                      fetchContainers={fetchContainers}
-                      fetchUnusedImages={fetchUnusedImages}
-                      onNavigateToLogs={() => {
-                        setActiveTab(TAB_NAMES.SETTINGS);
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.LOGS), 200);
-                          });
-                        });
-                      }}
-                      onManageSources={() => {
-                        setActiveTab(TAB_NAMES.SETTINGS);
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
-                          });
-                        });
-                      }}
-                      onManageIntents={() => {
-                        setActiveTab(TAB_NAMES.SETTINGS);
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
-                          });
-                        });
-                      }}
-                    />
-                  )}
-                  {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
-                </>
+              {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
+              {activeTab === TAB_NAMES.APPS && (
+                <AppsPage
+                  onAppsUpdatesChange={setAppsWithUpdates}
+                  onNavigateToRunners={() => {
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                      });
+                    });
+                  }}
+                  onNavigateToIntents={() => {
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                      });
+                    });
+                  }}
+                />
               )}
+              {activeTab === TAB_NAMES.ANALYTICS && (
+                <AnalyticsPage portainerInstances={portainerInstances} />
+              )}
+              {activeTab === TAB_NAMES.PORTAINER && (
+                <PortainerPage
+                  portainerInstances={portainerInstances}
+                  containers={containers}
+                  unusedImages={unusedImages}
+                  unusedImagesCount={unusedImagesCount}
+                  containersByPortainer={containersByPortainer}
+                  loadingInstances={loadingInstances}
+                  dockerHubDataPulled={dockerHubDataPulled}
+                  lastPullTime={lastPullTime}
+                  successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
+                  onContainersUpdate={setContainers}
+                  onUnusedImagesUpdate={setUnusedImages}
+                  onUnusedImagesCountUpdate={setUnusedImagesCount}
+                  onAddInstance={openModal}
+                  onPullDockerHub={handlePull}
+                  pullingDockerHub={pulling}
+                  pullError={pullError}
+                  pullSuccess={pullSuccess}
+                  selectedPortainerInstances={selectedPortainerInstances}
+                  onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+                  contentTab={contentTab}
+                  onSetContentTab={setContentTab}
+                  portainerUpgradeFromProps={portainerUpgrade}
+                  fetchContainers={fetchContainers}
+                  fetchUnusedImages={fetchUnusedImages}
+                  onNavigateToLogs={() => {
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => setSettingsTab(SETTINGS_TABS.LOGS), 200);
+                      });
+                    });
+                  }}
+                  onManageSources={() => {
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                      });
+                    });
+                  }}
+                  onManageIntents={() => {
+                    setActiveTab(TAB_NAMES.SETTINGS);
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                      });
+                    });
+                  }}
+                />
+              )}
+              {activeTab === TAB_NAMES.TRACKED_APPS && renderTrackedApps()}
               {activeTab === TAB_NAMES.ADMIN && <AdminPage />}
             </>
           )}

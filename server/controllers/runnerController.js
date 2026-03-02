@@ -298,16 +298,19 @@ async function healthCheckRunner(req, res, next) {
     try {
       const health = await pingRunner(runner.url, runner.api_key);
 
-      // Persist version info (Tier 1): compare running binary against latest release
-      const latestRelease = await githubService
+      // Fire-and-forget: persist version info without blocking the health response.
+      // The GitHub release lookup (500-1500ms) is unnecessary for online/offline status.
+      githubService
         .getLatestRelease(DOCKHAND_GITHUB_REPO)
-        .catch(() => null);
-      await updateRunnerVersion(
-        runner.id,
-        userId,
-        health.version ?? null,
-        latestRelease?.tag_name ?? null
-      ).catch((err) => logger.warn(`version persist failed: ${err.message}`));
+        .then((latestRelease) =>
+          updateRunnerVersion(
+            runner.id,
+            userId,
+            health.version ?? null,
+            latestRelease?.tag_name ?? null
+          )
+        )
+        .catch((err) => logger.warn(`background version persist failed: ${err.message}`));
 
       return res.json({ success: true, online: true, health });
     } catch (err) {

@@ -37,12 +37,7 @@ export function useEnhancedNavigation({
     setPullError(null);
     handleLogout();
     setActiveTab(TAB_NAMES.SUMMARY);
-  }, [
-    handleLogout,
-    setActiveTab,
-    setError,
-    setPullError,
-  ]);
+  }, [handleLogout, setActiveTab, setError, setPullError]);
 
   return {
     handleLoginWithNavigation,
