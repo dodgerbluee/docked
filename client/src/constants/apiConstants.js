@@ -20,7 +20,7 @@ export const STORAGE_KEYS = {
 export const TAB_NAMES = {
   SUMMARY: "summary",
   PORTAINER: "containers",
-  APPS: "apps",
+  APPS: "applications",
   TRACKED_APPS: "repos",
   INTENTS: "intents",
   ANALYTICS: "analytics",

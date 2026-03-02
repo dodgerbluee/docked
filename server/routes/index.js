@@ -105,6 +105,7 @@ async function enrichRunnerContainer(userId, container, forceRefresh = false) {
           latestVersion: cached.latest_version || null,
           latestPublishDate: cached.latest_publish_date || null,
           lastChecked: cached.last_checked || null,
+          provider: cached.provider || null,
           existsInDockerHub: true,
           noDigest: false,
         };
@@ -130,6 +131,7 @@ async function enrichRunnerContainer(userId, container, forceRefresh = false) {
         latestVersion: result.latestVersion || null,
         latestPublishDate: result.latestPublishDate || null,
         lastChecked: new Date().toISOString(),
+        provider: result.provider || null,
         existsInDockerHub: true,
         noDigest: false,
       };

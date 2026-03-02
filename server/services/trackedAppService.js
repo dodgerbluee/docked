@@ -570,32 +570,12 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
           currentVersionPublishDate = latestRelease.published_at;
         } else if (!versionsMatch) {
           // Current version is different from latest, fetch its release info
-          // Try both with and without "v" prefix since GitHub tags may vary
-          const fetchCurrentVersionRelease = async () => {
-            try {
-              const currentVersionTag = trackedApp.current_version;
-              let release = await githubService.getReleaseByTag(githubRepo, currentVersionTag);
-
-              // If not found and doesn't start with "v", try with "v" prefix
-              const needsVPrefix = !release && !currentVersionTag.startsWith("v");
-              const needsNoVPrefix = !release && currentVersionTag.startsWith("v");
-              if (needsVPrefix) {
-                release = await githubService.getReleaseByTag(githubRepo, `v${currentVersionTag}`);
-              } else if (needsNoVPrefix) {
-                // If not found and starts with "v", try without "v" prefix
-                release = await githubService.getReleaseByTag(
-                  githubRepo,
-                  currentVersionTag.substring(1)
-                );
-              }
-              return release;
-            } catch (err) {
-              logger.error(`Error fetching current version release for ${githubRepo}:`, err);
-              return null;
-            }
-          };
+          // Uses findReleaseByTag which checks cached releases first to minimize API calls
           try {
-            currentVersionRelease = await fetchCurrentVersionRelease();
+            currentVersionRelease = await githubService.findReleaseByTag(
+              githubRepo,
+              trackedApp.current_version
+            );
 
             const hasPublishedDate = currentVersionRelease && currentVersionRelease.published_at;
             if (hasPublishedDate) {

@@ -64,6 +64,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  cursor: pointer;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
@@ -161,6 +162,14 @@ body.dark-mode .runnerIcon {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.versionBadge:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 /* Health info */

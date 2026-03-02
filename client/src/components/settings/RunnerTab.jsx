@@ -13,9 +13,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   Server,
-  Plus,
   Trash2,
-  Edit2,
   Wifi,
   WifiOff,
   Copy,
@@ -36,6 +34,7 @@ import Card from "../ui/Card";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import RunOperationModal from "../ui/RunOperationModal";
+import RunnerDetailModal from "./RunnerDetailModal";
 import styles from "./RunnerTab.module.css";
 
 /* ── Edit form (kept for editing existing runners) ────────────────────── */
@@ -492,6 +491,7 @@ export default function RunnerTab() {
   const updatePollRef = useRef({}); // runnerId → intervalId
   const [runOp, setRunOp] = useState(null); // { runner, operationName }
   const [showOpsRunner, setShowOpsRunner] = useState(null); // runner to show ops modal for
+  const [detailRunner, setDetailRunner] = useState(null); // runner for detail modal
 
   const fetchRunners = useCallback(async () => {
     try {
@@ -609,6 +609,10 @@ export default function RunnerTab() {
     }
   }, []);
 
+  const handleHealthUpdate = useCallback((runnerId, status) => {
+    setHealthStatus((prev) => ({ ...prev, [runnerId]: status }));
+  }, []);
+
   const handleEnrolled = useCallback(
     (newRunner) => {
       setShowEnrollment(false);
@@ -644,7 +648,16 @@ export default function RunnerTab() {
           {runners.map((runner) => {
             const hs = healthStatus[runner.id];
             return (
-              <Card key={runner.id} variant="default" padding="sm" className={styles.runnerCard}>
+              <Card
+                key={runner.id}
+                variant="default"
+                padding="sm"
+                className={styles.runnerCard}
+                onClick={() => setDetailRunner(runner)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && setDetailRunner(runner)}
+              >
                 <div className={styles.runnerHeader}>
                   <div className={styles.runnerIcon}>
                     <Server size={18} />
@@ -669,10 +682,18 @@ export default function RunnerTab() {
                       const dbVersion = runner.version;
                       const displayVersion = liveVersion || dbVersion;
                       if (!displayVersion) return null;
+                      const cleanVersion = displayVersion.replace(/^v/, "");
                       return (
-                        <span className={styles.versionBadge}>
-                          v{displayVersion.replace(/^v/, "")}
-                        </span>
+                        <a
+                          href={`https://github.com/dockedapp/dockhand/releases/tag/v${cleanVersion}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.versionBadge}
+                          title={`View dockhand v${cleanVersion} release`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          v{cleanVersion}
+                        </a>
                       );
                     })()}
                   </div>
@@ -692,53 +713,8 @@ export default function RunnerTab() {
                   <div className={styles.updateBanner}>
                     <ArrowUpCircle size={13} />
                     Update available: v{runner.version.replace(/^v/, "")} → v{runner.latest_version.replace(/^v/, "")}
-                    <button
-                      className={styles.updateBannerBtn}
-                      onClick={() => handleUpdate(runner)}
-                      disabled={updatingRunner === runner.id}
-                    >
-                      {updatingRunner === runner.id
-                        ? <><Loader size={11} className={styles.spinIcon} /> Updating...</>
-                        : "Update"}
-                    </button>
                   </div>
                 )}
-
-                <div className={styles.runnerActions}>
-                  <button
-                    className={styles.actionBtn}
-                    onClick={() => handlePing(runner)}
-                    disabled={hs?.checking}
-                    title="Test connection"
-                  >
-                    <Wifi size={14} />
-                    Ping
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    onClick={() => setEditRunner(runner)}
-                    title="Edit runner"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    onClick={() => setShowOpsRunner(runner)}
-                    title="View operations"
-                  >
-                    <Terminal size={14} />
-                    Operations
-                  </button>
-                  <button
-                    className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                    onClick={() => setDeleteConfirm(runner)}
-                    title="Delete runner"
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
-                </div>
               </Card>
             );
           })}
@@ -802,6 +778,30 @@ export default function RunnerTab() {
           }}
         />
       )}
+
+      <RunnerDetailModal
+        runner={detailRunner}
+        isOpen={!!detailRunner}
+        onClose={() => setDetailRunner(null)}
+        onEdit={(r) => {
+          setDetailRunner(null);
+          setEditRunner(r);
+        }}
+        onDelete={(r) => {
+          setDetailRunner(null);
+          setDeleteConfirm(r);
+        }}
+        onUpdate={handleUpdate}
+        onOperations={(r) => {
+          setDetailRunner(null);
+          setShowOpsRunner(r);
+        }}
+        healthStatus={healthStatus}
+        updatingRunner={updatingRunner}
+        updatedRunners={updatedRunners}
+        onHealthUpdate={handleHealthUpdate}
+        onRefreshRunners={fetchRunners}
+      />
 
       <RunOperationModal
         isOpen={!!runOp}

@@ -358,7 +358,7 @@ async function checkImageUpdates(
       platform, // Pass platform for architecture-specific digest lookup
     });
     logger.info(
-      `Latest image info for ${containerDetails.Name}: ${JSON.stringify(latestImageInfo)}`
+      `Latest image info for ${containerDetails?.Name || repo}: ${JSON.stringify(latestImageInfo)}`
     );
   } catch (error) {
     if (error.isRateLimitExceeded) {
@@ -377,7 +377,7 @@ async function checkImageUpdates(
     repoDigests
   );
 
-  logger.info(`${containerDetails.Name} hasUpdate: ${hasUpdate}`);
+  logger.info(`${containerDetails?.Name || repo} hasUpdate: ${hasUpdate}`);
 
   const latestPublishDate = await getPublishDate(repo, latestTag, hasUpdate, userId);
 
