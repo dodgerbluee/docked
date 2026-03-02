@@ -153,14 +153,11 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
     };
   }, [onEnrolled]);
 
-  const handleCopy = useCallback(
-    (text) => {
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    },
-    []
-  );
+  const handleCopy = useCallback((text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
 
   if (loading) {
     return (
@@ -210,7 +207,8 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
     activeTab === "docker" ? dockerCmd : activeTab === "compose" ? composeSnippet : linuxCmd;
 
   const instructions = {
-    linux: "Run this command on the target machine to install and register the runner automatically:",
+    linux:
+      "Run this command on the target machine to install and register the runner automatically:",
     docker: "Run this command on any machine with Docker to start dockhand as a container:",
     compose: "Add this to your docker-compose.yml, then run docker compose up -d:",
   };
@@ -252,7 +250,9 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
           <p className={styles.enrollInstructions}>{instructions[activeTab]}</p>
 
           <div className={styles.codeBlock}>
-            <code className={`${styles.codeText} ${activeTab === "compose" ? styles.codeTextMultiline : ""}`}>
+            <code
+              className={`${styles.codeText} ${activeTab === "compose" ? styles.codeTextMultiline : ""}`}
+            >
               {activeCmd}
             </code>
             <button
@@ -304,22 +304,27 @@ function OperationsModal({ runner, onClose, onRun }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
-    try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
-      setApps(data.apps || []);
-    } catch (err) {
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [runner.id]);
+  const fetchData = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      try {
+        const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
+        setApps(data.apps || []);
+      } catch (err) {
+        setError(err.response?.data?.error || err.message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [runner.id]
+  );
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const totalOps = apps.reduce((sum, app) => sum + (app.operations?.length || 0), 0);
   const multiApp = apps.length > 1;
@@ -358,47 +363,48 @@ function OperationsModal({ runner, onClose, onRun }) {
           {!loading && !error && totalOps === 0 && (
             <p className={styles.opsEmpty}>No operations configured on this runner.</p>
           )}
-          {!loading && apps.map((app) => (
-            <React.Fragment key={app.name}>
-              {multiApp && (
-                <div className={styles.opsAppGroup}>{app.name}</div>
-              )}
-              {(app.operations || []).map((op) => {
-                const last = op.lastRun;
-                return (
-                  <div key={`${app.name}:${op.name}`} className={styles.opsModalRow}>
-                    <div className={styles.opsModalOpInfo}>
-                      <span className={styles.opsModalOpName}>{op.label || op.name}</span>
-                      {app.description && !multiApp && (
-                        <span className={styles.opsModalOpDesc}>{app.description}</span>
-                      )}
-                      {last && (
-                        <span
-                          className={`${styles.opsModalLastRun} ${last.exitCode === 0 ? styles.opLastRunOk : styles.opLastRunFail}`}
-                          title={`Exit code: ${last.exitCode}`}
-                        >
-                          <Clock size={11} />
-                          {formatAge(last.startedAt)} · exit {last.exitCode}
-                        </span>
-                      )}
+          {!loading &&
+            apps.map((app) => (
+              <React.Fragment key={app.name}>
+                {multiApp && <div className={styles.opsAppGroup}>{app.name}</div>}
+                {(app.operations || []).map((op) => {
+                  const last = op.lastRun;
+                  return (
+                    <div key={`${app.name}:${op.name}`} className={styles.opsModalRow}>
+                      <div className={styles.opsModalOpInfo}>
+                        <span className={styles.opsModalOpName}>{op.label || op.name}</span>
+                        {app.description && !multiApp && (
+                          <span className={styles.opsModalOpDesc}>{app.description}</span>
+                        )}
+                        {last && (
+                          <span
+                            className={`${styles.opsModalLastRun} ${last.exitCode === 0 ? styles.opLastRunOk : styles.opLastRunFail}`}
+                            title={`Exit code: ${last.exitCode}`}
+                          >
+                            <Clock size={11} />
+                            {formatAge(last.startedAt)} · exit {last.exitCode}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        className={styles.opRunBtn}
+                        onClick={() => onRun(runner, app.name, op.name)}
+                        title={`Run ${op.label || op.name}`}
+                      >
+                        <Play size={12} />
+                        Run
+                      </button>
                     </div>
-                    <button
-                      className={styles.opRunBtn}
-                      onClick={() => onRun(runner, app.name, op.name)}
-                      title={`Run ${op.label || op.name}`}
-                    >
-                      <Play size={12} />
-                      Run
-                    </button>
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
+                  );
+                })}
+              </React.Fragment>
+            ))}
         </div>
 
         <div className={styles.modalFooter}>
-          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
         </div>
       </div>
     </div>
@@ -456,7 +462,11 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
               </span>
             </span>
           </label>
-          {error && <p className={styles.formError} style={{ marginTop: 10 }}>{error}</p>}
+          {error && (
+            <p className={styles.formError} style={{ marginTop: 10 }}>
+              {error}
+            </p>
+          )}
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.actionBtn} onClick={onClose} disabled={busy}>
@@ -468,7 +478,13 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
             disabled={busy}
           >
             {busy ? <Loader size={13} className={styles.spinIcon} /> : <Trash2 size={13} />}
-            {busy ? (uninstall ? "Uninstalling..." : "Deleting...") : uninstall ? "Uninstall & Delete" : "Delete"}
+            {busy
+              ? uninstall
+                ? "Uninstalling..."
+                : "Deleting..."
+              : uninstall
+                ? "Uninstall & Delete"
+                : "Delete"}
           </button>
         </div>
       </div>
@@ -554,43 +570,51 @@ export default function RunnerTab() {
     [editRunner, fetchRunners]
   );
 
-  const handleUpdate = useCallback(async (runner) => {
-    setUpdatingRunner(runner.id);
-    try {
-      await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
-      const targetVersion = (runner.latest_version || "").replace(/^v/, "");
-      let attempts = 0;
-      updatePollRef.current[runner.id] = setInterval(async () => {
-        attempts++;
-        try {
-          const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
-          const liveVersion = (data.health?.version || "").replace(/^v/, "");
-          if (liveVersion === targetVersion) {
+  const handleUpdate = useCallback(
+    async (runner) => {
+      setUpdatingRunner(runner.id);
+      try {
+        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
+        const targetVersion = (runner.latest_version || "").replace(/^v/, "");
+        let attempts = 0;
+        updatePollRef.current[runner.id] = setInterval(async () => {
+          attempts++;
+          try {
+            const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+            const liveVersion = (data.health?.version || "").replace(/^v/, "");
+            if (liveVersion === targetVersion) {
+              clearInterval(updatePollRef.current[runner.id]);
+              delete updatePollRef.current[runner.id];
+              setUpdatingRunner(null);
+              setUpdatedRunners((prev) => new Set([...prev, runner.id]));
+              fetchRunners();
+              return;
+            }
+          } catch {
+            /* runner still restarting, keep polling */
+          }
+          if (attempts >= 24) {
+            // 2 min max
             clearInterval(updatePollRef.current[runner.id]);
             delete updatePollRef.current[runner.id];
             setUpdatingRunner(null);
-            setUpdatedRunners((prev) => new Set([...prev, runner.id]));
             fetchRunners();
-            return;
           }
-        } catch { /* runner still restarting, keep polling */ }
-        if (attempts >= 24) { // 2 min max
-          clearInterval(updatePollRef.current[runner.id]);
-          delete updatePollRef.current[runner.id];
-          setUpdatingRunner(null);
-          fetchRunners();
-        }
-      }, 5000);
-    } catch (err) {
-      console.error("Failed to update runner:", err);
-      setUpdatingRunner(null);
-    }
-  }, [fetchRunners]);
+        }, 5000);
+      } catch (err) {
+        console.error("Failed to update runner:", err);
+        setUpdatingRunner(null);
+      }
+    },
+    [fetchRunners]
+  );
 
   // Clean up any active update polls on unmount
   useEffect(() => {
     const polls = updatePollRef.current;
-    return () => { Object.values(polls).forEach(clearInterval); };
+    return () => {
+      Object.values(polls).forEach(clearInterval);
+    };
   }, []);
 
   const handlePing = useCallback(async (runner) => {
@@ -622,11 +646,7 @@ export default function RunnerTab() {
     },
     [fetchRunners, handlePing]
   );
-
-  const handleRunOp = useCallback((runner, operationName) => {
-    setRunOp({ runner, operationName });
-  }, []);
-
+  
   if (loading) {
     return <LoadingSpinner size="md" message="Loading runners..." />;
   }
@@ -707,14 +727,16 @@ export default function RunnerTab() {
                   </div>
                 )}
 
-                {runner.version && runner.latest_version &&
+                {runner.version &&
+                  runner.latest_version &&
                   hasVersionUpdate(runner.version, runner.latest_version) &&
                   !updatedRunners.has(runner.id) && (
-                  <div className={styles.updateBanner}>
-                    <ArrowUpCircle size={13} />
-                    Update available: v{runner.version.replace(/^v/, "")} → v{runner.latest_version.replace(/^v/, "")}
-                  </div>
-                )}
+                    <div className={styles.updateBanner}>
+                      <ArrowUpCircle size={13} />
+                      Update available: v{runner.version.replace(/^v/, "")} → v
+                      {runner.latest_version.replace(/^v/, "")}
+                    </div>
+                  )}
               </Card>
             );
           })}
@@ -736,10 +758,18 @@ export default function RunnerTab() {
       {/* Edit modal */}
       {editRunner && (
         <div className={styles.modalOverlay} onClick={() => !saving && setEditRunner(null)}>
-          <div className={styles.modal} style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={styles.modal}
+            style={{ maxWidth: 480 }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <h3 className={styles.modalTitle}>Edit Runner</h3>
-              <button className={styles.modalClose} onClick={() => setEditRunner(null)} disabled={saving}>
+              <button
+                className={styles.modalClose}
+                onClick={() => setEditRunner(null)}
+                disabled={saving}
+              >
                 <X size={18} />
               </button>
             </div>
@@ -764,7 +794,10 @@ export default function RunnerTab() {
         <DeleteRunnerDialog
           runner={deleteConfirm}
           onClose={() => setDeleteConfirm(null)}
-          onDeleted={() => { setDeleteConfirm(null); fetchRunners(); }}
+          onDeleted={() => {
+            setDeleteConfirm(null);
+            fetchRunners();
+          }}
         />
       )}
 

@@ -94,7 +94,9 @@ body.dark-mode .statusOffline {
   color: var(--text-secondary);
   text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .versionBadge:hover {
@@ -187,7 +189,9 @@ body.dark-mode .dockerUnavailable {
   border-radius: 8px;
   color: var(--dodger-blue);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   margin-top: 4px;
 }
 

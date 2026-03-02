@@ -76,8 +76,7 @@ function useExcludeSuggestions(containers, matchType, matchValues, allSuggestion
             return fieldMatchesValue(c.portainerName || "", val);
           case MATCH_TYPES.REGISTRIES: {
             const parts = (c.image || "").split("/");
-            const registry =
-              parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
+            const registry = parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
             return fieldMatchesValue(registry, val);
           }
           default:
@@ -573,7 +572,7 @@ const IntentForm = React.memo(function IntentForm({
         });
       })
       .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // Suggestions for the exclusion dropdown — filtered to only containers matched
   // by the current match rules (so users only see relevant options to exclude)

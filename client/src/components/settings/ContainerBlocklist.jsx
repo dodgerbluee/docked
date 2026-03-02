@@ -52,7 +52,9 @@ function ContainerBlocklist({ containers = [] }) {
     // Sort: by name, then by instance
     entries.sort((a, b) => {
       const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-      return nameCmp !== 0 ? nameCmp : a.instance.toLowerCase().localeCompare(b.instance.toLowerCase());
+      return nameCmp !== 0
+        ? nameCmp
+        : a.instance.toLowerCase().localeCompare(b.instance.toLowerCase());
     });
     return entries;
   }, [containers]);
@@ -133,7 +135,9 @@ function ContainerBlocklist({ containers = [] }) {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [buildEntries]);
 
   const filteredAllowed = allowedSearch
@@ -199,9 +203,7 @@ function ContainerBlocklist({ containers = [] }) {
   const moveToDisallowed = useCallback(() => {
     if (selectedAllowed.size === 0) return;
     const namesToBlock = new Set(
-      allowedList
-        .filter((c) => selectedAllowed.has(c.id))
-        .map((c) => c.name.toLowerCase())
+      allowedList.filter((c) => selectedAllowed.has(c.id)).map((c) => c.name.toLowerCase())
     );
     const moving = allowedList.filter((c) => namesToBlock.has(c.name.toLowerCase()));
     setAllowedList((prev) => prev.filter((c) => !namesToBlock.has(c.name.toLowerCase())));
@@ -220,9 +222,7 @@ function ContainerBlocklist({ containers = [] }) {
   const moveToAllowed = useCallback(() => {
     if (selectedDisallowed.size === 0) return;
     const namesToUnblock = new Set(
-      disallowedList
-        .filter((c) => selectedDisallowed.has(c.id))
-        .map((c) => c.name.toLowerCase())
+      disallowedList.filter((c) => selectedDisallowed.has(c.id)).map((c) => c.name.toLowerCase())
     );
     const moving = disallowedList.filter(
       (c) => !c.orphan && namesToUnblock.has(c.name.toLowerCase())
@@ -233,7 +233,12 @@ function ContainerBlocklist({ containers = [] }) {
       const toAdd = moving
         .filter((c) => !existingIds.has(c.id))
         .map(({ id, name, image, instance, stackName, portainerUrl }) => ({
-          id, name, image, instance, stackName, portainerUrl,
+          id,
+          name,
+          image,
+          instance,
+          stackName,
+          portainerUrl,
         }));
       return [...prev, ...toAdd];
     });
@@ -260,7 +265,12 @@ function ContainerBlocklist({ containers = [] }) {
       const toAdd = disallowedList
         .filter((c) => !c.orphan && !existingIds.has(c.id))
         .map(({ id, name, image, instance, stackName, portainerUrl }) => ({
-          id, name, image, instance, stackName, portainerUrl,
+          id,
+          name,
+          image,
+          instance,
+          stackName,
+          portainerUrl,
         }));
       return [...prev, ...toAdd];
     });
@@ -275,16 +285,19 @@ function ContainerBlocklist({ containers = [] }) {
     const id = `orphan:${name.toLowerCase()}`;
     setDisallowedList((prev) => {
       if (prev.some((c) => c.name.toLowerCase() === name.toLowerCase())) return prev;
-      return [...prev, {
-        id,
-        name,
-        image: "",
-        instance: "",
-        stackName: "",
-        portainerUrl: false,
-        orphan: true,
-        notPortainer: false,
-      }];
+      return [
+        ...prev,
+        {
+          id,
+          name,
+          image: "",
+          instance: "",
+          stackName: "",
+          portainerUrl: false,
+          orphan: true,
+          notPortainer: false,
+        },
+      ];
     });
     setManualAddName("");
   }, [manualAddName]);
@@ -315,10 +328,7 @@ function ContainerBlocklist({ containers = [] }) {
       });
       showSaveMessage("success", "Blocklist saved successfully");
     } catch (err) {
-      showSaveMessage(
-        "error",
-        err.response?.data?.error || "Failed to save blocklist"
-      );
+      showSaveMessage("error", err.response?.data?.error || "Failed to save blocklist");
     } finally {
       setSaving(false);
     }
@@ -369,9 +379,7 @@ function ContainerBlocklist({ containers = [] }) {
                     {c.image && <span className={styles.containerImage}>{c.image}</span>}
                     {(c.instance || c.stackName) && (
                       <div className={styles.cardFooter}>
-                        {c.instance && (
-                          <span className={styles.instanceBadge}>{c.instance}</span>
-                        )}
+                        {c.instance && <span className={styles.instanceBadge}>{c.instance}</span>}
                         {c.stackName && c.stackName !== "Standalone" && (
                           <span className={styles.stackBadge}>{c.stackName}</span>
                         )}
@@ -458,18 +466,14 @@ function ContainerBlocklist({ containers = [] }) {
                     <span className={styles.containerName}>{c.name}</span>
                     {c.image && <span className={styles.containerImage}>{c.image}</span>}
                     <div className={styles.cardFooter}>
-                      {c.instance && (
-                        <span className={styles.instanceBadge}>{c.instance}</span>
-                      )}
+                      {c.instance && <span className={styles.instanceBadge}>{c.instance}</span>}
                       {c.stackName && c.stackName !== "Standalone" && (
                         <span className={styles.stackBadge}>{c.stackName}</span>
                       )}
                       {c.notPortainer && !c.orphan && (
                         <span className={styles.notPortainerBadge}>not in Portainer</span>
                       )}
-                      {c.orphan && (
-                        <span className={styles.orphanBadge}>offline</span>
-                      )}
+                      {c.orphan && <span className={styles.orphanBadge}>offline</span>}
                     </div>
                   </div>
                 );
@@ -499,12 +503,7 @@ function ContainerBlocklist({ containers = [] }) {
       </div>
 
       <div className={styles.saveRow}>
-        <Button
-          className={styles.saveBtn}
-          onClick={handleSave}
-          disabled={saving}
-          type="button"
-        >
+        <Button className={styles.saveBtn} onClick={handleSave} disabled={saving} type="button">
           {saving ? "Saving..." : "Save Blocklist"}
         </Button>
         {saveMessage && (

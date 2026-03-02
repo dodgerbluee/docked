@@ -13,7 +13,10 @@
  */
 function parseVersion(v) {
   if (!v) return null;
-  const match = String(v).trim().replace(/^v/, "").match(/^(\d+)\.(\d+)\.(\d+)/);
+  const match = String(v)
+    .trim()
+    .replace(/^v/, "")
+    .match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }

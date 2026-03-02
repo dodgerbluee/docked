@@ -211,11 +211,7 @@ function RunnerDetailModal({
             Delete
           </Button>
           <div className={styles.footerRight}>
-            <button
-              type="button"
-              className={styles.editButton}
-              onClick={() => onEdit(runner)}
-            >
+            <button type="button" className={styles.editButton} onClick={() => onEdit(runner)}>
               <Pencil size={16} className={styles.editButtonIcon} />
               <span className={styles.editButtonText}>Edit Runner</span>
             </button>

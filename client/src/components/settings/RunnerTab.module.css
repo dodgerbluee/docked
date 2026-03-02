@@ -164,7 +164,9 @@ body.dark-mode .runnerIcon {
   color: var(--text-secondary);
   text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .versionBadge:hover {
@@ -559,7 +561,10 @@ body.dark-mode .input:focus {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .enrollTabBtn:hover {
@@ -735,7 +740,9 @@ body.dark-mode .opsModalRunner {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .opsRefreshBtn:hover:not(:disabled) {
@@ -855,7 +862,9 @@ body.dark-mode .opsModalRow:hover {
   color: var(--dodger-blue);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .opRunBtn:hover {

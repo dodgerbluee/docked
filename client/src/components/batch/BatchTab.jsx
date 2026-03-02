@@ -172,11 +172,7 @@ const BatchTab = React.memo(function BatchTab({
                 type="checkbox"
                 checked={localConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled || false}
                 onChange={(e) =>
-                  handleConfigChange(
-                    BATCH_JOB_TYPES.APP_VERSION_SCAN,
-                    "enabled",
-                    e.target.checked
-                  )
+                  handleConfigChange(BATCH_JOB_TYPES.APP_VERSION_SCAN, "enabled", e.target.checked)
                 }
                 className={styles.checkbox}
               />

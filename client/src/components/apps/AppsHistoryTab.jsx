@@ -257,9 +257,7 @@ export default function AppsHistoryTab({ runners }) {
                       <Clock size={12} />
                       {formatDate(record.startedAt)}
                     </span>
-                    {duration && (
-                      <span className={styles.metaItem}>{duration}</span>
-                    )}
+                    {duration && <span className={styles.metaItem}>{duration}</span>}
                     {!pending && (
                       <span
                         className={`${styles.exitBadge} ${

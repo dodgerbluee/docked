@@ -17,19 +17,16 @@ const STATUS = {
   ERROR: "error",
 };
 
-// Strip all ANSI/VT escape sequences (colors, bold, cursor movement, etc.)
-const ANSI_CSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g;
-const ANSI_OSC_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-const ANSI_OTHER_RE = /\x1b./g;
+// Strip ANSI/VT escape sequences (colors, cursor movement, OSC) without literal control chars
+const ANSI_CSI_RE = new RegExp(String.raw`\u001b\[[0-9;?]*[A-Za-z]`, "g");
+const ANSI_OSC_RE = new RegExp(String.raw`\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)`, "g");
+const ANSI_OTHER_RE = new RegExp(String.raw`\u001b.`, "g");
 // Detect clear-screen sequences (ESC[2J or ESC[3J) — signal to reset the line buffer
-const CLEAR_SCREEN_RE = /\x1b\[(?:2J|3J)/;
+const CLEAR_SCREEN_RE = new RegExp(String.raw`\u001b\[(?:2J|3J)`);
 
 function processRawLog(raw) {
   const shouldClear = CLEAR_SCREEN_RE.test(raw);
-  const stripped = raw
-    .replace(ANSI_OSC_RE, "")
-    .replace(ANSI_CSI_RE, "")
-    .replace(ANSI_OTHER_RE, "");
+  const stripped = raw.replace(ANSI_OSC_RE, "").replace(ANSI_CSI_RE, "").replace(ANSI_OTHER_RE, "");
 
   // Split into display lines; handle \r (carriage-return overwrite): last segment wins
   const lines = stripped
@@ -101,7 +98,7 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
         const decoder = new TextDecoder();
         let buffer = "";
 
-        // eslint-disable-next-line no-constant-condition
+         
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -207,10 +204,20 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
                   : ""
           }`}
         >
-          {status === STATUS.RUNNING && <><span className={styles.spinner} /> Running…</>}
-          {status === STATUS.DONE && <><CheckCircle size={15} /> Completed (exit 0)</>}
+          {status === STATUS.RUNNING && (
+            <>
+              <span className={styles.spinner} /> Running…
+            </>
+          )}
+          {status === STATUS.DONE && (
+            <>
+              <CheckCircle size={15} /> Completed (exit 0)
+            </>
+          )}
           {status === STATUS.ERROR && (
-            <><AlertCircle size={15} /> {errorMsg || `Failed (exit ${exitCode ?? 1})`}</>
+            <>
+              <AlertCircle size={15} /> {errorMsg || `Failed (exit ${exitCode ?? 1})`}
+            </>
           )}
         </div>
 
@@ -219,7 +226,9 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
             <span className={styles.waiting}>Connecting to runner…</span>
           )}
           {lines.map((line, i) => (
-            <div key={i} className={styles.line}>{line}</div>
+            <div key={i} className={styles.line}>
+              {line}
+            </div>
           ))}
         </div>
 

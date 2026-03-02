@@ -463,7 +463,9 @@ body.dark-mode .emptyStateLink:hover {
   color: #f59e0b;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .updateCardBtn:hover:not(:disabled) {
@@ -477,7 +479,9 @@ body.dark-mode .emptyStateLink:hover {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinIcon {
@@ -544,7 +548,9 @@ body.dark-mode .emptyStateLink:hover {
   border-radius: 6px;
   display: flex;
   align-items: center;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .confirmCloseBtn:hover {
@@ -626,7 +632,9 @@ body.dark-mode .emptyStateLink:hover {
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .confirmCancelBtn:hover {

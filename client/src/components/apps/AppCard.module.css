@@ -83,7 +83,9 @@
   flex-shrink: 0;
   color: var(--text-secondary);
   opacity: 0.6;
-  transition: opacity 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
 }
 
 .repoLink:hover {
@@ -215,7 +217,9 @@ body.dark-mode .opBtn:hover:not(:disabled) {
 }
 
 @keyframes opSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .opBtnSpinner {

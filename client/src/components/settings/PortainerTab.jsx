@@ -161,7 +161,6 @@ const PortainerTab = React.memo(function PortainerTab({
         <ContainerBlocklist containers={containers} />
       </div>
 
-
       <InstanceDetailModal
         instance={detailInstance}
         isOpen={!!detailInstance}

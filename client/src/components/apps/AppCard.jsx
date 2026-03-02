@@ -30,8 +30,7 @@ function getMostRecentOp(operations) {
 
 function appHasUpdate(app) {
   return (
-    hasVersionUpdate(app.currentVersion, app.latestVersion) ||
-    app.systemUpdatesAvailable === true
+    hasVersionUpdate(app.currentVersion, app.latestVersion) || app.systemUpdatesAvailable === true
   );
 }
 
@@ -105,8 +104,8 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
                 hasVersionUpdate(app.currentVersion, app.latestVersion)
                   ? `Update available: ${app.latestVersion}`
                   : app.currentVersion
-                  ? "Up to date"
-                  : "Version tracking configured"
+                    ? "Up to date"
+                    : "Version tracking configured"
               }
             >
               {app.currentVersion ?? "unknown"}
@@ -134,7 +133,9 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
                 className={`${styles.opBtn} ${op.active ? styles.opBtnActive : ""}`}
                 onClick={() => onRun(runner, app, op)}
                 disabled={op.active}
-                title={op.active ? `${op.label || op.name} is running…` : `Run ${op.label || op.name}`}
+                title={
+                  op.active ? `${op.label || op.name} is running…` : `Run ${op.label || op.name}`
+                }
               >
                 {op.active && <Loader size={10} className={styles.opBtnSpinner} />}
                 {op.label || op.name}
@@ -151,7 +152,8 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
               title={`Exit code: ${mostRecent.lastRun.exitCode}`}
             >
               <Clock size={11} />
-              {mostRecent.label || mostRecent.name} · {formatAge(mostRecent.lastRun.startedAt)} · exit {mostRecent.lastRun.exitCode}
+              {mostRecent.label || mostRecent.name} · {formatAge(mostRecent.lastRun.startedAt)} ·
+              exit {mostRecent.lastRun.exitCode}
             </span>
           ) : (
             <span className={styles.neverRunLabel}>Never run</span>

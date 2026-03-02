@@ -45,9 +45,7 @@ const TabNavigation = ({
         >
           <Cpu size={18} />
           Apps
-          {appsWithUpdates > 0 && (
-            <span className="tab-badge">{appsWithUpdates}</span>
-          )}
+          {appsWithUpdates > 0 && <span className="tab-badge">{appsWithUpdates}</span>}
         </button>
         <button
           className={`tab ${activeTab === TAB_NAMES.TRACKED_APPS ? "active" : ""}`}

@@ -162,7 +162,12 @@ const AppsSidebar = memo(function AppsSidebar({
 AppsSidebar.displayName = "AppsSidebar";
 
 AppsSidebar.propTypes = {
-  view: PropTypes.oneOf([APPS_VIEWS.UPDATES, APPS_VIEWS.ALL, APPS_VIEWS.GROUPED, APPS_VIEWS.HISTORY]).isRequired,
+  view: PropTypes.oneOf([
+    APPS_VIEWS.UPDATES,
+    APPS_VIEWS.ALL,
+    APPS_VIEWS.GROUPED,
+    APPS_VIEWS.HISTORY,
+  ]).isRequired,
   onViewChange: PropTypes.func.isRequired,
   runners: PropTypes.arrayOf(
     PropTypes.shape({

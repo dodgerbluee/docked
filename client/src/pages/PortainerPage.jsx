@@ -435,7 +435,6 @@ function PortainerPage({
           developerModeEnabled={developerModeEnabled}
         />
       )}
-
     </div>
   );
 }

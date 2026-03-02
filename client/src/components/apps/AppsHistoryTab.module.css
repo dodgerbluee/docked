@@ -170,7 +170,9 @@ body.dark-mode .filterSelect option {
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .sortButton:hover {
@@ -191,7 +193,9 @@ body.dark-mode .filterSelect option {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 14px 16px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .historyCard:hover {

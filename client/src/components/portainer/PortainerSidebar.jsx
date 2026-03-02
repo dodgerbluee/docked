@@ -174,9 +174,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
                   }}
                 >
                   {instance.name}
-                  {instance.isRunner && (
-                    <span className={styles.runnerBadge}>Runner</span>
-                  )}
+                  {instance.isRunner && <span className={styles.runnerBadge}>Runner</span>}
                 </span>
               </div>
             ))}

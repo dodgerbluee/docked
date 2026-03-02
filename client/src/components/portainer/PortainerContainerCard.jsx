@@ -3,7 +3,9 @@ import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
-import { PORTAINER_CONTAINER_MESSAGE, BLOCKLISTED_CONTAINER_MESSAGE } from "../../constants/portainerPage";
+import {
+  PORTAINER_CONTAINER_MESSAGE,
+} from "../../constants/portainerPage";
 import { useContainerImageInfo } from "./PortainerContainerCard/hooks/useContainerImageInfo";
 import ContainerVersionDisplay from "./PortainerContainerCard/components/ContainerVersionDisplay";
 import styles from "./PortainerContainerCard.module.css";
@@ -116,10 +118,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       </span>
     )
   ) : container.source === "runner" && container.runnerName ? (
-    <span
-      className={styles.portainerBadge}
-      title={`Runner: ${container.runnerName}`}
-    >
+    <span className={styles.portainerBadge} title={`Runner: ${container.runnerName}`}>
       {container.runnerName}
     </span>
   ) : null;
@@ -138,10 +137,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       aria-label={`Container ${container.name}`}
       onClick={handleCardClick}
     >
-      <div
-        className={styles.cardHeader}
-        title={isPortainer ? blockedMessage : undefined}
-      >
+      <div className={styles.cardHeader} title={isPortainer ? blockedMessage : undefined}>
         <div className={styles.headerLeft}>
           <h3
             className={styles.containerName}
@@ -167,10 +163,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           </label>
         )}
       </div>
-      <div
-        className={styles.cardBody}
-        title={isPortainer ? blockedMessage : undefined}
-      >
+      <div className={styles.cardBody} title={isPortainer ? blockedMessage : undefined}>
         <div className={styles.imageHeaderContainer}>
           <div className={styles.imageHeaderLeft}>
             <h4

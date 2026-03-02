@@ -25,8 +25,7 @@ import styles from "./AppsPage.module.css";
 
 function appHasUpdate(app) {
   return (
-    hasVersionUpdate(app.currentVersion, app.latestVersion) ||
-    app.systemUpdatesAvailable === true
+    hasVersionUpdate(app.currentVersion, app.latestVersion) || app.systemUpdatesAvailable === true
   );
 }
 
@@ -41,8 +40,8 @@ const RunnerUpdateCard = memo(function RunnerUpdateCard({ runner, onUpdate, upda
           <span className={styles.updateCardTitle}>dockhand update available</span>
           <span className={styles.updateCardVersions}>
             v{runner.version.replace(/^v/, "")}
-            <span className={styles.updateCardArrow}> → </span>
-            v{runner.latest_version.replace(/^v/, "")}
+            <span className={styles.updateCardArrow}> → </span>v
+            {runner.latest_version.replace(/^v/, "")}
           </span>
         </div>
       </div>
@@ -72,11 +71,18 @@ const RunnerSectionHeader = memo(function RunnerSectionHeader({
     <div
       className={styles.stackHeader}
       onClick={(e) => {
-        try { e.currentTarget?.focus(); } catch { /* ignore */ }
+        try {
+          e.currentTarget?.focus();
+        } catch {
+          /* ignore */
+        }
         onToggle(sectionKey);
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(sectionKey); }
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle(sectionKey);
+        }
       }}
       role="button"
       tabIndex={0}
@@ -84,11 +90,7 @@ const RunnerSectionHeader = memo(function RunnerSectionHeader({
       aria-label={`${runner.name} — ${isCollapsed ? "Expand" : "Collapse"}`}
     >
       <div className={styles.stackHeaderLeft}>
-        <button
-          className={styles.stackToggle}
-          aria-hidden="true"
-          tabIndex={-1}
-        >
+        <button className={styles.stackToggle} aria-hidden="true" tabIndex={-1}>
           {isCollapsed ? "▶" : "▼"}
         </button>
         <h3 className={styles.stackName}>{runner.name}</h3>
@@ -134,7 +136,9 @@ const AppsHeader = memo(function AppsHeader({
 
   useEffect(() => {
     if (!mobileSearchOpen) return;
-    const onKeyDown = (e) => { if (e.key === "Escape") setMobileSearchOpen(false); };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setMobileSearchOpen(false);
+    };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileSearchOpen]);
@@ -258,7 +262,9 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
   const lastRun = op.lastRun;
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel]);
@@ -269,11 +275,15 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-run-title"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
       <div className={styles.confirmModal}>
         <div className={styles.confirmHeader}>
-          <span id="confirm-run-title" className={styles.confirmTitle}>Run Operation?</span>
+          <span id="confirm-run-title" className={styles.confirmTitle}>
+            Run Operation?
+          </span>
           <button className={styles.confirmCloseBtn} onClick={onCancel} aria-label="Cancel">
             <X size={18} />
           </button>
@@ -281,9 +291,7 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 
         <div className={styles.confirmBody}>
           <div className={styles.confirmAppName}>{app.name}</div>
-          {app.description && (
-            <p className={styles.confirmAppDesc}>{app.description}</p>
-          )}
+          {app.description && <p className={styles.confirmAppDesc}>{app.description}</p>}
 
           <div className={styles.confirmMeta}>
             <div className={styles.confirmMetaRow}>
@@ -349,9 +357,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
 
   const fetchAppsForRunner = useCallback(async (runner) => {
     try {
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/runners/${runner.id}/apps`
-      );
+      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
       const runnerApps = data.apps || [];
       setApps((prev) => ({ ...prev, [runner.id]: runnerApps }));
       setAppErrors((prev) => ({ ...prev, [runner.id]: null }));
@@ -364,24 +370,29 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
     }
   }, []);
 
-  const fetchAll = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const fetchAll = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
 
-    try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
-      const list = (data.runners || []).filter((r) => r.enabled !== 0);
-      setRunners(list);
-      await Promise.all(list.map(fetchAppsForRunner));
-    } catch (err) {
-      console.error("AppsPage: failed to fetch runners", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [fetchAppsForRunner]);
+      try {
+        const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
+        const list = (data.runners || []).filter((r) => r.enabled !== 0);
+        setRunners(list);
+        await Promise.all(list.map(fetchAppsForRunner));
+      } catch (err) {
+        console.error("AppsPage: failed to fetch runners", err);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [fetchAppsForRunner]
+  );
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   // Refresh runner/app data every 5 minutes to pick up version updates
   useEffect(() => {
@@ -397,10 +408,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
 
   /* ── Derived data ──────────────────────────────────────────────────── */
 
-  const enabledRunners = useMemo(
-    () => runners.filter((r) => r.enabled !== 0),
-    [runners]
-  );
+  const enabledRunners = useMemo(() => runners.filter((r) => r.enabled !== 0), [runners]);
 
   const filteredRunners = useMemo(
     () =>
@@ -430,9 +438,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const appsWithUpdatesList = useMemo(
     () =>
       enabledRunners.flatMap((runner) =>
-        (apps[runner.id] ?? [])
-          .filter(appHasUpdate)
-          .map((app) => ({ app, runner }))
+        (apps[runner.id] ?? []).filter(appHasUpdate).map((app) => ({ app, runner }))
       ),
     [enabledRunners, apps]
   );
@@ -474,46 +480,59 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
 
-  const handleUpdate = useCallback(async (runner) => {
-    setUpdatingRunners((prev) => new Set(prev).add(runner.id));
-    try {
-      await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
+  const handleUpdate = useCallback(
+    async (runner) => {
+      setUpdatingRunners((prev) => new Set(prev).add(runner.id));
+      try {
+        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
 
-      // Poll health until the runner comes back with the new version (up to 90s)
-      const targetVersion = runner.latest_version?.replace(/^v/, "");
-      let attempts = 0;
-      const maxAttempts = 30; // 30 × 3s = 90s
+        // Poll health until the runner comes back with the new version (up to 90s)
+        const targetVersion = runner.latest_version?.replace(/^v/, "");
+        let attempts = 0;
+        const maxAttempts = 30; // 30 × 3s = 90s
 
-      const poll = async () => {
-        if (attempts >= maxAttempts) {
-          setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
-          fetchAll(true);
-          return;
-        }
-        attempts++;
-        try {
-          const { data } = await axios.post(
-            `${API_BASE_URL}/api/runners/${runner.id}/health`
-          );
-          const currentVersion = data.health?.version?.replace(/^v/, "");
-          if (data.online && currentVersion && currentVersion === targetVersion) {
-            setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
+        const poll = async () => {
+          if (attempts >= maxAttempts) {
+            setUpdatingRunners((prev) => {
+              const next = new Set(prev);
+              next.delete(runner.id);
+              return next;
+            });
             fetchAll(true);
             return;
           }
-        } catch {
-          // Runner still restarting — keep polling
-        }
-        setTimeout(poll, 3000);
-      };
+          attempts++;
+          try {
+            const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+            const currentVersion = data.health?.version?.replace(/^v/, "");
+            if (data.online && currentVersion && currentVersion === targetVersion) {
+              setUpdatingRunners((prev) => {
+                const next = new Set(prev);
+                next.delete(runner.id);
+                return next;
+              });
+              fetchAll(true);
+              return;
+            }
+          } catch {
+            // Runner still restarting — keep polling
+          }
+          setTimeout(poll, 3000);
+        };
 
-      // Give the runner a few seconds to begin the update before polling
-      setTimeout(poll, 5000);
-    } catch (err) {
-      console.error("AppsPage: runner update failed", err);
-      setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
-    }
-  }, [fetchAll]);
+        // Give the runner a few seconds to begin the update before polling
+        setTimeout(poll, 5000);
+      } catch (err) {
+        console.error("AppsPage: runner update failed", err);
+        setUpdatingRunners((prev) => {
+          const next = new Set(prev);
+          next.delete(runner.id);
+          return next;
+        });
+      }
+    },
+    [fetchAll]
+  );
 
   /* ── Render helpers ────────────────────────────────────────────────── */
 
@@ -562,16 +581,19 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
                 <RunnerUpdateCard
                   runner={runner}
                   onUpdate={handleUpdate}
-                   updating={updatingRunners.has(runner.id)}
+                  updating={updatingRunners.has(runner.id)}
                 />
               )}
               {error && <p className={styles.runnerError}>{error}</p>}
               {!error && visibleApps.length === 0 && (
                 <p className={styles.noOps}>No apps configured on this runner.</p>
               )}
-              {!error && visibleApps.length > 0 && (
-                renderGrid(visibleApps.map((app) => ({ app, runner })), false)
-              )}
+              {!error &&
+                visibleApps.length > 0 &&
+                renderGrid(
+                  visibleApps.map((app) => ({ app, runner })),
+                  false
+                )}
             </>
           )}
         </div>
@@ -635,18 +657,14 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       return (
         <div className={styles.emptyStateMessage}>
           <p className={styles.emptyStateText}>
-            No apps match <strong>"{search}"</strong>.
+            No apps match <strong>&ldquo;{search}&rdquo;</strong>.
           </p>
         </div>
       );
     }
 
     if (view === APPS_VIEWS.GROUPED) {
-      return (
-        <div className={styles.appsContainer}>
-          {renderGrouped(allApps)}
-        </div>
-      );
+      return <div className={styles.appsContainer}>{renderGrouped(allApps)}</div>;
     }
 
     const updateableRunners = filteredRunners.filter((r) =>
@@ -661,7 +679,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
                 key={r.id}
                 runner={r}
                 onUpdate={handleUpdate}
-                 updating={updatingRunners.has(r.id)}
+                updating={updatingRunners.has(r.id)}
               />
             ))}
           </div>
@@ -700,11 +718,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
         {/* Desktop sidebar */}
         {!isMobile && (
           <ErrorBoundary>
-            <div
-              className={styles.sidebar}
-              role="complementary"
-              aria-label="Apps filters"
-            >
+            <div className={styles.sidebar} role="complementary" aria-label="Apps filters">
               {sidebar}
             </div>
           </ErrorBoundary>
@@ -720,29 +734,30 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
           >
             <AppsSidebar
               view={view}
-              onViewChange={(v) => { setView(v); closeMobileSidebar(); }}
+              onViewChange={(v) => {
+                setView(v);
+                closeMobileSidebar();
+              }}
               runners={enabledRunners}
               selectedRunners={selectedRunners}
               onSelectedRunnersChange={setSelectedRunners}
               totalOps={totalApps}
               updatesCount={appsWithUpdatesList.length}
-              onAddRunner={() => { setShowAddRunner(true); closeMobileSidebar(); }}
+              onAddRunner={() => {
+                setShowAddRunner(true);
+                closeMobileSidebar();
+              }}
               onManageRunners={onNavigateToRunners}
             />
           </MobileDrawer>
         </ErrorBoundary>
 
         {/* Content */}
-        <div className={styles.contentArea}>
-          {renderContent()}
-        </div>
+        <div className={styles.contentArea}>{renderContent()}</div>
       </div>
 
       {showAddRunner && (
-        <EnrollmentModal
-          onClose={() => setShowAddRunner(false)}
-          onEnrolled={handleEnrolled}
-        />
+        <EnrollmentModal onClose={() => setShowAddRunner(false)} onEnrolled={handleEnrolled} />
       )}
 
       {pendingRun && (

@@ -317,10 +317,6 @@ function App() {
     handleNavigateToBatch,
   } = navigation;
 
-  const handleNavigateToApps = useCallback(() => {
-    setActiveTab(TAB_NAMES.APPS);
-  }, [setActiveTab]);
-
   const handleNavigateToAdmin = useCallback(() => {
     setActiveTab(TAB_NAMES.ADMIN);
   }, [setActiveTab]);

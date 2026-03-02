@@ -221,7 +221,6 @@ const HomePageContent = ({
                   setContentTab(CONTENT_TABS.UPDATES);
                 }
               }}
-
               containersWithUpdates={containersWithUpdates}
               trackedAppsBehind={trackedAppsBehind}
               appsWithUpdates={appsWithUpdates}
