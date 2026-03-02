@@ -25,6 +25,7 @@ const ContainersTab = React.memo(function ContainersTab({
   selectedContainers,
   upgrading,
   isPortainerContainer,
+  getBlockedMessage,
   onToggleStack,
   onToggleSelect,
   onUpgrade,
@@ -146,6 +147,7 @@ const ContainersTab = React.memo(function ContainersTab({
                               onUpgrade={onUpgrade}
                               developerModeEnabled={developerModeEnabled}
                               onOpenDebugModal={onOpenDebugModal}
+                              disabledMessage={getBlockedMessage?.(container)}
                             />
                           );
                         })}
@@ -268,6 +270,7 @@ const ContainersTab = React.memo(function ContainersTab({
                           onUpgrade={onUpgrade}
                           developerModeEnabled={developerModeEnabled}
                           onOpenDebugModal={onOpenDebugModal}
+                          disabledMessage={getBlockedMessage?.(container)}
                         />
                       );
                     })
@@ -320,6 +323,7 @@ const ContainersTab = React.memo(function ContainersTab({
             selectedContainers={selectedContainers}
             upgrading={upgrading}
             isPortainerContainer={isPortainerContainer}
+            getBlockedMessage={getBlockedMessage}
             onToggleStack={onToggleStack}
             onToggleSelect={onToggleSelect}
             onUpgrade={onUpgrade}
@@ -349,6 +353,7 @@ ContainersTab.propTypes = {
   selectedContainers: PropTypes.instanceOf(Set).isRequired,
   upgrading: PropTypes.object.isRequired,
   isPortainerContainer: PropTypes.func.isRequired,
+  getBlockedMessage: PropTypes.func,
   onToggleStack: PropTypes.func.isRequired,
   onToggleSelect: PropTypes.func.isRequired,
   onUpgrade: PropTypes.func.isRequired,

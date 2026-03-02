@@ -314,6 +314,7 @@ function PortainerPage({
                       selectedContainers={portainerPage.selectedContainers}
                       upgrading={portainerPage.upgrading}
                       isPortainerContainer={portainerPage.isPortainerContainer}
+                      getBlockedMessage={portainerPage.getBlockedMessage}
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}
@@ -338,6 +339,7 @@ function PortainerPage({
                       selectedContainers={portainerPage.selectedContainers}
                       upgrading={portainerPage.upgrading}
                       isPortainerContainer={portainerPage.isPortainerContainer}
+                      getBlockedMessage={portainerPage.getBlockedMessage}
                       onToggleStack={portainerPage.toggleStack}
                       onToggleSelect={portainerPage.handleToggleSelect}
                       onUpgrade={portainerPage.handleUpgrade}

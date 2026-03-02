@@ -415,8 +415,9 @@ function App() {
   useEffect(() => {
     const validTabs = [
       TAB_NAMES.SUMMARY,
-      TAB_NAMES.TRACKED_APPS,
       TAB_NAMES.PORTAINER,
+      TAB_NAMES.APPS,
+      TAB_NAMES.TRACKED_APPS,
       TAB_NAMES.INTENTS,
       TAB_NAMES.ANALYTICS,
       TAB_NAMES.SETTINGS,

@@ -4,12 +4,14 @@
  */
 
 const { getSetting, setSetting } = require("../db/index");
+const { DEFAULT_BLOCKED_PATTERNS } = require("../constants/blocklistDefaults");
 const logger = require("../utils/logger");
 
 const COLOR_SCHEME_KEY = "color_scheme";
 const DEFAULT_COLOR_SCHEME = "system";
 const REFRESHING_TOGGLES_ENABLED_KEY = "refreshing_toggles_enabled";
 const DEFAULT_REFRESHING_TOGGLES_ENABLED = false;
+const DISALLOWED_CONTAINERS_KEY = "disallowed_containers";
 
 /**
  * Get color scheme preference
@@ -158,9 +160,81 @@ async function setRefreshingTogglesEnabledHandler(req, res, _next) {
   }
 }
 
+/**
+ * Get disallowed containers list
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function getDisallowedContainersHandler(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const raw = await getSetting(DISALLOWED_CONTAINERS_KEY, userId);
+    const containers = raw ? JSON.parse(raw) : null; // null = use client-side defaults
+    return res.json({ success: true, containers, defaultPatterns: DEFAULT_BLOCKED_PATTERNS });
+  } catch (error) {
+    logger.error("Error getting disallowed containers:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to get disallowed containers",
+    });
+  }
+}
+
+/**
+ * Set disallowed containers list
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function setDisallowedContainersHandler(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const { containers } = req.body;
+    if (!Array.isArray(containers)) {
+      return res.status(400).json({ success: false, error: "containers must be an array" });
+    }
+
+    const MAX_ITEMS = 1000;
+    const MAX_ITEM_LENGTH = 255;
+
+    const original = containers;
+    let filtered = original
+      .filter((item) => typeof item === "string" && item.trim().length > 0)
+      .map((item) => item.trim().substring(0, MAX_ITEM_LENGTH));
+
+    if (filtered.length > MAX_ITEMS) {
+      filtered = filtered.slice(0, MAX_ITEMS);
+    }
+
+    const droppedCount = original.length - filtered.length;
+    if (droppedCount > 0) {
+      logger.warn("setDisallowedContainersHandler: dropped invalid or oversized items", {
+        userId,
+        droppedCount,
+      });
+    }
+
+    await setSetting(DISALLOWED_CONTAINERS_KEY, JSON.stringify(filtered), userId);
+    return res.json({ success: true, containers: filtered });
+  } catch (error) {
+    logger.error("Error setting disallowed containers:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to set disallowed containers",
+    });
+  }
+}
+
 module.exports = {
   getColorSchemeHandler,
   setColorSchemeHandler,
   getRefreshingTogglesEnabledHandler,
   setRefreshingTogglesEnabledHandler,
+  getDisallowedContainersHandler,
+  setDisallowedContainersHandler,
 };

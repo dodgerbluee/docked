@@ -216,7 +216,7 @@ class GitHubReleasesProvider extends RegistryProvider {
     }
 
     try {
-      const release = await githubService.getReleaseByTag(githubRepo, tag);
+      const release = await githubService.findReleaseByTag(githubRepo, tag);
       return release?.published_at || null;
     } catch (error) {
       logger.debug(`Failed to get publish date for ${githubRepo}:${tag}:`, error.message);

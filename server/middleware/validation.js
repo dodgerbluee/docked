@@ -123,10 +123,31 @@ const commonValidations = {
 const validationChains = {
   // Container upgrade validation
   // Note: containerId is validated as a path parameter, not in the body
+  // Supports both Portainer backends (portainerUrl + endpointId) and runner backends (runnerId).
   containerUpgrade: [
-    commonValidations.endpointId,
     commonValidations.imageName,
-    commonValidations.portainerUrl,
+    // Require either portainerUrl+endpointId OR runnerId
+    body().custom((_, { req }) => {
+      const { portainerUrl, endpointId, runnerId } = req.body;
+      if (runnerId) return true; // Runner backend
+      if (!portainerUrl) throw new Error("portainerUrl is required when not using runnerId");
+      if (endpointId === undefined || endpointId === null || endpointId === "") {
+        throw new Error("endpointId is required when not using runnerId");
+      }
+      return true;
+    }),
+    body("portainerUrl")
+      .optional()
+      .isURL({ protocols: ["http", "https"] })
+      .withMessage("portainerUrl must be a valid HTTP/HTTPS URL"),
+    body("endpointId")
+      .optional()
+      .custom((value) => typeof value === "string" || typeof value === "number")
+      .withMessage("endpointId must be a string or number"),
+    body("runnerId")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("runnerId must be a positive integer"),
   ],
 
   // Portainer instance creation/update

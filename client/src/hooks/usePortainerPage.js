@@ -1,4 +1,10 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import axios from "axios";
+import { API_BASE_URL } from "../constants/api";
+import {
+  PORTAINER_CONTAINER_MESSAGE,
+  BLOCKLISTED_CONTAINER_MESSAGE,
+} from "../constants/portainerPage";
 import { formatBytes as formatBytesUtil } from "../utils/formatters";
 import { usePortainerTabs } from "./usePortainerPage/hooks/usePortainerTabs";
 import { usePortainerInstanceSelection } from "./usePortainerPage/hooks/usePortainerInstanceSelection";
@@ -149,12 +155,54 @@ export function usePortainerPage({
     return unusedImages.filter((img) => selectedUrls.has(img.portainerUrl));
   }, [instancesToShow, unusedImages]);
 
-  // Check if container is Portainer
-  const isPortainerContainer = useCallback((container) => {
-    const imageName = container.image?.toLowerCase() || "";
-    const containerName = container.name?.toLowerCase() || "";
-    return imageName.includes("portainer") || containerName.includes("portainer");
+  // Fetch the upgrade blocklist so we can grey-out blocked containers
+  const [blockedNames, setBlockedNames] = useState(new Set());
+  const blockedFetched = useRef(false);
+
+  useEffect(() => {
+    if (blockedFetched.current) return;
+    blockedFetched.current = true;
+    axios
+      .get(`${API_BASE_URL}/api/settings/disallowed-containers`)
+      .then(({ data }) => {
+        const list = data.containers;
+        if (Array.isArray(list) && list.length > 0) {
+          setBlockedNames(new Set(list.map((n) => n.toLowerCase())));
+        }
+      })
+      .catch(() => {
+        // Ignore — fallback to no blocklist
+      });
   }, []);
+
+  // Check if container is Portainer OR on the upgrade blocklist
+  const isPortainerContainer = useCallback(
+    (container) => {
+      const imageName = container.image?.toLowerCase() || "";
+      const containerName = container.name?.toLowerCase() || "";
+      if (imageName.includes("portainer") || containerName.includes("portainer")) {
+        return true;
+      }
+      return blockedNames.has(containerName);
+    },
+    [blockedNames]
+  );
+
+  // Return the appropriate disabled tooltip message for a container
+  const getBlockedMessage = useCallback(
+    (container) => {
+      const imageName = container.image?.toLowerCase() || "";
+      const containerName = container.name?.toLowerCase() || "";
+      if (imageName.includes("portainer") || containerName.includes("portainer")) {
+        return PORTAINER_CONTAINER_MESSAGE;
+      }
+      if (blockedNames.has(containerName)) {
+        return BLOCKLISTED_CONTAINER_MESSAGE;
+      }
+      return undefined;
+    },
+    [blockedNames]
+  );
 
   // Toggle stack collapse
   const toggleStack = useCallback((stackKey) => {
@@ -253,6 +301,7 @@ export function usePortainerPage({
 
     // Helpers
     isPortainerContainer,
+    getBlockedMessage,
     formatBytes: formatBytesUtil,
 
     // Actions

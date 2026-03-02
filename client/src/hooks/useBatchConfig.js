@@ -10,6 +10,7 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
   const [batchConfig, setBatchConfig] = useState({
     "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
     "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
+    "app-version-scan": { enabled: false, intervalMinutes: 60 },
   });
 
   // Fetch batch configuration
@@ -27,6 +28,10 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
                 intervalMinutes: 60,
               },
               "tracked-apps-check": configs["tracked-apps-check"] || {
+                enabled: false,
+                intervalMinutes: 60,
+              },
+              "app-version-scan": configs["app-version-scan"] || {
                 enabled: false,
                 intervalMinutes: 60,
               },
@@ -54,6 +59,10 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
             intervalMinutes: 60,
           },
           "tracked-apps-check": configs["tracked-apps-check"] || {
+            enabled: false,
+            intervalMinutes: 60,
+          },
+          "app-version-scan": configs["app-version-scan"] || {
             enabled: false,
             intervalMinutes: 60,
           },

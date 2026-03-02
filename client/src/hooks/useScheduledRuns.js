@@ -10,6 +10,7 @@ import { parseSQLiteDate } from "../utils/dateParsing";
 export function useScheduledRuns(batchConfigs, recentRuns) {
   const [nextScheduledRunDockerHub, setNextScheduledRunDockerHub] = useState(null);
   const [nextScheduledRunTrackedApps, setNextScheduledRunTrackedApps] = useState(null);
+  const [nextScheduledRunAppVersionScan, setNextScheduledRunAppVersionScan] = useState(null);
 
   // Refs for scheduled run calculations
   const lastCalculatedRunIdRefDockerHub = useRef(null);
@@ -18,6 +19,9 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
   const lastCalculatedRunIdRefTrackedApps = useRef(null);
   const lastCalculatedIntervalRefTrackedApps = useRef(null);
   const baseScheduledTimeRefTrackedApps = useRef(null);
+  const lastCalculatedRunIdRefAppVersionScan = useRef(null);
+  const lastCalculatedIntervalRefAppVersionScan = useRef(null);
+  const baseScheduledTimeRefAppVersionScan = useRef(null);
 
   // Calculate next scheduled run for a job type
   const calculateNextScheduledRun = useCallback((jobType, recentRuns, config, setNextRun, refs) => {
@@ -113,6 +117,21 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
     );
   }, [batchConfigs, recentRuns, calculateNextScheduledRun]);
 
+  // Calculate next scheduled run for App Version Scan
+  useEffect(() => {
+    calculateNextScheduledRun(
+      BATCH_JOB_TYPES.APP_VERSION_SCAN,
+      recentRuns,
+      batchConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN],
+      setNextScheduledRunAppVersionScan,
+      {
+        lastCalculatedRunId: lastCalculatedRunIdRefAppVersionScan,
+        lastCalculatedInterval: lastCalculatedIntervalRefAppVersionScan,
+        baseScheduledTime: baseScheduledTimeRefAppVersionScan,
+      }
+    );
+  }, [batchConfigs, recentRuns, calculateNextScheduledRun]);
+
   // Reset dependency tracking when configs change
   useEffect(() => {
     baseScheduledTimeRefDockerHub.current = null;
@@ -121,10 +140,14 @@ export function useScheduledRuns(batchConfigs, recentRuns) {
     baseScheduledTimeRefTrackedApps.current = null;
     lastCalculatedRunIdRefTrackedApps.current = null;
     lastCalculatedIntervalRefTrackedApps.current = null;
+    baseScheduledTimeRefAppVersionScan.current = null;
+    lastCalculatedRunIdRefAppVersionScan.current = null;
+    lastCalculatedIntervalRefAppVersionScan.current = null;
   }, [batchConfigs]);
 
   return {
     nextScheduledRunDockerHub,
     nextScheduledRunTrackedApps,
+    nextScheduledRunAppVersionScan,
   };
 }

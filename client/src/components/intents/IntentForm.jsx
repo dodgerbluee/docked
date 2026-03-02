@@ -3,13 +3,15 @@
  * Form for creating/editing an intent
  */
 
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
+import axios from "axios";
 import cronstrue from "cronstrue";
 import { Plus, X, Box, LaptopMinimalCheck, Layers, Globe, Zap, Clock } from "lucide-react";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import PortainerIcon from "../icons/PortainerIcon";
+import { API_BASE_URL } from "../../constants/api";
 import {
   SCHEDULE_TYPES,
   SCHEDULE_TYPE_LABELS,
@@ -36,6 +38,70 @@ const SCHEDULE_TYPE_ICONS = {
   [SCHEDULE_TYPES.IMMEDIATE]: Zap,
   [SCHEDULE_TYPES.SCHEDULED]: Clock,
 };
+
+/**
+ * Check if a field value matches a single match value (exact or glob).
+ */
+function fieldMatchesValue(field, val) {
+  if (!field) return false;
+  if (isGlobPattern(val)) {
+    try {
+      return globToRegex(val).test(field);
+    } catch {
+      return false;
+    }
+  }
+  return field.toLowerCase() === val.toLowerCase();
+}
+
+/**
+ * Filter the full suggestion lists down to only containers matched by the
+ * current match rules (matchType + matchValues).
+ * When matchValues is empty (match all), the full suggestions are returned unchanged.
+ */
+function useExcludeSuggestions(containers, matchType, matchValues, allSuggestions) {
+  return useMemo(() => {
+    if (!matchValues.length) return allSuggestions;
+
+    const matchedContainers = containers.filter((c) => {
+      return matchValues.some((val) => {
+        switch (matchType) {
+          case MATCH_TYPES.CONTAINERS:
+            return fieldMatchesValue(c.name || "", val);
+          case MATCH_TYPES.IMAGES:
+            return fieldMatchesValue(c.image || "", val);
+          case MATCH_TYPES.STACKS:
+            return fieldMatchesValue(c.stackName || "", val);
+          case MATCH_TYPES.INSTANCES:
+            return fieldMatchesValue(c.portainerName || "", val);
+          case MATCH_TYPES.REGISTRIES: {
+            const parts = (c.image || "").split("/");
+            const registry = parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
+            return fieldMatchesValue(registry, val);
+          }
+          default:
+            return false;
+        }
+      });
+    });
+
+    const containerNames = new Set();
+    const imagePatterns = new Set();
+    const stackNames = new Set();
+    for (const c of matchedContainers) {
+      if (c.name) containerNames.add(c.name);
+      if (c.image) imagePatterns.add(c.image);
+      if (c.stackName) stackNames.add(c.stackName);
+    }
+
+    return {
+      ...allSuggestions,
+      [MATCH_TYPES.CONTAINERS]: [...containerNames].sort(),
+      [MATCH_TYPES.IMAGES]: [...imagePatterns].sort(),
+      [MATCH_TYPES.STACKS]: [...stackNames].sort(),
+    };
+  }, [containers, matchType, matchValues, allSuggestions]);
+}
 
 /**
  * Build suggestion lists for each match type from container/instance data
@@ -486,6 +552,36 @@ const IntentForm = React.memo(function IntentForm({
   });
 
   const [formError, setFormError] = useState("");
+  const [blockedContainerNames, setBlockedContainerNames] = useState([]);
+
+  // Fetch the global blocklist and pre-populate exclusion criteria with blocked container names.
+  // This makes it visible to the user which containers are always excluded from upgrading.
+  useEffect(() => {
+    axios
+      .get(`${API_BASE_URL}/api/settings/disallowed-containers`)
+      .then(({ data }) => {
+        if (!data.success) return;
+        const blocked = data.containers;
+        if (!blocked || blocked.length === 0) return;
+        setBlockedContainerNames(blocked);
+        setFormData((prev) => {
+          if (prev.excludeType !== MATCH_TYPES.CONTAINERS) return prev;
+          const merged = [...new Set([...blocked, ...prev.excludeValues])];
+          if (merged.length === prev.excludeValues.length) return prev;
+          return { ...prev, excludeValues: merged };
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Suggestions for the exclusion dropdown — filtered to only containers matched
+  // by the current match rules (so users only see relevant options to exclude)
+  const excludeSuggestions = useExcludeSuggestions(
+    containers,
+    formData.matchType,
+    formData.matchValues,
+    suggestions
+  );
 
   // Compute human-readable cron description
   const cronDescription = useMemo(() => {
@@ -562,8 +658,13 @@ const IntentForm = React.memo(function IntentForm({
         matchStacks: formData.matchType === MATCH_TYPES.STACKS ? matchValues : [],
         matchRegistries: formData.matchType === MATCH_TYPES.REGISTRIES ? matchValues : [],
         matchInstances: formData.matchType === MATCH_TYPES.INSTANCES ? matchValues : [],
-        excludeContainers:
-          formData.excludeType === MATCH_TYPES.CONTAINERS ? formData.excludeValues : [],
+        // Always include blocked container names in excludeContainers (merged with user-set values)
+        excludeContainers: [
+          ...new Set([
+            ...(formData.excludeType === MATCH_TYPES.CONTAINERS ? formData.excludeValues : []),
+            ...blockedContainerNames,
+          ]),
+        ],
         excludeImages: formData.excludeType === MATCH_TYPES.IMAGES ? formData.excludeValues : [],
         excludeStacks: formData.excludeType === MATCH_TYPES.STACKS ? formData.excludeValues : [],
         excludeRegistries:
@@ -578,7 +679,7 @@ const IntentForm = React.memo(function IntentForm({
         setFormError(result.error || "An error occurred");
       }
     },
-    [formData, onSubmit, nameToId]
+    [formData, onSubmit, nameToId, blockedContainerNames]
   );
 
   return (
@@ -622,7 +723,7 @@ const IntentForm = React.memo(function IntentForm({
           matchValues={formData.excludeValues}
           onChangeType={handleExcludeTypeChange}
           onChangeValues={(values) => updateField("excludeValues", values)}
-          suggestions={suggestions}
+          suggestions={excludeSuggestions}
           allowedTypes={[MATCH_TYPES.CONTAINERS, MATCH_TYPES.IMAGES, MATCH_TYPES.STACKS]}
         />
       </div>

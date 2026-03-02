@@ -407,6 +407,16 @@ if (shouldStartServer) {
               error: cleanupError.message,
             });
           }
+
+          // Start runner version poller (checks GitHub + each runner every hour)
+          try {
+            const { startVersionPoller } = require("./services/runnerVersionPoller");
+            startVersionPoller();
+          } catch (pollerError) {
+            logger.warn("Runner version poller setup skipped:", {
+              error: pollerError.message,
+            });
+          }
         } catch (dbError) {
           logger.error("Database not ready, batch system will not start", {
             module: "server",

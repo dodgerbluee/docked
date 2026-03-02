@@ -261,6 +261,22 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   color: var(--text-primary);
   flex: 1;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.runnerBadge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
 }
 
 .addButton {

@@ -49,12 +49,168 @@ const repositoryAccessTokenController = require("../controllers/repositoryAccess
 const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
 const ssoAdminController = require("../controllers/ssoAdminController");
+const runnerController = require("../controllers/runnerController");
+const { getAllRunners } = require("../db/runners");
+const { getContainersFromRunners } = require("../services/runnerService");
+const {
+  getRegistryImageVersion,
+  upsertRegistryImageVersion,
+} = require("../db/registryImageVersions");
+const { parseImageName } = require("../utils/imageRepoParser");
+const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authenticate } = require("../middleware/auth");
 const { validate, validationChains } = require("../middleware/validation");
 const { param } = require("express-validator");
 
 const router = express.Router();
+const logger = require("../utils/logger");
+
+/**
+ * Perform a registry check for a runner container image and update registry_image_versions.
+ * @returns {Promise<Object|null>} The checkImageUpdates result, or null on failure.
+ */
+async function checkRunnerImageRegistry(userId, container, imageRepo, tag) {
+  const imageUpdateService = require("../services/imageUpdateService");
+  const result = await imageUpdateService.checkImageUpdates(
+    container.image,
+    null,
+    null,
+    null,
+    userId
+  );
+  if (result && (result.latestDigestFull || result.latestDigest)) {
+    await upsertRegistryImageVersion(userId, imageRepo, tag, {
+      latestDigest: result.latestDigestFull || result.latestDigest,
+      latestVersion: result.latestVersion || null,
+      latestPublishDate: result.latestPublishDate || null,
+      provider: result.provider || null,
+      existsInRegistry: true,
+    });
+    return result;
+  }
+  return null;
+}
+
+/**
+ * Enrich a runner container with registry update info.
+ * - forceRefresh=false (default): use cached registry_image_versions; if missing, trigger
+ *   a background check so the next page load has data.
+ * - forceRefresh=true (Check for Updates): bypass cache, hit the registry synchronously,
+ *   update the DB, and return enriched data in the same request.
+ */
+async function enrichRunnerContainer(userId, container, forceRefresh = false) {
+  try {
+    const { imageRepo, tag } = parseImageName(container.image);
+
+    if (!forceRefresh) {
+      const cached = await getRegistryImageVersion(userId, imageRepo, tag);
+      if (cached && cached.latest_digest) {
+        const enriched = {
+          ...container,
+          latestDigest: cached.latest_digest,
+          latestVersion: cached.latest_version || null,
+          latestPublishDate: cached.latest_publish_date || null,
+          lastChecked: cached.last_checked || null,
+          provider: cached.provider || null,
+          existsInDockerHub: true,
+          noDigest: false,
+        };
+        return { ...enriched, hasUpdate: computeHasUpdate(enriched) };
+      }
+      // No cache — fire-and-forget so the next load has data
+      checkRunnerImageRegistry(userId, container, imageRepo, tag).catch((err) => {
+        logger.debug(`Background registry check failed for runner image ${container.image}:`, {
+          module: "routes",
+          error: err.message,
+        });
+      });
+      return container;
+    }
+
+    // Force refresh: hit registry, await result, update DB, return enriched
+    const result = await checkRunnerImageRegistry(userId, container, imageRepo, tag);
+    if (result) {
+      const fullDigest = result.latestDigestFull || result.latestDigest;
+      const enriched = {
+        ...container,
+        latestDigest: fullDigest,
+        latestVersion: result.latestVersion || null,
+        latestPublishDate: result.latestPublishDate || null,
+        lastChecked: new Date().toISOString(),
+        provider: result.provider || null,
+        existsInDockerHub: true,
+        noDigest: false,
+      };
+      return { ...enriched, hasUpdate: computeHasUpdate(enriched) };
+    }
+  } catch (err) {
+    logger.debug(`Runner container enrichment failed for ${container.name}:`, {
+      module: "routes",
+      error: err.message,
+    });
+  }
+  return container;
+}
+
+/**
+ * Middleware that appends runner-sourced containers to the /containers response.
+ * Runner fetch failures are non-fatal — Portainer containers are always returned.
+ */
+function appendRunnerContainers(req, res, next) {
+  const originalJson = res.json.bind(res);
+  res.json = (data) => {
+    // Restore immediately so we never double-intercept
+    res.json = originalJson;
+
+    if (!Array.isArray(data?.containers) || !req.user?.id) {
+      return originalJson(data);
+    }
+
+    const userId = req.user.id;
+    getAllRunners(userId)
+      .then((runners) => getContainersFromRunners(runners))
+      .then(async (runnerContainers) => {
+        if (runnerContainers.length > 0) {
+          // Two-pass: detect which containers are network providers before enriching.
+          // A container "provides network" if another container has networkMode = "container:<id|name>"
+          // or "service:<name>" pointing to it.
+          const providerIds = new Set();
+          const providerNames = new Set();
+          for (const c of runnerContainers) {
+            const nm = c.networkMode || "";
+            if (nm.startsWith("container:")) {
+              providerIds.add(nm.slice("container:".length));
+              providerNames.add(nm.slice("container:".length));
+            } else if (nm.startsWith("service:")) {
+              providerNames.add(nm.slice("service:".length));
+            }
+          }
+          for (const c of runnerContainers) {
+            if (providerIds.has(c.id) || providerNames.has(c.name)) {
+              c.providesNetwork = true;
+            }
+          }
+
+          // POST /containers/pull = "Check for Updates": bypass cache and hit registry directly
+          const isForceRefresh = req.method === "POST";
+          const enriched = await Promise.all(
+            runnerContainers.map((c) => enrichRunnerContainer(userId, c, isForceRefresh))
+          );
+          data = { ...data, containers: [...data.containers, ...enriched] };
+        }
+        originalJson(data);
+      })
+      .catch((err) => {
+        logger.warn("Runner container fetch failed, returning Portainer-only results:", {
+          module: "routes",
+          error: err.message,
+        });
+        originalJson(data);
+      });
+  };
+  next();
+}
 
 // Rate limiters for specific routes
 // Avatar routes rate limiter: 100 requests per 15 minutes per IP
@@ -290,6 +446,14 @@ router.post(
 );
 router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
 
+// Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
+router.get(
+  "/runners/install/:token",
+  publicLimiter,
+  asyncHandler(runnerController.serveInstallScript)
+);
+router.post("/runners/register", publicLimiter, asyncHandler(runnerController.registerRunner));
+
 // Protected routes - require authentication
 // All routes below this line require authentication
 router.use(authenticate);
@@ -375,7 +539,7 @@ router.post("/user/import-config", writeLimiter, asyncHandler(authController.imp
  *       401:
  *         description: Unauthorized
  */
-router.get("/containers", asyncHandler(containerController.getContainers));
+router.get("/containers", appendRunnerContainers, asyncHandler(containerController.getContainers));
 
 // IMPORTANT: Specific routes must come before parameterized routes
 // Otherwise /containers/pull would match /containers/:containerId/upgrade
@@ -406,6 +570,7 @@ router.get("/containers", asyncHandler(containerController.getContainers));
 router.post(
   "/containers/pull",
   destructiveLimiter,
+  appendRunnerContainers,
   asyncHandler(containerController.pullContainers)
 );
 
@@ -564,6 +729,27 @@ router.post(
     ...validationChains.containerUpgrade,
   ]),
   asyncHandler(containerController.upgradeContainer)
+);
+
+// Container lifecycle routes (work for both Portainer and runner backends)
+// NOTE: must come before parameterized /containers/:containerId routes if path conflicts arise
+router.post(
+  "/containers/:containerId/stop",
+  destructiveLimiter,
+  asyncHandler(containerController.stopContainer)
+);
+router.post(
+  "/containers/:containerId/start",
+  destructiveLimiter,
+  asyncHandler(containerController.startContainer)
+);
+
+// Backend image management routes (Portainer or runner backend selected by query params)
+router.get("/containers/backend-images", asyncHandler(containerController.getImages));
+router.post(
+  "/containers/backend-images/delete",
+  destructiveLimiter,
+  asyncHandler(containerController.deleteImage)
 );
 
 // Image routes
@@ -1282,6 +1468,16 @@ router.post(
   asyncHandler(settingsController.setRefreshingTogglesEnabledHandler)
 );
 
+router.get(
+  "/settings/disallowed-containers",
+  asyncHandler(settingsController.getDisallowedContainersHandler)
+);
+router.put(
+  "/settings/disallowed-containers",
+  writeLimiter,
+  asyncHandler(settingsController.setDisallowedContainersHandler)
+);
+
 // Repository access token routes
 router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
 router.get(
@@ -1315,5 +1511,60 @@ router.post(
 
 // Logs routes
 router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
+
+// Runner routes (dockhand agent instances)
+// IMPORTANT: Specific/static routes must come before parameterized routes
+router.get("/runners", asyncHandler(runnerController.getRunners));
+router.post("/runners", writeLimiter, asyncHandler(runnerController.createRunnerHandler));
+router.post("/runners/enrollment", writeLimiter, asyncHandler(runnerController.createEnrollment));
+router.get("/runners/enrollment-status", asyncHandler(runnerController.getEnrollmentStatus));
+router.get("/runners/:id", asyncHandler(runnerController.getRunner));
+router.put("/runners/:id", writeLimiter, asyncHandler(runnerController.updateRunnerHandler));
+router.delete(
+  "/runners/:id",
+  destructiveLimiter,
+  asyncHandler(runnerController.deleteRunnerHandler)
+);
+router.post("/runners/:id/health", asyncHandler(runnerController.healthCheckRunner));
+router.post("/runners/:id/update", writeLimiter, asyncHandler(runnerController.updateRunnerBinary));
+router.post(
+  "/runners/:id/uninstall",
+  destructiveLimiter,
+  asyncHandler(runnerController.uninstallRunnerHandler)
+);
+// Runner container SSE proxy routes
+router.post(
+  "/runners/:runnerId/containers/:containerId/upgrade",
+  destructiveLimiter,
+  asyncHandler(runnerController.upgradeRunnerContainer)
+);
+router.get(
+  "/runners/:runnerId/containers/:containerId/logs",
+  asyncHandler(runnerController.streamRunnerContainerLogs)
+);
+// Runner operation routes
+router.get("/runners/:runnerId/operations", asyncHandler(runnerController.getRunnerOperations));
+router.get(
+  "/runners/:runnerId/operations/:name/history",
+  asyncHandler(runnerController.getRunnerOperationHistory)
+);
+router.post(
+  "/runners/:runnerId/operations/:name/run",
+  writeLimiter,
+  asyncHandler(runnerController.runRunnerOperation)
+);
+
+// Runner app routes — static paths before parameterized ones
+router.get("/runners/:runnerId/apps", asyncHandler(runnerController.getRunnerApps));
+router.get("/runners/:runnerId/apps/history", asyncHandler(runnerController.getRunnerAppsHistory));
+router.post(
+  "/runners/:runnerId/apps/:appName/operations/:opName/run",
+  writeLimiter,
+  asyncHandler(runnerController.runRunnerAppOperation)
+);
+router.get(
+  "/runners/:runnerId/apps/:appName/operations/:opName/history",
+  asyncHandler(runnerController.getRunnerAppOperationHistory)
+);
 
 module.exports = router;

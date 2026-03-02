@@ -44,6 +44,12 @@ const ContainerCard = memo(
               <span className="portainer-badge">{container.portainerName}</span>
             </p>
           )}
+          {container.source === "runner" && container.runnerName && (
+            <p className="portainer-info">
+              <strong>Runner:</strong>{" "}
+              <span className="portainer-badge runner-badge">{container.runnerName}</span>
+            </p>
+          )}
           <p className="image-info">
             <strong>Image:</strong> {container.image}
           </p>

@@ -35,6 +35,14 @@ function registerHandlers() {
   } catch (error) {
     logger.error("Error registering TrackedAppsCheckHandler:", error);
   }
+
+  try {
+    const AppVersionScanHandler = require("./handlers/AppVersionScanHandler");
+    manager.registerHandler(new AppVersionScanHandler());
+    logger.info("✅ Registered App Version Scan batch handler");
+  } catch (error) {
+    logger.error("Error registering AppVersionScanHandler:", error);
+  }
 }
 
 /**
