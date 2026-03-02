@@ -405,7 +405,7 @@ jobs:
           echo "✓ Created and pushed tag ${{ needs.prepare-promotion.outputs.tag_name }}"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-artifacts
           path: release-artifacts/
