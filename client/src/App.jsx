@@ -195,6 +195,7 @@ function App() {
     portainerInstancesLoading,
     loadingInstances,
     dockerHubDataPulled,
+    dataFetched,
     setContainers,
     setStacks,
     setError,
@@ -230,13 +231,7 @@ function App() {
     fetchTrackedApps,
     fetchContainers,
   });
-  const {
-    handleBatchPull,
-    handleBatchTrackedAppsCheck,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
-  } = batchProcessing;
+  const { handleBatchPull, handleBatchTrackedAppsCheck } = batchProcessing;
 
   // New Portainer instance handler - using custom hook
   const { handleNewInstanceDataFetch } = useNewPortainerInstance({
@@ -330,9 +325,6 @@ function App() {
     setSettingsTab,
     setError,
     setPullError,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
   });
   const {
     handleLoginWithNavigation,
@@ -367,7 +359,6 @@ function App() {
     setUnusedImages,
     setUnusedImagesCount,
     setTrackedApps,
-    batchIntervalRef,
     showAvatarMenu,
     showNotificationMenu,
     setShowAvatarMenu,
@@ -611,6 +602,7 @@ function App() {
               containersByPortainer={containersByPortainer}
               loadingInstances={loadingInstances}
               dockerHubDataPulled={dockerHubDataPulled}
+              dataFetched={dataFetched}
               lastPullTime={lastPullTime}
               successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
               portainerInstancesFromAPI={portainerInstancesFromAPI}

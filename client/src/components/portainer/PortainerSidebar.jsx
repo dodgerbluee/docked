@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Plus, History, Zap } from "lucide-react";
+import { History, Zap, ArrowUpCircle, Layers, CheckCircle, Archive, Settings } from "lucide-react";
 import {
   PORTAINER_CONTENT_TABS,
   PORTAINER_CONTENT_TAB_LABELS,
@@ -21,7 +21,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
   onSelectedPortainerInstancesChange,
   selectedImageSourceFilters,
   onSelectedImageSourceFiltersChange,
-  onAddInstance,
+  onManageSources,
   onManageIntents,
 }) {
   const handleInstanceToggle = (instanceName, checked) => {
@@ -88,6 +88,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           }`}
           onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.UPDATES)}
         >
+          <ArrowUpCircle size={16} className={styles.sidebarIcon} />
           <span className={styles.sidebarItemName}>
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.UPDATES]}
           </span>
@@ -98,6 +99,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           }`}
           onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.ALL)}
         >
+          <Layers size={16} className={styles.sidebarIcon} />
           <span className={styles.sidebarItemName}>
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.ALL]}
           </span>
@@ -108,6 +110,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           }`}
           onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.CURRENT)}
         >
+          <CheckCircle size={16} className={styles.sidebarIcon} />
           <span className={styles.sidebarItemName}>
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.CURRENT]}
           </span>
@@ -118,6 +121,7 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
           }`}
           onClick={() => onContentTabChange(PORTAINER_CONTENT_TABS.UNUSED)}
         >
+          <Archive size={16} className={styles.sidebarIcon} />
           <span className={styles.sidebarItemName}>
             {PORTAINER_CONTENT_TAB_LABELS[PORTAINER_CONTENT_TABS.UNUSED]}
           </span>
@@ -179,15 +183,6 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
               </div>
             ))}
         </div>
-        <button
-          className={`${styles.sidebarItem} ${styles.addButton}`}
-          onClick={onAddInstance}
-          title="Add Portainer Instance"
-          aria-label="Add Portainer Instance"
-        >
-          <Plus size={16} aria-hidden="true" />
-          <span>Add Instance</span>
-        </button>
       </div>
 
       {/* Source Filter */}
@@ -234,22 +229,35 @@ const PortainerSidebar = React.memo(function PortainerSidebar({
       </div>
 
       {/* Manage */}
-      {onManageIntents && (
+      {(onManageSources || onManageIntents) && (
         <div className={`${styles.sidebarHeader} ${styles.filterSectionSpacing}`}>
           <h3>Manage</h3>
         </div>
       )}
-      {onManageIntents && (
+      {(onManageSources || onManageIntents) && (
         <div className={styles.filterContainer}>
-          <button
-            className={`${styles.sidebarItem} ${styles.manageIntentsButton}`}
-            onClick={onManageIntents}
-            title="Manage Intents"
-            aria-label="Manage Intents"
-          >
-            <Zap size={16} aria-hidden="true" />
-            <span>Intents</span>
-          </button>
+          {onManageSources && (
+            <button
+              className={`${styles.sidebarItem} ${styles.manageIntentsButton}`}
+              onClick={onManageSources}
+              title="Manage Sources"
+              aria-label="Manage Sources"
+            >
+              <Settings size={16} aria-hidden="true" />
+              <span>Sources</span>
+            </button>
+          )}
+          {onManageIntents && (
+            <button
+              className={`${styles.sidebarItem} ${styles.manageIntentsButton}`}
+              onClick={onManageIntents}
+              title="Manage Intents"
+              aria-label="Manage Intents"
+            >
+              <Zap size={16} aria-hidden="true" />
+              <span>Intents</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -264,7 +272,7 @@ PortainerSidebar.propTypes = {
   onSelectedPortainerInstancesChange: PropTypes.func.isRequired,
   selectedImageSourceFilters: PropTypes.instanceOf(Set).isRequired,
   onSelectedImageSourceFiltersChange: PropTypes.func.isRequired,
-  onAddInstance: PropTypes.func.isRequired,
+  onManageSources: PropTypes.func,
   onManageIntents: PropTypes.func,
 };
 

@@ -20,6 +20,8 @@ const {
 const authTokens = new Map();
 // Store auth type per Portainer instance to determine correct header format
 const authTypes = new Map();
+// Store last successful authentication timestamp per URL (for short-TTL health check cache)
+const authTimestamps = new Map();
 
 /**
  * Clear authentication token for a specific Portainer instance
@@ -29,6 +31,21 @@ const authTypes = new Map();
 function clearAuthToken(portainerUrl) {
   authTokens.delete(portainerUrl);
   authTypes.delete(portainerUrl);
+  authTimestamps.delete(portainerUrl);
+}
+
+/**
+ * Check if the cached auth token for a URL is younger than `maxAgeMs`.
+ * Used by health-check endpoints to short-circuit re-authentication.
+ * @param {string} portainerUrl - Portainer instance URL
+ * @param {number} [maxAgeMs=60000] - Maximum age in milliseconds (default 60 s)
+ * @returns {boolean} true if a cached token exists and was stored less than maxAgeMs ago
+ */
+function isAuthFresh(portainerUrl, maxAgeMs = 60000) {
+  const normalizedUrl = normalizeUrlForStorage(portainerUrl);
+  const ts = authTimestamps.get(portainerUrl) || authTimestamps.get(normalizedUrl);
+  if (!ts) return false;
+  return Date.now() - ts < maxAgeMs;
 }
 
 /**
@@ -54,6 +71,12 @@ function storeTokenForBothUrls(ipUrl, originalUrl, token, authType) {
   authTypes.set(originalUrl, authType);
   authTypes.set(normalizedIpUrl, authType);
   authTypes.set(normalizedOriginalUrl, authType);
+
+  const now = Date.now();
+  authTimestamps.set(ipUrl, now);
+  authTimestamps.set(originalUrl, now);
+  authTimestamps.set(normalizedIpUrl, now);
+  authTimestamps.set(normalizedOriginalUrl, now);
 
   logger.debug("Stored token for both URLs", {
     ipUrl: normalizedIpUrl,
@@ -229,6 +252,9 @@ function storeAuthToken(portainerUrl, token, authType) {
   authTokens.set(normalizedUrl, token);
   authTypes.set(portainerUrl, authType);
   authTypes.set(normalizedUrl, authType);
+  const now = Date.now();
+  authTimestamps.set(portainerUrl, now);
+  authTimestamps.set(normalizedUrl, now);
 }
 
 /**
@@ -604,6 +630,7 @@ module.exports = {
   authenticatePortainer,
   getAuthHeaders,
   clearAuthToken,
+  isAuthFresh,
   storeTokenForBothUrls,
   normalizeUrlForStorage,
 };

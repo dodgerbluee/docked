@@ -2,9 +2,14 @@
  * Hook for fetching and managing upgrade history
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
+
+// Module-level cache – survives unmount/remount so the tab renders instantly
+// on re-navigation instead of firing API calls again.
+let cachedHistory = null;
+let cachedStats = null;
 
 /**
  * Hook to fetch and manage upgrade history
@@ -16,15 +21,19 @@ import { API_BASE_URL } from "../constants/api";
  * @returns {Object} Upgrade history state and functions
  */
 export const useUpgradeHistory = (options = {}) => {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState(cachedHistory || []);
+  const [loading, setLoading] = useState(cachedHistory === null);
   const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [stats, setStats] = useState(cachedStats);
+  const [statsLoading, setStatsLoading] = useState(cachedStats === null);
+  const mountedRef = useRef(true);
 
   const fetchHistory = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show loading if we have no cached data
+      if (cachedHistory === null) {
+        setLoading(true);
+      }
       setError(null);
       const params = new URLSearchParams();
       if (options.limit) params.append("limit", options.limit);
@@ -35,28 +44,40 @@ export const useUpgradeHistory = (options = {}) => {
       const response = await axios.get(
         `${API_BASE_URL}/api/containers/upgrade-history?${params.toString()}`
       );
-      if (response.data.success) {
-        setHistory(response.data.history || []);
+      if (response.data.success && mountedRef.current) {
+        const data = response.data.history || [];
+        cachedHistory = data;
+        setHistory(data);
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to fetch upgrade history");
-      console.error("Error fetching upgrade history:", err);
+      if (mountedRef.current) {
+        setError(err.response?.data?.error || err.message || "Failed to fetch upgrade history");
+        console.error("Error fetching upgrade history:", err);
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [options.limit, options.offset, options.containerName, options.status]);
 
   const fetchStats = useCallback(async () => {
     try {
-      setStatsLoading(true);
+      if (cachedStats === null) {
+        setStatsLoading(true);
+      }
       const response = await axios.get(`${API_BASE_URL}/api/containers/upgrade-history/stats`);
-      if (response.data.success) {
-        setStats(response.data.stats || {});
+      if (response.data.success && mountedRef.current) {
+        const data = response.data.stats || {};
+        cachedStats = data;
+        setStats(data);
       }
     } catch (err) {
       console.error("Error fetching upgrade history stats:", err);
     } finally {
-      setStatsLoading(false);
+      if (mountedRef.current) {
+        setStatsLoading(false);
+      }
     }
   }, []);
 
@@ -73,12 +94,29 @@ export const useUpgradeHistory = (options = {}) => {
     }
   }, []);
 
+  // Guard prevents StrictMode double-fetch
+  const historyFetchDoneRef = useRef(false);
   useEffect(() => {
-    fetchHistory();
+    mountedRef.current = true;
+    if (!historyFetchDoneRef.current) {
+      historyFetchDoneRef.current = true;
+      fetchHistory();
+    }
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchHistory]);
 
+  const statsFetchDoneRef = useRef(false);
   useEffect(() => {
-    fetchStats();
+    mountedRef.current = true;
+    if (!statsFetchDoneRef.current) {
+      statsFetchDoneRef.current = true;
+      fetchStats();
+    }
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchStats]);
 
   return {

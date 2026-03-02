@@ -18,10 +18,14 @@ const { getAllPortainerInstances } = require("../db/index");
  */
 async function countUnusedImages(portainerUrl, endpointId) {
   try {
-    const images = await portainerService.getImages(portainerUrl, endpointId);
-    const containers = await portainerService.getContainers(portainerUrl, endpointId);
+    // Fetch images and containers in parallel (already authenticated)
+    const [images, containers] = await Promise.all([
+      portainerService.getImages(portainerUrl, endpointId),
+      portainerService.getContainers(portainerUrl, endpointId),
+    ]);
 
-    // Get all used image IDs (normalize to handle both full and shortened IDs)
+    // OPTIMIZED: Use ImageID from container list response instead of calling
+    // getContainerDetails per container. The list API already includes ImageID.
     const usedIds = new Set();
     const normalizeImageId = (id) => {
       const cleanId = id.replace(/^sha256:/, "");
@@ -29,14 +33,9 @@ async function countUnusedImages(portainerUrl, endpointId) {
     };
 
     for (const container of containers) {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        container.Id
-      );
-      if (details.Image) {
-        usedIds.add(details.Image);
-        usedIds.add(normalizeImageId(details.Image));
+      if (container.ImageID) {
+        usedIds.add(container.ImageID);
+        usedIds.add(normalizeImageId(container.ImageID));
       }
     }
 

@@ -21,6 +21,10 @@ import { API_BASE_URL } from "../../constants/api";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import styles from "./AppsHistoryTab.module.css";
 
+// Module-level cache – survives unmount/remount so the history view
+// renders instantly on re-navigation instead of showing a spinner.
+let cachedHistoryByRunner = null;
+
 function formatDate(ts) {
   if (!ts) return "—";
   return new Date(ts).toLocaleString("en-US", {
@@ -52,34 +56,40 @@ function parseOpKey(operationName) {
 }
 
 export default function AppsHistoryTab({ runners }) {
-  const [historyByRunner, setHistoryByRunner] = useState({}); // runnerId → record[]
-  const [loading, setLoading] = useState(true);
+  const hasCachedData = cachedHistoryByRunner !== null;
+  const [historyByRunner, setHistoryByRunner] = useState(cachedHistoryByRunner || {}); // runnerId → record[]
+  const [loading, setLoading] = useState(!hasCachedData);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    const results = await Promise.allSettled(
-      runners.map((r) =>
-        axios
-          .get(`${API_BASE_URL}/api/runners/${r.id}/apps/history?limit=100`)
-          .then(({ data }) => ({ runnerId: r.id, records: data.history || [] }))
-      )
-    );
-    const map = {};
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        map[result.value.runnerId] = result.value.records;
+  const fetchAll = useCallback(
+    async (isRefresh = false) => {
+      if (!isRefresh) setLoading(true);
+      const results = await Promise.allSettled(
+        runners.map((r) =>
+          axios
+            .get(`${API_BASE_URL}/api/runners/${r.id}/apps/history?limit=100`)
+            .then(({ data }) => ({ runnerId: r.id, records: data.history || [] }))
+        )
+      );
+      const map = {};
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          map[result.value.runnerId] = result.value.records;
+        }
       }
-    }
-    setHistoryByRunner(map);
-    setLoading(false);
-  }, [runners]);
+      setHistoryByRunner(map);
+      cachedHistoryByRunner = map;
+      setLoading(false);
+    },
+    [runners]
+  );
 
   useEffect(() => {
-    if (runners.length > 0) fetchAll();
+    if (runners.length > 0) fetchAll(hasCachedData);
     else setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hasCachedData is captured once at mount
   }, [fetchAll, runners.length]);
 
   const runnerById = useMemo(() => {

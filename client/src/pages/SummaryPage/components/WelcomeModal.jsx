@@ -129,10 +129,9 @@ const WelcomeModal = ({
                 </svg>
               </div>
               <div className={styles.featureContent}>
-                <h3 className={styles.featureTitle}>Connect Portainer Instances</h3>
+                <h3 className={styles.featureTitle}>Connect Sources</h3>
                 <p className={styles.featureDescription}>
-                  Add your Portainer instances to monitor and manage all your containers from one
-                  place.
+                  Add your sources to monitor and manage all your containers from one place.
                 </p>
               </div>
             </div>

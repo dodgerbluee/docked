@@ -4,7 +4,7 @@ import { Server, ExternalLink } from "lucide-react";
 import styles from "./ModernPortainerInstances.module.css";
 
 /**
- * Modern Portainer Instances component with integrated dashboard design
+ * Modern Sources component with integrated dashboard design
  */
 const ModernPortainerInstances = ({
   portainerStats,
@@ -17,7 +17,7 @@ const ModernPortainerInstances = ({
       <div className={styles.header}>
         <div className={styles.headerContent}>
           <Server size={20} className={styles.headerIcon} />
-          <h3 className={styles.title}>Portainer Instances</h3>
+          <h3 className={styles.title}>Sources</h3>
         </div>
       </div>
 
@@ -25,7 +25,7 @@ const ModernPortainerInstances = ({
         {shouldShowEmptyState || portainerStats.length === 0 ? (
           <div className={styles.emptyState}>
             <Server size={32} className={styles.emptyIcon} />
-            <p className={styles.emptyText}>No Portainer instances configured</p>
+            <p className={styles.emptyText}>No sources configured</p>
           </div>
         ) : (
           <div className={styles.instancesGrid}>

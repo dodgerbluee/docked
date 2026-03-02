@@ -16,7 +16,7 @@ const { computeHasUpdate } = require("../../utils/containerUpdateHelpers");
 
 // Memory cache with TTL
 const memoryCache = new Map();
-const CACHE_TTL = 30000; // 30 seconds
+const CACHE_TTL = 120000; // 120 seconds (2 minutes)
 
 /**
  * Cache entry structure

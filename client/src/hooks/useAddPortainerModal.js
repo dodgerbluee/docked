@@ -27,7 +27,7 @@ export function useAddPortainerModal({
 
       // Check if we're on the settings page - if so, stay there and don't navigate
       const isOnSettingsPage =
-        activeTab === TAB_NAMES.SETTINGS && settingsTab === SETTINGS_TABS.PORTAINER;
+        activeTab === TAB_NAMES.SETTINGS && settingsTab === SETTINGS_TABS.SOURCES;
 
       // Check if we're on the Portainer page
       const isOnPortainerPage = activeTab === TAB_NAMES.PORTAINER;

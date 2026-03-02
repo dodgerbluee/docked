@@ -45,6 +45,7 @@ function HomePage({
   containersByPortainer,
   loadingInstances,
   dockerHubDataPulled,
+  dataFetched,
   lastPullTime,
   successfullyUpdatedContainersRef,
   portainerInstancesFromAPI,
@@ -188,6 +189,7 @@ function HomePage({
           containersByPortainer={containersByPortainer}
           loadingInstances={loadingInstances}
           dockerHubDataPulled={dockerHubDataPulled}
+          dataFetched={dataFetched}
           lastPullTime={lastPullTime}
           successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
           selectedPortainerInstances={selectedPortainerInstances}

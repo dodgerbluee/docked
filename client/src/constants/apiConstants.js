@@ -40,10 +40,12 @@ export const SETTINGS_TABS = {
   GENERAL: "general",
   USERNAME: "username",
   PASSWORD: "password",
-  PORTAINER: "portainer",
+  PORTAINER: "portainer", // Legacy — UI now uses SOURCES
+  SOURCES: "sources",
   DOCKERHUB: "dockerhub",
   AVATAR: "avatar",
   BATCH: "batch",
+  USER_DETAILS: "userdetails",
 };
 
 export const CONFIGURATION_TABS = {

@@ -3,71 +3,62 @@
  * Handles detection of container network mode relationships
  */
 
-const portainerService = require("./portainerService");
 const {
   buildContainerIdentifierMap,
   getContainerName,
   getContainerShortId,
 } = require("../utils/containerIdentifiers");
-const logger = require("../utils/logger");
 
 /**
  * Detect network mode relationships between containers
- * Identifies which containers provide networks and which containers use network_mode
- * @param {Array} containers - Array of container objects from Portainer API
- * @param {string} portainerUrl - Portainer instance URL
- * @param {number} endpointId - Portainer endpoint ID
+ * Uses data already available in the container list response (HostConfig.NetworkMode)
+ * instead of making per-container API calls.
+ *
+ * @param {Array} containers - Array of container objects from Portainer API (/containers/json)
+ * @param {string} _portainerUrl - (unused, kept for backward compat)
+ * @param {number} _endpointId - (unused, kept for backward compat)
+ * @param {Map} [detailsMap] - (unused, kept for backward compat) Pre-fetched container details
  * @returns {Promise<Object>} - Object with containerNetworkModes Map and containerByIdentifier Map
  */
-async function detectNetworkModes(containers, portainerUrl, endpointId) {
+async function detectNetworkModes(containers, _portainerUrl, _endpointId, _detailsMap) {
   // First pass: build a map of all container identifiers (name, full ID, short ID) to container objects
   const containerByIdentifier = buildContainerIdentifierMap(containers);
 
-  // Second pass: collect all container names and network modes to detect network providers
+  // Second pass: read NetworkMode directly from list data (no API calls needed)
+  // Docker's /containers/json response includes HostConfig.NetworkMode for each container
   const containerNetworkModes = new Map();
 
   for (const container of containers) {
-    try {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        container.Id
-      );
-      const networkMode = details.HostConfig?.NetworkMode || "";
+    const networkMode = container.HostConfig?.NetworkMode || "";
 
-      if (networkMode) {
-        let targetContainer = null;
+    if (networkMode) {
+      let targetContainer = null;
 
-        if (networkMode.startsWith("service:")) {
-          const targetName = networkMode.replace("service:", "");
-          targetContainer = containerByIdentifier.get(targetName);
-        } else if (networkMode.startsWith("container:")) {
-          const target = networkMode.replace("container:", "");
-          // Try to find by name, full ID, or short ID
-          targetContainer = containerByIdentifier.get(target);
-        }
-
-        if (targetContainer) {
-          const targetContainerName = getContainerName(targetContainer);
-          const targetContainerId = targetContainer.Id;
-          const targetContainerShortId = getContainerShortId(targetContainer);
-          const dependentContainerName = getContainerName(container);
-
-          // Store by all possible identifiers
-          [targetContainerName, targetContainerId, targetContainerShortId].forEach((key) => {
-            if (!containerNetworkModes.has(key)) {
-              containerNetworkModes.set(key, []);
-            }
-            if (!containerNetworkModes.get(key).includes(dependentContainerName)) {
-              containerNetworkModes.get(key).push(dependentContainerName);
-            }
-          });
-        }
+      if (networkMode.startsWith("service:")) {
+        const targetName = networkMode.replace("service:", "");
+        targetContainer = containerByIdentifier.get(targetName);
+      } else if (networkMode.startsWith("container:")) {
+        const target = networkMode.replace("container:", "");
+        // Try to find by name, full ID, or short ID
+        targetContainer = containerByIdentifier.get(target);
       }
-    } catch (err) {
-      // Skip containers we can't inspect
-      logger.debug(`Could not inspect container ${container.Id}: ${err.message}`);
-      continue;
+
+      if (targetContainer) {
+        const targetContainerName = getContainerName(targetContainer);
+        const targetContainerId = targetContainer.Id;
+        const targetContainerShortId = getContainerShortId(targetContainer);
+        const dependentContainerName = getContainerName(container);
+
+        // Store by all possible identifiers
+        [targetContainerName, targetContainerId, targetContainerShortId].forEach((key) => {
+          if (!containerNetworkModes.has(key)) {
+            containerNetworkModes.set(key, []);
+          }
+          if (!containerNetworkModes.get(key).includes(dependentContainerName)) {
+            containerNetworkModes.get(key).push(dependentContainerName);
+          }
+        });
+      }
     }
   }
 
@@ -100,11 +91,12 @@ function containerProvidesNetwork(container, containerNetworkModes) {
 
 /**
  * Check if a container uses network_mode
- * @param {Object} containerDetails - Container details from Portainer API
+ * Works with both container list objects and detail objects (both have HostConfig.NetworkMode)
+ * @param {Object} containerOrDetails - Container object from list API or details API
  * @returns {boolean} - True if container uses network_mode
  */
-function containerUsesNetworkMode(containerDetails) {
-  const networkMode = containerDetails.HostConfig?.NetworkMode || "";
+function containerUsesNetworkMode(containerOrDetails) {
+  const networkMode = containerOrDetails.HostConfig?.NetworkMode || "";
   return (
     networkMode && (networkMode.startsWith("service:") || networkMode.startsWith("container:"))
   );

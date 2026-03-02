@@ -12,16 +12,20 @@ import { API_BASE_URL } from "../constants/api";
 import { useIsMobile } from "../hooks/useIsMobile";
 import ErrorBoundary from "../components/ErrorBoundary";
 import MobileDrawer from "../components/ui/MobileDrawer";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import AppsPageSkeleton from "../components/apps/AppsPageSkeleton";
 import Button from "../components/ui/Button";
 import SearchInput from "../components/ui/SearchInput";
 import RunOperationModal from "../components/ui/RunOperationModal";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
-import { EnrollmentModal } from "../components/settings/RunnerTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import styles from "./AppsPage.module.css";
+
+// Module-level cache – survives unmount/remount so the tab renders instantly
+// on re-navigation instead of showing a loading spinner.
+let cachedRunners = null;
+let cachedApps = null;
 
 function appHasUpdate(app) {
   return (
@@ -332,13 +336,18 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 
 /* ── AppsPage ──────────────────────────────────────────────────────────── */
 
-export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
+export default function AppsPage({
+  onAppsUpdatesChange,
+  onNavigateToRunners,
+  onNavigateToIntents,
+}) {
   const isMobile = useIsMobile();
 
-  // Data
-  const [runners, setRunners] = useState([]);
-  const [apps, setApps] = useState({}); // runnerId → app[]
-  const [loading, setLoading] = useState(true);
+  // Data – initialise from module-level cache when available
+  const hasCachedData = cachedRunners !== null;
+  const [runners, setRunners] = useState(cachedRunners || []);
+  const [apps, setApps] = useState(cachedApps || {}); // runnerId → app[]
+  const [loading, setLoading] = useState(!hasCachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [appErrors, setAppErrors] = useState({}); // runnerId → string
 
@@ -351,7 +360,6 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
   const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
-  const [showAddRunner, setShowAddRunner] = useState(false);
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
 
@@ -359,14 +367,22 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/apps`);
       const runnerApps = data.apps || [];
-      setApps((prev) => ({ ...prev, [runner.id]: runnerApps }));
+      setApps((prev) => {
+        const next = { ...prev, [runner.id]: runnerApps };
+        cachedApps = next;
+        return next;
+      });
       setAppErrors((prev) => ({ ...prev, [runner.id]: null }));
     } catch (err) {
       setAppErrors((prev) => ({
         ...prev,
         [runner.id]: err.response?.data?.error || err.message,
       }));
-      setApps((prev) => ({ ...prev, [runner.id]: [] }));
+      setApps((prev) => {
+        const next = { ...prev, [runner.id]: [] };
+        cachedApps = next;
+        return next;
+      });
     }
   }, []);
 
@@ -379,6 +395,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
         const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
         const list = (data.runners || []).filter((r) => r.enabled !== 0);
         setRunners(list);
+        cachedRunners = list;
         await Promise.all(list.map(fetchAppsForRunner));
       } catch (err) {
         console.error("AppsPage: failed to fetch runners", err);
@@ -391,19 +408,35 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   );
 
   useEffect(() => {
-    fetchAll();
+    // If we have cached data, refresh silently in the background;
+    // otherwise do a full load (shows spinner).
+    fetchAll(hasCachedData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hasCachedData is captured once at mount
   }, [fetchAll]);
 
   // Refresh runner/app data every 5 minutes to pick up version updates
   useEffect(() => {
-    const id = setInterval(() => fetchAll(true), 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [fetchAll]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchAll(true);
+      }
+    };
 
-  // Stable callback for EnrollmentModal so the polling effect doesn't re-fire
-  const handleEnrolled = useCallback(() => {
-    setShowAddRunner(false);
-    fetchAll(true);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const id = setInterval(
+      () => {
+        if (document.visibilityState === "visible") {
+          fetchAll(true);
+        }
+      },
+      5 * 60 * 1000
+    );
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(id);
+    };
   }, [fetchAll]);
 
   /* ── Derived data ──────────────────────────────────────────────────── */
@@ -604,7 +637,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
 
   const renderContent = () => {
     if (loading) {
-      return <LoadingSpinner size="md" message="Loading apps..." />;
+      return <AppsPageSkeleton />;
     }
 
     if (enabledRunners.length === 0) {
@@ -698,8 +731,8 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       onSelectedRunnersChange={setSelectedRunners}
       totalOps={totalApps}
       updatesCount={appsWithUpdatesList.length}
-      onAddRunner={() => setShowAddRunner(true)}
-      onManageRunners={onNavigateToRunners}
+      onManageSources={onNavigateToRunners}
+      onManageIntents={onNavigateToIntents}
     />
   );
 
@@ -743,11 +776,8 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
               onSelectedRunnersChange={setSelectedRunners}
               totalOps={totalApps}
               updatesCount={appsWithUpdatesList.length}
-              onAddRunner={() => {
-                setShowAddRunner(true);
-                closeMobileSidebar();
-              }}
-              onManageRunners={onNavigateToRunners}
+              onManageSources={onNavigateToRunners}
+              onManageIntents={onNavigateToIntents}
             />
           </MobileDrawer>
         </ErrorBoundary>
@@ -755,10 +785,6 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
         {/* Content */}
         <div className={styles.contentArea}>{renderContent()}</div>
       </div>
-
-      {showAddRunner && (
-        <EnrollmentModal onClose={() => setShowAddRunner(false)} onEnrolled={handleEnrolled} />
-      )}
 
       {pendingRun && (
         <ConfirmRunModal

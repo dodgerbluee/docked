@@ -1,6 +1,5 @@
 import { useBatchPolling } from "./useBatchProcessing/hooks/useBatchPolling";
 import { useBatchTriggers } from "./useBatchProcessing/hooks/useBatchTriggers";
-import { useBatchIntervals } from "./useBatchProcessing/hooks/useBatchIntervals";
 
 /**
  * Custom hook for managing batch processing operations
@@ -37,20 +36,8 @@ export const useBatchProcessing = ({
     fetchTrackedApps,
   });
 
-  const { batchIntervalRef, batchInitialTimeoutRef, hasRunInitialPullRef } = useBatchIntervals({
-    batchEnabled: batchConfig.enabled,
-    isAuthenticated,
-    authToken,
-    intervalMinutes: batchConfig.intervalMinutes,
-    handleBatchPull,
-    handleBatchTrackedAppsCheck,
-  });
-
   return {
     handleBatchPull,
     handleBatchTrackedAppsCheck,
-    batchIntervalRef,
-    batchInitialTimeoutRef,
-    hasRunInitialPullRef,
   };
 };

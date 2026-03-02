@@ -1040,6 +1040,10 @@ router.delete(
   destructiveLimiter,
   asyncHandler(portainerController.deleteInstance)
 );
+router.post(
+  "/portainer/instances/:id/health",
+  asyncHandler(portainerController.healthCheckInstance)
+);
 
 /**
  * @swagger

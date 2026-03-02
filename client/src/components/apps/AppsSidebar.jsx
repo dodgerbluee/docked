@@ -7,7 +7,7 @@
 
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { Layers, Server, ArrowUpCircle, History, Plus, Settings } from "lucide-react";
+import { Layers, Server, ArrowUpCircle, History, Settings, Zap } from "lucide-react";
 import styles from "./AppsSidebar.module.css";
 
 export const APPS_VIEWS = {
@@ -25,8 +25,8 @@ const AppsSidebar = memo(function AppsSidebar({
   onSelectedRunnersChange,
   totalOps,
   updatesCount = 0,
-  onAddRunner,
-  onManageRunners,
+  onManageSources,
+  onManageIntents,
 }) {
   const handleRunnerToggle = (runnerId, checked) => {
     onSelectedRunnersChange((prev) => {
@@ -81,77 +81,76 @@ const AppsSidebar = memo(function AppsSidebar({
       </div>
 
       {/* Runner filter — checkboxes only shown when multiple runners */}
-      {(runners.length > 1 || onAddRunner) && (
+      {runners.length > 1 && (
         <>
           <div className={styles.sidebarHeader}>
             <h3>Filter by Runner</h3>
           </div>
           <div className={styles.filterContainer}>
-            {runners.length > 1 && (
-              <div className={styles.filterBox}>
-                {runners.map((runner) => {
-                  const isChecked = selectedRunners.has(runner.id);
-                  return (
-                    <div key={runner.id} className={styles.filterLabel}>
-                      <label className={styles.checkbox}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
-                          aria-label={`Filter by ${runner.name}`}
-                        />
-                      </label>
-                      <span
-                        className={styles.filterText}
-                        onClick={() => handleRunnerToggle(runner.id, !isChecked)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            handleRunnerToggle(runner.id, !isChecked);
-                          }
-                        }}
-                      >
-                        {runner.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {onAddRunner && (
-              <button
-                className={`${styles.sidebarItem} ${styles.addButton}`}
-                onClick={onAddRunner}
-                title="Add Runner"
-                aria-label="Add Runner"
-              >
-                <Plus size={16} aria-hidden="true" />
-                <span>Add Runner</span>
-              </button>
-            )}
+            <div className={styles.filterBox}>
+              {runners.map((runner) => {
+                const isChecked = selectedRunners.has(runner.id);
+                return (
+                  <div key={runner.id} className={styles.filterLabel}>
+                    <label className={styles.checkbox}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => handleRunnerToggle(runner.id, e.target.checked)}
+                        aria-label={`Filter by ${runner.name}`}
+                      />
+                    </label>
+                    <span
+                      className={styles.filterText}
+                      onClick={() => handleRunnerToggle(runner.id, !isChecked)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleRunnerToggle(runner.id, !isChecked);
+                        }
+                      }}
+                    >
+                      {runner.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
 
       {/* Manage section */}
-      {onManageRunners && (
+      {(onManageSources || onManageIntents) && (
         <>
           <div className={`${styles.sidebarHeader} ${styles.manageSectionSpacing}`}>
             <h3>Manage</h3>
           </div>
           <div className={styles.filterContainer}>
-            <button
-              className={`${styles.sidebarItem} ${styles.manageButton}`}
-              onClick={onManageRunners}
-              title="Manage Runners"
-              aria-label="Manage Runners"
-            >
-              <Settings size={16} aria-hidden="true" />
-              <span>Runners</span>
-            </button>
+            {onManageSources && (
+              <button
+                className={`${styles.sidebarItem} ${styles.manageButton}`}
+                onClick={onManageSources}
+                title="Manage Sources"
+                aria-label="Manage Sources"
+              >
+                <Settings size={16} aria-hidden="true" />
+                <span>Sources</span>
+              </button>
+            )}
+            {onManageIntents && (
+              <button
+                className={`${styles.sidebarItem} ${styles.manageButton}`}
+                onClick={onManageIntents}
+                title="Manage Intents"
+                aria-label="Manage Intents"
+              >
+                <Zap size={16} aria-hidden="true" />
+                <span>Intents</span>
+              </button>
+            )}
           </div>
         </>
       )}
@@ -179,8 +178,8 @@ AppsSidebar.propTypes = {
   onSelectedRunnersChange: PropTypes.func.isRequired,
   totalOps: PropTypes.number.isRequired,
   updatesCount: PropTypes.number,
-  onAddRunner: PropTypes.func,
-  onManageRunners: PropTypes.func,
+  onManageSources: PropTypes.func,
+  onManageIntents: PropTypes.func,
 };
 
 export default AppsSidebar;

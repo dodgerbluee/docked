@@ -51,8 +51,11 @@ export const useAuth = () => {
     delete axios.defaults.headers.common["Authorization"];
   }, []);
 
-  // Validate token on mount
+  // Validate token on mount (guard prevents StrictMode double-fetch)
+  const tokenValidatedRef = useRef(false);
   useEffect(() => {
+    if (tokenValidatedRef.current) return;
+
     const validateToken = async () => {
       const token = localStorage.getItem("authToken");
 
@@ -107,6 +110,7 @@ export const useAuth = () => {
       }
     };
 
+    tokenValidatedRef.current = true;
     validateToken();
   }, [handleLogout]);
 

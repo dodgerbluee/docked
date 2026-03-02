@@ -19,7 +19,7 @@ const PortainerInstancesGrid = ({
       <div className={styles.sectionHeader}>
         <div className={styles.headerContent}>
           <Server size={20} className={styles.headerIcon} />
-          <h3 className={styles.sectionTitle}>Portainer Instances</h3>
+          <h3 className={styles.sectionTitle}>Sources</h3>
         </div>
       </div>
 
@@ -27,13 +27,13 @@ const PortainerInstancesGrid = ({
         <div className={styles.emptyState}>
           <div className={styles.emptyContent}>
             <Server size={48} className={styles.emptyIcon} />
-            <h4 className={styles.emptyTitle}>No Portainer Instances</h4>
+            <h4 className={styles.emptyTitle}>No Sources</h4>
             <p className={styles.emptyText}>
-              Get started by adding your first Portainer instance to monitor your containers.
+              Get started by adding your first source to monitor your containers.
             </p>
             <button className={styles.emptyButton} onClick={onAddInstance}>
               <Plus size={18} />
-              Add Portainer Instance
+              Add Source
             </button>
           </div>
         </div>

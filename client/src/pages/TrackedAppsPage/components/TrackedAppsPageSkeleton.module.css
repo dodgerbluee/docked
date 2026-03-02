@@ -1,0 +1,140 @@
+/* ── Shared shimmer animation ───────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ── Container ──────────────────────────────────────────────────────── */
+.skeletonContainer {
+  margin-top: 20px;
+}
+
+/* ── Section header (mimics stackHeader) ────────────────────────────── */
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.sectionHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggleIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.sectionTitle {
+  width: 140px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.sectionCount {
+  width: 50px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+/* ── Card grid (matches TrackedAppsPage grid) ───────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+/* ── Individual card skeleton (matches TrackedAppCard) ──────────────── */
+.card {
+  background: var(--bg-secondary);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  border-left: 2px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardName {
+  width: 55%;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.cardRepoInfo {
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cardRepo {
+  width: 75%;
+  height: 13px;
+  border-radius: 4px;
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metaLine {
+  width: 60%;
+  height: 11px;
+  border-radius: 4px;
+}
+
+.metaLineShort {
+  width: 45%;
+}
+
+.metaLineMedium {
+  width: 55%;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .sectionHeader {
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+}

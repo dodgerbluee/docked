@@ -1,0 +1,130 @@
+/* ── Shared shimmer animation ───────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ── Container ──────────────────────────────────────────────────────── */
+.skeletonContainer {
+  margin-top: 20px;
+}
+
+/* ── Card grid (matches AppsPage grid) ──────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+/* ── Individual card skeleton (matches AppCard) ─────────────────────── */
+.card {
+  background: var(--bg-secondary);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  border-left: 2px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardName {
+  width: 55%;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.runnerBadge {
+  width: 60px;
+  height: 18px;
+  border-radius: 10px;
+}
+
+.descriptionLine {
+  width: 90%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.descriptionShort {
+  width: 60%;
+}
+
+.versionRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.versionBadge {
+  width: 80px;
+  height: 18px;
+  border-radius: 10px;
+}
+
+.operationsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.opButton {
+  width: 65px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.opButtonWide {
+  width: 85px;
+}
+
+.cardFooter {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.footerLine {
+  width: 45%;
+  height: 11px;
+  border-radius: 4px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}

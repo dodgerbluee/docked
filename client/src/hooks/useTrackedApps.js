@@ -3,7 +3,7 @@
  * Manages state and operations for tracked Docker images and GitHub repositories
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { parseUTCTimestamp } from "../utils/formatters";
 import { API_BASE_URL } from "../utils/api";
@@ -12,6 +12,15 @@ import {
   SHORT_SUCCESS_MESSAGE_DURATION,
   DATABASE_UPDATE_DELAY,
 } from "../constants/trackedApps";
+
+// Module-level cache – survives unmount/remount so the TrackedAppsPage tab
+// renders instantly on re-navigation. The App.jsx instance populates this on
+// first load; subsequent hook instances initialise from cache without API calls.
+let cachedTrackedApps = null;
+let cachedLastScanTime = null;
+// Module-level flag to prevent duplicate fetches across hook instances
+// (e.g. App.jsx and TrackedAppsPage both call useTrackedApps)
+let initialFetchStarted = false;
 
 /**
  * Custom hook for managing tracked apps
@@ -26,13 +35,14 @@ export function useTrackedApps(isAuthenticated, authToken) {
       ? isAuthenticated
       : !!(axios.defaults.headers.common["Authorization"] || localStorage.getItem("authToken"));
   const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
-  const [trackedApps, setTrackedApps] = useState([]);
+  const [trackedApps, setTrackedApps] = useState(cachedTrackedApps || []);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if we've loaded data at least once
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(cachedTrackedApps !== null); // Track if we've loaded data at least once
   const [trackedAppError, setTrackedAppError] = useState("");
   const [trackedAppSuccess, setTrackedAppSuccess] = useState("");
   const [checkingUpdates, setCheckingUpdates] = useState(false);
-  const [lastScanTime, setLastScanTime] = useState(null);
+  const [lastScanTime, setLastScanTime] = useState(cachedLastScanTime);
+  const mountedRef = useRef(true);
   const [editingTrackedAppData, setEditingTrackedAppData] = useState(null);
   const [showAddTrackedAppModal, setShowAddTrackedAppModal] = useState(false);
   const [clearingGitHubCache, setClearingGitHubCache] = useState(false);
@@ -56,7 +66,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
           setIsLoading(true);
         }
         const response = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
-        if (response.data.success) {
+        if (response.data.success && mountedRef.current) {
           const apps = response.data.images || [];
 
           // Sort alphabetically by name
@@ -66,6 +76,7 @@ export function useTrackedApps(isAuthenticated, authToken) {
             return nameA.localeCompare(nameB);
           });
 
+          cachedTrackedApps = sortedApps;
           setTrackedApps(sortedApps);
           setHasLoadedOnce(true); // Mark that we've loaded data at least once
 
@@ -81,25 +92,44 @@ export function useTrackedApps(isAuthenticated, authToken) {
               })[0];
             if (mostRecentCheck) {
               // Parse as UTC timestamp (database stores in UTC without timezone info)
-              setLastScanTime(parseUTCTimestamp(mostRecentCheck));
+              const scanTime = parseUTCTimestamp(mostRecentCheck);
+              cachedLastScanTime = scanTime;
+              setLastScanTime(scanTime);
             }
           }
         }
       } catch (err) {
         console.error("Error fetching tracked apps:", err);
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
     },
     [hasAuth, effectiveToken]
   );
 
-  // Fetch tracked apps on mount (only if authenticated)
+  // Fetch tracked apps on mount (only if authenticated, only once across all instances)
+  const initialFetchDoneRef = useRef(false);
   useEffect(() => {
-    if (hasAuth && effectiveToken) {
+    mountedRef.current = true;
+    if (hasAuth && effectiveToken && !initialFetchDoneRef.current && !initialFetchStarted) {
+      initialFetchDoneRef.current = true;
+      initialFetchStarted = true;
       fetchTrackedApps();
     }
-  }, [hasAuth, effectiveToken, fetchTrackedApps]);
+    // Reset module-level flag on logout so re-login triggers a fresh fetch
+    if (!hasAuth) {
+      initialFetchStarted = false;
+      initialFetchDoneRef.current = false;
+      cachedTrackedApps = null;
+      cachedLastScanTime = null;
+    }
+    return () => {
+      mountedRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAuth, effectiveToken]);
 
   const handleTrackedAppModalSuccess = useCallback(
     async (appId) => {

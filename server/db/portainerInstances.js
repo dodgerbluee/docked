@@ -1,5 +1,5 @@
 /**
- * Portainer Instances Database Module
+ * Sources (Portainer Instances) Database Module
  *
  * Handles all Portainer instance-related database operations including:
  * - Portainer instance CRUD operations
