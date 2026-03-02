@@ -261,7 +261,7 @@ jobs:
           sha256sum docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz > docked-${{ needs.prepare-promotion.outputs.release_version }}-source.tar.gz.sha256
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-artifacts
           path: release-artifacts/
