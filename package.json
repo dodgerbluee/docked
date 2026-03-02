@@ -17,6 +17,9 @@
     "prettier": "^3.8.1",
     "semver": "^7.7.4"
   },
+  "overrides": {
+    "minimatch": "10.2.4"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",

@@ -20,3 +20,4 @@ services:
 networks:
   docked-network:
     driver: bridge
+
