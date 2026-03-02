@@ -12,14 +12,41 @@ const containerReadinessService = require("./containerUpgrade/containerReadiness
 const containerDetailsService = require("./containerUpgrade/containerDetailsService");
 const containerConfigService = require("./containerUpgrade/containerConfigService");
 const dependentContainerRestartService = require("./containerUpgrade/dependentContainerRestartService");
+const { resolveBackend } = require("./dockerBackendFactory");
+
+const { DEFAULT_BLOCKED_PATTERNS: DEFAULT_BLOCKED_IMAGE_PATTERNS } = require("../constants/blocklistDefaults");
+
+async function isContainerDisallowed(containerName, imageName, userId) {
+  try {
+    const { getSetting } = require("../db/settings");
+    const raw = await getSetting("disallowed_containers", userId);
+    if (raw === null) {
+      // No explicit list saved — use image-name default patterns
+      const lower = (imageName || "").toLowerCase();
+      return DEFAULT_BLOCKED_IMAGE_PATTERNS.some((p) => lower.includes(p));
+    }
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) {
+      logger.warn("disallowed_containers is not an array", { userId });
+      return false;
+    }
+    return list.map((n) => n.toLowerCase()).includes((containerName || "").toLowerCase());
+  } catch (err) {
+    logger.warn("Failed to parse disallowed_containers", { error: err?.message, userId });
+    return false;
+  }
+}
 
 /**
- * Upgrade a single container to the latest image version
- * @param {string} portainerUrl - Portainer instance URL
- * @param {string|number} endpointId - Docker endpoint ID
+ * Upgrade a single container to the latest image version.
+ * Works with both Portainer-backed and runner-backed containers.
+ *
+ * @param {string} portainerUrl - Portainer instance URL (pass null when using runnerId)
+ * @param {string|number} endpointId - Docker endpoint ID (pass null when using runnerId)
  * @param {string} containerId - Container ID
  * @param {string} imageName - Full image name (e.g., "nginx:latest")
  * @param {number|null} [userId=null] - User ID for logging and permissions
+ * @param {number|null} [runnerId=null] - Runner ID (mutually exclusive with portainerUrl)
  * @returns {Promise<Object>} Upgrade result with success status and details
  * @throws {Error} If upgrade fails
  */
@@ -29,7 +56,8 @@ async function upgradeSingleContainer(
   endpointId,
   containerId,
   imageName,
-  userId = null
+  userId = null,
+  runnerId = null
 ) {
   const upgradeStartTime = Date.now();
   let upgradeHistoryData = {
@@ -42,64 +70,73 @@ async function upgradeSingleContainer(
   };
 
   try {
-    // Detect if this is nginx-proxy-manager EARLY (before fetching container details)
-    // We can detect by image name, which is available before fetching container details
-    // If nginx goes down, this app's UI becomes unavailable, so we need to use IP addresses
-    // to ensure Portainer API calls still work during the upgrade
-    const isNginxProxyManager = nginxProxyManagerService.isNginxProxyManager(imageName);
+    // Resolve the Docker backend (Portainer or runner).
+    const backend = await resolveBackend(userId, { portainerUrl, endpointId, runnerId });
+    const isRunnerBackend = backend.type === "runner";
 
-    // If it's nginx-proxy-manager, get IP address and use it for all Portainer calls
+    // Populate upgrade history with backend context.
+    if (isRunnerBackend) {
+      upgradeHistoryData.runnerId = backend.runnerId;
+      upgradeHistoryData.runnerName = backend.instanceName;
+      upgradeHistoryData.portainerUrl = null;
+      upgradeHistoryData.endpointId = null;
+    }
+
+    // nginx-proxy-manager IP fallback is only relevant for Portainer backends.
+    const isNginxProxyManager =
+      !isRunnerBackend && nginxProxyManagerService.isNginxProxyManager(imageName);
+
     let workingPortainerUrl = portainerUrl;
     if (isNginxProxyManager) {
       const { workingUrl } = await nginxProxyManagerService.getIpBasedPortainerUrl(portainerUrl);
       workingPortainerUrl = workingUrl;
-
-      // Note: We don't pre-authenticate here because:
-      // 1. Nginx is still up at this point, so original URL works
-      // 2. Portainer might reject IP-based auth requests even with correct Host header
-      // 3. Authentication will happen naturally on first API call when nginx goes down
-      // 4. The containerDetailsService will handle authentication retries
       logger.info(
         "Skipping pre-authentication for nginx upgrade - will authenticate on first API call",
-        {
-          ipUrl: workingPortainerUrl,
-          originalUrl: portainerUrl,
-        }
+        { ipUrl: workingPortainerUrl, originalUrl: portainerUrl }
       );
     }
 
-    // Fetch container details using the service (handles retry, authentication, ID normalization)
-    const { containerDetails, workingContainerId } =
-      await containerDetailsService.getContainerDetailsWithNormalization(
-        portainerUrl,
-        workingPortainerUrl,
-        endpointId,
-        containerId,
-        isNginxProxyManager
+    // Fetch container details.
+    let containerDetails, workingContainerId;
+    if (isRunnerBackend) {
+      // Runner: call the full-inspect endpoint directly — no Portainer auth or IP fallback needed.
+      containerDetails = await backend.service.getContainerDetails(
+        backend.url, null, containerId, backend.apiKey
       );
+      workingContainerId = containerId;
+    } else {
+      // Portainer: existing path with auth retry, IP fallback, and ID normalization.
+      ({ containerDetails, workingContainerId } =
+        await containerDetailsService.getContainerDetailsWithNormalization(
+          portainerUrl,
+          workingPortainerUrl,
+          endpointId,
+          containerId,
+          isNginxProxyManager
+        ));
+    }
 
     // Preserve the original container name (important for stacks)
     const originalContainerName = containerDetails.Name;
     const cleanContainerName = originalContainerName.replace(/^\//, "");
 
-    // Get Portainer instance info for upgrade history
-    let portainerInstanceId = null;
-    let portainerInstanceName = null;
-    if (userId) {
-      try {
-        const { getAllPortainerInstances } = require("../db/index");
-        const instances = await getAllPortainerInstances(userId);
-        const instance = instances.find((inst) => inst.url === portainerUrl);
-        if (instance) {
-          portainerInstanceId = instance.id;
-          portainerInstanceName = instance.name;
-          upgradeHistoryData.portainerInstanceId = portainerInstanceId;
-          upgradeHistoryData.portainerInstanceName = portainerInstanceName;
-        }
-      } catch (err) {
-        logger.debug("Could not get Portainer instance info for upgrade history:", err);
-      }
+    // Check if container is in the upgrade blocklist
+    if (await isContainerDisallowed(cleanContainerName, imageName, userId)) {
+      throw new Error(
+        `Container "${cleanContainerName}" is in the upgrade blocklist and cannot be upgraded`
+      );
     }
+
+    // Record backend instance info for upgrade history.
+    if (!isRunnerBackend && userId) {
+      upgradeHistoryData.portainerInstanceId = backend.instanceId;
+      upgradeHistoryData.portainerInstanceName = backend.instanceName;
+    }
+
+    // Resolve effective URLs for Portainer nginx-fallback cases.
+    // For runner backends these are just the backend URL (no IP fallback needed).
+    const effectiveUrl = isNginxProxyManager ? workingPortainerUrl : (portainerUrl || backend.url);
+    const effectiveEndpointId = isRunnerBackend ? null : endpointId;
 
     // Get old digest from container details
     let oldDigest = null;
@@ -107,8 +144,8 @@ async function upgradeSingleContainer(
       oldDigest = await dockerRegistryService.getCurrentImageDigest(
         containerDetails,
         imageName,
-        portainerUrl,
-        endpointId,
+        effectiveUrl,
+        effectiveEndpointId,
         userId // Pass userId for database-assisted digest matching
       );
     } catch (err) {
@@ -152,17 +189,19 @@ async function upgradeSingleContainer(
     // Containers using network_mode: service:containerName will break if we remove
     // the main container while they're still running (they reference the old container ID)
     const dependentContainersToStop = await dependentContainerService.findDependentContainers(
-      workingPortainerUrl,
-      endpointId,
+      effectiveUrl,
+      effectiveEndpointId,
       workingContainerId,
-      cleanContainerName
+      cleanContainerName,
+      backend
     );
 
     if (dependentContainersToStop.length > 0) {
       await dependentContainerService.stopAndRemoveDependentContainers(
-        portainerUrl,
-        endpointId,
-        dependentContainersToStop
+        backend.url,
+        effectiveEndpointId,
+        dependentContainersToStop,
+        backend
       );
     }
 
@@ -173,22 +212,20 @@ async function upgradeSingleContainer(
       containerName: originalContainerName,
       containerId: workingContainerId.substring(0, 12),
     });
-    await portainerService.stopContainer(portainerUrl, endpointId, workingContainerId, userId);
+    await backend.service.stopContainer(backend.url, effectiveEndpointId, workingContainerId, backend.apiKey ?? userId);
 
     // Wait for container to fully stop (important for databases and services)
-    // For nginx upgrades, use IP URL directly after stop (nginx is down now)
-    const checkStatusUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
+    const checkStatusUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
     await containerReadinessService.waitForContainerStop({
       portainerUrl: checkStatusUrl,
-      endpointId,
+      endpointId: effectiveEndpointId,
       containerId: workingContainerId,
       containerName: originalContainerName,
+      backend,
     });
 
     // Pull the latest image
-    // For nginx upgrades, use IP URL directly (nginx is down now)
-    // Pass original URL for authentication lookup
-    const pullImageUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
+    const pullImageUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
     const pullImageOriginalUrl = isNginxProxyManager ? portainerUrl : null;
     logger.info("Pulling latest image", {
       module: "containerService",
@@ -196,31 +233,27 @@ async function upgradeSingleContainer(
       containerName: originalContainerName,
       image: newImageName,
       usingUrl: pullImageUrl,
-      originalUrl: pullImageOriginalUrl,
     });
-    await portainerService.pullImage(
+    await backend.service.pullImage(
       pullImageUrl,
-      endpointId,
+      effectiveEndpointId,
       newImageName,
       pullImageOriginalUrl,
-      userId
+      backend.apiKey ?? userId
     );
 
     // Remove old container
-    // For nginx upgrades, use IP URL directly (nginx is down now)
-    const removeContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
     logger.info("Removing old container", {
       module: "containerService",
       operation: "upgradeSingleContainer",
       containerName: originalContainerName,
       containerId: workingContainerId.substring(0, 12),
-      usingUrl: removeContainerUrl,
     });
-    await portainerService.removeContainer(
-      removeContainerUrl,
-      endpointId,
+    await backend.service.removeContainer(
+      isNginxProxyManager ? workingPortainerUrl : backend.url,
+      effectiveEndpointId,
       workingContainerId,
-      userId
+      backend.apiKey ?? userId
     );
 
     // Prepare container configuration using the service
@@ -238,17 +271,15 @@ async function upgradeSingleContainer(
         originalContainerName
       );
 
-    // Pass container name as separate parameter (Docker API uses it as query param)
-    // For nginx upgrades, use IP URL directly (nginx is down now)
-    const createContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
+    const createContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
     let newContainer;
     try {
-      newContainer = await portainerService.createContainer(
+      newContainer = await backend.service.createContainer(
         createContainerUrl,
-        endpointId,
+        effectiveEndpointId,
         containerConfig,
         originalContainerName,
-        userId
+        backend.apiKey ?? userId
       );
     } catch (error) {
       // Provide more detailed error information
@@ -275,8 +306,7 @@ async function upgradeSingleContainer(
     let startTime; // Declare outside the if block so it's accessible later
     if (!isSharedNetworkMode) {
       // Start the new container
-      // For nginx upgrades, use IP URL directly (nginx is still down)
-      const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl;
+      const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
       logger.info("Starting new container", {
         module: "containerService",
         operation: "upgradeSingleContainer",
@@ -284,16 +314,17 @@ async function upgradeSingleContainer(
         newContainerId: newContainer.Id.substring(0, 12),
         usingUrl: startContainerUrl,
       });
-      await portainerService.startContainer(startContainerUrl, endpointId, newContainer.Id, userId);
+      await backend.service.startContainer(startContainerUrl, effectiveEndpointId, newContainer.Id, backend.apiKey ?? userId);
 
       // Wait for container to be healthy/ready (CRITICAL for databases)
       startTime = Date.now();
       await containerReadinessService.waitForContainerReady({
-        portainerUrl: workingPortainerUrl,
-        endpointId,
+        portainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
+        endpointId: effectiveEndpointId,
         containerId: newContainer.Id,
         containerName: originalContainerName,
         imageName,
+        backend,
       });
     }
 
@@ -319,13 +350,14 @@ async function upgradeSingleContainer(
     // 2. depends_on relationships (containers in the same stack)
     try {
       await dependentContainerRestartService.restartDependentContainers({
-        portainerUrl,
-        workingPortainerUrl,
-        endpointId,
+        portainerUrl: backend.url,
+        workingPortainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
+        endpointId: effectiveEndpointId,
         newContainer,
         cleanContainerName,
         originalContainerId: containerDetails.Id,
         stackName,
+        backend,
       });
     } catch (err) {
       logger.error("  Error restarting dependent containers:", { error: err });
@@ -357,15 +389,16 @@ async function upgradeSingleContainer(
         });
 
         // Get all containers that use the same network container (including the upgraded container)
-        const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
+        const allContainers = await backend.service.getContainers(isNginxProxyManager ? workingPortainerUrl : backend.url, effectiveEndpointId, backend.apiKey);
         const containersToStart = [];
 
         for (const container of allContainers) {
           try {
-            const details = await portainerService.getContainerDetails(
-              portainerUrl,
-              endpointId,
-              container.Id
+            const details = await backend.service.getContainerDetails(
+              backend.url,
+              effectiveEndpointId,
+              container.Id,
+              backend.apiKey
             );
             const containerNetworkMode = details.HostConfig?.NetworkMode || "";
             if (!containerNetworkMode) {
@@ -413,14 +446,14 @@ async function upgradeSingleContainer(
                 logger.info(
                   `   Starting ${container.name} (newly created) to connect to network container...`
                 );
-                await portainerService.startContainer(portainerUrl, endpointId, container.id);
+                await backend.service.startContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
               } else {
                 logger.info(`   Restarting ${container.name} to reconnect to network container...`);
-                await portainerService.stopContainer(portainerUrl, endpointId, container.id);
+                await backend.service.stopContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
                 await new Promise((resolve) => {
                   setTimeout(resolve, 1000);
                 }); // Brief wait
-                await portainerService.startContainer(portainerUrl, endpointId, container.id);
+                await backend.service.startContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
               }
               logger.info(`    ${container.name} started successfully`);
             } catch (err) {
@@ -435,7 +468,7 @@ async function upgradeSingleContainer(
             `   No other containers found, starting ${originalContainerName} to connect to network container...`
           );
           try {
-            await portainerService.startContainer(portainerUrl, endpointId, newContainer.Id);
+            await backend.service.startContainer(backend.url, effectiveEndpointId, newContainer.Id, backend.apiKey ?? userId);
             logger.info(`    ${originalContainerName} started successfully`);
           } catch (err) {
             logger.error(`     Failed to start ${originalContainerName}: ${err.message}`);
@@ -457,8 +490,6 @@ async function upgradeSingleContainer(
         const {
           markRegistryImageUpToDate,
           getRegistryImageVersion,
-          getAllPortainerInstances,
-          upsertContainerWithVersion,
         } = require("../db/index");
         // Get the latest digest/version from database (which was the target of the upgrade)
         // Use getRegistryImageVersion instead of deprecated getDockerHubImageVersion
@@ -484,29 +515,28 @@ async function upgradeSingleContainer(
             currentTag
           );
 
-          // Also update portainer_containers table with the new current digest
-          // Find the Portainer instance ID for this URL
-          const instances = await getAllPortainerInstances(userId);
-          const instance = instances.find((inst) => inst.url === portainerUrl);
-          if (instance && instance.id) {
-            // Get the new container's digest (from the newly created container)
+          // Update the container cache with the new digest after upgrade.
+          // For Portainer backends: look up the instance ID from the URL.
+          // For runner backends: use the runner ID directly.
+          const cacheInstanceId = isRunnerBackend ? null : backend.instanceId;
+          const cacheRunnerId = isRunnerBackend ? backend.runnerId : null;
+          const hasBackendId = isRunnerBackend ? !!cacheRunnerId : !!cacheInstanceId;
+
+          if (hasBackendId) {
             let newContainerDigest = versionInfo.latest_digest;
             try {
-              // Try to get the actual digest from the new container using getCurrentImageDigest
-              // This properly extracts the registry digest from RepoDigests, not the local image ID
-              // This is critical for multi-arch images (like postgres) where the manifest digest
-              // differs from the platform-specific image ID
-              const newContainerDetails = await portainerService.getContainerDetails(
-                portainerUrl,
-                endpointId,
-                newContainer.Id
+              const newContainerDetails = await backend.service.getContainerDetails(
+                backend.url,
+                effectiveEndpointId,
+                newContainer.Id,
+                backend.apiKey
               );
               const registryDigest = await dockerRegistryService.getCurrentImageDigest(
                 newContainerDetails,
                 newImageName,
-                portainerUrl,
-                endpointId,
-                userId // Pass userId for database-assisted digest matching
+                backend.url,
+                effectiveEndpointId,
+                userId
               );
               if (registryDigest) {
                 newContainerDigest = registryDigest;
@@ -517,24 +547,20 @@ async function upgradeSingleContainer(
                 });
               }
             } catch (digestError) {
-              // If we can't get the digest from container, use the one from versionInfo
               logger.debug("Could not get digest from new container, using versionInfo digest:", {
                 error: digestError,
               });
             }
 
-            // Update the container cache with the new digest after upgrade
-            // This ensures subsequent fetches show the correct hasUpdate status
             const containerCacheUpdateService = require("./cache/containerCacheUpdateService");
-
             await containerCacheUpdateService.updateCacheAfterUpgrade(
               userId,
-              portainerUrl,
+              isRunnerBackend ? null : backend.url,
               newContainer.Id,
               originalContainerName,
               newContainerDigest,
               {
-                endpointId,
+                endpointId: effectiveEndpointId,
                 imageName: newImageName,
                 imageRepo,
                 status: newContainer.State?.Status || containerDetails.State?.Status || null,
@@ -543,9 +569,10 @@ async function upgradeSingleContainer(
                   containerDetails.Config?.Labels?.["com.docker.compose.project"] ||
                   containerDetails.Config?.Labels?.["com.docker.stack.namespace"] ||
                   null,
-                imageCreatedDate: null, // Will be updated on next pull
-                usesNetworkMode: false, // Will be updated on next pull
-                providesNetwork: false, // Will be updated on next pull
+                imageCreatedDate: null,
+                usesNetworkMode: false,
+                providesNetwork: false,
+                runnerId: cacheRunnerId,
               }
             );
           }
@@ -659,7 +686,7 @@ async function upgradeSingleContainer(
 
 // Legacy function for batch upgrades - kept for backward compatibility
 
-async function upgradeContainers(portainerUrl, endpointId, containerIds, imageName, userId = null) {
+async function upgradeContainers(portainerUrl, endpointId, containerIds, imageName, userId = null, runnerId = null) {
   const results = [];
   const errors = [];
 
@@ -670,7 +697,8 @@ async function upgradeContainers(portainerUrl, endpointId, containerIds, imageNa
         endpointId,
         containerId,
         imageName,
-        userId
+        userId,
+        runnerId
       );
       results.push(result);
     } catch (error) {

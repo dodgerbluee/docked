@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { TAB_NAMES } from "../constants/apiConstants";
 
 /**
  * Custom hook for navigation handlers
@@ -6,12 +7,12 @@ import { useCallback } from "react";
  */
 export const useNavigation = ({ setActiveTab, setContentTab, setSelectedPortainerInstances }) => {
   const handleNavigateToSummary = useCallback(() => {
-    setActiveTab("summary");
+    setActiveTab(TAB_NAMES.SUMMARY);
   }, [setActiveTab]);
 
   const handleNavigateToPortainer = useCallback(
     (container = null) => {
-      setActiveTab("portainer");
+      setActiveTab(TAB_NAMES.PORTAINER);
 
       if (container) {
         const portainerUrl = container.portainerUrl;
@@ -27,7 +28,7 @@ export const useNavigation = ({ setActiveTab, setContentTab, setSelectedPortaine
   );
 
   const handleNavigateToTrackedApps = useCallback(() => {
-    setActiveTab("tracked-apps");
+    setActiveTab(TAB_NAMES.TRACKED_APPS);
   }, [setActiveTab]);
 
   const handleNavigateToSettings = useCallback(() => {

@@ -403,34 +403,24 @@ async function upgradeContainer(req, res, next) {
     }
 
     const { containerId } = req.params;
-    const { endpointId, imageName, portainerUrl } = req.body;
+    const { endpointId, imageName, portainerUrl, runnerId } = req.body;
 
-    // Note: Input validation is now handled by validation middleware
-    // All validation (containerId, endpointId, imageName, portainerUrl) is handled in routes
-
-    // Get instance credentials from database for this user
-    const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find((inst) => inst.url === portainerUrl);
-    if (!instance) {
-      return res.status(404).json({
+    if (!portainerUrl && !runnerId) {
+      return res.status(400).json({
         success: false,
-        error: "Portainer instance not found",
+        error: "Either portainerUrl or runnerId is required",
       });
     }
 
-    await portainerService.authenticatePortainer({
-      portainerUrl,
-      username: instance.username,
-      password: instance.password,
-      apiKey: instance.api_key,
-      authType: instance.auth_type || "apikey",
-    });
+    // Backend resolution and authentication is handled inside upgradeSingleContainer
+    // via dockerBackendFactory.resolveBackend.
     const result = await containerService.upgradeSingleContainer(
-      portainerUrl,
-      endpointId,
+      portainerUrl || null,
+      endpointId || null,
       containerId,
       imageName,
-      userId
+      userId,
+      runnerId ? Number(runnerId) : null
     );
 
     return res.json({
@@ -1188,6 +1178,104 @@ async function getUpgradeHistoryStats(req, res, next) {
   }
 }
 
+const { resolveBackend } = require("../services/dockerBackendFactory");
+
+/**
+ * Stop a container via its backend (Portainer or runner).
+ */
+async function stopContainer(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: "Authentication required" });
+
+    const { containerId } = req.params;
+    const { portainerUrl, endpointId, runnerId } = req.body;
+
+    const backend = await resolveBackend(userId, {
+      portainerUrl: portainerUrl || null,
+      endpointId: endpointId || null,
+      runnerId: runnerId ? Number(runnerId) : undefined,
+    });
+
+    await backend.service.stopContainer(backend.url, backend.endpointId, containerId, backend.apiKey ?? userId);
+    return res.json({ success: true, message: "Container stopped" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Start a container via its backend (Portainer or runner).
+ */
+async function startContainer(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: "Authentication required" });
+
+    const { containerId } = req.params;
+    const { portainerUrl, endpointId, runnerId } = req.body;
+
+    const backend = await resolveBackend(userId, {
+      portainerUrl: portainerUrl || null,
+      endpointId: endpointId || null,
+      runnerId: runnerId ? Number(runnerId) : undefined,
+    });
+
+    await backend.service.startContainer(backend.url, backend.endpointId, containerId, backend.apiKey ?? userId);
+    return res.json({ success: true, message: "Container started" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * List images on a backend (Portainer or runner).
+ * Query params: portainerUrl + endpointId, OR runnerId.
+ */
+async function getImages(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: "Authentication required" });
+
+    const { portainerUrl, endpointId, runnerId } = req.query;
+
+    const backend = await resolveBackend(userId, {
+      portainerUrl: portainerUrl || null,
+      endpointId: endpointId || null,
+      runnerId: runnerId ? Number(runnerId) : undefined,
+    });
+
+    const images = await backend.service.getImages(backend.url, backend.endpointId, backend.apiKey ?? userId);
+    return res.json({ success: true, images });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Delete an image from a backend (Portainer or runner).
+ */
+async function deleteImage(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: "Authentication required" });
+
+    const { imageId } = req.params;
+    const { portainerUrl, endpointId, runnerId, force } = req.body;
+
+    const backend = await resolveBackend(userId, {
+      portainerUrl: portainerUrl || null,
+      endpointId: endpointId || null,
+      runnerId: runnerId ? Number(runnerId) : undefined,
+    });
+
+    await backend.service.deleteImage(backend.url, backend.endpointId, imageId, force === true || force === "true", backend.apiKey ?? userId);
+    return res.json({ success: true, message: "Image deleted" });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getContainers,
   pullContainers,
@@ -1195,6 +1283,10 @@ module.exports = {
   clearContainerData,
   upgradeContainer,
   batchUpgradeContainers,
+  stopContainer,
+  startContainer,
+  getImages,
+  deleteImage,
   getUpgradeHistory,
   getUpgradeHistoryById,
   getUpgradeHistoryStats,

@@ -7,6 +7,7 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import InstanceDetailModal from "./InstanceDetailModal";
+import ContainerBlocklist from "./ContainerBlocklist";
 import styles from "./PortainerTab.module.css";
 
 const IntentsPage = lazy(() => import("../../pages/IntentsPage"));
@@ -147,6 +148,17 @@ const PortainerTab = React.memo(function PortainerTab({
         <Suspense fallback={<LoadingSpinner size="sm" message="Loading intents..." />}>
           <IntentsPage containers={containers} portainerInstances={portainerInstancesProp} />
         </Suspense>
+      </div>
+
+      {/* Disallowed Containers Section */}
+      <div className={styles.disallowedSection}>
+        <h4 className={styles.sectionTitle}>Upgrade Blocklist</h4>
+        <p className={styles.sectionDescription}>
+          Containers in the right panel cannot be upgraded by Docked. Defaults protect critical
+          infrastructure (Portainer, Nginx Proxy Manager, Docked itself). Containers not managed
+          through a Portainer instance are automatically blocked.
+        </p>
+        <ContainerBlocklist containers={containers} />
       </div>
 
       <InstanceDetailModal

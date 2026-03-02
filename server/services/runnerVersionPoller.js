@@ -32,25 +32,38 @@ async function pollRunnerVersions() {
 
   // Fetch latest GitHub release once for all runners
   let latestVersion = null;
+  let latestVersionFetched = false;
   try {
     const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
     latestVersion = release?.tag_name ?? null;
+    latestVersionFetched = true;
   } catch (err) {
-    logger.warn("runnerVersionPoller: GitHub release fetch failed", { error: err.message });
+    logger.warn("runnerVersionPoller: failed to fetch latest release", { error: err.message });
   }
 
   // Ping each runner in parallel, update DB with whatever we learn
   await Promise.allSettled(
     runners.map(async (runner) => {
       let runningVersion = runner.version ?? null;
+      let dockerEnabled = null; // null = offline / unknown, keep existing DB value
       try {
         const health = await pingRunner(runner.url, runner.api_key);
         runningVersion = health.version ?? runningVersion;
+        // health.dockerOk is present on dockhand >= the Docker management release.
+        // Older runners won't have it; treat undefined the same as true (they had
+        // Docker routes always registered before the docker.enabled config existed).
+        dockerEnabled = health.dockerOk !== false;
       } catch {
-        // Runner offline — keep existing version in DB, still update latest
+        // Runner offline — keep existing values in DB, still update latest
       }
       try {
-        await updateRunnerVersion(runner.id, runner.user_id, runningVersion, latestVersion);
+        await updateRunnerVersion(
+          runner.id,
+          runner.user_id,
+          runningVersion,
+          latestVersionFetched ? latestVersion : runner.latest_version,
+          dockerEnabled
+        );
       } catch (err) {
         logger.warn(`runnerVersionPoller: DB update failed for runner ${runner.id}`, {
           error: err.message,

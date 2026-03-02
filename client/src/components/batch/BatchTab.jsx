@@ -113,7 +113,7 @@ const BatchTab = React.memo(function BatchTab({
           )}
         </div>
 
-        {/* Apps Check Configuration */}
+        {/* Repo Version Scan Configuration */}
         <div className={styles.jobConfig}>
           <h4 className={styles.jobTitle}>
             {BATCH_JOB_TYPE_LABELS[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]}
@@ -135,7 +135,7 @@ const BatchTab = React.memo(function BatchTab({
               <span className={styles.toggleTrack} aria-hidden="true">
                 <span className={styles.toggleKnob} />
               </span>
-              <span>Enable automatic apps checking</span>
+              <span>Enable automatic repo version scanning</span>
             </label>
           </div>
           {localConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled && (
@@ -154,6 +154,54 @@ const BatchTab = React.memo(function BatchTab({
                   handleConfigChange(BATCH_JOB_TYPES.TRACKED_APPS_CHECK, "intervalUnit", unit)
                 }
                 onBlur={() => handleIntervalBlur(BATCH_JOB_TYPES.TRACKED_APPS_CHECK)}
+                min={1}
+                required
+              />
+            </div>
+          )}
+        </div>
+
+        {/* App Version Scan Configuration */}
+        <div className={styles.jobConfig}>
+          <h4 className={styles.jobTitle}>
+            {BATCH_JOB_TYPE_LABELS[BATCH_JOB_TYPES.APP_VERSION_SCAN]}
+          </h4>
+          <div className={styles.formGroup}>
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={localConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled || false}
+                onChange={(e) =>
+                  handleConfigChange(
+                    BATCH_JOB_TYPES.APP_VERSION_SCAN,
+                    "enabled",
+                    e.target.checked
+                  )
+                }
+                className={styles.checkbox}
+              />
+              <span className={styles.toggleTrack} aria-hidden="true">
+                <span className={styles.toggleKnob} />
+              </span>
+              <span>Enable automatic app version scanning</span>
+            </label>
+          </div>
+          {localConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled && (
+            <div className={styles.intervalContainer}>
+              <TimeIntervalInput
+                label="Interval"
+                value={intervalInputs[BATCH_JOB_TYPES.APP_VERSION_SCAN]}
+                unit={
+                  localConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.intervalUnit ||
+                  BATCH_INTERVAL_UNITS.MINUTES
+                }
+                onChange={(value) =>
+                  handleIntervalInputChange(BATCH_JOB_TYPES.APP_VERSION_SCAN, value)
+                }
+                onUnitChange={(unit) =>
+                  handleConfigChange(BATCH_JOB_TYPES.APP_VERSION_SCAN, "intervalUnit", unit)
+                }
+                onBlur={() => handleIntervalBlur(BATCH_JOB_TYPES.APP_VERSION_SCAN)}
                 min={1}
                 required
               />

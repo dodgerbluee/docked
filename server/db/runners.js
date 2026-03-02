@@ -17,7 +17,7 @@ function getAllRunners(userId) {
     try {
       const db = getDatabase();
       db.all(
-        "SELECT id, user_id, name, url, enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE user_id = ? ORDER BY created_at ASC",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE user_id = ? ORDER BY created_at ASC",
         [userId],
         (err, rows) => {
           if (err) {
@@ -44,7 +44,7 @@ function getRunnerById(id, userId) {
     try {
       const db = getDatabase();
       db.get(
-        "SELECT id, user_id, name, url, api_key, enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE id = ? AND user_id = ?",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE id = ? AND user_id = ?",
         [id, userId],
         (err, row) => {
           if (err) {
@@ -156,18 +156,44 @@ function deleteRunner(id, userId) {
  * @param {number} userId - User ID
  * @param {string|null} version - Running binary version (e.g. "1.0.0")
  * @param {string|null} latestVersion - Latest GitHub release tag (e.g. "v1.1.0")
+ * @param {boolean|null} [dockerEnabled] - Whether Docker management is enabled on this runner
  * @returns {Promise<void>}
  */
-function updateRunnerVersion(id, userId, version, latestVersion) {
+function updateRunnerVersion(id, userId, version, latestVersion, dockerEnabled = null) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
+      const dockerEnabledValue = dockerEnabled === null ? null : dockerEnabled ? 1 : 0;
       db.run(
-        "UPDATE runners SET version = ?, latest_version = ?, version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
-        [version, latestVersion, id, userId],
+        "UPDATE runners SET version = ?, latest_version = ?, docker_enabled = COALESCE(?, docker_enabled), version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+        [version, latestVersion, dockerEnabledValue, id, userId],
         (err) => {
           if (err) reject(err);
           else resolve();
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Get a runner by name for a specific user (case-insensitive).
+ * @param {string} name - Runner name
+ * @param {number} userId - User ID
+ * @returns {Promise<Object|null>}
+ */
+function getRunnerByNameAndUser(name, userId) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.get(
+        "SELECT id FROM runners WHERE user_id = ? AND LOWER(name) = LOWER(?) LIMIT 1",
+        [userId, name],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row || null);
         }
       );
     } catch (err) {
@@ -185,8 +211,31 @@ function getAllRunnersWithKeys() {
     try {
       const db = getDatabase();
       db.all(
-        "SELECT id, user_id, name, url, api_key, enabled, version, latest_version, version_checked_at FROM runners WHERE enabled = 1 ORDER BY created_at ASC",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at FROM runners WHERE enabled = 1 ORDER BY created_at ASC",
         [],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Get all enabled runners for a specific user (includes api_key for background jobs).
+ * @param {number} userId - User ID
+ * @returns {Promise<Array>}
+ */
+function getEnabledRunnersWithKeysByUser(userId) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.all(
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at FROM runners WHERE user_id = ? AND enabled = 1 ORDER BY created_at ASC",
+        [userId],
         (err, rows) => {
           if (err) reject(err);
           else resolve(rows || []);
@@ -201,9 +250,11 @@ function getAllRunnersWithKeys() {
 module.exports = {
   getAllRunners,
   getRunnerById,
+  getRunnerByNameAndUser,
   createRunner,
   updateRunner,
   deleteRunner,
   updateRunnerVersion,
   getAllRunnersWithKeys,
+  getEnabledRunnersWithKeysByUser,
 };

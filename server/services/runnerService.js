@@ -53,10 +53,21 @@ async function fetchRunnerContainers(url, apiKey) {
  * @returns {Object}
  */
 function normalizeRunnerContainer(rc, runner) {
+  // Clean repoDigests to sha256-only format, matching Portainer's pipeline (imageUpdateService.js:341).
+  // Docker (and dockhand) return entries like "ghcr.io/image@sha256:abc..." — strip the image prefix.
+  const cleanRepoDigests = (rc.repoDigests || []).map((rd) => {
+    if (rd.includes("@sha256:")) {
+      return "sha256:" + rd.split("@sha256:")[1];
+    }
+    return rd;
+  });
+  // Derive currentDigest from the first cleaned entry if not provided explicitly.
+  const derivedDigest = cleanRepoDigests.length > 0 ? cleanRepoDigests[0] : null;
+
   return {
     id: rc.id,
     name: rc.name,
-    imageName: rc.image,
+    image: rc.image,
     imageId: rc.imageId || null,
     status: rc.status || "",
     state: rc.state || "",
@@ -76,9 +87,18 @@ function normalizeRunnerContainer(rc, runner) {
     composeWorkingDir: rc.composeWorkingDir || null,
     composeConfigFile: rc.composeConfigFile || null,
 
-    // RepoDigests for update detection (populated when runner returns them)
-    repoDigests: rc.repoDigests || null,
-    currentDigest: rc.currentDigest || null,
+    // Network mode flags — providesNetwork is computed post-normalization (requires scanning all containers)
+    networkMode: rc.networkMode || "",
+    usesNetworkMode: !!(rc.networkMode &&
+      (rc.networkMode.startsWith("service:") || rc.networkMode.startsWith("container:"))),
+    providesNetwork: false, // filled in by appendRunnerContainers after all containers are collected
+
+    // RepoDigests in clean sha256-only format (image prefix stripped above)
+    repoDigests: cleanRepoDigests,
+    currentDigest: rc.currentDigest || derivedDigest,
+
+    // Image creation date (unix timestamp from dockhand, or null)
+    currentImageCreated: rc.imageCreated || null,
 
     // Runner metadata (used by UI and upgrade routing)
     source: "runner",
@@ -111,7 +131,7 @@ async function getContainersFromRunners(runners) {
 
   await Promise.all(
     runners
-      .filter((r) => r.enabled)
+      .filter((r) => r.enabled && r.docker_enabled !== 0)
       .map(async (runner) => {
         try {
           const raw = await fetchRunnerContainers(runner.url, runner.api_key);

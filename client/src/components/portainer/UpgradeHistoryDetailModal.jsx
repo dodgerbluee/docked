@@ -85,6 +85,12 @@ function UpgradeHistoryDetailModal({ upgrade, isOpen, onClose }) {
                 <span className={styles.infoLabel}>Container Name:</span>
                 <span className={styles.infoValue}>{upgrade.container_name}</span>
               </div>
+              {upgrade.runner_name && (
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>Runner:</span>
+                  <span className={styles.infoValue}>{upgrade.runner_name}</span>
+                </div>
+              )}
               {upgrade.portainer_instance_name && (
                 <div className={styles.infoItem}>
                   <span className={styles.infoLabel}>Portainer Instance:</span>

@@ -49,7 +49,7 @@ const AppsSidebar = memo(function AppsSidebar({
       {/* Views toolbar */}
       <div className={styles.viewsToolbar}>
         <button
-          className={`${styles.sidebarItem} ${styles.updatesItem} ${view === APPS_VIEWS.UPDATES ? styles.active : ""}`}
+          className={`${styles.sidebarItem} ${view === APPS_VIEWS.UPDATES ? styles.active : ""}`}
           onClick={() => onViewChange(APPS_VIEWS.UPDATES)}
         >
           <ArrowUpCircle size={16} className={styles.sidebarItemIcon} />
@@ -129,7 +129,7 @@ const AppsSidebar = memo(function AppsSidebar({
                 aria-label="Add Runner"
               >
                 <Plus size={16} aria-hidden="true" />
-                <span>+ Add Runner</span>
+                <span>Add Runner</span>
               </button>
             )}
           </div>

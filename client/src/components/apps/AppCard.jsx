@@ -7,13 +7,9 @@
 
 import React, { memo } from "react";
 import PropTypes from "prop-types";
-import { Loader, Clock, Server } from "lucide-react";
+import { Loader, Clock, Server, Github, Gitlab, ExternalLink } from "lucide-react";
 import styles from "./AppCard.module.css";
-
-function hasVersionUpdate(current, latest) {
-  if (!current || !latest) return false;
-  return String(latest).replace(/^v/, "").trim() !== String(current).replace(/^v/, "").trim();
-}
+import { hasVersionUpdate } from "../../utils/versionHelpers";
 
 function formatAge(ts) {
   if (!ts) return null;
@@ -32,27 +28,61 @@ function getMostRecentOp(operations) {
   );
 }
 
+function appHasUpdate(app) {
+  return (
+    hasVersionUpdate(app.currentVersion, app.latestVersion) ||
+    app.systemUpdatesAvailable === true
+  );
+}
+
+function getRepoInfo(versionSource) {
+  if (!versionSource?.repo) return null;
+  const type = (versionSource.type || "").toLowerCase();
+  if (type === "github") {
+    return { url: `https://github.com/${versionSource.repo}`, Icon: Github };
+  }
+  if (type === "gitlab") {
+    return { url: `https://gitlab.com/${versionSource.repo}`, Icon: Gitlab };
+  }
+  // Unknown source type — still link with a generic icon
+  return { url: versionSource.repo, Icon: ExternalLink };
+}
+
 const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true }) {
   const mostRecent = getMostRecentOp(app.operations || []);
   const hasRun = !!mostRecent;
   const exitOk = hasRun && mostRecent.lastRun.exitCode === 0;
 
-  const borderClass = !hasRun ? styles.neverRun : exitOk ? styles.exitOk : styles.exitFail;
+  const borderClass = appHasUpdate(app) ? styles.updateAvailable : styles.updateCurrent;
+  const repoInfo = getRepoInfo(app.versionSource);
 
   return (
     <div className={`${styles.card} ${borderClass}`}>
       <div className={styles.content}>
-        {/* Header row: name + runner badge */}
+        {/* Header row: name + repo icon + runner badge */}
         <div className={styles.header}>
           <span className={styles.name} title={app.name}>
             {app.name}
           </span>
-          {showRunner && (
-            <span className={styles.runnerBadge} title={runner.url}>
-              <Server size={10} />
-              {runner.name}
-            </span>
-          )}
+          <div className={styles.headerRight}>
+            {repoInfo && (
+              <a
+                href={repoInfo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.repoLink}
+                title={app.versionSource.repo}
+              >
+                <repoInfo.Icon size={16} />
+              </a>
+            )}
+            {showRunner && (
+              <span className={styles.runnerBadge} title={runner.url}>
+                <Server size={10} />
+                {runner.name}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Description */}
@@ -81,7 +111,10 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
             >
               {app.currentVersion ?? "unknown"}
               {hasVersionUpdate(app.currentVersion, app.latestVersion) && (
-                <span className={styles.versionArrow}> → {app.latestVersion}</span>
+                <>
+                  <span className={styles.versionArrow}> →</span>
+                  <span className={styles.versionTarget}>{app.latestVersion}</span>
+                </>
               )}
             </span>
             {app.systemUpdatesAvailable && (

@@ -20,12 +20,8 @@ import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import { EnrollmentModal } from "../components/settings/RunnerTab";
+import { hasVersionUpdate } from "../utils/versionHelpers";
 import styles from "./AppsPage.module.css";
-
-function hasVersionUpdate(current, latest) {
-  if (!current || !latest) return false;
-  return String(latest).replace(/^v/, "").trim() !== String(current).replace(/^v/, "").trim();
-}
 
 function appHasUpdate(app) {
   return (
@@ -346,7 +342,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
   const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
-  const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId being updated
+  const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
   const [showAddRunner, setShowAddRunner] = useState(false);
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
@@ -391,6 +387,12 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   useEffect(() => {
     const id = setInterval(() => fetchAll(true), 5 * 60 * 1000);
     return () => clearInterval(id);
+  }, [fetchAll]);
+
+  // Stable callback for EnrollmentModal so the polling effect doesn't re-fire
+  const handleEnrolled = useCallback(() => {
+    setShowAddRunner(false);
+    fetchAll(true);
   }, [fetchAll]);
 
   /* ── Derived data ──────────────────────────────────────────────────── */
@@ -473,7 +475,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
 
   const handleUpdate = useCallback(async (runner) => {
-    setUpdatingRunner(runner.id);
+    setUpdatingRunners((prev) => new Set(prev).add(runner.id));
     try {
       await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
 
@@ -484,7 +486,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
 
       const poll = async () => {
         if (attempts >= maxAttempts) {
-          setUpdatingRunner(null);
+          setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
           fetchAll(true);
           return;
         }
@@ -495,7 +497,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
           );
           const currentVersion = data.health?.version?.replace(/^v/, "");
           if (data.online && currentVersion && currentVersion === targetVersion) {
-            setUpdatingRunner(null);
+            setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
             fetchAll(true);
             return;
           }
@@ -509,7 +511,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       setTimeout(poll, 5000);
     } catch (err) {
       console.error("AppsPage: runner update failed", err);
-      setUpdatingRunner(null);
+      setUpdatingRunners((prev) => { const next = new Set(prev); next.delete(runner.id); return next; });
     }
   }, [fetchAll]);
 
@@ -560,7 +562,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
                 <RunnerUpdateCard
                   runner={runner}
                   onUpdate={handleUpdate}
-                  updating={updatingRunner === runner.id}
+                   updating={updatingRunners.has(runner.id)}
                 />
               )}
               {error && <p className={styles.runnerError}>{error}</p>}
@@ -659,7 +661,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
                 key={r.id}
                 runner={r}
                 onUpdate={handleUpdate}
-                updating={updatingRunner === r.id}
+                 updating={updatingRunners.has(r.id)}
               />
             ))}
           </div>
@@ -739,10 +741,7 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       {showAddRunner && (
         <EnrollmentModal
           onClose={() => setShowAddRunner(false)}
-          onEnrolled={() => {
-            setShowAddRunner(false);
-            fetchAll(true);
-          }}
+          onEnrolled={handleEnrolled}
         />
       )}
 

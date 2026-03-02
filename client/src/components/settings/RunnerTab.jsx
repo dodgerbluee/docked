@@ -21,6 +21,8 @@ import {
   Copy,
   Check,
   Terminal,
+  Container,
+  FileText,
   Loader,
   X,
   Play,
@@ -29,6 +31,7 @@ import {
   ArrowUpCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
+import { hasVersionUpdate } from "../../utils/versionHelpers";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
@@ -103,6 +106,7 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
   const [enrollment, setEnrollment] = useState(null);
   const [copied, setCopied] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [activeTab, setActiveTab] = useState("linux");
   const pollRef = useRef(null);
 
   // Generate enrollment token on mount, then immediately start polling for its status
@@ -201,6 +205,16 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
   }
 
   const linuxCmd = enrollment?.installCommands?.linux;
+  const dockerCmd = enrollment?.installCommands?.docker;
+  const composeSnippet = enrollment?.installCommands?.compose;
+  const activeCmd =
+    activeTab === "docker" ? dockerCmd : activeTab === "compose" ? composeSnippet : linuxCmd;
+
+  const instructions = {
+    linux: "Run this command on the target machine to install and register the runner automatically:",
+    docker: "Run this command on any machine with Docker to start dockhand as a container:",
+    compose: "Add this to your docker-compose.yml, then run docker compose up -d:",
+  };
 
   return (
     <div className={styles.modalOverlay}>
@@ -212,22 +226,39 @@ export function EnrollmentModal({ onClose, onEnrolled }) {
           </button>
         </div>
         <div className={styles.modalBody}>
-          <div className={styles.enrollTab}>
-            <div className={styles.enrollTabIcon}>
-              <Terminal size={16} />
-            </div>
-            <span className={styles.enrollTabLabel}>Linux Machine</span>
+          <div className={styles.enrollTabs}>
+            <button
+              className={`${styles.enrollTabBtn} ${activeTab === "linux" ? styles.enrollTabBtnActive : ""}`}
+              onClick={() => setActiveTab("linux")}
+            >
+              <Terminal size={14} />
+              <span>Linux</span>
+            </button>
+            <button
+              className={`${styles.enrollTabBtn} ${activeTab === "docker" ? styles.enrollTabBtnActive : ""}`}
+              onClick={() => setActiveTab("docker")}
+            >
+              <Container size={14} />
+              <span>Docker</span>
+            </button>
+            <button
+              className={`${styles.enrollTabBtn} ${activeTab === "compose" ? styles.enrollTabBtnActive : ""}`}
+              onClick={() => setActiveTab("compose")}
+            >
+              <FileText size={14} />
+              <span>Compose</span>
+            </button>
           </div>
 
-          <p className={styles.enrollInstructions}>
-            Run this command on the target machine to install and register the runner automatically:
-          </p>
+          <p className={styles.enrollInstructions}>{instructions[activeTab]}</p>
 
           <div className={styles.codeBlock}>
-            <code className={styles.codeText}>{linuxCmd}</code>
+            <code className={`${styles.codeText} ${activeTab === "compose" ? styles.codeTextMultiline : ""}`}>
+              {activeCmd}
+            </code>
             <button
               className={styles.copyBtn}
-              onClick={() => handleCopy(linuxCmd)}
+              onClick={() => handleCopy(activeCmd)}
               title="Copy to clipboard"
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -466,15 +497,40 @@ export default function RunnerTab() {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
       if (data.success) setRunners(data.runners);
+      return data.runners || [];
     } catch (err) {
       console.error("Failed to fetch runners:", err);
+      return [];
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Auto-ping all runners on mount
+  const hasAutoPinged = useRef(false);
   useEffect(() => {
-    fetchRunners();
+    if (hasAutoPinged.current) return;
+    hasAutoPinged.current = true;
+    fetchRunners().then((list) => {
+      if (!list?.length) return;
+      list.forEach((r) => {
+        setHealthStatus((prev) => ({ ...prev, [r.id]: { checking: true } }));
+        axios
+          .post(`${API_BASE_URL}/api/runners/${r.id}/health`)
+          .then(({ data }) => {
+            setHealthStatus((prev) => ({
+              ...prev,
+              [r.id]: { online: data.online, checking: false, health: data.health },
+            }));
+          })
+          .catch(() => {
+            setHealthStatus((prev) => ({
+              ...prev,
+              [r.id]: { online: false, checking: false },
+            }));
+          });
+      });
+    });
   }, [fetchRunners]);
 
   const handleEdit = useCallback(
@@ -597,36 +653,41 @@ export default function RunnerTab() {
                     <strong className={styles.runnerName}>{runner.name}</strong>
                     <span className={styles.runnerUrl}>{runner.url}</span>
                   </div>
-                  {hs && !hs.checking && (
-                    <span
-                      className={hs.online ? styles.statusOnline : styles.statusOffline}
-                      title={hs.online ? "Online" : "Offline"}
-                    >
-                      {hs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-                      {hs.online ? "Online" : "Offline"}
-                    </span>
-                  )}
-                  {hs?.checking && <span className={styles.statusChecking}>Checking...</span>}
-                </div>
-
-                {hs?.online && hs?.health && (
-                  <div className={styles.healthInfo}>
-                    {hs.health.runner && (
-                      <span className={styles.healthBadge}>{hs.health.runner}</span>
-                    )}
-                    {hs.health.version && (
-                      <span className={styles.healthBadge}>{hs.health.version}</span>
-                    )}
-                    {hs.health.docker !== undefined && (
-                      <span className={styles.healthBadge}>
-                        Docker: {hs.health.docker ? "connected" : "unavailable"}
+                  <div className={styles.statusColumn}>
+                    {hs && !hs.checking && (
+                      <span
+                        className={hs.online ? styles.statusOnline : styles.statusOffline}
+                        title={hs.online ? "Online" : "Offline"}
+                      >
+                        {hs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
+                        {hs.online ? "Online" : "Offline"}
                       </span>
                     )}
+                    {hs?.checking && <span className={styles.statusChecking}>Checking...</span>}
+                    {(() => {
+                      const liveVersion = hs?.health?.version;
+                      const dbVersion = runner.version;
+                      const displayVersion = liveVersion || dbVersion;
+                      if (!displayVersion) return null;
+                      return (
+                        <span className={styles.versionBadge}>
+                          v{displayVersion.replace(/^v/, "")}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {hs?.online && hs?.health?.docker !== undefined && (
+                  <div className={styles.healthInfo}>
+                    <span className={styles.healthBadge}>
+                      Docker: {hs.health.docker ? "connected" : "unavailable"}
+                    </span>
                   </div>
                 )}
 
                 {runner.version && runner.latest_version &&
-                  runner.latest_version.replace(/^v/, "") !== runner.version.replace(/^v/, "") &&
+                  hasVersionUpdate(runner.version, runner.latest_version) &&
                   !updatedRunners.has(runner.id) && (
                   <div className={styles.updateBanner}>
                     <ArrowUpCircle size={13} />

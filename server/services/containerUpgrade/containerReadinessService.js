@@ -10,6 +10,26 @@ const logger = require("../../utils/logger");
 const portainerService = require("../portainerService");
 
 /**
+ * Get container details using the backend if provided, otherwise fall back to portainerService.
+ */
+function getDetails(portainerUrl, endpointId, containerId, backend) {
+  if (backend?.service?.getContainerDetails) {
+    return backend.service.getContainerDetails(backend.url, backend.endpointId, containerId, backend.apiKey);
+  }
+  return portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
+}
+
+/**
+ * Get container logs using the backend if provided, otherwise fall back to portainerService.
+ */
+function getLogs(portainerUrl, endpointId, containerId, tail, backend) {
+  if (backend?.service?.getContainerLogs) {
+    return backend.service.getContainerLogs(backend.url, backend.endpointId, containerId, tail, backend.apiKey);
+  }
+  return portainerService.getContainerLogs(portainerUrl, endpointId, containerId, tail);
+}
+
+/**
  * Check if container is running
  * @param {Object} details - Container details
  * @returns {boolean}
@@ -27,9 +47,9 @@ function isContainerRunning(details) {
  * @param {Object} details - Container details
  * @returns {Promise<never>}
  */
-async function handleContainerExit(portainerUrl, endpointId, containerId, details) {
+async function handleContainerExit(portainerUrl, endpointId, containerId, details, backend) {
   try {
-    const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, containerId, 50);
+    const logs = await getLogs(portainerUrl, endpointId, containerId, 50, backend);
     const exitCode = details.State?.ExitCode || 0;
     throw new Error(`Container exited with code ${exitCode}. Last 50 lines of logs:\n${logs}`);
   } catch (_logErr) {
@@ -45,9 +65,9 @@ async function handleContainerExit(portainerUrl, endpointId, containerId, detail
  * @param {string} containerId - Container ID
  * @returns {Promise<never>}
  */
-async function handleUnhealthyContainer(portainerUrl, endpointId, containerId) {
+async function handleUnhealthyContainer(portainerUrl, endpointId, containerId, backend) {
   try {
-    const logs = await portainerService.getContainerLogs(portainerUrl, endpointId, containerId, 50);
+    const logs = await getLogs(portainerUrl, endpointId, containerId, 50, backend);
     throw new Error(`Container health check failed. Last 50 lines of logs:\n${logs}`);
   } catch (_logErr) {
     throw new Error("Container health check failed. Could not retrieve logs.");
@@ -124,14 +144,11 @@ async function performFinalReadinessCheck(
   endpointId,
   containerId,
   containerName,
-  maxWaitTime
+  maxWaitTime,
+  backend
 ) {
   try {
-    const details = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      containerId
-    );
+    const details = await getDetails(portainerUrl, endpointId, containerId, backend);
     const isRunning = checkRunningFromDetails(details);
     if (isRunning) {
       logger.warn("Timeout reached but container is running, considering it ready", {
@@ -175,13 +192,14 @@ async function checkHealthStatus({
   containerId,
   waitTime,
   consecutiveRunningChecks,
+  backend,
 }) {
   const healthStatus = details.State.Health.Status;
   if (healthStatus === "healthy") {
     return true;
   }
   if (healthStatus === "unhealthy") {
-    await handleUnhealthyContainer(portainerUrl, endpointId, containerId);
+    await handleUnhealthyContainer(portainerUrl, endpointId, containerId, backend);
     return false;
   }
   return shouldConsiderReadyWithHealthCheck(details, waitTime, consecutiveRunningChecks);
@@ -261,13 +279,14 @@ async function processContainerDetails({
   consecutiveRunningChecks,
   requiredStableChecks,
   checkInterval,
+  backend,
 }) {
   const isRunning = isContainerRunning(details);
   if (!isRunning) {
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "unknown");
     if (containerStatus === "exited") {
-      await handleContainerExit(portainerUrl, endpointId, containerId, details);
+      await handleContainerExit(portainerUrl, endpointId, containerId, details, backend);
     }
     return false;
   }
@@ -280,6 +299,7 @@ async function processContainerDetails({
       containerId,
       waitTime,
       consecutiveRunningChecks,
+      backend,
     });
     if (ready) {
       logger.info(
@@ -331,6 +351,7 @@ async function waitForContainerReady({
   maxWaitTime = 120000,
   checkInterval = 2000,
   requiredStableChecks = 3,
+  backend,
 }) {
   const startTime = Date.now();
   let isReady = false;
@@ -352,11 +373,7 @@ async function waitForContainerReady({
     });
 
     try {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        containerId
-      );
+      const details = await getDetails(portainerUrl, endpointId, containerId, backend);
 
       const waitTime = Date.now() - startTime;
       const ready = await processContainerDetails({
@@ -370,6 +387,7 @@ async function waitForContainerReady({
         consecutiveRunningChecks,
         requiredStableChecks,
         checkInterval,
+        backend,
       });
 
       if (ready) {
@@ -400,7 +418,8 @@ async function waitForContainerReady({
       endpointId,
       containerId,
       containerName,
-      maxWaitTime
+      maxWaitTime,
+      backend
     );
   }
 
@@ -440,6 +459,7 @@ async function waitForContainerStop({
   containerName,
   maxWaitTime = 10000,
   checkInterval = 500,
+  backend,
 }) {
   logger.debug("Waiting for container to stop", {
     module: "containerUpgradeService",
@@ -457,11 +477,7 @@ async function waitForContainerStop({
       }, checkInterval);
     });
     try {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        containerId
-      );
+      const details = await getDetails(portainerUrl, endpointId, containerId, backend);
       if (isContainerStopped(details)) {
         stopped = true;
         break;

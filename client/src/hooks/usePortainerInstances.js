@@ -64,8 +64,21 @@ export const usePortainerInstances = ({ portainerInstancesFromAPI, containers })
       instances = [];
     }
 
-    // Sort Portainer instances alphabetically by name
-    return instances.sort((a, b) => {
+    // Append synthetic runner instances from containersByPortainer
+    const runnerInstances = Object.entries(containersByPortainer)
+      .filter(([key]) => key.startsWith("runner:"))
+      .map(([key, data]) => ({
+        name: data.name,
+        url: key,
+        isRunner: true,
+        runnerId: data.runnerId,
+        containers: data.containers || [],
+        withUpdates: data.withUpdates || [],
+        upToDate: data.upToDate || [],
+      }));
+
+    // Sort all instances (Portainer + runner) alphabetically by name
+    return [...instances, ...runnerInstances].sort((a, b) => {
       const nameA = (a.name || "").toLowerCase();
       const nameB = (b.name || "").toLowerCase();
       return nameA.localeCompare(nameB);

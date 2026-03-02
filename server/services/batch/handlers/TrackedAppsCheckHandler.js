@@ -13,7 +13,7 @@ class TrackedAppsCheckHandler extends JobHandler {
   }
 
   getDisplayName() {
-    return "Tracked Apps Scan";
+    return "Repo Version Scan";
   }
 
   getDefaultConfig() {

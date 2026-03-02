@@ -12,6 +12,8 @@ services:
       - DATA_DIR=/data
       - TZ=America/Chicago
       - NODE_ENV=development
+      # Set DOCKED_URL if runners can't reach this server (e.g. localhost won't work for remote LXCs)
+      - DOCKED_URL=http://192.168.20.159:3002
     volumes:
       - ./data:/data
     networks:

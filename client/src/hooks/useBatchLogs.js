@@ -22,7 +22,8 @@ export function useBatchLogs(onTriggerBatch, onTriggerTrackedAppsBatch) {
   const hasEnabledJobs = useMemo(
     () =>
       batchConfigs[BATCH_JOB_TYPES.DOCKER_HUB_PULL]?.enabled ||
-      batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled,
+      batchConfigs[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.enabled ||
+      batchConfigs[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.enabled,
     [batchConfigs]
   );
 

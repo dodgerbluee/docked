@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
-import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/portainerPage";
+import { PORTAINER_CONTAINER_MESSAGE, BLOCKLISTED_CONTAINER_MESSAGE } from "../../constants/portainerPage";
 import { useContainerImageInfo } from "./PortainerContainerCard/hooks/useContainerImageInfo";
 import ContainerVersionDisplay from "./PortainerContainerCard/components/ContainerVersionDisplay";
 import styles from "./PortainerContainerCard.module.css";
@@ -22,7 +22,10 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
   onUpgrade,
   developerModeEnabled = false,
   onOpenDebugModal,
+  disabledMessage,
 }) {
+  // Resolve the tooltip message: use explicit prop, fall back to Portainer default
+  const blockedMessage = disabledMessage || PORTAINER_CONTAINER_MESSAGE;
   // Use extracted hook for image info
   const { imageVersion, imageNameWithoutVersion, handleVersionClick, handleImageClick } =
     useContainerImageInfo(container);
@@ -91,8 +94,8 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
     [isPortainer, upgrading, onUpgrade, container, showUpdates, developerModeEnabled]
   );
 
-  // Render portainer badge element (reused in both showUpdates and !showUpdates branches)
-  const portainerBadgeElement = container.portainerName ? (
+  // Render instance badge — Portainer instance link or runner name tag
+  const instanceBadge = container.portainerName ? (
     container.portainerUrl ? (
       <a
         href={container.portainerUrl}
@@ -112,6 +115,13 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
         {container.portainerName}
       </span>
     )
+  ) : container.source === "runner" && container.runnerName ? (
+    <span
+      className={styles.portainerBadge}
+      title={`Runner: ${container.runnerName}`}
+    >
+      {container.runnerName}
+    </span>
   ) : null;
 
   return (
@@ -123,14 +133,14 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
           ? styles.clickableCard
           : ""
       }`}
-      title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+      title={isPortainer ? blockedMessage : undefined}
       role="article"
       aria-label={`Container ${container.name}`}
       onClick={handleCardClick}
     >
       <div
         className={styles.cardHeader}
-        title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+        title={isPortainer ? blockedMessage : undefined}
       >
         <div className={styles.headerLeft}>
           <h3
@@ -151,7 +161,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 onToggleSelect(container.id);
               }}
               disabled={upgrading || isPortainer}
-              title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+              title={isPortainer ? blockedMessage : undefined}
               aria-label={`Select ${container.name} for upgrade`}
             />
           </label>
@@ -159,7 +169,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
       </div>
       <div
         className={styles.cardBody}
-        title={isPortainer ? PORTAINER_CONTAINER_MESSAGE : undefined}
+        title={isPortainer ? blockedMessage : undefined}
       >
         <div className={styles.imageHeaderContainer}>
           <div className={styles.imageHeaderLeft}>
@@ -177,14 +187,14 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
                 className={`${styles.rebuildButton} ${upgrading ? styles.upgrading : ""} ${isPortainer || upgrading ? styles.disabled : ""}`}
                 title={
                   isPortainer
-                    ? PORTAINER_CONTAINER_MESSAGE
+                    ? blockedMessage
                     : upgrading
                       ? "Rebuilding..."
                       : "Rebuild container with latest image"
                 }
                 aria-label={
                   isPortainer
-                    ? PORTAINER_CONTAINER_MESSAGE
+                    ? blockedMessage
                     : upgrading
                       ? "Rebuilding..."
                       : "Rebuild container with latest image"
@@ -235,7 +245,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
               imageVersion={imageVersion}
               onVersionClick={handleVersionClick}
               showUpdates={showUpdates}
-              badge={portainerBadgeElement}
+              badge={instanceBadge}
             />
           </>
         )}
@@ -245,7 +255,7 @@ const PortainerContainerCard = React.memo(function PortainerContainerCard({
             imageVersion={imageVersion}
             onVersionClick={handleVersionClick}
             showUpdates={showUpdates}
-            badge={portainerBadgeElement}
+            badge={instanceBadge}
           />
         )}
       </div>
@@ -263,6 +273,7 @@ PortainerContainerCard.propTypes = {
   onUpgrade: PropTypes.func.isRequired,
   developerModeEnabled: PropTypes.bool,
   onOpenDebugModal: PropTypes.func,
+  disabledMessage: PropTypes.string,
 };
 
 PortainerContainerCard.displayName = "PortainerContainerCard";

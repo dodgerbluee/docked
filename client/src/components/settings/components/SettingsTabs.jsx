@@ -13,6 +13,7 @@ import UserDetailsTab from "../UserDetailsTab";
 import RepositoriesTab from "../RepositoriesTab";
 import DataTab from "../DataTab";
 import LogsTab from "../LogsTab";
+import RunnerTab from "../RunnerTab";
 import { SETTINGS_TABS } from "../../../constants/settings";
 
 /**
@@ -84,6 +85,10 @@ const SettingsTabs = ({
         portainerInstancesProp={portainerInstances}
       />
     );
+  }
+
+  if (currentActiveSection === SETTINGS_TABS.RUNNERS) {
+    return <RunnerTab />;
   }
 
   if (currentActiveSection === SETTINGS_TABS.TRACKED_APPS) {

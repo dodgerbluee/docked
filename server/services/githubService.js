@@ -199,7 +199,7 @@ async function fetchLatestRelease(owner, repo, cacheKey) {
   }
 }
 
-async function getLatestRelease(repoInput) {
+async function getLatestRelease(repoInput, { skipCache = false } = {}) {
   const repoInfo = parseGitHubRepo(repoInput);
   if (!repoInfo) {
     throw new Error("Invalid GitHub repository format. Use owner/repo or full GitHub URL.");
@@ -208,9 +208,11 @@ async function getLatestRelease(repoInput) {
   const { owner, repo } = repoInfo;
   const cacheKey = `github:${owner}/${repo}`;
 
-  const cached = releaseCache.get(cacheKey);
-  if (cached?.releases?.length > 0) {
-    return cached.releases[0];
+  if (!skipCache) {
+    const cached = releaseCache.get(cacheKey);
+    if (cached?.releases?.length > 0) {
+      return cached.releases[0];
+    }
   }
 
   try {

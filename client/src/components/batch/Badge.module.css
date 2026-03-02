@@ -48,6 +48,17 @@
   border-color: var(--tracked-apps-purple);
 }
 
+.jobTypeAppVersionScan {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.15) 0%, rgba(20, 184, 166, 0.25) 100%);
+  color: rgb(13, 148, 136);
+  border-color: rgba(20, 184, 166, 0.3);
+}
+
+.jobTypeAppVersionScan:hover {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.25) 0%, rgba(20, 184, 166, 0.35) 100%);
+  border-color: rgb(20, 184, 166);
+}
+
 .jobTypeUnknown {
   background: rgba(156, 163, 175, 0.2);
   color: #9ca3af;

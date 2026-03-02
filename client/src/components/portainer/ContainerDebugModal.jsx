@@ -360,9 +360,11 @@ function ContainerDebugModal({
                       </span>
                     </div>
                     <div className={styles.metadataItem}>
-                      <span className={styles.metadataLabel}>Portainer Instance:</span>
+                      <span className={styles.metadataLabel}>
+                        {debugInfo.container?.source === "runner" ? "Runner:" : "Portainer Instance:"}
+                      </span>
                       <span className={styles.metadataValue}>
-                        {debugInfo.container?.portainer_name || "Unknown"}
+                        {debugInfo.container?.runner_name || debugInfo.container?.portainer_name || "Unknown"}
                       </span>
                     </div>
                     <div className={styles.metadataItem}>

@@ -4,15 +4,18 @@
  * enrollment/registration, and proxies upgrade/log SSE streams.
  */
 
+const os = require("os");
+
 const {
   getAllRunners,
   getRunnerById,
+  getRunnerByNameAndUser,
   createRunner,
   updateRunner,
   deleteRunner,
   updateRunnerVersion,
 } = require("../db/runners");
-const { createEnrollmentToken, consumeEnrollmentToken } = require("../db/enrollmentTokens");
+const { createEnrollmentToken, consumeEnrollmentToken, cleanupExpiredTokens } = require("../db/enrollmentTokens");
 const {
   pingRunner,
   proxyUpgradeStream,
@@ -34,6 +37,73 @@ const logger = require("../utils/logger");
 
 const DOCKHAND_GITHUB_REPO = "dockedapp/dockhand";
 
+/**
+ * Build the externally-reachable URL for this Docked server.
+ *
+ * Priority:
+ *  1. DOCKED_URL env var (explicit override)
+ *  2. x-forwarded-host / x-forwarded-proto headers (reverse proxy)
+ *  3. req.get("host") — but if it resolves to localhost/127.0.0.1,
+ *     replace the hostname with the first non-internal IPv4 address
+ *     so that remote runners (LXC, etc.) can actually reach us.
+ */
+function getDockedUrl(req) {
+  // 1. Explicit override
+  if (process.env.DOCKED_URL) {
+    return process.env.DOCKED_URL.replace(/\/+$/, "");
+  }
+
+  // 2. Build from request headers
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+
+  // 3. If host is localhost, try to find a LAN IP
+  const hostname = host.split(":")[0];
+  const port = host.split(":")[1]; // may be undefined
+  const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(hostname);
+
+  if (isLocalhost) {
+    const lanIp = detectLanIp();
+    if (lanIp) {
+      const resolved = `${proto}://${lanIp}${port ? ":" + port : ""}`;
+      logger.info(`Enrollment URL: host was ${hostname}, resolved to LAN IP ${lanIp} → ${resolved}`);
+      return resolved;
+    }
+    logger.warn(
+      `Enrollment URL: host is ${hostname} but no LAN IP found. ` +
+        `Runners on remote machines won't be able to reach this server. ` +
+        `Set the DOCKED_URL environment variable to the externally-reachable URL.`
+    );
+  }
+
+  return `${proto}://${host}`;
+}
+
+/**
+ * Find the first non-internal IPv4 address on this machine.
+ * Skips Docker/container virtual interfaces (docker0, br-*, veth*)
+ * and common Docker bridge subnet IPs (172.16-31.x.x).
+ * Returns the IP string or null if none found.
+ */
+function detectLanIp() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    // Skip Docker virtual interfaces on the host
+    if (/^(docker|br-|veth)/.test(name)) continue;
+    for (const iface of ifaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        // Skip Docker bridge subnet (172.16.0.0/12 — 172.16.x.x to 172.31.x.x)
+        const octets = iface.address.split(".");
+        const first = parseInt(octets[0], 10);
+        const second = parseInt(octets[1], 10);
+        if (first === 172 && second >= 16 && second <= 31) continue;
+        return iface.address;
+      }
+    }
+  }
+  return null;
+}
+
 // In-memory map from enrollment token → runnerId, set when runner registers.
 // Ephemeral (lost on server restart), but that's fine — the polling window is short.
 const enrollmentResults = new Map(); // token → { runnerId, ts }
@@ -42,7 +112,16 @@ setInterval(() => {
   for (const [t, entry] of enrollmentResults) {
     if (entry.ts < cutoff) enrollmentResults.delete(t);
   }
+  // Also clean up expired/used DB tokens
+  cleanupExpiredTokens().catch((err) => {
+    logger.warn(`Failed to clean up expired enrollment tokens: ${err.message}`);
+  });
 }, 30 * 60 * 1000).unref();
+
+// Clean up stale tokens on startup
+cleanupExpiredTokens()
+  .then((n) => { if (n > 0) logger.info(`Cleaned up ${n} expired enrollment token(s)`); })
+  .catch((err) => { logger.warn(`Failed to clean up expired enrollment tokens on startup: ${err.message}`); });
 
 /**
  * GET /api/runners
@@ -104,6 +183,11 @@ async function createRunnerHandler(req, res, next) {
       }
     } catch {
       return res.status(400).json({ success: false, error: "Invalid URL format" });
+    }
+
+    const existing = await getRunnerByNameAndUser(name.trim(), userId);
+    if (existing) {
+      return res.status(409).json({ success: false, error: "A runner with that name already exists" });
     }
 
     const id = await createRunner({ userId, name: name.trim(), url: url.trim(), apiKey });
@@ -290,10 +374,11 @@ async function createEnrollment(req, res, next) {
       return res.status(401).json({ success: false, error: "Authentication required" });
     }
 
-    // Fetch latest dockhand release version from GitHub
+    // Fetch latest dockhand release version from GitHub (bypass cache to
+    // ensure new installations always pull the most recent release)
     let dockhandVersion = "latest";
     try {
-      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
+      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, { skipCache: true });
       if (release?.tag_name) {
         // tag_name is like "v0.1.3" — strip leading "v" for the version
         dockhandVersion = release.tag_name.replace(/^v/, "");
@@ -304,12 +389,40 @@ async function createEnrollment(req, res, next) {
 
     const { token, expiresAt } = await createEnrollmentToken(userId);
 
-    // Build the Docked server's external URL from the request
-    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
-    const host = req.headers["x-forwarded-host"] || req.get("host");
-    const dockedUrl = `${proto}://${host}`;
+    // Build the Docked server's external URL
+    const dockedUrl = getDockedUrl(req);
 
     const installUrl = `${dockedUrl}/api/runners/install/${token}`;
+
+    const dockerRunCmd = [
+      "docker run -d",
+      "  --name dockhand",
+      "  --restart unless-stopped",
+      "  --network host",
+      "  -v /var/run/docker.sock:/var/run/docker.sock",
+      "  -v dockhand_data:/var/lib/dockhand",
+      `  -e DOCKHAND_ENROLLMENT_TOKEN='${token}'`,
+      `  -e DOCKHAND_DOCKED_URL='${dockedUrl}'`,
+      `  ghcr.io/dockedapp/dockhand:${dockhandVersion}`,
+    ].join(" \\\n");
+
+    const dockerComposeSnippet = [
+      "services:",
+      "  dockhand:",
+      `    image: ghcr.io/dockedapp/dockhand:${dockhandVersion}`,
+      "    container_name: dockhand",
+      "    restart: unless-stopped",
+      "    network_mode: host",
+      "    volumes:",
+      "      - /var/run/docker.sock:/var/run/docker.sock",
+      "      - dockhand_data:/var/lib/dockhand",
+      "    environment:",
+      `      - DOCKHAND_ENROLLMENT_TOKEN=${token}`,
+      `      - DOCKHAND_DOCKED_URL=${dockedUrl}`,
+      "",
+      "volumes:",
+      "  dockhand_data:",
+    ].join("\n");
 
     return res.status(201).json({
       success: true,
@@ -318,6 +431,8 @@ async function createEnrollment(req, res, next) {
       dockhandVersion,
       installCommands: {
         linux: `curl -fsSL '${installUrl}' | sudo bash`,
+        docker: dockerRunCmd,
+        compose: dockerComposeSnippet,
       },
     });
   } catch (err) {
@@ -338,15 +453,14 @@ async function serveInstallScript(req, res, next) {
       return res.status(400).type("text/plain").send("Invalid token");
     }
 
-    // Build the Docked server's external URL from the request
-    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
-    const host = req.headers["x-forwarded-host"] || req.get("host");
-    const dockedUrl = `${proto}://${host}`;
+    // Build the Docked server's external URL
+    const dockedUrl = getDockedUrl(req);
 
-    // Fetch latest dockhand release version
+    // Fetch latest dockhand release version (bypass cache so the install
+    // script always downloads the most recent binary)
     let dockhandVersion = "latest";
     try {
-      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
+      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, { skipCache: true });
       if (release?.tag_name) {
         dockhandVersion = release.tag_name.replace(/^v/, "");
       }
@@ -386,11 +500,13 @@ async function registerRunner(req, res, next) {
     }
 
     // Validate URL format
+    let canonicalUrl;
     try {
       const parsed = new URL(url);
       if (!["http:", "https:"].includes(parsed.protocol)) {
         return res.status(400).json({ success: false, error: "URL must use http:// or https://" });
       }
+      canonicalUrl = parsed.toString();
     } catch {
       return res.status(400).json({ success: false, error: "Invalid URL format" });
     }
@@ -404,12 +520,28 @@ async function registerRunner(req, res, next) {
       });
     }
 
-    const runnerId = await createRunner({
-      userId: result.userId,
-      name: name.trim(),
-      url: url.trim(),
-      apiKey,
-    });
+    let runnerId;
+    try {
+      runnerId = await createRunner({
+        userId: result.userId,
+        name: name.trim(),
+        url: canonicalUrl.replace(/\/$/, ""),
+        apiKey,
+      });
+    } catch (createErr) {
+      logger.error("Runner enrollment token consumed but runner creation failed", {
+        module: "runnerController",
+        userId: result.userId,
+        name,
+        token,
+        error: createErr.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error:
+          "Runner enrollment token was consumed but runner creation failed. Please generate a new enrollment token and try again.",
+      });
+    }
 
     // Allow the client's polling to resolve this specific token to a runner
     enrollmentResults.set(token, { runnerId, ts: Date.now() });

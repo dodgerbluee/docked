@@ -14,6 +14,53 @@
 const logger = require("../../utils/logger");
 const portainerService = require("../portainerService");
 
+// ── Routing helpers ──────────────────────────────────────────────────────────
+// Each helper routes through backend.service when present, otherwise falls
+// back to portainerService. The url/endpointId params are used only for the
+// Portainer fallback path (runner paths use backend.url / backend.endpointId).
+
+function svcGetContainers(url, endpointId, backend) {
+  if (backend?.service?.getContainers) {
+    return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
+  }
+  return portainerService.getContainers(url, endpointId);
+}
+
+function svcGetContainerDetails(url, endpointId, containerId, backend) {
+  if (backend?.service?.getContainerDetails) {
+    return backend.service.getContainerDetails(backend.url, backend.endpointId, containerId, backend.apiKey);
+  }
+  return portainerService.getContainerDetails(url, endpointId, containerId);
+}
+
+function svcStopContainer(url, endpointId, containerId, backend) {
+  if (backend?.service?.stopContainer) {
+    return backend.service.stopContainer(backend.url, backend.endpointId, containerId, backend.apiKey);
+  }
+  return portainerService.stopContainer(url, endpointId, containerId);
+}
+
+function svcStartContainer(url, endpointId, containerId, backend) {
+  if (backend?.service?.startContainer) {
+    return backend.service.startContainer(backend.url, backend.endpointId, containerId, backend.apiKey);
+  }
+  return portainerService.startContainer(url, endpointId, containerId);
+}
+
+function svcRemoveContainer(url, endpointId, containerId, backend, force) {
+  if (backend?.service?.removeContainer) {
+    return backend.service.removeContainer(backend.url, backend.endpointId, containerId, backend.apiKey, force);
+  }
+  return portainerService.removeContainer(url, endpointId, containerId, force);
+}
+
+function svcCreateContainer(url, endpointId, config, name, backend) {
+  if (backend?.service?.createContainer) {
+    return backend.service.createContainer(backend.url, backend.endpointId, config, name, backend.apiKey);
+  }
+  return portainerService.createContainer(url, endpointId, config, name);
+}
+
 /**
  * Check if network mode matches container
  * @param {string} networkMode - Network mode string
@@ -104,17 +151,14 @@ async function processContainerForDependencies({
   cleanContainerName,
   originalContainerId,
   stackName,
+  backend,
 }) {
   if (container.Id === newContainerId) {
     return null;
   }
 
   try {
-    const details = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      container.Id
-    );
+    const details = await svcGetContainerDetails(portainerUrl, endpointId, container.Id, backend);
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "exited");
     const isRunning = containerStatus === "running";
@@ -180,9 +224,10 @@ async function findDependentContainersAfterUpgrade({
   cleanContainerName,
   originalContainerId,
   stackName,
+  backend,
 }) {
   try {
-    const allContainers = await portainerService.getContainers(workingPortainerUrl, endpointId);
+    const allContainers = await svcGetContainers(workingPortainerUrl, endpointId, backend);
     const dependentContainers = [];
 
     for (const container of allContainers) {
@@ -194,6 +239,7 @@ async function findDependentContainersAfterUpgrade({
         cleanContainerName,
         originalContainerId,
         stackName,
+        backend,
       });
       if (dependent) {
         dependentContainers.push(dependent);
@@ -215,13 +261,9 @@ async function findDependentContainersAfterUpgrade({
  * @returns {Promise<void>}
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Container health waiting requires comprehensive validation logic
-async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainerId) {
+async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainerId, backend) {
   try {
-    const newContainerDetails = await portainerService.getContainerDetails(
-      workingPortainerUrl,
-      endpointId,
-      newContainerId
-    );
+    const newContainerDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
     if (newContainerDetails.State?.Health) {
       const healthStatus = newContainerDetails.State.Health.Status;
       if (healthStatus === "starting" || healthStatus === "none") {
@@ -236,11 +278,7 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
               resolve();
             }, 2000);
           });
-          const currentDetails = await portainerService.getContainerDetails(
-            workingPortainerUrl,
-            endpointId,
-            newContainerId
-          );
+          const currentDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
           const currentHealth = currentDetails.State?.Health?.Status;
           const isHealthy = currentHealth === "healthy";
           if (isHealthy) {
@@ -291,14 +329,11 @@ async function verifyUpgradedContainer(
   workingPortainerUrl,
   endpointId,
   newContainerId,
-  cleanContainerName
+  cleanContainerName,
+  backend
 ) {
   try {
-    const verifiedNewContainerDetails = await portainerService.getContainerDetails(
-      workingPortainerUrl,
-      endpointId,
-      newContainerId
-    );
+    const verifiedNewContainerDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
     const verifiedName = verifiedNewContainerDetails.Name?.replace("/", "") || cleanContainerName;
 
     const containerState = verifiedNewContainerDetails.State?.Status || "";
@@ -317,11 +352,7 @@ async function verifyUpgradedContainer(
         }, 3000);
       });
 
-      const recheckDetails = await portainerService.getContainerDetails(
-        workingPortainerUrl,
-        endpointId,
-        newContainerId
-      );
+      const recheckDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
       const recheckState = recheckDetails.State?.Status || "";
       const isRunning = recheckState === "running";
 
@@ -495,9 +526,9 @@ function buildContainerConfig(
  * @param {string} containerName - Container name
  * @returns {Promise<void>}
  */
-async function removeExistingContainer(portainerUrl, endpointId, containerName) {
+async function removeExistingContainer(portainerUrl, endpointId, containerName, backend) {
   try {
-    const existingContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const existingContainers = await svcGetContainers(portainerUrl, endpointId, backend);
     const existingContainer = existingContainers.find(
       (c) => c.Names && c.Names.some((name) => name.replace("/", "") === containerName)
     );
@@ -505,11 +536,11 @@ async function removeExistingContainer(portainerUrl, endpointId, containerName) 
     if (existingContainer) {
       logger.warn(`     Container ${containerName} already exists, removing it first...`);
       try {
-        await portainerService.stopContainer(portainerUrl, endpointId, existingContainer.Id);
+        await svcStopContainer(portainerUrl, endpointId, existingContainer.Id, backend);
       } catch (_stopErr) {
         // May already be stopped
       }
-      await portainerService.removeContainer(portainerUrl, endpointId, existingContainer.Id);
+      await svcRemoveContainer(portainerUrl, endpointId, existingContainer.Id, backend);
       await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
@@ -542,13 +573,10 @@ async function verifyAndRetryContainer({
   expectedNetworkMode,
   containerConfig,
   cleanHostConfig,
+  backend,
 }) {
   try {
-    const createdContainerDetails = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      newContainer.Id
-    );
+    const createdContainerDetails = await svcGetContainerDetails(portainerUrl, endpointId, newContainer.Id, backend);
     const actualNetworkMode = createdContainerDetails.HostConfig?.NetworkMode || "";
 
     if (actualNetworkMode === expectedNetworkMode) {
@@ -559,7 +587,7 @@ async function verifyAndRetryContainer({
     logger.error(
       `    MISMATCH: Created container has NetworkMode="${actualNetworkMode}" but expected "${expectedNetworkMode}"`
     );
-    await portainerService.removeContainer(portainerUrl, endpointId, newContainer.Id);
+    await svcRemoveContainer(portainerUrl, endpointId, newContainer.Id, backend);
     await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
@@ -571,18 +599,9 @@ async function verifyAndRetryContainer({
       HostConfig: { ...cleanHostConfig, NetworkMode: expectedNetworkMode },
     };
 
-    const retryContainer = await portainerService.createContainer(
-      portainerUrl,
-      endpointId,
-      retryConfig,
-      containerName
-    );
+    const retryContainer = await svcCreateContainer(portainerUrl, endpointId, retryConfig, containerName, backend);
 
-    const retryDetails = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      retryContainer.Id
-    );
+    const retryDetails = await svcGetContainerDetails(portainerUrl, endpointId, retryContainer.Id, backend);
     const retryNetworkMode = retryDetails.HostConfig?.NetworkMode || "";
     if (retryNetworkMode === expectedNetworkMode) {
       logger.info(`    Retry successful: NetworkMode is now correct`);
@@ -613,7 +632,8 @@ async function recreateNetworkModeContainer(
   endpointId,
   container,
   containerDetails,
-  newContainerId
+  newContainerId,
+  backend
 ) {
   const containerNetworkMode = containerDetails.HostConfig?.NetworkMode || "";
   logger.info(`    Recreating ${container.name} (original network_mode: ${containerNetworkMode})`);
@@ -671,14 +691,9 @@ async function recreateNetworkModeContainer(
     containerConfig.HostConfig.NetworkMode = expectedNetworkMode;
   }
 
-  await removeExistingContainer(portainerUrl, endpointId, containerName);
+  await removeExistingContainer(portainerUrl, endpointId, containerName, backend);
 
-  const newDependentContainer = await portainerService.createContainer(
-    portainerUrl,
-    endpointId,
-    containerConfig,
-    containerName
-  );
+  const newDependentContainer = await svcCreateContainer(portainerUrl, endpointId, containerConfig, containerName, backend);
 
   const verifiedContainer = await verifyAndRetryContainer({
     newContainer: newDependentContainer,
@@ -688,9 +703,10 @@ async function recreateNetworkModeContainer(
     expectedNetworkMode,
     containerConfig,
     cleanHostConfig,
+    backend,
   });
 
-  await portainerService.startContainer(portainerUrl, endpointId, verifiedContainer.Id);
+  await svcStartContainer(portainerUrl, endpointId, verifiedContainer.Id, backend);
   logger.info(`    ${container.name} recreated and started successfully`);
 
   return verifiedContainer;
@@ -709,7 +725,8 @@ async function handleNetworkModeContainers(
   networkModeContainers,
   portainerUrl,
   endpointId,
-  newContainerId
+  newContainerId,
+  backend
 ) {
   logger.info(
     `    Getting container details for ${networkModeContainers.length} dependent container(s)...`
@@ -717,11 +734,7 @@ async function handleNetworkModeContainers(
   const containerDetailsMap = new Map();
   for (const container of networkModeContainers) {
     try {
-      const details = await portainerService.getContainerDetails(
-        portainerUrl,
-        endpointId,
-        container.id
-      );
+      const details = await svcGetContainerDetails(portainerUrl, endpointId, container.id, backend);
       containerDetailsMap.set(container.id, details);
     } catch (err) {
       logger.error(`    Failed to get details for ${container.name}: ${err.message}`);
@@ -733,7 +746,7 @@ async function handleNetworkModeContainers(
   );
   for (const container of networkModeContainers) {
     try {
-      await portainerService.removeContainer(portainerUrl, endpointId, container.id);
+      await svcRemoveContainer(portainerUrl, endpointId, container.id, backend);
     } catch (removeErr) {
       logger.debug(`   Could not remove ${container.name}: ${removeErr.message}`);
     }
@@ -760,7 +773,8 @@ async function handleNetworkModeContainers(
         endpointId,
         container,
         containerDetails,
-        newContainerId
+        newContainerId,
+        backend
       );
     } catch (err) {
       logger.error(`     Failed to recreate ${container.name}:`, { error: err });
@@ -776,35 +790,33 @@ async function handleNetworkModeContainers(
  * @param {string} endpointId - Endpoint ID
  * @returns {Promise<void>}
  */
-async function restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId) {
+async function restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId, backend) {
   if (container.isRunning) {
     logger.info(`   Restarting ${container.name} (${container.dependencyReason})...`);
-    await portainerService.stopContainer(portainerUrl, endpointId, container.id);
+    await svcStopContainer(portainerUrl, endpointId, container.id, backend);
     await new Promise((resolve) => {
       setTimeout(() => {
         resolve();
       }, 1000);
     });
-    await portainerService.startContainer(portainerUrl, endpointId, container.id);
+    await svcStartContainer(portainerUrl, endpointId, container.id, backend);
     logger.info(`    ${container.name} restarted successfully`);
   } else if (container.isStopped) {
     logger.info(`   Starting ${container.name} (was stopped, ${container.dependencyReason})...`);
     try {
-      await portainerService.startContainer(portainerUrl, endpointId, container.id);
+      await svcStartContainer(portainerUrl, endpointId, container.id, backend);
       logger.info(`    ${container.name} started successfully`);
     } catch (_startErr) {
       logger.info(`   Attempting full restart of ${container.name}...`);
-      await portainerService
-        .stopContainer(workingPortainerUrl, endpointId, container.id)
-        .catch(() => {
-          // Ignore stop errors
-        });
+      await svcStopContainer(workingPortainerUrl, endpointId, container.id, backend).catch(() => {
+        // Ignore stop errors
+      });
       await new Promise((resolve) => {
         setTimeout(() => {
           resolve();
         }, 1000);
       });
-      await portainerService.startContainer(portainerUrl, endpointId, container.id);
+      await svcStartContainer(portainerUrl, endpointId, container.id, backend);
       logger.info(`    ${container.name} restarted successfully`);
     }
   }
@@ -833,6 +845,7 @@ async function restartDependentContainers(options) {
     cleanContainerName,
     originalContainerId,
     stackName,
+    backend,
   } = options;
   try {
     logger.debug(` Checking for dependent containers...`);
@@ -844,6 +857,7 @@ async function restartDependentContainers(options) {
       cleanContainerName,
       originalContainerId,
       stackName,
+      backend,
     });
 
     if (dependentContainers.length === 0) {
@@ -855,7 +869,7 @@ async function restartDependentContainers(options) {
       ` Found ${dependentContainers.length} dependent container(s) (${dependentContainers.filter((c) => c.isRunning).length} running, ${dependentContainers.filter((c) => c.isStopped).length} stopped)`
     );
 
-    await waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainer.Id);
+    await waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainer.Id, backend);
 
     const networkModeContainers = dependentContainers.filter(
       (c) => c.dependencyReason === "network_mode"
@@ -868,7 +882,8 @@ async function restartDependentContainers(options) {
       workingPortainerUrl,
       endpointId,
       newContainer.Id,
-      cleanContainerName
+      cleanContainerName,
+      backend
     );
 
     if (networkModeContainers.length > 0) {
@@ -876,13 +891,14 @@ async function restartDependentContainers(options) {
         networkModeContainers,
         portainerUrl,
         endpointId,
-        newContainer.Id
+        newContainer.Id,
+        backend
       );
     }
 
     for (const container of otherContainers) {
       try {
-        await restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId);
+        await restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId, backend);
       } catch (err) {
         logger.error(`     Failed to restart ${container.name}:`, { error: err });
       }

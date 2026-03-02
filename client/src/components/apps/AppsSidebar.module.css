@@ -122,30 +122,28 @@ body.dark-mode .countBadge {
   color: var(--dodger-blue-light);
 }
 
-/* Updates item — amber accent */
-.updatesItem:hover {
-  border-color: #f59e0b;
-  color: #f59e0b;
-}
-
-.updatesItem.active {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: #f59e0b;
-  color: #f59e0b;
-}
-
-.updatesBadge {
+/* Updates item — same style as other tabs */
+.updatesItem .updatesBadge {
   flex-shrink: 0;
   font-size: 0.75rem;
   padding: 1px 6px;
   border-radius: 10px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: rgba(30, 144, 255, 0.15);
+  color: var(--dodger-blue);
   font-weight: 700;
 }
 
+body.dark-mode .updatesItem .updatesBadge {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
 .updatesItem.active .updatesBadge {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(30, 144, 255, 0.25);
+}
+
+body.dark-mode .updatesItem.active .updatesBadge {
+  background: rgba(30, 136, 229, 0.3);
 }
 
 /* Runner filter */
@@ -290,7 +288,7 @@ body.dark-mode .checkbox:has(input[type="checkbox"]:focus-visible)::before {
   font-size: 0.9rem;
 }
 
-/* + Add Runner — dashed border affordance */
+/* Add Runner — dashed border affordance */
 .addButton {
   border: 2px dashed var(--border-color) !important;
   background: var(--bg-secondary) !important;

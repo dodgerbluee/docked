@@ -44,17 +44,17 @@
 /* Runner grid */
 .runnerGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 800px) {
   .runnerGrid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 500px) {
   .runnerGrid {
     grid-template-columns: 1fr;
   }
@@ -139,6 +139,28 @@ body.dark-mode .runnerIcon {
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+/* Status column (online/offline + version badge) */
+.statusColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Runner version badge */
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-family: monospace;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
 /* Health info */
@@ -242,7 +264,7 @@ body.dark-mode .runnerIcon {
 /* Runner action buttons */
 .runnerActions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: wrap;
   padding-top: 4px;
   border-top: 1px solid var(--border);
@@ -509,30 +531,42 @@ body.dark-mode .input:focus {
   border-top: 1px solid var(--border);
 }
 
-/* Enrollment tab indicator */
-.enrollTab {
-  display: inline-flex;
-  align-items: center;
+/* Enrollment tab switcher */
+.enrollTabs {
+  display: flex;
   gap: 6px;
-  padding: 6px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
   margin-bottom: 16px;
 }
 
-.enrollTabIcon {
+.enrollTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.enrollTabBtn:hover {
+  background: var(--bg-hover, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.enrollTabBtnActive {
+  background: var(--bg-secondary);
+  border-color: var(--dodger-blue);
   color: var(--dodger-blue);
 }
 
-body.dark-mode .enrollTabIcon {
+body.dark-mode .enrollTabBtnActive {
+  border-color: var(--dodger-blue-light);
   color: var(--dodger-blue-light);
-}
-
-.enrollTabLabel {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-primary);
 }
 
 .enrollInstructions {
@@ -558,6 +592,12 @@ body.dark-mode .enrollTabIcon {
   word-break: break-all;
   white-space: pre-wrap;
   line-height: 1.5;
+}
+
+/* For multiline content like docker-compose YAML — don't break words mid-token */
+.codeTextMultiline {
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .copyBtn {

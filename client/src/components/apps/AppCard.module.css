@@ -18,17 +18,13 @@
   box-shadow: 0 4px 12px var(--shadow);
 }
 
-/* Left border status indicator */
-.neverRun {
-  border-left: 2px solid var(--border-color);
+/* Left border update indicator */
+.updateAvailable {
+  border-left: 2px solid #f59e0b;
 }
 
-.exitOk {
+.updateCurrent {
   border-left: 2px solid #10b981;
-}
-
-.exitFail {
-  border-left: 2px solid var(--dodger-red, #ef4444);
 }
 
 .content {
@@ -41,9 +37,16 @@
 /* Header: op name + runner badge */
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .name {
@@ -73,6 +76,21 @@
   line-height: 1.6;
 }
 
+/* Repo link icon */
+.repoLink {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.repoLink:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
 /* Description */
 .description {
   font-size: 0.82rem;
@@ -98,17 +116,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .versionBadge {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0px 4px;
   font-size: 0.72rem;
   padding: 2px 7px;
   border-radius: 10px;
   font-family: monospace;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 .versionCurrent {
@@ -124,6 +144,10 @@
 }
 
 .versionArrow {
+  font-weight: 600;
+}
+
+.versionTarget {
   font-weight: 600;
 }
 
@@ -203,6 +227,7 @@ body.dark-mode .opBtn:hover:not(:disabled) {
 .footer {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 4px;
   padding-top: 8px;
