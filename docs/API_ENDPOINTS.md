@@ -44,7 +44,7 @@ Endpoints marked as **Public** do not require authentication.
 - [User Management](#user-management)
 - [Container Management](#container-management)
 - [Image Management](#image-management)
-- [Portainer Instances](#portainer-instances)
+- [Sources (Portainer Instances)](#sources-portainer-instances)
 - [Tracked Apps](#tracked-apps)
 - [Discord Notifications](#discord-notifications)
 - [Batch System](#batch-system)
@@ -817,7 +817,7 @@ Endpoints marked as **Public** do not require authentication.
 
 ---
 
-## Portainer Instances
+## Sources (Portainer Instances)
 
 ### POST `/api/portainer/instances/validate`
 

@@ -11,6 +11,7 @@ import { useTrackedAppUpgradeHistory } from "../hooks/useTrackedAppUpgradeHistor
 import { useIsMobile } from "../hooks/useIsMobile";
 import AnalyticsSidebar from "../components/analytics/AnalyticsSidebar";
 import UpgradeChartsContent from "../components/analytics/UpgradeChartsContent";
+import AnalyticsPageSkeleton from "../components/analytics/AnalyticsPageSkeleton";
 import MobileDrawer from "../components/ui/MobileDrawer";
 import Button from "../components/ui/Button";
 import { ANALYTICS_VIEW_TABS, ANALYTICS_DATA_SOURCE } from "../constants/analyticsPage";
@@ -27,8 +28,11 @@ function AnalyticsPage({ portainerInstances = [] }) {
     setMobileSidebarOpen(false);
   }, []);
 
-  const { history: containerHistoryRaw = [] } = useUpgradeHistory();
-  const { history: trackedAppHistory = [] } = useTrackedAppUpgradeHistory();
+  const { history: containerHistoryRaw = [], loading: containerLoading } = useUpgradeHistory();
+  const { history: trackedAppHistory = [], loading: trackedAppLoading } =
+    useTrackedAppUpgradeHistory();
+
+  const isInitialLoading = containerLoading && trackedAppLoading;
 
   const containerHistory = useMemo(() => {
     const includeContainers =
@@ -97,11 +101,15 @@ function AnalyticsPage({ portainerInstances = [] }) {
         </MobileDrawer>
 
         <div className={styles.analyticsContentArea} role="region" aria-label="Analytics charts">
-          <UpgradeChartsContent
-            containerHistory={containerHistory}
-            trackedAppHistory={trackedAppHistoryFiltered}
-            activeViewTab={activeViewTab}
-          />
+          {isInitialLoading ? (
+            <AnalyticsPageSkeleton />
+          ) : (
+            <UpgradeChartsContent
+              containerHistory={containerHistory}
+              trackedAppHistory={trackedAppHistoryFiltered}
+              activeViewTab={activeViewTab}
+            />
+          )}
         </div>
       </div>
     </div>

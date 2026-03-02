@@ -213,8 +213,8 @@ The following indexes are created for performance:
 
 ## Data Flow
 
-1. **User** creates **Portainer Instances**
-2. **Portainer Instances** are queried to discover **Containers**
+1. **User** creates **Sources** (Portainer Instances)
+2. **Sources** (Portainer Instances) are queried to discover **Containers**
 3. **Containers** are stored in **portainer_containers** with their `image_repo`
 4. **Docker Hub** is queried for each unique `image_repo` and stored in **docker_hub_image_versions**
 5. Containers and Docker Hub versions are joined by `image_repo` (filtered by `user_id`) to show update status

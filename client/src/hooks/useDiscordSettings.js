@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 
@@ -33,11 +33,15 @@ export function useDiscordSettings(isAuthenticated, authToken) {
     }
   }, [hasAuth, effectiveToken]);
 
+  // Guard prevents StrictMode double-fetch
+  const fetchDoneRef = useRef(false);
   useEffect(() => {
-    if (hasAuth && effectiveToken) {
+    if (hasAuth && effectiveToken && !fetchDoneRef.current) {
+      fetchDoneRef.current = true;
       fetchDiscordWebhooks();
     }
-  }, [hasAuth, effectiveToken, fetchDiscordWebhooks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAuth, effectiveToken]);
 
   const handleDiscordModalSuccess = useCallback(async () => {
     setDiscordSuccess("Discord webhook saved successfully!");

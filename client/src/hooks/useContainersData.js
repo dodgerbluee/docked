@@ -1,28 +1,71 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
+
+// Module-level cache – survives unmount/remount so container-dependent tabs
+// (Summary, Portainer) render instantly on re-navigation instead of showing
+// a loading state while the API is re-fetched.
+let cachedContainers = null;
+let cachedStacks = null;
+let cachedUnusedImages = null;
+let cachedUnusedImagesCount = null;
+let cachedPortainerInstances = null;
+let cachedDataFetched = false;
 
 /**
  * Custom hook for managing container data fetching and state
  * Handles containers, stacks, unused images, and Portainer instances
  */
 export const useContainersData = (isAuthenticated, authToken, successfullyUpdatedContainersRef) => {
-  const [containers, setContainers] = useState([]);
-  const [stacks, setStacks] = useState([]);
+  const [containers, setContainers] = useState(cachedContainers || []);
+  const [stacks, setStacks] = useState(cachedStacks || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [unusedImages, setUnusedImages] = useState([]);
-  const [unusedImagesCount, setUnusedImagesCount] = useState(0);
-  const [portainerInstancesFromAPI, setPortainerInstancesFromAPI] = useState([]);
+  const [unusedImages, setUnusedImages] = useState(cachedUnusedImages || []);
+  const [unusedImagesCount, setUnusedImagesCount] = useState(cachedUnusedImagesCount || 0);
+  const [portainerInstancesFromAPI, setPortainerInstancesFromAPI] = useState(
+    cachedPortainerInstances || []
+  );
   const [portainerInstancesLoading, setPortainerInstancesLoading] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set());
-  const [dataFetched, setDataFetched] = useState(false);
+  const [dataFetched, setDataFetched] = useState(cachedDataFetched);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
     const saved = localStorage.getItem("dockerHubDataPulled");
     return saved ? JSON.parse(saved) : false;
   });
   const lastImageDeleteTimeRef = useRef(0);
+  const containersCountRef = useRef(0);
+  const portainerInstancesRef = useRef([]);
+  const dataFetchedRef = useRef(false);
+
+  // Keep module-level cache in sync with state so re-navigation is instant
+  useEffect(() => {
+    containersCountRef.current = containers.length;
+    cachedContainers = containers;
+  }, [containers]);
+
+  useEffect(() => {
+    portainerInstancesRef.current = portainerInstancesFromAPI;
+    cachedPortainerInstances = portainerInstancesFromAPI;
+  }, [portainerInstancesFromAPI]);
+
+  useEffect(() => {
+    dataFetchedRef.current = dataFetched;
+    cachedDataFetched = dataFetched;
+  }, [dataFetched]);
+
+  useEffect(() => {
+    cachedStacks = stacks;
+  }, [stacks]);
+
+  useEffect(() => {
+    cachedUnusedImages = unusedImages;
+  }, [unusedImages]);
+
+  useEffect(() => {
+    cachedUnusedImagesCount = unusedImagesCount;
+  }, [unusedImagesCount]);
 
   const fetchUnusedImages = useCallback(async () => {
     try {
@@ -51,10 +94,19 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           // 3. AND not refreshing (refreshUpdates = false)
           // 4. AND we haven't fetched data before (dataFetched = false)
           // This prevents showing loading screen when we have cached data or after initial load
-          if (showLoading && containers.length === 0 && !refreshUpdates && !dataFetched) {
+          if (
+            showLoading &&
+            containersCountRef.current === 0 &&
+            !refreshUpdates &&
+            !dataFetchedRef.current
+          ) {
             setLoading(true);
           }
         }
+
+        // Fire unused images fetch in parallel with containers fetch
+        // (don't await yet — let both requests fly concurrently)
+        const unusedImagesPromise = fetchUnusedImages();
 
         // Backend will automatically fetch from Portainer if no cache exists
         // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
@@ -108,13 +160,13 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
             if (portainerOnly || instanceUrl) {
               setPortainerInstancesFromAPI(response.data.portainerInstances);
             } else if (
-              portainerInstancesFromAPI &&
-              Array.isArray(portainerInstancesFromAPI) &&
-              portainerInstancesFromAPI.length > 0
+              portainerInstancesRef.current &&
+              Array.isArray(portainerInstancesRef.current) &&
+              portainerInstancesRef.current.length > 0
             ) {
               // Merge container data while preserving instances from API
               const existingInstancesMap = new Map();
-              portainerInstancesFromAPI.forEach((inst) => {
+              portainerInstancesRef.current.forEach((inst) => {
                 existingInstancesMap.set(inst.url, inst);
               });
 
@@ -143,7 +195,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
               const responseUrls = new Set(
                 response.data.portainerInstances.map((inst) => inst.url)
               );
-              const updatedInstances = portainerInstancesFromAPI
+              const updatedInstances = portainerInstancesRef.current
                 .filter((inst) => responseUrls.has(inst.url))
                 .map((existingInst) => {
                   return existingInstancesMap.get(existingInst.url) || existingInst;
@@ -186,8 +238,8 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
         setError(null);
         setDataFetched(true);
 
-        // Fetch unused images
-        await fetchUnusedImages();
+        // Await the unused images fetch that was started in parallel
+        await unusedImagesPromise;
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch containers");
         console.error("Error fetching containers:", err);
@@ -202,13 +254,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
         }
       }
     },
-    [
-      containers.length,
-      portainerInstancesFromAPI,
-      fetchUnusedImages,
-      successfullyUpdatedContainersRef,
-      dataFetched,
-    ]
+    [fetchUnusedImages, successfullyUpdatedContainersRef]
   );
 
   const fetchPortainerInstances = useCallback(async () => {

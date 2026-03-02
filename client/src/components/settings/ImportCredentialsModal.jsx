@@ -62,7 +62,7 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Import Configuration - Credentials" size="lg">
       <div className={styles.stepIndicator}>
         Step {currentStep + 1} of {steps.length}:{" "}
-        {steps[currentStep] === "portainer" ? "Portainer Instances" : "Discord Webhooks"}
+        {steps[currentStep] === "portainer" ? "Sources" : "Discord Webhooks"}
       </div>
       <CredentialsStepManager
         steps={steps}

@@ -192,7 +192,7 @@ function ConfigTab({ intent, portainerInstances }) {
     { label: "Images", values: intent.matchImages, icon: Image },
     { label: "Stacks", values: intent.matchStacks, icon: Layers },
     {
-      label: "Portainer Instances",
+      label: "Sources",
       values: resolveInstanceValues(intent.matchInstances),
       icon: Server,
     },

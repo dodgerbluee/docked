@@ -5,6 +5,11 @@ import "./index.css";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 
+// Install the global axios interceptor that tracks backend reachability.
+// Must be imported before any component renders so the interceptor is in
+// place before the first API request fires.
+import "./utils/backendStatus";
+
 // Add scrollbar visibility on scroll
 let scrollTimeout;
 const handleScroll = () => {

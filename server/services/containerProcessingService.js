@@ -12,7 +12,6 @@ const imageUpdateService = require("./imageUpdateService");
 const networkModeService = require("./networkModeService");
 const containerFormattingService = require("./containerFormattingService");
 const containerPersistenceService = require("./containerPersistenceService");
-const dockerRegistryService = require("./dockerRegistryService");
 
 /**
  * Process a single container from Portainer
@@ -169,15 +168,21 @@ async function processContainer({
 
 /**
  * Process containers from a Portainer instance (without update checks)
- * Used by getContainersFromPortainer for basic container information
+ * Used by getContainersFromPortainer for basic container information.
+ *
+ * OPTIMIZED: Uses data from the container list API response instead of making
+ * per-container getContainerDetails calls. The /containers/json response already
+ * includes Image, Labels, HostConfig.NetworkMode, and ImageID.
+ *
  * @param {Object} params - Parameters object
- * @param {Object} params.container - Container object from Portainer API
+ * @param {Object} params.container - Container object from Portainer API (/containers/json)
  * @param {string} params.portainerUrl - Portainer URL
  * @param {string} params.endpointId - Endpoint ID
  * @param {Object} params.instance - Portainer instance object
  * @param {string} params.instanceName - Instance name
  * @param {Object} params.containerNetworkModes - Network mode relationships
  * @param {number} [params.userId] - User ID (optional)
+ * @param {Map} [params.imageDetailsCache] - Shared cache of imageId -> imageDetails (optional)
  * @returns {Promise<Object>} - Formatted container data (without update info)
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Container processing requires comprehensive basic processing
@@ -189,36 +194,20 @@ async function processContainerBasic({
   instanceName,
   containerNetworkModes,
   userId = null,
+  imageDetailsCache = null,
 }) {
   try {
-    const details = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      container.Id
-    );
-    const imageName = details.Config.Image;
-    const imageId = details.Image || "";
+    // Use data from the list API response directly (no getContainerDetails call needed)
+    // /containers/json returns: Image, ImageID, Labels, HostConfig.NetworkMode, Names, State, Status, Id
+    const imageName = container.Image;
+    const imageId = container.ImageID || "";
 
-    // Extract image digest
+    // Extract image digest from container's RepoDigests or ImageID
     let currentDigest = null;
-    try {
-      currentDigest = await dockerRegistryService.getCurrentImageDigest(
-        details,
-        imageName,
-        portainerUrl,
-        endpointId,
-        userId // Pass userId to enable database-assisted digest matching
-      );
-    } catch (digestError) {
-      // Fallback to extracting from Image field if getCurrentImageDigest fails
-      if (imageId.startsWith("sha256:")) {
-        currentDigest = imageId;
-      } else if (imageId) {
-        currentDigest = `sha256:${imageId}`;
-      }
-      logger.debug(
-        `Could not get digest via getCurrentImageDigest, using fallback: ${digestError.message}`
-      );
+    if (imageId.startsWith("sha256:")) {
+      currentDigest = imageId;
+    } else if (imageId) {
+      currentDigest = `sha256:${imageId}`;
     }
 
     // Extract tag from image name
@@ -233,13 +222,13 @@ async function processContainerBasic({
       }
     }
 
-    // Extract stack name from labels
-    const labels = details.Config.Labels || {};
+    // Extract stack name from labels (available on list response)
+    const labels = container.Labels || {};
     const stackName =
       labels["com.docker.compose.project"] || labels["com.docker.stack.namespace"] || null;
 
-    // Check if container uses network_mode
-    const usesNetworkMode = networkModeService.containerUsesNetworkMode(details);
+    // Check if container uses network_mode (HostConfig available on list response)
+    const usesNetworkMode = networkModeService.containerUsesNetworkMode(container);
 
     // Check if container provides network
     const providesNetwork = networkModeService.containerProvidesNetwork(
@@ -247,15 +236,19 @@ async function processContainerBasic({
       containerNetworkModes
     );
 
-    // Get image creation date
+    // Get image creation date — use shared cache to avoid duplicate calls for same image
     let currentImageCreated = null;
     if (imageId) {
       try {
-        const imageDetails = await portainerService.getImageDetails(
-          portainerUrl,
-          endpointId,
-          imageId
-        );
+        let imageDetails;
+        if (imageDetailsCache && imageDetailsCache.has(imageId)) {
+          imageDetails = imageDetailsCache.get(imageId);
+        } else {
+          imageDetails = await portainerService.getImageDetails(portainerUrl, endpointId, imageId);
+          if (imageDetailsCache) {
+            imageDetailsCache.set(imageId, imageDetails);
+          }
+        }
         if (imageDetails.Created) {
           currentImageCreated = imageDetails.Created;
         }

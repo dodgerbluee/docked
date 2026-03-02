@@ -11,6 +11,7 @@ import {
   trackedAppShape,
 } from "../utils/propTypes";
 import WelcomeModal from "./SummaryPage/components/WelcomeModal";
+import SummaryPageSkeleton from "./SummaryPage/components/SummaryPageSkeleton";
 import HeroStats from "./SummaryPage/components/HeroStats";
 import ActivityFeed from "./SummaryPage/components/ActivityFeed";
 import ContainerHealthOverview from "./SummaryPage/components/ContainerHealthOverview";
@@ -35,6 +36,7 @@ const SummaryPage = ({
   onSetSelectedPortainerInstances,
   onSetContentTab,
   isLoading = false,
+  dataFetched = false,
   onAddInstance,
 }) => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -44,7 +46,8 @@ const SummaryPage = ({
 
   // Show welcome modal when there are no instances and no tracked apps
   useEffect(() => {
-    if (isLoading) {
+    // Gate on dataFetched — don't show modal until we know the data is real
+    if (!dataFetched) {
       return;
     }
 
@@ -52,7 +55,7 @@ const SummaryPage = ({
 
     if (shouldShowWelcome && !welcomeModalShown) {
       const timer = setTimeout(() => {
-        if (portainerInstances.length === 0 && trackedApps.length === 0 && !isLoading) {
+        if (portainerInstances.length === 0 && trackedApps.length === 0 && dataFetched) {
           setShowWelcomeModal(true);
           localStorage.setItem("welcomeModalShown", "true");
         }
@@ -62,7 +65,7 @@ const SummaryPage = ({
     } else {
       setShowWelcomeModal(false);
     }
-  }, [shouldShowWelcome, portainerInstances.length, trackedApps.length, isLoading]);
+  }, [shouldShowWelcome, portainerInstances.length, trackedApps.length, dataFetched]);
 
   const summaryStats = useSummaryStats({
     portainerInstances,
@@ -88,7 +91,18 @@ const SummaryPage = ({
   // Fetch batch run data for activity feed
   const { latestRunsByJobType, recentRuns } = useBatchRuns();
 
-  const shouldShowEmptyState = !isLoading && portainerInstances.length === 0;
+  const shouldShowEmptyState = dataFetched && portainerInstances.length === 0;
+
+  // Show skeleton while initial data hasn't been fetched yet
+  if (!dataFetched) {
+    return (
+      <div className={styles.summaryPage}>
+        <div className={styles.contentTabPanel}>
+          <SummaryPageSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.summaryPage}>
@@ -175,6 +189,7 @@ SummaryPage.propTypes = {
   onSetSelectedPortainerInstances: PropTypes.func,
   onSetContentTab: PropTypes.func,
   isLoading: PropTypes.bool,
+  dataFetched: PropTypes.bool,
   onAddInstance: PropTypes.func,
 };
 

@@ -6,6 +6,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import TrackedAppCard from "../../../components/TrackedAppCard";
 import TrackedAppUpgradeHistoryTab from "../../../components/trackedApps/TrackedAppUpgradeHistoryTab";
+import TrackedAppsPageSkeleton from "./TrackedAppsPageSkeleton";
 import { TRACKED_APPS_CONTENT_TABS } from "../../../constants/trackedAppsPage";
 import styles from "../../TrackedAppsPage.module.css";
 
@@ -244,10 +245,7 @@ const TrackedAppsContentArea = ({
       contentTab === TRACKED_APPS_CONTENT_TABS.ALL ? (
         <div className={styles.emptyState}>
           {!hasLoadedOnce ? (
-            // Don't show anything on initial load - prevents flash of empty state
-            <div className={styles.emptyStateMessage}>
-              <p className={styles.emptyStateText}>&nbsp;</p>
-            </div>
+            <TrackedAppsPageSkeleton />
           ) : trackedAppsCount === 0 ? (
             <div className={styles.emptyStateMessage}>
               <p className={styles.emptyStateText}>

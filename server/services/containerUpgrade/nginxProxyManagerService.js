@@ -51,13 +51,13 @@ function logIpUrlUsage(workingPortainerUrl, portainerUrl, ipAddress, instance) {
       instanceName: instance.name || "unknown",
       instanceId: instance.id,
       warning:
-        "  If upgrade fails, verify the IP address in Settings > Portainer Instances matches the actual Portainer server IP",
+        "  If upgrade fails, verify the IP address in Settings > Sources matches the actual Portainer server IP",
     }
   );
 
   logger.warn(
     `Using IP address ${ipAddress} from database for Portainer instance "${instance.name || portainerUrl}". ` +
-      `If this is incorrect, update it in Settings > Portainer Instances.`,
+      `If this is incorrect, update it in Settings > Sources.`,
     {
       module: "containerUpgradeService",
       operation: "upgradeSingleContainer",

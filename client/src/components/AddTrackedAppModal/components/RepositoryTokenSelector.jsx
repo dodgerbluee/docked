@@ -27,7 +27,7 @@ const RepositoryTokenSelector = React.memo(function RepositoryTokenSelector({
     loading: tokensLoading,
     createOrUpdateToken,
     fetchTokens,
-  } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.PORTAINER });
+  } = useRepositoryAccessTokens({ activeSection: SETTINGS_TABS.SOURCES });
 
   // Filter tokens by provider
   const providerTokens = useMemo(

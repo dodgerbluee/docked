@@ -44,14 +44,8 @@ function ContainerDebugModal({
   // Refs for cleanup and focus management
   const abortControllerRef = useRef(null);
   const modalRef = useRef(null);
-  const isRefreshing = useRef(false);
 
   const fetchDebugInfo = useCallback(async () => {
-    // Prevent concurrent requests
-    if (isRefreshing.current) {
-      return;
-    }
-
     // Validate containerId
     if (!containerId || typeof containerId !== "string" || containerId.trim() === "") {
       setError("Invalid container ID provided");
@@ -59,14 +53,14 @@ function ContainerDebugModal({
       return;
     }
 
-    // Cancel any pending request
+    // Cancel any pending request (also deduplicates StrictMode double-mount:
+    // mount #2 aborts mount #1's in-flight request, then starts its own)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
     // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
-    isRefreshing.current = true;
 
     try {
       setLoading(true);
@@ -82,20 +76,13 @@ function ContainerDebugModal({
       }
     } finally {
       setLoading(false);
-      isRefreshing.current = false;
     }
   }, [containerId]);
 
-  // Fetch data on mount
+  // Fetch data on mount - no cleanup abort needed since the modal
+  // is fully destroyed on close and any orphaned response is harmless
   useEffect(() => {
     fetchDebugInfo();
-
-    // Cleanup: abort pending requests on unmount
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, [fetchDebugInfo]);
 
   // Handle escape key

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 
@@ -13,9 +13,11 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
     "app-version-scan": { enabled: false, intervalMinutes: 60 },
   });
 
-  // Fetch batch configuration
+  // Fetch batch configuration (guard prevents StrictMode double-fetch)
+  const fetchDoneRef = useRef(false);
   useEffect(() => {
-    if (isAuthenticated && authToken) {
+    if (isAuthenticated && authToken && !fetchDoneRef.current) {
+      fetchDoneRef.current = true;
       const fetchBatchConfig = async () => {
         try {
           const response = await axios.get(`${API_BASE_URL}/api/batch/config`);

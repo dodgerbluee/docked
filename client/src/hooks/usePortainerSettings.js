@@ -39,13 +39,13 @@ export function usePortainerSettings({
   }, [fetchPortainerInstances]);
 
   useEffect(() => {
-    if (activeSection === "portainer") {
+    if (activeSection === "sources" || activeSection === "portainer") {
       fetchPortainerInstances();
     }
   }, [activeSection, fetchPortainerInstances]);
 
   useEffect(() => {
-    if (refreshInstances && activeSection === "portainer") {
+    if (refreshInstances && (activeSection === "sources" || activeSection === "portainer")) {
       const timeout = setTimeout(() => {
         fetchPortainerInstances();
       }, 300);

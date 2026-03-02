@@ -27,7 +27,7 @@ import { usePortainerSearch } from "./PortainerPage/hooks/usePortainerSearch";
 
 /**
  * PortainerPage Component
- * Main page component for the Portainer Instances section with tab navigation
+ * Main page component for the Sources section with tab navigation
  */
 function PortainerPage({
   portainerInstances = [],
@@ -57,6 +57,7 @@ function PortainerPage({
   onSetContentTab,
   portainerUpgradeFromProps = null,
   onNavigateToLogs = null,
+  onManageSources = null,
   onManageIntents = null,
 }) {
   // Use extracted hooks
@@ -231,7 +232,7 @@ function PortainerPage({
                 onSelectedImageSourceFiltersChange={(next) => {
                   setSelectedImageSourceFilters(next);
                 }}
-                onAddInstance={onAddInstance}
+                onManageSources={onManageSources}
                 onManageIntents={onManageIntents}
               />
             </div>
@@ -261,10 +262,14 @@ function PortainerPage({
               onSelectedImageSourceFiltersChange={(next) => {
                 setSelectedImageSourceFilters(next);
               }}
-              onAddInstance={() => {
-                closeMobileSidebar();
-                onAddInstance();
-              }}
+              onManageSources={
+                onManageSources
+                  ? () => {
+                      closeMobileSidebar();
+                      onManageSources();
+                    }
+                  : null
+              }
               onManageIntents={
                 onManageIntents
                   ? () => {
@@ -467,6 +472,7 @@ PortainerPage.propTypes = {
   onSetContentTab: PropTypes.func,
   portainerUpgradeFromProps: PropTypes.object,
   onNavigateToLogs: PropTypes.func,
+  onManageSources: PropTypes.func,
   onManageIntents: PropTypes.func,
 };
 

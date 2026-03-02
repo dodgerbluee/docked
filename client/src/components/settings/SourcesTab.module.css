@@ -1,0 +1,753 @@
+/* SourcesTab.module.css — unified Sources settings tab */
+
+.wrapper {
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.description {
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+  line-height: 1.6;
+}
+
+.description code {
+  background: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+/* ── Section headers ──────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.sectionDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+  max-width: 800px;
+}
+
+/* ── Source card grid ──────────────────────────────────────────────────── */
+
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .sourceGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .sourceGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .sourceGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Shared card styles ───────────────────────────────────────────────── */
+
+.sourceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.sourceCard:hover {
+  box-shadow: 0 2px 8px var(--shadow);
+  border-color: var(--dodger-blue);
+}
+
+body.dark-mode .sourceCard:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+/* ── Type badges ──────────────────────────────────────────────────────── */
+
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.typeBadgePortainer {
+  background: rgba(30, 136, 229, 0.12);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .typeBadgePortainer {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
+.typeBadgeRunner {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+body.dark-mode .typeBadgeRunner {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+/* ── Portainer card content ───────────────────────────────────────────── */
+
+.portainerLogo {
+  color: #13b5ea;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+body.dark-mode .portainerLogo {
+  color: #47c8f5;
+}
+
+.instanceContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.instanceInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.instanceHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.instanceName {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.instanceBadges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.authBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(30, 136, 229, 0.12);
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .authBadge {
+  background: rgba(30, 136, 229, 0.2);
+  color: var(--dodger-blue-light);
+}
+
+.badgeIcon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.instanceUrl {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 2px;
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.instanceUsername {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+/* ── Runner card content ──────────────────────────────────────────────── */
+
+.runnerHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.runnerIcon {
+  color: var(--dodger-blue);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+body.dark-mode .runnerIcon {
+  color: var(--dodger-blue-light);
+}
+
+.runnerMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.runnerName {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.runnerUrl {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+
+/* Status column */
+.statusColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.statusOnline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #22c55e;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.statusOffline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-error, #ef4444);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.statusChecking {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-family: monospace;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.versionBadge:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.healthInfo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.healthBadge {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.updateBanner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #f59e0b;
+  flex-wrap: wrap;
+}
+
+/* ── Add source card ──────────────────────────────────────────────────── */
+
+.addCard {
+  background: var(--bg-secondary);
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 2px dashed var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  gap: 10px;
+  height: 100%;
+}
+
+.addCard:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.addCard:hover .addIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .addCard:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+body.dark-mode .addCard:hover .addIcon {
+  color: var(--dodger-blue-light);
+}
+
+.addIcon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.addText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ── Type Picker Dialog ───────────────────────────────────────────────── */
+
+.typePickerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.typePickerModal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.typePickerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.typePickerTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.typePickerClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.typePickerClose:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.typePickerBody {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.typePickerOption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.typePickerOption:hover {
+  border-color: var(--dodger-blue);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+body.dark-mode .typePickerOption:hover {
+  border-color: var(--dodger-blue-light);
+}
+
+.typePickerOptionIcon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.typePickerOption:hover .typePickerOptionIcon {
+  color: var(--dodger-blue);
+}
+
+body.dark-mode .typePickerOption:hover .typePickerOptionIcon {
+  color: var(--dodger-blue-light);
+}
+
+.typePickerOptionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.typePickerOptionTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.typePickerOptionDesc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* ── Portainer-specific sections ──────────────────────────────────────── */
+
+.intentsSection {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.disallowedSection {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.disallowedSection .sectionTitle {
+  margin-bottom: 8px;
+}
+
+/* ── Data Management ──────────────────────────────────────────────────── */
+
+.dataManagement {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border-color);
+}
+
+.dataManagement .sectionTitle {
+  margin-bottom: 20px;
+}
+
+.dataActions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dataActionItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dangerButton {
+  width: auto;
+  display: inline-block;
+  align-self: flex-start;
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+  padding: 10px 20px !important;
+  font-size: 1rem;
+  min-height: 42px;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.1) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+body.dark-mode .dangerButton {
+  background: var(--bg-primary) !important;
+  color: var(--dodger-red) !important;
+  border-color: var(--dodger-red) !important;
+}
+
+body.dark-mode .dangerButton:hover:not(:disabled) {
+  background: rgba(239, 62, 66, 0.15) !important;
+  border-color: var(--dodger-red) !important;
+  color: var(--dodger-red) !important;
+}
+
+.dataActionHelper {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .wrapper {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .sourceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .instanceContent {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .sourceCard:hover {
+    transform: none;
+  }
+
+  .addCard:hover {
+    transform: none;
+  }
+
+  .dataManagement {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .intentsSection {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .disallowedSection {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+
+  .dangerButton {
+    min-height: var(--touch-target-min);
+  }
+}
+
+/* ── Loading skeleton ──────────────────────────────────────────────────── */
+
+.skeletonShimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: sourcesShimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes sourcesShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeletonTitle {
+  width: 180px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+
+.skeletonDesc {
+  width: 420px;
+  max-width: 100%;
+  height: 16px;
+  margin-bottom: 32px;
+}
+
+.skeletonSectionTitle {
+  width: 80px;
+  height: 18px;
+  margin-bottom: 16px;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.skeletonCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeletonCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skeletonCardLogo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.skeletonCardMeta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeletonCardName {
+  width: 120px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skeletonCardUrl {
+  width: 200px;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeletonCardStatus {
+  width: 60px;
+  height: 22px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.skeletonBadges {
+  display: flex;
+  gap: 8px;
+}
+
+.skeletonBadge {
+  width: 72px;
+  height: 20px;
+  border-radius: 10px;
+}

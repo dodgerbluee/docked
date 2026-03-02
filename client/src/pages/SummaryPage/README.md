@@ -66,7 +66,7 @@ Complete reimagination of the Summary page with modern React components and comp
 - **Color-coded status**: Green (completed), Red (failed), Blue (running)
 - **Pulsing animation** for running jobs
 
-### 🖥️ Portainer Instances Grid
+### 🖥️ Sources Grid
 
 - **Responsive grid layout** (auto-fit based on screen size)
 - **Enhanced instance cards** using existing PortainerInstanceCard component

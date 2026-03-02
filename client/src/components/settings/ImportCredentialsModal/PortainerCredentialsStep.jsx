@@ -31,7 +31,7 @@ function PortainerCredentialsStep({
 }) {
   return (
     <div className={styles.stepContent}>
-      <h3 className={styles.stepTitle}>Portainer Instances</h3>
+      <h3 className={styles.stepTitle}>Sources</h3>
       <p className={styles.stepDescription}>
         Enter credentials for each Portainer instance you want to import.
       </p>

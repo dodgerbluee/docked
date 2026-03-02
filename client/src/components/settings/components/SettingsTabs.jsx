@@ -6,14 +6,13 @@ import React from "react";
 import PropTypes from "prop-types";
 import LoadingSpinner from "../../ui/LoadingSpinner";
 import GeneralTab from "../GeneralTab";
-import PortainerTab from "../PortainerTab";
+import SourcesTab from "../SourcesTab";
 import TrackedAppsTab from "../TrackedAppsTab";
 import DiscordTab from "../DiscordTab";
 import UserDetailsTab from "../UserDetailsTab";
 import RepositoriesTab from "../RepositoriesTab";
 import DataTab from "../DataTab";
 import LogsTab from "../LogsTab";
-import RunnerTab from "../RunnerTab";
 import { SETTINGS_TABS } from "../../../constants/settings";
 
 /**
@@ -72,9 +71,9 @@ const SettingsTabs = ({
     );
   }
 
-  if (currentActiveSection === SETTINGS_TABS.PORTAINER) {
+  if (currentActiveSection === SETTINGS_TABS.SOURCES) {
     return (
-      <PortainerTab
+      <SourcesTab
         portainerInstances={settings.portainerInstances}
         onEditInstance={onEditInstance}
         handleEditInstance={settings.handleEditInstance}
@@ -85,10 +84,6 @@ const SettingsTabs = ({
         portainerInstancesProp={portainerInstances}
       />
     );
-  }
-
-  if (currentActiveSection === SETTINGS_TABS.RUNNERS) {
-    return <RunnerTab />;
   }
 
   if (currentActiveSection === SETTINGS_TABS.TRACKED_APPS) {

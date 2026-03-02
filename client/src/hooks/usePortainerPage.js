@@ -15,7 +15,7 @@ import { usePortainerImageDeletion } from "./usePortainerPage/hooks/usePortainer
 
 /**
  * usePortainerPage Hook
- * Manages all state and logic for the Portainer Instances page
+ * Manages all state and logic for the Sources page
  */
 export function usePortainerPage({
   portainerInstances = [],

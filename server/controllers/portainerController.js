@@ -13,6 +13,7 @@ const {
 } = require("../db/index");
 const { validateRequiredFields } = require("../utils/validation");
 const portainerService = require("../services/portainerService");
+const { isAuthFresh } = require("../services/portainer/authService");
 const logger = require("../utils/logger");
 const { resolveUrlToIp } = require("../utils/dnsResolver");
 
@@ -520,6 +521,47 @@ async function updateInstanceOrder(req, res, next) {
   }
 }
 
+/**
+ * Health check a Portainer instance by attempting to authenticate
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+async function healthCheckInstance(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+
+    const instance = await getPortainerInstanceById(parseInt(req.params.id, 10), userId);
+    if (!instance) {
+      return res.status(404).json({ success: false, error: "Portainer instance not found" });
+    }
+
+    try {
+      // Short-TTL optimisation: if we authenticated successfully < 60 s ago,
+      // skip the full re-auth round-trip and return online immediately.
+      if (isAuthFresh(instance.url)) {
+        return res.json({ success: true, online: true });
+      }
+
+      await portainerService.authenticatePortainer({
+        userId,
+        portainerUrl: instance.url,
+        authType: instance.auth_type,
+        skipCache: true,
+      });
+      return res.json({ success: true, online: true });
+    } catch (err) {
+      logger.warn(`Portainer instance "${instance.name}" health check failed: ${err.message}`);
+      return res.json({ success: true, online: false, error: err.message });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   validateInstance,
   getInstances,
@@ -528,4 +570,5 @@ module.exports = {
   updateInstance,
   deleteInstance,
   updateInstanceOrder,
+  healthCheckInstance,
 };

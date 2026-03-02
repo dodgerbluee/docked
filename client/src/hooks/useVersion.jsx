@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 
@@ -22,7 +22,12 @@ export const useVersion = () => {
   const [isDevBuild, setIsDevBuild] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Guard prevents StrictMode double-fetch
+  const fetchDoneRef = useRef(false);
   useEffect(() => {
+    if (fetchDoneRef.current) return;
+    fetchDoneRef.current = true;
+
     /**
      * Fetches version information from the API endpoint
      * Gracefully handles errors since version is optional
