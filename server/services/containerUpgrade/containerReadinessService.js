@@ -14,7 +14,12 @@ const portainerService = require("../portainerService");
  */
 function getDetails(portainerUrl, endpointId, containerId, backend) {
   if (backend?.service?.getContainerDetails) {
-    return backend.service.getContainerDetails(backend.url, backend.endpointId, containerId, backend.apiKey);
+    return backend.service.getContainerDetails(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
   }
   return portainerService.getContainerDetails(portainerUrl, endpointId, containerId);
 }
@@ -24,7 +29,13 @@ function getDetails(portainerUrl, endpointId, containerId, backend) {
  */
 function getLogs(portainerUrl, endpointId, containerId, tail, backend) {
   if (backend?.service?.getContainerLogs) {
-    return backend.service.getContainerLogs(backend.url, backend.endpointId, containerId, tail, backend.apiKey);
+    return backend.service.getContainerLogs(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      tail,
+      backend.apiKey
+    );
   }
   return portainerService.getContainerLogs(portainerUrl, endpointId, containerId, tail);
 }

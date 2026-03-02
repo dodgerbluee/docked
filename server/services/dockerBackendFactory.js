@@ -62,10 +62,9 @@ async function resolvePortainerBackend(userId, portainerUrl, endpointId) {
   const instance = instances.find((inst) => inst.url === portainerUrl);
   if (!instance) {
     logger.warn("dockerBackendFactory: Portainer instance not found", { userId, portainerUrl });
-    throw Object.assign(
-      new Error("Portainer instance not found or not accessible"),
-      { status: 404 }
-    );
+    throw Object.assign(new Error("Portainer instance not found or not accessible"), {
+      status: 404,
+    });
   }
 
   // Pre-authenticate (uses token cache internally).
@@ -97,10 +96,7 @@ async function resolveRunnerBackend(userId, runnerId) {
   const runner = await getRunnerById(runnerId, userId);
   if (!runner) {
     logger.warn("dockerBackendFactory: runner not found", { userId, runnerId });
-    throw Object.assign(
-      new Error("Runner not found or not accessible"),
-      { status: 404 }
-    );
+    throw Object.assign(new Error("Runner not found or not accessible"), { status: 404 });
   }
   if (!runner.enabled) {
     throw Object.assign(new Error("Runner is disabled"), { status: 409 });

@@ -79,7 +79,12 @@ class AppVersionScanHandler extends JobHandler {
       }
     }
 
-    logger.info("App version scan completed", { userId, itemsChecked, itemsUpdated, runnersSkipped });
+    logger.info("App version scan completed", {
+      userId,
+      itemsChecked,
+      itemsUpdated,
+      runnersSkipped,
+    });
 
     return { itemsChecked, itemsUpdated, runnersSkipped };
   }

@@ -92,10 +92,10 @@ async function stopContainer(runnerUrl, _endpointId, containerId, apiKey) {
  * @returns {Promise<void>}
  */
 async function removeContainer(runnerUrl, _endpointId, containerId, apiKey, force = false) {
-  await axios.delete(
-    `${runnerUrl}/containers/${encodeURIComponent(containerId)}`,
-    { ...opConfig(apiKey), params: { force: force ? "true" : "false" } }
-  );
+  await axios.delete(`${runnerUrl}/containers/${encodeURIComponent(containerId)}`, {
+    ...opConfig(apiKey),
+    params: { force: force ? "true" : "false" },
+  });
 }
 
 /**
@@ -108,11 +108,10 @@ async function removeContainer(runnerUrl, _endpointId, containerId, apiKey, forc
  * @returns {Promise<Object>} {id, warnings}
  */
 async function createContainer(runnerUrl, _endpointId, containerConfig, containerName, apiKey) {
-  const resp = await axios.post(
-    `${runnerUrl}/containers/create`,
-    containerConfig,
-    { ...opConfig(apiKey), params: { name: containerName } }
-  );
+  const resp = await axios.post(`${runnerUrl}/containers/create`, containerConfig, {
+    ...opConfig(apiKey),
+    params: { name: containerName },
+  });
   // Normalize to Docker Engine API casing expected by the upgrade pipeline:
   // dockhand returns {"id":"..."} (lowercase) but the pipeline reads newContainer.Id (capital).
   const data = resp.data;
@@ -150,10 +149,11 @@ async function startContainer(runnerUrl, _endpointId, containerId, apiKey) {
 async function getContainerLogs(runnerUrl, _endpointId, containerId, tail = 100, apiKey) {
   // Existing runner log endpoint returns SSE; for synchronous log fetching
   // we request without follow=true and collect the streamed text.
-  const resp = await axios.get(
-    `${runnerUrl}/containers/${encodeURIComponent(containerId)}/logs`,
-    { ...inspectConfig(apiKey), params: { tail, follow: false }, responseType: "text" }
-  );
+  const resp = await axios.get(`${runnerUrl}/containers/${encodeURIComponent(containerId)}/logs`, {
+    ...inspectConfig(apiKey),
+    params: { tail, follow: false },
+    responseType: "text",
+  });
   return resp.data || "";
 }
 
@@ -189,11 +189,7 @@ async function pullImage(runnerUrl, _endpointId, imageName, _originalUrl, apiKey
     fromImage = imageName.substring(0, colonIdx);
     tag = imageName.substring(colonIdx + 1);
   }
-  await axios.post(
-    `${runnerUrl}/images/pull`,
-    { fromImage, tag },
-    opConfig(apiKey)
-  );
+  await axios.post(`${runnerUrl}/images/pull`, { fromImage, tag }, opConfig(apiKey));
   logger.info("runnerDockerService: image pulled", { imageName, runnerUrl });
 }
 
@@ -207,10 +203,10 @@ async function pullImage(runnerUrl, _endpointId, imageName, _originalUrl, apiKey
  * @returns {Promise<void>}
  */
 async function deleteImage(runnerUrl, _endpointId, imageId, force = false, apiKey) {
-  await axios.delete(
-    `${runnerUrl}/images/${encodeURIComponent(imageId)}`,
-    { ...opConfig(apiKey), params: { force: force ? "true" : "false" } }
-  );
+  await axios.delete(`${runnerUrl}/images/${encodeURIComponent(imageId)}`, {
+    ...opConfig(apiKey),
+    params: { force: force ? "true" : "false" },
+  });
 }
 
 // ── Stubs for interface parity (not applicable to runner backend) ──────────

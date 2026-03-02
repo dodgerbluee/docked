@@ -89,8 +89,10 @@ function normalizeRunnerContainer(rc, runner) {
 
     // Network mode flags — providesNetwork is computed post-normalization (requires scanning all containers)
     networkMode: rc.networkMode || "",
-    usesNetworkMode: !!(rc.networkMode &&
-      (rc.networkMode.startsWith("service:") || rc.networkMode.startsWith("container:"))),
+    usesNetworkMode: !!(
+      rc.networkMode &&
+      (rc.networkMode.startsWith("service:") || rc.networkMode.startsWith("container:"))
+    ),
     providesNetwork: false, // filled in by appendRunnerContainers after all containers are collected
 
     // RepoDigests in clean sha256-only format (image prefix stripped above)
@@ -435,11 +437,7 @@ async function triggerRunnerUpdate(runner, version) {
  * @returns {Promise<Object>} runner response
  */
 async function triggerRunnerUninstall(runner) {
-  const resp = await axios.post(
-    `${runner.url}/uninstall`,
-    {},
-    runnerAxiosConfig(runner.api_key)
-  );
+  const resp = await axios.post(`${runner.url}/uninstall`, {}, runnerAxiosConfig(runner.api_key));
   return resp.data;
 }
 
@@ -495,10 +493,7 @@ async function fetchRunnerAppOperationHistory(url, apiKey, appName, opName, limi
  * @returns {Promise<Object>} { history: [...] }
  */
 async function fetchRunnerAppsAllHistory(url, apiKey, limit = 100) {
-  const response = await axios.get(
-    `${url}/apps/history?limit=${limit}`,
-    runnerAxiosConfig(apiKey)
-  );
+  const response = await axios.get(`${url}/apps/history?limit=${limit}`, runnerAxiosConfig(apiKey));
   return response.data;
 }
 

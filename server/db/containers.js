@@ -846,38 +846,34 @@ function deleteOldContainersByName(
       const whereParams = isRunner
         ? [userId, runnerId, containerName, currentContainerId]
         : [userId, portainerInstanceId, endpointId, containerName, currentContainerId];
-      db.run(
-        `DELETE FROM containers WHERE ${whereSQL}`,
-        whereParams,
-        function (err) {
-          if (err) {
-            reject(err);
+      db.run(`DELETE FROM containers WHERE ${whereSQL}`, whereParams, function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          const deletedCount = this.changes;
+          if (deletedCount > 0) {
+            logger.info(
+              `Deleted ${deletedCount} old container record(s) for ${containerName} after upgrade`,
+              {
+                userId,
+                portainerInstanceId,
+                endpointId,
+                containerName,
+                currentContainerId: currentContainerId.substring(0, 12),
+              }
+            );
+            // Clean up orphaned deployed images
+            cleanupOrphanedDeployedImages(userId)
+              .then(() => resolve(deletedCount))
+              .catch((cleanupErr) => {
+                logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+                resolve(deletedCount);
+              });
           } else {
-            const deletedCount = this.changes;
-            if (deletedCount > 0) {
-              logger.info(
-                `Deleted ${deletedCount} old container record(s) for ${containerName} after upgrade`,
-                {
-                  userId,
-                  portainerInstanceId,
-                  endpointId,
-                  containerName,
-                  currentContainerId: currentContainerId.substring(0, 12),
-                }
-              );
-              // Clean up orphaned deployed images
-              cleanupOrphanedDeployedImages(userId)
-                .then(() => resolve(deletedCount))
-                .catch((cleanupErr) => {
-                  logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
-                  resolve(deletedCount);
-                });
-            } else {
-              resolve(deletedCount);
-            }
+            resolve(deletedCount);
           }
         }
-      );
+      });
     } catch (err) {
       reject(err);
     }

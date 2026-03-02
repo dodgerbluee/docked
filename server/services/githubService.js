@@ -123,10 +123,7 @@ function isOrgPolicyRejection(response) {
   if (response?.status !== 403) return false;
   const msg = typeof response.data?.message === "string" ? response.data.message : "";
   // GitHub org-policy rejections mention "organization" + "forbids" or "fine-grained"
-  return (
-    msg.includes("organization") &&
-    (msg.includes("forbids") || msg.includes("fine-grained"))
-  );
+  return msg.includes("organization") && (msg.includes("forbids") || msg.includes("fine-grained"));
 }
 
 /**
@@ -378,9 +375,7 @@ async function findReleaseByTag(repoInput, tagName) {
   const normalizeTag = (t) => String(t).trim().toLowerCase();
   const normalizedTarget = normalizeTag(tagName);
   // Also prepare v-prefix variant for matching
-  const withV = normalizedTarget.startsWith("v")
-    ? normalizedTarget
-    : `v${normalizedTarget}`;
+  const withV = normalizedTarget.startsWith("v") ? normalizedTarget : `v${normalizedTarget}`;
   const withoutV = normalizedTarget.startsWith("v")
     ? normalizedTarget.substring(1)
     : normalizedTarget;

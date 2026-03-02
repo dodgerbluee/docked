@@ -16,8 +16,13 @@
  */
 
 const logger = require("../../utils/logger");
-const { tableExists, columnExists, addColumnIfNotExists, executeSql, createIndexIfNotExists } =
-  require("./helpers");
+const {
+  tableExists,
+  columnExists,
+  addColumnIfNotExists,
+  executeSql,
+  createIndexIfNotExists,
+} = require("./helpers");
 
 module.exports = {
   version: 10,
@@ -26,7 +31,11 @@ module.exports = {
     logger.info("Migration 10: Adding runner container support");
 
     // ── upgrade_history additions (simple ADD COLUMN, no table recreation) ──
-    await addColumnIfNotExists("upgrade_history", "runner_id", "INTEGER REFERENCES runners(id) ON DELETE SET NULL");
+    await addColumnIfNotExists(
+      "upgrade_history",
+      "runner_id",
+      "INTEGER REFERENCES runners(id) ON DELETE SET NULL"
+    );
     await addColumnIfNotExists("upgrade_history", "runner_name", "TEXT");
 
     // ── containers table ────────────────────────────────────────────────────
@@ -92,7 +101,11 @@ module.exports = {
     await createIndexIfNotExists("idx_containers_user_id", "containers", "user_id");
     await createIndexIfNotExists("idx_containers_instance", "containers", "portainer_instance_id");
     await createIndexIfNotExists("idx_containers_runner_id", "containers", "runner_id");
-    await createIndexIfNotExists("idx_containers_deployed_image", "containers", "deployed_image_id");
+    await createIndexIfNotExists(
+      "idx_containers_deployed_image",
+      "containers",
+      "deployed_image_id"
+    );
     await createIndexIfNotExists("idx_containers_image_repo", "containers", "image_repo");
     await createIndexIfNotExists("idx_containers_last_seen", "containers", "last_seen");
 

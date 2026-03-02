@@ -572,7 +572,7 @@ const IntentForm = React.memo(function IntentForm({
         });
       })
       .catch(() => {});
-  }, []);  
+  }, []);
 
   // Suggestions for the exclusion dropdown — filtered to only containers matched
   // by the current match rules (so users only see relevant options to exclude)

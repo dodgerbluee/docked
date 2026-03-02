@@ -28,35 +28,62 @@ function svcGetContainers(url, endpointId, backend) {
 
 function svcGetContainerDetails(url, endpointId, containerId, backend) {
   if (backend?.service?.getContainerDetails) {
-    return backend.service.getContainerDetails(backend.url, backend.endpointId, containerId, backend.apiKey);
+    return backend.service.getContainerDetails(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
   }
   return portainerService.getContainerDetails(url, endpointId, containerId);
 }
 
 function svcStopContainer(url, endpointId, containerId, backend) {
   if (backend?.service?.stopContainer) {
-    return backend.service.stopContainer(backend.url, backend.endpointId, containerId, backend.apiKey);
+    return backend.service.stopContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
   }
   return portainerService.stopContainer(url, endpointId, containerId);
 }
 
 function svcStartContainer(url, endpointId, containerId, backend) {
   if (backend?.service?.startContainer) {
-    return backend.service.startContainer(backend.url, backend.endpointId, containerId, backend.apiKey);
+    return backend.service.startContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
   }
   return portainerService.startContainer(url, endpointId, containerId);
 }
 
 function svcRemoveContainer(url, endpointId, containerId, backend, force) {
   if (backend?.service?.removeContainer) {
-    return backend.service.removeContainer(backend.url, backend.endpointId, containerId, backend.apiKey, force);
+    return backend.service.removeContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey,
+      force
+    );
   }
   return portainerService.removeContainer(url, endpointId, containerId, force);
 }
 
 function svcCreateContainer(url, endpointId, config, name, backend) {
   if (backend?.service?.createContainer) {
-    return backend.service.createContainer(backend.url, backend.endpointId, config, name, backend.apiKey);
+    return backend.service.createContainer(
+      backend.url,
+      backend.endpointId,
+      config,
+      name,
+      backend.apiKey
+    );
   }
   return portainerService.createContainer(url, endpointId, config, name);
 }
@@ -261,9 +288,19 @@ async function findDependentContainersAfterUpgrade({
  * @returns {Promise<void>}
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Container health waiting requires comprehensive validation logic
-async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, newContainerId, backend) {
+async function waitForUpgradedContainerHealth(
+  workingPortainerUrl,
+  endpointId,
+  newContainerId,
+  backend
+) {
   try {
-    const newContainerDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
+    const newContainerDetails = await svcGetContainerDetails(
+      workingPortainerUrl,
+      endpointId,
+      newContainerId,
+      backend
+    );
     if (newContainerDetails.State?.Health) {
       const healthStatus = newContainerDetails.State.Health.Status;
       if (healthStatus === "starting" || healthStatus === "none") {
@@ -278,7 +315,12 @@ async function waitForUpgradedContainerHealth(workingPortainerUrl, endpointId, n
               resolve();
             }, 2000);
           });
-          const currentDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
+          const currentDetails = await svcGetContainerDetails(
+            workingPortainerUrl,
+            endpointId,
+            newContainerId,
+            backend
+          );
           const currentHealth = currentDetails.State?.Health?.Status;
           const isHealthy = currentHealth === "healthy";
           if (isHealthy) {
@@ -333,7 +375,12 @@ async function verifyUpgradedContainer(
   backend
 ) {
   try {
-    const verifiedNewContainerDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
+    const verifiedNewContainerDetails = await svcGetContainerDetails(
+      workingPortainerUrl,
+      endpointId,
+      newContainerId,
+      backend
+    );
     const verifiedName = verifiedNewContainerDetails.Name?.replace("/", "") || cleanContainerName;
 
     const containerState = verifiedNewContainerDetails.State?.Status || "";
@@ -352,7 +399,12 @@ async function verifyUpgradedContainer(
         }, 3000);
       });
 
-      const recheckDetails = await svcGetContainerDetails(workingPortainerUrl, endpointId, newContainerId, backend);
+      const recheckDetails = await svcGetContainerDetails(
+        workingPortainerUrl,
+        endpointId,
+        newContainerId,
+        backend
+      );
       const recheckState = recheckDetails.State?.Status || "";
       const isRunning = recheckState === "running";
 
@@ -576,7 +628,12 @@ async function verifyAndRetryContainer({
   backend,
 }) {
   try {
-    const createdContainerDetails = await svcGetContainerDetails(portainerUrl, endpointId, newContainer.Id, backend);
+    const createdContainerDetails = await svcGetContainerDetails(
+      portainerUrl,
+      endpointId,
+      newContainer.Id,
+      backend
+    );
     const actualNetworkMode = createdContainerDetails.HostConfig?.NetworkMode || "";
 
     if (actualNetworkMode === expectedNetworkMode) {
@@ -599,9 +656,20 @@ async function verifyAndRetryContainer({
       HostConfig: { ...cleanHostConfig, NetworkMode: expectedNetworkMode },
     };
 
-    const retryContainer = await svcCreateContainer(portainerUrl, endpointId, retryConfig, containerName, backend);
+    const retryContainer = await svcCreateContainer(
+      portainerUrl,
+      endpointId,
+      retryConfig,
+      containerName,
+      backend
+    );
 
-    const retryDetails = await svcGetContainerDetails(portainerUrl, endpointId, retryContainer.Id, backend);
+    const retryDetails = await svcGetContainerDetails(
+      portainerUrl,
+      endpointId,
+      retryContainer.Id,
+      backend
+    );
     const retryNetworkMode = retryDetails.HostConfig?.NetworkMode || "";
     if (retryNetworkMode === expectedNetworkMode) {
       logger.info(`    Retry successful: NetworkMode is now correct`);
@@ -693,7 +761,13 @@ async function recreateNetworkModeContainer(
 
   await removeExistingContainer(portainerUrl, endpointId, containerName, backend);
 
-  const newDependentContainer = await svcCreateContainer(portainerUrl, endpointId, containerConfig, containerName, backend);
+  const newDependentContainer = await svcCreateContainer(
+    portainerUrl,
+    endpointId,
+    containerConfig,
+    containerName,
+    backend
+  );
 
   const verifiedContainer = await verifyAndRetryContainer({
     newContainer: newDependentContainer,
@@ -790,7 +864,13 @@ async function handleNetworkModeContainers(
  * @param {string} endpointId - Endpoint ID
  * @returns {Promise<void>}
  */
-async function restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId, backend) {
+async function restartSingleContainer(
+  container,
+  portainerUrl,
+  workingPortainerUrl,
+  endpointId,
+  backend
+) {
   if (container.isRunning) {
     logger.info(`   Restarting ${container.name} (${container.dependencyReason})...`);
     await svcStopContainer(portainerUrl, endpointId, container.id, backend);
@@ -898,7 +978,13 @@ async function restartDependentContainers(options) {
 
     for (const container of otherContainers) {
       try {
-        await restartSingleContainer(container, portainerUrl, workingPortainerUrl, endpointId, backend);
+        await restartSingleContainer(
+          container,
+          portainerUrl,
+          workingPortainerUrl,
+          endpointId,
+          backend
+        );
       } catch (err) {
         logger.error(`     Failed to restart ${container.name}:`, { error: err });
       }

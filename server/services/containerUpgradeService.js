@@ -14,7 +14,9 @@ const containerConfigService = require("./containerUpgrade/containerConfigServic
 const dependentContainerRestartService = require("./containerUpgrade/dependentContainerRestartService");
 const { resolveBackend } = require("./dockerBackendFactory");
 
-const { DEFAULT_BLOCKED_PATTERNS: DEFAULT_BLOCKED_IMAGE_PATTERNS } = require("../constants/blocklistDefaults");
+const {
+  DEFAULT_BLOCKED_PATTERNS: DEFAULT_BLOCKED_IMAGE_PATTERNS,
+} = require("../constants/blocklistDefaults");
 
 async function isContainerDisallowed(containerName, imageName, userId) {
   try {
@@ -101,7 +103,10 @@ async function upgradeSingleContainer(
     if (isRunnerBackend) {
       // Runner: call the full-inspect endpoint directly — no Portainer auth or IP fallback needed.
       containerDetails = await backend.service.getContainerDetails(
-        backend.url, null, containerId, backend.apiKey
+        backend.url,
+        null,
+        containerId,
+        backend.apiKey
       );
       workingContainerId = containerId;
     } else {
@@ -135,7 +140,7 @@ async function upgradeSingleContainer(
 
     // Resolve effective URLs for Portainer nginx-fallback cases.
     // For runner backends these are just the backend URL (no IP fallback needed).
-    const effectiveUrl = isNginxProxyManager ? workingPortainerUrl : (portainerUrl || backend.url);
+    const effectiveUrl = isNginxProxyManager ? workingPortainerUrl : portainerUrl || backend.url;
     const effectiveEndpointId = isRunnerBackend ? null : endpointId;
 
     // Get old digest from container details
@@ -212,7 +217,12 @@ async function upgradeSingleContainer(
       containerName: originalContainerName,
       containerId: workingContainerId.substring(0, 12),
     });
-    await backend.service.stopContainer(backend.url, effectiveEndpointId, workingContainerId, backend.apiKey ?? userId);
+    await backend.service.stopContainer(
+      backend.url,
+      effectiveEndpointId,
+      workingContainerId,
+      backend.apiKey ?? userId
+    );
 
     // Wait for container to fully stop (important for databases and services)
     const checkStatusUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
@@ -314,7 +324,12 @@ async function upgradeSingleContainer(
         newContainerId: newContainer.Id.substring(0, 12),
         usingUrl: startContainerUrl,
       });
-      await backend.service.startContainer(startContainerUrl, effectiveEndpointId, newContainer.Id, backend.apiKey ?? userId);
+      await backend.service.startContainer(
+        startContainerUrl,
+        effectiveEndpointId,
+        newContainer.Id,
+        backend.apiKey ?? userId
+      );
 
       // Wait for container to be healthy/ready (CRITICAL for databases)
       startTime = Date.now();
@@ -389,7 +404,11 @@ async function upgradeSingleContainer(
         });
 
         // Get all containers that use the same network container (including the upgraded container)
-        const allContainers = await backend.service.getContainers(isNginxProxyManager ? workingPortainerUrl : backend.url, effectiveEndpointId, backend.apiKey);
+        const allContainers = await backend.service.getContainers(
+          isNginxProxyManager ? workingPortainerUrl : backend.url,
+          effectiveEndpointId,
+          backend.apiKey
+        );
         const containersToStart = [];
 
         for (const container of allContainers) {
@@ -446,14 +465,29 @@ async function upgradeSingleContainer(
                 logger.info(
                   `   Starting ${container.name} (newly created) to connect to network container...`
                 );
-                await backend.service.startContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
+                await backend.service.startContainer(
+                  backend.url,
+                  effectiveEndpointId,
+                  container.id,
+                  backend.apiKey ?? userId
+                );
               } else {
                 logger.info(`   Restarting ${container.name} to reconnect to network container...`);
-                await backend.service.stopContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
+                await backend.service.stopContainer(
+                  backend.url,
+                  effectiveEndpointId,
+                  container.id,
+                  backend.apiKey ?? userId
+                );
                 await new Promise((resolve) => {
                   setTimeout(resolve, 1000);
                 }); // Brief wait
-                await backend.service.startContainer(backend.url, effectiveEndpointId, container.id, backend.apiKey ?? userId);
+                await backend.service.startContainer(
+                  backend.url,
+                  effectiveEndpointId,
+                  container.id,
+                  backend.apiKey ?? userId
+                );
               }
               logger.info(`    ${container.name} started successfully`);
             } catch (err) {
@@ -468,7 +502,12 @@ async function upgradeSingleContainer(
             `   No other containers found, starting ${originalContainerName} to connect to network container...`
           );
           try {
-            await backend.service.startContainer(backend.url, effectiveEndpointId, newContainer.Id, backend.apiKey ?? userId);
+            await backend.service.startContainer(
+              backend.url,
+              effectiveEndpointId,
+              newContainer.Id,
+              backend.apiKey ?? userId
+            );
             logger.info(`    ${originalContainerName} started successfully`);
           } catch (err) {
             logger.error(`     Failed to start ${originalContainerName}: ${err.message}`);
@@ -487,10 +526,7 @@ async function upgradeSingleContainer(
     // This ensures the update status persists across app restarts
     try {
       if (userId && imageRepo) {
-        const {
-          markRegistryImageUpToDate,
-          getRegistryImageVersion,
-        } = require("../db/index");
+        const { markRegistryImageUpToDate, getRegistryImageVersion } = require("../db/index");
         // Get the latest digest/version from database (which was the target of the upgrade)
         // Use getRegistryImageVersion instead of deprecated getDockerHubImageVersion
         const versionInfo = await getRegistryImageVersion(userId, imageRepo, currentTag);
@@ -686,7 +722,14 @@ async function upgradeSingleContainer(
 
 // Legacy function for batch upgrades - kept for backward compatibility
 
-async function upgradeContainers(portainerUrl, endpointId, containerIds, imageName, userId = null, runnerId = null) {
+async function upgradeContainers(
+  portainerUrl,
+  endpointId,
+  containerIds,
+  imageName,
+  userId = null,
+  runnerId = null
+) {
   const results = [];
   const errors = [];
 

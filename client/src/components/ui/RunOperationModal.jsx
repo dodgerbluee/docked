@@ -98,7 +98,6 @@ export default function RunOperationModal({ isOpen, runnerId, appName, operation
         const decoder = new TextDecoder();
         let buffer = "";
 
-         
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;

@@ -52,7 +52,10 @@ const ssoAdminController = require("../controllers/ssoAdminController");
 const runnerController = require("../controllers/runnerController");
 const { getAllRunners } = require("../db/runners");
 const { getContainersFromRunners } = require("../services/runnerService");
-const { getRegistryImageVersion, upsertRegistryImageVersion } = require("../db/registryImageVersions");
+const {
+  getRegistryImageVersion,
+  upsertRegistryImageVersion,
+} = require("../db/registryImageVersions");
 const { parseImageName } = require("../utils/imageRepoParser");
 const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 const { asyncHandler } = require("../middleware/errorHandler");
@@ -70,7 +73,11 @@ const logger = require("../utils/logger");
 async function checkRunnerImageRegistry(userId, container, imageRepo, tag) {
   const imageUpdateService = require("../services/imageUpdateService");
   const result = await imageUpdateService.checkImageUpdates(
-    container.image, null, null, null, userId
+    container.image,
+    null,
+    null,
+    null,
+    userId
   );
   if (result && (result.latestDigestFull || result.latestDigest)) {
     await upsertRegistryImageVersion(userId, imageRepo, tag, {
@@ -1520,7 +1527,11 @@ router.delete(
 );
 router.post("/runners/:id/health", asyncHandler(runnerController.healthCheckRunner));
 router.post("/runners/:id/update", writeLimiter, asyncHandler(runnerController.updateRunnerBinary));
-router.post("/runners/:id/uninstall", destructiveLimiter, asyncHandler(runnerController.uninstallRunnerHandler));
+router.post(
+  "/runners/:id/uninstall",
+  destructiveLimiter,
+  asyncHandler(runnerController.uninstallRunnerHandler)
+);
 // Runner container SSE proxy routes
 router.post(
   "/runners/:runnerId/containers/:containerId/upgrade",
@@ -1532,10 +1543,7 @@ router.get(
   asyncHandler(runnerController.streamRunnerContainerLogs)
 );
 // Runner operation routes
-router.get(
-  "/runners/:runnerId/operations",
-  asyncHandler(runnerController.getRunnerOperations)
-);
+router.get("/runners/:runnerId/operations", asyncHandler(runnerController.getRunnerOperations));
 router.get(
   "/runners/:runnerId/operations/:name/history",
   asyncHandler(runnerController.getRunnerOperationHistory)
@@ -1547,14 +1555,8 @@ router.post(
 );
 
 // Runner app routes — static paths before parameterized ones
-router.get(
-  "/runners/:runnerId/apps",
-  asyncHandler(runnerController.getRunnerApps)
-);
-router.get(
-  "/runners/:runnerId/apps/history",
-  asyncHandler(runnerController.getRunnerAppsHistory)
-);
+router.get("/runners/:runnerId/apps", asyncHandler(runnerController.getRunnerApps));
+router.get("/runners/:runnerId/apps/history", asyncHandler(runnerController.getRunnerAppsHistory));
 router.post(
   "/runners/:runnerId/apps/:appName/operations/:opName/run",
   writeLimiter,

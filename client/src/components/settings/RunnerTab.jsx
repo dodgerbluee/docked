@@ -646,7 +646,7 @@ export default function RunnerTab() {
     },
     [fetchRunners, handlePing]
   );
-  
+
   if (loading) {
     return <LoadingSpinner size="md" message="Loading runners..." />;
   }

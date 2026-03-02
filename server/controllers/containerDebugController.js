@@ -23,7 +23,10 @@ async function buildRunnerDebugInfo(containerId, userId, db) {
     return null;
   }
 
-  logger.debug("buildRunnerDebugInfo: checking runners", { containerId: containerId.substring(0, 12), runnerCount: runners.length });
+  logger.debug("buildRunnerDebugInfo: checking runners", {
+    containerId: containerId.substring(0, 12),
+    runnerCount: runners.length,
+  });
 
   for (const runner of runners) {
     // Try full-inspect first; fall back to scanning the container list
@@ -32,21 +35,33 @@ async function buildRunnerDebugInfo(containerId, userId, db) {
     let repoDigests = null;
     try {
       details = await runnerDockerService.getContainerDetails(
-        runner.url, null, containerId, runner.api_key
+        runner.url,
+        null,
+        containerId,
+        runner.api_key
       );
     } catch (err) {
-      logger.debug(`buildRunnerDebugInfo: getContainerDetails failed on "${runner.name}", trying list fallback`, { error: err.message, status: err.response?.status });
+      logger.debug(
+        `buildRunnerDebugInfo: getContainerDetails failed on "${runner.name}", trying list fallback`,
+        { error: err.message, status: err.response?.status }
+      );
     }
 
     // Always fetch the container list: dockhand pre-fetches RepoDigests from local images
     // and includes them in the list response. Also used as fallback when getContainerDetails fails.
     try {
-      const allContainers = await runnerDockerService.getContainers(runner.url, null, runner.api_key);
+      const allContainers = await runnerDockerService.getContainers(
+        runner.url,
+        null,
+        runner.api_key
+      );
       const match = allContainers.find((c) => (c.Id || c.id) === containerId);
       if (match) {
         // Clean repoDigests: strip image name prefix (e.g. "ghcr.io/foo@sha256:abc" → "sha256:abc")
         const raw = match.repoDigests || [];
-        const cleaned = raw.map((rd) => rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd).filter(Boolean);
+        const cleaned = raw
+          .map((rd) => (rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd))
+          .filter(Boolean);
         if (cleaned.length > 0) repoDigests = cleaned;
 
         if (!details) {
@@ -55,13 +70,18 @@ async function buildRunnerDebugInfo(containerId, userId, db) {
             Id: match.Id || match.id,
             Name: `/${match.Name || match.name || ""}`,
             Config: { Image: match.Image || match.image || "" },
-            State: { Status: match.State || match.state || "", Running: (match.State || match.state) === "running" },
+            State: {
+              Status: match.State || match.state || "",
+              Running: (match.State || match.state) === "running",
+            },
           };
           logger.debug(`buildRunnerDebugInfo: found container via list on runner "${runner.name}"`);
         }
       }
     } catch (listErr) {
-      logger.debug(`buildRunnerDebugInfo: list fallback also failed on "${runner.name}"`, { error: listErr.message });
+      logger.debug(`buildRunnerDebugInfo: list fallback also failed on "${runner.name}"`, {
+        error: listErr.message,
+      });
     }
 
     if (!details) {
@@ -101,7 +121,7 @@ async function buildRunnerDebugInfo(containerId, userId, db) {
          WHERE user_id = ? AND (container_id = ? OR container_name = ?)
          ORDER BY created_at DESC LIMIT 20`,
         [userId, containerId, containerName],
-        (err, rows) => resolve(err ? [] : (rows || []))
+        (err, rows) => resolve(err ? [] : rows || [])
       );
     });
 

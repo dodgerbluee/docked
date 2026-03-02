@@ -15,7 +15,11 @@ const {
   deleteRunner,
   updateRunnerVersion,
 } = require("../db/runners");
-const { createEnrollmentToken, consumeEnrollmentToken, cleanupExpiredTokens } = require("../db/enrollmentTokens");
+const {
+  createEnrollmentToken,
+  consumeEnrollmentToken,
+  cleanupExpiredTokens,
+} = require("../db/enrollmentTokens");
 const {
   pingRunner,
   proxyUpgradeStream,
@@ -66,7 +70,9 @@ function getDockedUrl(req) {
     const lanIp = detectLanIp();
     if (lanIp) {
       const resolved = `${proto}://${lanIp}${port ? ":" + port : ""}`;
-      logger.info(`Enrollment URL: host was ${hostname}, resolved to LAN IP ${lanIp} → ${resolved}`);
+      logger.info(
+        `Enrollment URL: host was ${hostname}, resolved to LAN IP ${lanIp} → ${resolved}`
+      );
       return resolved;
     }
     logger.warn(
@@ -107,21 +113,28 @@ function detectLanIp() {
 // In-memory map from enrollment token → runnerId, set when runner registers.
 // Ephemeral (lost on server restart), but that's fine — the polling window is short.
 const enrollmentResults = new Map(); // token → { runnerId, ts }
-setInterval(() => {
-  const cutoff = Date.now() - 30 * 60 * 1000;
-  for (const [t, entry] of enrollmentResults) {
-    if (entry.ts < cutoff) enrollmentResults.delete(t);
-  }
-  // Also clean up expired/used DB tokens
-  cleanupExpiredTokens().catch((err) => {
-    logger.warn(`Failed to clean up expired enrollment tokens: ${err.message}`);
-  });
-}, 30 * 60 * 1000).unref();
+setInterval(
+  () => {
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    for (const [t, entry] of enrollmentResults) {
+      if (entry.ts < cutoff) enrollmentResults.delete(t);
+    }
+    // Also clean up expired/used DB tokens
+    cleanupExpiredTokens().catch((err) => {
+      logger.warn(`Failed to clean up expired enrollment tokens: ${err.message}`);
+    });
+  },
+  30 * 60 * 1000
+).unref();
 
 // Clean up stale tokens on startup
 cleanupExpiredTokens()
-  .then((n) => { if (n > 0) logger.info(`Cleaned up ${n} expired enrollment token(s)`); })
-  .catch((err) => { logger.warn(`Failed to clean up expired enrollment tokens on startup: ${err.message}`); });
+  .then((n) => {
+    if (n > 0) logger.info(`Cleaned up ${n} expired enrollment token(s)`);
+  })
+  .catch((err) => {
+    logger.warn(`Failed to clean up expired enrollment tokens on startup: ${err.message}`);
+  });
 
 /**
  * GET /api/runners
@@ -187,7 +200,9 @@ async function createRunnerHandler(req, res, next) {
 
     const existing = await getRunnerByNameAndUser(name.trim(), userId);
     if (existing) {
-      return res.status(409).json({ success: false, error: "A runner with that name already exists" });
+      return res
+        .status(409)
+        .json({ success: false, error: "A runner with that name already exists" });
     }
 
     const id = await createRunner({ userId, name: name.trim(), url: url.trim(), apiKey });
@@ -378,7 +393,9 @@ async function createEnrollment(req, res, next) {
     // ensure new installations always pull the most recent release)
     let dockhandVersion = "latest";
     try {
-      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, { skipCache: true });
+      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, {
+        skipCache: true,
+      });
       if (release?.tag_name) {
         // tag_name is like "v0.1.3" — strip leading "v" for the version
         dockhandVersion = release.tag_name.replace(/^v/, "");
@@ -460,7 +477,9 @@ async function serveInstallScript(req, res, next) {
     // script always downloads the most recent binary)
     let dockhandVersion = "latest";
     try {
-      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, { skipCache: true });
+      const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, {
+        skipCache: true,
+      });
       if (release?.tag_name) {
         dockhandVersion = release.tag_name.replace(/^v/, "");
       }
@@ -737,10 +756,7 @@ async function getRunnerOperations(req, res, next) {
       return res.status(400).json({ success: false, error: "Runner is disabled" });
     }
     const data = await fetchRunnerOperations(runner.url, runner.api_key);
-    const enriched = await enrichOperationsWithVersions(
-      data.operations ?? [],
-      githubService
-    );
+    const enriched = await enrichOperationsWithVersions(data.operations ?? [], githubService);
     res.json({ success: true, operations: enriched });
   } catch (err) {
     next(err);
@@ -870,7 +886,13 @@ async function getRunnerAppOperationHistory(req, res, next) {
     if (!runner.enabled) {
       return res.status(400).json({ success: false, error: "Runner is disabled" });
     }
-    const data = await fetchRunnerAppOperationHistory(runner.url, runner.api_key, appName, opName, limit);
+    const data = await fetchRunnerAppOperationHistory(
+      runner.url,
+      runner.api_key,
+      appName,
+      opName,
+      limit
+    );
     res.json({ success: true, ...data });
   } catch (err) {
     next(err);
@@ -962,14 +984,16 @@ async function uninstallRunnerHandler(req, res, next) {
     try {
       await triggerRunnerUninstall(runner);
     } catch (err) {
-      return res.status(502).json({ success: false, error: `Could not reach runner: ${err.message}` });
+      return res
+        .status(502)
+        .json({ success: false, error: `Could not reach runner: ${err.message}` });
     }
 
     // 2. Poll health until runner goes offline (up to 30s)
     const MAX_POLLS = 15;
     let offline = false;
     for (let i = 0; i < MAX_POLLS; i++) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       try {
         await pingRunner(runner.url, runner.api_key);
         // still online — keep polling

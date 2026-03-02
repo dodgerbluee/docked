@@ -3,9 +3,7 @@ import PropTypes from "prop-types";
 import { AlertCircle } from "lucide-react";
 import { formatTimeAgo } from "../../utils/formatters";
 import { showToast } from "../../utils/toast";
-import {
-  PORTAINER_CONTAINER_MESSAGE,
-} from "../../constants/portainerPage";
+import { PORTAINER_CONTAINER_MESSAGE } from "../../constants/portainerPage";
 import { useContainerImageInfo } from "./PortainerContainerCard/hooks/useContainerImageInfo";
 import ContainerVersionDisplay from "./PortainerContainerCard/components/ContainerVersionDisplay";
 import styles from "./PortainerContainerCard.module.css";

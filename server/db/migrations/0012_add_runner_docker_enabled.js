@@ -21,6 +21,8 @@ module.exports = {
   up: async () => {
     logger.info("Migration 12: Adding docker_enabled column to runners");
     await addColumnIfNotExists("runners", "docker_enabled", "INTEGER");
-    logger.info("Migration 12: docker_enabled column added (NULL = unknown, 1 = enabled, 0 = disabled)");
+    logger.info(
+      "Migration 12: docker_enabled column added (NULL = unknown, 1 = enabled, 0 = disabled)"
+    );
   },
 };

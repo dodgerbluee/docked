@@ -83,7 +83,11 @@ module.exports = {
     // Step 4: Recreate indexes.
     await createIndexIfNotExists("idx_upgrade_history_user_id", "upgrade_history", "user_id");
     await createIndexIfNotExists("idx_upgrade_history_created_at", "upgrade_history", "created_at");
-    await createIndexIfNotExists("idx_upgrade_history_container_name", "upgrade_history", "container_name");
+    await createIndexIfNotExists(
+      "idx_upgrade_history_container_name",
+      "upgrade_history",
+      "container_name"
+    );
     await createIndexIfNotExists("idx_upgrade_history_intent_id", "upgrade_history", "intent_id");
 
     logger.info("Migration 11: upgrade_history.endpoint_id is now nullable");

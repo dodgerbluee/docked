@@ -1197,7 +1197,12 @@ async function stopContainer(req, res, next) {
       runnerId: runnerId ? Number(runnerId) : undefined,
     });
 
-    await backend.service.stopContainer(backend.url, backend.endpointId, containerId, backend.apiKey ?? userId);
+    await backend.service.stopContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey ?? userId
+    );
     return res.json({ success: true, message: "Container stopped" });
   } catch (error) {
     next(error);
@@ -1221,7 +1226,12 @@ async function startContainer(req, res, next) {
       runnerId: runnerId ? Number(runnerId) : undefined,
     });
 
-    await backend.service.startContainer(backend.url, backend.endpointId, containerId, backend.apiKey ?? userId);
+    await backend.service.startContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey ?? userId
+    );
     return res.json({ success: true, message: "Container started" });
   } catch (error) {
     next(error);
@@ -1245,7 +1255,11 @@ async function getImages(req, res, next) {
       runnerId: runnerId ? Number(runnerId) : undefined,
     });
 
-    const images = await backend.service.getImages(backend.url, backend.endpointId, backend.apiKey ?? userId);
+    const images = await backend.service.getImages(
+      backend.url,
+      backend.endpointId,
+      backend.apiKey ?? userId
+    );
     return res.json({ success: true, images });
   } catch (error) {
     next(error);
@@ -1269,7 +1283,13 @@ async function deleteImage(req, res, next) {
       runnerId: runnerId ? Number(runnerId) : undefined,
     });
 
-    await backend.service.deleteImage(backend.url, backend.endpointId, imageId, force === true || force === "true", backend.apiKey ?? userId);
+    await backend.service.deleteImage(
+      backend.url,
+      backend.endpointId,
+      imageId,
+      force === true || force === "true",
+      backend.apiKey ?? userId
+    );
     return res.json({ success: true, message: "Image deleted" });
   } catch (error) {
     next(error);
