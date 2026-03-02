@@ -205,7 +205,7 @@ async function testIpAddress(testIp, options) {
     if (result) {
       logger.warn(
         `⚠️  Detected potential backend IP: ${testIp}:${port} (status: ${result.status}). ` +
-          `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Portainer Instances.`,
+          `This is a heuristic - please verify this is the correct Portainer instance IP in Settings > Sources.`,
         {
           detectedIp: testIp,
           port,
@@ -243,7 +243,7 @@ async function detectBackendIp(proxyIp, originalUrl, options = {}) {
     logger.debug(`Testing ${testIps.length} potential backend IPs for proxy ${proxyIp}`, {
       proxyIp,
       testIps: testIps.slice(0, 10),
-      note: "This is a heuristic - detected IP may be incorrect. Verify in Settings > Portainer Instances.",
+      note: "This is a heuristic - detected IP may be incorrect. Verify in Settings > Sources.",
     });
 
     const portsToTry = [9000, 9443, 80, 443];

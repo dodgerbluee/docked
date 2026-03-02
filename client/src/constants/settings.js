@@ -7,8 +7,9 @@ export const SETTINGS_TABS = {
   USERNAME: "username",
   PASSWORD: "password",
   AVATAR: "avatar",
-  PORTAINER: "portainer",
-  RUNNERS: "runners",
+  PORTAINER: "portainer", // Legacy — kept for backward compat; UI now uses SOURCES
+  RUNNERS: "runners", // Legacy — kept for backward compat; UI now uses SOURCES
+  SOURCES: "sources",
   TRACKED_APPS: "trackedapps",
   // DOCKERHUB removed - credentials no longer stored
   DISCORD: "discord",
@@ -23,8 +24,9 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.USERNAME]: "Username",
   [SETTINGS_TABS.PASSWORD]: "Password",
   [SETTINGS_TABS.AVATAR]: "Avatar",
-  [SETTINGS_TABS.PORTAINER]: "Containers",
-  [SETTINGS_TABS.RUNNERS]: "Runners",
+  [SETTINGS_TABS.PORTAINER]: "Containers", // Legacy label
+  [SETTINGS_TABS.RUNNERS]: "Runners", // Legacy label
+  [SETTINGS_TABS.SOURCES]: "Sources",
   [SETTINGS_TABS.TRACKED_APPS]: "Apps",
   // Docker Hub tab removed
   [SETTINGS_TABS.DISCORD]: "Notifications",

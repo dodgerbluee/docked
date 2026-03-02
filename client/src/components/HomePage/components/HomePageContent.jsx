@@ -324,7 +324,15 @@ const HomePageContent = ({
                         setActiveTab(TAB_NAMES.SETTINGS);
                         requestAnimationFrame(() => {
                           requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.RUNNERS), 200);
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                          });
+                        });
+                      }}
+                      onNavigateToIntents={() => {
+                        setActiveTab(TAB_NAMES.SETTINGS);
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
                           });
                         });
                       }}
@@ -367,11 +375,19 @@ const HomePageContent = ({
                           });
                         });
                       }}
+                      onManageSources={() => {
+                        setActiveTab(TAB_NAMES.SETTINGS);
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
+                          });
+                        });
+                      }}
                       onManageIntents={() => {
                         setActiveTab(TAB_NAMES.SETTINGS);
                         requestAnimationFrame(() => {
                           requestAnimationFrame(() => {
-                            setTimeout(() => setSettingsTab(SETTINGS_TABS.PORTAINER), 200);
+                            setTimeout(() => setSettingsTab(SETTINGS_TABS.SOURCES), 200);
                           });
                         });
                       }}

@@ -97,7 +97,7 @@ Access at `http://localhost:3000` (frontend) and `http://localhost:3001` (backen
 
 ### Core Workflow
 
-1. **Add Portainer Instances** - Connect your Portainer instances to monitor Docker containers
+1. **Add Sources** - Connect your Portainer instances or runners to monitor Docker containers
 2. **Monitor Containers** - View all containers with update status from your Portainer instances
 3. **Track Applications** - Add GitHub or GitLab repositories to monitor applications directly from their source
    - **GitHub Repos**: Track releases using the format `owner/repo` (e.g., `dodgerbluee/docked`)

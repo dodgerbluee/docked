@@ -19,7 +19,6 @@ import RunOperationModal from "../components/ui/RunOperationModal";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
-import { EnrollmentModal } from "../components/settings/RunnerTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import styles from "./AppsPage.module.css";
 
@@ -337,7 +336,7 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
 
 /* ── AppsPage ──────────────────────────────────────────────────────────── */
 
-export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
+export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners, onNavigateToIntents }) {
   const isMobile = useIsMobile();
 
   // Data – initialise from module-level cache when available
@@ -357,7 +356,6 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
   const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
-  const [showAddRunner, setShowAddRunner] = useState(false);
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
 
@@ -432,12 +430,6 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       clearInterval(id);
     };
-  }, [fetchAll]);
-
-  // Stable callback for EnrollmentModal so the polling effect doesn't re-fire
-  const handleEnrolled = useCallback(() => {
-    setShowAddRunner(false);
-    fetchAll(true);
   }, [fetchAll]);
 
   /* ── Derived data ──────────────────────────────────────────────────── */
@@ -732,8 +724,8 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
       onSelectedRunnersChange={setSelectedRunners}
       totalOps={totalApps}
       updatesCount={appsWithUpdatesList.length}
-      onAddRunner={() => setShowAddRunner(true)}
-      onManageRunners={onNavigateToRunners}
+      onManageSources={onNavigateToRunners}
+      onManageIntents={onNavigateToIntents}
     />
   );
 
@@ -777,11 +769,8 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
               onSelectedRunnersChange={setSelectedRunners}
               totalOps={totalApps}
               updatesCount={appsWithUpdatesList.length}
-              onAddRunner={() => {
-                setShowAddRunner(true);
-                closeMobileSidebar();
-              }}
-              onManageRunners={onNavigateToRunners}
+              onManageSources={onNavigateToRunners}
+              onManageIntents={onNavigateToIntents}
             />
           </MobileDrawer>
         </ErrorBoundary>
@@ -789,10 +778,6 @@ export default function AppsPage({ onAppsUpdatesChange, onNavigateToRunners }) {
         {/* Content */}
         <div className={styles.contentArea}>{renderContent()}</div>
       </div>
-
-      {showAddRunner && (
-        <EnrollmentModal onClose={() => setShowAddRunner(false)} onEnrolled={handleEnrolled} />
-      )}
 
       {pendingRun && (
         <ConfirmRunModal

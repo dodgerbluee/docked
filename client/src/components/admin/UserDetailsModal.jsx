@@ -332,7 +332,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
                 ) : stats ? (
                   <div className={styles.statsGrid}>
                     <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Portainer Instances</span>
+                      <span className={styles.statLabel}>Sources</span>
                       <span className={styles.statValue}>{stats.portainerInstancesCount}</span>
                     </div>
                     <div className={styles.statItem}>
