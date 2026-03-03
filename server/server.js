@@ -56,9 +56,10 @@ logger.debug("Express app created", { module: "server" });
 
 // Trust proxy - required when running behind a reverse proxy (Docker, nginx, etc.)
 // This allows Express to correctly identify the client IP from X-Forwarded-For headers
+// Use numeric value (1 = trust first proxy hop) to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY
 const shouldTrustProxy =
   process.env.TRUST_PROXY === "true" || process.env.NODE_ENV === "production";
-app.set("trust proxy", shouldTrustProxy);
+app.set("trust proxy", shouldTrustProxy ? 1 : false);
 
 // Security middleware configuration - must be defined before middleware
 // CSP is always enabled but uses a permissive policy in dev/localhost for Safari compatibility.

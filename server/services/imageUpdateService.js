@@ -352,10 +352,14 @@ async function checkImageUpdates(
 
   let latestImageInfo;
   try {
+    // IMPORTANT: Do NOT pass platform here. Docker stores the manifest list (index) digest
+    // in the container's RepoDigests, not the platform-specific digest. Passing platform
+    // causes crane to return the platform-specific digest which will never match the index
+    // digest, resulting in false "update available" for multi-platform images.
+    // Compare index-to-index: if the manifest list digest changed, there's an update.
     latestImageInfo = await registryService.getLatestDigest(repo, currentTag, {
       userId,
       useFallback: true,
-      platform, // Pass platform for architecture-specific digest lookup
     });
     logger.info(
       `Latest image info for ${containerDetails?.Name || repo}: ${JSON.stringify(latestImageInfo)}`
