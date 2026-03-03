@@ -19,7 +19,15 @@ const githubService = require("./githubService");
 const DOCKHAND_GITHUB_REPO = "dockedapp/dockhand";
 const POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+// Track consecutive failures per runner to implement backoff.
+// After MAX_CONSECUTIVE_FAILURES, only try every BACKOFF_MULTIPLIER polls.
+const _failureCounts = new Map(); // runnerId -> consecutive failure count
+const MAX_CONSECUTIVE_FAILURES = 3;
+const BACKOFF_MULTIPLIER = 3; // After 3 failures, only ping every 3rd poll (= 3 hours)
+let _pollCount = 0;
+
 async function pollRunnerVersions() {
+  _pollCount++;
   let runners;
   try {
     runners = await getAllRunnersWithKeys();
@@ -44,6 +52,29 @@ async function pollRunnerVersions() {
   // Ping each runner in parallel, update DB with whatever we learn
   await Promise.allSettled(
     runners.map(async (runner) => {
+      // Backoff: if a runner has failed MAX_CONSECUTIVE_FAILURES times,
+      // only attempt it every BACKOFF_MULTIPLIER polls
+      const failures = _failureCounts.get(runner.id) || 0;
+      if (failures >= MAX_CONSECUTIVE_FAILURES && _pollCount % BACKOFF_MULTIPLIER !== 0) {
+        logger.debug(
+          `runnerVersionPoller: skipping runner "${runner.name}" (${failures} consecutive failures, backoff)`,
+          { module: "runnerVersionPoller", runnerId: runner.id }
+        );
+        // Still update latest version from GitHub even if we skip the ping
+        try {
+          await updateRunnerVersion(
+            runner.id,
+            runner.user_id,
+            runner.version,
+            latestVersionFetched ? latestVersion : runner.latest_version,
+            null // keep existing docker_enabled
+          );
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
       let runningVersion = runner.version ?? null;
       let dockerEnabled = null; // null = offline / unknown, keep existing DB value
       try {
@@ -53,8 +84,15 @@ async function pollRunnerVersions() {
         // Older runners won't have it; treat undefined the same as true (they had
         // Docker routes always registered before the docker.enabled config existed).
         dockerEnabled = health.dockerOk !== false;
+        // Success — reset failure count
+        _failureCounts.set(runner.id, 0);
       } catch {
-        // Runner offline — keep existing values in DB, still update latest
+        // Runner offline — increment failure count
+        _failureCounts.set(runner.id, failures + 1);
+        logger.debug(
+          `runnerVersionPoller: runner "${runner.name}" unreachable (${failures + 1} consecutive failures)`,
+          { module: "runnerVersionPoller", runnerId: runner.id }
+        );
       }
       try {
         await updateRunnerVersion(

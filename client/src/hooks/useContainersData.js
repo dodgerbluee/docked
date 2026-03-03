@@ -135,7 +135,17 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
             apiContainers,
             successfullyUpdatedContainersRef
           );
-          setContainers(updatedContainers);
+
+          if (portainerOnly || instanceUrl) {
+            // When refreshing Portainer-only data, merge with existing runner containers
+            // so we don't lose runner containers from state
+            setContainers((prev) => {
+              const runnerContainers = prev.filter((c) => c.source === "runner");
+              return [...updatedContainers, ...runnerContainers];
+            });
+          } else {
+            setContainers(updatedContainers);
+          }
           setStacks(response.data.stacks || []);
           // Only update unused images count if we haven't just deleted images
           const timeSinceLastDelete = Date.now() - lastImageDeleteTimeRef.current;

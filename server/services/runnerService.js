@@ -11,6 +11,12 @@ const logger = require("../utils/logger");
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+// ── Runner container cache ──────────────────────────────────────────────────
+// Prevents repeated hits to runner /containers endpoints within a short window.
+// Key: sorted comma-joined runner IDs, Value: { data, timestamp }
+const _runnerContainerCache = new Map();
+const RUNNER_CACHE_TTL_MS = 120_000; // 2 minutes (matches Portainer cache)
+
 /**
  * Build an axios config for a runner request.
  * @param {string} apiKey
@@ -128,32 +134,61 @@ function normalizeRunnerContainer(rc, runner) {
  * @param {Array} runners - Array of runner DB rows { id, name, url, api_key, enabled }
  * @returns {Promise<Array>} normalized container objects
  */
-async function getContainersFromRunners(runners) {
+async function getContainersFromRunners(runners, { bypassCache = false } = {}) {
+  const eligible = runners.filter((r) => r.enabled && r.docker_enabled !== 0);
+  if (eligible.length === 0) return [];
+
+  // Build a stable cache key from sorted runner IDs
+  const cacheKey = eligible.map((r) => r.id).sort().join(",");
+
+  // Check cache unless caller explicitly wants fresh data
+  if (!bypassCache) {
+    const cached = _runnerContainerCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < RUNNER_CACHE_TTL_MS) {
+      logger.debug("Using cached runner containers", {
+        module: "runnerService",
+        runnerCount: eligible.length,
+        containerCount: cached.data.length,
+        ageMs: Date.now() - cached.timestamp,
+      });
+      return cached.data;
+    }
+  }
+
   const results = [];
 
   await Promise.all(
-    runners
-      .filter((r) => r.enabled && r.docker_enabled !== 0)
-      .map(async (runner) => {
-        try {
-          const raw = await fetchRunnerContainers(runner.url, runner.api_key);
-          for (const rc of raw) {
-            results.push(normalizeRunnerContainer(rc, runner));
-          }
-          logger.debug(`Fetched ${raw.length} containers from runner "${runner.name}"`, {
-            module: "runnerService",
-            runnerId: runner.id,
-          });
-        } catch (err) {
-          logger.warn(`Failed to fetch containers from runner "${runner.name}": ${err.message}`, {
-            module: "runnerService",
-            runnerId: runner.id,
-          });
+    eligible.map(async (runner) => {
+      try {
+        const raw = await fetchRunnerContainers(runner.url, runner.api_key);
+        for (const rc of raw) {
+          results.push(normalizeRunnerContainer(rc, runner));
         }
-      })
+        logger.debug(`Fetched ${raw.length} containers from runner "${runner.name}"`, {
+          module: "runnerService",
+          runnerId: runner.id,
+        });
+      } catch (err) {
+        logger.warn(`Failed to fetch containers from runner "${runner.name}": ${err.message}`, {
+          module: "runnerService",
+          runnerId: runner.id,
+        });
+      }
+    })
   );
 
+  // Store in cache
+  _runnerContainerCache.set(cacheKey, { data: results, timestamp: Date.now() });
+
   return results;
+}
+
+/**
+ * Invalidate the runner container cache (e.g. after an upgrade or config change).
+ */
+function invalidateRunnerContainerCache() {
+  _runnerContainerCache.clear();
+  logger.debug("Invalidated runner container cache", { module: "runnerService" });
 }
 
 /**
@@ -599,6 +634,7 @@ module.exports = {
   fetchRunnerContainers,
   normalizeRunnerContainer,
   getContainersFromRunners,
+  invalidateRunnerContainerCache,
   proxyUpgradeStream,
   proxyLogsStream,
   fetchRunnerOperations,

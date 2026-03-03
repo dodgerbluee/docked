@@ -57,9 +57,9 @@ export const useBatchTriggers = ({
         throw new Error(triggerResponse.data.error || "Failed to trigger batch job");
       }
 
-      // Fetch cached data for immediate display
+      // Fetch cached data for immediate display (portainerOnly — no need to hit runners here)
       try {
-        const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers`);
+        const cachedResponse = await axios.get(`${API_BASE_URL}/api/containers?portainerOnly=true`);
         if (cachedResponse.data.grouped && cachedResponse.data.stacks) {
           const apiContainers = cachedResponse.data.containers || [];
           const updatedContainers = updateContainersWithPreservedState(
@@ -196,8 +196,6 @@ export const useBatchTriggers = ({
 
       if (response.data.success) {
         log("Tracked apps check completed successfully");
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
 
         const updatedResponse = await axios.get(`${API_BASE_URL}/api/tracked-images`);
         if (!updatedResponse.data.success) {

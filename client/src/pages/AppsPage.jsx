@@ -5,7 +5,7 @@
  * a nav badge callback, and a sidebar for view/filter control.
  */
 
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import axios from "axios";
 import { RefreshCw, SlidersHorizontal, Search, X, Cpu, ArrowUpCircle, Loader } from "lucide-react";
 import { API_BASE_URL } from "../constants/api";
@@ -407,7 +407,10 @@ export default function AppsPage({
     [fetchAppsForRunner]
   );
 
+  const initialFetchDoneRef = useRef(false);
   useEffect(() => {
+    if (initialFetchDoneRef.current) return;
+    initialFetchDoneRef.current = true;
     // If we have cached data, refresh silently in the background;
     // otherwise do a full load (shows spinner).
     fetchAll(hasCachedData);
@@ -415,10 +418,17 @@ export default function AppsPage({
   }, [fetchAll]);
 
   // Refresh runner/app data every 5 minutes to pick up version updates
+  const lastFetchTimeRef = useRef(Date.now());
   useEffect(() => {
+    const VISIBILITY_COOLDOWN_MS = 60_000; // 60s minimum between refocus refreshes
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        fetchAll(true);
+        const elapsed = Date.now() - lastFetchTimeRef.current;
+        if (elapsed >= VISIBILITY_COOLDOWN_MS) {
+          lastFetchTimeRef.current = Date.now();
+          fetchAll(true);
+        }
       }
     };
 
@@ -427,6 +437,7 @@ export default function AppsPage({
     const id = setInterval(
       () => {
         if (document.visibilityState === "visible") {
+          lastFetchTimeRef.current = Date.now();
           fetchAll(true);
         }
       },

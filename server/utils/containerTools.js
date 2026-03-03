@@ -75,6 +75,10 @@ const INVALID_REF_PATTERNS = ["invalid reference", "invalid image name", "invali
 const commandAvailabilityCache = new Map();
 const authFailureCache = new Map();
 const credentialCache = new Map();
+// Track tools that consistently fail (e.g. crane timing out) so we skip them
+// for subsequent calls instead of wasting 30s+ per image on retries.
+const toolFailureCache = new Map(); // tool name -> { lastFailure, failureType, count }
+const TOOL_FAILURE_COOLDOWN_MS = 5 * 60 * 1000; // Skip failing tool for 5 minutes
 
 let cachedDockerConfig = null;
 let cachedDockerConfigMtime = 0;
@@ -241,6 +245,29 @@ function recordAuthFailure(host, metadata) {
 
 function clearAuthFailure(host) {
   authFailureCache.delete(host);
+}
+
+function shouldSkipTool(toolName) {
+  const entry = toolFailureCache.get(toolName);
+  if (!entry) return false;
+  if (Date.now() - entry.lastFailure > TOOL_FAILURE_COOLDOWN_MS) {
+    toolFailureCache.delete(toolName);
+    return false;
+  }
+  return true;
+}
+
+function recordToolFailure(toolName, failureType) {
+  const entry = toolFailureCache.get(toolName) || { count: 0 };
+  toolFailureCache.set(toolName, {
+    lastFailure: Date.now(),
+    failureType,
+    count: entry.count + 1,
+  });
+}
+
+function clearToolFailure(toolName) {
+  toolFailureCache.delete(toolName);
 }
 
 function buildExecEnv() {
@@ -503,27 +530,49 @@ async function getImageDigest(imageRef, options = {}) {
 
   let failure = null;
 
-  if (await isCommandAvailable(process.env.CRANE_BINARY || "crane")) {
-    const craneResult = await getDigestWithCrane(imageRef, execOptions);
+  const craneBin = process.env.CRANE_BINARY || "crane";
+  if (!shouldSkipTool(craneBin) && (await isCommandAvailable(craneBin))) {
+    // Use maxAttempts=1 for crane so a single timeout (~30s) triggers the
+    // cooldown immediately instead of retrying 3 times (wasting ~90s).
+    const craneResult = await getDigestWithCrane(imageRef, { ...execOptions, maxAttempts: 1 });
     if (craneResult.digest) {
       clearAuthFailure(registryHost);
+      clearToolFailure(craneBin);
       return craneResult.digest;
     }
     failure = craneResult.failure || failure;
-    logger.debug(`[containerTools] crane did not return digest for ${imageRef}`, {
-      reason: failure?.type,
-    });
+    // If crane timed out or had a transient failure, remember it so subsequent
+    // calls skip crane and go straight to skopeo (saves ~30s per image).
+    if (failure?.type === "transient") {
+      recordToolFailure(craneBin, failure.type);
+      logger.info(`[containerTools] crane transient failure for ${imageRef}, will skip crane for ${TOOL_FAILURE_COOLDOWN_MS / 1000}s`, {
+        reason: failure?.message,
+      });
+    } else {
+      logger.debug(`[containerTools] crane did not return digest for ${imageRef}`, {
+        reason: failure?.type,
+      });
+    }
+  } else if (shouldSkipTool(craneBin)) {
+    logger.debug(`[containerTools] Skipping crane (recent transient failures), going to skopeo`);
   } else {
     logger.warn("[containerTools] crane not found in PATH, skipping");
   }
 
-  if (await isCommandAvailable(process.env.SKOPEO_BINARY || "skopeo")) {
+  const skopeoBin = process.env.SKOPEO_BINARY || "skopeo";
+  if (!shouldSkipTool(skopeoBin) && (await isCommandAvailable(skopeoBin))) {
     const skopeoResult = await getDigestWithSkopeo(imageRef, execOptions);
     if (skopeoResult.digest) {
       clearAuthFailure(registryHost);
+      clearToolFailure(skopeoBin);
       return skopeoResult.digest;
     }
     failure = skopeoResult.failure || failure;
+    if (failure?.type === "transient") {
+      recordToolFailure(skopeoBin, failure.type);
+    }
+  } else if (shouldSkipTool(skopeoBin)) {
+    logger.debug(`[containerTools] Skipping skopeo (recent transient failures)`);
   } else {
     logger.warn("[containerTools] skopeo not found in PATH, skipping");
   }
@@ -545,8 +594,8 @@ async function getImageDigest(imageRef, options = {}) {
 
   if (
     !failure &&
-    !(await isCommandAvailable(process.env.CRANE_BINARY || "crane")) &&
-    !(await isCommandAvailable(process.env.SKOPEO_BINARY || "skopeo"))
+    !(await isCommandAvailable(craneBin)) &&
+    !(await isCommandAvailable(skopeoBin))
   ) {
     logger.warn(
       `[containerTools] Neither crane nor skopeo is available. Please install one of them.`
