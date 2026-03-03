@@ -75,7 +75,11 @@ export const useContainerPull = ({
               apiContainers,
               successfullyUpdatedContainersRef
             );
-            setContainers(updatedContainers);
+            // portainerOnly response — merge with existing runner containers
+            setContainers((prev) => {
+              const runnerContainers = prev.filter((c) => c.source === "runner");
+              return [...updatedContainers, ...runnerContainers];
+            });
             setStacks(cachedResponse.data.stacks || []);
             setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
 

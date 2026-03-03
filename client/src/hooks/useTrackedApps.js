@@ -10,7 +10,6 @@ import { API_BASE_URL } from "../utils/api";
 import {
   // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
   SHORT_SUCCESS_MESSAGE_DURATION,
-  DATABASE_UPDATE_DELAY,
 } from "../constants/trackedApps";
 
 // Module-level cache – survives unmount/remount so the TrackedAppsPage tab
@@ -133,21 +132,18 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
   const handleTrackedAppModalSuccess = useCallback(
     async (appId) => {
-      await fetchTrackedApps(false); // Silent refresh after add/edit
-
-      // If we have an app ID, check the version for that specific app
+      // If we have an app ID, check the version first, then refresh once
       if (appId) {
         try {
           await axios.post(`${API_BASE_URL}/api/tracked-apps/${appId}/check-update`);
-          // Refresh tracked apps after version check to get updated version info
-          await fetchTrackedApps(false); // Silent refresh after version check
         } catch (err) {
           // Silently fail - version check is not critical, just a nice-to-have
           console.error("Error checking version for tracked app:", err);
         }
       }
 
-      // No success message for add/edit - modal closing is sufficient feedback
+      // Single refresh after all mutations are done
+      await fetchTrackedApps(false);
     },
     [fetchTrackedApps]
   );
@@ -316,8 +312,6 @@ export function useTrackedApps(isAuthenticated, authToken) {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/tracked-apps/check-updates`);
       if (response.data.success) {
-        // Wait a moment for database updates to complete before fetching
-        await new Promise((resolve) => setTimeout(resolve, 500));
         await fetchTrackedApps({ showRefreshing: true });
         setLastScanTime(new Date());
         // Set success briefly to trigger checkmark, then clear immediately
@@ -369,21 +363,13 @@ export function useTrackedApps(isAuthenticated, authToken) {
       if (response.data.success) {
         log("Tracked apps check completed successfully");
 
-        // Wait a moment for database updates to complete
-        await new Promise((resolve) => setTimeout(resolve, DATABASE_UPDATE_DELAY));
-
-        // Fetch updated tracked apps to get accurate counts
-        const updatedResponse = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
-        if (!updatedResponse.data.success) {
-          throw new Error("Failed to fetch updated tracked apps");
-        }
-        const updatedApps = updatedResponse.data.images || [];
+        // Fetch updated tracked apps to get accurate counts and update UI in one call
+        await fetchTrackedApps(false);
+        const updatedApps = cachedTrackedApps || [];
         const appsChecked = updatedApps.length;
         const appsWithUpdates = updatedApps.filter((app) => Boolean(app.has_update)).length;
         log(`Processed ${appsChecked} tracked apps, ${appsWithUpdates} with updates available`);
 
-        // Update UI state
-        await fetchTrackedApps(false); // Silent refresh after batch check
         setLastScanTime(new Date());
 
         // Update batch run as completed

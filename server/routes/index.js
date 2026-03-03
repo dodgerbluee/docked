@@ -167,9 +167,14 @@ function appendRunnerContainers(req, res, next) {
       return originalJson(data);
     }
 
+    // Skip runner requests when client only needs Portainer containers
+    if (req.query.portainerOnly === "true") {
+      return originalJson(data);
+    }
+
     const userId = req.user.id;
     getAllRunners(userId)
-      .then((runners) => getContainersFromRunners(runners))
+      .then((runners) => getContainersFromRunners(runners, { bypassCache: req.method === "POST" }))
       .then(async (runnerContainers) => {
         if (runnerContainers.length > 0) {
           // Two-pass: detect which containers are network providers before enriching.
