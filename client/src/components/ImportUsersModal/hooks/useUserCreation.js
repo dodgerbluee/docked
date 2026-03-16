@@ -100,10 +100,7 @@ export function useUserCreation({
       // Build credentials (only include non-skipped steps)
       const credentials = {};
 
-      if (
-        !skippedSteps.has(STEP_TYPES.SOURCES) &&
-        userCredentials[username]?.sourceInstances
-      ) {
+      if (!skippedSteps.has(STEP_TYPES.SOURCES) && userCredentials[username]?.sourceInstances) {
         credentials.sourceInstances = userCredentials[username].sourceInstances;
       }
       if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {

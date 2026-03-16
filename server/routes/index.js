@@ -1042,20 +1042,13 @@ router.post("/portainer/instances", writeLimiter, asyncHandler(sourceController.
  *         description: Instance not found
  */
 router.get("/portainer/instances/:id", asyncHandler(sourceController.getInstance));
-router.put(
-  "/portainer/instances/:id",
-  writeLimiter,
-  asyncHandler(sourceController.updateInstance)
-);
+router.put("/portainer/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
 router.delete(
   "/portainer/instances/:id",
   destructiveLimiter,
   asyncHandler(sourceController.deleteInstance)
 );
-router.post(
-  "/portainer/instances/:id/health",
-  asyncHandler(sourceController.healthCheckInstance)
-);
+router.post("/portainer/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
 
 /**
  * @swagger
@@ -1119,20 +1112,13 @@ router.post("/portainer/instances/reorder", asyncHandler(sourceController.update
 router.get("/sources/instances", asyncHandler(sourceController.getInstances));
 router.post("/sources/instances", writeLimiter, asyncHandler(sourceController.createInstance));
 router.get("/sources/instances/:id", asyncHandler(sourceController.getInstance));
-router.put(
-  "/sources/instances/:id",
-  writeLimiter,
-  asyncHandler(sourceController.updateInstance)
-);
+router.put("/sources/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
 router.delete(
   "/sources/instances/:id",
   destructiveLimiter,
   asyncHandler(sourceController.deleteInstance)
 );
-router.post(
-  "/sources/instances/:id/health",
-  asyncHandler(sourceController.healthCheckInstance)
-);
+router.post("/sources/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
 router.post("/sources/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
 
 // Avatar routes

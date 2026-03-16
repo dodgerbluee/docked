@@ -139,7 +139,10 @@ async function getContainersFromRunners(runners, { bypassCache = false } = {}) {
   if (eligible.length === 0) return [];
 
   // Build a stable cache key from sorted runner IDs
-  const cacheKey = eligible.map((r) => r.id).sort().join(",");
+  const cacheKey = eligible
+    .map((r) => r.id)
+    .sort()
+    .join(",");
 
   // Check cache unless caller explicitly wants fresh data
   if (!bypassCache) {

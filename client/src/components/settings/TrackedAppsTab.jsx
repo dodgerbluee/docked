@@ -56,8 +56,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
             </Button>
             <small className={styles.dataActionHelper}>
               Clears the latest version data for all repos. This will reset the {'"'}Latest
-              {'"'} version information and force fresh data to be fetched on the next check. Your repo
-              configurations will be preserved.
+              {'"'} version information and force fresh data to be fetched on the next check. Your
+              repo configurations will be preserved.
             </small>
           </div>
         </div>

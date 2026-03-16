@@ -97,10 +97,7 @@ export const buildStructuredData = (categorized, containerData) => {
   );
 
   const hasSourceData =
-    hasSourceInstance ||
-    hasContainerDetails ||
-    hasSourceImageDetails ||
-    hasSourceVersionDetails;
+    hasSourceInstance || hasContainerDetails || hasSourceImageDetails || hasSourceVersionDetails;
 
   if (hasSourceData) {
     structuredData.sourceData = {};
@@ -121,8 +118,7 @@ export const buildStructuredData = (categorized, containerData) => {
       }
 
       if (hasSourceVersionDetails) {
-        structuredData.sourceData.imageDetails.versionDetails =
-          categorized.sourceVersionDetails;
+        structuredData.sourceData.imageDetails.versionDetails = categorized.sourceVersionDetails;
       }
     }
   }

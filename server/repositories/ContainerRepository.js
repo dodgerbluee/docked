@@ -74,11 +74,7 @@ class ContainerRepository extends BaseRepository {
    * @returns {Promise<void>}
    */
   deleteNotInList(userId, sourceInstanceId, containerIds) {
-    return containerDb.deleteContainersNotInList(
-      userId,
-      sourceInstanceId,
-      containerIds
-    );
+    return containerDb.deleteContainersNotInList(userId, sourceInstanceId, containerIds);
   }
 
   /**

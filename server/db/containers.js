@@ -758,12 +758,7 @@ function deleteContainersForInstance(userId, sourceInstanceId) {
  * @returns {Promise<number>} - Number of deleted records
  */
 // eslint-disable-next-line max-lines-per-function -- Container deletion requires comprehensive database operations
-function deleteContainersNotInList(
-  userId,
-  sourceInstanceId,
-  endpointId,
-  currentContainerIds
-) {
+function deleteContainersNotInList(userId, sourceInstanceId, endpointId, currentContainerIds) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();

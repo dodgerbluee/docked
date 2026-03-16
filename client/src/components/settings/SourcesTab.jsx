@@ -524,7 +524,6 @@ const SourcesTab = React.memo(function SourcesTab({
 
   return (
     <div className={styles.wrapper}>
-
       {/* ── Mixed source card grid ──────────────────────────────────── */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
@@ -539,8 +538,8 @@ const SourcesTab = React.memo(function SourcesTab({
               <strong>Portainer</strong> &mdash; connects to an existing Portainer installation
             </li>
             <li>
-              <strong>Dockhand Runner</strong> &mdash; a lightweight agent installed
-              directly on your machine, or via Docker, to manage containers and run operations.
+              <strong>Dockhand Runner</strong> &mdash; a lightweight agent installed directly on
+              your machine, or via Docker, to manage containers and run operations.
             </li>
           </ul>
         </div>
@@ -594,7 +593,9 @@ const SourcesTab = React.memo(function SourcesTab({
                             {phs.online ? "Online" : "Offline"}
                           </span>
                         )}
-                        {phs?.checking && <span className={styles.statusChecking}>Checking...</span>}
+                        {phs?.checking && (
+                          <span className={styles.statusChecking}>Checking...</span>
+                        )}
                       </div>
                     </div>
 
@@ -719,7 +720,11 @@ const SourcesTab = React.memo(function SourcesTab({
           {/* Intents Section */}
           <div className={styles.intentsSection}>
             <Suspense fallback={<LoadingSpinner size="sm" message="Loading intents..." />}>
-              <IntentsPage containers={containers} sourceInstances={sourceInstancesProp} runners={runner.runners || []} />
+              <IntentsPage
+                containers={containers}
+                sourceInstances={sourceInstancesProp}
+                runners={runner.runners || []}
+              />
             </Suspense>
           </div>
 

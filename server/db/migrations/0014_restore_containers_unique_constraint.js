@@ -152,9 +152,7 @@ module.exports = {
         })
     );
     const removed = beforeCount - afterCount;
-    logger.info(
-      `Migration 14: ${afterCount} rows after dedup (removed ${removed} duplicate rows)`
-    );
+    logger.info(`Migration 14: ${afterCount} rows after dedup (removed ${removed} duplicate rows)`);
 
     logger.info("Migration 14: UNIQUE constraints restored on containers table");
   },

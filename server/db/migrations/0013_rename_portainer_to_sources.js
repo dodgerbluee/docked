@@ -30,12 +30,7 @@
  */
 
 const logger = require("../../utils/logger");
-const {
-  tableExists,
-  columnExists,
-  executeSql,
-  createIndexIfNotExists,
-} = require("./helpers");
+const { tableExists, columnExists, executeSql, createIndexIfNotExists } = require("./helpers");
 
 module.exports = {
   version: 13,
@@ -162,7 +157,9 @@ module.exports = {
       await createIndexIfNotExists("idx_containers_image_repo", "containers", "image_repo");
       await createIndexIfNotExists("idx_containers_last_seen", "containers", "last_seen");
 
-      logger.info("Migration 13: Containers table updated (portainer_instance_id -> source_instance_id)");
+      logger.info(
+        "Migration 13: Containers table updated (portainer_instance_id -> source_instance_id)"
+      );
     } else {
       logger.info("Migration 13: containers.portainer_instance_id already renamed, skipping");
     }
@@ -240,11 +237,7 @@ module.exports = {
         "upgrade_history",
         "container_name"
       );
-      await createIndexIfNotExists(
-        "idx_upgrade_history_intent_id",
-        "upgrade_history",
-        "intent_id"
-      );
+      await createIndexIfNotExists("idx_upgrade_history_intent_id", "upgrade_history", "intent_id");
 
       logger.info("Migration 13: upgrade_history columns renamed (portainer -> source)");
     } else {

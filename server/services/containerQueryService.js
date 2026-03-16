@@ -246,7 +246,10 @@ async function getAllContainersWithUpdates(
       // (could indicate a transient API failure returning a partial list)
       if (userId && instance.id && currentContainerIds.size > 0) {
         try {
-          const { deleteContainersNotInList, getContainerCountForInstance } = require("../db/index");
+          const {
+            deleteContainersNotInList,
+            getContainerCountForInstance,
+          } = require("../db/index");
 
           // Check how many containers are currently in the DB for this instance
           const dbCount = await getContainerCountForInstance(userId, instance.id, endpointId);
@@ -333,7 +336,10 @@ async function getAllContainersWithUpdates(
       if (userId && instance.id) {
         try {
           const dbContainers = require("../db/containers");
-          const cachedContainers = await dbContainers.getContainersWithUpdates(userId, portainerUrl);
+          const cachedContainers = await dbContainers.getContainersWithUpdates(
+            userId,
+            portainerUrl
+          );
           if (cachedContainers && cachedContainers.length > 0) {
             const formatted = cachedContainers.map((c) => {
               return containerFormattingService.formatContainerFromDatabase(
@@ -349,7 +355,10 @@ async function getAllContainersWithUpdates(
             );
           }
         } catch (fallbackErr) {
-          logger.warn("DB fallback also failed for instance:", { portainerUrl, error: fallbackErr });
+          logger.warn("DB fallback also failed for instance:", {
+            portainerUrl,
+            error: fallbackErr,
+          });
         }
       }
       // Continue with other Portainer instances even if one fails
@@ -598,7 +607,10 @@ async function getContainersFromPortainer(userId = null) {
         if (userId && instance.id) {
           try {
             const dbContainers = require("../db/containers");
-            const cachedContainers = await dbContainers.getContainersWithUpdates(userId, portainerUrl);
+            const cachedContainers = await dbContainers.getContainersWithUpdates(
+              userId,
+              portainerUrl
+            );
             if (cachedContainers && cachedContainers.length > 0) {
               const instanceMap = new Map([[instance.id, instance]]);
               const formatted = cachedContainers.map((c) => {
@@ -612,7 +624,10 @@ async function getContainersFromPortainer(userId = null) {
               return formatted;
             }
           } catch (fallbackErr) {
-            logger.warn("DB fallback also failed for instance:", { portainerUrl, error: fallbackErr });
+            logger.warn("DB fallback also failed for instance:", {
+              portainerUrl,
+              error: fallbackErr,
+            });
           }
         }
         return [];

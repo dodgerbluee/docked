@@ -1175,10 +1175,9 @@ async function reEnrollRunner(req, res, next) {
     // Update the runner's API key and URL
     await updateRunnerApiKey(runner.id, apiKey, canonicalUrl);
 
-    logger.info(
-      `Runner "${name}" (id=${runner.id}) re-enrolled with new API key`,
-      { module: "runnerController" }
-    );
+    logger.info(`Runner "${name}" (id=${runner.id}) re-enrolled with new API key`, {
+      module: "runnerController",
+    });
 
     return res.status(200).json({
       success: true,

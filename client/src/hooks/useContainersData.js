@@ -24,9 +24,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   const [error, setError] = useState(null);
   const [unusedImages, setUnusedImages] = useState(cachedUnusedImages || []);
   const [unusedImagesCount, setUnusedImagesCount] = useState(cachedUnusedImagesCount || 0);
-  const [sourceInstancesFromAPI, setSourceInstancesFromAPI] = useState(
-    cachedSourceInstances || []
-  );
+  const [sourceInstancesFromAPI, setSourceInstancesFromAPI] = useState(cachedSourceInstances || []);
   const [sourceInstancesLoading, setSourceInstancesLoading] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set());
   const [dataFetched, setDataFetched] = useState(cachedDataFetched);

@@ -819,9 +819,7 @@ async function getContainerData(req, res, _next) {
     }
 
     // Get ALL containers with joined deployed images and registry versions
-    const {
-      getContainersWithUpdates: getContainersWithUpdatesLocal,
-    } = require("../db/index");
+    const { getContainersWithUpdates: getContainersWithUpdatesLocal } = require("../db/index");
     const allContainers = await getContainersWithUpdatesLocal(userId);
     const userInstances = await getAllSourceInstances(userId);
     const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));

@@ -14,12 +14,7 @@ import { TIMING } from "../../../constants/timing";
  * @param {Function} options.fetchContainers - Function to fetch containers
  * @returns {Object} Pull status state and handlers
  */
-export const usePullStatus = ({
-  pullingDockerHub,
-  pullSuccess,
-  pullError,
-  fetchContainers,
-}) => {
+export const usePullStatus = ({ pullingDockerHub, pullSuccess, pullError, fetchContainers }) => {
   const [localPullError, setLocalPullError] = useState("");
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [pullingSourcesOnly, setPullingSourcesOnly] = useState(false);
@@ -60,9 +55,7 @@ export const usePullStatus = ({
       await fetchContainers(false, null, true);
     } catch (err) {
       console.error("Error pulling source data:", err);
-      setLocalPullError(
-        err.response?.data?.error || err.message || "Failed to pull source data"
-      );
+      setLocalPullError(err.response?.data?.error || err.message || "Failed to pull source data");
     } finally {
       setPullingSourcesOnly(false);
     }

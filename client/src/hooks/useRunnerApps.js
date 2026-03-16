@@ -132,10 +132,7 @@ export const useRunnerApps = () => {
 
     // System updates
     const withSystemUpdates = allApps.filter((a) => a.systemUpdatesAvailable).length;
-    const totalSystemUpdateCount = allApps.reduce(
-      (sum, a) => sum + (a.systemUpdateCount || 0),
-      0
-    );
+    const totalSystemUpdateCount = allApps.reduce((sum, a) => sum + (a.systemUpdateCount || 0), 0);
 
     // Apps by runner
     const appsByRunnerCount = runners.map((r) => ({

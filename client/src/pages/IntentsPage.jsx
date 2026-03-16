@@ -127,9 +127,8 @@ function IntentsPage({ containers = [], sourceInstances = [], runners = [] }) {
       </div>
 
       <p className={styles.sectionDescription}>
-        Intents let you define automated upgrade policies for your containers. When a new image
-        is available, matching containers can be upgraded automatically on a schedule or
-        on-demand.
+        Intents let you define automated upgrade policies for your containers. When a new image is
+        available, matching containers can be upgraded automatically on a schedule or on-demand.
       </p>
 
       {/* Error/Success messages */}

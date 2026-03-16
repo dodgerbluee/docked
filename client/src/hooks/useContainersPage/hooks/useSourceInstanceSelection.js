@@ -17,9 +17,7 @@ export const useSourceInstanceSelection = ({
   onSetSelectedSourceInstances,
   sourceInstances = [],
 }) => {
-  const [internalSelectedSourceInstances, setInternalSelectedSourceInstances] = useState(
-    new Set()
-  );
+  const [internalSelectedSourceInstances, setInternalSelectedSourceInstances] = useState(new Set());
   const isSelectedInstancesControlled = onSetSelectedSourceInstances !== undefined;
   const selectedSourceInstances = useMemo(
     () =>

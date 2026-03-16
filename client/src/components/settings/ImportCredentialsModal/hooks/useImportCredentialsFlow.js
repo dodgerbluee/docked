@@ -24,8 +24,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
   const [skippedSteps, setSkippedSteps] = useState(new Set());
 
   // Determine what credentials are needed
-  const needsSourceCreds =
-    configData?.sourceInstances && configData.sourceInstances.length > 0;
+  const needsSourceCreds = configData?.sourceInstances && configData.sourceInstances.length > 0;
   const needsDiscordCreds = configData?.discordWebhooks && configData.discordWebhooks.length > 0;
 
   const steps = useMemo(() => {

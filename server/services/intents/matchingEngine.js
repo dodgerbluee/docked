@@ -14,7 +14,11 @@
  */
 
 const logger = require("../../utils/logger");
-const { getContainersWithUpdates, getAllSourceInstances, getAllRunners } = require("../../db/index");
+const {
+  getContainersWithUpdates,
+  getAllSourceInstances,
+  getAllRunners,
+} = require("../../db/index");
 
 /**
  * Convert a simple glob pattern to a RegExp.

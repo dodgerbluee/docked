@@ -348,9 +348,7 @@ function ContainerDebugModal({
                     </div>
                     <div className={styles.metadataItem}>
                       <span className={styles.metadataLabel}>
-                        {debugInfo.container?.source === "runner"
-                          ? "Runner:"
-                          : "Source Instance:"}
+                        {debugInfo.container?.source === "runner" ? "Runner:" : "Source Instance:"}
                       </span>
                       <span className={styles.metadataValue}>
                         {debugInfo.container?.runner_name ||

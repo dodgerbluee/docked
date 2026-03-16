@@ -428,13 +428,7 @@ function App() {
       console.warn(`Active tab "${activeTab}" no longer exists, switching to summary`);
       setActiveTab(TAB_NAMES.SUMMARY);
     }
-  }, [
-    activeTab,
-    sourceInstances,
-    sourceInstancesFromAPI,
-    sourceInstancesLoading,
-    setActiveTab,
-  ]);
+  }, [activeTab, sourceInstances, sourceInstancesFromAPI, sourceInstancesLoading, setActiveTab]);
 
   // Initialize selectedSourceInstances to empty (show all) when Containers tab is first opened
   // Empty set means show all instances
@@ -557,8 +551,7 @@ function App() {
                 onClearTrackedAppData: handleClearGitHubCache,
                 onEditInstance: openModal,
                 editingSourceInstance,
-                refreshInstances:
-                  editingSourceInstance === null ? fetchSourceInstances : null,
+                refreshInstances: editingSourceInstance === null ? fetchSourceInstances : null,
               }}
               onNavigateToSummary={handleNavigateToSummary}
               onNavigateToSettings={handleNavigateToSettings}

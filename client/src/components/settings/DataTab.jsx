@@ -112,7 +112,7 @@ const DataTab = React.memo(function DataTab() {
               <h3 className={styles.title}>Source Data</h3>
               {lastPulledInfo && (
                 <div className={styles.lastPulledInfo}>
-                   {lastPulledInfo.lastSourcePull && (
+                  {lastPulledInfo.lastSourcePull && (
                     <span className={styles.lastPulled}>
                       Last source pull: {formatDate(lastPulledInfo.lastSourcePull)}
                     </span>

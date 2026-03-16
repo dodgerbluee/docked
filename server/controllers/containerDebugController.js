@@ -330,7 +330,11 @@ async function getContainerDebugInfo(req, res) {
     }
 
     // If not in database, fetch from Portainer as fallback
-    if (!repoDigests && (containerRecord.source_url || containerRecord.portainer_url) && containerRecord.endpoint_id) {
+    if (
+      !repoDigests &&
+      (containerRecord.source_url || containerRecord.portainer_url) &&
+      containerRecord.endpoint_id
+    ) {
       try {
         const portainerService = require("../services/portainerService");
 

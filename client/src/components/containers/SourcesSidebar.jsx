@@ -161,10 +161,7 @@ const SourcesSidebar = React.memo(function SourcesSidebar({
                 <span
                   className={styles.filterText}
                   onClick={() =>
-                    handleInstanceToggle(
-                      instance.name,
-                      !selectedSourceInstances.has(instance.name)
-                    )
+                    handleInstanceToggle(instance.name, !selectedSourceInstances.has(instance.name))
                   }
                   role="button"
                   tabIndex={0}

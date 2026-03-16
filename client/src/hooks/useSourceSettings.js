@@ -6,11 +6,7 @@ import { API_BASE_URL } from "../utils/api";
  * useSourceSettings Hook
  * Manages source instances
  */
-export function useSourceSettings({
-  onSourceInstancesChange,
-  refreshInstances,
-  activeSection,
-}) {
+export function useSourceSettings({ onSourceInstancesChange, refreshInstances, activeSection }) {
   const [sourceInstances, setSourceInstances] = useState([]);
   const [editingInstance, setEditingInstance] = useState(null);
   const [instanceForm, setInstanceForm] = useState({

@@ -75,13 +75,12 @@ function ContainersPage({
     }
   }, [onAddInstance]);
 
-  const { localPullError, showCheckmark, pullingSourcesOnly, handleDismissError } =
-    usePullStatus({
-      pullingDockerHub,
-      pullSuccess,
-      pullError,
-      fetchContainers,
-    });
+  const { localPullError, showCheckmark, pullingSourcesOnly, handleDismissError } = usePullStatus({
+    pullingDockerHub,
+    pullSuccess,
+    pullError,
+    fetchContainers,
+  });
 
   const { errorModal, closeErrorModal, ...containersPage } = useContainersPage({
     sourceInstances,
@@ -404,7 +403,10 @@ function ContainersPage({
         onConfirm={() => {}}
         showProgressInPage={true}
         onConfirmForBanner={(containers) =>
-          containersPage.confirmAndStartBatchUpgrade(containers, containersPage.setSelectedContainers)
+          containersPage.confirmAndStartBatchUpgrade(
+            containers,
+            containersPage.setSelectedContainers
+          )
         }
         onNavigateToLogs={onNavigateToLogs}
       />

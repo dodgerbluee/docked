@@ -77,8 +77,7 @@ export function useContainersPage({
     handleSelectAll: handleSelectAllContainers,
   } = useContainerSelection();
 
-  const { selectedImages, setSelectedImages, handleToggleImageSelect } =
-    useImageSelection();
+  const { selectedImages, setSelectedImages, handleToggleImageSelect } = useImageSelection();
 
   // Use extracted upgrade hook (or injected from parent when lifting state for tab persistence)
   const upgradeOperationsFromHook = useContainerUpgrade({
@@ -192,9 +191,7 @@ export function useContainersPage({
       }
       // When no blocklist has been saved, apply default patterns
       if (defaultPatterns.length > 0) {
-        return defaultPatterns.some(
-          (p) => containerName.includes(p) || imageName.includes(p)
-        );
+        return defaultPatterns.some((p) => containerName.includes(p) || imageName.includes(p));
       }
       return false;
     },

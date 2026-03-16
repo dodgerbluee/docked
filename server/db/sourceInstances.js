@@ -226,17 +226,13 @@ function deleteSourceInstance(id, userId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run(
-        "DELETE FROM source_instances WHERE id = ? AND user_id = ?",
-        [id, userId],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
+      db.run("DELETE FROM source_instances WHERE id = ? AND user_id = ?", [id, userId], (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
         }
-      );
+      });
     } catch (err) {
       reject(err);
     }
