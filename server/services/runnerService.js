@@ -120,9 +120,9 @@ function normalizeRunnerContainer(rc, runner) {
     latestDigest: null,
     lastChecked: null,
 
-    // No portainer fields
-    portainerName: null,
-    portainerUrl: null,
+    // No source instance fields (runner containers don't come from Portainer)
+    sourceName: null,
+    sourceUrl: null,
     endpointId: null,
   };
 }
@@ -139,7 +139,10 @@ async function getContainersFromRunners(runners, { bypassCache = false } = {}) {
   if (eligible.length === 0) return [];
 
   // Build a stable cache key from sorted runner IDs
-  const cacheKey = eligible.map((r) => r.id).sort().join(",");
+  const cacheKey = eligible
+    .map((r) => r.id)
+    .sort()
+    .join(",");
 
   // Check cache unless caller explicitly wants fresh data
   if (!bypassCache) {

@@ -7,7 +7,7 @@ import styles from "./InstanceDetailModal.module.css";
 
 /**
  * InstanceDetailModal Component
- * Shows Portainer instance details with Edit and Delete actions
+ * Shows source instance details with Edit and Delete actions
  */
 function InstanceDetailModal({ instance, isOpen, onClose, onEdit, onDelete }) {
   if (!instance) return null;

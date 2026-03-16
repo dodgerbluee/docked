@@ -11,7 +11,7 @@
  */
 
 const BaseRepository = require("./BaseRepository");
-const PortainerInstanceRepository = require("./PortainerInstanceRepository");
+const SourceInstanceRepository = require("./SourceInstanceRepository");
 const UserRepository = require("./UserRepository");
 const ContainerRepository = require("./ContainerRepository");
 const DockerHubImageVersionRepository = require("./DockerHubImageVersionRepository");
@@ -24,7 +24,7 @@ const DeployedImageRepository = require("./DeployedImageRepository");
 const RegistryImageVersionRepository = require("./RegistryImageVersionRepository");
 
 // Create singleton instances
-const portainerInstance = new PortainerInstanceRepository();
+const sourceInstance = new SourceInstanceRepository();
 const user = new UserRepository();
 const container = new ContainerRepository();
 const dockerHubImageVersion = new DockerHubImageVersionRepository();
@@ -41,7 +41,7 @@ module.exports = {
   BaseRepository,
 
   // Repository instances
-  portainerInstance,
+  sourceInstance,
   user,
   container,
   dockerHubImageVersion,
@@ -54,7 +54,9 @@ module.exports = {
   registryImageVersion,
 
   // Aliases for convenience
-  portainer: portainerInstance,
+  portainerInstance: sourceInstance,
+  portainer: sourceInstance,
+  source: sourceInstance,
   users: user,
   containers: container,
   dockerHubImageVersions: dockerHubImageVersion,

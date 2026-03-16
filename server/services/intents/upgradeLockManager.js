@@ -19,24 +19,34 @@ class UpgradeLockManager {
 
   /**
    * Build a lock key for a container.
+   * Uses typed prefixes to disambiguate containers across different backends.
    * @param {string} containerId - Docker container ID
-   * @param {number} [portainerInstanceId] - Portainer instance ID (for disambiguation)
+   * @param {Object} [opts] - Backend identifier
+   * @param {number} [opts.sourceInstanceId] - Source instance ID (Portainer)
+   * @param {number} [opts.runnerId] - Runner ID
    * @returns {string} Lock key
    */
-  _key(containerId, portainerInstanceId) {
-    return portainerInstanceId ? `${portainerInstanceId}:${containerId}` : containerId;
+  _key(containerId, opts = {}) {
+    if (opts.sourceInstanceId) {
+      return `source:${opts.sourceInstanceId}:${containerId}`;
+    }
+    if (opts.runnerId) {
+      return `runner:${opts.runnerId}:${containerId}`;
+    }
+    return containerId;
   }
 
   /**
    * Attempt to acquire an upgrade lock for a container.
    * @param {string} containerId - Docker container ID
    * @param {Object} [options]
-   * @param {number} [options.portainerInstanceId] - Portainer instance ID
+   * @param {number} [options.sourceInstanceId] - Source instance ID (Portainer)
+   * @param {number} [options.runnerId] - Runner ID
    * @param {string} [options.owner] - Who is requesting the lock (e.g. "intent:42", "manual")
    * @returns {boolean} true if lock acquired, false if already locked
    */
   acquire(containerId, options = {}) {
-    const key = this._key(containerId, options.portainerInstanceId);
+    const key = this._key(containerId, options);
     const existing = this.locks.get(key);
 
     if (existing) {
@@ -67,10 +77,11 @@ class UpgradeLockManager {
    * Release an upgrade lock for a container.
    * @param {string} containerId - Docker container ID
    * @param {Object} [options]
-   * @param {number} [options.portainerInstanceId] - Portainer instance ID
+   * @param {number} [options.sourceInstanceId] - Source instance ID (Portainer)
+   * @param {number} [options.runnerId] - Runner ID
    */
   release(containerId, options = {}) {
-    const key = this._key(containerId, options.portainerInstanceId);
+    const key = this._key(containerId, options);
     this.locks.delete(key);
   }
 
@@ -78,11 +89,12 @@ class UpgradeLockManager {
    * Check if a container is currently locked for upgrade.
    * @param {string} containerId - Docker container ID
    * @param {Object} [options]
-   * @param {number} [options.portainerInstanceId] - Portainer instance ID
+   * @param {number} [options.sourceInstanceId] - Source instance ID (Portainer)
+   * @param {number} [options.runnerId] - Runner ID
    * @returns {{ locked: boolean, owner?: string, acquiredAt?: number }}
    */
   isLocked(containerId, options = {}) {
-    const key = this._key(containerId, options.portainerInstanceId);
+    const key = this._key(containerId, options);
     const existing = this.locks.get(key);
 
     if (!existing) {

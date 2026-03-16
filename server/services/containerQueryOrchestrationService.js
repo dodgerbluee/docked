@@ -7,8 +7,8 @@
  */
 
 const {
-  getAllPortainerInstances,
-  getAllPortainerInstancesForUsers,
+  getAllSourceInstances,
+  getAllSourceInstancesForUsers,
   getAllUsers,
 } = require("../db/index");
 const logger = require("../utils/logger");
@@ -24,7 +24,7 @@ async function getPortainerInstancesToProcess(userId, filterPortainerUrl = null)
 
   if (userId) {
     logger.debug(`📋 Fetching Portainer instances for userId=${userId}`);
-    portainerInstances = await getAllPortainerInstances(userId);
+    portainerInstances = await getAllSourceInstances(userId);
     logger.debug(`📋 Found ${portainerInstances.length} instances for userId=${userId}`);
   } else {
     // For batch jobs, get all users and their instances in a single query (avoid N+1)
@@ -32,7 +32,7 @@ async function getPortainerInstancesToProcess(userId, filterPortainerUrl = null)
     const users = await getAllUsers();
     const userIds = users.map((user) => user.id);
     if (userIds.length > 0) {
-      portainerInstances = await getAllPortainerInstancesForUsers(userIds);
+      portainerInstances = await getAllSourceInstancesForUsers(userIds);
     }
     logger.debug(`📋 Found ${portainerInstances.length} instances across ${users.length} users`);
   }

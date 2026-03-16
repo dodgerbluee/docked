@@ -94,6 +94,7 @@ async function createIntentHandler(req, res) {
       matchContainers,
       matchImages,
       matchInstances,
+      matchSources,
       matchStacks,
       matchRegistries,
       excludeContainers,
@@ -139,10 +140,12 @@ async function createIntentHandler(req, res) {
     }
 
     // Validate arrays if provided
+    // Accept both matchInstances and matchSources for backward compat
+    const resolvedMatchInstances = matchSources || matchInstances;
     const arrayFields = {
       matchContainers,
       matchImages,
-      matchInstances,
+      matchSources: resolvedMatchInstances,
       matchStacks,
       matchRegistries,
       excludeContainers,
@@ -160,7 +163,7 @@ async function createIntentHandler(req, res) {
     const hasMatchCriteria =
       (matchContainers && matchContainers.length > 0) ||
       (matchImages && matchImages.length > 0) ||
-      (matchInstances && matchInstances.length > 0) ||
+      (resolvedMatchInstances && resolvedMatchInstances.length > 0) ||
       (matchStacks && matchStacks.length > 0) ||
       (matchRegistries && matchRegistries.length > 0);
 
@@ -180,7 +183,7 @@ async function createIntentHandler(req, res) {
       enabled: enabled !== false,
       matchContainers: matchContainers || null,
       matchImages: matchImages || null,
-      matchInstances: matchInstances || null,
+      matchSources: resolvedMatchInstances || null,
       matchStacks: matchStacks || null,
       matchRegistries: matchRegistries || null,
       excludeContainers: excludeContainers || null,
@@ -245,6 +248,7 @@ async function updateIntentHandler(req, res) {
       matchContainers,
       matchImages,
       matchInstances,
+      matchSources,
       matchStacks,
       matchRegistries,
       excludeContainers,
@@ -278,10 +282,12 @@ async function updateIntentHandler(req, res) {
     }
 
     // Array fields
+    // Accept both matchInstances and matchSources for backward compat
+    const resolvedMatchInstances = matchSources !== undefined ? matchSources : matchInstances;
     const arrayFields = {
       matchContainers,
       matchImages,
-      matchInstances,
+      matchSources: resolvedMatchInstances,
       matchStacks,
       matchRegistries,
       excludeContainers,
@@ -615,7 +621,7 @@ async function getIntentPreviewHandler(req, res) {
         containerName: c.containerName,
         imageName: c.imageName,
         stackName: c.stackName || null,
-        portainerInstanceId: c.portainerInstanceId,
+        sourceInstanceId: c.sourceInstanceId,
         hasUpdate: c.hasUpdate || false,
       })),
       nextExecutionPreview: {

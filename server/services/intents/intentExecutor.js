@@ -96,7 +96,8 @@ async function executeIntent(intent, userId, options = {}) {
           containerId: container.containerId,
           containerName: container.containerName,
           imageName: container.imageName,
-          portainerInstanceId: container.portainerInstanceId,
+          sourceInstanceId: container.sourceInstanceId || null,
+          runnerId: container.runnerId || null,
           status: "dry_run",
           oldImage: container.imageName,
         });
@@ -271,7 +272,7 @@ async function executeIntent(intent, userId, options = {}) {
  * Upgrade a single container and record the result.
  * Acquires an upgrade lock before proceeding; skips the container if already locked.
  *
- * @param {Object} container - Container object (enriched with portainerUrl)
+ * @param {Object} container - Container object (enriched with portainerUrl or runnerId)
  * @param {number} userId - User ID
  * @param {number} executionId - Execution ID for recording
  * @param {number} intentId - Intent ID (for lock owner identification)
@@ -280,7 +281,9 @@ async function executeIntent(intent, userId, options = {}) {
 // eslint-disable-next-line max-lines-per-function -- Container upgrade with locking and error recording requires comprehensive logic
 async function upgradeContainer(container, userId, executionId, intentId) {
   const startTime = Date.now();
-  const lockOpts = { portainerInstanceId: container.portainerInstanceId };
+  const lockOpts = container.sourceInstanceId
+    ? { sourceInstanceId: container.sourceInstanceId }
+    : { runnerId: container.runnerId };
   const lockOwner = `intent:${intentId}`;
 
   // Attempt to acquire upgrade lock
@@ -305,7 +308,8 @@ async function upgradeContainer(container, userId, executionId, intentId) {
         containerId: container.containerId,
         containerName: container.containerName,
         imageName: container.imageName,
-        portainerInstanceId: container.portainerInstanceId,
+        sourceInstanceId: container.sourceInstanceId || null,
+        runnerId: container.runnerId || null,
         status: "skipped",
         oldImage: container.imageName,
         errorMessage: `Upgrade already in progress (locked by ${lockInfo.owner || "unknown"})`,
@@ -332,7 +336,8 @@ async function upgradeContainer(container, userId, executionId, intentId) {
       container.endpointId,
       container.containerId,
       container.imageName,
-      userId
+      userId,
+      container.runnerId || null
     );
 
     const durationMs = Date.now() - startTime;
@@ -343,7 +348,8 @@ async function upgradeContainer(container, userId, executionId, intentId) {
       containerId: container.containerId,
       containerName: container.containerName,
       imageName: container.imageName,
-      portainerInstanceId: container.portainerInstanceId,
+      sourceInstanceId: container.sourceInstanceId || null,
+      runnerId: container.runnerId || null,
       status: "upgraded",
       oldImage: result.oldImage,
       newImage: result.newImage,
@@ -376,7 +382,8 @@ async function upgradeContainer(container, userId, executionId, intentId) {
         containerId: container.containerId,
         containerName: container.containerName,
         imageName: container.imageName,
-        portainerInstanceId: container.portainerInstanceId,
+        sourceInstanceId: container.sourceInstanceId || null,
+        runnerId: container.runnerId || null,
         status: "failed",
         oldImage: container.imageName,
         errorMessage: error.message,

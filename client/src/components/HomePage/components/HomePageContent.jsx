@@ -14,7 +14,7 @@ import { SETTINGS_TABS } from "../../../constants/settings";
 // Lazy-loaded tab pages — only one is active at a time
 const SummaryPage = lazy(() => import("../../../pages/SummaryPage"));
 const TrackedAppsPage = lazy(() => import("../../../pages/TrackedAppsPage"));
-const PortainerPage = lazy(() => import("../../../pages/PortainerPage"));
+const ContainersPage = lazy(() => import("../../../pages/ContainersPage"));
 const AppsPage = lazy(() => import("../../../pages/AppsPage"));
 const AnalyticsPage = lazy(() => import("../../../pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("../../../pages/SettingsPage"));
@@ -40,19 +40,18 @@ const HomePageContent = ({
   error,
   pullError,
   pullSuccess,
-  dockerHubCredentials,
-  portainerInstances,
+  sourceInstances,
   unusedImages,
   unusedImagesCount,
   trackedApps,
   dismissedTrackedAppNotifications,
-  containersByPortainer,
+  containersBySource,
   loadingInstances,
   dockerHubDataPulled,
   dataFetched,
   lastPullTime,
   successfullyUpdatedContainersRef,
-  selectedPortainerInstances,
+  selectedSourceInstances,
   username,
   authToken,
   avatar,
@@ -63,7 +62,7 @@ const HomePageContent = ({
   setContentTab,
   setSettingsTab,
   setConfigurationTab,
-  setSelectedPortainerInstances,
+  setSelectedSourceInstances,
   setError,
   setContainers,
   setUnusedImages,
@@ -77,7 +76,7 @@ const HomePageContent = ({
   handleBatchTrackedAppsCheck,
   handleUsernameUpdate,
   handlePasswordUpdateSuccessWithNavigation,
-  handlePortainerInstancesChange,
+  handleSourceInstancesChange,
   handleAvatarChange,
   handleRecentAvatarsChange,
   handleAvatarUploaded,
@@ -87,9 +86,9 @@ const HomePageContent = ({
   handleClear,
   handleClearGitHubCache,
   handleLogoutWithCleanup,
-  editingPortainerInstance,
-  fetchPortainerInstances,
-  portainerUpgrade,
+  editingSourceInstance,
+  fetchSourceInstances,
+  containerUpgrade,
 }) => {
   const [appsWithUpdates, setAppsWithUpdates] = useState(0);
 
@@ -98,16 +97,16 @@ const HomePageContent = ({
     const isLoading = loading;
     return (
       <SummaryPage
-        portainerInstances={portainerInstances}
+        portainerInstances={sourceInstances}
         containers={containers}
         unusedImages={unusedImages}
         unusedImagesCount={unusedImagesCount}
         trackedApps={trackedApps}
         dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
-        onNavigateToPortainer={() => setActiveTab(TAB_NAMES.PORTAINER)}
+        onNavigateToPortainer={() => setActiveTab(TAB_NAMES.CONTAINERS)}
         onNavigateToTrackedApps={() => setActiveTab(TAB_NAMES.TRACKED_APPS)}
         onNavigateToAnalytics={() => setActiveTab(TAB_NAMES.ANALYTICS)}
-        onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+        onSetSelectedPortainerInstances={setSelectedSourceInstances}
         onSetContentTab={setContentTab}
         isLoading={isLoading}
         dataFetched={dataFetched}
@@ -118,13 +117,13 @@ const HomePageContent = ({
     loading,
     dataFetched,
     containers,
-    portainerInstances,
+    sourceInstances,
     unusedImages,
     unusedImagesCount,
     trackedApps,
     dismissedTrackedAppNotifications,
     setActiveTab,
-    setSelectedPortainerInstances,
+    setSelectedSourceInstances,
     setContentTab,
     openModal,
   ]);
@@ -179,7 +178,7 @@ const HomePageContent = ({
     // This prevents unnecessary refreshes when already on those tabs
     if (
       previousTab !== currentTab &&
-      (currentTab === TAB_NAMES.PORTAINER || currentTab === TAB_NAMES.SUMMARY)
+      (currentTab === TAB_NAMES.CONTAINERS || currentTab === TAB_NAMES.SUMMARY)
     ) {
       // Skip if we fetched recently (e.g. user switching tabs rapidly)
       const now = Date.now();
@@ -216,8 +215,8 @@ const HomePageContent = ({
               activeTab={activeTab}
               onTabChange={(tab) => {
                 setActiveTab(tab);
-                if (tab === TAB_NAMES.PORTAINER) {
-                  setSelectedPortainerInstances(new Set());
+                if (tab === TAB_NAMES.CONTAINERS) {
+                  setSelectedSourceInstances(new Set());
                   setContentTab(CONTENT_TABS.UPDATES);
                 }
               }}
@@ -231,8 +230,8 @@ const HomePageContent = ({
               activeTab={activeTab}
               onTabChange={(tab) => {
                 setActiveTab(tab);
-                if (tab === TAB_NAMES.PORTAINER) {
-                  setSelectedPortainerInstances(new Set());
+                if (tab === TAB_NAMES.CONTAINERS) {
+                  setSelectedSourceInstances(new Set());
                   setContentTab(CONTENT_TABS.UPDATES);
                 }
               }}
@@ -275,11 +274,11 @@ const HomePageContent = ({
               avatar={avatar}
               recentAvatars={recentAvatars || []}
               containers={containers}
-              portainerInstances={portainerInstances}
+              sourceInstances={sourceInstances}
               onUsernameUpdate={handleUsernameUpdate}
               onLogout={handleLogoutWithCleanup}
               onPasswordUpdateSuccess={handlePasswordUpdateSuccessWithNavigation}
-              onPortainerInstancesChange={handlePortainerInstancesChange}
+              onSourceInstancesChange={handleSourceInstancesChange}
               onAvatarChange={handleAvatarChange}
               onRecentAvatarsChange={handleRecentAvatarsChange}
               onAvatarUploaded={handleAvatarUploaded}
@@ -289,8 +288,8 @@ const HomePageContent = ({
               onClearPortainerData={handleClear}
               onClearTrackedAppData={handleClearGitHubCache}
               onEditInstance={openModal}
-              editingPortainerInstance={editingPortainerInstance}
-              refreshInstances={editingPortainerInstance === null ? fetchPortainerInstances : null}
+              editingSourceInstance={editingSourceInstance}
+              refreshInstances={editingSourceInstance === null ? fetchSourceInstances : null}
               activeTab={settingsTab}
               onTabChange={setSettingsTab}
             />
@@ -316,7 +315,7 @@ const HomePageContent = ({
           ) : (
             <>
               {/* Only show container-fetch errors on tabs that use container data */}
-              {(activeTab === TAB_NAMES.SUMMARY || activeTab === TAB_NAMES.PORTAINER) && (
+              {(activeTab === TAB_NAMES.SUMMARY || activeTab === TAB_NAMES.CONTAINERS) && (
                 <RateLimitError
                   error={error}
                   onDismiss={() => setError(null)}
@@ -349,15 +348,15 @@ const HomePageContent = ({
                 />
               )}
               {activeTab === TAB_NAMES.ANALYTICS && (
-                <AnalyticsPage portainerInstances={portainerInstances} />
+                <AnalyticsPage sourceInstances={sourceInstances} />
               )}
-              {activeTab === TAB_NAMES.PORTAINER && (
-                <PortainerPage
-                  portainerInstances={portainerInstances}
+              {activeTab === TAB_NAMES.CONTAINERS && (
+                <ContainersPage
+                  sourceInstances={sourceInstances}
                   containers={containers}
                   unusedImages={unusedImages}
                   unusedImagesCount={unusedImagesCount}
-                  containersByPortainer={containersByPortainer}
+                  containersBySource={containersBySource}
                   loadingInstances={loadingInstances}
                   dockerHubDataPulled={dockerHubDataPulled}
                   lastPullTime={lastPullTime}
@@ -370,11 +369,11 @@ const HomePageContent = ({
                   pullingDockerHub={pulling}
                   pullError={pullError}
                   pullSuccess={pullSuccess}
-                  selectedPortainerInstances={selectedPortainerInstances}
-                  onSetSelectedPortainerInstances={setSelectedPortainerInstances}
+                  selectedSourceInstances={selectedSourceInstances}
+                  onSetSelectedSourceInstances={setSelectedSourceInstances}
                   contentTab={contentTab}
                   onSetContentTab={setContentTab}
-                  portainerUpgradeFromProps={portainerUpgrade}
+                  containerUpgradeFromProps={containerUpgrade}
                   fetchContainers={fetchContainers}
                   fetchUnusedImages={fetchUnusedImages}
                   onNavigateToLogs={() => {
@@ -428,18 +427,17 @@ HomePageContent.propTypes = {
   error: PropTypes.string,
   pullError: PropTypes.string,
   pullSuccess: PropTypes.string,
-  dockerHubCredentials: PropTypes.object,
-  portainerInstances: PropTypes.array.isRequired,
+  sourceInstances: PropTypes.array.isRequired,
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
   trackedApps: PropTypes.array.isRequired,
   dismissedTrackedAppNotifications: PropTypes.object.isRequired,
-  containersByPortainer: PropTypes.object.isRequired,
+  containersBySource: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
   dockerHubDataPulled: PropTypes.bool.isRequired,
   lastPullTime: PropTypes.instanceOf(Date),
   successfullyUpdatedContainersRef: PropTypes.object.isRequired,
-  selectedPortainerInstances: PropTypes.instanceOf(Set).isRequired,
+  selectedSourceInstances: PropTypes.instanceOf(Set).isRequired,
   username: PropTypes.string,
   authToken: PropTypes.string,
   avatar: PropTypes.string,
@@ -450,7 +448,7 @@ HomePageContent.propTypes = {
   setContentTab: PropTypes.func.isRequired,
   setSettingsTab: PropTypes.func.isRequired,
   setConfigurationTab: PropTypes.func.isRequired,
-  setSelectedPortainerInstances: PropTypes.func.isRequired,
+  setSelectedSourceInstances: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   setContainers: PropTypes.func.isRequired,
   setUnusedImages: PropTypes.func.isRequired,
@@ -464,7 +462,7 @@ HomePageContent.propTypes = {
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
   handlePasswordUpdateSuccessWithNavigation: PropTypes.func.isRequired,
-  handlePortainerInstancesChange: PropTypes.func.isRequired,
+  handleSourceInstancesChange: PropTypes.func.isRequired,
   handleAvatarChange: PropTypes.func.isRequired,
   handleRecentAvatarsChange: PropTypes.func.isRequired,
   handleAvatarUploaded: PropTypes.func.isRequired,
@@ -474,9 +472,9 @@ HomePageContent.propTypes = {
   handleClear: PropTypes.func.isRequired,
   handleClearGitHubCache: PropTypes.func.isRequired,
   handleLogoutWithCleanup: PropTypes.func.isRequired,
-  editingPortainerInstance: PropTypes.object,
-  fetchPortainerInstances: PropTypes.func.isRequired,
-  portainerUpgrade: PropTypes.object,
+  editingSourceInstance: PropTypes.object,
+  fetchSourceInstances: PropTypes.func.isRequired,
+  containerUpgrade: PropTypes.object,
 };
 
 export default HomePageContent;

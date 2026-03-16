@@ -151,19 +151,26 @@ function getContainerStatusIcon(status) {
    Configuration Tab
    ========================================== */
 
-function ConfigTab({ intent, portainerInstances }) {
-  // Build portainer ID-to-name map
+function ConfigTab({ intent, sourceInstances, runners }) {
+  // Build unified typed-ID-to-name map for all sources
   const idToName = useMemo(() => {
     const map = new Map();
-    if (portainerInstances?.length > 0) {
-      for (const inst of portainerInstances) {
+    if (sourceInstances?.length > 0) {
+      for (const inst of sourceInstances) {
         if (inst.name && inst.id != null) {
-          map.set(String(inst.id), inst.name);
+          map.set(`portainer:${inst.id}`, inst.name);
+        }
+      }
+    }
+    if (runners?.length > 0) {
+      for (const r of runners) {
+        if (r.name && r.id != null) {
+          map.set(`runner:${r.id}`, r.name);
         }
       }
     }
     return map;
-  }, [portainerInstances]);
+  }, [sourceInstances, runners]);
 
   // Compute human-readable cron description
   const cronDescription = useMemo(() => {
@@ -180,8 +187,8 @@ function ConfigTab({ intent, portainerInstances }) {
 
   const isImmediate = intent.scheduleType === SCHEDULE_TYPES.IMMEDIATE;
 
-  // Resolve portainer instance IDs to names
-  const resolveInstanceValues = (values) => {
+  // Resolve typed source IDs to names
+  const resolveSourceValues = (values) => {
     if (!values?.length) return [];
     return values.map((v) => idToName.get(String(v)) || String(v));
   };
@@ -193,7 +200,7 @@ function ConfigTab({ intent, portainerInstances }) {
     { label: "Stacks", values: intent.matchStacks, icon: Layers },
     {
       label: "Sources",
-      values: resolveInstanceValues(intent.matchInstances),
+      values: resolveSourceValues(intent.matchSources),
       icon: Server,
     },
     { label: "Registries", values: intent.matchRegistries, icon: Database },
@@ -328,7 +335,8 @@ function ConfigTab({ intent, portainerInstances }) {
 
 ConfigTab.propTypes = {
   intent: PropTypes.object,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
+  runners: PropTypes.array,
 };
 
 /* ==========================================
@@ -755,7 +763,8 @@ function IntentDetailModal({
   onEdit,
   onDelete,
   initialTab,
-  portainerInstances,
+  sourceInstances,
+  runners,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab || TAB_CONFIG);
   const { fetchIntentPreview, fetchExecutions, fetchExecutionDetail } = useIntents();
@@ -818,7 +827,7 @@ function IntentDetailModal({
   const renderTabContent = () => {
     switch (activeTab) {
       case TAB_CONFIG:
-        return <ConfigTab intent={intent} portainerInstances={portainerInstances} />;
+        return <ConfigTab intent={intent} sourceInstances={sourceInstances} runners={runners} />;
       case TAB_MATCHES:
         return <MatchesTab intent={intent} previewData={previewData} loading={loadingPreview} />;
       case TAB_PREVIEW:
@@ -886,7 +895,8 @@ IntentDetailModal.propTypes = {
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func,
   initialTab: PropTypes.string,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
+  runners: PropTypes.array,
 };
 
 export default IntentDetailModal;

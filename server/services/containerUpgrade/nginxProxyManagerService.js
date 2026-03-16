@@ -8,7 +8,7 @@
  */
 
 const { URL } = require("url");
-const { getAllPortainerInstances } = require("../../db/index");
+const { getAllSourceInstances } = require("../../db/index");
 const logger = require("../../utils/logger");
 
 /**
@@ -76,7 +76,7 @@ function logIpUrlUsage(workingPortainerUrl, portainerUrl, ipAddress, instance) {
  */
 async function getIpBasedPortainerUrl(portainerUrl) {
   try {
-    const instances = await getAllPortainerInstances();
+    const instances = await getAllSourceInstances();
     const instance = instances.find((inst) => inst.url === portainerUrl);
 
     if (instance && instance.ip_address) {

@@ -249,7 +249,8 @@ function getRecentIntentExecutions(userId, limit = 20) {
  * @param {string} containerData.containerId - Container ID
  * @param {string} containerData.containerName - Container name
  * @param {string} containerData.imageName - Image name
- * @param {number} [containerData.portainerInstanceId] - Portainer instance ID
+ * @param {number} [containerData.sourceInstanceId] - Source instance ID
+ * @param {number} [containerData.runnerId] - Runner ID
  * @param {string} containerData.status - 'upgraded' | 'failed' | 'skipped' | 'dry_run'
  * @param {string} [containerData.oldImage] - Old image
  * @param {string} [containerData.newImage] - New image
@@ -268,7 +269,8 @@ function addIntentExecutionContainer(containerData) {
         containerId,
         containerName,
         imageName,
-        portainerInstanceId = null,
+        sourceInstanceId = null,
+        runnerId = null,
         status,
         oldImage = null,
         newImage = null,
@@ -289,15 +291,16 @@ function addIntentExecutionContainer(containerData) {
         db.run(
           `INSERT INTO intent_execution_containers (
             execution_id, container_id, container_name, image_name,
-            portainer_instance_id, status, old_image, new_image,
+            source_instance_id, runner_id, status, old_image, new_image,
             old_digest, new_digest, error_message, duration_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             executionId,
             containerId,
             containerName,
             imageName,
-            portainerInstanceId,
+            sourceInstanceId,
+            runnerId,
             status,
             oldImage,
             newImage,

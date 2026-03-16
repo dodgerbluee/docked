@@ -15,7 +15,7 @@
 
 const portainerService = require("./portainerService");
 const runnerDockerService = require("./runnerDockerService");
-const { getAllPortainerInstances } = require("../db/index");
+const { getAllSourceInstances } = require("../db/index");
 const { getRunnerById } = require("../db/runners");
 const logger = require("../utils/logger");
 
@@ -26,7 +26,7 @@ const logger = require("../utils/logger");
  * @property {string} url            - Base URL of the backend (portainerUrl or runner.url)
  * @property {string|null} endpointId  - Endpoint ID (null for runner backends)
  * @property {string|null} apiKey    - Runner API key (null for Portainer — uses token cache)
- * @property {number|null} instanceId  - portainer_instances.id (null for runner)
+ * @property {number|null} instanceId  - source_instances.id (null for runner)
  * @property {number|null} runnerId    - runners.id (null for Portainer)
  * @property {string|null} instanceName - Display name of the backend instance
  */
@@ -58,7 +58,7 @@ async function resolveBackend(userId, { portainerUrl, endpointId, runnerId } = {
  * Resolve a Portainer backend and pre-authenticate.
  */
 async function resolvePortainerBackend(userId, portainerUrl, endpointId) {
-  const instances = await getAllPortainerInstances(userId);
+  const instances = await getAllSourceInstances(userId);
   const instance = instances.find((inst) => inst.url === portainerUrl);
   if (!instance) {
     logger.warn("dockerBackendFactory: Portainer instance not found", { userId, portainerUrl });

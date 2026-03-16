@@ -5,26 +5,26 @@ import { TAB_NAMES } from "../constants/apiConstants";
  * Custom hook for navigation handlers
  * Centralizes navigation logic for consistent behavior
  */
-export const useNavigation = ({ setActiveTab, setContentTab, setSelectedPortainerInstances }) => {
+export const useNavigation = ({ setActiveTab, setContentTab, setSelectedSourceInstances }) => {
   const handleNavigateToSummary = useCallback(() => {
     setActiveTab(TAB_NAMES.SUMMARY);
   }, [setActiveTab]);
 
-  const handleNavigateToPortainer = useCallback(
+  const handleNavigateToContainers = useCallback(
     (container = null) => {
-      setActiveTab(TAB_NAMES.PORTAINER);
+      setActiveTab(TAB_NAMES.CONTAINERS);
 
       if (container) {
-        const portainerUrl = container.portainerUrl;
-        if (portainerUrl) {
-          setSelectedPortainerInstances(new Set([container.portainerName || portainerUrl]));
+        const sourceUrl = container.sourceUrl;
+        if (sourceUrl) {
+          setSelectedSourceInstances(new Set([container.sourceName || sourceUrl]));
         }
         if (container.hasUpdate) {
           setContentTab("updates");
         }
       }
     },
-    [setActiveTab, setSelectedPortainerInstances, setContentTab]
+    [setActiveTab, setSelectedSourceInstances, setContentTab]
   );
 
   const handleNavigateToTrackedApps = useCallback(() => {
@@ -41,7 +41,7 @@ export const useNavigation = ({ setActiveTab, setContentTab, setSelectedPortaine
 
   return {
     handleNavigateToSummary,
-    handleNavigateToPortainer,
+    handleNavigateToContainers,
     handleNavigateToTrackedApps,
     handleNavigateToSettings,
     handleNavigateToBatch,

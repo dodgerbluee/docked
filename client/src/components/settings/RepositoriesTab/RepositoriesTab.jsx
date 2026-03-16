@@ -72,12 +72,12 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
 
   return (
     <div className={styles.updateSection}>
-      <h3 className={styles.title}>Repository Access Tokens</h3>
+      <h3 className={styles.title}>Registry Access Tokens</h3>
       <p className={styles.description}>
         Manage tokens for GitHub and GitLab to enable update checking for your container images. Add
         access tokens for GitHub Container Registry (GHCR) or GitLab Container Registry, then
         associate these tokens with your container images to enable automatic update detection for
-        private repositories.
+        private registries.
       </p>
 
       <div className={styles.tokensSection}>
@@ -123,7 +123,7 @@ const RepositoriesTab = React.memo(function RepositoriesTab() {
         onClose={() => setTokenDeleteConfirm({ isOpen: false, tokenId: null })}
         onConfirm={handleTokenDeleteConfirm}
         title="Delete Access Token?"
-        message="Are you sure you want to delete this repository access token? This action cannot be undone."
+        message="Are you sure you want to delete this registry access token? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"

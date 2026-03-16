@@ -186,7 +186,7 @@ export function useGeneralSettings({
       if (colorSchemeSuccess && refreshingTogglesSuccess) {
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
-        // Dispatch custom event to notify other components (e.g., PortainerPage) to refetch settings
+        // Dispatch custom event to notify other components (e.g., ContainersPage) to refetch settings
         window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
         // Some settings failed - show which ones

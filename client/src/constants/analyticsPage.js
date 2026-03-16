@@ -6,6 +6,7 @@
 export const ANALYTICS_VIEW_TABS = {
   OVERVIEW: "overview",
   CONTAINERS: "containers",
+  APPS: "apps",
   TRACKED_APPS: "tracked-apps",
   PERFORMANCE: "performance",
   PATTERNS: "patterns",
@@ -15,7 +16,8 @@ export const ANALYTICS_VIEW_TABS = {
 export const ANALYTICS_VIEW_TAB_LABELS = {
   [ANALYTICS_VIEW_TABS.OVERVIEW]: "Overview",
   [ANALYTICS_VIEW_TABS.CONTAINERS]: "Containers",
-  [ANALYTICS_VIEW_TABS.TRACKED_APPS]: "Apps",
+  [ANALYTICS_VIEW_TABS.APPS]: "Apps",
+  [ANALYTICS_VIEW_TABS.TRACKED_APPS]: "Repos",
   [ANALYTICS_VIEW_TABS.PERFORMANCE]: "Performance",
   [ANALYTICS_VIEW_TABS.PATTERNS]: "Patterns",
   [ANALYTICS_VIEW_TABS.INSIGHTS]: "Insights",
@@ -29,5 +31,5 @@ export const ANALYTICS_DATA_SOURCE = {
 
 export const ANALYTICS_DATA_SOURCE_LABELS = {
   [ANALYTICS_DATA_SOURCE.CONTAINERS]: "Container upgrades",
-  [ANALYTICS_DATA_SOURCE.TRACKED_APPS]: "App upgrades",
+  [ANALYTICS_DATA_SOURCE.TRACKED_APPS]: "Repo upgrades",
 };

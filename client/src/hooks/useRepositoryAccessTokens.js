@@ -33,7 +33,7 @@ export function useRepositoryAccessTokens({ activeSection }) {
   }, []);
 
   useEffect(() => {
-    if (activeSection === "portainer") {
+    if (activeSection === "sources") {
       fetchTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

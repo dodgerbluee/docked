@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { History } from "lucide-react";
 import { useUpgradeHistory } from "../../../hooks/useUpgradeHistory";
 import { useTrackedAppUpgradeHistory } from "../../../hooks/useTrackedAppUpgradeHistory";
-import UpgradeChartsModal from "../../../components/portainer/UpgradeChartsModal";
+import UpgradeChartsModal from "../../../components/containers/UpgradeChartsModal";
 import styles from "./HistoryMetrics.module.css";
 
 /**

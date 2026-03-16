@@ -545,9 +545,12 @@ async function getImageDigest(imageRef, options = {}) {
     // calls skip crane and go straight to skopeo (saves ~30s per image).
     if (failure?.type === "transient") {
       recordToolFailure(craneBin, failure.type);
-      logger.info(`[containerTools] crane transient failure for ${imageRef}, will skip crane for ${TOOL_FAILURE_COOLDOWN_MS / 1000}s`, {
-        reason: failure?.message,
-      });
+      logger.info(
+        `[containerTools] crane transient failure for ${imageRef}, will skip crane for ${TOOL_FAILURE_COOLDOWN_MS / 1000}s`,
+        {
+          reason: failure?.message,
+        }
+      );
     } else {
       logger.debug(`[containerTools] crane did not return digest for ${imageRef}`, {
         reason: failure?.type,
@@ -592,11 +595,7 @@ async function getImageDigest(imageRef, options = {}) {
     );
   }
 
-  if (
-    !failure &&
-    !(await isCommandAvailable(craneBin)) &&
-    !(await isCommandAvailable(skopeoBin))
-  ) {
+  if (!failure && !(await isCommandAvailable(craneBin)) && !(await isCommandAvailable(skopeoBin))) {
     logger.warn(
       `[containerTools] Neither crane nor skopeo is available. Please install one of them.`
     );

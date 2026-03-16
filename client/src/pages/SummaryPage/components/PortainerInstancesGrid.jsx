@@ -1,7 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { Server, Plus } from "lucide-react";
-import PortainerInstanceCard from "../../../components/PortainerInstanceCard";
+import PortainerInstanceCard from "../../../components/SourceInstanceCard";
 import styles from "./PortainerInstancesGrid.module.css";
 
 /**

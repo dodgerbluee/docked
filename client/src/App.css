@@ -1891,7 +1891,7 @@ body.dark-mode .docker-hub-icon {
   min-height: 0;
 }
 
-.portainer-sidebar {
+.source-sidebar {
   width: 220px;
   min-width: 220px;
   background: var(--bg-secondary);

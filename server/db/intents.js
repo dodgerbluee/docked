@@ -21,7 +21,7 @@ const MAX_INTENTS_PER_USER = 50;
  * @param {boolean} [intentData.enabled] - Whether enabled (default true)
  * @param {Array} [intentData.matchContainers] - Container name filters
  * @param {Array} [intentData.matchImages] - Image glob patterns
- * @param {Array} [intentData.matchInstances] - Portainer instance IDs
+ * @param {Array} [intentData.matchSources] - Source instance IDs
  * @param {Array} [intentData.matchStacks] - Stack name glob patterns
  * @param {Array} [intentData.matchRegistries] - Registry filters
  * @param {Array} [intentData.excludeContainers] - Container name exclusion filters
@@ -46,7 +46,7 @@ function createIntent(intentData) {
         enabled = true,
         matchContainers = null,
         matchImages = null,
-        matchInstances = null,
+        matchSources = null,
         matchStacks = null,
         matchRegistries = null,
         excludeContainers = null,
@@ -99,7 +99,7 @@ function createIntent(intentData) {
               db.run(
                 `INSERT INTO intents (
                   user_id, name, description, enabled,
-                  match_containers, match_images, match_instances, match_stacks, match_registries,
+                  match_containers, match_images, match_sources, match_stacks, match_registries,
                   exclude_containers, exclude_images, exclude_stacks, exclude_registries,
                   schedule_type, schedule_cron, max_concurrent, dry_run, sequential_delay_sec
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -110,7 +110,7 @@ function createIntent(intentData) {
                   enabled ? 1 : 0,
                   matchContainers ? JSON.stringify(matchContainers) : null,
                   matchImages ? JSON.stringify(matchImages) : null,
-                  matchInstances ? JSON.stringify(matchInstances) : null,
+                  matchSources ? JSON.stringify(matchSources) : null,
                   matchStacks ? JSON.stringify(matchStacks) : null,
                   matchRegistries ? JSON.stringify(matchRegistries) : null,
                   excludeContainers ? JSON.stringify(excludeContainers) : null,
@@ -237,7 +237,7 @@ function updateIntent(intentId, userId, updates) {
         enabled: (v) => (v ? 1 : 0),
         matchContainers: (v) => (v ? JSON.stringify(v) : null),
         matchImages: (v) => (v ? JSON.stringify(v) : null),
-        matchInstances: (v) => (v ? JSON.stringify(v) : null),
+        matchSources: (v) => (v ? JSON.stringify(v) : null),
         matchStacks: (v) => (v ? JSON.stringify(v) : null),
         matchRegistries: (v) => (v ? JSON.stringify(v) : null),
         excludeContainers: (v) => (v ? JSON.stringify(v) : null),
@@ -260,7 +260,7 @@ function updateIntent(intentId, userId, updates) {
         enabled: "enabled",
         matchContainers: "match_containers",
         matchImages: "match_images",
-        matchInstances: "match_instances",
+        matchSources: "match_sources",
         matchStacks: "match_stacks",
         matchRegistries: "match_registries",
         excludeContainers: "exclude_containers",
@@ -458,7 +458,7 @@ function parseIntentRow(row) {
     dry_run: row.dry_run === 1,
     match_containers: safeParseJson(row.match_containers),
     match_images: safeParseJson(row.match_images),
-    match_instances: safeParseJson(row.match_instances),
+    match_sources: safeParseJson(row.match_sources),
     match_stacks: safeParseJson(row.match_stacks),
     match_registries: safeParseJson(row.match_registries),
     exclude_containers: safeParseJson(row.exclude_containers),

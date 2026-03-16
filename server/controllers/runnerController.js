@@ -9,9 +9,13 @@ const os = require("os");
 const {
   getAllRunners,
   getRunnerById,
+  getRunnerByName,
   getRunnerByNameAndUser,
+  getRunnerByApiKey,
   createRunner,
   updateRunner,
+  updateRunnerUrl,
+  updateRunnerApiKey,
   deleteRunner,
   updateRunnerVersion,
 } = require("../db/runners");
@@ -37,6 +41,7 @@ const {
   triggerRunnerUninstall,
 } = require("../services/runnerService");
 const githubService = require("../services/githubService");
+const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
 const logger = require("../utils/logger");
 
 const DOCKHAND_GITHUB_REPO = "dockedapp/dockhand";
@@ -547,7 +552,7 @@ async function registerRunner(req, res, next) {
       runnerId = await createRunner({
         userId: result.userId,
         name: name.trim(),
-        url: canonicalUrl.replace(/\/$/, ""),
+        url: canonicalUrl.endsWith("/") ? canonicalUrl.slice(0, -1) : canonicalUrl,
         apiKey,
       });
     } catch (createErr) {
@@ -1054,6 +1059,141 @@ async function getEnrollmentStatus(req, res, next) {
   }
 }
 
+/**
+ * POST /api/runners/heartbeat  (unauthenticated)
+ * Called periodically by dockhand to report its current URL, version, and
+ * docker status. Authenticates via the runner's API key in the request body.
+ * If the runner's URL has changed (e.g. after a container restart that
+ * assigned a new IP), the stored URL is updated automatically.
+ */
+async function heartbeatRunner(req, res, next) {
+  try {
+    const { apiKey, url, version, name, dockerOk } = req.body;
+
+    if (!apiKey || !url) {
+      return res.status(400).json({
+        success: false,
+        error: "apiKey and url are required",
+      });
+    }
+
+    // Look up the runner by its API key
+    const runner = await getRunnerByApiKey(apiKey);
+    if (!runner) {
+      return res.status(401).json({
+        success: false,
+        error: "unknown",
+      });
+    }
+
+    let canonicalUrl = String(url);
+    while (canonicalUrl.endsWith("/")) {
+      canonicalUrl = canonicalUrl.slice(0, -1);
+    }
+    const urlChanged = runner.url !== canonicalUrl;
+
+    // Update URL if it changed
+    if (urlChanged) {
+      logger.info(
+        `Runner "${runner.name}" (id=${runner.id}) URL changed: ${runner.url} → ${canonicalUrl}`,
+        { module: "runnerController" }
+      );
+      await updateRunnerUrl(runner.id, canonicalUrl);
+      // Reset version poller backoff so it immediately retries with the new URL
+      resetRunnerBackoff(runner.id);
+    }
+
+    // Fire-and-forget: update version info if provided
+    if (version) {
+      githubService
+        .getLatestRelease(DOCKHAND_GITHUB_REPO)
+        .then((latestRelease) =>
+          updateRunnerVersion(
+            runner.id,
+            runner.user_id,
+            version,
+            latestRelease?.tag_name ?? null,
+            dockerOk !== undefined ? dockerOk : null
+          )
+        )
+        .catch((err) => logger.warn(`heartbeat version persist failed: ${err.message}`));
+    }
+
+    return res.json({
+      success: true,
+      runnerId: runner.id,
+      urlUpdated: urlChanged,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/runners/re-enroll  (unauthenticated, rate-limited)
+ *
+ * Allows a dockhand runner to re-register itself when its API key has become
+ * stale (e.g. the Docked DB was rebuilt but the runner still has its old key).
+ *
+ * The runner identifies itself by name. If a runner with that name exists,
+ * its API key and URL are updated. No enrollment token is required — the
+ * rationale is that re-enrollment only updates an *existing* runner record
+ * (it cannot create new ones) and the endpoint is rate-limited.
+ *
+ * Request body: { name, url, apiKey }
+ * Response:     { success, runnerId }
+ */
+async function reEnrollRunner(req, res, next) {
+  try {
+    const { name, url, apiKey } = req.body;
+
+    if (!name || !url || !apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: "name, url, and apiKey are required",
+      });
+    }
+
+    // Validate URL format
+    let canonicalUrl;
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return res.status(400).json({ success: false, error: "URL must use http:// or https://" });
+      }
+      canonicalUrl = parsed.toString();
+      while (canonicalUrl.endsWith("/")) {
+        canonicalUrl = canonicalUrl.slice(0, -1);
+      }
+    } catch {
+      return res.status(400).json({ success: false, error: "Invalid URL format" });
+    }
+
+    // Find existing runner by name
+    const runner = await getRunnerByName(name);
+    if (!runner) {
+      return res.status(404).json({
+        success: false,
+        error: "No runner with that name exists. Use the enrollment flow to register a new runner.",
+      });
+    }
+
+    // Update the runner's API key and URL
+    await updateRunnerApiKey(runner.id, apiKey, canonicalUrl);
+
+    logger.info(`Runner "${name}" (id=${runner.id}) re-enrolled with new API key`, {
+      module: "runnerController",
+    });
+
+    return res.status(200).json({
+      success: true,
+      runnerId: runner.id,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getRunners,
   getRunner,
@@ -1074,6 +1214,8 @@ module.exports = {
   getEnrollmentStatus,
   serveInstallScript,
   registerRunner,
+  heartbeatRunner,
+  reEnrollRunner,
   updateRunnerBinary,
   uninstallRunnerHandler,
 };

@@ -7,10 +7,9 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import PropTypes from "prop-types";
 import axios from "axios";
 import cronstrue from "cronstrue";
-import { Plus, X, Box, LaptopMinimalCheck, Layers, Globe, Zap, Clock } from "lucide-react";
+import { Plus, X, Box, LaptopMinimalCheck, Layers, Globe, Zap, Clock, Server } from "lucide-react";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
-import PortainerIcon from "../icons/PortainerIcon";
 import { API_BASE_URL } from "../../constants/api";
 import {
   SCHEDULE_TYPES,
@@ -29,7 +28,7 @@ const MATCH_TYPE_ICONS = {
   [MATCH_TYPES.CONTAINERS]: Box,
   [MATCH_TYPES.IMAGES]: LaptopMinimalCheck,
   [MATCH_TYPES.STACKS]: Layers,
-  [MATCH_TYPES.INSTANCES]: PortainerIcon,
+  [MATCH_TYPES.SOURCES]: Server,
   [MATCH_TYPES.REGISTRIES]: Globe,
 };
 
@@ -72,8 +71,8 @@ function useExcludeSuggestions(containers, matchType, matchValues, allSuggestion
             return fieldMatchesValue(c.image || "", val);
           case MATCH_TYPES.STACKS:
             return fieldMatchesValue(c.stackName || "", val);
-          case MATCH_TYPES.INSTANCES:
-            return fieldMatchesValue(c.portainerName || "", val);
+          case MATCH_TYPES.SOURCES:
+            return fieldMatchesValue(c.sourceName || c.portainerName || "", val);
           case MATCH_TYPES.REGISTRIES: {
             const parts = (c.image || "").split("/");
             const registry = parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
@@ -104,15 +103,15 @@ function useExcludeSuggestions(containers, matchType, matchValues, allSuggestion
 }
 
 /**
- * Build suggestion lists for each match type from container/instance data
+ * Build suggestion lists for each match type from container/instance/runner data
  */
-function useSuggestions(containers, portainerInstances) {
+function useSuggestions(containers, sourceInstances, runners) {
   return useMemo(() => {
     const containerNames = new Set();
     const imagePatterns = new Set();
     const stackNames = new Set();
     const registries = new Set();
-    const instanceNames = new Set();
+    const sourceNames = new Set();
 
     if (containers && containers.length > 0) {
       for (const c of containers) {
@@ -128,9 +127,15 @@ function useSuggestions(containers, portainerInstances) {
       }
     }
 
-    if (portainerInstances && portainerInstances.length > 0) {
-      for (const inst of portainerInstances) {
-        if (inst.name) instanceNames.add(inst.name);
+    if (sourceInstances && sourceInstances.length > 0) {
+      for (const inst of sourceInstances) {
+        if (inst.name) sourceNames.add(inst.name);
+      }
+    }
+
+    if (runners && runners.length > 0) {
+      for (const r of runners) {
+        if (r.name) sourceNames.add(r.name);
       }
     }
 
@@ -139,28 +144,39 @@ function useSuggestions(containers, portainerInstances) {
       [MATCH_TYPES.IMAGES]: [...imagePatterns].sort(),
       [MATCH_TYPES.STACKS]: [...stackNames].sort(),
       [MATCH_TYPES.REGISTRIES]: [...registries].sort(),
-      [MATCH_TYPES.INSTANCES]: [...instanceNames].sort(),
+      [MATCH_TYPES.SOURCES]: [...sourceNames].sort(),
     };
-  }, [containers, portainerInstances]);
+  }, [containers, sourceInstances, runners]);
 }
 
 /**
- * Build a name↔ID map for portainer instances
+ * Build a name↔typed-ID map for all sources (portainer instances + runners).
+ * Typed IDs have the form "portainer:5" or "runner:3".
  */
-function usePortainerNameIdMap(portainerInstances) {
+function useSourceNameIdMap(sourceInstances, runners) {
   return useMemo(() => {
     const nameToId = new Map();
     const idToName = new Map();
-    if (portainerInstances && portainerInstances.length > 0) {
-      for (const inst of portainerInstances) {
+    if (sourceInstances && sourceInstances.length > 0) {
+      for (const inst of sourceInstances) {
         if (inst.name && inst.id != null) {
-          nameToId.set(inst.name, String(inst.id));
-          idToName.set(String(inst.id), inst.name);
+          const typedId = `portainer:${inst.id}`;
+          nameToId.set(inst.name, typedId);
+          idToName.set(typedId, inst.name);
+        }
+      }
+    }
+    if (runners && runners.length > 0) {
+      for (const r of runners) {
+        if (r.name && r.id != null) {
+          const typedId = `runner:${r.id}`;
+          nameToId.set(r.name, typedId);
+          idToName.set(typedId, r.name);
         }
       }
     }
     return { nameToId, idToName };
-  }, [portainerInstances]);
+  }, [sourceInstances, runners]);
 }
 
 /**
@@ -171,7 +187,7 @@ function detectMatchType(initialData) {
   if (initialData?.matchImages?.length > 0) return MATCH_TYPES.IMAGES;
   if (initialData?.matchStacks?.length > 0) return MATCH_TYPES.STACKS;
   if (initialData?.matchRegistries?.length > 0) return MATCH_TYPES.REGISTRIES;
-  if (initialData?.matchInstances?.length > 0) return MATCH_TYPES.INSTANCES;
+  if (initialData?.matchSources?.length > 0) return MATCH_TYPES.SOURCES;
   return MATCH_TYPES.CONTAINERS;
 }
 
@@ -185,11 +201,11 @@ function getMatchValues(initialData, matchType, idToName) {
     [MATCH_TYPES.IMAGES]: initialData.matchImages,
     [MATCH_TYPES.STACKS]: initialData.matchStacks,
     [MATCH_TYPES.REGISTRIES]: initialData.matchRegistries,
-    [MATCH_TYPES.INSTANCES]: initialData.matchInstances,
+    [MATCH_TYPES.SOURCES]: initialData.matchSources,
   };
   const values = fieldMap[matchType] || [];
-  // Convert portainer instance IDs to names for display
-  if (matchType === MATCH_TYPES.INSTANCES) {
+  // Convert typed source IDs to names for display
+  if (matchType === MATCH_TYPES.SOURCES) {
     return values.map((id) => idToName.get(String(id)) || String(id));
   }
   return values;
@@ -503,11 +519,12 @@ const IntentForm = React.memo(function IntentForm({
   onCancel,
   isSubmitting,
   containers = [],
-  portainerInstances = [],
+  sourceInstances = [],
+  runners = [],
 }) {
   const isEditing = !!initialData?.id;
-  const { nameToId, idToName } = usePortainerNameIdMap(portainerInstances);
-  const suggestions = useSuggestions(containers, portainerInstances);
+  const { nameToId, idToName } = useSourceNameIdMap(sourceInstances, runners);
+  const suggestions = useSuggestions(containers, sourceInstances, runners);
 
   const [formData, setFormData] = useState(() => {
     if (initialData) {
@@ -642,8 +659,8 @@ const IntentForm = React.memo(function IntentForm({
       // into the correct server field, leaving the others empty
       let matchValues = formData.matchValues;
 
-      // Convert portainer instance names back to IDs for the server
-      if (formData.matchType === MATCH_TYPES.INSTANCES) {
+      // Convert source names back to typed IDs for the server
+      if (formData.matchType === MATCH_TYPES.SOURCES) {
         matchValues = matchValues.map((name) => {
           const id = nameToId.get(name);
           return id || name;
@@ -657,7 +674,7 @@ const IntentForm = React.memo(function IntentForm({
         matchImages: formData.matchType === MATCH_TYPES.IMAGES ? matchValues : [],
         matchStacks: formData.matchType === MATCH_TYPES.STACKS ? matchValues : [],
         matchRegistries: formData.matchType === MATCH_TYPES.REGISTRIES ? matchValues : [],
-        matchInstances: formData.matchType === MATCH_TYPES.INSTANCES ? matchValues : [],
+        matchSources: formData.matchType === MATCH_TYPES.SOURCES ? matchValues : [],
         // Always include blocked container names in excludeContainers (merged with user-set values)
         excludeContainers: [
           ...new Set([
@@ -847,7 +864,8 @@ IntentForm.propTypes = {
   onCancel: PropTypes.func.isRequired,
   isSubmitting: PropTypes.bool,
   containers: PropTypes.array,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
+  runners: PropTypes.array,
 };
 
 export default IntentForm;

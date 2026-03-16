@@ -73,8 +73,8 @@ function IntentCard({ intent, onToggle, onExecute, onDryRun, onViewHistory, onVi
   if (intent.matchImages?.length) {
     matchSummary.push(`${intent.matchImages.length} image pattern(s)`);
   }
-  if (intent.matchInstances?.length) {
-    matchSummary.push(`${intent.matchInstances.length} instance(s)`);
+  if (intent.matchSources?.length) {
+    matchSummary.push(`${intent.matchSources.length} source(s)`);
   }
   if (intent.matchStacks?.length) {
     matchSummary.push(`${intent.matchStacks.length} stack pattern(s)`);
@@ -236,7 +236,7 @@ IntentCard.propTypes = {
     enabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.number]),
     matchContainers: PropTypes.array,
     matchImages: PropTypes.array,
-    matchInstances: PropTypes.array,
+    matchSources: PropTypes.array,
     matchStacks: PropTypes.array,
     matchRegistries: PropTypes.array,
     excludeContainers: PropTypes.array,

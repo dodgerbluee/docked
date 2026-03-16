@@ -27,11 +27,11 @@ export const SETTINGS_TAB_LABELS = {
   [SETTINGS_TABS.PORTAINER]: "Containers", // Legacy label
   [SETTINGS_TABS.RUNNERS]: "Runners", // Legacy label
   [SETTINGS_TABS.SOURCES]: "Sources",
-  [SETTINGS_TABS.TRACKED_APPS]: "Apps",
+  [SETTINGS_TABS.TRACKED_APPS]: "Repos",
   // Docker Hub tab removed
   [SETTINGS_TABS.DISCORD]: "Notifications",
   [SETTINGS_TABS.USER_DETAILS]: "User",
-  [SETTINGS_TABS.REPOSITORIES]: "Repositories",
+  [SETTINGS_TABS.REPOSITORIES]: "Registry Access",
   [SETTINGS_TABS.LOGS]: "Logs",
   [SETTINGS_TABS.DATA]: "Data",
 };

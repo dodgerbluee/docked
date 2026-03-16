@@ -44,10 +44,10 @@ const MobileNavigation = ({
         </button>
 
         <button
-          className={`${styles.navItem} ${activeTab === TAB_NAMES.PORTAINER ? styles.active : ""}`}
-          onClick={() => handleTabChange(TAB_NAMES.PORTAINER)}
+          className={`${styles.navItem} ${activeTab === TAB_NAMES.CONTAINERS ? styles.active : ""}`}
+          onClick={() => handleTabChange(TAB_NAMES.CONTAINERS)}
           aria-label={`Containers${containersWithUpdates.length > 0 ? `, ${containersWithUpdates.length} updates` : ""}`}
-          aria-current={activeTab === TAB_NAMES.PORTAINER ? "page" : undefined}
+          aria-current={activeTab === TAB_NAMES.CONTAINERS ? "page" : undefined}
         >
           <Layers size={20} aria-hidden="true" />
           <span className={styles.navLabel}>Containers</span>
@@ -109,7 +109,7 @@ const MobileNavigation = ({
 MobileNavigation.propTypes = {
   activeTab: PropTypes.oneOf([
     TAB_NAMES.SUMMARY,
-    TAB_NAMES.PORTAINER,
+    TAB_NAMES.CONTAINERS,
     TAB_NAMES.APPS,
     TAB_NAMES.TRACKED_APPS,
     TAB_NAMES.INTENTS,

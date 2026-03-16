@@ -10,8 +10,8 @@
  *     description: Docker container management
  *   - name: Images
  *     description: Docker image management
- *   - name: Portainer
- *     description: Portainer instance management
+ *   - name: Sources
+ *     description: Source instance management
  *   - name: Tracked Apps
  *     description: Tracked application management
  *   - name: Discord
@@ -36,7 +36,7 @@ const containerController = require("../controllers/containerController");
 const containerDebugController = require("../controllers/containerDebugController");
 const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
-const portainerController = require("../controllers/portainerController");
+const sourceController = require("../controllers/sourceController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedAppController = require("../controllers/trackedImageController");
@@ -167,8 +167,8 @@ function appendRunnerContainers(req, res, next) {
       return originalJson(data);
     }
 
-    // Skip runner requests when client only needs Portainer containers
-    if (req.query.portainerOnly === "true") {
+    // Skip runner requests when client only needs Portainer/source containers
+    if (req.query.portainerOnly === "true" || req.query.sourceOnly === "true") {
       return originalJson(data);
     }
 
@@ -447,7 +447,12 @@ router.get("/auth/verify", asyncHandler(authController.verifyToken));
 router.post(
   "/portainer/instances/validate",
   publicLimiter,
-  asyncHandler(portainerController.validateInstance)
+  asyncHandler(sourceController.validateInstance)
+);
+router.post(
+  "/sources/instances/validate",
+  publicLimiter,
+  asyncHandler(sourceController.validateInstance)
 );
 router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
 
@@ -458,6 +463,8 @@ router.get(
   asyncHandler(runnerController.serveInstallScript)
 );
 router.post("/runners/register", publicLimiter, asyncHandler(runnerController.registerRunner));
+router.post("/runners/heartbeat", publicLimiter, asyncHandler(runnerController.heartbeatRunner));
+router.post("/runners/re-enroll", publicLimiter, asyncHandler(runnerController.reEnrollRunner));
 
 // Protected routes - require authentication
 // All routes below this line require authentication
@@ -880,13 +887,13 @@ router.get(
   asyncHandler(containerController.getUpgradeHistoryById)
 );
 
-// Portainer instance routes
+// Portainer instance routes (legacy - kept for backward compatibility)
 /**
  * @swagger
  * /portainer/instances:
  *   get:
- *     summary: Get all Portainer instances for current user
- *     tags: [Portainer]
+ *     summary: Get all Portainer instances for current user (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -913,8 +920,8 @@ router.get(
  *       401:
  *         description: Unauthorized
  *   post:
- *     summary: Create a new Portainer instance
- *     tags: [Portainer]
+ *     summary: Create a new Portainer instance (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -950,15 +957,15 @@ router.get(
  *       401:
  *         description: Unauthorized
  */
-router.get("/portainer/instances", asyncHandler(portainerController.getInstances));
-router.post("/portainer/instances", writeLimiter, asyncHandler(portainerController.createInstance));
+router.get("/portainer/instances", asyncHandler(sourceController.getInstances));
+router.post("/portainer/instances", writeLimiter, asyncHandler(sourceController.createInstance));
 
 /**
  * @swagger
  * /portainer/instances/{id}:
  *   get:
- *     summary: Get a specific Portainer instance
- *     tags: [Portainer]
+ *     summary: Get a specific Portainer instance (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -976,8 +983,8 @@ router.post("/portainer/instances", writeLimiter, asyncHandler(portainerControll
  *       404:
  *         description: Instance not found
  *   put:
- *     summary: Update a Portainer instance
- *     tags: [Portainer]
+ *     summary: Update a Portainer instance (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1016,8 +1023,8 @@ router.post("/portainer/instances", writeLimiter, asyncHandler(portainerControll
  *       404:
  *         description: Instance not found
  *   delete:
- *     summary: Delete a Portainer instance
- *     tags: [Portainer]
+ *     summary: Delete a Portainer instance (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1034,28 +1041,21 @@ router.post("/portainer/instances", writeLimiter, asyncHandler(portainerControll
  *       404:
  *         description: Instance not found
  */
-router.get("/portainer/instances/:id", asyncHandler(portainerController.getInstance));
-router.put(
-  "/portainer/instances/:id",
-  writeLimiter,
-  asyncHandler(portainerController.updateInstance)
-);
+router.get("/portainer/instances/:id", asyncHandler(sourceController.getInstance));
+router.put("/portainer/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
 router.delete(
   "/portainer/instances/:id",
   destructiveLimiter,
-  asyncHandler(portainerController.deleteInstance)
+  asyncHandler(sourceController.deleteInstance)
 );
-router.post(
-  "/portainer/instances/:id/health",
-  asyncHandler(portainerController.healthCheckInstance)
-);
+router.post("/portainer/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
 
 /**
  * @swagger
  * /portainer/instances/reorder:
  *   post:
- *     summary: Update the display order of Portainer instances
- *     tags: [Portainer]
+ *     summary: Update the display order of Portainer instances (legacy)
+ *     tags: [Sources]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -1080,7 +1080,46 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post("/portainer/instances/reorder", asyncHandler(portainerController.updateInstanceOrder));
+router.post("/portainer/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
+
+// Source instance routes (new canonical paths)
+/**
+ * @swagger
+ * /sources/instances:
+ *   get:
+ *     summary: Get all source instances for current user
+ *     tags: [Sources]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of source instances
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     summary: Create a new source instance
+ *     tags: [Sources]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Source instance created
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/sources/instances", asyncHandler(sourceController.getInstances));
+router.post("/sources/instances", writeLimiter, asyncHandler(sourceController.createInstance));
+router.get("/sources/instances/:id", asyncHandler(sourceController.getInstance));
+router.put("/sources/instances/:id", writeLimiter, asyncHandler(sourceController.updateInstance));
+router.delete(
+  "/sources/instances/:id",
+  destructiveLimiter,
+  asyncHandler(sourceController.deleteInstance)
+);
+router.post("/sources/instances/:id/health", asyncHandler(sourceController.healthCheckInstance));
+router.post("/sources/instances/reorder", asyncHandler(sourceController.updateInstanceOrder));
 
 // Avatar routes
 router.get("/avatars", avatarLimiter, asyncHandler(avatarController.getAvatar));

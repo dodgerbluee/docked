@@ -1,5 +1,5 @@
 import { useUserSettings } from "./useUserSettings";
-import { usePortainerSettings } from "./usePortainerSettings";
+import { useSourceSettings } from "./useSourceSettings";
 import { useDockerHubSettings } from "./useDockerHubSettings";
 import { useDiscordSettings } from "./useDiscordSettings";
 import { useGeneralSettings } from "./useGeneralSettings";
@@ -12,7 +12,7 @@ export function useSettings({
   username,
   onUsernameUpdate,
   onPasswordUpdateSuccess,
-  onPortainerInstancesChange,
+  onSourceInstancesChange,
   onAvatarChange,
   onBatchConfigUpdate,
   colorScheme = "system",
@@ -26,8 +26,8 @@ export function useSettings({
     onPasswordUpdateSuccess,
   });
 
-  const portainerSettings = usePortainerSettings({
-    onPortainerInstancesChange,
+  const sourceSettings = useSourceSettings({
+    onSourceInstancesChange,
     refreshInstances,
     activeSection,
   });
@@ -46,8 +46,8 @@ export function useSettings({
     // User settings
     ...userSettings,
 
-    // Portainer settings
-    ...portainerSettings,
+    // Source settings
+    ...sourceSettings,
 
     // Docker Hub settings
     ...dockerHubSettings,

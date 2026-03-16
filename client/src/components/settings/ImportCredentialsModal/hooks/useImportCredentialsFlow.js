@@ -24,23 +24,22 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
   const [skippedSteps, setSkippedSteps] = useState(new Set());
 
   // Determine what credentials are needed
-  const needsPortainerCreds =
-    configData?.portainerInstances && configData.portainerInstances.length > 0;
+  const needsSourceCreds = configData?.sourceInstances && configData.sourceInstances.length > 0;
   const needsDiscordCreds = configData?.discordWebhooks && configData.discordWebhooks.length > 0;
 
   const steps = useMemo(() => {
     const stepArray = [];
-    if (needsPortainerCreds) stepArray.push("portainer");
+    if (needsSourceCreds) stepArray.push("sources");
     if (needsDiscordCreds) stepArray.push("discord");
     return stepArray;
-  }, [needsPortainerCreds, needsDiscordCreds]);
+  }, [needsSourceCreds, needsDiscordCreds]);
 
   useEffect(() => {
     if (isOpen) {
       // Initialize credentials structure
       const initCreds = {};
-      if (needsPortainerCreds) {
-        initCreds.portainerInstances = configData.portainerInstances.map((instance) => ({
+      if (needsSourceCreds) {
+        initCreds.sourceInstances = configData.sourceInstances.map((instance) => ({
           url: instance.url,
           name: instance.name,
           auth_type: instance.auth_type || "apikey",
@@ -62,7 +61,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
       setSkippedSteps(new Set());
       setValidationError("");
     }
-  }, [isOpen, configData, needsPortainerCreds, needsDiscordCreds]);
+  }, [isOpen, configData, needsSourceCreds, needsDiscordCreds]);
 
   const validateStepCredentials = useCallback(
     (step) => {
@@ -73,13 +72,13 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     [credentials]
   );
 
-  const validatePortainerCredentials = useCallback(async () => {
-    if (!credentials.portainerInstances || credentials.portainerInstances.length === 0) {
+  const validateSourceCredentials = useCallback(async () => {
+    if (!credentials.sourceInstances || credentials.sourceInstances.length === 0) {
       return { success: true };
     }
 
-    const validationPromises = credentials.portainerInstances.map(async (cred, index) => {
-      const instance = configData.portainerInstances[index];
+    const validationPromises = credentials.sourceInstances.map(async (cred, index) => {
+      const instance = configData.sourceInstances[index];
       const validateData = {
         url: instance.url,
         authType: cred.auth_type,
@@ -112,11 +111,11 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     if (failed) {
       return {
         success: false,
-        error: `Portainer instance "${configData.portainerInstances[failed.index].name}": ${failed.error}`,
+        error: `Source instance "${configData.sourceInstances[failed.index].name}": ${failed.error}`,
       };
     }
     return { success: true };
-  }, [credentials.portainerInstances, configData]);
+  }, [credentials.sourceInstances, configData]);
 
   const validateDiscordWebhooks = useCallback(async () => {
     if (!credentials.discordWebhooks || credentials.discordWebhooks.length === 0) {
@@ -169,8 +168,8 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
 
     try {
       let validationResult;
-      if (currentStepName === "portainer") {
-        validationResult = await validatePortainerCredentials();
+      if (currentStepName === "sources") {
+        validationResult = await validateSourceCredentials();
       } else if (currentStepName === "discord") {
         validationResult = await validateDiscordWebhooks();
       } else {
@@ -196,7 +195,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     currentStep,
     steps,
     validateStepCredentials,
-    validatePortainerCredentials,
+    validateSourceCredentials,
     validateDiscordWebhooks,
     credentials,
     skippedSteps,
@@ -250,8 +249,8 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
 
         try {
           let validationResult;
-          if (currentStepName === "portainer") {
-            validationResult = await validatePortainerCredentials();
+          if (currentStepName === "sources") {
+            validationResult = await validateSourceCredentials();
           } else if (currentStepName === "discord") {
             validationResult = await validateDiscordWebhooks();
           } else {
@@ -281,24 +280,24 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     steps,
     skippedSteps,
     validateStepCredentials,
-    validatePortainerCredentials,
+    validateSourceCredentials,
     validateDiscordWebhooks,
     credentials,
     onConfirm,
   ]);
 
-  const handleUpdatePortainerCred = useCallback((index, field, value) => {
+  const handleUpdateSourceCred = useCallback((index, field, value) => {
     setCredentials((prev) => {
       const updated = { ...prev };
-      updated.portainerInstances = [...(updated.portainerInstances || [])];
-      updated.portainerInstances[index] = {
-        ...updated.portainerInstances[index],
+      updated.sourceInstances = [...(updated.sourceInstances || [])];
+      updated.sourceInstances[index] = {
+        ...updated.sourceInstances[index],
         [field]: value,
       };
       return updated;
     });
     // Clear error for this field
-    const errorKey = `portainer_${index}_${field}`;
+    const errorKey = `source_${index}_${field}`;
     setErrors((prev) => {
       if (prev[errorKey]) {
         const updated = { ...prev };
@@ -343,7 +342,7 @@ export const useImportCredentialsFlow = (isOpen, configData, onConfirm) => {
     handleBack,
     handleUnskip,
     handleConfirm,
-    handleUpdatePortainerCred,
+    handleUpdateSourceCred,
     handleUpdateDiscordCred,
   };
 };

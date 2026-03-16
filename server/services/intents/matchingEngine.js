@@ -5,7 +5,7 @@
  * should be upgraded. Supports:
  * - Glob patterns for container names (matchContainers)
  * - Glob patterns for images (matchImages), stacks (matchStacks), registries (matchRegistries)
- * - ID match for Portainer instances (matchInstances)
+ * - Typed source IDs for sources (matchSources) — e.g. "portainer:5", "runner:3"
  * - Exclusion glob patterns for containers (excludeContainers), images (excludeImages),
  *   stacks (excludeStacks), registries (excludeRegistries)
  *
@@ -14,7 +14,11 @@
  */
 
 const logger = require("../../utils/logger");
-const { getPortainerContainersWithUpdates, getAllPortainerInstances } = require("../../db/index");
+const {
+  getContainersWithUpdates,
+  getAllSourceInstances,
+  getAllRunners,
+} = require("../../db/index");
 
 /**
  * Convert a simple glob pattern to a RegExp.
@@ -61,7 +65,7 @@ function matchesAnyName(containerName, names) {
  * the container must match at least one pattern in EACH specified criterion.
  * An unset/empty criterion is ignored (treated as "match all" for that dimension).
  *
- * @param {Object} container - Container from getPortainerContainersWithUpdates
+ * @param {Object} container - Container from getContainersWithUpdates
  * @param {Object} intent - Intent object (parsed from DB, snake_case fields with JSON arrays parsed)
  * @returns {boolean}
  */
@@ -69,7 +73,7 @@ function matchesAnyName(containerName, names) {
 function containerMatchesIntent(container, intent) {
   const matchContainers = intent.match_containers;
   const matchImages = intent.match_images;
-  const matchInstances = intent.match_instances;
+  const matchSources = intent.match_sources;
   const matchStacks = intent.match_stacks;
   const matchRegistries = intent.match_registries;
   const excludeContainers = intent.exclude_containers;
@@ -91,10 +95,15 @@ function containerMatchesIntent(container, intent) {
     }
   }
 
-  // Check Portainer instance IDs
-  if (matchInstances && matchInstances.length > 0) {
-    const instanceIds = matchInstances.map(Number);
-    if (!instanceIds.includes(container.portainerInstanceId)) {
+  // Check source IDs (typed: "portainer:5", "runner:3")
+  if (matchSources && matchSources.length > 0) {
+    const containerSourceKey = container.sourceInstanceId
+      ? `portainer:${container.sourceInstanceId}`
+      : container.runnerId
+        ? `runner:${container.runnerId}`
+        : null;
+
+    if (!containerSourceKey || !matchSources.includes(containerSourceKey)) {
       return false;
     }
   }
@@ -148,18 +157,27 @@ function containerMatchesIntent(container, intent) {
  * @param {Object} intent - Intent object (parsed from DB)
  * @param {number} userId - User ID
  * @param {boolean} [requireUpdate=true] - If true, only include containers with available updates
- * @returns {Promise<Array<Object>>} - Matched containers, each enriched with portainerUrl
+ * @returns {Promise<Array<Object>>} - Matched containers, each enriched with portainerUrl or runnerId/runnerUrl
  */
 async function findMatchingContainers(intent, userId, requireUpdate = true) {
   try {
-    // Fetch all containers with update info (no portainerUrl filter = all instances)
-    const allContainers = await getPortainerContainersWithUpdates(userId);
+    // Fetch all containers with update info (no URL filter = all instances)
+    const allContainers = await getContainersWithUpdates(userId);
 
-    // Build a map of portainerInstanceId -> portainerUrl for enrichment
-    const instances = await getAllPortainerInstances(userId);
-    const instanceUrlMap = new Map();
-    for (const inst of instances) {
-      instanceUrlMap.set(inst.id, inst.url);
+    // Build maps for both source instances and runners
+    const [sourceInstances, runners] = await Promise.all([
+      getAllSourceInstances(userId),
+      getAllRunners(userId),
+    ]);
+
+    const sourceInstanceUrlMap = new Map();
+    for (const inst of sourceInstances) {
+      sourceInstanceUrlMap.set(inst.id, inst.url);
+    }
+
+    const runnerMap = new Map();
+    for (const runner of runners) {
+      runnerMap.set(runner.id, { url: runner.url, apiKey: runner.api_key });
     }
 
     // Filter: must match intent criteria (and optionally have update available)
@@ -173,23 +191,45 @@ async function findMatchingContainers(intent, userId, requireUpdate = true) {
         continue;
       }
 
-      // Enrich with portainerUrl (required by upgradeSingleContainer)
-      const portainerUrl = instanceUrlMap.get(container.portainerInstanceId);
-      if (!portainerUrl) {
-        logger.warn("Skipping container with unknown portainer instance", {
+      // Enrich with backend URL (required by upgradeSingleContainer)
+      if (container.sourceInstanceId) {
+        const portainerUrl = sourceInstanceUrlMap.get(container.sourceInstanceId);
+        if (!portainerUrl) {
+          logger.warn("Skipping container with unknown source instance", {
+            containerId: container.containerId,
+            containerName: container.containerName,
+            sourceInstanceId: container.sourceInstanceId,
+          });
+          continue;
+        }
+        matched.push({
+          ...container,
+          portainerUrl,
+          registry: container.registry || null,
+        });
+      } else if (container.runnerId) {
+        const runner = runnerMap.get(container.runnerId);
+        if (!runner) {
+          logger.warn("Skipping container with unknown runner", {
+            containerId: container.containerId,
+            containerName: container.containerName,
+            runnerId: container.runnerId,
+          });
+          continue;
+        }
+        matched.push({
+          ...container,
+          portainerUrl: null,
+          runnerUrl: runner.url,
+          registry: container.registry || null,
+        });
+      } else {
+        logger.warn("Skipping container with no source instance or runner", {
           containerId: container.containerId,
           containerName: container.containerName,
-          portainerInstanceId: container.portainerInstanceId,
         });
         continue;
       }
-
-      matched.push({
-        ...container,
-        portainerUrl,
-        // Also include registry from the join (may already be on container via deployed_images)
-        registry: container.registry || null,
-      });
     }
 
     logger.info(`Intent matching complete`, {

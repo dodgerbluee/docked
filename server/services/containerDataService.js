@@ -8,7 +8,7 @@
 const logger = require("../utils/logger");
 const portainerService = require("./portainerService");
 const containerFormattingService = require("./containerFormattingService");
-const { getAllPortainerInstances } = require("../db/index");
+const { getAllSourceInstances } = require("../db/index");
 
 /**
  * Count unused images from a Portainer instance
@@ -61,7 +61,7 @@ async function countUnusedImages(portainerUrl, endpointId) {
  * @param {Array<Object>} allContainers - New containers from filtered instance
  * @param {Array<Object>} existingContainers - Existing containers from database
  * @param {number} userId - User ID
- * @param {string} filterPortainerUrl - Portainer URL being filtered
+ * @param {string} filterSourceUrl - Source URL being filtered
  * @param {Map<string, Object>} trackedAppsMap - Map of tracked apps (optional)
  * @returns {Promise<Array<Object>>} - Merged container array
  */
@@ -69,25 +69,25 @@ async function mergeContainerData(
   allContainers,
   existingContainers,
   userId,
-  filterPortainerUrl,
+  filterSourceUrl,
   trackedAppsMap = null
 ) {
-  if (!filterPortainerUrl || !existingContainers) {
+  if (!filterSourceUrl || !existingContainers) {
     return allContainers;
   }
 
-  // Get user instances to map portainerInstanceId to URL
-  const userInstances = await getAllPortainerInstances(userId);
+  // Get user instances to map sourceInstanceId to URL
+  const userInstances = await getAllSourceInstances(userId);
   const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
   const instanceUrlMap = new Map(userInstances.map((inst) => [inst.url, inst.id]));
-  const filteredInstanceId = instanceUrlMap.get(filterPortainerUrl);
+  const filteredInstanceId = instanceUrlMap.get(filterSourceUrl);
 
   // Remove containers from the filtered instance from existing data
   // Format existing containers to match allContainers structure
   const otherContainers = existingContainers
-    .filter((c) => c.portainerInstanceId !== filteredInstanceId)
+    .filter((c) => c.sourceInstanceId !== filteredInstanceId)
     .map((c) => {
-      const instance = instanceMap.get(c.portainerInstanceId);
+      const instance = instanceMap.get(c.sourceInstanceId);
       return containerFormattingService.formatContainerFromDatabase(c, instance, trackedAppsMap);
     });
 
@@ -96,27 +96,27 @@ async function mergeContainerData(
 }
 
 /**
- * Build Portainer instances array with container counts
+ * Build source instances array with container counts
  * @param {Array<Object>} allContainers - All containers
- * @param {Array<Object>} portainerInstances - Portainer instances
- * @returns {Array<Object>} - Portainer instances with container data
+ * @param {Array<Object>} sourceInstances - Source instances
+ * @returns {Array<Object>} - Source instances with container data
  */
-function buildPortainerInstancesArray(allContainers, portainerInstances) {
-  return portainerInstances.map((instance) => {
-    const portainerUrl = instance.url || instance;
+function buildSourceInstancesArray(allContainers, sourceInstances) {
+  return sourceInstances.map((instance) => {
+    const sourceUrl = instance.url || instance;
     const instanceName =
       instance.name ||
-      (typeof instance === "string" ? new URL(instance).hostname : new URL(portainerUrl).hostname);
+      (typeof instance === "string" ? new URL(instance).hostname : new URL(sourceUrl).hostname);
 
     // Get containers for this instance
-    const instanceContainers = allContainers.filter((c) => c.portainerUrl === portainerUrl);
+    const instanceContainers = allContainers.filter((c) => c.sourceUrl === sourceUrl);
     const withUpdates = instanceContainers.filter((c) => c.hasUpdate);
     const upToDate = instanceContainers.filter((c) => !c.hasUpdate);
 
     return {
       id: instance.id,
       name: instanceName,
-      url: portainerUrl,
+      url: sourceUrl,
       containers: instanceContainers,
       withUpdates,
       upToDate,
@@ -128,5 +128,5 @@ function buildPortainerInstancesArray(allContainers, portainerInstances) {
 module.exports = {
   countUnusedImages,
   mergeContainerData,
-  buildPortainerInstancesArray,
+  buildSourceInstancesArray,
 };

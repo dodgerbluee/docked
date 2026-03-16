@@ -61,10 +61,10 @@ export const useContainerClear = ({
           try {
             await fetchContainers(true, null, true);
           } catch (fetchError) {
-            console.error("Error fetching Portainer data:", fetchError);
+            console.error("Error fetching container data:", fetchError);
             setError(
               fetchError.response?.data?.error ||
-                "Failed to fetch Portainer data after clearing cache"
+                "Failed to fetch container data after clearing cache"
             );
           } finally {
             setClearingState(false);
@@ -74,10 +74,10 @@ export const useContainerClear = ({
           try {
             await fetchContainers(true, null, true);
           } catch (fetchError) {
-            console.error("Error fetching Portainer data:", fetchError);
+            console.error("Error fetching container data:", fetchError);
             setError(
               fetchError.response?.data?.error ||
-                "Failed to fetch Portainer data after clearing cache"
+                "Failed to fetch container data after clearing cache"
             );
           } finally {
             setClearingState(false);

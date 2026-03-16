@@ -60,14 +60,14 @@ export const hasDockerHubData = (containers) => {
 /**
  * Updates container state from pull response
  * Handles the complete state update including containers, stacks, unused images count,
- * Portainer instances, and Docker Hub data pulled flag
+ * source instances, and Docker Hub data pulled flag
  *
  * @param {Object} responseData - Response data from pull API
  * @param {Object} setters - Object containing state setters
  * @param {Function} setters.setContainers - Setter for containers state
  * @param {Function} setters.setStacks - Setter for stacks state
  * @param {Function} setters.setUnusedImagesCount - Setter for unused images count
- * @param {Function} setters.setPortainerInstancesFromAPI - Setter for Portainer instances (optional)
+ * @param {Function} setters.setSourceInstancesFromAPI - Setter for source instances (optional)
  * @param {Function} setters.setDockerHubDataPulled - Setter for Docker Hub data pulled flag
  * @param {Object} successfullyUpdatedContainersRef - Ref object tracking successfully updated containers
  *
@@ -87,7 +87,7 @@ export const updateStateFromPullResponse = (
     setContainers,
     setStacks,
     setUnusedImagesCount,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
   } = setters;
 
@@ -102,9 +102,9 @@ export const updateStateFromPullResponse = (
     setStacks(responseData.stacks || []);
     setUnusedImagesCount(responseData.unusedImagesCount || 0);
 
-    // Update portainerInstances from response
-    if (responseData.portainerInstances && setPortainerInstancesFromAPI) {
-      setPortainerInstancesFromAPI(responseData.portainerInstances);
+    // Update sourceInstances from response
+    if (responseData.portainerInstances && setSourceInstancesFromAPI) {
+      setSourceInstancesFromAPI(responseData.portainerInstances);
     }
 
     // Check if Docker Hub data is present
