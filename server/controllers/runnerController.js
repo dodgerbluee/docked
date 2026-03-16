@@ -552,7 +552,7 @@ async function registerRunner(req, res, next) {
       runnerId = await createRunner({
         userId: result.userId,
         name: name.trim(),
-        url: canonicalUrl.replace(/\/$/, ""),
+        url: canonicalUrl.endsWith("/") ? canonicalUrl.slice(0, -1) : canonicalUrl,
         apiKey,
       });
     } catch (createErr) {
@@ -1086,7 +1086,10 @@ async function heartbeatRunner(req, res, next) {
       });
     }
 
-    const canonicalUrl = url.replace(/\/+$/, "");
+    let canonicalUrl = String(url);
+    while (canonicalUrl.endsWith("/")) {
+      canonicalUrl = canonicalUrl.slice(0, -1);
+    }
     const urlChanged = runner.url !== canonicalUrl;
 
     // Update URL if it changed
@@ -1158,7 +1161,10 @@ async function reEnrollRunner(req, res, next) {
       if (!["http:", "https:"].includes(parsed.protocol)) {
         return res.status(400).json({ success: false, error: "URL must use http:// or https://" });
       }
-      canonicalUrl = parsed.toString().replace(/\/+$/, "");
+      canonicalUrl = parsed.toString();
+      while (canonicalUrl.endsWith("/")) {
+        canonicalUrl = canonicalUrl.slice(0, -1);
+      }
     } catch {
       return res.status(400).json({ success: false, error: "Invalid URL format" });
     }
