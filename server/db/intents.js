@@ -108,15 +108,15 @@ function createIntent(intentData) {
                   name,
                   description,
                   enabled ? 1 : 0,
-                  matchContainers ? JSON.stringify(matchContainers) : null,
-                  matchImages ? JSON.stringify(matchImages) : null,
-                  matchSources ? JSON.stringify(matchSources) : null,
-                  matchStacks ? JSON.stringify(matchStacks) : null,
-                  matchRegistries ? JSON.stringify(matchRegistries) : null,
-                  excludeContainers ? JSON.stringify(excludeContainers) : null,
-                  excludeImages ? JSON.stringify(excludeImages) : null,
-                  excludeStacks ? JSON.stringify(excludeStacks) : null,
-                  excludeRegistries ? JSON.stringify(excludeRegistries) : null,
+                  matchContainers?.length ? JSON.stringify(matchContainers) : null,
+                  matchImages?.length ? JSON.stringify(matchImages) : null,
+                  matchSources?.length ? JSON.stringify(matchSources) : null,
+                  matchStacks?.length ? JSON.stringify(matchStacks) : null,
+                  matchRegistries?.length ? JSON.stringify(matchRegistries) : null,
+                  excludeContainers?.length ? JSON.stringify(excludeContainers) : null,
+                  excludeImages?.length ? JSON.stringify(excludeImages) : null,
+                  excludeStacks?.length ? JSON.stringify(excludeStacks) : null,
+                  excludeRegistries?.length ? JSON.stringify(excludeRegistries) : null,
                   scheduleType,
                   scheduleCron,
                   maxConcurrent,
@@ -235,15 +235,15 @@ function updateIntent(intentId, userId, updates) {
         name: (v) => v,
         description: (v) => v,
         enabled: (v) => (v ? 1 : 0),
-        matchContainers: (v) => (v ? JSON.stringify(v) : null),
-        matchImages: (v) => (v ? JSON.stringify(v) : null),
-        matchSources: (v) => (v ? JSON.stringify(v) : null),
-        matchStacks: (v) => (v ? JSON.stringify(v) : null),
-        matchRegistries: (v) => (v ? JSON.stringify(v) : null),
-        excludeContainers: (v) => (v ? JSON.stringify(v) : null),
-        excludeImages: (v) => (v ? JSON.stringify(v) : null),
-        excludeStacks: (v) => (v ? JSON.stringify(v) : null),
-        excludeRegistries: (v) => (v ? JSON.stringify(v) : null),
+        matchContainers: (v) => (v?.length ? JSON.stringify(v) : null),
+        matchImages: (v) => (v?.length ? JSON.stringify(v) : null),
+        matchSources: (v) => (v?.length ? JSON.stringify(v) : null),
+        matchStacks: (v) => (v?.length ? JSON.stringify(v) : null),
+        matchRegistries: (v) => (v?.length ? JSON.stringify(v) : null),
+        excludeContainers: (v) => (v?.length ? JSON.stringify(v) : null),
+        excludeImages: (v) => (v?.length ? JSON.stringify(v) : null),
+        excludeStacks: (v) => (v?.length ? JSON.stringify(v) : null),
+        excludeRegistries: (v) => (v?.length ? JSON.stringify(v) : null),
         scheduleType: (v) => v,
         scheduleCron: (v) => v,
         maxConcurrent: (v) => v,
@@ -469,14 +469,18 @@ function parseIntentRow(row) {
 }
 
 /**
- * Safely parse a JSON string, returning null on failure
+ * Safely parse a JSON string, returning null on failure or if the result is an empty array.
+ * Empty arrays are normalized to null so match/exclude filters treat them as "unset".
  * @param {string|null} str - JSON string
  * @returns {*} - Parsed value or null
  */
 function safeParseJson(str) {
   if (!str) return null;
   try {
-    return JSON.parse(str);
+    const parsed = JSON.parse(str);
+    // Normalize empty arrays to null (treats "[]" the same as missing)
+    if (Array.isArray(parsed) && parsed.length === 0) return null;
+    return parsed;
   } catch {
     return null;
   }
