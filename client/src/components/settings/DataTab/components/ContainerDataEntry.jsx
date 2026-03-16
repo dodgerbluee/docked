@@ -80,8 +80,8 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
   // Display containers if we have container names OR if we have containers in the data
   const hasContainers = filteredContainerNames.length > 0 || filteredContainers.length > 0;
 
-  // Check if we have Portainer instance data (instanceName, instanceUrl) even without containers
-  const hasPortainerInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
+  // Check if we have source instance data (instanceName, instanceUrl) even without containers
+  const hasSourceInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
 
   // If we have data but no containers, show all available data in a structured format
   if (hasData && !hasContainers) {
@@ -93,12 +93,12 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
         updatedAt: entry.updatedAt || null,
         createdAt: entry.createdAt || null,
       },
-      portainerData: {},
+      sourceData: {},
     };
 
-    // Add Portainer instance data if available
-    if (hasPortainerInstanceData) {
-      completeData.portainerData.portainerInstance = {
+    // Add source instance data if available
+    if (hasSourceInstanceData) {
+      completeData.sourceData.sourceInstance = {
         name: entry.data.instanceName || null,
         url: entry.data.instanceUrl || null,
       };
@@ -111,17 +111,17 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
     delete otherData.containers;
 
     if (Object.keys(otherData).length > 0) {
-      completeData.portainerData.other = otherData;
+      completeData.sourceData.other = otherData;
     }
 
-    // If we have Portainer instance data, show structured format
-    if (hasPortainerInstanceData) {
+    // If we have source instance data, show structured format
+    if (hasSourceInstanceData) {
       return (
         <div className={styles.dataEntry}>
           <div className={styles.dataSection}>
             <div className={styles.dataHeader}>Data Entry: {entry.key}</div>
             <Alert variant="info" style={{ marginBottom: "12px" }}>
-              No containers found in this data entry. Showing all available Portainer instance data.
+              No containers found in this data entry. Showing all available source instance data.
             </Alert>
             <JSONViewer data={completeData} />
           </div>
@@ -129,7 +129,7 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
       );
     }
 
-    // Fallback: show raw data if no structured Portainer data
+    // Fallback: show raw data if no structured source data
     return (
       <div className={styles.dataEntry}>
         <div className={styles.dataSection}>
@@ -248,14 +248,14 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
         updatedAt: entry.updatedAt || null,
         createdAt: entry.createdAt || null,
       },
-      portainerData: {},
+      sourceData: {},
     };
 
-    // Check if we have Portainer instance data
-    const hasPortainerInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
+    // Check if we have source instance data
+    const hasSourceInstanceData = entry.data?.instanceName || entry.data?.instanceUrl;
 
-    if (hasPortainerInstanceData) {
-      completeData.portainerData.portainerInstance = {
+    if (hasSourceInstanceData) {
+      completeData.sourceData.sourceInstance = {
         name: entry.data.instanceName || null,
         url: entry.data.instanceUrl || null,
       };
@@ -268,10 +268,10 @@ const ContainerDataEntry = ({ entry, expandedContainers, onToggleExpansion }) =>
     delete otherData.containers;
 
     if (Object.keys(otherData).length > 0) {
-      completeData.portainerData.other = otherData;
+      completeData.sourceData.other = otherData;
     }
 
-    if (hasPortainerInstanceData || Object.keys(completeData.portainerData).length > 0) {
+    if (hasSourceInstanceData || Object.keys(completeData.sourceData).length > 0) {
       return (
         <div className={styles.dataEntry}>
           <div className={styles.dataSection}>

@@ -21,8 +21,8 @@ export const containerShape = PropTypes.shape({
   existsInDockerHub: PropTypes.bool,
 });
 
-// Portainer instance shape
-export const portainerInstanceShape = PropTypes.shape({
+// Source instance shape
+export const sourceInstanceShape = PropTypes.shape({
   name: PropTypes.string.isRequired,
   url: PropTypes.string,
   containers: PropTypes.arrayOf(containerShape),
@@ -30,8 +30,8 @@ export const portainerInstanceShape = PropTypes.shape({
   upToDate: PropTypes.arrayOf(containerShape),
 });
 
-// Portainer instance stat shape (for summary)
-export const portainerInstanceStatShape = PropTypes.shape({
+// Source instance stat shape (for summary)
+export const sourceInstanceStatShape = PropTypes.shape({
   name: PropTypes.string.isRequired,
   url: PropTypes.string,
   total: PropTypes.number.isRequired,
@@ -44,7 +44,7 @@ export const portainerInstanceStatShape = PropTypes.shape({
 export const unusedImageShape = PropTypes.shape({
   id: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
-  portainerUrl: PropTypes.string,
+  sourceUrl: PropTypes.string,
   size: PropTypes.number,
 });
 

@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import PropTypes from "prop-types";
 import { Info } from "lucide-react";
 import DiscordWebhookModal from "../DiscordWebhookModal";
+import DiscordIcon from "../icons/DiscordIcon";
 import Card from "../ui/Card";
-import Button from "../ui/Button";
 import Alert from "../ui/Alert";
 import ActionButtons from "../ui/ActionButtons";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -73,7 +73,7 @@ const DiscordTab = React.memo(function DiscordTab({
             , and optionally use the Docked logo as the avatar (
             <a href="/img/logo.png" download="docked-logo.png" className={styles.downloadLink}>
               Download Logo
-            </a>
+            </a>{" "}
             ). Copy the webhook URL, then click{" "}
             <strong>
               {'"'}Add Webhook{'"'}
@@ -137,14 +137,10 @@ const DiscordTab = React.memo(function DiscordTab({
       )}
 
       {discordWebhooks.length < 3 && (
-        <Button
-          type="button"
-          variant="primary"
-          onClick={handleAddWebhook}
-          className={styles.addButton}
-        >
-          Add Webhook
-        </Button>
+        <button className={styles.addCard} onClick={handleAddWebhook} aria-label="Add webhook">
+          <DiscordIcon size={24} className={styles.addCardIcon} />
+          <span className={styles.addCardText}>Add Webhook</span>
+        </button>
       )}
 
       {discordWebhooks.length >= 3 && (

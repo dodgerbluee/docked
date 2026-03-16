@@ -29,7 +29,7 @@ import styles from "./ImportUsersModal.module.css";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  PORTAINER: "portainer",
+  SOURCES: "sources",
   DOCKERHUB: "dockerhub",
   DISCORD: "discord",
 };
@@ -175,8 +175,8 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
 
     // Check if current step should be skipped (no data) - this is a safety check
     const shouldSkipStep =
-      (currentStepType === STEP_TYPES.PORTAINER &&
-        (!currentUser.portainerInstances || currentUser.portainerInstances.length === 0)) ||
+      (currentStepType === STEP_TYPES.SOURCES &&
+        (!currentUser.sourceInstances || currentUser.sourceInstances.length === 0)) ||
       (currentStepType === STEP_TYPES.DOCKERHUB &&
         (!currentUser.dockerHubCredentials ||
           (!currentUser.dockerHubCredentials.username &&
@@ -381,14 +381,14 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     [currentUser, currentStepType, setUserCredentials, setUserStepErrors]
   );
 
-  // Update credential for current user (wrapper for Portainer step)
-  const handlePortainerCredentialUpdate = useCallback(
+  // Update credential for current user (wrapper for Sources step)
+  const handleSourceCredentialUpdate = useCallback(
     (index, field, value) => {
       if (!currentUser) return;
-      const instances = currentUser.portainerInstances || [];
+      const instances = currentUser.sourceInstances || [];
       handleCredentialUpdate((prev) => {
-        const portainer = prev.portainerInstances || [];
-        const updated = [...portainer];
+        const source = prev.sourceInstances || [];
+        const updated = [...source];
         if (!updated[index]) {
           const instance = instances[index];
           updated[index] = {
@@ -407,7 +407,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
           name: instance?.name || updated[index].name || "",
           [field]: value,
         };
-        return { ...prev, portainerInstances: updated };
+        return { ...prev, sourceInstances: updated };
       });
     },
     [currentUser, handleCredentialUpdate]
@@ -437,12 +437,12 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     [setVerificationInputTokens]
   );
 
-  // Handle remove instance (for Portainer step)
+  // Handle remove instance (for Sources step)
   const handleRemoveInstance = useCallback(
     (index) => {
       if (!currentUser) return;
       const username = currentUser.username;
-      const instances = currentUser.portainerInstances || [];
+      const instances = currentUser.sourceInstances || [];
       const updatedInstances = instances.filter((_, i) => i !== index);
 
       // Update usersData to reflect the removal
@@ -451,39 +451,39 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
         const updatedUsers = [...prev.users];
         updatedUsers[currentUserIndex] = {
           ...updatedUsers[currentUserIndex],
-          portainerInstances: updatedInstances,
+          sourceInstances: updatedInstances,
         };
         return { ...prev, users: updatedUsers };
       });
 
       // Remove corresponding credentials
       handleCredentialUpdate((prev) => {
-        const portainer = prev.portainerInstances || [];
-        const updated = portainer.filter((_, i) => i !== index);
-        return { ...prev, portainerInstances: updated };
+        const source = prev.sourceInstances || [];
+        const updated = source.filter((_, i) => i !== index);
+        return { ...prev, sourceInstances: updated };
       });
 
-      // Clear Portainer step errors when instance is deleted
+      // Clear Sources step errors when instance is deleted
       if (updatedInstances.length === 0) {
         setUserStepErrors((prev) => {
           const updated = { ...prev };
           if (updated[username]) {
-            delete updated[username][STEP_TYPES.PORTAINER];
+            delete updated[username][STEP_TYPES.SOURCES];
           }
           return updated;
         });
         setError("");
       } else {
-        // Clear all portainer-related field errors
+        // Clear all source-related field errors
         setUserStepErrors((prev) => {
           const updated = { ...prev };
           if (updated[username]) {
             Object.keys(updated[username]).forEach((key) => {
-              if (key.startsWith("portainer_")) {
+              if (key.startsWith("source_")) {
                 delete updated[username][key];
               }
             });
-            delete updated[username][STEP_TYPES.PORTAINER];
+            delete updated[username][STEP_TYPES.SOURCES];
           }
           return updated;
         });
@@ -493,9 +493,9 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       // Re-index credentials to match remaining instances
       if (updatedInstances.length > 0) {
         handleCredentialUpdate((prev) => {
-          const portainer = prev.portainerInstances || [];
+          const source = prev.sourceInstances || [];
           const reindexed = updatedInstances.map((instance) => {
-            const matchingCred = portainer.find((cred) => cred.url === instance.url);
+            const matchingCred = source.find((cred) => cred.url === instance.url);
             if (matchingCred) {
               return {
                 ...matchingCred,
@@ -512,7 +512,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
               apiKey: "",
             };
           });
-          return { ...prev, portainerInstances: reindexed };
+          return { ...prev, sourceInstances: reindexed };
         });
       }
 
@@ -520,7 +520,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
       if (updatedInstances.length === 0) {
         setUserSkippedSteps((prev) => {
           const skipped = new Set(prev[username] || []);
-          skipped.add(STEP_TYPES.PORTAINER);
+          skipped.add(STEP_TYPES.SOURCES);
           return { ...prev, [username]: skipped };
         });
       }
@@ -572,7 +572,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
     const stepNames = {
       [STEP_TYPES.INSTANCE_ADMIN_VERIFICATION]: "Instance Admin Verification",
       [STEP_TYPES.PASSWORD]: "Set Password",
-      [STEP_TYPES.PORTAINER]: "Portainer Credentials",
+      [STEP_TYPES.SOURCES]: "Source Credentials",
       [STEP_TYPES.DOCKERHUB]: "Docker Hub Credentials",
       [STEP_TYPES.DISCORD]: "Discord Webhooks",
     };
@@ -623,7 +623,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
             onVerifyToken={handleVerifyToken}
             onTokenChange={handleTokenChange}
             onPasswordChange={handlePasswordChange}
-            onPortainerCredentialUpdate={handlePortainerCredentialUpdate}
+            onSourceCredentialUpdate={handleSourceCredentialUpdate}
             onDiscordCredentialUpdate={handleDiscordCredentialUpdate}
             onRemoveInstance={handleRemoveInstance}
             setUsersData={setUsersData}
@@ -666,7 +666,7 @@ function ImportUsersModal({ isOpen, onClose, onSuccess }) {
 
           <div className={styles.actionsRight}>
             {[
-              STEP_TYPES.PORTAINER,
+              STEP_TYPES.SOURCES,
               STEP_TYPES.DOCKERHUB,
               STEP_TYPES.DISCORD,
               STEP_TYPES.INSTANCE_ADMIN_VERIFICATION,

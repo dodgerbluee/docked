@@ -116,6 +116,16 @@ async function pollRunnerVersions() {
   });
 }
 
+/**
+ * Reset the failure count for a specific runner, allowing the poller to
+ * immediately try it on the next cycle. Called when a heartbeat updates
+ * a runner's URL (the old URL may have been causing ping failures).
+ * @param {number} runnerId
+ */
+function resetRunnerBackoff(runnerId) {
+  _failureCounts.delete(runnerId);
+}
+
 function startVersionPoller() {
   // Run immediately on startup, then on a fixed interval
   pollRunnerVersions().catch((err) =>
@@ -129,4 +139,4 @@ function startVersionPoller() {
   }, POLL_INTERVAL_MS);
 }
 
-module.exports = { startVersionPoller };
+module.exports = { startVersionPoller, resetRunnerBackoff };

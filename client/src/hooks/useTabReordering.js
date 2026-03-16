@@ -4,7 +4,7 @@ import { API_BASE_URL } from "../constants/api";
 
 /**
  * useTabReordering Hook
- * Manages Portainer instance tab reordering (drag and drop)
+ * Manages source instance tab reordering (drag and drop)
  */
 export function useTabReordering(fetchContainers) {
   const [draggedTabIndex, setDraggedTabIndex] = useState(null);
@@ -13,7 +13,7 @@ export function useTabReordering(fetchContainers) {
     async (fromIndex, toIndex) => {
       // Get current instances from API to ensure we have IDs
       try {
-        const instancesResponse = await axios.get(`${API_BASE_URL}/api/portainer/instances`);
+        const instancesResponse = await axios.get(`${API_BASE_URL}/api/sources/instances`);
         const apiInstances = instancesResponse.data.instances || [];
 
         if (apiInstances.length === 0) return;
@@ -29,7 +29,7 @@ export function useTabReordering(fetchContainers) {
           display_order: index,
         }));
 
-        await axios.post(`${API_BASE_URL}/api/portainer/instances/reorder`, {
+        await axios.post(`${API_BASE_URL}/api/sources/instances/reorder`, {
           orders,
         });
         // Refresh containers to get updated order

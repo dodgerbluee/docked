@@ -12,6 +12,8 @@ import {
   Bar,
   AreaChart,
   Area,
+  PieChart,
+  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -20,8 +22,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Target, Award, Clock, Zap, BarChart3, Package } from "lucide-react";
+import { Target, Award, Clock, Zap, BarChart3, Package, Cpu } from "lucide-react";
 import { processChartData, calculateStats, COLORS, CHART_COLORS } from "./upgradeChartsUtils";
+import { useRunnerApps } from "../../hooks/useRunnerApps";
 import { ANALYTICS_VIEW_TABS } from "../../constants/analyticsPage";
 import styles from "./UpgradeChartsContent.module.css";
 
@@ -48,16 +51,76 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
   );
   const trackedAppStats = useMemo(() => calculateStats(trackedAppHistory), [trackedAppHistory]);
 
+  // ── Apps tab: dockhand runner apps data ──
+  const { allApps, history: appsHistory, stats: appsStats, loading: appsLoading } = useRunnerApps();
+
+  const appsChartData = useMemo(() => {
+    if (!allApps || allApps.length === 0) return null;
+
+    // Update status distribution
+    const updateStatus = [
+      { name: "Up to date", value: appsStats.upToDate },
+      { name: "Update available", value: appsStats.withUpdates },
+    ];
+
+    // Apps by runner
+    const appsByRunner = (appsStats.appsByRunnerCount || [])
+      .filter((r) => r.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    // System updates
+    const systemUpdates = [
+      { name: "Updates available", value: appsStats.withSystemUpdates },
+      { name: "No updates", value: allApps.length - appsStats.withSystemUpdates },
+    ];
+
+    // Operation results from history
+    const opSuccess = appsStats.successfulOps;
+    const opFailed = appsStats.failedOps;
+    const opRunning = appsHistory.filter((h) => h.exitCode === null && !h.finishedAt).length;
+    const opResults = [
+      { name: "Successful", value: opSuccess },
+      { name: "Failed", value: opFailed },
+      ...(opRunning > 0 ? [{ name: "Running", value: opRunning }] : []),
+    ];
+
+    // Operations over time (group by date)
+    const opsByDate = {};
+    appsHistory.forEach((h) => {
+      const date = new Date(h.startedAt).toLocaleDateString();
+      if (!opsByDate[date]) opsByDate[date] = { date, success: 0, failed: 0 };
+      if (h.exitCode === 0) opsByDate[date].success++;
+      else if (h.exitCode !== null) opsByDate[date].failed++;
+    });
+    const opsOverTime = Object.values(opsByDate).sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+
+    // Top apps by operation count
+    const opCountByApp = {};
+    appsHistory.forEach((h) => {
+      const name = h.operationName || "Unknown";
+      opCountByApp[name] = (opCountByApp[name] || 0) + 1;
+    });
+    const topOps = Object.entries(opCountByApp)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return { updateStatus, appsByRunner, systemUpdates, opResults, opsOverTime, topOps };
+  }, [allApps, appsHistory, appsStats]);
+
   const hasContainerData = containerHistory.length > 0;
   const hasTrackedAppData = trackedAppHistory.length > 0;
+  const hasAppsData = !appsLoading && appsChartData !== null;
 
-  if (!hasContainerData && !hasTrackedAppData) {
+  if (!hasContainerData && !hasTrackedAppData && !hasAppsData) {
     return (
       <div className={styles.content}>
         <div className={styles.emptyMessage}>
           <BarChart3 size={64} className={styles.emptyIcon} aria-hidden="true" />
           <h3>No data yet</h3>
-          <p>Upgrade containers or tracked apps to see analytics here.</p>
+          <p>Upgrade containers or tracked repos to see analytics here.</p>
         </div>
       </div>
     );
@@ -90,38 +153,40 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
 
   return (
     <div className={styles.content}>
-      <div className={styles.statsBar}>
-        <div className={styles.statItem}>
-          <Target size={20} className={styles.statIcon} aria-hidden="true" />
-          <div className={styles.statContent}>
-            <div className={styles.statValue}>{totalUpgrades}</div>
-            <div className={styles.statLabel}>Total upgrades</div>
-          </div>
-        </div>
-        <div className={styles.statItem}>
-          <Award size={20} className={styles.statIconSuccess} aria-hidden="true" />
-          <div className={styles.statContent}>
-            <div className={styles.statValue}>{combinedSuccessRate}%</div>
-            <div className={styles.statLabel}>Success rate</div>
-          </div>
-        </div>
-        <div className={styles.statItem}>
-          <Clock size={20} className={styles.statIcon} aria-hidden="true" />
-          <div className={styles.statContent}>
-            <div className={styles.statValue}>{combinedAvgDuration}s</div>
-            <div className={styles.statLabel}>Avg duration</div>
-          </div>
-        </div>
-        <div className={styles.statItem}>
-          <Zap size={20} className={styles.statIconWarning} aria-hidden="true" />
-          <div className={styles.statContent}>
-            <div className={styles.statValue}>
-              {stats.uniqueContainers + trackedAppStats.uniqueContainers}
+      {(hasContainerData || hasTrackedAppData) && (
+        <div className={styles.statsBar}>
+          <div className={styles.statItem}>
+            <Target size={20} className={styles.statIcon} aria-hidden="true" />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{totalUpgrades}</div>
+              <div className={styles.statLabel}>Total upgrades</div>
             </div>
-            <div className={styles.statLabel}>Unique items</div>
+          </div>
+          <div className={styles.statItem}>
+            <Award size={20} className={styles.statIconSuccess} aria-hidden="true" />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{combinedSuccessRate}%</div>
+              <div className={styles.statLabel}>Success rate</div>
+            </div>
+          </div>
+          <div className={styles.statItem}>
+            <Clock size={20} className={styles.statIcon} aria-hidden="true" />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{combinedAvgDuration}s</div>
+              <div className={styles.statLabel}>Avg duration</div>
+            </div>
+          </div>
+          <div className={styles.statItem}>
+            <Zap size={20} className={styles.statIconWarning} aria-hidden="true" />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>
+                {stats.uniqueContainers + trackedAppStats.uniqueContainers}
+              </div>
+              <div className={styles.statLabel}>Unique items</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {activeViewTab === ANALYTICS_VIEW_TABS.OVERVIEW && (
         <div className={styles.chartsGrid}>
@@ -201,7 +266,7 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
           </div>
           {overviewChartData.upgradesByInstance.length > 1 && (
             <div className={styles.chartCard}>
-              <h3 className={styles.chartTitle}>Upgrades by Portainer instance</h3>
+              <h3 className={styles.chartTitle}>Upgrades by Source Instance</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={overviewChartData.upgradesByInstance}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -328,7 +393,7 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
           {hasTrackedAppData ? (
             <>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>Top 10 most upgraded tracked apps</h3>
+                <h3 className={styles.chartTitle}>Top 10 most upgraded tracked repos</h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={trackedAppChartData.topContainers} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -345,7 +410,7 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
                 </ResponsiveContainer>
               </div>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>Success rate by tracked app (top 10)</h3>
+                <h3 className={styles.chartTitle}>Success rate by tracked repo (top 10)</h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={trackedAppChartData.successRateByContainer}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -363,7 +428,7 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
                 </ResponsiveContainer>
               </div>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>Tracked app upgrades over time</h3>
+                <h3 className={styles.chartTitle}>Tracked repo upgrades over time</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={trackedAppChartData.upgradesOverTime}>
                     <defs>
@@ -421,8 +486,189 @@ function UpgradeChartsContent({ containerHistory = [], trackedAppHistory = [], a
             <div className={styles.chartCardWide}>
               <div className={styles.emptyMessage}>
                 <Package size={64} className={styles.emptyIcon} aria-hidden="true" />
-                <h3>No tracked app data</h3>
-                <p>Include tracked app upgrades in the sidebar to see charts here.</p>
+                <h3>No tracked repo data</h3>
+                <p>Include tracked repo upgrades in the sidebar to see charts here.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeViewTab === ANALYTICS_VIEW_TABS.APPS && (
+        <div className={styles.chartsGrid}>
+          {hasAppsData ? (
+            <>
+              <div className={styles.chartCard}>
+                <h3 className={styles.chartTitle}>App update status</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={appsChartData.updateStatus}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={({ name, value }) => `${name} (${value})`}
+                    >
+                      <Cell fill={COLORS.success} />
+                      <Cell fill={COLORS.warning} />
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {appsChartData.appsByRunner.length > 0 && (
+                <div className={styles.chartCard}>
+                  <h3 className={styles.chartTitle}>Apps by runner</h3>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={appsChartData.appsByRunner}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" allowDecimals={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="count" fill={COLORS.primary} name="Apps">
+                        {appsChartData.appsByRunner.map((entry, index) => (
+                          <Cell
+                            key={`runner-${index}`}
+                            fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className={styles.chartCard}>
+                <h3 className={styles.chartTitle}>Operation results</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={appsChartData.opResults}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={({ name, value }) => `${name} (${value})`}
+                    >
+                      {appsChartData.opResults.map((entry, index) => {
+                        const opColors = {
+                          Successful: COLORS.success,
+                          Failed: COLORS.error,
+                          Running: COLORS.cyan,
+                        };
+                        return (
+                          <Cell
+                            key={`op-${index}`}
+                            fill={opColors[entry.name] || CHART_COLORS[index % CHART_COLORS.length]}
+                          />
+                        );
+                      })}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {appsChartData.opsOverTime.length > 1 && (
+                <div className={styles.chartCard}>
+                  <h3 className={styles.chartTitle}>Operations over time</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={appsChartData.opsOverTime}>
+                      <defs>
+                        <linearGradient id="appsOpsSuccess" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.8} />
+                          <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="appsOpsFailed" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.error} stopOpacity={0.8} />
+                          <stop offset="95%" stopColor={COLORS.error} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" allowDecimals={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="success"
+                        stackId="1"
+                        stroke={COLORS.success}
+                        fillOpacity={1}
+                        fill="url(#appsOpsSuccess)"
+                        name="Successful"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="failed"
+                        stackId="1"
+                        stroke={COLORS.error}
+                        fillOpacity={1}
+                        fill="url(#appsOpsFailed)"
+                        name="Failed"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {appsChartData.topOps.length > 0 && (
+                <div className={styles.chartCard}>
+                  <h3 className={styles.chartTitle}>Most run operations</h3>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={appsChartData.topOps} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis type="number" stroke="rgba(255,255,255,0.5)" allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={150}
+                        stroke="rgba(255,255,255,0.5)"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="count" fill={COLORS.cyan} name="Runs">
+                        {appsChartData.topOps.map((entry, index) => (
+                          <Cell
+                            key={`top-op-${index}`}
+                            fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className={styles.chartCard}>
+                <h3 className={styles.chartTitle}>System updates</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={appsChartData.systemUpdates}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={({ name, value }) => `${name} (${value})`}
+                    >
+                      <Cell fill={COLORS.warning} />
+                      <Cell fill={COLORS.success} />
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          ) : (
+            <div className={styles.chartCardWide}>
+              <div className={styles.emptyMessage}>
+                <Cpu size={64} className={styles.emptyIcon} aria-hidden="true" />
+                <h3>No apps data</h3>
+                <p>Configure runners with apps in their dockhand config to see analytics here.</p>
               </div>
             </div>
           )}

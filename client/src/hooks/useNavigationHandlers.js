@@ -10,58 +10,58 @@ import {
  * Reduces code duplication and provides consistent navigation behavior
  *
  * @param {Object} handlers - Navigation handler functions
- * @param {Function} handlers.onNavigateToPortainer - Navigate to Portainer tab
+ * @param {Function} handlers.onNavigateToContainers - Navigate to Containers tab
  * @param {Function} handlers.onNavigateToTrackedApps - Navigate to Tracked Apps tab
- * @param {Function} handlers.onSetSelectedPortainerInstances - Set selected Portainer instances
+ * @param {Function} handlers.onSetSelectedSourceInstances - Set selected source instances
  * @param {Function} handlers.onSetContentTab - Set content tab
  * @returns {Object} Navigation handler functions
  */
 export const useNavigationHandlers = ({
-  onNavigateToPortainer,
+  onNavigateToContainers,
   onNavigateToTrackedApps,
-  onSetSelectedPortainerInstances,
+  onSetSelectedSourceInstances,
   onSetContentTab,
 }) => {
-  // Handler for Portainer stat card clicks
-  const handlePortainerStatClick = useCallback(
+  // Handler for source stat card clicks
+  const handleSourceStatClick = useCallback(
     (contentTab) => {
-      if (onNavigateToPortainer) {
-        onNavigateToPortainer();
+      if (onNavigateToContainers) {
+        onNavigateToContainers();
       }
-      if (onSetSelectedPortainerInstances) {
-        onSetSelectedPortainerInstances(new Set());
+      if (onSetSelectedSourceInstances) {
+        onSetSelectedSourceInstances(new Set());
       }
       if (onSetContentTab && contentTab) {
-        // Map CONTENT_TABS to PORTAINER_CONTENT_TABS
-        const portainerTabMap = {
+        // Map CONTENT_TABS to CONTAINERS_CONTENT_TABS
+        const containersTabMap = {
           [CONTENT_TABS.UPDATES]: "updates",
           [CONTENT_TABS.CURRENT]: "current",
           [CONTENT_TABS.UNUSED]: "unused",
         };
-        const portainerTab = portainerTabMap[contentTab] || contentTab;
-        onSetContentTab(portainerTab);
+        const containersTab = containersTabMap[contentTab] || contentTab;
+        onSetContentTab(containersTab);
       }
     },
-    [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]
+    [onNavigateToContainers, onSetSelectedSourceInstances, onSetContentTab]
   );
 
-  // Handler for Portainer instance header clicks
+  // Handler for source instance header clicks
   const handleInstanceClick = useCallback(
     (instanceName) => {
-      if (onNavigateToPortainer) {
-        onNavigateToPortainer();
+      if (onNavigateToContainers) {
+        onNavigateToContainers();
       }
-      if (onSetSelectedPortainerInstances) {
-        onSetSelectedPortainerInstances(new Set([instanceName]));
+      if (onSetSelectedSourceInstances) {
+        onSetSelectedSourceInstances(new Set([instanceName]));
       }
       if (onSetContentTab) {
         onSetContentTab("updates");
       }
     },
-    [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]
+    [onNavigateToContainers, onSetSelectedSourceInstances, onSetContentTab]
   );
 
-  // Handler for Portainer instance stat clicks
+  // Handler for source instance stat clicks
   const handleInstanceStatClick = useCallback(
     (instanceName, statType) => {
       // statType can be either a STAT_TYPES constant or a content tab string
@@ -69,25 +69,25 @@ export const useNavigationHandlers = ({
         STAT_TYPE_TO_CONTENT_TAB[statType] ||
         (Object.values(CONTENT_TABS).includes(statType) ? statType : CONTENT_TABS.UPDATES);
 
-      // Map CONTENT_TABS to PORTAINER_CONTENT_TABS
-      const portainerTabMap = {
+      // Map CONTENT_TABS to CONTAINERS_CONTENT_TABS
+      const containersTabMap = {
         [CONTENT_TABS.UPDATES]: "updates",
         [CONTENT_TABS.CURRENT]: "current",
         [CONTENT_TABS.UNUSED]: "unused",
       };
-      const portainerTab = portainerTabMap[contentTab] || contentTab || "updates";
+      const containersTab = containersTabMap[contentTab] || contentTab || "updates";
 
-      if (onNavigateToPortainer) {
-        onNavigateToPortainer();
+      if (onNavigateToContainers) {
+        onNavigateToContainers();
       }
-      if (onSetSelectedPortainerInstances) {
-        onSetSelectedPortainerInstances(new Set([instanceName]));
+      if (onSetSelectedSourceInstances) {
+        onSetSelectedSourceInstances(new Set([instanceName]));
       }
       if (onSetContentTab) {
-        onSetContentTab(portainerTab);
+        onSetContentTab(containersTab);
       }
     },
-    [onNavigateToPortainer, onSetSelectedPortainerInstances, onSetContentTab]
+    [onNavigateToContainers, onSetSelectedSourceInstances, onSetContentTab]
   );
 
   // Handler for Tracked Apps navigation
@@ -98,7 +98,7 @@ export const useNavigationHandlers = ({
   }, [onNavigateToTrackedApps]);
 
   return {
-    handlePortainerStatClick,
+    handleSourceStatClick,
     handleInstanceClick,
     handleInstanceStatClick,
     handleTrackedAppsClick,

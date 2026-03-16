@@ -9,11 +9,11 @@ import { TAB_NAMES } from "../constants/apiConstants";
  * @param {string} activeTab - The currently active tab name
  *
  * @example
- * useSidebarHeight("portainer");
+ * useSidebarHeight("containers");
  */
 export const useSidebarHeight = (activeTab) => {
   useEffect(() => {
-    if (activeTab !== TAB_NAMES.PORTAINER) return;
+    if (activeTab !== TAB_NAMES.CONTAINERS) return;
 
     let isUpdating = false;
     let rafId = null;
@@ -23,7 +23,7 @@ export const useSidebarHeight = (activeTab) => {
       if (isUpdating) return;
 
       const stacksContainer = document.querySelector(".stacks-container");
-      const sidebar = document.querySelector(".portainer-sidebar");
+      const sidebar = document.querySelector(".containers-sidebar");
 
       if (!sidebar) {
         return;
@@ -79,7 +79,7 @@ export const useSidebarHeight = (activeTab) => {
       const shouldUpdate = mutations.some((mutation) => {
         if (mutation.type === "attributes" && mutation.attributeName === "style") {
           // Ignore style changes on the sidebar itself to prevent loops
-          return mutation.target !== document.querySelector(".portainer-sidebar");
+          return mutation.target !== document.querySelector(".source-sidebar");
         }
         return true;
       });
@@ -90,7 +90,7 @@ export const useSidebarHeight = (activeTab) => {
     });
 
     const stacksContainer = document.querySelector(".stacks-container");
-    const sidebar = document.querySelector(".portainer-sidebar");
+    const sidebar = document.querySelector(".source-sidebar");
 
     if (stacksContainer) {
       observer.observe(stacksContainer, {

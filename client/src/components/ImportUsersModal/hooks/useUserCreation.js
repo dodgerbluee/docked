@@ -7,7 +7,7 @@ import { getErrorMessage } from "../../../utils/errorHandling";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  PORTAINER: "portainer",
+  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -76,11 +76,11 @@ export function useUserCreation({
       // Build config data (only include if user has it)
       const configData = {};
       if (
-        currentUser.portainerInstances &&
-        Array.isArray(currentUser.portainerInstances) &&
-        currentUser.portainerInstances.length > 0
+        currentUser.sourceInstances &&
+        Array.isArray(currentUser.sourceInstances) &&
+        currentUser.sourceInstances.length > 0
       ) {
-        configData.portainerInstances = currentUser.portainerInstances;
+        configData.sourceInstances = currentUser.sourceInstances;
       }
       if (
         currentUser.discordWebhooks &&
@@ -100,11 +100,8 @@ export function useUserCreation({
       // Build credentials (only include non-skipped steps)
       const credentials = {};
 
-      if (
-        !skippedSteps.has(STEP_TYPES.PORTAINER) &&
-        userCredentials[username]?.portainerInstances
-      ) {
-        credentials.portainerInstances = userCredentials[username].portainerInstances;
+      if (!skippedSteps.has(STEP_TYPES.SOURCES) && userCredentials[username]?.sourceInstances) {
+        credentials.sourceInstances = userCredentials[username].sourceInstances;
       }
       if (!skippedSteps.has(STEP_TYPES.DISCORD) && userCredentials[username]?.discordWebhooks) {
         credentials.discordWebhooks = userCredentials[username].discordWebhooks;

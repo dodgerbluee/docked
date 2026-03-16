@@ -10,8 +10,8 @@
 export const categorizeContainerData = (containerData) => {
   if (!containerData) return null;
 
-  // Portainer Instance details
-  const portainerInstance = {
+  // Source Instance details
+  const sourceInstance = {
     name: containerData.portainerName,
     url: containerData.portainerUrl,
     endpointId: containerData.endpointId,
@@ -28,14 +28,14 @@ export const categorizeContainerData = (containerData) => {
     providesNetwork: containerData.providesNetwork,
   };
 
-  // Portainer image details
-  const portainerImageDetails = {
+  // Source image details
+  const sourceImageDetails = {
     image: containerData.image,
     currentImageCreated: containerData.currentImageCreated,
   };
 
-  // Portainer version details
-  const portainerVersionDetails = {
+  // Source version details
+  const sourceVersionDetails = {
     currentDigest: containerData.currentDigest,
     currentTag: containerData.currentTag,
     currentVersion: containerData.currentVersion,
@@ -60,10 +60,10 @@ export const categorizeContainerData = (containerData) => {
   };
 
   return {
-    portainerInstance,
+    sourceInstance,
     containerDetails,
-    portainerImageDetails,
-    portainerVersionDetails,
+    sourceImageDetails,
+    sourceVersionDetails,
     dockerHubImageDetails,
     dockerHubVersionDetails,
   };
@@ -82,47 +82,43 @@ export const buildStructuredData = (categorized, containerData) => {
 
   const structuredData = {};
 
-  // Always include Portainer Data section if we have container data
-  const hasPortainerInstance = Object.keys(categorized.portainerInstance).some(
-    (key) => categorized.portainerInstance[key] != null
+  // Always include Source Data section if we have container data
+  const hasSourceInstance = Object.keys(categorized.sourceInstance).some(
+    (key) => categorized.sourceInstance[key] != null
   );
   const hasContainerDetails = Object.keys(categorized.containerDetails).some(
     (key) => categorized.containerDetails[key] != null
   );
-  const hasPortainerImageDetails = Object.keys(categorized.portainerImageDetails).some(
-    (key) => categorized.portainerImageDetails[key] != null
+  const hasSourceImageDetails = Object.keys(categorized.sourceImageDetails).some(
+    (key) => categorized.sourceImageDetails[key] != null
   );
-  const hasPortainerVersionDetails = Object.keys(categorized.portainerVersionDetails).some(
-    (key) => categorized.portainerVersionDetails[key] != null
+  const hasSourceVersionDetails = Object.keys(categorized.sourceVersionDetails).some(
+    (key) => categorized.sourceVersionDetails[key] != null
   );
 
-  const hasPortainerData =
-    hasPortainerInstance ||
-    hasContainerDetails ||
-    hasPortainerImageDetails ||
-    hasPortainerVersionDetails;
+  const hasSourceData =
+    hasSourceInstance || hasContainerDetails || hasSourceImageDetails || hasSourceVersionDetails;
 
-  if (hasPortainerData) {
-    structuredData.portainerData = {};
+  if (hasSourceData) {
+    structuredData.sourceData = {};
 
-    if (hasPortainerInstance) {
-      structuredData.portainerData.portainerInstance = categorized.portainerInstance;
+    if (hasSourceInstance) {
+      structuredData.sourceData.sourceInstance = categorized.sourceInstance;
     }
 
     if (hasContainerDetails) {
-      structuredData.portainerData.containerDetails = categorized.containerDetails;
+      structuredData.sourceData.containerDetails = categorized.containerDetails;
     }
 
-    if (hasPortainerImageDetails || hasPortainerVersionDetails) {
-      structuredData.portainerData.imageDetails = {};
+    if (hasSourceImageDetails || hasSourceVersionDetails) {
+      structuredData.sourceData.imageDetails = {};
 
-      if (hasPortainerImageDetails) {
-        Object.assign(structuredData.portainerData.imageDetails, categorized.portainerImageDetails);
+      if (hasSourceImageDetails) {
+        Object.assign(structuredData.sourceData.imageDetails, categorized.sourceImageDetails);
       }
 
-      if (hasPortainerVersionDetails) {
-        structuredData.portainerData.imageDetails.versionDetails =
-          categorized.portainerVersionDetails;
+      if (hasSourceVersionDetails) {
+        structuredData.sourceData.imageDetails.versionDetails = categorized.sourceVersionDetails;
       }
     }
   }

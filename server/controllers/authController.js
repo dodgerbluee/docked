@@ -23,13 +23,13 @@ const {
   updateVerificationToken,
   verifyAndClearToken,
   deleteUser,
-  getAllPortainerInstances,
+  getAllSourceInstances,
   getAllDiscordWebhooks,
   getAllTrackedApps,
   getBatchConfig,
   getSetting,
   getSystemSetting,
-  createPortainerInstance,
+  createSourceInstance,
   createDiscordWebhook,
   createTrackedApp,
   updateTrackedApp,
@@ -771,7 +771,7 @@ async function exportUserConfig(req, res, next) {
       logLevel,
       refreshingTogglesEnabled,
     ] = await Promise.all([
-      getAllPortainerInstances(user.id),
+      getAllSourceInstances(user.id),
       getAllDiscordWebhooks(user.id),
       getAllTrackedApps(user.id),
       getBatchConfig(user.id),
@@ -903,7 +903,7 @@ async function importPortainerInstances(instances, credentials, results, userId)
       }
 
       const ipAddress = await resolveUrlToIp(instance.url);
-      const id = await createPortainerInstance({
+      const id = await createSourceInstance({
         userId,
         name: instance.name,
         url: instance.url,
@@ -1021,7 +1021,7 @@ async function importPortainerInstancesByIndex(instances, instanceCredsArray, us
     try {
       const ipAddress = await resolveUrlToIp(instance.url);
 
-      const id = await createPortainerInstance({
+      const id = await createSourceInstance({
         userId: user.id,
         name: instance.name,
         url: instance.url,
@@ -1722,7 +1722,7 @@ async function exportUsersEndpoint(req, res, next) {
           logLevel,
           refreshingTogglesEnabled,
         ] = await Promise.all([
-          getAllPortainerInstances(user.id),
+          getAllSourceInstances(user.id),
           getDockerHubCredentials(user.id),
           getAllDiscordWebhooks(user.id),
           getAllTrackedApps(user.id),

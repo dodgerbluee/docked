@@ -14,6 +14,38 @@ import styles from "./ContainerBlocklist.module.css";
  * Blocking is name-based: transferring one nginx moves ALL nginx instances.
  * Saving deduplicates by name.
  */
+
+/**
+ * Build a flat list of container entries from the containers array.
+ * Pure function — no hooks, safe to call from effects.
+ */
+function buildEntriesFrom(containers) {
+  const entries = [];
+  const seenIds = new Set();
+  for (const c of containers) {
+    const name = (c.name || "").replace(/^\//, "");
+    if (!name) continue;
+    const id = c.id || `${name}__${c.portainerName || ""}__${c.stackName || ""}`;
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+    entries.push({
+      id,
+      name,
+      image: c.image || c.imageName || "",
+      instance: c.portainerName || "",
+      stackName: c.stackName || "",
+    });
+  }
+  // Sort: by name, then by instance
+  entries.sort((a, b) => {
+    const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    return nameCmp !== 0
+      ? nameCmp
+      : a.instance.toLowerCase().localeCompare(b.instance.toLowerCase());
+  });
+  return entries;
+}
+
 function ContainerBlocklist({ containers = [] }) {
   const [loading, setLoading] = useState(true);
   const [allowedList, setAllowedList] = useState([]);
@@ -26,40 +58,12 @@ function ContainerBlocklist({ containers = [] }) {
   const [saveMessage, setSaveMessage] = useState(null);
   const [manualAddName, setManualAddName] = useState("");
   const saveMessageTimer = useRef(null);
-
-  /**
-   * Build a flat list of container entries, one per container instance.
-   * Uses container.id as the unique key (falls back to name+instance if no id).
-   */
-  const buildEntries = useCallback(() => {
-    const entries = [];
-    const seenIds = new Set();
-    for (const c of containers) {
-      const name = (c.name || "").replace(/^\//, "");
-      if (!name) continue;
-      const id = c.id || `${name}__${c.portainerName || ""}__${c.stackName || ""}`;
-      if (seenIds.has(id)) continue;
-      seenIds.add(id);
-      entries.push({
-        id,
-        name,
-        image: c.image || c.imageName || "",
-        instance: c.portainerName || "",
-        stackName: c.stackName || "",
-        portainerUrl: !!c.portainerUrl,
-      });
-    }
-    // Sort: by name, then by instance
-    entries.sort((a, b) => {
-      const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-      return nameCmp !== 0
-        ? nameCmp
-        : a.instance.toLowerCase().localeCompare(b.instance.toLowerCase());
-    });
-    return entries;
-  }, [containers]);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    // Wait until containers have been fetched before loading blocklist.
+    // Only load once — subsequent container prop changes won't reset unsaved edits.
+    if (hasLoadedRef.current || containers.length === 0) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -67,47 +71,34 @@ function ContainerBlocklist({ containers = [] }) {
         const { data } = await axios.get(`${API_BASE_URL}/api/settings/disallowed-containers`);
         if (cancelled) return;
 
-        const entries = buildEntries();
-
-        // Build a map of name → whether ANY container with that name has portainerUrl
-        const nameHasPortainer = new Map();
-        for (const e of entries) {
-          const key = e.name.toLowerCase();
-          if (!nameHasPortainer.has(key)) nameHasPortainer.set(key, false);
-          if (e.portainerUrl) nameHasPortainer.set(key, true);
-        }
+        const entries = buildEntriesFrom(containers);
 
         let disallowedNameSet; // Set<string> of lowercase names
         if (data.containers === null) {
           // Never saved — compute defaults:
-          // 1. Block names where no instance has a portainerUrl
-          // 2. Block names whose image matches known infra patterns
+          // Block names whose name or image matches known infra patterns
           const patterns = data.defaultPatterns || ["portainer", "docked", "nginx-proxy-manager"];
           disallowedNameSet = new Set();
           for (const e of entries) {
             const key = e.name.toLowerCase();
             if (disallowedNameSet.has(key)) continue;
-            if (!nameHasPortainer.get(key)) {
-              disallowedNameSet.add(key);
-            } else if (patterns.some((p) => e.image.toLowerCase().includes(p))) {
+            if (
+              patterns.some((p) => key.includes(p)) ||
+              patterns.some((p) => e.image.toLowerCase().includes(p))
+            ) {
               disallowedNameSet.add(key);
             }
           }
         } else {
-          // Saved list — also auto-add non-Portainer container names not already saved
+          // Saved list — use exactly what the user saved, no auto-additions
           const savedNames = new Set((data.containers || []).map((n) => n.toLowerCase()));
           disallowedNameSet = new Set(savedNames);
-          for (const [key, hasPortainer] of nameHasPortainer) {
-            if (!hasPortainer && !savedNames.has(key)) {
-              disallowedNameSet.add(key);
-            }
-          }
         }
 
         const allowed = entries.filter((e) => !disallowedNameSet.has(e.name.toLowerCase()));
         const disallowed = entries
           .filter((e) => disallowedNameSet.has(e.name.toLowerCase()))
-          .map((e) => ({ ...e, orphan: false, notPortainer: !e.portainerUrl }));
+          .map((e) => ({ ...e, orphan: false }));
 
         // Add orphans: saved names with no matching live container
         for (const n of disallowedNameSet) {
@@ -119,15 +110,14 @@ function ContainerBlocklist({ containers = [] }) {
               image: "",
               instance: "",
               stackName: "",
-              portainerUrl: false,
               orphan: true,
-              notPortainer: false,
             });
           }
         }
 
         setAllowedList(allowed);
         setDisallowedList(disallowed);
+        hasLoadedRef.current = true;
       } catch (err) {
         console.error("Failed to load disallowed containers:", err);
       } finally {
@@ -138,7 +128,7 @@ function ContainerBlocklist({ containers = [] }) {
     return () => {
       cancelled = true;
     };
-  }, [buildEntries]);
+  }, [containers]); // re-evaluate when containers arrive; hasLoadedRef prevents repeat runs
 
   const filteredAllowed = allowedSearch
     ? allowedList.filter(
@@ -232,13 +222,12 @@ function ContainerBlocklist({ containers = [] }) {
       const existingIds = new Set(prev.map((c) => c.id));
       const toAdd = moving
         .filter((c) => !existingIds.has(c.id))
-        .map(({ id, name, image, instance, stackName, portainerUrl }) => ({
+        .map(({ id, name, image, instance, stackName }) => ({
           id,
           name,
           image,
           instance,
           stackName,
-          portainerUrl,
         }));
       return [...prev, ...toAdd];
     });
@@ -264,13 +253,12 @@ function ContainerBlocklist({ containers = [] }) {
       const existingIds = new Set(prev.map((c) => c.id));
       const toAdd = disallowedList
         .filter((c) => !c.orphan && !existingIds.has(c.id))
-        .map(({ id, name, image, instance, stackName, portainerUrl }) => ({
+        .map(({ id, name, image, instance, stackName }) => ({
           id,
           name,
           image,
           instance,
           stackName,
-          portainerUrl,
         }));
       return [...prev, ...toAdd];
     });
@@ -293,9 +281,7 @@ function ContainerBlocklist({ containers = [] }) {
           image: "",
           instance: "",
           stackName: "",
-          portainerUrl: false,
           orphan: true,
-          notPortainer: false,
         },
       ];
     });
@@ -470,9 +456,6 @@ function ContainerBlocklist({ containers = [] }) {
                       {c.stackName && c.stackName !== "Standalone" && (
                         <span className={styles.stackBadge}>{c.stackName}</span>
                       )}
-                      {c.notPortainer && !c.orphan && (
-                        <span className={styles.notPortainerBadge}>not in Portainer</span>
-                      )}
                       {c.orphan && <span className={styles.orphanBadge}>offline</span>}
                     </div>
                   </div>
@@ -524,7 +507,6 @@ ContainerBlocklist.propTypes = {
       image: PropTypes.string,
       imageName: PropTypes.string,
       portainerName: PropTypes.string,
-      portainerUrl: PropTypes.string,
       stackName: PropTypes.string,
     })
   ),

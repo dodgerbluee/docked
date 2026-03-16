@@ -108,7 +108,7 @@ async function processContainer({
 
     await containerPersistenceService.saveContainerToDatabase({
       userId,
-      portainerInstanceId: instance.id,
+      sourceInstanceId: instance.id,
       container,
       containerData,
       updateInfo,
@@ -147,8 +147,8 @@ async function processContainer({
       status: container.Status,
       state: container.State,
       endpointId,
-      portainerUrl,
-      portainerName: instanceName,
+      sourceUrl: portainerUrl,
+      sourceName: instanceName,
       hasUpdate: false,
       currentTag: null,
       currentVersion: null,
@@ -322,12 +322,12 @@ async function processContainerBasic({
     return {
       id: container.Id,
       name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
-      image: imageName,
+      image: container.Image || "unknown",
       status: container.Status,
       state: container.State,
       endpointId,
-      portainerUrl,
-      portainerName: instanceName,
+      sourceUrl: portainerUrl,
+      sourceName: instanceName,
       hasUpdate: false, // No registry check
       currentDigest, // Full digest (sha256:...)
       currentTag: imageTag,
@@ -359,8 +359,8 @@ async function processContainerBasic({
       status: container.Status,
       state: container.State,
       endpointId,
-      portainerUrl,
-      portainerName: instanceName,
+      sourceUrl: portainerUrl,
+      sourceName: instanceName,
       hasUpdate: false,
       currentTag: null,
       currentVersion: null,

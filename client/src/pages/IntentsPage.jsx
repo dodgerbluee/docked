@@ -16,7 +16,7 @@ import LoadingSpinner from "../components/ui/LoadingSpinner";
 import { MAX_INTENTS_PER_USER } from "../constants/intents";
 import styles from "./IntentsPage.module.css";
 
-function IntentsPage({ containers = [], portainerInstances = [] }) {
+function IntentsPage({ containers = [], sourceInstances = [], runners = [] }) {
   const {
     intents,
     isLoading,
@@ -126,6 +126,11 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
         </div>
       </div>
 
+      <p className={styles.sectionDescription}>
+        Intents let you define automated upgrade policies for your containers. When a new image is
+        available, matching containers can be upgraded automatically on a schedule or on-demand.
+      </p>
+
       {/* Error/Success messages */}
       {error && (
         <div className={styles.errorMessage}>
@@ -178,7 +183,8 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
         onSubmit={handleModalSubmit}
         initialData={editingIntentData}
         containers={containers}
-        portainerInstances={portainerInstances}
+        sourceInstances={sourceInstances}
+        runners={runners}
       />
 
       {/* Execution Detail Modal (standalone — e.g. after dry run) */}
@@ -200,7 +206,8 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
         onEdit={handleEditIntent}
         onDelete={handleDeleteIntent}
         initialTab={detailInitialTab}
-        portainerInstances={portainerInstances}
+        sourceInstances={sourceInstances}
+        runners={runners}
       />
 
       {/* Confirm Dialog */}
@@ -233,7 +240,8 @@ function IntentsPage({ containers = [], portainerInstances = [] }) {
 
 IntentsPage.propTypes = {
   containers: PropTypes.array,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
+  runners: PropTypes.array,
 };
 
 export default IntentsPage;

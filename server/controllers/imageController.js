@@ -6,7 +6,7 @@
 const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
 const { validateImageArray } = require("../utils/validation");
-const { getAllPortainerInstances } = require("../db/index");
+const { getAllSourceInstances } = require("../db/index");
 const logger = require("../utils/logger");
 
 /**
@@ -75,7 +75,7 @@ async function deleteImages(req, res, next) {
     );
 
     // Get user's instances once to avoid repeated DB queries
-    const instances = await getAllPortainerInstances(userId);
+    const instances = await getAllSourceInstances(userId);
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
 
     // Delete images in parallel

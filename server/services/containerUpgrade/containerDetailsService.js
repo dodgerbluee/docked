@@ -9,7 +9,7 @@
 const axios = require("axios");
 const { URL } = require("url");
 const portainerService = require("../portainerService");
-const { getAllPortainerInstances } = require("../../db/index");
+const { getAllSourceInstances } = require("../../db/index");
 const logger = require("../../utils/logger");
 const { validateUrlForSSRF, validatePathComponent } = require("../../utils/validation");
 
@@ -227,7 +227,7 @@ async function fetchContainerDetails(
     } catch (error) {
       if (error.response?.status === 401) {
         try {
-          const instances = await getAllPortainerInstances();
+          const instances = await getAllSourceInstances();
           const instance = instances.find((inst) => inst.url === portainerUrl);
 
           if (instance) {

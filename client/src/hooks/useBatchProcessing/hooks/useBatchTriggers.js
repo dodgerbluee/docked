@@ -31,7 +31,7 @@ export const useBatchTriggers = ({
     setContainers,
     setStacks,
     setUnusedImagesCount,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     fetchUnusedImages,
@@ -70,8 +70,10 @@ export const useBatchTriggers = ({
           setStacks(cachedResponse.data.stacks || []);
           setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
 
-          if (cachedResponse.data.portainerInstances) {
-            setPortainerInstancesFromAPI(cachedResponse.data.portainerInstances);
+          if (cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances) {
+            setSourceInstancesFromAPI(
+              cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances
+            );
           }
           setDataFetched(true);
         }
@@ -126,8 +128,10 @@ export const useBatchTriggers = ({
         setStacks(response.data.stacks || []);
         setUnusedImagesCount(response.data.unusedImagesCount || 0);
 
-        if (response.data.portainerInstances) {
-          setPortainerInstancesFromAPI(response.data.portainerInstances);
+        if (response.data.sourceInstances || response.data.portainerInstances) {
+          setSourceInstancesFromAPI(
+            response.data.sourceInstances || response.data.portainerInstances
+          );
         }
 
         setDockerHubDataPulled(true);
@@ -156,7 +160,7 @@ export const useBatchTriggers = ({
     setContainers,
     setStacks,
     setUnusedImagesCount,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     setLastPullTime,

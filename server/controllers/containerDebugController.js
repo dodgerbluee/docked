@@ -135,6 +135,8 @@ async function buildRunnerDebugInfo(containerId, userId, db) {
       runner_name: runner.name,
       portainer_name: null,
       portainer_url: null,
+      source_instance_name: null,
+      source_url: null,
       endpoint_id: null,
       status: details.State?.Status || "",
       state: details.State?.Running ? "running" : "stopped",
@@ -182,9 +184,10 @@ async function getContainerDebugInfo(req, res) {
     // Get container record
     const containerRecord = await new Promise((resolve, reject) => {
       db.get(
-        `SELECT c.*, pi.name as portainer_name, pi.url as portainer_url
+        `SELECT c.*, pi.name as source_instance_name, pi.url as source_url,
+                pi.name as portainer_name, pi.url as portainer_url
          FROM containers c
-         LEFT JOIN portainer_instances pi ON c.portainer_instance_id = pi.id
+         LEFT JOIN portainer_instances pi ON c.source_instance_id = pi.id
          WHERE c.container_id = ? AND c.user_id = ?`,
         [containerId, userId],
         (err, row) => {
@@ -297,9 +300,10 @@ async function getContainerDebugInfo(req, res) {
     // Get all containers with the same name (to see if there are duplicates with different IDs)
     const allContainersWithSameName = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT c.*, pi.name as portainer_name, pi.url as portainer_url
+        `SELECT c.*, pi.name as source_instance_name, pi.url as source_url,
+                pi.name as portainer_name, pi.url as portainer_url
          FROM containers c
-         LEFT JOIN portainer_instances pi ON c.portainer_instance_id = pi.id
+         LEFT JOIN portainer_instances pi ON c.source_instance_id = pi.id
          WHERE c.user_id = ? AND c.container_name = ?
          ORDER BY c.last_seen DESC`,
         [userId, containerRecord.container_name],
@@ -326,13 +330,19 @@ async function getContainerDebugInfo(req, res) {
     }
 
     // If not in database, fetch from Portainer as fallback
-    if (!repoDigests && containerRecord.portainer_url && containerRecord.endpoint_id) {
+    if (
+      !repoDigests &&
+      (containerRecord.source_url || containerRecord.portainer_url) &&
+      containerRecord.endpoint_id
+    ) {
       try {
         const portainerService = require("../services/portainerService");
 
+        const sourceUrl = containerRecord.source_url || containerRecord.portainer_url;
+
         // First, get container details to obtain the Image ID
         const containerDetails = await portainerService.getContainerDetails(
-          containerRecord.portainer_url,
+          sourceUrl,
           containerRecord.endpoint_id,
           containerId
         );
@@ -340,7 +350,7 @@ async function getContainerDebugInfo(req, res) {
         // Then fetch image details using the Image ID
         if (containerDetails?.Image) {
           const imageDetails = await portainerService.getImageDetails(
-            containerRecord.portainer_url,
+            sourceUrl,
             containerRecord.endpoint_id,
             containerDetails.Image
           );

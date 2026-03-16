@@ -26,9 +26,9 @@ import { SETTINGS_TABS } from "../../../constants/settings";
  * @param {Function} props.onRecentAvatarsChange - Recent avatars change handler
  * @param {Function} props.onAvatarUploaded - Avatar uploaded handler
  * @param {Function} props.onEditInstance - Edit instance handler
- * @param {Function} props.handleClearPortainerData - Clear Portainer data handler
+ * @param {Function} props.handleClearSourceData - Clear source data handler
  * @param {Function} props.handleClearTrackedAppData - Clear tracked app data handler
- * @param {boolean} props.clearingPortainerData - Whether clearing Portainer data
+ * @param {boolean} props.clearingSourceData - Whether clearing source data
  * @param {boolean} props.clearingTrackedAppData - Whether clearing tracked app data
  */
 const SettingsTabs = ({
@@ -40,12 +40,12 @@ const SettingsTabs = ({
   onRecentAvatarsChange,
   onAvatarUploaded,
   onEditInstance,
-  handleClearPortainerData,
+  handleClearSourceData,
   handleClearTrackedAppData,
-  clearingPortainerData,
+  clearingSourceData,
   clearingTrackedAppData,
   containers = [],
-  portainerInstances = [],
+  sourceInstances = [],
 }) => {
   if (currentActiveSection === SETTINGS_TABS.GENERAL) {
     return (
@@ -74,14 +74,14 @@ const SettingsTabs = ({
   if (currentActiveSection === SETTINGS_TABS.SOURCES) {
     return (
       <SourcesTab
-        portainerInstances={settings.portainerInstances}
+        sourceInstances={settings.sourceInstances}
         onEditInstance={onEditInstance}
         handleEditInstance={settings.handleEditInstance}
         handleDeleteInstance={settings.handleDeleteInstance}
-        onClearPortainerData={handleClearPortainerData}
-        clearingPortainerData={clearingPortainerData}
+        onClearSourceData={handleClearSourceData}
+        clearingSourceData={clearingSourceData}
         containers={containers}
-        portainerInstancesProp={portainerInstances}
+        sourceInstancesProp={sourceInstances}
       />
     );
   }
@@ -167,12 +167,12 @@ SettingsTabs.propTypes = {
   onRecentAvatarsChange: PropTypes.func.isRequired,
   onAvatarUploaded: PropTypes.func.isRequired,
   onEditInstance: PropTypes.func,
-  handleClearPortainerData: PropTypes.func.isRequired,
+  handleClearSourceData: PropTypes.func.isRequired,
   handleClearTrackedAppData: PropTypes.func.isRequired,
-  clearingPortainerData: PropTypes.bool.isRequired,
+  clearingSourceData: PropTypes.bool.isRequired,
   clearingTrackedAppData: PropTypes.bool.isRequired,
   containers: PropTypes.array,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
 };
 
 export default SettingsTabs;

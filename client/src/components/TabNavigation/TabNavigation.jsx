@@ -28,8 +28,8 @@ const TabNavigation = ({
           Summary
         </button>
         <button
-          className={`tab ${activeTab === TAB_NAMES.PORTAINER ? "active" : ""}`}
-          onClick={() => onTabChange(TAB_NAMES.PORTAINER)}
+          className={`tab ${activeTab === TAB_NAMES.CONTAINERS ? "active" : ""}`}
+          onClick={() => onTabChange(TAB_NAMES.CONTAINERS)}
           aria-label="Containers tab"
         >
           <Layers size={18} />

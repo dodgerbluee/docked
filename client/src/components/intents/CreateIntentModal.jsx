@@ -14,7 +14,8 @@ function CreateIntentModal({
   onSubmit,
   initialData,
   containers = [],
-  portainerInstances = [],
+  sourceInstances = [],
+  runners = [],
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!initialData?.id;
@@ -50,7 +51,8 @@ function CreateIntentModal({
         onCancel={onClose}
         isSubmitting={isSubmitting}
         containers={containers}
-        portainerInstances={portainerInstances}
+        sourceInstances={sourceInstances}
+        runners={runners}
       />
     </Modal>
   );
@@ -62,7 +64,8 @@ CreateIntentModal.propTypes = {
   onSubmit: PropTypes.func.isRequired,
   initialData: PropTypes.object,
   containers: PropTypes.array,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
+  runners: PropTypes.array,
 };
 
 export default CreateIntentModal;

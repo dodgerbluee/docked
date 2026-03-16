@@ -17,21 +17,21 @@ function SettingsPage({
   avatar,
   recentAvatars,
   containers = [],
-  portainerInstances = [],
+  sourceInstances = [],
   onUsernameUpdate,
   onLogout,
   onPasswordUpdateSuccess,
-  onPortainerInstancesChange,
+  onSourceInstancesChange,
   onAvatarChange,
   onRecentAvatarsChange,
   onAvatarUploaded,
   onBatchConfigUpdate,
   colorScheme,
   onColorSchemeChange,
-  onClearPortainerData,
+  onClearSourceData,
   onClearTrackedAppData,
   onEditInstance,
-  editingPortainerInstance,
+  editingSourceInstance,
   refreshInstances,
   activeTab: controlledActiveTab,
   onTabChange: onControlledTabChange,
@@ -99,11 +99,11 @@ function SettingsPage({
     [onRecentAvatarsChange]
   );
 
-  const handlePortainerInstancesChange = useCallback(async () => {
-    if (onPortainerInstancesChange) {
-      await onPortainerInstancesChange();
+  const handleSourceInstancesChange = useCallback(async () => {
+    if (onSourceInstancesChange) {
+      await onSourceInstancesChange();
     }
-  }, [onPortainerInstancesChange]);
+  }, [onSourceInstancesChange]);
 
   return (
     <div className={styles.settingsPage}>
@@ -135,19 +135,19 @@ function SettingsPage({
             onRecentAvatarsChange={handleRecentAvatarsChange}
             onAvatarUploaded={onAvatarUploaded}
             onPasswordUpdateSuccess={onPasswordUpdateSuccess}
-            onPortainerInstancesChange={handlePortainerInstancesChange}
+            onSourceInstancesChange={handleSourceInstancesChange}
             activeSection={activeTab}
             onSectionChange={handleTabChange}
             showUserInfoAboveTabs={false}
             onEditInstance={onEditInstance}
-            refreshInstances={editingPortainerInstance === null ? refreshInstances : null}
+            refreshInstances={editingSourceInstance === null ? refreshInstances : null}
             onBatchConfigUpdate={onBatchConfigUpdate}
             colorScheme={colorScheme}
             onColorSchemeChange={onColorSchemeChange}
-            onClearPortainerData={onClearPortainerData}
+            onClearSourceData={onClearSourceData}
             onClearTrackedAppData={onClearTrackedAppData}
             containers={containers}
-            portainerInstances={portainerInstances}
+            sourceInstances={sourceInstances}
           />
         </ErrorBoundary>
       </div>
@@ -160,21 +160,21 @@ SettingsPage.propTypes = {
   avatar: PropTypes.string,
   recentAvatars: PropTypes.arrayOf(PropTypes.string),
   containers: PropTypes.array,
-  portainerInstances: PropTypes.array,
+  sourceInstances: PropTypes.array,
   onUsernameUpdate: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   onPasswordUpdateSuccess: PropTypes.func.isRequired,
-  onPortainerInstancesChange: PropTypes.func,
+  onSourceInstancesChange: PropTypes.func,
   onAvatarChange: PropTypes.func,
   onRecentAvatarsChange: PropTypes.func,
   onAvatarUploaded: PropTypes.func,
   onBatchConfigUpdate: PropTypes.func,
   colorScheme: PropTypes.string,
   onColorSchemeChange: PropTypes.func,
-  onClearPortainerData: PropTypes.func,
+  onClearSourceData: PropTypes.func,
   onClearTrackedAppData: PropTypes.func,
   onEditInstance: PropTypes.func,
-  editingPortainerInstance: PropTypes.object,
+  editingSourceInstance: PropTypes.object,
   refreshInstances: PropTypes.func,
   activeTab: PropTypes.string,
   onTabChange: PropTypes.func,

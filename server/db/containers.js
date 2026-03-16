@@ -15,12 +15,12 @@ const { upsertDeployedImage, cleanupOrphanedDeployedImages } = require("./deploy
 /**
  * Upsert container data
  * @param {number} userId - User ID
- * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {number} sourceInstanceId - Source instance ID
  * @param {Object} containerData - Container data
  * @returns {Promise<number>} - ID of the record
  */
 // eslint-disable-next-line max-lines-per-function -- Complex upsert logic needed for container management
-function upsertContainer(userId, portainerInstanceId, containerData) {
+function upsertContainer(userId, sourceInstanceId, containerData) {
   // eslint-disable-next-line max-lines-per-function, complexity -- Complex promise callback with upsert logic
   return new Promise((resolve, reject) => {
     try {
@@ -58,20 +58,27 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
         repoDigests,
       })
         .then((deployedImageId) => {
-          // Then upsert container with reference to deployed image
+          // Use UPDATE-first pattern to avoid duplicates even if UNIQUE constraint is missing
+          const identityWhereSQL =
+            "user_id = ? AND container_id = ? AND source_instance_id = ? AND endpoint_id = ?";
+          const identityWhereParams = [userId, containerId, sourceInstanceId, endpointId];
+
           db.run(
-            `INSERT OR REPLACE INTO containers (
-            user_id, portainer_instance_id, container_id, container_name, endpoint_id,
-            image_name, image_repo, status, state, stack_name,
-            deployed_image_id, uses_network_mode, provides_network,
-            last_seen, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            `UPDATE containers SET
+              container_name = ?,
+              image_name = ?,
+              image_repo = ?,
+              status = ?,
+              state = ?,
+              stack_name = ?,
+              deployed_image_id = ?,
+              uses_network_mode = ?,
+              provides_network = ?,
+              last_seen = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE ${identityWhereSQL}`,
             [
-              userId,
-              portainerInstanceId,
-              containerId,
               containerName,
-              endpointId,
               imageName,
               imageRepo,
               status,
@@ -80,12 +87,56 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
               deployedImageId,
               usesNetworkMode ? 1 : 0,
               providesNetwork ? 1 : 0,
+              ...identityWhereParams,
             ],
-            function (err) {
-              if (err) {
-                reject(err);
+            function (updateErr) {
+              if (updateErr) {
+                reject(updateErr);
+                return;
+              }
+
+              if (this.changes > 0) {
+                // Row existed and was updated — get its ID
+                db.get(
+                  `SELECT id FROM containers WHERE ${identityWhereSQL}`,
+                  identityWhereParams,
+                  (getErr, row) => {
+                    if (getErr) return reject(getErr);
+                    resolve(row ? row.id : null);
+                  }
+                );
               } else {
-                resolve(this.lastID);
+                // No existing row — insert new
+                db.run(
+                  `INSERT INTO containers (
+                    user_id, source_instance_id, container_id, container_name, endpoint_id,
+                    image_name, image_repo, status, state, stack_name,
+                    deployed_image_id, uses_network_mode, provides_network,
+                    last_seen, updated_at
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                  [
+                    userId,
+                    sourceInstanceId,
+                    containerId,
+                    containerName,
+                    endpointId,
+                    imageName,
+                    imageRepo,
+                    status,
+                    state,
+                    stackName,
+                    deployedImageId,
+                    usesNetworkMode ? 1 : 0,
+                    providesNetwork ? 1 : 0,
+                  ],
+                  function (insertErr) {
+                    if (insertErr) {
+                      reject(insertErr);
+                    } else {
+                      resolve(this.lastID);
+                    }
+                  }
+                );
               }
             }
           );
@@ -101,16 +152,16 @@ function upsertContainer(userId, portainerInstanceId, containerData) {
  * Upsert container with deployed image and registry version data in a single transaction
  * Ensures atomicity - all succeed or all fail
  * @param {number} userId - User ID
- * @param {number|null} portainerInstanceId - Portainer instance ID (null for runner containers)
+ * @param {number|null} sourceInstanceId - Source instance ID (null for runner containers)
  * @param {Object} containerData - Container data
  * @param {Object} versionData - Registry version data (optional)
- * @param {number|null} [runnerId=null] - Runner ID (mutually exclusive with portainerInstanceId)
+ * @param {number|null} [runnerId=null] - Runner ID (mutually exclusive with sourceInstanceId)
  * @returns {Promise<{containerId: number, deployedImageId: number, registryVersionId: number|null}>} - IDs of created/updated records
  */
 // eslint-disable-next-line max-lines-per-function -- Complex versioned upsert logic
 function upsertContainerWithVersion(
   userId,
-  portainerInstanceId,
+  sourceInstanceId,
   containerData,
   versionData = null,
   runnerId = null
@@ -144,14 +195,14 @@ function upsertContainerWithVersion(
 
     // Build identity WHERE clause based on backend type.
     // Runner containers are identified by (user_id, container_id, runner_id).
-    // Portainer containers are identified by (user_id, container_id, portainer_instance_id, endpoint_id).
+    // Source containers are identified by (user_id, container_id, source_instance_id, endpoint_id).
     const isRunner = !!runnerId;
     const identityWhereSQL = isRunner
       ? "user_id = ? AND container_id = ? AND runner_id = ?"
-      : "user_id = ? AND container_id = ? AND portainer_instance_id = ? AND endpoint_id = ?";
+      : "user_id = ? AND container_id = ? AND source_instance_id = ? AND endpoint_id = ?";
     const identityWhereParams = isRunner
       ? [userId, containerId, runnerId]
-      : [userId, containerId, portainerInstanceId, endpointId];
+      : [userId, containerId, sourceInstanceId, endpointId];
 
     return new Promise((resolve, reject) => {
       const commitTransaction = (containerRecordId, deployedImageId, registryVersionId = null) => {
@@ -294,14 +345,14 @@ function upsertContainerWithVersion(
               // No rows updated, insert new record
               db.run(
                 `INSERT INTO containers (
-                  user_id, portainer_instance_id, runner_id, container_id, container_name, endpoint_id,
+                  user_id, source_instance_id, runner_id, container_id, container_name, endpoint_id,
                   image_name, image_repo, status, state, stack_name,
                   deployed_image_id, uses_network_mode, provides_network,
                   last_seen, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                 [
                   userId,
-                  isRunner ? null : portainerInstanceId,
+                  isRunner ? null : sourceInstanceId,
                   isRunner ? runnerId : null,
                   containerId,
                   containerName,
@@ -433,11 +484,11 @@ function upsertContainerWithVersion(
 /**
  * Get all containers for a user (with deployed image info)
  * @param {number} userId - User ID
- * @param {string|null} portainerUrl - Optional filter by Portainer URL
+ * @param {string|null} sourceUrl - Optional filter by Source URL
  * @returns {Promise<Array>} - Array of containers
  */
 // eslint-disable-next-line max-lines-per-function -- Container retrieval requires comprehensive database query logic
-function getPortainerContainers(userId, portainerUrl = null) {
+function getContainers(userId, sourceUrl = null) {
   // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive query processing
   return new Promise((resolve, reject) => {
     try {
@@ -455,10 +506,10 @@ function getPortainerContainers(userId, portainerUrl = null) {
     LEFT JOIN deployed_images di ON c.deployed_image_id = di.id`;
       const params = [userId];
 
-      if (portainerUrl) {
-        query += ` JOIN portainer_instances pi ON c.portainer_instance_id = pi.id 
+      if (sourceUrl) {
+        query += ` JOIN source_instances pi ON c.source_instance_id = pi.id 
                    WHERE c.user_id = ? AND pi.url = ?`;
-        params.push(portainerUrl);
+        params.push(sourceUrl);
       } else {
         query += ` WHERE c.user_id = ?`;
       }
@@ -472,7 +523,7 @@ function getPortainerContainers(userId, portainerUrl = null) {
           const containers = rows.map((row) => ({
             id: row.id,
             userId: row.user_id,
-            portainerInstanceId: row.portainer_instance_id,
+            sourceInstanceId: row.source_instance_id,
             runnerId: row.runner_id,
             containerId: row.container_id,
             containerName: row.container_name,
@@ -504,11 +555,11 @@ function getPortainerContainers(userId, portainerUrl = null) {
 /**
  * Get containers with update information (joined with deployed images and registry versions)
  * @param {number} userId - User ID
- * @param {string|null} portainerUrl - Optional filter
+ * @param {string|null} sourceUrl - Optional filter
  * @returns {Promise<Array>} - Containers with update info
  */
 // eslint-disable-next-line max-lines-per-function -- Container retrieval with updates requires comprehensive query logic
-function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
+function getContainersWithUpdates(userId, sourceUrl = null) {
   // eslint-disable-next-line max-lines-per-function -- Promise callback requires comprehensive query processing
   return new Promise((resolve, reject) => {
     try {
@@ -575,10 +626,10 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
 
       const params = [userId];
 
-      if (portainerUrl) {
-        query += ` JOIN portainer_instances pi ON c.portainer_instance_id = pi.id 
+      if (sourceUrl) {
+        query += ` JOIN source_instances pi ON c.source_instance_id = pi.id 
                    WHERE c.user_id = ? AND pi.url = ?`;
-        params.push(portainerUrl);
+        params.push(sourceUrl);
       } else {
         query += ` WHERE c.user_id = ?`;
       }
@@ -613,7 +664,7 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
         const containerData = {
           id: row.id,
           userId: row.user_id,
-          portainerInstanceId: row.portainer_instance_id,
+          sourceInstanceId: row.source_instance_id,
           runnerId: row.runner_id,
           containerId: row.container_id,
           containerName: row.container_name,
@@ -664,18 +715,18 @@ function getPortainerContainersWithUpdates(userId, portainerUrl = null) {
 }
 
 /**
- * Delete Portainer containers for a specific instance
+ * Delete containers for a specific source instance
  * @param {number} userId - User ID
- * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {number} sourceInstanceId - Source instance ID
  * @returns {Promise<void>}
  */
-function deletePortainerContainersForInstance(userId, portainerInstanceId) {
+function deleteContainersForInstance(userId, sourceInstanceId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
       db.run(
-        `DELETE FROM containers WHERE user_id = ? AND portainer_instance_id = ?`,
-        [userId, portainerInstanceId],
+        `DELETE FROM containers WHERE user_id = ? AND source_instance_id = ?`,
+        [userId, sourceInstanceId],
         (err) => {
           if (err) {
             reject(err);
@@ -699,28 +750,23 @@ function deletePortainerContainersForInstance(userId, portainerInstanceId) {
 
 /**
  * Delete containers that are not in the provided list (for a specific instance and endpoint)
- * Used to clean up containers that were deleted from Portainer
+ * Used to clean up containers that were deleted from the source
  * @param {number} userId - User ID
- * @param {number} portainerInstanceId - Portainer instance ID
+ * @param {number} sourceInstanceId - Source instance ID
  * @param {string} endpointId - Endpoint ID
  * @param {Array<string>} currentContainerIds - Array of container IDs that currently exist
  * @returns {Promise<number>} - Number of deleted records
  */
 // eslint-disable-next-line max-lines-per-function -- Container deletion requires comprehensive database operations
-function deletePortainerContainersNotInList(
-  userId,
-  portainerInstanceId,
-  endpointId,
-  currentContainerIds
-) {
+function deleteContainersNotInList(userId, sourceInstanceId, endpointId, currentContainerIds) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
       if (!currentContainerIds || currentContainerIds.length === 0) {
         // If no current containers, delete all for this instance/endpoint
         db.run(
-          `DELETE FROM containers WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ?`,
-          [userId, portainerInstanceId, endpointId],
+          `DELETE FROM containers WHERE user_id = ? AND source_instance_id = ? AND endpoint_id = ?`,
+          [userId, sourceInstanceId, endpointId],
           function (err) {
             if (err) {
               reject(err);
@@ -740,11 +786,11 @@ function deletePortainerContainersNotInList(
 
       // Create placeholders for the IN clause
       const placeholders = currentContainerIds.map(() => "?").join(",");
-      const params = [userId, portainerInstanceId, endpointId, ...currentContainerIds];
+      const params = [userId, sourceInstanceId, endpointId, ...currentContainerIds];
 
       db.run(
         `DELETE FROM containers 
-         WHERE user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? 
+         WHERE user_id = ? AND source_instance_id = ? AND endpoint_id = ? 
          AND container_id NOT IN (${placeholders})`,
         params,
         function (err) {
@@ -772,7 +818,7 @@ function deletePortainerContainersNotInList(
  * @param {number} daysOld - Number of days old to consider stale
  * @returns {Promise<number>} - Number of deleted records
  */
-function cleanupStalePortainerContainers(daysOld = 7) {
+function cleanupStaleContainers(daysOld = 7) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
@@ -821,16 +867,16 @@ function cleanupStalePortainerContainers(daysOld = 7) {
  * Delete old container records with the same name but different ID
  * Used after container upgrades to remove the old container record
  * @param {number} userId - User ID
- * @param {number|null} portainerInstanceId - Portainer instance ID (null for runner containers)
+ * @param {number|null} sourceInstanceId - Source instance ID (null for runner containers)
  * @param {string|null} endpointId - Endpoint ID (null for runner containers)
  * @param {string} containerName - Container name
  * @param {string} currentContainerId - Current container ID (to exclude from deletion)
- * @param {number|null} [runnerId=null] - Runner ID (mutually exclusive with portainerInstanceId)
+ * @param {number|null} [runnerId=null] - Runner ID (mutually exclusive with sourceInstanceId)
  * @returns {Promise<number>} - Number of deleted records
  */
 function deleteOldContainersByName(
   userId,
-  portainerInstanceId,
+  sourceInstanceId,
   endpointId,
   containerName,
   currentContainerId,
@@ -842,10 +888,10 @@ function deleteOldContainersByName(
       const isRunner = !!runnerId;
       const whereSQL = isRunner
         ? "user_id = ? AND runner_id = ? AND container_name = ? AND container_id != ?"
-        : "user_id = ? AND portainer_instance_id = ? AND endpoint_id = ? AND container_name = ? AND container_id != ?";
+        : "user_id = ? AND source_instance_id = ? AND endpoint_id = ? AND container_name = ? AND container_id != ?";
       const whereParams = isRunner
         ? [userId, runnerId, containerName, currentContainerId]
-        : [userId, portainerInstanceId, endpointId, containerName, currentContainerId];
+        : [userId, sourceInstanceId, endpointId, containerName, currentContainerId];
       db.run(`DELETE FROM containers WHERE ${whereSQL}`, whereParams, function (err) {
         if (err) {
           reject(err);
@@ -856,7 +902,7 @@ function deleteOldContainersByName(
               `Deleted ${deletedCount} old container record(s) for ${containerName} after upgrade`,
               {
                 userId,
-                portainerInstanceId,
+                sourceInstanceId,
                 endpointId,
                 containerName,
                 currentContainerId: currentContainerId.substring(0, 12),
@@ -881,7 +927,7 @@ function deleteOldContainersByName(
 }
 
 /**
- * Clear all Portainer containers and Docker Hub versions for a user
+ * Clear all containers and Docker Hub versions for a user
  * @param {number} userId - User ID
  * @returns {Promise<void>}
  */
@@ -993,15 +1039,46 @@ function deleteRunnerContainersNotInList(userId, runnerId, currentContainerIds) 
   });
 }
 
+/**
+ * Get count of containers in DB for a specific instance and endpoint.
+ * Used as a safety check before deleting containers not in a live list.
+ * @param {number} userId - User ID
+ * @param {number} sourceInstanceId - Source instance ID
+ * @param {number|string} endpointId - Endpoint ID
+ * @returns {Promise<number>} Container count
+ */
+function getContainerCountForInstance(userId, sourceInstanceId, endpointId) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.get(
+        `SELECT COUNT(*) as count FROM containers
+         WHERE user_id = ? AND source_instance_id = ? AND endpoint_id = ?`,
+        [userId, sourceInstanceId, endpointId],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row ? row.count : 0);
+          }
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   upsertContainer,
   upsertContainerWithVersion,
-  getPortainerContainers,
-  getPortainerContainersWithUpdates,
-  deletePortainerContainersForInstance,
-  deletePortainerContainersNotInList,
+  getContainers,
+  getContainersWithUpdates,
+  getContainerCountForInstance,
+  deleteContainersForInstance,
+  deleteContainersNotInList,
   deleteRunnerContainersNotInList,
   deleteOldContainersByName,
-  cleanupStalePortainerContainers,
+  cleanupStaleContainers,
   clearUserContainerData,
 };

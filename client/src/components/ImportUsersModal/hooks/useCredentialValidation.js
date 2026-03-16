@@ -7,7 +7,7 @@ import { validateStep } from "../utils/userImportValidators";
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  PORTAINER: "portainer",
+  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -32,7 +32,7 @@ export function useCredentialValidation({
     const username = currentUser.username;
     const password = userPasswords[username];
     const creds = userCredentials[username] || {};
-    const instances = currentUser?.portainerInstances || [];
+    const instances = currentUser?.sourceInstances || [];
     const webhooks = currentUser?.discordWebhooks || [];
 
     const validation = validateStep(currentStepType, creds, password, instances, webhooks);
@@ -48,7 +48,7 @@ export function useCredentialValidation({
     return true;
   }, [currentUser, currentStepType, userPasswords, userCredentials, setUserStepErrors]);
 
-  // Validate credentials with backend (for portainer, discord)
+  // Validate credentials with backend (for sources, discord)
   const validateCredentialsStep = useCallback(async () => {
     if (!currentUser) return { success: true };
 
@@ -66,13 +66,13 @@ export function useCredentialValidation({
 
     try {
       if (
-        currentStepType === STEP_TYPES.PORTAINER &&
-        creds.portainerInstances &&
-        creds.portainerInstances.length > 0
+        currentStepType === STEP_TYPES.SOURCES &&
+        creds.sourceInstances &&
+        creds.sourceInstances.length > 0
       ) {
-        const instances = currentUser.portainerInstances || [];
+        const instances = currentUser.sourceInstances || [];
         if (instances.length > 0) {
-          const validationPromises = creds.portainerInstances.map(async (cred, index) => {
+          const validationPromises = creds.sourceInstances.map(async (cred, index) => {
             const instance = instances[index];
             if (!instance) {
               console.error(`[ImportUsersModal] Validation failed: No instance at index ${index}`);

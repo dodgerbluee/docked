@@ -11,7 +11,7 @@
 
 const logger = require("../../utils/logger");
 const containerService = require("../containerService");
-const { getPortainerContainersWithUpdates } = require("../../db/containers");
+const { getContainersWithUpdates } = require("../../db/containers");
 const { computeHasUpdate } = require("../../utils/containerUpdateHelpers");
 
 // Memory cache with TTL
@@ -47,12 +47,12 @@ class CacheEntry {
  * @param {number} userId - User ID
  * @param {Object} options - Options
  * @param {boolean} options.forceRefresh - Force refresh from Portainer
- * @param {string|null} options.portainerUrl - Filter by Portainer URL
+ * @param {string|null} options.sourceUrl - Filter by source URL
  * @returns {Promise<Object>} Container data with updates
  */
 async function getContainersWithCache(userId, options = {}) {
-  const { forceRefresh = false, portainerUrl = null } = options;
-  const cacheKey = `containers_${userId}_${portainerUrl || "all"}`;
+  const { forceRefresh = false, sourceUrl = null } = options;
+  const cacheKey = `containers_${userId}_${sourceUrl || "all"}`;
 
   try {
     // Step 1: Check memory cache (if not forcing refresh)
@@ -61,7 +61,7 @@ async function getContainersWithCache(userId, options = {}) {
       if (cached && !cached.isStale()) {
         logger.debug("Using memory cache for containers", {
           userId,
-          portainerUrl,
+          sourceUrl,
           containerCount: cached.data.containers?.length || 0,
         });
         return cached.data;
@@ -69,11 +69,11 @@ async function getContainersWithCache(userId, options = {}) {
     }
 
     // Step 2: Fetch fresh Portainer data and database cache in parallel
-    logger.debug("Fetching fresh container data", { userId, portainerUrl, forceRefresh });
+    logger.debug("Fetching fresh container data", { userId, sourceUrl, forceRefresh });
 
     const [portainerResult, dbCache] = await Promise.all([
       containerService.getContainersFromPortainer(userId),
-      getPortainerContainersWithUpdates(userId, portainerUrl),
+      getContainersWithUpdates(userId, sourceUrl),
     ]);
 
     // Step 3: Merge and detect changes
@@ -100,7 +100,7 @@ async function getContainersWithCache(userId, options = {}) {
       grouped: true,
       stacks: portainerResult.stacks || [],
       containers: mergedContainers,
-      portainerInstances: portainerResult.portainerInstances || [],
+      sourceInstances: portainerResult.sourceInstances || [],
       unusedImagesCount: portainerResult.unusedImagesCount || 0,
     };
 
@@ -113,11 +113,11 @@ async function getContainersWithCache(userId, options = {}) {
 
     // Fallback to database cache if Portainer fetch fails
     try {
-      const dbCache = await getPortainerContainersWithUpdates(userId, portainerUrl);
+      const dbCache = await getContainersWithUpdates(userId, sourceUrl);
       if (dbCache && dbCache.length > 0) {
         logger.warn("Falling back to database cache due to Portainer error", {
           userId,
-          portainerUrl,
+          sourceUrl,
           containerCount: dbCache.length,
         });
 
@@ -129,7 +129,7 @@ async function getContainersWithCache(userId, options = {}) {
           grouped: true,
           stacks,
           containers: dbCache,
-          portainerInstances: [],
+          sourceInstances: [],
           unusedImagesCount: 0,
         };
       }
@@ -142,7 +142,7 @@ async function getContainersWithCache(userId, options = {}) {
       grouped: true,
       stacks: [],
       containers: [],
-      portainerInstances: [],
+      sourceInstances: [],
       unusedImagesCount: 0,
     };
   }
@@ -232,7 +232,7 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
       }
 
       // Merge: use fresh Portainer data for status/state, preserve update info from cache
-      // Database container has: containerId, containerName, userId, portainerInstanceId (internal DB fields)
+      // Database container has: containerId, containerName, userId, sourceInstanceId (internal DB fields)
       // Portainer container has: id, name (frontend fields)
       // Build clean container object with correct field names for frontend
       const mergedContainer = {
@@ -243,8 +243,8 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
         status: portainerContainer.status,
         state: portainerContainer.state,
         endpointId: portainerContainer.endpointId || dbContainer.endpointId,
-        portainerUrl: portainerContainer.portainerUrl,
-        portainerName: portainerContainer.portainerName,
+        sourceUrl: portainerContainer.sourceUrl,
+        sourceName: portainerContainer.sourceName,
         usesNetworkMode:
           portainerContainer.usesNetworkMode !== undefined
             ? portainerContainer.usesNetworkMode
@@ -367,10 +367,10 @@ async function mergeAndDetectChanges(portainerContainers, dbContainers, userId) 
 async function updateContainerDigestInCache(userId, containerId, newDigest, newDigestFull) {
   try {
     const { upsertContainerWithVersion } = require("../../db/containers");
-    const { getAllPortainerInstances } = require("../../db/portainerInstances");
+    const { getAllSourceInstances } = require("../../db/sourceInstances");
 
     // Find container in database to get instance ID
-    const dbContainers = await getPortainerContainersWithUpdates(userId);
+    const dbContainers = await getContainersWithUpdates(userId);
     // Try to find by containerId first (actual container ID), then by id (DB row ID)
     let container = dbContainers.find((c) => c.containerId === containerId);
     if (!container) {
@@ -390,12 +390,12 @@ async function updateContainerDigestInCache(userId, containerId, newDigest, newD
       return;
     }
 
-    // Get Portainer instance
-    const instances = await getAllPortainerInstances(userId);
-    const instance = instances.find((inst) => inst.id === container.portainerInstanceId);
+    // Get source instance
+    const instances = await getAllSourceInstances(userId);
+    const instance = instances.find((inst) => inst.id === container.sourceInstanceId);
 
     if (!instance) {
-      logger.warn("Portainer instance not found for container", { containerId });
+      logger.warn("Source instance not found for container", { containerId });
       return;
     }
 
@@ -451,9 +451,9 @@ function normalizeDigest(digest) {
  *
  * @param {number} userId - User ID
  * @param {string|null} containerId - Container ID (null for all)
- * @param {string|null} portainerUrl - Portainer URL (null for all)
+ * @param {string|null} sourceUrl - Source URL (null for all)
  */
-function invalidateCache(userId, containerId = null, portainerUrl = null) {
+function invalidateCache(userId, containerId = null, sourceUrl = null) {
   if (containerId) {
     // Invalidate specific container - clear all cache entries for this user
     const keys = Array.from(memoryCache.keys());
@@ -462,15 +462,15 @@ function invalidateCache(userId, containerId = null, portainerUrl = null) {
         memoryCache.delete(key);
       }
     });
-  } else if (portainerUrl) {
-    // Invalidate cache for specific Portainer URL
-    const cacheKey = `containers_${userId}_${portainerUrl}`;
+  } else if (sourceUrl) {
+    // Invalidate cache for specific source URL
+    const cacheKey = `containers_${userId}_${sourceUrl}`;
     memoryCache.delete(cacheKey);
     // Also clear the "all" cache for this user
     const allCacheKey = `containers_${userId}_all`;
     memoryCache.delete(allCacheKey);
   } else {
-    // Invalidate all cache entries for this user (no containerId, no portainerUrl)
+    // Invalidate all cache entries for this user (no containerId, no sourceUrl)
     const keys = Array.from(memoryCache.keys());
     keys.forEach((key) => {
       if (key.startsWith(`containers_${userId}_`)) {
@@ -479,7 +479,7 @@ function invalidateCache(userId, containerId = null, portainerUrl = null) {
     });
   }
 
-  logger.debug("Invalidated memory cache", { userId, containerId, portainerUrl });
+  logger.debug("Invalidated memory cache", { userId, containerId, sourceUrl });
 }
 
 /**

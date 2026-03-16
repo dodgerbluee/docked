@@ -192,13 +192,10 @@ class Scheduler {
 
           if (shouldRun) {
             jobsTriggered++;
-            this.logger.info(
-              `Job ${jobType} due for user ${user.id} — triggering`,
-              {
-                timeSinceLastRun: `${Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10}m`,
-                interval: `${config.intervalMinutes}m`,
-              }
-            );
+            this.logger.info(`Job ${jobType} due for user ${user.id} — triggering`, {
+              timeSinceLastRun: `${Math.round((timeSinceLastRun / 1000 / 60) * 10) / 10}m`,
+              interval: `${config.intervalMinutes}m`,
+            });
 
             this.runJob(user.id, jobType)
               .then(() => {

@@ -32,7 +32,7 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
     handleBack,
     handleUnskip,
     handleConfirm,
-    handleUpdatePortainerCred,
+    handleUpdateSourceCred,
     handleUpdateDiscordCred,
   } = useImportCredentialsFlow(isOpen, configData, onConfirm);
 
@@ -62,7 +62,7 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Import Configuration - Credentials" size="lg">
       <div className={styles.stepIndicator}>
         Step {currentStep + 1} of {steps.length}:{" "}
-        {steps[currentStep] === "portainer" ? "Sources" : "Discord Webhooks"}
+        {steps[currentStep] === "sources" ? "Sources" : "Discord Webhooks"}
       </div>
       <CredentialsStepManager
         steps={steps}
@@ -70,7 +70,7 @@ const ImportCredentialsModal = React.memo(function ImportCredentialsModal({
         configData={configData}
         credentials={credentials}
         errors={errors}
-        onUpdatePortainerCred={handleUpdatePortainerCred}
+        onUpdateSourceCred={handleUpdateSourceCred}
         onUpdateDiscordCred={handleUpdateDiscordCred}
       />
       {validationError && <Alert variant="error">{validationError}</Alert>}
