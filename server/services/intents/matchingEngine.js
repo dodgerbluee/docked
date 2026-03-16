@@ -19,6 +19,10 @@ const {
   getAllSourceInstances,
   getAllRunners,
 } = require("../../db/index");
+const { getContainersFromRunners } = require("../runnerService");
+const { getRegistryImageVersion } = require("../../db/registryImageVersions");
+const { parseImageName } = require("../../utils/imageRepoParser");
+const { computeHasUpdate } = require("../../utils/containerUpdateHelpers");
 
 /**
  * Convert a simple glob pattern to a RegExp.
@@ -152,7 +156,64 @@ function containerMatchesIntent(container, intent) {
 }
 
 /**
+ * Enrich a runner container with registry version info so hasUpdate can be computed.
+ * Uses cached registry_image_versions data (non-blocking, no registry calls).
+ *
+ * @param {number} userId - User ID
+ * @param {Object} container - Normalized runner container from runnerService
+ * @returns {Promise<Object>} - Container with hasUpdate computed
+ */
+async function enrichRunnerContainerForMatching(userId, container) {
+  try {
+    const { imageRepo, tag } = parseImageName(container.image);
+    const cached = await getRegistryImageVersion(userId, imageRepo, tag);
+    if (cached && cached.latest_digest) {
+      const enriched = {
+        ...container,
+        latestDigest: cached.latest_digest,
+        latestVersion: cached.latest_version || null,
+        latestPublishDate: cached.latest_publish_date || null,
+        lastChecked: cached.last_checked || null,
+        provider: cached.provider || null,
+        existsInDockerHub: true,
+        noDigest: false,
+      };
+      enriched.hasUpdate = computeHasUpdate(enriched);
+      return enriched;
+    }
+  } catch (err) {
+    logger.debug(`Runner container enrichment failed for ${container.name} during matching:`, {
+      module: "matchingEngine",
+      error: err.message,
+    });
+  }
+  return container;
+}
+
+/**
+ * Map a normalized runner container to the shape used by containerMatchesIntent().
+ * DB containers use containerName/imageName/containerId; runner containers use name/image/id.
+ *
+ * @param {Object} rc - Normalized runner container from runnerService
+ * @returns {Object} - Container in matching-engine shape
+ */
+function mapRunnerContainerForMatching(rc) {
+  return {
+    ...rc,
+    containerId: rc.id,
+    containerName: rc.name,
+    imageName: rc.image,
+    imageRepo: rc.image ? parseImageName(rc.image).imageRepo : null,
+    sourceInstanceId: null,
+    // runnerId, stackName, hasUpdate, repoDigests, currentDigest already present
+  };
+}
+
+/**
  * Find all containers that match an intent's criteria.
+ *
+ * Queries both DB-persisted containers (Portainer) and live runner containers
+ * so that intents matching by source work for all source types.
  *
  * @param {Object} intent - Intent object (parsed from DB)
  * @param {number} userId - User ID
@@ -161,14 +222,22 @@ function containerMatchesIntent(container, intent) {
  */
 async function findMatchingContainers(intent, userId, requireUpdate = true) {
   try {
-    // Fetch all containers with update info (no URL filter = all instances)
-    const allContainers = await getContainersWithUpdates(userId);
-
-    // Build maps for both source instances and runners
-    const [sourceInstances, runners] = await Promise.all([
+    // Fetch DB containers (Portainer) and runners in parallel
+    const [dbContainers, sourceInstances, runners] = await Promise.all([
+      getContainersWithUpdates(userId),
       getAllSourceInstances(userId),
       getAllRunners(userId),
     ]);
+
+    // Fetch live runner containers, enrich with registry data, and map to matching shape
+    const rawRunnerContainers = await getContainersFromRunners(runners);
+    const enrichedRunnerContainers = await Promise.all(
+      rawRunnerContainers.map((rc) => enrichRunnerContainerForMatching(userId, rc))
+    );
+    const runnerContainers = enrichedRunnerContainers.map(mapRunnerContainerForMatching);
+
+    // Combine all containers
+    const allContainers = [...dbContainers, ...runnerContainers];
 
     const sourceInstanceUrlMap = new Map();
     for (const inst of sourceInstances) {
@@ -236,6 +305,8 @@ async function findMatchingContainers(intent, userId, requireUpdate = true) {
       intentId: intent.id,
       intentName: intent.name,
       totalContainers: allContainers.length,
+      dbContainers: dbContainers.length,
+      runnerContainers: runnerContainers.length,
       containersWithUpdates: allContainers.filter((c) => c.hasUpdate).length,
       matchedContainers: matched.length,
       requireUpdate,
