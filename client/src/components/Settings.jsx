@@ -15,7 +15,7 @@ const Settings = React.memo(
     onUsernameUpdate,
     onLogout,
     onPasswordUpdateSuccess,
-    onPortainerInstancesChange,
+    onSourceInstancesChange,
     activeSection = "general",
     onSectionChange = null,
     showUserInfoAboveTabs = false,
@@ -29,10 +29,10 @@ const Settings = React.memo(
     colorScheme = "system",
     onColorSchemeChange = null,
     refreshInstances = null,
-    onClearPortainerData = null,
+    onClearSourceData = null,
     onClearTrackedAppData = null,
     containers = [],
-    portainerInstances = [],
+    sourceInstances = [],
   }) {
     // Memoize callbacks to avoid stale closures and prevent unnecessary re-renders
     const handleBatchConfigUpdate = useCallback(
@@ -53,12 +53,12 @@ const Settings = React.memo(
       [onAvatarChange]
     );
 
-    // Memoize onPortainerInstancesChange to prevent re-renders when container state changes
-    const handlePortainerInstancesChange = useCallback(async () => {
-      if (onPortainerInstancesChange) {
-        await onPortainerInstancesChange();
+    // Memoize onSourceInstancesChange to prevent re-renders when container state changes
+    const handleSourceInstancesChange = useCallback(async () => {
+      if (onSourceInstancesChange) {
+        await onSourceInstancesChange();
       }
-    }, [onPortainerInstancesChange]);
+    }, [onSourceInstancesChange]);
 
     // Memoize onColorSchemeChange to prevent re-renders
     const handleColorSchemeChange = useCallback(
@@ -76,7 +76,7 @@ const Settings = React.memo(
         username,
         onUsernameUpdate,
         onPasswordUpdateSuccess,
-        onPortainerInstancesChange: handlePortainerInstancesChange,
+        onSourceInstancesChange: handleSourceInstancesChange,
         onAvatarChange: handleAvatarChange,
         onBatchConfigUpdate: handleBatchConfigUpdate,
         colorScheme,
@@ -88,7 +88,7 @@ const Settings = React.memo(
         username,
         onUsernameUpdate,
         onPasswordUpdateSuccess,
-        handlePortainerInstancesChange,
+        handleSourceInstancesChange,
         handleAvatarChange,
         handleBatchConfigUpdate,
         colorScheme,
@@ -109,38 +109,38 @@ const Settings = React.memo(
     const setActiveSection = onSectionChange || setInternalActiveSection;
 
     // Local state for data clearing operations
-    const [clearingPortainerData, setClearingPortainerData] = useState(false);
+    const [clearingSourceData, setClearingSourceData] = useState(false);
     const [clearingTrackedAppData, setClearingTrackedAppData] = useState(false);
 
     // Store stable references to clear handlers using refs to prevent re-renders
     // when parent component re-renders due to container state changes
-    const onClearPortainerDataRef = useRef(onClearPortainerData);
+    const onClearSourceDataRef = useRef(onClearSourceData);
     const onClearTrackedAppDataRef = useRef(onClearTrackedAppData);
 
     // Update refs when props change, but don't trigger re-renders
     useEffect(() => {
-      onClearPortainerDataRef.current = onClearPortainerData;
-    }, [onClearPortainerData]);
+      onClearSourceDataRef.current = onClearSourceData;
+    }, [onClearSourceData]);
 
     useEffect(() => {
       onClearTrackedAppDataRef.current = onClearTrackedAppData;
     }, [onClearTrackedAppData]);
 
-    // Wrap onClearPortainerData to track clearing state locally
+    // Wrap onClearSourceData to track clearing state locally
     // This prevents flickering by managing state locally instead of relying on parent re-renders
     // Use refs to access the latest handlers without causing re-renders
-    const handleClearPortainerData = useCallback(async () => {
-      if (!onClearPortainerDataRef.current) return;
+    const handleClearSourceData = useCallback(async () => {
+      if (!onClearSourceDataRef.current) return;
 
       try {
-        setClearingPortainerData(true);
-        await onClearPortainerDataRef.current();
+        setClearingSourceData(true);
+        await onClearSourceDataRef.current();
       } catch (error) {
-        console.error("Error clearing Portainer data:", error);
+        console.error("Error clearing source data:", error);
       } finally {
         // Use setTimeout to ensure state updates complete before resetting
         setTimeout(() => {
-          setClearingPortainerData(false);
+          setClearingSourceData(false);
         }, 100);
       }
     }, []); // Empty deps - use refs instead
@@ -205,12 +205,12 @@ const Settings = React.memo(
             onRecentAvatarsChange={onRecentAvatarsChange}
             onAvatarUploaded={onAvatarUploaded}
             onEditInstance={onEditInstance}
-            handleClearPortainerData={handleClearPortainerData}
+            handleClearSourceData={handleClearSourceData}
             handleClearTrackedAppData={handleClearTrackedAppData}
-            clearingPortainerData={clearingPortainerData}
+            clearingSourceData={clearingSourceData}
             clearingTrackedAppData={clearingTrackedAppData}
             containers={containers}
-            portainerInstances={portainerInstances}
+            sourceInstances={sourceInstances}
           />
         )}
       </>
@@ -219,7 +219,7 @@ const Settings = React.memo(
   (prevProps, nextProps) => {
     // Custom comparison function to prevent re-renders when container state changes
     // Only re-render if props that Settings actually cares about have changed
-    // Note: onClearPortainerData and onClearTrackedAppData are intentionally excluded
+    // Note: onClearSourceData and onClearTrackedAppData are intentionally excluded
     // because we use refs to store them, so reference changes don't matter
     return (
       prevProps.username === nextProps.username &&
@@ -232,18 +232,18 @@ const Settings = React.memo(
       prevProps.onUsernameUpdate === nextProps.onUsernameUpdate &&
       prevProps.onLogout === nextProps.onLogout &&
       prevProps.onPasswordUpdateSuccess === nextProps.onPasswordUpdateSuccess &&
-      prevProps.onPortainerInstancesChange === nextProps.onPortainerInstancesChange &&
+      prevProps.onSourceInstancesChange === nextProps.onSourceInstancesChange &&
       prevProps.onAvatarChange === nextProps.onAvatarChange &&
       prevProps.onRecentAvatarsChange === nextProps.onRecentAvatarsChange &&
       prevProps.onAvatarUploaded === nextProps.onAvatarUploaded &&
       prevProps.onBatchConfigUpdate === nextProps.onBatchConfigUpdate &&
       prevProps.onColorSchemeChange === nextProps.onColorSchemeChange &&
-      // onClearPortainerData and onClearTrackedAppData excluded - we use refs, so reference changes don't matter
+      // onClearSourceData and onClearTrackedAppData excluded - we use refs, so reference changes don't matter
       prevProps.onEditInstance === nextProps.onEditInstance &&
       prevProps.onSectionChange === nextProps.onSectionChange &&
       prevProps.refreshInstances === nextProps.refreshInstances &&
       prevProps.containers === nextProps.containers &&
-      prevProps.portainerInstances === nextProps.portainerInstances
+      prevProps.sourceInstances === nextProps.sourceInstances
     );
   }
 );

@@ -1,7 +1,7 @@
 /**
  * Container Grouping Service
  *
- * Handles grouping of containers by stack and Portainer instance.
+ * Handles grouping of containers by stack and source instance.
  * Extracted from containerQueryService to improve modularity.
  */
 
@@ -87,18 +87,18 @@ function groupContainersByStackWithUnstacked(containers, unstackedName = "Unstac
 }
 
 /**
- * Group containers by Portainer instance
+ * Group containers by source instance
  * @param {Array<Object>} containers - Array of container objects
- * @param {Array<Object>} portainerInstances - Array of Portainer instance objects
- * @returns {Array<Object>} - Array of Portainer instance objects with containers
+ * @param {Array<Object>} sourceInstances - Array of source instance objects
+ * @returns {Array<Object>} - Array of source instance objects with containers
  */
-function groupContainersByPortainerInstance(containers, portainerInstances) {
-  if (!portainerInstances || portainerInstances.length === 0) {
+function groupContainersBySourceInstance(containers, sourceInstances) {
+  if (!sourceInstances || sourceInstances.length === 0) {
     return [];
   }
 
-  return portainerInstances.map((instance) => {
-    const instanceContainers = containers.filter((c) => c.portainerUrl === instance.url);
+  return sourceInstances.map((instance) => {
+    const instanceContainers = containers.filter((c) => c.sourceUrl === instance.url);
     return {
       name: instance.name || new URL(instance.url).hostname,
       url: instance.url,
@@ -113,5 +113,5 @@ function groupContainersByPortainerInstance(containers, portainerInstances) {
 module.exports = {
   groupContainersByStack,
   groupContainersByStackWithUnstacked,
-  groupContainersByPortainerInstance,
+  groupContainersBySourceInstance,
 };

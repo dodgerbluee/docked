@@ -697,7 +697,7 @@ function formatVersionUpdateNotification(imageData) {
   // Determine notification title based on type
   let notificationTitle;
   if (notificationType === "portainer-container") {
-    notificationTitle = "New Portainer Container Update Available 🫙";
+    notificationTitle = "New Container Update Available 🫙";
   } else {
     // Default to tracked app
     notificationTitle = "🆕 Tracked Application Update Available";

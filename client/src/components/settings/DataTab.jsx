@@ -74,7 +74,7 @@ const DataTab = React.memo(function DataTab() {
   const lastPulledInfo = useMemo(() => {
     if (dataEntries.length > 0 && dataEntries[0]) {
       return {
-        lastPortainerPull: dataEntries[0].lastPortainerPull,
+        lastSourcePull: dataEntries[0].lastSourcePull,
         lastDockerHubPull: dataEntries[0].lastDockerHubPull,
       };
     }
@@ -109,12 +109,12 @@ const DataTab = React.memo(function DataTab() {
         <div className={styles.headerWrapper}>
           <div className={styles.header}>
             <div className={styles.headerTitle}>
-              <h3 className={styles.title}>Portainer Data</h3>
+              <h3 className={styles.title}>Source Data</h3>
               {lastPulledInfo && (
                 <div className={styles.lastPulledInfo}>
-                  {lastPulledInfo.lastPortainerPull && (
+                   {lastPulledInfo.lastSourcePull && (
                     <span className={styles.lastPulled}>
-                      Last Portainer pull: {formatDate(lastPulledInfo.lastPortainerPull)}
+                      Last source pull: {formatDate(lastPulledInfo.lastSourcePull)}
                     </span>
                   )}
                   {lastPulledInfo.lastDockerHubPull && (

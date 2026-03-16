@@ -1,9 +1,9 @@
 import React from "react";
 import PropTypes from "prop-types";
-import styles from "./PortainerInstanceCard.module.css";
+import styles from "./SourceInstanceCard.module.css";
 
 /**
- * Reusable stat item component for PortainerInstanceCard
+ * Reusable stat item component for SourceInstanceCard
  * Reduces code duplication and provides consistent keyboard navigation
  */
 const StatItem = ({ value, label, variant = "", onClick }) => {

@@ -16,23 +16,23 @@ export function validatePasswordStep(password) {
 }
 
 /**
- * Validate Portainer credentials step
+ * Validate source credentials step
  */
-export function validatePortainerStep(credentials, instances) {
+export function validateSourceStep(credentials, instances) {
   const errors = {};
 
   if (instances.length > 0) {
     credentials.forEach((cred, index) => {
       if (cred.auth_type === "apikey") {
         if (!cred.apiKey) {
-          errors[`portainer_${index}_apiKey`] = "API key is required";
+          errors[`source_${index}_apiKey`] = "API key is required";
         }
       } else if (cred.auth_type === "password") {
         if (!cred.username) {
-          errors[`portainer_${index}_username`] = "Username is required";
+          errors[`source_${index}_username`] = "Username is required";
         }
         if (!cred.password) {
-          errors[`portainer_${index}_password`] = "Password is required";
+          errors[`source_${index}_password`] = "Password is required";
         }
       }
     });
@@ -76,8 +76,8 @@ export function validateStep(stepType, credentials, password, instances, webhook
   switch (stepType) {
     case "password":
       return validatePasswordStep(password);
-    case "portainer":
-      return validatePortainerStep(credentials?.portainerInstances || [], instances);
+    case "sources":
+      return validateSourceStep(credentials?.sourceInstances || [], instances);
     case "discord":
       return validateDiscordStep(credentials, webhooks);
     default:

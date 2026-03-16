@@ -1,11 +1,11 @@
 /**
  * AnalyticsSidebar Component
- * View tabs and filters for upgrade analytics (matches Portainer/Tracked Apps sidebar pattern)
+ * View tabs and filters for upgrade analytics (matches Sources/Tracked Apps sidebar pattern)
  */
 
 import React from "react";
 import PropTypes from "prop-types";
-import { TrendingUp, BarChart3, Package, Zap, Calendar, Award } from "lucide-react";
+import { TrendingUp, BarChart3, Package, Zap, Calendar, Award, Box } from "lucide-react";
 import {
   ANALYTICS_VIEW_TABS,
   ANALYTICS_VIEW_TAB_LABELS,
@@ -17,6 +17,7 @@ import styles from "./AnalyticsSidebar.module.css";
 const VIEW_ICONS = {
   [ANALYTICS_VIEW_TABS.OVERVIEW]: TrendingUp,
   [ANALYTICS_VIEW_TABS.CONTAINERS]: BarChart3,
+  [ANALYTICS_VIEW_TABS.APPS]: Box,
   [ANALYTICS_VIEW_TABS.TRACKED_APPS]: Package,
   [ANALYTICS_VIEW_TABS.PERFORMANCE]: Zap,
   [ANALYTICS_VIEW_TABS.PATTERNS]: Calendar,
@@ -28,13 +29,13 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
   onViewTabChange,
   selectedDataSources,
   onSelectedDataSourcesChange,
-  selectedPortainerInstances,
-  onSelectedPortainerInstancesChange,
-  portainerInstances = [],
+  selectedSourceInstances,
+  onSelectedSourceInstancesChange,
+  sourceInstances = [],
 }) {
   const showContainerData = selectedDataSources.has(ANALYTICS_DATA_SOURCE.CONTAINERS);
   const showInstanceFilter =
-    (showContainerData || selectedDataSources.size === 0) && portainerInstances.length > 0;
+    (showContainerData || selectedDataSources.size === 0) && sourceInstances.length > 0;
 
   const handleDataSourceToggle = (source, checked) => {
     onSelectedDataSourcesChange((prev) => {
@@ -56,13 +57,13 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
   };
 
   const handleInstanceToggle = (instanceName, checked) => {
-    onSelectedPortainerInstancesChange((prev) => {
+    onSelectedSourceInstancesChange((prev) => {
       const next = new Set(prev);
       if (checked) {
         next.add(instanceName);
         const allSelected =
-          portainerInstances.filter((i) => i?.name).length > 0 &&
-          portainerInstances.every((i) => i?.name && next.has(i.name));
+          sourceInstances.filter((i) => i?.name).length > 0 &&
+          sourceInstances.every((i) => i?.name && next.has(i.name));
         if (allSelected) return new Set();
         return next;
       }
@@ -133,14 +134,15 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
           </div>
           <div className={styles.filterContainer}>
             <div className={styles.filterBox}>
-              {portainerInstances
+              {sourceInstances
                 .filter((inst) => inst != null && inst.name)
+                .sort((a, b) => a.name.localeCompare(b.name))
                 .map((instance) => (
                   <div key={instance.name} className={styles.filterLabel}>
                     <label className={styles.checkbox}>
                       <input
                         type="checkbox"
-                        checked={selectedPortainerInstances.has(instance.name)}
+                        checked={selectedSourceInstances.has(instance.name)}
                         onChange={(e) => handleInstanceToggle(instance.name, e.target.checked)}
                         aria-label={`Filter by ${instance.name}`}
                       />
@@ -150,7 +152,7 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
                       onClick={() =>
                         handleInstanceToggle(
                           instance.name,
-                          !selectedPortainerInstances.has(instance.name)
+                          !selectedSourceInstances.has(instance.name)
                         )
                       }
                       onKeyDown={(e) => {
@@ -158,7 +160,7 @@ const AnalyticsSidebar = React.memo(function AnalyticsSidebar({
                           e.preventDefault();
                           handleInstanceToggle(
                             instance.name,
-                            !selectedPortainerInstances.has(instance.name)
+                            !selectedSourceInstances.has(instance.name)
                           );
                         }
                       }}
@@ -182,9 +184,9 @@ AnalyticsSidebar.propTypes = {
   onViewTabChange: PropTypes.func.isRequired,
   selectedDataSources: PropTypes.instanceOf(Set).isRequired,
   onSelectedDataSourcesChange: PropTypes.func.isRequired,
-  selectedPortainerInstances: PropTypes.instanceOf(Set).isRequired,
-  onSelectedPortainerInstancesChange: PropTypes.func.isRequired,
-  portainerInstances: PropTypes.arrayOf(PropTypes.object),
+  selectedSourceInstances: PropTypes.instanceOf(Set).isRequired,
+  onSelectedSourceInstancesChange: PropTypes.func.isRequired,
+  sourceInstances: PropTypes.arrayOf(PropTypes.object),
 };
 
 AnalyticsSidebar.displayName = "AnalyticsSidebar";

@@ -11,26 +11,26 @@ class ContainerRepository extends BaseRepository {
   /**
    * Upsert container data
    * @param {number} userId - User ID
-   * @param {number} portainerInstanceId - Portainer instance ID
+   * @param {number} sourceInstanceId - Source instance ID
    * @param {Object} containerData - Container data
    * @returns {Promise<number>} - ID of the record
    */
-  upsert(userId, portainerInstanceId, containerData) {
-    return containerDb.upsertContainer(userId, portainerInstanceId, containerData);
+  upsert(userId, sourceInstanceId, containerData) {
+    return containerDb.upsertContainer(userId, sourceInstanceId, containerData);
   }
 
   /**
    * Upsert container with version data in a single transaction
    * @param {number} userId - User ID
-   * @param {number} portainerInstanceId - Portainer instance ID
+   * @param {number} sourceInstanceId - Source instance ID
    * @param {Object} containerData - Container data
    * @param {Object} versionData - Version data
    * @returns {Promise<Object>} - Result with containerId, deployedImageId, registryVersionId
    */
-  upsertWithVersion(userId, portainerInstanceId, containerData, versionData) {
+  upsertWithVersion(userId, sourceInstanceId, containerData, versionData) {
     return containerDb.upsertContainerWithVersion(
       userId,
-      portainerInstanceId,
+      sourceInstanceId,
       containerData,
       versionData
     );
@@ -43,7 +43,7 @@ class ContainerRepository extends BaseRepository {
    * @returns {Promise<Array>} - Array of containers
    */
   findByUser(userId, portainerUrl = null) {
-    return containerDb.getPortainerContainers(userId, portainerUrl);
+    return containerDb.getContainers(userId, portainerUrl);
   }
 
   /**
@@ -53,30 +53,30 @@ class ContainerRepository extends BaseRepository {
    * @returns {Promise<Array>} - Containers with update info
    */
   findByUserWithUpdates(userId, portainerUrl = null) {
-    return containerDb.getPortainerContainersWithUpdates(userId, portainerUrl);
+    return containerDb.getContainersWithUpdates(userId, portainerUrl);
   }
 
   /**
-   * Delete containers for a specific Portainer instance
+   * Delete containers for a specific source instance
    * @param {number} userId - User ID
-   * @param {number} portainerInstanceId - Portainer instance ID
+   * @param {number} sourceInstanceId - Source instance ID
    * @returns {Promise<void>}
    */
-  deleteByInstance(userId, portainerInstanceId) {
-    return containerDb.deletePortainerContainersForInstance(userId, portainerInstanceId);
+  deleteByInstance(userId, sourceInstanceId) {
+    return containerDb.deleteContainersForInstance(userId, sourceInstanceId);
   }
 
   /**
    * Delete containers not in the provided list
    * @param {number} userId - User ID
-   * @param {number} portainerInstanceId - Portainer instance ID
+   * @param {number} sourceInstanceId - Source instance ID
    * @param {Array<string>} containerIds - List of container IDs to keep
    * @returns {Promise<void>}
    */
-  deleteNotInList(userId, portainerInstanceId, containerIds) {
-    return containerDb.deletePortainerContainersNotInList(
+  deleteNotInList(userId, sourceInstanceId, containerIds) {
+    return containerDb.deleteContainersNotInList(
       userId,
-      portainerInstanceId,
+      sourceInstanceId,
       containerIds
     );
   }
@@ -87,7 +87,7 @@ class ContainerRepository extends BaseRepository {
    * @returns {Promise<number>} - Number of containers deleted
    */
   cleanupStale(daysOld = 7) {
-    return containerDb.cleanupStalePortainerContainers(daysOld);
+    return containerDb.cleanupStaleContainers(daysOld);
   }
 
   /**

@@ -120,9 +120,9 @@ function normalizeRunnerContainer(rc, runner) {
     latestDigest: null,
     lastChecked: null,
 
-    // No portainer fields
-    portainerName: null,
-    portainerUrl: null,
+    // No source instance fields (runner containers don't come from Portainer)
+    sourceName: null,
+    sourceUrl: null,
     endpointId: null,
   };
 }

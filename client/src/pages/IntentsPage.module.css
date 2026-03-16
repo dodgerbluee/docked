@@ -11,7 +11,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
   gap: 16px;
 }
 
@@ -28,6 +28,13 @@
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
+}
+
+.sectionDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 16px 0;
 }
 
 .errorMessage {

@@ -370,15 +370,15 @@ function TypePickerDialog({ onClose, onSelectPortainer, onSelectRunner }) {
 /* ── Main SourcesTab Component ────────────────────────────────────────── */
 
 const SourcesTab = React.memo(function SourcesTab({
-  // Portainer props (passed from SettingsTabs via useSettings)
-  portainerInstances,
+  // Source props (passed from SettingsTabs via useSettings)
+  sourceInstances,
   onEditInstance,
   handleEditInstance,
   handleDeleteInstance,
-  onClearPortainerData,
-  clearingPortainerData,
+  onClearSourceData,
+  clearingSourceData,
   containers = [],
-  portainerInstancesProp = [],
+  sourceInstancesProp = [],
 }) {
   // Runner state (self-contained via hook)
   const runner = useRunnerState();
@@ -394,10 +394,10 @@ const SourcesTab = React.memo(function SourcesTab({
 
   // Auto-ping all Portainer instances on mount
   useEffect(() => {
-    if (hasAutoPingedPortainer.current || !portainerInstances?.length) return;
+    if (hasAutoPingedPortainer.current || !sourceInstances?.length) return;
     hasAutoPingedPortainer.current = true;
 
-    portainerInstances.forEach((inst) => {
+    sourceInstances.forEach((inst) => {
       setPortainerHealth((prev) => ({ ...prev, [inst.id]: { checking: true } }));
       axios
         .post(`${API_BASE_URL}/api/portainer/instances/${inst.id}/health`)
@@ -414,7 +414,7 @@ const SourcesTab = React.memo(function SourcesTab({
           }));
         });
     });
-  }, [portainerInstances]);
+  }, [sourceInstances]);
 
   // Type picker state
   const [showTypePicker, setShowTypePicker] = useState(false);
@@ -432,19 +432,19 @@ const SourcesTab = React.memo(function SourcesTab({
     setDeleteConfirm({ isOpen: false, instanceId: null });
   }, [deleteConfirm.instanceId, handleDeleteInstance]);
 
-  const handleClearPortainerData = useCallback(async () => {
-    if (!onClearPortainerData) {
-      alert("Error: Clear Portainer Data handler is not available. Please refresh the page.");
+  const handleClearSourceData = useCallback(async () => {
+    if (!onClearSourceData) {
+      alert("Error: Clear Source Data handler is not available. Please refresh the page.");
       return;
     }
     try {
-      await onClearPortainerData(true);
+      await onClearSourceData(true);
       setPortainerConfirm(false);
     } catch (error) {
-      console.error("Error clearing Portainer data:", error);
-      alert("Error clearing Portainer data: " + (error.message || "Unknown error"));
+      console.error("Error clearing source data:", error);
+      alert("Error clearing source data: " + (error.message || "Unknown error"));
     }
-  }, [onClearPortainerData]);
+  }, [onClearSourceData]);
 
   const handleDeleteClose = useCallback(() => {
     setDeleteConfirm({ isOpen: false, instanceId: null });
@@ -485,7 +485,9 @@ const SourcesTab = React.memo(function SourcesTab({
 
   /* ── Loading state ────────────────────────────────────────────────── */
 
-  const hasPortainerInstances = portainerInstances && portainerInstances.length > 0;
+  const hasPortainerInstances = sourceInstances && sourceInstances.length > 0;
+  const hasDockerRunners = runner.runners && runner.runners.some((r) => r.docker_enabled !== 0);
+  const hasAnySources = hasPortainerInstances || hasDockerRunners;
 
   if (runner.loading) {
     return (
@@ -522,155 +524,180 @@ const SourcesTab = React.memo(function SourcesTab({
 
   return (
     <div className={styles.wrapper}>
-      <h3 className={styles.title}>Connected Sources</h3>
-      <p className={styles.description}>
-        Manage your container sources. <strong>Portainer instances</strong> connect to existing
-        Portainer installations. <strong>Runners</strong> are lightweight agents (
-        <code>dockhand</code>) installed directly on your machines.
-      </p>
 
       {/* ── Mixed source card grid ──────────────────────────────────── */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h4 className={styles.sectionTitle}>Sources</h4>
         </div>
+        <div className={styles.description}>
+          <p className={styles.descriptionIntro}>
+            Sources are the machines Docked monitors for container updates.
+          </p>
+          <ul className={styles.sourceTypeList}>
+            <li>
+              <strong>Portainer</strong> &mdash; connects to an existing Portainer installation
+            </li>
+            <li>
+              <strong>Dockhand Runner</strong> &mdash; a lightweight agent installed
+              directly on your machine, or via Docker, to manage containers and run operations.
+            </li>
+          </ul>
+        </div>
         <div className={styles.sourceGrid}>
-          {/* Portainer instance cards */}
-          {portainerInstances.map((instance) => {
-            const phs = portainerHealth[instance.id];
-            return (
-              <Card
-                key={`portainer-${instance.id}`}
-                variant="default"
-                padding="sm"
-                className={styles.sourceCard}
-                onClick={() => setDetailInstance(instance)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && setDetailInstance(instance)}
-              >
-                <div className={styles.runnerHeader}>
-                  <div className={styles.portainerLogo}>
-                    <PortainerIcon size={18} />
-                  </div>
-                  <div className={styles.runnerMeta}>
-                    <strong className={styles.runnerName}>{instance.name}</strong>
-                    <span className={styles.runnerUrl}>{instance.url}</span>
-                  </div>
-                  <div className={styles.statusColumn}>
-                    {phs && !phs.checking && (
-                      <span
-                        className={phs.online ? styles.statusOnline : styles.statusOffline}
-                        title={phs.online ? "Online" : "Offline"}
-                      >
-                        {phs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-                        {phs.online ? "Online" : "Offline"}
-                      </span>
-                    )}
-                    {phs?.checking && <span className={styles.statusChecking}>Checking...</span>}
-                  </div>
-                </div>
+          {/* All source cards — Portainer instances and Runners combined, sorted alphabetically */}
+          {[
+            ...(sourceInstances || []).map((instance) => ({
+              type: "portainer",
+              id: instance.id,
+              name: instance.name,
+              data: instance,
+            })),
+            ...runner.runners.map((r) => ({
+              type: "runner",
+              id: r.id,
+              name: r.name,
+              data: r,
+            })),
+          ]
+            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+            .map((item) => {
+              if (item.type === "portainer") {
+                const instance = item.data;
+                const phs = portainerHealth[instance.id];
+                return (
+                  <Card
+                    key={`portainer-${instance.id}`}
+                    variant="default"
+                    padding="sm"
+                    className={styles.sourceCard}
+                    onClick={() => setDetailInstance(instance)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && setDetailInstance(instance)}
+                  >
+                    <div className={styles.runnerHeader}>
+                      <div className={styles.sourceLogo}>
+                        <PortainerIcon size={18} />
+                      </div>
+                      <div className={styles.runnerMeta}>
+                        <strong className={styles.runnerName}>{instance.name}</strong>
+                        <span className={styles.runnerUrl}>{instance.url}</span>
+                      </div>
+                      <div className={styles.statusColumn}>
+                        {phs && !phs.checking && (
+                          <span
+                            className={phs.online ? styles.statusOnline : styles.statusOffline}
+                            title={phs.online ? "Online" : "Offline"}
+                          >
+                            {phs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
+                            {phs.online ? "Online" : "Offline"}
+                          </span>
+                        )}
+                        {phs?.checking && <span className={styles.statusChecking}>Checking...</span>}
+                      </div>
+                    </div>
 
-                <div className={styles.instanceBadges}>
-                  <span className={`${styles.typeBadge} ${styles.typeBadgePortainer}`}>
-                    Portainer
-                  </span>
-                  {instance.auth_type === "apikey" ? (
-                    <span className={styles.authBadge}>
-                      <Package size={11} className={styles.badgeIcon} />
-                      API Key
-                    </span>
-                  ) : (
-                    <span className={styles.authBadge}>
-                      <Lock size={11} className={styles.badgeIcon} />
-                      Password
-                    </span>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-
-          {/* Runner cards */}
-          {runner.runners.map((r) => {
-            const hs = runner.healthStatus[r.id];
-            return (
-              <Card
-                key={`runner-${r.id}`}
-                variant="default"
-                padding="sm"
-                className={styles.sourceCard}
-                onClick={() => runner.setDetailRunner(r)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && runner.setDetailRunner(r)}
-              >
-                <div className={styles.runnerHeader}>
-                  <div className={styles.runnerIcon}>
-                    <Server size={18} />
-                  </div>
-                  <div className={styles.runnerMeta}>
-                    <strong className={styles.runnerName}>{r.name}</strong>
-                    <span className={styles.runnerUrl}>{r.url}</span>
-                  </div>
-                  <div className={styles.statusColumn}>
-                    {hs && !hs.checking && (
-                      <span
-                        className={hs.online ? styles.statusOnline : styles.statusOffline}
-                        title={hs.online ? "Online" : "Offline"}
-                      >
-                        {hs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-                        {hs.online ? "Online" : "Offline"}
+                    <div className={styles.instanceBadges}>
+                      <span className={`${styles.typeBadge} ${styles.typeBadgeSource}`}>
+                        Portainer
                       </span>
-                    )}
-                    {hs?.checking && <span className={styles.statusChecking}>Checking...</span>}
-                    {(() => {
-                      const liveVersion = hs?.health?.version;
-                      const dbVersion = r.version;
-                      const displayVersion = liveVersion || dbVersion;
-                      if (!displayVersion) return null;
-                      const cleanVersion = displayVersion.replace(/^v/, "");
-                      return (
-                        <a
-                          href={`https://github.com/dockedapp/dockhand/releases/tag/v${cleanVersion}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.versionBadge}
-                          title={`View dockhand v${cleanVersion} release`}
-                          onClick={(e) => e.stopPropagation()}
+                      {instance.auth_type === "apikey" ? (
+                        <span className={styles.authBadge}>
+                          <Package size={11} className={styles.badgeIcon} />
+                          API Key
+                        </span>
+                      ) : (
+                        <span className={styles.authBadge}>
+                          <Lock size={11} className={styles.badgeIcon} />
+                          Password
+                        </span>
+                      )}
+                    </div>
+                  </Card>
+                );
+              }
+
+              // Runner card
+              const r = item.data;
+              const hs = runner.healthStatus[r.id];
+              return (
+                <Card
+                  key={`runner-${r.id}`}
+                  variant="default"
+                  padding="sm"
+                  className={styles.sourceCard}
+                  onClick={() => runner.setDetailRunner(r)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && runner.setDetailRunner(r)}
+                >
+                  <div className={styles.runnerHeader}>
+                    <div className={styles.runnerIcon}>
+                      <Server size={18} />
+                    </div>
+                    <div className={styles.runnerMeta}>
+                      <strong className={styles.runnerName}>{r.name}</strong>
+                      <span className={styles.runnerUrl}>{r.url}</span>
+                    </div>
+                    <div className={styles.statusColumn}>
+                      {hs && !hs.checking && (
+                        <span
+                          className={hs.online ? styles.statusOnline : styles.statusOffline}
+                          title={hs.online ? "Online" : "Offline"}
                         >
-                          v{cleanVersion}
-                        </a>
-                      );
-                    })()}
+                          {hs.online ? <Wifi size={14} /> : <WifiOff size={14} />}
+                          {hs.online ? "Online" : "Offline"}
+                        </span>
+                      )}
+                      {hs?.checking && <span className={styles.statusChecking}>Checking...</span>}
+                      {(() => {
+                        const liveVersion = hs?.health?.version;
+                        const dbVersion = r.version;
+                        const displayVersion = liveVersion || dbVersion;
+                        if (!displayVersion) return null;
+                        const cleanVersion = displayVersion.replace(/^v/, "");
+                        return (
+                          <a
+                            href={`https://github.com/dockedapp/dockhand/releases/tag/v${cleanVersion}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.versionBadge}
+                            title={`View dockhand v${cleanVersion} release`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            v{cleanVersion}
+                          </a>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
 
-                <div className={styles.instanceBadges}>
-                  <span className={`${styles.typeBadge} ${styles.typeBadgeRunner}`}>Runner</span>
-                </div>
-
-                {hs?.online && hs?.health?.docker !== undefined && (
-                  <div className={styles.healthInfo}>
-                    <span className={styles.healthBadge}>
-                      Docker: {hs.health.docker ? "connected" : "unavailable"}
-                    </span>
+                  <div className={styles.instanceBadges}>
+                    <span className={`${styles.typeBadge} ${styles.typeBadgeRunner}`}>Runner</span>
                   </div>
-                )}
 
-                {r.version &&
-                  r.latest_version &&
-                  hasVersionUpdate(r.version, r.latest_version) &&
-                  !runner.updatedRunners.has(r.id) && (
-                    <div className={styles.updateBanner}>
-                      <ArrowUpCircle size={13} />
-                      Update available: v{r.version.replace(/^v/, "")} → v
-                      {r.latest_version.replace(/^v/, "")}
+                  {hs?.online && hs?.health?.docker !== undefined && (
+                    <div className={styles.healthInfo}>
+                      <span className={styles.healthBadge}>
+                        Docker: {hs.health.docker ? "connected" : "unavailable"}
+                      </span>
                     </div>
                   )}
-              </Card>
-            );
-          })}
+
+                  {r.version &&
+                    r.latest_version &&
+                    hasVersionUpdate(r.version, r.latest_version) &&
+                    !runner.updatedRunners.has(r.id) && (
+                      <div className={styles.updateBanner}>
+                        <ArrowUpCircle size={13} />
+                        Update available: v{r.version.replace(/^v/, "")} → v
+                        {r.latest_version.replace(/^v/, "")}
+                      </div>
+                    )}
+                </Card>
+              );
+            })}
 
           {/* Add source card */}
           <div
@@ -686,13 +713,13 @@ const SourcesTab = React.memo(function SourcesTab({
         </div>
       </div>
 
-      {/* ── Portainer-specific sections (only when instances exist) ── */}
-      {hasPortainerInstances && (
+      {/* ── Intents & Blocklist (when any sources exist) ── */}
+      {hasAnySources && (
         <>
           {/* Intents Section */}
           <div className={styles.intentsSection}>
             <Suspense fallback={<LoadingSpinner size="sm" message="Loading intents..." />}>
-              <IntentsPage containers={containers} portainerInstances={portainerInstancesProp} />
+              <IntentsPage containers={containers} sourceInstances={sourceInstancesProp} runners={runner.runners || []} />
             </Suspense>
           </div>
 
@@ -700,9 +727,9 @@ const SourcesTab = React.memo(function SourcesTab({
           <div className={styles.disallowedSection}>
             <h4 className={styles.sectionTitle}>Upgrade Blocklist</h4>
             <p className={styles.sectionDescription}>
-              Containers in the right panel cannot be upgraded by Docked. Defaults protect critical
-              infrastructure (Portainer, Nginx Proxy Manager, Docked itself). Containers not managed
-              through a Portainer instance are automatically blocked.
+              Containers in the blocked panel will still appear on the Containers page but cannot be
+              upgraded by Docked. By default, critical infrastructure containers (Portainer, Nginx
+              Proxy Manager, Docked itself) are blocked to prevent accidental upgrades.
             </p>
             <ContainerBlocklist containers={containers} />
           </div>
@@ -719,10 +746,10 @@ const SourcesTab = React.memo(function SourcesTab({
                 type="button"
                 variant="danger"
                 onClick={() => setPortainerConfirm(true)}
-                disabled={clearingPortainerData}
+                disabled={clearingSourceData}
                 className={styles.dangerButton}
               >
-                {clearingPortainerData ? "Clearing..." : "Clear Portainer Data"}
+                {clearingSourceData ? "Clearing..." : "Clear Source Data"}
               </Button>
               <small className={styles.dataActionHelper}>
                 Removes all cached container information from Portainer instances. This will clear
@@ -771,13 +798,13 @@ const SourcesTab = React.memo(function SourcesTab({
         variant="danger"
       />
 
-      {/* Portainer: Clear Data Confirmation */}
+      {/* Source: Clear Data Confirmation */}
       <ConfirmDialog
         isOpen={portainerConfirm}
         onClose={handlePortainerConfirmClose}
-        onConfirm={handleClearPortainerData}
-        title="Clear Portainer Data?"
-        message="This will remove all cached container information from Portainer instances. This action cannot be undone."
+        onConfirm={handleClearSourceData}
+        title="Clear Source Data?"
+        message="This will remove all cached container information from source instances. This action cannot be undone."
         confirmText="Clear Data"
         cancelText="Cancel"
         variant="danger"
@@ -886,14 +913,14 @@ const SourcesTab = React.memo(function SourcesTab({
 });
 
 SourcesTab.propTypes = {
-  portainerInstances: PropTypes.arrayOf(PropTypes.object).isRequired,
+  sourceInstances: PropTypes.arrayOf(PropTypes.object).isRequired,
   onEditInstance: PropTypes.func,
   handleEditInstance: PropTypes.func.isRequired,
   handleDeleteInstance: PropTypes.func.isRequired,
-  onClearPortainerData: PropTypes.func,
-  clearingPortainerData: PropTypes.bool,
+  onClearSourceData: PropTypes.func,
+  clearingSourceData: PropTypes.bool,
   containers: PropTypes.array,
-  portainerInstancesProp: PropTypes.array,
+  sourceInstancesProp: PropTypes.array,
 };
 
 export default SourcesTab;

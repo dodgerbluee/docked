@@ -40,7 +40,7 @@ export const useContainerPull = ({
   const handlePull = useCallback(
     async (additionalParams = {}) => {
       const {
-        setPortainerInstancesFromAPI,
+        setSourceInstancesFromAPI,
         setLastPullTime,
         fetchDockerHubCredentials,
         dockerHubCredentials,
@@ -83,8 +83,10 @@ export const useContainerPull = ({
             setStacks(cachedResponse.data.stacks || []);
             setUnusedImagesCount(cachedResponse.data.unusedImagesCount || 0);
 
-            if (cachedResponse.data.portainerInstances && setPortainerInstancesFromAPI) {
-              setPortainerInstancesFromAPI(cachedResponse.data.portainerInstances);
+            const cachedSourceInstances =
+              cachedResponse.data.sourceInstances || cachedResponse.data.portainerInstances;
+            if (cachedSourceInstances && setSourceInstancesFromAPI) {
+              setSourceInstancesFromAPI(cachedSourceInstances);
             }
             setDataFetched(true);
           }
@@ -108,12 +110,21 @@ export const useContainerPull = ({
             apiContainers,
             successfullyUpdatedContainersRef
           );
-          setContainers(updatedContainers);
+          // Merge with existing runner containers so they aren't dropped
+          // (pull response only contains Portainer-sourced containers)
+          setContainers((prev) => {
+            const runnerContainers = prev.filter((c) => c.source === "runner");
+            // If the pull response already includes runner containers, use as-is
+            const hasRunners = updatedContainers.some((c) => c.source === "runner");
+            return hasRunners ? updatedContainers : [...updatedContainers, ...runnerContainers];
+          });
           setStacks(response.data.stacks || []);
           setUnusedImagesCount(response.data.unusedImagesCount || 0);
 
-          if (response.data.portainerInstances && setPortainerInstancesFromAPI) {
-            setPortainerInstancesFromAPI(response.data.portainerInstances);
+          const pullSourceInstances =
+            response.data.sourceInstances || response.data.portainerInstances;
+          if (pullSourceInstances && setSourceInstancesFromAPI) {
+            setSourceInstancesFromAPI(pullSourceInstances);
           }
 
           setDockerHubDataPulled(true);

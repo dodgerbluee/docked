@@ -4,18 +4,18 @@ import { API_BASE_URL } from "../constants/api";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
 
 // Module-level cache – survives unmount/remount so container-dependent tabs
-// (Summary, Portainer) render instantly on re-navigation instead of showing
+// (Summary, Containers) render instantly on re-navigation instead of showing
 // a loading state while the API is re-fetched.
 let cachedContainers = null;
 let cachedStacks = null;
 let cachedUnusedImages = null;
 let cachedUnusedImagesCount = null;
-let cachedPortainerInstances = null;
+let cachedSourceInstances = null;
 let cachedDataFetched = false;
 
 /**
  * Custom hook for managing container data fetching and state
- * Handles containers, stacks, unused images, and Portainer instances
+ * Handles containers, stacks, unused images, and source instances
  */
 export const useContainersData = (isAuthenticated, authToken, successfullyUpdatedContainersRef) => {
   const [containers, setContainers] = useState(cachedContainers || []);
@@ -24,10 +24,10 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   const [error, setError] = useState(null);
   const [unusedImages, setUnusedImages] = useState(cachedUnusedImages || []);
   const [unusedImagesCount, setUnusedImagesCount] = useState(cachedUnusedImagesCount || 0);
-  const [portainerInstancesFromAPI, setPortainerInstancesFromAPI] = useState(
-    cachedPortainerInstances || []
+  const [sourceInstancesFromAPI, setSourceInstancesFromAPI] = useState(
+    cachedSourceInstances || []
   );
-  const [portainerInstancesLoading, setPortainerInstancesLoading] = useState(false);
+  const [sourceInstancesLoading, setSourceInstancesLoading] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(new Set());
   const [dataFetched, setDataFetched] = useState(cachedDataFetched);
   const [dockerHubDataPulled, setDockerHubDataPulled] = useState(() => {
@@ -36,7 +36,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   });
   const lastImageDeleteTimeRef = useRef(0);
   const containersCountRef = useRef(0);
-  const portainerInstancesRef = useRef([]);
+  const sourceInstancesRef = useRef([]);
   const dataFetchedRef = useRef(false);
 
   // Keep module-level cache in sync with state so re-navigation is instant
@@ -46,9 +46,9 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   }, [containers]);
 
   useEffect(() => {
-    portainerInstancesRef.current = portainerInstancesFromAPI;
-    cachedPortainerInstances = portainerInstancesFromAPI;
-  }, [portainerInstancesFromAPI]);
+    sourceInstancesRef.current = sourceInstancesFromAPI;
+    cachedSourceInstances = sourceInstancesFromAPI;
+  }, [sourceInstancesFromAPI]);
 
   useEffect(() => {
     dataFetchedRef.current = dataFetched;
@@ -108,8 +108,8 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
         // (don't await yet — let both requests fly concurrently)
         const unusedImagesPromise = fetchUnusedImages();
 
-        // Backend will automatically fetch from Portainer if no cache exists
-        // If instanceUrl is provided or portainerOnly is true, we want fresh data from Portainer (no cache)
+        // Backend will automatically fetch from source if no cache exists
+        // If instanceUrl is provided or portainerOnly is true, we want fresh data from source (no cache)
         // If refreshUpdates is true, also re-evaluate update status
         // Use new cache service for better experience
         const params = new URLSearchParams();
@@ -137,7 +137,7 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           );
 
           if (portainerOnly || instanceUrl) {
-            // When refreshing Portainer-only data, merge with existing runner containers
+            // When refreshing source-only data, merge with existing runner containers
             // so we don't lose runner containers from state
             setContainers((prev) => {
               const runnerContainers = prev.filter((c) => c.source === "runner");
@@ -165,22 +165,25 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
             localStorage.setItem("dockerHubDataPulled", JSON.stringify(true));
           }
 
-          // Update portainerInstances from API response
-          if (response.data.portainerInstances) {
+          // Update sourceInstances from API response
+          // Server returns "sourceInstances"; accept both for backward compatibility
+          const apiSourceInstances =
+            response.data.sourceInstances || response.data.portainerInstances;
+          if (apiSourceInstances) {
             if (portainerOnly || instanceUrl) {
-              setPortainerInstancesFromAPI(response.data.portainerInstances);
+              setSourceInstancesFromAPI(apiSourceInstances);
             } else if (
-              portainerInstancesRef.current &&
-              Array.isArray(portainerInstancesRef.current) &&
-              portainerInstancesRef.current.length > 0
+              sourceInstancesRef.current &&
+              Array.isArray(sourceInstancesRef.current) &&
+              sourceInstancesRef.current.length > 0
             ) {
               // Merge container data while preserving instances from API
               const existingInstancesMap = new Map();
-              portainerInstancesRef.current.forEach((inst) => {
+              sourceInstancesRef.current.forEach((inst) => {
                 existingInstancesMap.set(inst.url, inst);
               });
 
-              response.data.portainerInstances.forEach((apiInst) => {
+              apiSourceInstances.forEach((apiInst) => {
                 const existingInst = existingInstancesMap.get(apiInst.url);
                 if (existingInst) {
                   existingInstancesMap.set(apiInst.url, {
@@ -202,16 +205,14 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
                 }
               });
 
-              const responseUrls = new Set(
-                response.data.portainerInstances.map((inst) => inst.url)
-              );
-              const updatedInstances = portainerInstancesRef.current
+              const responseUrls = new Set(apiSourceInstances.map((inst) => inst.url));
+              const updatedInstances = sourceInstancesRef.current
                 .filter((inst) => responseUrls.has(inst.url))
                 .map((existingInst) => {
                   return existingInstancesMap.get(existingInst.url) || existingInst;
                 });
 
-              response.data.portainerInstances.forEach((apiInst) => {
+              apiSourceInstances.forEach((apiInst) => {
                 if (!updatedInstances.find((inst) => inst.url === apiInst.url)) {
                   updatedInstances.push({
                     name: apiInst.name,
@@ -225,9 +226,9 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
                 }
               });
 
-              setPortainerInstancesFromAPI(updatedInstances);
+              setSourceInstancesFromAPI(updatedInstances);
             } else {
-              setPortainerInstancesFromAPI(response.data.portainerInstances);
+              setSourceInstancesFromAPI(apiSourceInstances);
             }
           }
         } else {
@@ -267,12 +268,12 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     [fetchUnusedImages, successfullyUpdatedContainersRef]
   );
 
-  const fetchPortainerInstances = useCallback(async () => {
+  const fetchSourceInstances = useCallback(async () => {
     if (!isAuthenticated || !authToken) return [];
 
     try {
-      setPortainerInstancesLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/portainer/instances`);
+      setSourceInstancesLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/api/sources/instances`);
       if (response.data.success && response.data.instances) {
         const formattedInstances = response.data.instances.map((inst) => ({
           name: inst.name,
@@ -282,15 +283,15 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
           containers: [],
           upToDate: [],
         }));
-        setPortainerInstancesFromAPI(formattedInstances);
+        setSourceInstancesFromAPI(formattedInstances);
         return formattedInstances;
       }
       return [];
     } catch (err) {
-      console.error("Error fetching Portainer instances:", err);
+      console.error("Error fetching source instances:", err);
       return [];
     } finally {
-      setPortainerInstancesLoading(false);
+      setSourceInstancesLoading(false);
     }
   }, [isAuthenticated, authToken]);
 
@@ -306,8 +307,8 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     error,
     unusedImages,
     unusedImagesCount,
-    portainerInstancesFromAPI,
-    portainerInstancesLoading,
+    sourceInstancesFromAPI,
+    sourceInstancesLoading,
     loadingInstances,
     dataFetched,
     dockerHubDataPulled,
@@ -318,13 +319,13 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
     setLoading,
     setUnusedImages,
     setUnusedImagesCount,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     // Functions
     fetchContainers,
     fetchUnusedImages,
-    fetchPortainerInstances,
+    fetchSourceInstances,
     updateLastImageDeleteTime,
     // Refs (for external access)
     lastImageDeleteTimeRef,

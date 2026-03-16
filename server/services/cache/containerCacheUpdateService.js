@@ -7,7 +7,7 @@
 
 const logger = require("../../utils/logger");
 const { upsertContainerWithVersion, deleteOldContainersByName } = require("../../db/containers");
-const { getAllPortainerInstances } = require("../../db/portainerInstances");
+const { getAllSourceInstances } = require("../../db/sourceInstances");
 const containerCacheService = require("./containerCacheService");
 
 /**
@@ -39,8 +39,8 @@ async function updateCacheAfterUpgrade(
 
     let instanceId = null;
     if (!isRunner) {
-      // Get Portainer instance
-      const instances = await getAllPortainerInstances(userId);
+      // Get source instance
+      const instances = await getAllSourceInstances(userId);
       const instance = instances.find((inst) => inst.url === portainerUrl);
 
       if (!instance) {

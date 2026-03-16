@@ -7,7 +7,7 @@
  * Usage:
  *   const db = require('./db');
  *   const user = await db.getUserByUsername('admin');
- *   const instances = await db.getAllPortainerInstances(userId);
+ *   const instances = await db.getAllSourceInstances(userId);
  */
 
 // Connection module
@@ -15,7 +15,7 @@ const connection = require("./connection");
 
 // Domain modules
 const users = require("./users");
-const portainerInstances = require("./portainerInstances");
+const sourceInstances = require("./sourceInstances");
 const settings = require("./settings");
 const registry = require("./registry");
 const trackedApps = require("./trackedApps");
@@ -48,7 +48,7 @@ function getRawDatabaseRecords(userId) {
 
       const records = {};
       const tables = [
-        "portainer_instances",
+        "source_instances",
         "containers",
         "deployed_images",
         "registry_image_versions",
@@ -68,7 +68,7 @@ function getRawDatabaseRecords(userId) {
         let params = [];
 
         // Build query based on table
-        if (tableName === "portainer_instances") {
+        if (tableName === "source_instances") {
           query = `SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY id ASC`;
           params = [userId];
         } else if (tableName === "containers") {
@@ -121,7 +121,7 @@ module.exports = {
 
   // Domain functions
   ...users,
-  ...portainerInstances,
+  ...sourceInstances,
   ...settings,
   ...registry,
   ...trackedApps,

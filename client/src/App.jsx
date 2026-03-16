@@ -24,7 +24,7 @@ import OAuthCallback from "./components/OAuthCallback";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 // Formatter utilities are now used in their respective components
 const LogsPage = lazy(() => import("./pages/LogsPage"));
-// buildContainersByPortainer is now imported in usePortainerInstances hook
+// buildContainersBySource is now imported in useSourceInstances hook
 import { API_BASE_URL } from "./constants/api";
 import { useAuth } from "./hooks/useAuth";
 import { useNotifications } from "./hooks/useNotifications";
@@ -37,9 +37,9 @@ import { useNavigation } from "./hooks/useNavigation";
 import { useTheme } from "./hooks/useTheme";
 import { useBatchConfig } from "./hooks/useBatchConfig";
 import { useTrackedApps } from "./hooks/useTrackedApps";
-import { usePortainerInstances } from "./hooks/usePortainerInstances";
+import { useSourceInstances } from "./hooks/useSourceInstances";
 import { useSidebarHeight } from "./hooks/useSidebarHeight";
-import { useNewPortainerInstance } from "./hooks/useNewPortainerInstance";
+import { useNewSourceInstance } from "./hooks/useNewSourceInstance";
 import { useVersion } from "./hooks/useVersion";
 import { useModalState } from "./hooks/useModalState";
 import { useMenuState } from "./hooks/useMenuState";
@@ -48,9 +48,9 @@ import { useGitHubCache } from "./hooks/useGitHubCache";
 import { useTabReordering } from "./hooks/useTabReordering";
 import { useEnhancedNavigation } from "./hooks/useEnhancedNavigation";
 import { useAppInitialization } from "./hooks/useAppInitialization";
-import { useAddPortainerModal } from "./hooks/useAddPortainerModal";
+import { useAddSourceModal } from "./hooks/useAddSourceModal";
 import { useDiscordSettings } from "./hooks/useDiscordSettings";
-import { usePortainerUpgrade } from "./hooks/usePortainerPage/hooks/usePortainerUpgrade";
+import { useContainerUpgrade } from "./hooks/useContainersPage/hooks/useContainerUpgrade";
 import HomePage from "./components/HomePage";
 import { TAB_NAMES } from "./constants/apiConstants";
 
@@ -70,7 +70,7 @@ function App() {
   } = useAuth();
   // Modal state - using custom hook
   const modalState = useModalState();
-  const { showAddPortainerModal, editingPortainerInstance, openModal, closeModal } = modalState;
+  const { showAddSourceModal, editingSourceInstance, openModal, closeModal } = modalState;
 
   // Menu state - using custom hook
   const menuState = useMenuState();
@@ -97,7 +97,7 @@ function App() {
   } = tabState;
 
   // Selection state
-  const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(new Set());
+  const [selectedSourceInstances, setSelectedSourceInstances] = useState(new Set());
   const [selectedContainers, setSelectedContainers] = useState(new Set());
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [collapsedStacks, setCollapsedStacks] = useState(new Set());
@@ -191,8 +191,8 @@ function App() {
     error,
     unusedImages,
     unusedImagesCount,
-    portainerInstancesFromAPI,
-    portainerInstancesLoading,
+    sourceInstancesFromAPI,
+    sourceInstancesLoading,
     loadingInstances,
     dockerHubDataPulled,
     dataFetched,
@@ -202,12 +202,12 @@ function App() {
     setLoading,
     setUnusedImages,
     setUnusedImagesCount,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setDockerHubDataPulled,
     setDataFetched,
     fetchContainers,
     fetchUnusedImages,
-    fetchPortainerInstances,
+    fetchSourceInstances,
     updateLastImageDeleteTime,
   } = containersData;
 
@@ -233,9 +233,9 @@ function App() {
   });
   const { handleBatchPull, handleBatchTrackedAppsCheck } = batchProcessing;
 
-  // New Portainer instance handler - using custom hook
-  const { handleNewInstanceDataFetch } = useNewPortainerInstance({
-    setPortainerInstancesFromAPI,
+  // New source instance handler - using custom hook
+  const { handleNewInstanceDataFetch } = useNewSourceInstance({
+    setSourceInstancesFromAPI,
     setContainers,
     setStacks,
     setUnusedImagesCount,
@@ -280,8 +280,8 @@ function App() {
     handlePull,
   } = containerOperations;
 
-  // Portainer upgrade state lifted to App so completed upgrade cards persist 10 min when switching tabs
-  const portainerUpgrade = usePortainerUpgrade({
+  // Container upgrade state lifted to App so completed upgrade cards persist 10 min when switching tabs
+  const containerUpgrade = useContainerUpgrade({
     successfullyUpdatedContainersRef,
     onContainersUpdate: setContainers,
     fetchContainers,
@@ -302,11 +302,11 @@ function App() {
   const navigation = useNavigation({
     setActiveTab,
     setContentTab,
-    setSelectedPortainerInstances,
+    setSelectedSourceInstances,
   });
   const {
     handleNavigateToSummary,
-    handleNavigateToPortainer,
+    handleNavigateToContainers,
     handleNavigateToTrackedApps,
     handleNavigateToSettings,
     handleNavigateToBatch,
@@ -347,13 +347,13 @@ function App() {
     authToken,
     fetchColorScheme,
     fetchContainers,
-    fetchPortainerInstances,
+    fetchSourceInstances,
     fetchAvatar,
     fetchRecentAvatars,
     fetchTrackedApps,
     setDataFetched,
     setDockerHubDataPulled,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setContainers,
     setStacks,
     setUnusedImages,
@@ -395,18 +395,18 @@ function App() {
 
   const { trackedAppsBehind } = trackedAppsStats;
 
-  // Portainer instances management - using custom hook
-  const { portainerInstances, containersByPortainer } = usePortainerInstances({
-    portainerInstancesFromAPI,
+  // Source instances management - using custom hook
+  const { sourceInstances, containersBySource } = useSourceInstances({
+    sourceInstancesFromAPI,
     containers,
   });
 
-  // Safety check: If activeTab is a Portainer instance name but that instance doesn't exist,
+  // Safety check: If activeTab is a source instance name but that instance doesn't exist,
   // and we're not currently loading instances, switch back to summary to avoid broken state
   useEffect(() => {
     const validTabs = [
       TAB_NAMES.SUMMARY,
-      TAB_NAMES.PORTAINER,
+      TAB_NAMES.CONTAINERS,
       TAB_NAMES.APPS,
       TAB_NAMES.TRACKED_APPS,
       TAB_NAMES.INTENTS,
@@ -419,51 +419,51 @@ function App() {
 
     if (
       !validTabs.includes(activeTab) &&
-      !portainerInstancesLoading && // Don't switch during loading
-      portainerInstancesFromAPI && // Only check if we have instances loaded
-      portainerInstancesFromAPI.length > 0 &&
-      !portainerInstances.find((inst) => inst.name === activeTab) &&
-      !portainerInstancesFromAPI.find((inst) => inst.name === activeTab)
+      !sourceInstancesLoading && // Don't switch during loading
+      sourceInstancesFromAPI && // Only check if we have instances loaded
+      sourceInstancesFromAPI.length > 0 &&
+      !sourceInstances.find((inst) => inst.name === activeTab) &&
+      !sourceInstancesFromAPI.find((inst) => inst.name === activeTab)
     ) {
       console.warn(`Active tab "${activeTab}" no longer exists, switching to summary`);
       setActiveTab(TAB_NAMES.SUMMARY);
     }
   }, [
     activeTab,
-    portainerInstances,
-    portainerInstancesFromAPI,
-    portainerInstancesLoading,
+    sourceInstances,
+    sourceInstancesFromAPI,
+    sourceInstancesLoading,
     setActiveTab,
   ]);
 
-  // Initialize selectedPortainerInstances to empty (show all) when Portainer tab is first opened
+  // Initialize selectedSourceInstances to empty (show all) when Containers tab is first opened
   // Empty set means show all instances
   useEffect(() => {
     if (
-      activeTab === TAB_NAMES.PORTAINER &&
-      selectedPortainerInstances.size === 0 &&
-      portainerInstances.length > 0 &&
-      !portainerInstances.some((inst) => selectedPortainerInstances.has(inst.name))
+      activeTab === TAB_NAMES.CONTAINERS &&
+      selectedSourceInstances.size === 0 &&
+      sourceInstances.length > 0 &&
+      !sourceInstances.some((inst) => selectedSourceInstances.has(inst.name))
     ) {
       // Start with empty set - show all by default
       // No need to set anything, empty set is the default
     }
-  }, [activeTab, portainerInstances, selectedPortainerInstances]);
+  }, [activeTab, sourceInstances, selectedSourceInstances]);
 
   // Match sidebar height to stacks container height - using custom hook
   useSidebarHeight(activeTab);
 
-  // AddPortainerModal success handler - using custom hook
-  const { handleModalSuccess } = useAddPortainerModal({
-    fetchPortainerInstances,
+  // AddSourceModal success handler - using custom hook
+  const { handleModalSuccess } = useAddSourceModal({
+    fetchSourceInstances,
     fetchContainers,
     handleNewInstanceDataFetch,
-    setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
     setActiveTab,
     setContentTab,
-    setSelectedPortainerInstances,
+    setSelectedSourceInstances,
     setSettingsTab,
-    editingPortainerInstance,
+    editingSourceInstance,
     activeTab,
     settingsTab,
     closeModal,
@@ -538,8 +538,8 @@ function App() {
                 onUsernameUpdate: handleUsernameUpdate,
                 onLogout: handleLogoutWithCleanup,
                 onPasswordUpdateSuccess: handlePasswordUpdateSuccessWithNavigation,
-                onPortainerInstancesChange: async () => {
-                  await fetchPortainerInstances();
+                onSourceInstancesChange: async () => {
+                  await fetchSourceInstances();
                   await fetchContainers(false);
                 },
                 onAvatarChange: handleAvatarChange,
@@ -553,17 +553,17 @@ function App() {
                 onBatchConfigUpdate: handleBatchConfigUpdate,
                 colorScheme,
                 onColorSchemeChange: handleColorSchemeChange,
-                onClearPortainerData: handleClear,
+                onClearSourceData: handleClear,
                 onClearTrackedAppData: handleClearGitHubCache,
                 onEditInstance: openModal,
-                editingPortainerInstance,
+                editingSourceInstance,
                 refreshInstances:
-                  editingPortainerInstance === null ? fetchPortainerInstances : null,
+                  editingSourceInstance === null ? fetchSourceInstances : null,
               }}
               onNavigateToSummary={handleNavigateToSummary}
               onNavigateToSettings={handleNavigateToSettings}
               onNavigateToBatch={handleNavigateToBatch}
-              onNavigateToPortainer={handleNavigateToPortainer}
+              onNavigateToContainers={handleNavigateToContainers}
               onNavigateToTrackedApps={handleNavigateToTrackedApps}
               onSetSettingsTab={setSettingsTab}
               API_BASE_URL={API_BASE_URL}
@@ -584,7 +584,7 @@ function App() {
               contentTab={contentTab}
               settingsTab={settingsTab}
               configurationTab={configurationTab}
-              selectedPortainerInstances={selectedPortainerInstances}
+              selectedSourceInstances={selectedSourceInstances}
               selectedContainers={selectedContainers}
               selectedImages={selectedImages}
               collapsedStacks={collapsedStacks}
@@ -598,14 +598,14 @@ function App() {
               unusedImages={unusedImages}
               unusedImagesCount={unusedImagesCount}
               trackedApps={trackedApps}
-              portainerInstances={portainerInstances}
-              containersByPortainer={containersByPortainer}
+              sourceInstances={sourceInstances || []}
+              containersBySource={containersBySource}
               loadingInstances={loadingInstances}
               dockerHubDataPulled={dockerHubDataPulled}
               dataFetched={dataFetched}
               lastPullTime={lastPullTime}
               successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-              portainerInstancesFromAPI={portainerInstancesFromAPI}
+              sourceInstancesFromAPI={sourceInstancesFromAPI}
               notificationCount={notificationCount}
               activeContainersWithUpdates={activeContainersWithUpdates}
               activeTrackedAppsBehind={activeTrackedAppsBehind}
@@ -616,20 +616,20 @@ function App() {
               showNotificationMenu={showNotificationMenu}
               toggleAvatarMenu={toggleAvatarMenu}
               toggleNotificationMenu={toggleNotificationMenu}
-              showAddPortainerModal={showAddPortainerModal}
-              editingPortainerInstance={editingPortainerInstance}
+              showAddSourceModal={showAddSourceModal}
+              editingSourceInstance={editingSourceInstance}
               closeModal={closeModal}
               setActiveTab={setActiveTab}
               setContentTab={setContentTab}
               setSettingsTab={setSettingsTab}
               setConfigurationTab={setConfigurationTab}
-              setSelectedPortainerInstances={setSelectedPortainerInstances}
+              setSelectedSourceInstances={setSelectedSourceInstances}
               setError={setError}
               handleNavigateToSummary={handleNavigateToSummary}
               handleNavigateToSettings={handleNavigateToSettings}
               handleNavigateToBatch={handleNavigateToBatch}
               handleNavigateToAdmin={handleNavigateToAdmin}
-              handleNavigateToPortainer={handleNavigateToPortainer}
+              handleNavigateToContainers={handleNavigateToContainers}
               handleNavigateToTrackedApps={handleNavigateToTrackedApps}
               handleDismissContainerNotification={handleDismissContainerNotification}
               handleDismissTrackedAppNotification={handleDismissTrackedAppNotification}
@@ -638,8 +638,8 @@ function App() {
               handleLogoutWithCleanup={handleLogoutWithCleanup}
               handleUsernameUpdate={handleUsernameUpdate}
               handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
-              handlePortainerInstancesChange={async () => {
-                await fetchPortainerInstances();
+              handleSourceInstancesChange={async () => {
+                await fetchSourceInstances();
                 await fetchContainers(false);
               }}
               handleAvatarChange={handleAvatarChange}
@@ -665,7 +665,7 @@ function App() {
               handleBatchPull={handleBatchPull}
               handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
               handleNewInstanceDataFetch={handleNewInstanceDataFetch}
-              fetchPortainerInstances={fetchPortainerInstances}
+              fetchSourceInstances={fetchSourceInstances}
               fetchContainers={fetchContainers}
               fetchUnusedImages={fetchUnusedImages}
               fetchRecentAvatars={fetchRecentAvatars}
@@ -689,7 +689,7 @@ function App() {
               handleReorderTabs={handleReorderTabs}
               toggleStack={toggleStack}
               discordWebhooks={discordWebhooks}
-              portainerUpgrade={portainerUpgrade}
+              containerUpgrade={containerUpgrade}
             />
           }
         />

@@ -182,19 +182,6 @@ body.dark-mode .stackBadge {
   font-style: italic;
 }
 
-.notPortainerBadge {
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 8px;
-  background: rgba(239, 62, 66, 0.1);
-  color: var(--dodger-red, #ef3e42);
-  font-weight: 500;
-}
-
-body.dark-mode .notPortainerBadge {
-  background: rgba(239, 62, 66, 0.18);
-}
-
 .transferButtons {
   display: flex;
   flex-direction: column;

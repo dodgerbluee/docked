@@ -1,6 +1,6 @@
 /**
  * AnalyticsPage Component
- * Upgrade analytics with sidebar (view tabs + filters), matching Portainer/Tracked Apps layout
+ * Upgrade analytics with sidebar (view tabs + filters), matching Sources/Tracked Apps layout
  */
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -17,10 +17,10 @@ import Button from "../components/ui/Button";
 import { ANALYTICS_VIEW_TABS, ANALYTICS_DATA_SOURCE } from "../constants/analyticsPage";
 import styles from "./AnalyticsPage.module.css";
 
-function AnalyticsPage({ portainerInstances = [] }) {
+function AnalyticsPage({ sourceInstances = [] }) {
   const [activeViewTab, setActiveViewTab] = useState(ANALYTICS_VIEW_TABS.OVERVIEW);
   const [selectedDataSources, setSelectedDataSources] = useState(() => new Set());
-  const [selectedPortainerInstances, setSelectedPortainerInstances] = useState(() => new Set());
+  const [selectedSourceInstances, setSelectedSourceInstances] = useState(() => new Set());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -38,11 +38,11 @@ function AnalyticsPage({ portainerInstances = [] }) {
     const includeContainers =
       selectedDataSources.size === 0 || selectedDataSources.has(ANALYTICS_DATA_SOURCE.CONTAINERS);
     if (!includeContainers) return [];
-    if (selectedPortainerInstances.size === 0) return containerHistoryRaw;
+    if (selectedSourceInstances.size === 0) return containerHistoryRaw;
     return containerHistoryRaw.filter((u) =>
-      selectedPortainerInstances.has(u.portainer_instance_name || "Unknown")
+      selectedSourceInstances.has(u.portainer_instance_name || "Unknown")
     );
-  }, [containerHistoryRaw, selectedDataSources, selectedPortainerInstances]);
+  }, [containerHistoryRaw, selectedDataSources, selectedSourceInstances]);
 
   const trackedAppHistoryFiltered = useMemo(() => {
     const includeTrackedApps =
@@ -55,9 +55,9 @@ function AnalyticsPage({ portainerInstances = [] }) {
     onViewTabChange: setActiveViewTab,
     selectedDataSources,
     onSelectedDataSourcesChange: setSelectedDataSources,
-    selectedPortainerInstances,
-    onSelectedPortainerInstancesChange: setSelectedPortainerInstances,
-    portainerInstances,
+    selectedSourceInstances,
+    onSelectedSourceInstancesChange: setSelectedSourceInstances,
+    sourceInstances,
   };
 
   return (
@@ -117,7 +117,7 @@ function AnalyticsPage({ portainerInstances = [] }) {
 }
 
 AnalyticsPage.propTypes = {
-  portainerInstances: PropTypes.arrayOf(PropTypes.object),
+  sourceInstances: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default AnalyticsPage;

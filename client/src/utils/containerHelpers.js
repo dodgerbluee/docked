@@ -5,7 +5,9 @@
 import { computeHasUpdate } from "./containerUpdateHelpers";
 
 /**
- * Check if a container is a Portainer instance
+ * Check if a container is the Portainer application itself.
+ * This is a functional check (detects the actual Portainer Docker image),
+ * NOT a branding reference.
  * @param {Object} container - Container object
  * @returns {boolean} - True if container is Portainer
  */
@@ -16,19 +18,19 @@ export const isPortainerContainer = (container) => {
 };
 
 /**
- * Build containersByPortainer map for rendering
+ * Build containersBySource map for rendering
  * @param {Array} containers - Array of container objects
- * @returns {Object} - Map of containers grouped by Portainer URL
+ * @returns {Object} - Map of containers grouped by source (instance URL or runner ID)
  */
-export const buildContainersByPortainer = (containers) => {
+export const buildContainersBySource = (containers) => {
   return containers.reduce((acc, container) => {
     let key, name;
     if (container.source === "runner") {
       key = `runner:${container.runnerId}`;
       name = container.runnerName || "Runner";
     } else {
-      key = container.portainerUrl || "Unknown";
-      name = container.portainerName || key;
+      key = container.sourceUrl || container.portainerUrl || "Unknown";
+      name = container.sourceName || container.portainerName || key;
     }
 
     if (!acc[key]) {

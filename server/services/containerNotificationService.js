@@ -6,7 +6,7 @@
  */
 
 const logger = require("../utils/logger");
-const { getAllPortainerInstances } = require("../db/index");
+const { getAllSourceInstances } = require("../db/index");
 const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 
 // Lazy load discordService to avoid loading issues during module initialization
@@ -104,17 +104,17 @@ function shouldNotifyContainerUpdate(container, previousContainer) {
  */
 async function buildPreviousContainersMap(previousContainers, userId) {
   const previousContainersMap = new Map();
-  const userInstances = await getAllPortainerInstances(userId);
+  const userInstances = await getAllSourceInstances(userId);
   const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
   previousContainers.forEach((container) => {
-    const instance = instanceMap.get(container.portainerInstanceId);
-    const portainerUrl = instance ? instance.url : null;
-    const key = `${container.containerName}-${portainerUrl}-${container.endpointId}`;
+    const instance = instanceMap.get(container.sourceInstanceId);
+    const sourceUrl = instance ? instance.url : null;
+    const key = `${container.containerName}-${sourceUrl}-${container.endpointId}`;
 
     previousContainersMap.set(key, {
       name: container.containerName,
-      portainerUrl,
+      sourceUrl,
       endpointId: container.endpointId,
       hasUpdate: computeHasUpdate(container), // Compute on-the-fly
       latestDigest: normalizeDigest(container.latestDigest),
@@ -161,7 +161,7 @@ function logNewlyIdentifiedUpgrade(container, versionInfo, userId, batchLogger) 
     latestDigest: latestDigest.length > 12 ? `${latestDigest.substring(0, 12)}...` : latestDigest,
     currentVersion,
     latestVersion,
-    portainerUrl: container.portainerUrl || "Unknown",
+    sourceUrl: container.sourceUrl || "Unknown",
     endpointId: container.endpointId || "Unknown",
     userId: userId || "batch",
   };
@@ -240,13 +240,13 @@ async function sendContainerUpdateNotifications(
       // Use consistent key format: normalize container name to match database format
       // The database stores containerName, so ensure we use the same field
       const containerName = container.name || container.containerName || "";
-      const key = `${containerName}-${container.portainerUrl}-${container.endpointId}`;
+      const key = `${containerName}-${container.sourceUrl}-${container.endpointId}`;
       const previousContainer = previousContainersMap.get(key);
 
       // Log if previousContainer lookup failed (helps diagnose key mismatch issues)
       if (!previousContainer && previousContainersMap.size > 0) {
         logger.debug(
-          `Previous container not found for key "${key}" (container: ${containerName}, portainerUrl: ${container.portainerUrl})`
+          `Previous container not found for key "${key}" (container: ${containerName}, sourceUrl: ${container.sourceUrl})`
         );
       }
 

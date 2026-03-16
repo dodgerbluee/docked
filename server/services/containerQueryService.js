@@ -14,7 +14,7 @@ const containerNotificationService = require("./containerNotificationService");
 const containerProcessingService = require("./containerProcessingService");
 const containerDataService = require("./containerDataService");
 const containerQueryOrchestrationService = require("./containerQueryOrchestrationService");
-const { getAllPortainerInstances, getAllTrackedApps } = require("../db/index");
+const { getAllSourceInstances, getAllTrackedApps } = require("../db/index");
 const logger = require("../utils/logger");
 
 /**
@@ -29,15 +29,15 @@ const logger = require("../utils/logger");
 // eslint-disable-next-line max-lines-per-function, complexity -- Container query requires comprehensive data aggregation logic
 async function getAllContainersWithUpdates(
   forceRefresh = false,
-  filterPortainerUrl = null,
+  filterSourceUrl = null,
   userId = null,
   batchLogger = null
 ) {
   // Get previous data from normalized tables to compare for newly detected updates
   let previousContainers = null;
   if (forceRefresh && userId) {
-    const { getPortainerContainersWithUpdates } = require("../db/index");
-    previousContainers = await getPortainerContainersWithUpdates(userId);
+    const { getContainersWithUpdates } = require("../db/index");
+    previousContainers = await getContainersWithUpdates(userId);
     // Clear ALL registry digest caches to ensure fresh data when force refreshing
     // This prevents stale cached digests from causing false positives when containers
     // were updated outside the app (e.g., manually via Portainer or docker pull)
@@ -64,18 +64,18 @@ async function getAllContainersWithUpdates(
     // If userId is provided, try to use normalized tables first (per-user data)
     if (userId) {
       const dbContainers = require("../db/containers");
-      const normalizedContainers = await dbContainers.getPortainerContainersWithUpdates(userId);
+      const normalizedContainers = await dbContainers.getContainersWithUpdates(userId);
 
       if (normalizedContainers && normalizedContainers.length > 0) {
         // We have data in normalized tables - format it for the frontend
-        const userInstances = await getAllPortainerInstances(userId);
+        const userInstances = await getAllSourceInstances(userId);
 
         // Create instance map for quick lookup
         const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
 
         // Format containers to match expected structure
         const formattedContainers = normalizedContainers.map((c) => {
-          const instance = instanceMap.get(c.portainerInstanceId);
+          const instance = instanceMap.get(c.sourceInstanceId);
           return containerFormattingService.formatContainerFromDatabase(
             c,
             instance,
@@ -89,8 +89,8 @@ async function getAllContainersWithUpdates(
           "Unstacked"
         );
 
-        // Build portainerInstances array
-        const portainerInstancesArray = containerDataService.buildPortainerInstancesArray(
+        // Build sourceInstances array
+        const sourceInstancesArray = containerDataService.buildSourceInstancesArray(
           formattedContainers,
           userInstances
         );
@@ -103,7 +103,7 @@ async function getAllContainersWithUpdates(
           grouped: true,
           stacks,
           containers: formattedContainers,
-          portainerInstances: portainerInstancesArray,
+          sourceInstances: sourceInstancesArray,
           unusedImagesCount,
         };
       }
@@ -121,14 +121,14 @@ async function getAllContainersWithUpdates(
       grouped: true,
       stacks: [],
       containers: [],
-      portainerInstances: [],
+      sourceInstances: [],
       unusedImagesCount: 0,
     };
   }
   // Only when forceRefresh=true (explicit pull request or batch process)
-  if (filterPortainerUrl) {
+  if (filterSourceUrl) {
     logger.info(
-      `Force refresh requested for instance ${filterPortainerUrl}, fetching fresh data from registries...`
+      `Force refresh requested for instance ${filterSourceUrl}, fetching fresh data from registries...`
     );
   } else {
     logger.info("Force refresh requested, fetching fresh data from registries...");
@@ -142,37 +142,37 @@ async function getAllContainersWithUpdates(
   const instancesToProcess =
     await containerQueryOrchestrationService.getPortainerInstancesToProcess(
       userId,
-      filterPortainerUrl
+      filterSourceUrl
     );
 
   logger.info(
     `🔍 Force refresh: Found ${instancesToProcess.length} Portainer instances to process`,
-    { userId, filterPortainerUrl, instanceCount: instancesToProcess.length }
+    { userId, filterSourceUrl, instanceCount: instancesToProcess.length }
   );
 
   if (instancesToProcess.length === 0) {
     logger.warn("⚠️  No Portainer instances found to process - returning empty result", {
       userId,
-      filterPortainerUrl,
+      filterSourceUrl,
     });
     // Return empty result
     return {
       grouped: true,
       stacks: [],
       containers: [],
-      portainerInstances: [],
+      sourceInstances: [],
       unusedImagesCount: 0,
     };
   }
 
-  // Get portainerInstances for result building
-  const portainerInstances = filterPortainerUrl
+  // Get sourceInstances for result building
+  const sourceInstances = filterSourceUrl
     ? instancesToProcess
-    : await getAllPortainerInstances(userId);
+    : await getAllSourceInstances(userId);
 
   // If filtering by specific instance, get existing data from normalized tables to merge with
   let existingContainers = null;
-  if (filterPortainerUrl && previousContainers) {
+  if (filterSourceUrl && previousContainers) {
     existingContainers = previousContainers;
   }
 
@@ -242,42 +242,65 @@ async function getAllContainersWithUpdates(
 
       // Clean up containers that no longer exist (were deleted from Portainer)
       // This ensures the database only contains containers that actually exist
+      // Safety check: skip cleanup if Portainer returned suspiciously few containers
+      // (could indicate a transient API failure returning a partial list)
       if (userId && instance.id && currentContainerIds.size > 0) {
         try {
-          const { deletePortainerContainersNotInList } = require("../db/index");
-          const deletedCount = await deletePortainerContainersNotInList(
-            userId,
-            instance.id,
-            endpointId,
-            Array.from(currentContainerIds)
-          );
-          const hasDeletedContainers = deletedCount > 0;
-          if (hasDeletedContainers) {
-            logger.debug(
-              `Cleaned up ${deletedCount} deleted container(s) from database for ${instanceName}`,
+          const { deleteContainersNotInList, getContainerCountForInstance } = require("../db/index");
+
+          // Check how many containers are currently in the DB for this instance
+          const dbCount = await getContainerCountForInstance(userId, instance.id, endpointId);
+
+          // If Portainer returned less than half the DB count, and DB has a reasonable
+          // number of containers, skip cleanup to prevent data loss from transient issues
+          const liveCount = currentContainerIds.size;
+          if (dbCount > 4 && liveCount < dbCount * 0.5) {
+            logger.warn(
+              `Skipping container cleanup for ${instanceName}: Portainer returned ${liveCount} containers but DB has ${dbCount}. Possible transient API issue.`,
               {
                 module: "containerQueryService",
                 operation: "getAllContainersWithUpdates",
                 portainerUrl,
                 instanceId: instance.id,
+                liveCount,
+                dbCount,
               }
             );
-
-            // Clean up orphaned deployed images after container deletion
-            const cleanupOrphanedImages = async () => {
-              try {
-                const { cleanupOrphanedDeployedImages } = require("../db/index");
-                const orphanedImages = await cleanupOrphanedDeployedImages(userId);
-                if (orphanedImages > 0) {
-                  logger.debug(
-                    `Cleaned up ${orphanedImages} orphaned deployed image(s) for ${instanceName}`
-                  );
+          } else {
+            const deletedCount = await deleteContainersNotInList(
+              userId,
+              instance.id,
+              endpointId,
+              Array.from(currentContainerIds)
+            );
+            const hasDeletedContainers = deletedCount > 0;
+            if (hasDeletedContainers) {
+              logger.debug(
+                `Cleaned up ${deletedCount} deleted container(s) from database for ${instanceName}`,
+                {
+                  module: "containerQueryService",
+                  operation: "getAllContainersWithUpdates",
+                  portainerUrl,
+                  instanceId: instance.id,
                 }
-              } catch (cleanupErr) {
-                logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
-              }
-            };
-            await cleanupOrphanedImages();
+              );
+
+              // Clean up orphaned deployed images after container deletion
+              const cleanupOrphanedImages = async () => {
+                try {
+                  const { cleanupOrphanedDeployedImages } = require("../db/index");
+                  const orphanedImages = await cleanupOrphanedDeployedImages(userId);
+                  if (orphanedImages > 0) {
+                    logger.debug(
+                      `Cleaned up ${orphanedImages} orphaned deployed image(s) for ${instanceName}`
+                    );
+                  }
+                } catch (cleanupErr) {
+                  logger.warn("Error cleaning up orphaned deployed images:", cleanupErr);
+                }
+              };
+              await cleanupOrphanedImages();
+            }
           }
         } catch (cleanupError) {
           // Don't fail the entire fetch if cleanup fails
@@ -306,6 +329,29 @@ async function getAllContainersWithUpdates(
         throw error;
       }
       logger.error(`Error fetching containers from ${portainerUrl}:`, { error });
+      // Fall back to DB-cached containers for this instance so they don't vanish
+      if (userId && instance.id) {
+        try {
+          const dbContainers = require("../db/containers");
+          const cachedContainers = await dbContainers.getContainersWithUpdates(userId, portainerUrl);
+          if (cachedContainers && cachedContainers.length > 0) {
+            const formatted = cachedContainers.map((c) => {
+              return containerFormattingService.formatContainerFromDatabase(
+                c,
+                instance,
+                trackedAppsMap
+              );
+            });
+            allContainers.push(...formatted);
+            logger.warn(
+              `Falling back to ${formatted.length} DB-cached containers for ${instanceName}`,
+              { module: "containerQueryService", portainerUrl }
+            );
+          }
+        } catch (fallbackErr) {
+          logger.warn("DB fallback also failed for instance:", { portainerUrl, error: fallbackErr });
+        }
+      }
       // Continue with other Portainer instances even if one fails
     }
   }
@@ -320,13 +366,13 @@ async function getAllContainersWithUpdates(
   let unusedImagesCount = 0;
 
   // If filtering by specific instance, merge with existing data from normalized tables
-  if (filterPortainerUrl && existingContainers) {
+  if (filterSourceUrl && existingContainers) {
     // Merge container data
     allContainers = await containerDataService.mergeContainerData(
       allContainers,
       existingContainers,
       userId,
-      filterPortainerUrl,
+      filterSourceUrl,
       trackedAppsMap
     );
 
@@ -345,7 +391,7 @@ async function getAllContainersWithUpdates(
   } else {
     // Get unused images count for all instances
     const counts = await Promise.all(
-      portainerInstances.map(async (instance) => {
+      sourceInstances.map(async (instance) => {
         const portainerUrl = instance.url || instance;
         const { username } = instance;
         const { password } = instance;
@@ -377,17 +423,17 @@ async function getAllContainersWithUpdates(
     unusedImagesCount = counts.reduce((acc, count) => acc + count, 0);
   }
 
-  // Build portainerInstances array for frontend
-  const portainerInstancesArray = containerDataService.buildPortainerInstancesArray(
+  // Build sourceInstances array for frontend
+  const sourceInstancesArray = containerDataService.buildSourceInstancesArray(
     allContainers,
-    portainerInstances
+    sourceInstances
   );
 
   const result = {
     grouped: true,
     stacks: groupedContainers,
     containers: allContainers,
-    portainerInstances: portainerInstancesArray,
+    sourceInstances: sourceInstancesArray,
     unusedImagesCount,
   };
 
@@ -415,27 +461,27 @@ async function getContainersFromPortainer(userId = null) {
   logger.debug("Fetching containers from Portainer");
   const allContainers = [];
 
-  // Get Portainer instances from database
+  // Get source instances from database
   // If userId is null, get instances for all users
-  let portainerInstances = [];
+  let sourceInstances = [];
   if (userId) {
-    portainerInstances = await getAllPortainerInstances(userId);
+    sourceInstances = await getAllSourceInstances(userId);
   } else {
     const { getAllUsers } = require("../db/index");
     const users = await getAllUsers();
     for (const user of users) {
-      const userInstances = await getAllPortainerInstances(user.id);
-      portainerInstances = portainerInstances.concat(userInstances);
+      const userInstances = await getAllSourceInstances(user.id);
+      sourceInstances = sourceInstances.concat(userInstances);
     }
   }
 
-  if (portainerInstances.length === 0) {
-    logger.warn("No Portainer instances configured.");
+  if (sourceInstances.length === 0) {
+    logger.warn("No source instances configured.");
     return {
       grouped: true,
       stacks: [],
       containers: [],
-      portainerInstances: [],
+      sourceInstances: [],
       unusedImagesCount: 0,
     };
   }
@@ -444,7 +490,7 @@ async function getContainersFromPortainer(userId = null) {
   // OPTIMIZED: Also compute unused images count inline to avoid re-authenticating
   let totalUnusedImagesCount = 0;
   const allContainersForInstances = await Promise.all(
-    portainerInstances.map(async (instance) => {
+    sourceInstances.map(async (instance) => {
       const portainerUrl = instance.url;
       const instanceName = instance.name || new URL(portainerUrl).hostname;
       const { username } = instance;
@@ -548,6 +594,27 @@ async function getContainersFromPortainer(userId = null) {
         return validContainers;
       } catch (error) {
         logger.error(`Error fetching containers from ${portainerUrl}:`, { error });
+        // Fall back to DB-cached containers for this instance so they don't vanish
+        if (userId && instance.id) {
+          try {
+            const dbContainers = require("../db/containers");
+            const cachedContainers = await dbContainers.getContainersWithUpdates(userId, portainerUrl);
+            if (cachedContainers && cachedContainers.length > 0) {
+              const instanceMap = new Map([[instance.id, instance]]);
+              const formatted = cachedContainers.map((c) => {
+                const inst = instanceMap.get(c.sourceInstanceId);
+                return containerFormattingService.formatContainerFromDatabase(c, inst);
+              });
+              logger.warn(
+                `Falling back to ${formatted.length} DB-cached containers for ${instanceName}`,
+                { module: "containerQueryService", portainerUrl }
+              );
+              return formatted;
+            }
+          } catch (fallbackErr) {
+            logger.warn("DB fallback also failed for instance:", { portainerUrl, error: fallbackErr });
+          }
+        }
         return [];
       }
     })
@@ -568,9 +635,9 @@ async function getContainersFromPortainer(userId = null) {
   // Unused images count was computed inline during the instance loop above
   const unusedImagesCount = totalUnusedImagesCount;
 
-  // Group containers by Portainer instance
-  const portainerInstancesArray = containerGroupingService
-    .groupContainersByPortainerInstance(allContainers, portainerInstances)
+  // Group containers by source instance
+  const sourceInstancesArray = containerGroupingService
+    .groupContainersBySourceInstance(allContainers, sourceInstances)
     .map((instance) => ({
       ...instance,
       withUpdates: [], // No registry data
@@ -581,7 +648,7 @@ async function getContainersFromPortainer(userId = null) {
     grouped: true,
     stacks,
     containers: allContainers,
-    portainerInstances: portainerInstancesArray,
+    sourceInstances: sourceInstancesArray,
     unusedImagesCount,
   };
 
@@ -594,26 +661,26 @@ async function getContainersFromPortainer(userId = null) {
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Unused image detection requires comprehensive analysis
 async function getUnusedImages(userId = null) {
-  // Get Portainer instances from database
+  // Get source instances from database
   // If userId is null, get instances for all users
-  let portainerInstances = [];
+  let sourceInstances = [];
   if (userId) {
-    portainerInstances = await getAllPortainerInstances(userId);
+    sourceInstances = await getAllSourceInstances(userId);
   } else {
     const { getAllUsers } = require("../db/index");
     const users = await getAllUsers();
     for (const user of users) {
-      const userInstances = await getAllPortainerInstances(user.id);
-      portainerInstances = portainerInstances.concat(userInstances);
+      const userInstances = await getAllSourceInstances(user.id);
+      sourceInstances = sourceInstances.concat(userInstances);
     }
   }
 
-  if (portainerInstances.length === 0) {
+  if (sourceInstances.length === 0) {
     return [];
   }
 
   const unusedImagesPerInstance = await Promise.all(
-    portainerInstances.map(async (instance) => {
+    sourceInstances.map(async (instance) => {
       const portainerUrl = instance.url;
       const { username } = instance;
       const { password } = instance;
@@ -702,9 +769,9 @@ async function getUnusedImages(userId = null) {
               repoTags,
               size: image.Size,
               created: image.Created,
-              portainerUrl,
+              sourceUrl: portainerUrl,
               endpointId,
-              portainerName: instanceName,
+              sourceName: instanceName,
             });
           }
         }
@@ -752,9 +819,9 @@ async function getUnusedImages(userId = null) {
               repoTags: repoTags || ["<none>:<none>"],
               size: image.Size,
               created: image.Created,
-              portainerUrl,
+              sourceUrl: portainerUrl,
               endpointId,
-              portainerName: instanceName,
+              sourceName: instanceName,
             });
           }
 
@@ -766,9 +833,9 @@ async function getUnusedImages(userId = null) {
               repoTags: ["<none>:<none>"],
               size: image.Size,
               created: image.Created,
-              portainerUrl,
+              sourceUrl: portainerUrl,
               endpointId,
-              portainerName: instanceName,
+              sourceName: instanceName,
             });
           }
         }

@@ -26,7 +26,7 @@ function HomePage({
   contentTab,
   settingsTab,
   configurationTab,
-  selectedPortainerInstances,
+  selectedSourceInstances,
   selectedContainers,
   selectedImages,
   collapsedStacks,
@@ -41,14 +41,14 @@ function HomePage({
   unusedImages,
   unusedImagesCount,
   trackedApps,
-  portainerInstances,
-  containersByPortainer,
+  sourceInstances,
+  containersBySource,
   loadingInstances,
   dockerHubDataPulled,
   dataFetched,
   lastPullTime,
   successfullyUpdatedContainersRef,
-  portainerInstancesFromAPI,
+  sourceInstancesFromAPI,
   // Notifications
   notificationCount,
   activeContainersWithUpdates,
@@ -62,21 +62,21 @@ function HomePage({
   toggleAvatarMenu,
   toggleNotificationMenu,
   // Modal State
-  showAddPortainerModal,
-  editingPortainerInstance,
+  showAddSourceModal,
+  editingSourceInstance,
   closeModal,
   // Handlers
   setActiveTab,
   setContentTab,
   setSettingsTab,
   setConfigurationTab,
-  setSelectedPortainerInstances,
+  setSelectedSourceInstances,
   setError,
   handleNavigateToSummary,
   handleNavigateToSettings,
   handleNavigateToBatch,
   handleNavigateToAdmin,
-  handleNavigateToPortainer,
+  handleNavigateToContainers,
   handleNavigateToTrackedApps,
   handleDismissContainerNotification,
   handleDismissTrackedAppNotification,
@@ -85,7 +85,7 @@ function HomePage({
   handleLogoutWithCleanup,
   handleUsernameUpdate,
   handlePasswordUpdateSuccessWithNavigation,
-  handlePortainerInstancesChange,
+  handleSourceInstancesChange,
   handleAvatarChange,
   handleRecentAvatarsChange,
   handleAvatarUploaded,
@@ -104,7 +104,7 @@ function HomePage({
   handleBatchPull,
   handleBatchTrackedAppsCheck,
   handleNewInstanceDataFetch,
-  fetchPortainerInstances,
+  fetchSourceInstances,
   fetchContainers,
   fetchUnusedImages,
   fetchRecentAvatars,
@@ -128,7 +128,7 @@ function HomePage({
   handleReorderTabs,
   toggleStack,
   discordWebhooks = [],
-  portainerUpgrade,
+  containerUpgrade,
 }) {
   // Page visibility settings removed - all pages are now always visible
   // Memoize context value
@@ -181,18 +181,18 @@ function HomePage({
           error={error}
           pullError={pullError}
           pullSuccess={pullSuccess}
-          portainerInstances={portainerInstances}
+          sourceInstances={sourceInstances}
           unusedImages={unusedImages}
           unusedImagesCount={unusedImagesCount}
           trackedApps={trackedApps}
           dismissedTrackedAppNotifications={dismissedTrackedAppNotifications}
-          containersByPortainer={containersByPortainer}
+          containersBySource={containersBySource}
           loadingInstances={loadingInstances}
           dockerHubDataPulled={dockerHubDataPulled}
           dataFetched={dataFetched}
           lastPullTime={lastPullTime}
           successfullyUpdatedContainersRef={successfullyUpdatedContainersRef}
-          selectedPortainerInstances={selectedPortainerInstances}
+          selectedSourceInstances={selectedSourceInstances}
           username={username}
           authToken={authToken}
           avatar={avatar}
@@ -203,7 +203,7 @@ function HomePage({
           setContentTab={setContentTab}
           setSettingsTab={setSettingsTab}
           setConfigurationTab={setConfigurationTab}
-          setSelectedPortainerInstances={setSelectedPortainerInstances}
+          setSelectedSourceInstances={setSelectedSourceInstances}
           setError={setError}
           setContainers={setContainers}
           setUnusedImages={setUnusedImages}
@@ -217,7 +217,7 @@ function HomePage({
           handleBatchTrackedAppsCheck={handleBatchTrackedAppsCheck}
           handleUsernameUpdate={handleUsernameUpdate}
           handlePasswordUpdateSuccessWithNavigation={handlePasswordUpdateSuccessWithNavigation}
-          handlePortainerInstancesChange={handlePortainerInstancesChange}
+          handleSourceInstancesChange={handleSourceInstancesChange}
           handleAvatarChange={handleAvatarChange}
           handleRecentAvatarsChange={handleRecentAvatarsChange}
           handleAvatarUploaded={handleAvatarUploaded}
@@ -227,9 +227,9 @@ function HomePage({
           handleClear={handleClear}
           handleClearGitHubCache={handleClearGitHubCache}
           handleLogoutWithCleanup={handleLogoutWithCleanup}
-          editingPortainerInstance={editingPortainerInstance}
-          fetchPortainerInstances={fetchPortainerInstances}
-          portainerUpgrade={portainerUpgrade}
+          editingSourceInstance={editingSourceInstance}
+          fetchSourceInstances={fetchSourceInstances}
+          containerUpgrade={containerUpgrade}
         />
 
         <div className="version-footer-wrapper">
@@ -238,8 +238,8 @@ function HomePage({
 
         <Suspense fallback={null}>
           <HomePageModals
-            showAddPortainerModal={showAddPortainerModal}
-            editingPortainerInstance={editingPortainerInstance}
+            showAddSourceModal={showAddSourceModal}
+            editingSourceInstance={editingSourceInstance}
             closeModal={closeModal}
             handleModalSuccess={handleModalSuccess}
           />
@@ -261,7 +261,7 @@ HomePage.propTypes = {
   contentTab: PropTypes.string.isRequired,
   settingsTab: PropTypes.string.isRequired,
   configurationTab: PropTypes.string.isRequired,
-  selectedPortainerInstances: PropTypes.instanceOf(Set).isRequired,
+  selectedSourceInstances: PropTypes.instanceOf(Set).isRequired,
   selectedContainers: PropTypes.instanceOf(Set).isRequired,
   selectedImages: PropTypes.instanceOf(Set).isRequired,
   collapsedStacks: PropTypes.instanceOf(Set).isRequired,
@@ -275,13 +275,13 @@ HomePage.propTypes = {
   unusedImages: PropTypes.array.isRequired,
   unusedImagesCount: PropTypes.number.isRequired,
   trackedApps: PropTypes.array.isRequired,
-  portainerInstances: PropTypes.array.isRequired,
-  containersByPortainer: PropTypes.object.isRequired,
+  sourceInstances: PropTypes.array.isRequired,
+  containersBySource: PropTypes.object.isRequired,
   loadingInstances: PropTypes.instanceOf(Set).isRequired,
   dockerHubDataPulled: PropTypes.bool.isRequired,
   lastPullTime: PropTypes.instanceOf(Date),
   successfullyUpdatedContainersRef: PropTypes.object.isRequired,
-  portainerInstancesFromAPI: PropTypes.array.isRequired,
+  sourceInstancesFromAPI: PropTypes.array.isRequired,
   notificationCount: PropTypes.number.isRequired,
   activeContainersWithUpdates: PropTypes.array.isRequired,
   activeTrackedAppsBehind: PropTypes.array.isRequired,
@@ -297,20 +297,20 @@ HomePage.propTypes = {
   showNotificationMenu: PropTypes.bool.isRequired,
   toggleAvatarMenu: PropTypes.func.isRequired,
   toggleNotificationMenu: PropTypes.func.isRequired,
-  showAddPortainerModal: PropTypes.bool.isRequired,
-  editingPortainerInstance: PropTypes.object,
+  showAddSourceModal: PropTypes.bool.isRequired,
+  editingSourceInstance: PropTypes.object,
   closeModal: PropTypes.func.isRequired,
   setActiveTab: PropTypes.func.isRequired,
   setContentTab: PropTypes.func.isRequired,
   setSettingsTab: PropTypes.func.isRequired,
   setConfigurationTab: PropTypes.func.isRequired,
-  setSelectedPortainerInstances: PropTypes.func.isRequired,
+  setSelectedSourceInstances: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   handleNavigateToSummary: PropTypes.func.isRequired,
   handleNavigateToSettings: PropTypes.func.isRequired,
   handleNavigateToBatch: PropTypes.func.isRequired,
   handleNavigateToAdmin: PropTypes.func.isRequired,
-  handleNavigateToPortainer: PropTypes.func.isRequired,
+  handleNavigateToContainers: PropTypes.func.isRequired,
   handleNavigateToTrackedApps: PropTypes.func.isRequired,
   handleDismissContainerNotification: PropTypes.func.isRequired,
   handleDismissTrackedAppNotification: PropTypes.func.isRequired,
@@ -319,7 +319,7 @@ HomePage.propTypes = {
   handleLogoutWithCleanup: PropTypes.func.isRequired,
   handleUsernameUpdate: PropTypes.func.isRequired,
   handlePasswordUpdateSuccessWithNavigation: PropTypes.func.isRequired,
-  handlePortainerInstancesChange: PropTypes.func.isRequired,
+  handleSourceInstancesChange: PropTypes.func.isRequired,
   handleAvatarChange: PropTypes.func.isRequired,
   handleRecentAvatarsChange: PropTypes.func.isRequired,
   handleAvatarUploaded: PropTypes.func.isRequired,
@@ -338,7 +338,7 @@ HomePage.propTypes = {
   handleBatchPull: PropTypes.func.isRequired,
   handleBatchTrackedAppsCheck: PropTypes.func.isRequired,
   handleNewInstanceDataFetch: PropTypes.func.isRequired,
-  fetchPortainerInstances: PropTypes.func.isRequired,
+  fetchSourceInstances: PropTypes.func.isRequired,
   fetchContainers: PropTypes.func.isRequired,
   fetchUnusedImages: PropTypes.func.isRequired,
   fetchRecentAvatars: PropTypes.func.isRequired,
@@ -369,7 +369,7 @@ HomePage.propTypes = {
       enabled: PropTypes.bool,
     })
   ),
-  portainerUpgrade: PropTypes.object,
+  containerUpgrade: PropTypes.object,
 };
 
 export default HomePage;

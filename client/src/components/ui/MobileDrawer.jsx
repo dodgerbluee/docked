@@ -8,7 +8,7 @@ import styles from "./MobileDrawer.module.css";
 /**
  * MobileDrawer Component
  * Shared slide-out drawer for mobile sidebar content.
- * Replaces the duplicated drawer patterns in PortainerPage and TrackedAppsPage.
+ * Replaces the duplicated drawer patterns in ContainersPage and TrackedAppsPage.
  *
  * Features:
  * - Slide-in animation from left or right

@@ -1,6 +1,6 @@
 /**
- * Shared upgrade step definitions for Portainer container upgrades.
- * Used by UpgradeProgressModal and PortainerUpgradeProgressBanner.
+ * Shared upgrade step definitions for container upgrades.
+ * Used by UpgradeProgressModal and ContainerUpgradeProgressBanner.
  */
 
 import { TIMING } from "../constants/timing";

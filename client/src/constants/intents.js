@@ -19,7 +19,7 @@ export const MATCH_TYPES = {
   CONTAINERS: "matchContainers",
   IMAGES: "matchImages",
   STACKS: "matchStacks",
-  INSTANCES: "matchInstances",
+  SOURCES: "matchSources",
   REGISTRIES: "matchRegistries",
 };
 
@@ -27,7 +27,7 @@ export const MATCH_TYPE_LABELS = {
   [MATCH_TYPES.CONTAINERS]: "Containers",
   [MATCH_TYPES.IMAGES]: "Images",
   [MATCH_TYPES.STACKS]: "Stacks",
-  [MATCH_TYPES.INSTANCES]: "Portainer",
+  [MATCH_TYPES.SOURCES]: "Sources",
   [MATCH_TYPES.REGISTRIES]: "Registries",
 };
 
@@ -35,7 +35,7 @@ export const MATCH_TYPE_PLACEHOLDERS = {
   [MATCH_TYPES.CONTAINERS]: "e.g., nginx-proxy",
   [MATCH_TYPES.IMAGES]: "e.g., nginx:* or library/redis:*",
   [MATCH_TYPES.STACKS]: "e.g., production-*",
-  [MATCH_TYPES.INSTANCES]: "e.g., My Portainer Server",
+  [MATCH_TYPES.SOURCES]: "e.g., My Portainer Server, Production Runner",
   [MATCH_TYPES.REGISTRIES]: "e.g., docker.io, ghcr.io",
 };
 
@@ -44,7 +44,7 @@ export const MATCH_TYPE_HELPERS = {
     "Supports glob patterns with * (e.g., nginx-* matches nginx-proxy, nginx-web)",
   [MATCH_TYPES.IMAGES]: "Supports glob patterns with *",
   [MATCH_TYPES.STACKS]: "Matches Portainer/Docker Compose stack names, supports *",
-  [MATCH_TYPES.INSTANCES]: "Filter by Portainer instance name",
+  [MATCH_TYPES.SOURCES]: "Filter by source (Portainer instance or Runner)",
   [MATCH_TYPES.REGISTRIES]: "Filter by container registry, supports *",
 };
 

@@ -7,7 +7,7 @@
 
 const axios = require("axios");
 const { URL } = require("url");
-const { getAllPortainerInstances } = require("../../db/index");
+const { getAllSourceInstances } = require("../../db/index");
 const logger = require("../../utils/logger");
 const { validateUrlForSSRF } = require("../../utils/validation");
 const {
@@ -198,7 +198,7 @@ function extractCredentials(instance) {
  */
 async function fetchCredentialsFromDatabase(userId, portainerUrl, originalUrl = null) {
   try {
-    const instances = await getAllPortainerInstances(userId);
+    const instances = await getAllSourceInstances(userId);
     const instance = findMatchingInstance(instances, portainerUrl, originalUrl);
 
     if (!instance) {

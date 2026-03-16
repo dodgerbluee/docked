@@ -4,7 +4,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import PortainerCredentialsStep from "../ImportCredentialsModal/PortainerCredentialsStep";
+import SourceCredentialsStep from "../ImportCredentialsModal/SourceCredentialsStep";
 import DiscordCredentialsStep from "../ImportCredentialsModal/DiscordCredentialsStep";
 
 /**
@@ -15,7 +15,7 @@ import DiscordCredentialsStep from "../ImportCredentialsModal/DiscordCredentials
  * @param {Object} props.configData - Configuration data
  * @param {Object} props.credentials - Credentials object
  * @param {Object} props.errors - Errors object
- * @param {Function} props.onUpdatePortainerCred - Portainer credential update handler
+ * @param {Function} props.onUpdateSourceCred - Source credential update handler
  * @param {Function} props.onUpdateDiscordCred - Discord credential update handler
  */
 const CredentialsStepManager = ({
@@ -24,20 +24,20 @@ const CredentialsStepManager = ({
   configData,
   credentials,
   errors,
-  onUpdatePortainerCred,
+  onUpdateSourceCred,
   onUpdateDiscordCred,
 }) => {
   if (steps.length === 0) return null;
   const stepName = steps[currentStep];
 
   switch (stepName) {
-    case "portainer":
+    case "sources":
       return (
-        <PortainerCredentialsStep
-          instances={configData.portainerInstances || []}
+        <SourceCredentialsStep
+          instances={configData.sourceInstances || []}
           credentials={credentials}
           errors={errors}
-          onUpdateCredential={onUpdatePortainerCred}
+          onUpdateCredential={onUpdateSourceCred}
         />
       );
     case "discord":
@@ -60,7 +60,7 @@ CredentialsStepManager.propTypes = {
   configData: PropTypes.object.isRequired,
   credentials: PropTypes.object.isRequired,
   errors: PropTypes.object.isRequired,
-  onUpdatePortainerCred: PropTypes.func.isRequired,
+  onUpdateSourceCred: PropTypes.func.isRequired,
   onUpdateDiscordCred: PropTypes.func.isRequired,
 };
 

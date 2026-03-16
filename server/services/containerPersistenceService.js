@@ -138,7 +138,7 @@ function prepareVersionData(updateInfo, imageName) {
  * Save container and version data to database
  * @param {Object} params - Parameters object
  * @param {number} params.userId - User ID
- * @param {number} params.portainerInstanceId - Portainer instance ID
+ * @param {number} params.sourceInstanceId - Source instance ID
  * @param {Object} params.container - Container object from Portainer API
  * @param {Object} params.containerData - Formatted container data
  * @param {Object} params.updateInfo - Update information from imageUpdateService
@@ -154,7 +154,7 @@ function prepareVersionData(updateInfo, imageName) {
 // eslint-disable-next-line max-lines-per-function, complexity -- Container persistence requires comprehensive database operations
 async function saveContainerToDatabase({
   userId,
-  portainerInstanceId,
+  sourceInstanceId,
   container,
   containerData,
   updateInfo,
@@ -166,7 +166,7 @@ async function saveContainerToDatabase({
   usesNetworkMode,
   providesNetwork,
 }) {
-  if (!userId || !portainerInstanceId) {
+  if (!userId || !sourceInstanceId) {
     return;
   }
 
@@ -211,7 +211,7 @@ async function saveContainerToDatabase({
     // Save container and version data atomically in a single transaction
     await upsertContainerWithVersion(
       userId,
-      portainerInstanceId,
+      sourceInstanceId,
       {
         containerId: container.Id,
         containerName: containerData.name,

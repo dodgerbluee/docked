@@ -11,14 +11,14 @@ const { getDatabase, queueDatabaseOperation } = require("./connection");
  * Create a new upgrade history record
  * @param {Object} upgradeData - Upgrade data
  * @param {number} upgradeData.userId - User ID
- * @param {number} [upgradeData.portainerInstanceId] - Portainer instance ID
- * @param {string} [upgradeData.portainerInstanceName] - Portainer instance name
+ * @param {number} [upgradeData.sourceInstanceId] - Source instance ID
+ * @param {string} [upgradeData.sourceInstanceName] - Source instance name
  * @param {number} [upgradeData.runnerId] - Runner ID (for runner-backed containers)
  * @param {string} [upgradeData.runnerName] - Runner name (for display)
  * @param {string} upgradeData.containerId - Container ID
  * @param {string} upgradeData.containerName - Container name
  * @param {string} [upgradeData.endpointId] - Endpoint ID (null for runner containers)
- * @param {string} [upgradeData.portainerUrl] - Portainer URL
+ * @param {string} [upgradeData.sourceUrl] - Source URL
  * @param {string} upgradeData.oldImage - Old image name
  * @param {string} upgradeData.newImage - New image name
  * @param {string} [upgradeData.oldDigest] - Old digest
@@ -40,14 +40,14 @@ function createUpgradeHistory(upgradeData) {
       const db = getDatabase();
       const {
         userId,
-        portainerInstanceId,
-        portainerInstanceName,
+        sourceInstanceId,
+        sourceInstanceName,
         runnerId,
         runnerName,
         containerId,
         containerName,
         endpointId,
-        portainerUrl,
+        sourceUrl,
         oldImage,
         newImage,
         oldDigest,
@@ -79,22 +79,22 @@ function createUpgradeHistory(upgradeData) {
       queueDatabaseOperation(() => {
         db.run(
           `INSERT INTO upgrade_history (
-          user_id, portainer_instance_id, portainer_instance_name, runner_id, runner_name,
-          container_id, container_name, endpoint_id, portainer_url,
+          user_id, source_instance_id, source_instance_name, runner_id, runner_name,
+          container_id, container_name, endpoint_id, source_url,
           old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
-            portainerInstanceId || null,
-            portainerInstanceName || null,
+            sourceInstanceId || null,
+            sourceInstanceName || null,
             runnerId || null,
             runnerName || null,
             containerId,
             containerName,
             endpointId ? String(endpointId) : null,
-            portainerUrl || null,
+            sourceUrl || null,
             oldImage,
             newImage,
             oldDigest || null,
@@ -143,10 +143,10 @@ function getUpgradeHistory(userId, options = {}) {
 
       let query = `
         SELECT
-          id, user_id, portainer_instance_id, portainer_instance_name,
+          id, user_id, source_instance_id, source_instance_name,
           runner_id, runner_name,
           container_id, container_name,
-          endpoint_id, portainer_url, old_image, new_image, old_digest, new_digest,
+          endpoint_id, source_url, old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms, created_at
         FROM upgrade_history
@@ -197,10 +197,10 @@ function getUpgradeHistoryById(userId, upgradeId) {
       queueDatabaseOperation(() => {
         db.get(
           `SELECT
-          id, user_id, portainer_instance_id, portainer_instance_name,
+          id, user_id, source_instance_id, source_instance_name,
           runner_id, runner_name,
           container_id, container_name,
-          endpoint_id, portainer_url, old_image, new_image, old_digest, new_digest,
+          endpoint_id, source_url, old_image, new_image, old_digest, new_digest,
           old_version, new_version, image_repo, registry, namespace, repository,
           status, error_message, upgrade_duration_ms, created_at
         FROM upgrade_history

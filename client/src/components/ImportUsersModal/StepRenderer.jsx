@@ -2,14 +2,14 @@ import React from "react";
 import PropTypes from "prop-types";
 import InstanceAdminVerificationStep from "./InstanceAdminVerificationStep";
 import PasswordStep from "./PasswordStep";
-import PortainerCredentialsStep from "../settings/ImportCredentialsModal/PortainerCredentialsStep";
+import SourceCredentialsStep from "../settings/ImportCredentialsModal/SourceCredentialsStep";
 import DiscordCredentialsStep from "../settings/ImportCredentialsModal/DiscordCredentialsStep";
 
 // Step types
 const STEP_TYPES = {
   INSTANCE_ADMIN_VERIFICATION: "instance_admin_verification",
   PASSWORD: "password",
-  PORTAINER: "portainer",
+  SOURCES: "sources",
   DISCORD: "discord",
 };
 
@@ -34,7 +34,7 @@ function StepRenderer({
   onVerifyToken,
   onTokenChange,
   onPasswordChange,
-  onPortainerCredentialUpdate,
+  onSourceCredentialUpdate,
   onDiscordCredentialUpdate,
   onRemoveInstance,
   setUsersData,
@@ -102,8 +102,8 @@ function StepRenderer({
     );
   }
 
-  if (stepType === STEP_TYPES.PORTAINER) {
-    const instances = currentUser?.portainerInstances || [];
+  if (stepType === STEP_TYPES.SOURCES) {
+    const instances = currentUser?.sourceInstances || [];
     // This step should only appear if instances exist (auto-skipped if not)
     // But keep check as safety fallback
     if (instances.length === 0) {
@@ -111,11 +111,11 @@ function StepRenderer({
     }
 
     return (
-      <PortainerCredentialsStep
+      <SourceCredentialsStep
         instances={instances}
         credentials={creds}
         errors={errors}
-        onUpdateCredential={onPortainerCredentialUpdate}
+        onUpdateCredential={onSourceCredentialUpdate}
         onRemoveInstance={onRemoveInstance}
       />
     );
@@ -159,7 +159,7 @@ StepRenderer.propTypes = {
   onVerifyToken: PropTypes.func.isRequired,
   onTokenChange: PropTypes.func.isRequired,
   onPasswordChange: PropTypes.func.isRequired,
-  onPortainerCredentialUpdate: PropTypes.func.isRequired,
+  onSourceCredentialUpdate: PropTypes.func.isRequired,
   onDiscordCredentialUpdate: PropTypes.func.isRequired,
   onRemoveInstance: PropTypes.func.isRequired,
   setUsersData: PropTypes.func.isRequired,

@@ -134,8 +134,8 @@ async function upgradeSingleContainer(
 
     // Record backend instance info for upgrade history.
     if (!isRunnerBackend && userId) {
-      upgradeHistoryData.portainerInstanceId = backend.instanceId;
-      upgradeHistoryData.portainerInstanceName = backend.instanceName;
+      upgradeHistoryData.sourceInstanceId = backend.instanceId;
+      upgradeHistoryData.sourceInstanceName = backend.instanceName;
     }
 
     // Resolve effective URLs for Portainer nginx-fallback cases.

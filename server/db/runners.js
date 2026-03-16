@@ -203,6 +203,57 @@ function getRunnerByNameAndUser(name, userId) {
 }
 
 /**
+ * Get a runner by name (case-insensitive, across all users).
+ * Used by the re-enrollment endpoint where we don't know the userId.
+ * @param {string} name - Runner name
+ * @returns {Promise<Object|null>}
+ */
+function getRunnerByName(name) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.get(
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE LOWER(name) = LOWER(?) LIMIT 1",
+        [name],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row || null);
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Update the API key (and optionally URL) of a runner.
+ * Used by the re-enrollment flow when a runner needs to re-register
+ * after its API key became stale (e.g. server DB was reset).
+ * @param {number} id - Runner ID
+ * @param {string} apiKey - New API key
+ * @param {string} url - New URL
+ * @returns {Promise<void>}
+ */
+function updateRunnerApiKey(id, apiKey, url) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        "UPDATE runners SET api_key = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [apiKey, url, id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
  * Get all enabled runners across all users (includes api_key for background jobs).
  * @returns {Promise<Array>}
  */
@@ -247,12 +298,63 @@ function getEnabledRunnersWithKeysByUser(userId) {
   });
 }
 
+/**
+ * Find a runner by its API key (used for heartbeat authentication).
+ * @param {string} apiKey
+ * @returns {Promise<Object|null>}
+ */
+function getRunnerByApiKey(apiKey) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.get(
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE api_key = ? LIMIT 1",
+        [apiKey],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row || null);
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Update only the URL of a runner (used by heartbeat when IP changes).
+ * @param {number} id - Runner ID
+ * @param {string} url - New URL
+ * @returns {Promise<void>}
+ */
+function updateRunnerUrl(id, url) {
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        "UPDATE runners SET url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [url, id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   getAllRunners,
   getRunnerById,
+  getRunnerByName,
   getRunnerByNameAndUser,
+  getRunnerByApiKey,
   createRunner,
   updateRunner,
+  updateRunnerUrl,
+  updateRunnerApiKey,
   deleteRunner,
   updateRunnerVersion,
   getAllRunnersWithKeys,

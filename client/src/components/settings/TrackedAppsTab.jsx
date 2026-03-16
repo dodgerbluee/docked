@@ -38,8 +38,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
 
   return (
     <div className={styles.updateSection}>
-      <h3 className={styles.title}>Apps Settings</h3>
-      <p className={styles.description}>Manage your app data and configurations.</p>
+      <h3 className={styles.title}>Repos Settings</h3>
+      <p className={styles.description}>Manage your repo data and configurations.</p>
 
       <div className={styles.dataManagement}>
         <h4 className={styles.sectionTitle}>Data Management</h4>
@@ -55,9 +55,8 @@ const TrackedAppsTab = React.memo(function TrackedAppsTab({
               {clearingTrackedAppData ? "Clearing..." : "Clear App Data"}
             </Button>
             <small className={styles.dataActionHelper}>
-              Clears the latest version data for all apps. This will reset the {'"'}Latest
-              {'"'}
-              version information and force fresh data to be fetched on the next check. Your app
+              Clears the latest version data for all repos. This will reset the {'"'}Latest
+              {'"'} version information and force fresh data to be fetched on the next check. Your repo
               configurations will be preserved.
             </small>
           </div>

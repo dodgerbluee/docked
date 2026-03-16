@@ -16,7 +16,7 @@ const NotificationMenu = ({
   discordWebhooks = [],
   instanceAdmin = false,
   onClose,
-  onNavigateToPortainer,
+  onNavigateToContainers,
   onNavigateToTrackedApps,
   onNavigateToSummary,
   onNavigateToSettings,
@@ -80,7 +80,7 @@ const NotificationMenu = ({
                   className="notification-item-content"
                   onClick={() => {
                     onClose();
-                    onNavigateToPortainer && onNavigateToPortainer(container);
+                    onNavigateToContainers && onNavigateToContainers(container);
                   }}
                 >
                   <div className="notification-item-header">
@@ -205,7 +205,7 @@ NotificationMenu.propTypes = {
   ),
   instanceAdmin: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
-  onNavigateToPortainer: PropTypes.func.isRequired,
+  onNavigateToContainers: PropTypes.func.isRequired,
   onNavigateToTrackedApps: PropTypes.func.isRequired,
   onNavigateToSummary: PropTypes.func.isRequired,
   onNavigateToSettings: PropTypes.func,

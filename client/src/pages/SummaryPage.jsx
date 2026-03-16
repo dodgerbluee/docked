@@ -6,7 +6,7 @@ import { useBatchRuns } from "../hooks/useBatchRuns";
 import { CONTENT_TABS } from "../constants/summaryPage";
 import {
   containerShape,
-  portainerInstanceShape,
+  sourceInstanceShape,
   unusedImageShape,
   trackedAppShape,
 } from "../utils/propTypes";
@@ -77,14 +77,14 @@ const SummaryPage = ({
   });
 
   const {
-    handlePortainerStatClick,
+    handleSourceStatClick: handlePortainerStatClick,
     handleInstanceClick,
     handleInstanceStatClick,
     handleTrackedAppsClick,
   } = useNavigationHandlers({
-    onNavigateToPortainer,
+    onNavigateToContainers: onNavigateToPortainer,
     onNavigateToTrackedApps,
-    onSetSelectedPortainerInstances,
+    onSetSelectedSourceInstances: onSetSelectedPortainerInstances,
     onSetContentTab,
   });
 
@@ -177,7 +177,7 @@ const SummaryPage = ({
 };
 
 SummaryPage.propTypes = {
-  portainerInstances: PropTypes.arrayOf(portainerInstanceShape),
+  portainerInstances: PropTypes.arrayOf(sourceInstanceShape),
   containers: PropTypes.arrayOf(containerShape),
   unusedImages: PropTypes.arrayOf(unusedImageShape),
   unusedImagesCount: PropTypes.number,

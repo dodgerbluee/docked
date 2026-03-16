@@ -10,13 +10,13 @@ export function useAppInitialization({
   authToken,
   fetchColorScheme,
   fetchContainers,
-  fetchPortainerInstances,
+  fetchSourceInstances,
   fetchAvatar,
   fetchRecentAvatars,
   fetchTrackedApps,
   setDataFetched,
   setDockerHubDataPulled,
-  setPortainerInstancesFromAPI,
+    setSourceInstancesFromAPI,
   setContainers,
   setStacks,
   setUnusedImages,
@@ -38,7 +38,7 @@ export function useAppInitialization({
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
       }
       fetchColorScheme();
-      // Fetch data from backend (backend will return cache if available, or fetch from Portainer if not)
+      // Fetch data from backend (backend will return cache if available, or fetch from source if not)
       // Only fetch once on initial mount
       initialFetchDoneRef.current = true;
       fetchContainers(true); // true = show loading skeleton on cold cache (guard in useContainersData only fires when containers empty + not yet fetched)
@@ -60,7 +60,7 @@ export function useAppInitialization({
       setDataFetched(false);
       setDockerHubDataPulled(false);
       localStorage.removeItem("dockerHubDataPulled");
-      setPortainerInstancesFromAPI([]);
+      setSourceInstancesFromAPI([]);
       // Clear all container and tracked image data to prevent showing previous user's data
       setContainers([]);
       setStacks([]);
@@ -72,7 +72,7 @@ export function useAppInitialization({
     isAuthenticated,
     setDataFetched,
     setDockerHubDataPulled,
-    setPortainerInstancesFromAPI,
+  setSourceInstancesFromAPI,
     setContainers,
     setStacks,
     setUnusedImages,
@@ -80,12 +80,12 @@ export function useAppInitialization({
     setTrackedApps,
   ]);
 
-  // Fetch Portainer instances and avatar on app load (once only)
+  // Fetch source instances and avatar on app load (once only)
   const secondaryFetchDoneRef = useRef(false);
   useEffect(() => {
     if (isAuthenticated && authToken && !secondaryFetchDoneRef.current) {
       secondaryFetchDoneRef.current = true;
-      fetchPortainerInstances();
+      fetchSourceInstances();
       fetchAvatar();
       fetchRecentAvatars();
       // Note: fetchTrackedApps is NOT called here because useTrackedApps
