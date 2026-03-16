@@ -26,6 +26,17 @@ const VALID_SCHEDULE_TYPES = ["immediate", "scheduled"];
 const MAX_QUERY_LIMIT = 200;
 
 /**
+ * Normalize an array field: return null if the array is empty or falsy.
+ * Prevents empty arrays [] (which are truthy in JS) from being stored as "[]"
+ * in the database, which would silently disable match/exclude filters.
+ * @param {Array|null|undefined} arr
+ * @returns {Array|null}
+ */
+function normalizeArrayField(arr) {
+  return Array.isArray(arr) && arr.length > 0 ? arr : null;
+}
+
+/**
  * List all intents for the authenticated user
  */
 async function listIntents(req, res) {
@@ -181,15 +192,15 @@ async function createIntentHandler(req, res) {
       name: name.trim(),
       description: description?.trim() || null,
       enabled: enabled !== false,
-      matchContainers: matchContainers || null,
-      matchImages: matchImages || null,
-      matchSources: resolvedMatchInstances || null,
-      matchStacks: matchStacks || null,
-      matchRegistries: matchRegistries || null,
-      excludeContainers: excludeContainers || null,
-      excludeImages: excludeImages || null,
-      excludeStacks: excludeStacks || null,
-      excludeRegistries: excludeRegistries || null,
+      matchContainers: normalizeArrayField(matchContainers),
+      matchImages: normalizeArrayField(matchImages),
+      matchSources: normalizeArrayField(resolvedMatchInstances),
+      matchStacks: normalizeArrayField(matchStacks),
+      matchRegistries: normalizeArrayField(matchRegistries),
+      excludeContainers: normalizeArrayField(excludeContainers),
+      excludeImages: normalizeArrayField(excludeImages),
+      excludeStacks: normalizeArrayField(excludeStacks),
+      excludeRegistries: normalizeArrayField(excludeRegistries),
       scheduleType: scheduleType || "immediate",
       scheduleCron: scheduleCron || null,
       maxConcurrent: 1,
@@ -302,7 +313,7 @@ async function updateIntentHandler(req, res) {
             .status(400)
             .json({ success: false, error: `${fieldName} must be an array or null` });
         }
-        updates[fieldName] = value;
+        updates[fieldName] = normalizeArrayField(value);
       }
     }
 
