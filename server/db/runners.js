@@ -17,7 +17,7 @@ function getAllRunners(userId) {
     try {
       const db = getDatabase();
       db.all(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE user_id = ? ORDER BY created_at ASC",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since, created_at, updated_at FROM runners WHERE user_id = ? ORDER BY created_at ASC",
         [userId],
         (err, rows) => {
           if (err) {
@@ -44,7 +44,7 @@ function getRunnerById(id, userId) {
     try {
       const db = getDatabase();
       db.get(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE id = ? AND user_id = ?",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since, created_at, updated_at FROM runners WHERE id = ? AND user_id = ?",
         [id, userId],
         (err, row) => {
           if (err) {
@@ -213,7 +213,7 @@ function getRunnerByName(name) {
     try {
       const db = getDatabase();
       db.get(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE LOWER(name) = LOWER(?) LIMIT 1",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since, created_at, updated_at FROM runners WHERE LOWER(name) = LOWER(?) LIMIT 1",
         [name],
         (err, row) => {
           if (err) reject(err);
@@ -262,7 +262,7 @@ function getAllRunnersWithKeys() {
     try {
       const db = getDatabase();
       db.all(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at FROM runners WHERE enabled = 1 ORDER BY created_at ASC",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since FROM runners WHERE enabled = 1 ORDER BY created_at ASC",
         [],
         (err, rows) => {
           if (err) reject(err);
@@ -285,7 +285,7 @@ function getEnabledRunnersWithKeysByUser(userId) {
     try {
       const db = getDatabase();
       db.all(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at FROM runners WHERE user_id = ? AND enabled = 1 ORDER BY created_at ASC",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since FROM runners WHERE user_id = ? AND enabled = 1 ORDER BY created_at ASC",
         [userId],
         (err, rows) => {
           if (err) reject(err);
@@ -308,7 +308,7 @@ function getRunnerByApiKey(apiKey) {
     try {
       const db = getDatabase();
       db.get(
-        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, created_at, updated_at FROM runners WHERE api_key = ? LIMIT 1",
+        "SELECT id, user_id, name, url, api_key, enabled, docker_enabled, version, latest_version, version_checked_at, last_seen, docker_status, docker_status_since, created_at, updated_at FROM runners WHERE api_key = ? LIMIT 1",
         [apiKey],
         (err, row) => {
           if (err) reject(err);
