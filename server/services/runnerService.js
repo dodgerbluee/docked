@@ -492,6 +492,16 @@ async function triggerRunnerUninstall(runner) {
   return resp.data;
 }
 
+/**
+ * Trigger a restart of the dockhand service on the runner.
+ * @param {Object} runner - Runner DB row { url, api_key }
+ * @returns {Promise<Object>} runner response
+ */
+async function triggerRunnerRestart(runner) {
+  const resp = await axios.post(`${runner.url}/restart`, {}, runnerAxiosConfig(runner.api_key));
+  return resp.data;
+}
+
 async function enrichOperationsWithVersions(operations, githubService) {
   return Promise.all(
     operations.map(async (op) => {
@@ -679,5 +689,6 @@ module.exports = {
   proxyAppOperationRunStream,
   triggerRunnerUpdate,
   triggerRunnerUninstall,
+  triggerRunnerRestart,
   fetchRunnerLogs,
 };

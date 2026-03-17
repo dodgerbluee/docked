@@ -1583,6 +1583,11 @@ router.post(
   destructiveLimiter,
   asyncHandler(runnerController.uninstallRunnerHandler)
 );
+router.post(
+  "/runners/:id/restart",
+  destructiveLimiter,
+  asyncHandler(runnerController.restartRunnerHandler)
+);
 // Runner container SSE proxy routes
 router.post(
   "/runners/:runnerId/containers/:containerId/upgrade",
