@@ -8,6 +8,7 @@
 
 const axios = require("axios");
 const logger = require("../utils/logger");
+const { EVENT_TYPES, insertRunnerEvent } = require("../db/runnerEvents");
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -135,7 +136,11 @@ function normalizeRunnerContainer(rc, runner) {
  * @returns {Promise<Array>} normalized container objects
  */
 async function getContainersFromRunners(runners, { bypassCache = false } = {}) {
-  const eligible = runners.filter((r) => r.enabled && r.docker_enabled !== 0);
+  // Do NOT filter on docker_enabled — always attempt all enabled runners.
+  // Individual fetch failures are caught gracefully below (lines 174-179).
+  // docker_enabled is still tracked for UI display but must not gate fetching,
+  // because a stale docker_enabled=0 value permanently hides containers.
+  const eligible = runners.filter((r) => r.enabled);
   if (eligible.length === 0) return [];
 
   // Build a stable cache key from sorted runner IDs
@@ -176,6 +181,14 @@ async function getContainersFromRunners(runners, { bypassCache = false } = {}) {
           module: "runnerService",
           runnerId: runner.id,
         });
+
+        // Log fetch error as an event (fire-and-forget)
+        insertRunnerEvent({
+          runnerId: runner.id,
+          eventType: EVENT_TYPES.FETCH_ERROR,
+          message: `Failed to fetch containers: ${err.message}`,
+          details: { error: err.message, code: err.code },
+        }).catch(() => {});
       }
     })
   );
@@ -632,6 +645,21 @@ async function proxyAppOperationRunStream(runner, appName, opName, req, res) {
   });
 }
 
+/**
+ * Fetch dockhand's own service logs (journalctl output).
+ * @param {string} url - Runner base URL
+ * @param {string} apiKey - Runner API key
+ * @param {number} [lines=100] - Number of log lines to fetch
+ * @returns {Promise<{lines: string[], count: number}>}
+ */
+async function fetchRunnerLogs(url, apiKey, lines = 100) {
+  const { data } = await axios.get(`${url}/logs`, {
+    ...runnerAxiosConfig(apiKey),
+    params: { lines },
+  });
+  return data;
+}
+
 module.exports = {
   pingRunner,
   fetchRunnerContainers,
@@ -651,4 +679,5 @@ module.exports = {
   proxyAppOperationRunStream,
   triggerRunnerUpdate,
   triggerRunnerUninstall,
+  fetchRunnerLogs,
 };

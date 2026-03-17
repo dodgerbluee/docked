@@ -25,6 +25,14 @@ const {
   cleanupExpiredTokens,
 } = require("../db/enrollmentTokens");
 const {
+  EVENT_TYPES,
+  insertRunnerEvent,
+  getRunnerEvents: fetchRunnerEventsFromDb,
+  getRunnerEventCount,
+  updateRunnerLastSeen,
+  updateRunnerDockerStatus,
+} = require("../db/runnerEvents");
+const {
   pingRunner,
   proxyUpgradeStream,
   proxyLogsStream,
@@ -39,6 +47,7 @@ const {
   proxyAppOperationRunStream,
   triggerRunnerUpdate,
   triggerRunnerUninstall,
+  fetchRunnerLogs,
 } = require("../services/runnerService");
 const githubService = require("../services/githubService");
 const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
@@ -152,7 +161,8 @@ async function getRunners(req, res, next) {
     }
     const runners = await getAllRunners(userId);
     // Never expose api_key in list response
-    return res.json({ success: true, runners });
+    const safe = runners.map(({ api_key: _apiKey, ...rest }) => rest);
+    return res.json({ success: true, runners: safe });
   } catch (err) {
     next(err);
   }
@@ -303,6 +313,30 @@ async function healthCheckRunner(req, res, next) {
     try {
       const health = await pingRunner(runner.url, runner.api_key);
 
+      // Update last_seen and docker status
+      await updateRunnerLastSeen(runner.id);
+
+      const dockerStatus = health.dockerOk === false ? "unavailable" : "ok";
+      const dockerChanged = await updateRunnerDockerStatus(runner.id, dockerStatus);
+
+      // Log health check event
+      insertRunnerEvent({
+        runnerId: runner.id,
+        eventType: EVENT_TYPES.HEALTH_CHECK,
+        message: `Health check: online, Docker ${dockerStatus}`,
+        details: { version: health.version, dockerOk: health.dockerOk, uptimeSeconds: health.uptimeSeconds },
+      }).catch(() => {});
+
+      // Log Docker state change
+      if (dockerChanged) {
+        insertRunnerEvent({
+          runnerId: runner.id,
+          eventType: EVENT_TYPES.DOCKER_CHANGE,
+          message: `Docker status changed to "${dockerStatus}"`,
+          details: { from: runner.docker_status || "unknown", to: dockerStatus },
+        }).catch(() => {});
+      }
+
       // Fire-and-forget: persist version info without blocking the health response.
       // The GitHub release lookup (500-1500ms) is unnecessary for online/offline status.
       githubService
@@ -320,6 +354,15 @@ async function healthCheckRunner(req, res, next) {
       return res.json({ success: true, online: true, health });
     } catch (err) {
       logger.warn(`Runner "${runner.name}" health check failed: ${err.message}`);
+
+      // Log health check failure
+      insertRunnerEvent({
+        runnerId: runner.id,
+        eventType: EVENT_TYPES.HEALTH_CHECK_ERROR,
+        message: `Health check failed: ${err.message}`,
+        details: { error: err.message, code: err.code },
+      }).catch(() => {});
+
       return res.json({ success: true, online: false, error: err.message });
     }
   } catch (err) {
@@ -577,6 +620,14 @@ async function registerRunner(req, res, next) {
       module: "runnerController",
       runnerId,
     });
+
+    // Log enrollment event
+    insertRunnerEvent({
+      runnerId,
+      eventType: EVENT_TYPES.ENROLLED,
+      message: `Runner "${name}" enrolled from ${canonicalUrl.endsWith("/") ? canonicalUrl.slice(0, -1) : canonicalUrl}`,
+      details: { name, url: canonicalUrl.endsWith("/") ? canonicalUrl.slice(0, -1) : canonicalUrl },
+    }).catch(() => {});
 
     return res.status(201).json({
       success: true,
@@ -1092,6 +1143,24 @@ async function heartbeatRunner(req, res, next) {
     }
     const urlChanged = runner.url !== canonicalUrl;
 
+    // Update last_seen on every heartbeat
+    await updateRunnerLastSeen(runner.id);
+
+    // Update Docker status
+    if (dockerOk !== undefined) {
+      const dockerStatus = dockerOk ? "ok" : "unavailable";
+      const dockerChanged = await updateRunnerDockerStatus(runner.id, dockerStatus);
+
+      if (dockerChanged) {
+        insertRunnerEvent({
+          runnerId: runner.id,
+          eventType: EVENT_TYPES.DOCKER_CHANGE,
+          message: `Docker status changed to "${dockerStatus}" (via heartbeat)`,
+          details: { from: runner.docker_status || "unknown", to: dockerStatus },
+        }).catch(() => {});
+      }
+    }
+
     // Update URL if it changed
     if (urlChanged) {
       logger.info(
@@ -1101,10 +1170,27 @@ async function heartbeatRunner(req, res, next) {
       await updateRunnerUrl(runner.id, canonicalUrl);
       // Reset version poller backoff so it immediately retries with the new URL
       resetRunnerBackoff(runner.id);
+
+      insertRunnerEvent({
+        runnerId: runner.id,
+        eventType: EVENT_TYPES.URL_CHANGE,
+        message: `URL changed: ${runner.url} → ${canonicalUrl}`,
+        details: { from: runner.url, to: canonicalUrl },
+      }).catch(() => {});
     }
 
     // Fire-and-forget: update version info if provided
     if (version) {
+      // Log version change if different
+      if (runner.version && version !== runner.version) {
+        insertRunnerEvent({
+          runnerId: runner.id,
+          eventType: EVENT_TYPES.VERSION_CHANGE,
+          message: `Version changed: ${runner.version} → ${version}`,
+          details: { from: runner.version, to: version },
+        }).catch(() => {});
+      }
+
       githubService
         .getLatestRelease(DOCKHAND_GITHUB_REPO)
         .then((latestRelease) =>
@@ -1185,10 +1271,92 @@ async function reEnrollRunner(req, res, next) {
       module: "runnerController",
     });
 
+    // Log re-enrollment event
+    insertRunnerEvent({
+      runnerId: runner.id,
+      eventType: EVENT_TYPES.RE_ENROLLED,
+      message: `Runner "${name}" re-enrolled from ${canonicalUrl}`,
+      details: { name, url: canonicalUrl, previousUrl: runner.url },
+    }).catch(() => {});
+
     return res.status(200).json({
       success: true,
       runnerId: runner.id,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/runners/:id/events
+ * Returns the runner's event history for troubleshooting.
+ * Query params: ?limit=50&offset=0&type=docker_change
+ */
+async function getRunnerEventsHandler(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const runnerId = parseInt(req.params.id, 10);
+    const runner = await getRunnerById(runnerId, userId);
+    if (!runner) {
+      return res.status(404).json({ success: false, error: "Runner not found" });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const offset = parseInt(req.query.offset, 10) || 0;
+    const eventType = req.query.type || null;
+
+    const [events, total] = await Promise.all([
+      fetchRunnerEventsFromDb(runnerId, { limit, offset, eventType }),
+      getRunnerEventCount(runnerId, eventType),
+    ]);
+
+    return res.json({
+      success: true,
+      events,
+      total,
+      limit,
+      offset,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/runners/:id/logs
+ * Proxies the runner's own service logs (journalctl output from dockhand).
+ * Query params: ?lines=100
+ */
+async function getRunnerLogsHandler(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const runnerId = parseInt(req.params.id, 10);
+    const runner = await getRunnerById(runnerId, userId);
+    if (!runner) {
+      return res.status(404).json({ success: false, error: "Runner not found" });
+    }
+
+    const lines = Math.min(parseInt(req.query.lines, 10) || 100, 1000);
+
+    try {
+      const data = await fetchRunnerLogs(runner.url, runner.api_key, lines);
+      return res.json({ success: true, ...data });
+    } catch (err) {
+      logger.warn(`Failed to fetch logs from runner "${runner.name}": ${err.message}`);
+      return res.json({
+        success: false,
+        error: err.message,
+        lines: [],
+        count: 0,
+      });
+    }
   } catch (err) {
     next(err);
   }
@@ -1218,4 +1386,6 @@ module.exports = {
   reEnrollRunner,
   updateRunnerBinary,
   uninstallRunnerHandler,
+  getRunnerEventsHandler,
+  getRunnerLogsHandler,
 };
