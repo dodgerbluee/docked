@@ -1,6 +1,6 @@
 /**
  * RunnerDetailModal Styles
- * Follows InstanceDetailModal footer pattern
+ * Tabbed modal with Details, Events, and Logs views
  */
 
 /* ==========================================
@@ -11,6 +11,49 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-height: 320px;
+}
+
+/* ==========================================
+   Tab Bar
+   ========================================== */
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 12px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--dodger-blue);
+  border-bottom-color: var(--dodger-blue);
+}
+
+body.dark-mode .tabActive {
+  color: var(--dodger-blue-light);
+  border-bottom-color: var(--dodger-blue-light);
 }
 
 /* ==========================================
@@ -42,6 +85,10 @@
   font-size: 0.9rem;
   color: var(--text-primary);
   word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Status badge */
@@ -133,6 +180,26 @@ body.dark-mode .dockerConnected {
 
 body.dark-mode .dockerUnavailable {
   background: rgba(239, 68, 68, 0.16);
+}
+
+.dockerUnknown {
+  background: rgba(156, 163, 175, 0.12);
+  color: var(--text-secondary);
+}
+
+.dockerSince {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Last seen */
+.lastSeen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
 }
 
 /* Update banner inside detail modal */
@@ -227,6 +294,225 @@ body.dark-mode .checkUpdatesBtn:hover:not(:disabled) {
 }
 
 /* ==========================================
+   Events Section
+   ========================================== */
+
+.eventsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 0 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.eventsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.eventItem {
+  display: flex;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.eventItem:last-child {
+  border-bottom: none;
+}
+
+.eventIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.eventContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.eventHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.eventType {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.eventTime {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.eventMessage {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.eventDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.eventDetailItem {
+  font-size: 0.7rem;
+  font-family: monospace;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.loadMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border-color: var(--text-secondary);
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   Logs Section
+   ========================================== */
+
+.logsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 16px;
+}
+
+.logsToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.logsLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.logsRefreshBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.logsRefreshBtn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.logsRefreshBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logsContainer {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-height: 350px;
+  overflow-y: auto;
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.logLine {
+  color: #d4d4d8;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.logsError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--text-error, #ef4444);
+}
+
+/* ==========================================
+   Loading / Empty States
+   ========================================== */
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ==========================================
    Footer
    ========================================== */
 
@@ -314,5 +600,14 @@ body.dark-mode .editButton:hover .editButtonIcon {
   .editButton {
     flex: 1;
     justify-content: center;
+  }
+
+  .tabBar {
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 8px 10px;
+    font-size: 0.75rem;
   }
 }

@@ -13,6 +13,13 @@
 
 const logger = require("../utils/logger");
 const { getAllRunnersWithKeys, updateRunnerVersion } = require("../db/runners");
+const {
+  EVENT_TYPES,
+  insertRunnerEvent,
+  updateRunnerLastSeen,
+  updateRunnerDockerStatus,
+  pruneRunnerEvents,
+} = require("../db/runnerEvents");
 const { pingRunner } = require("./runnerService");
 const githubService = require("./githubService");
 
@@ -84,6 +91,32 @@ async function pollRunnerVersions() {
         // Older runners won't have it; treat undefined the same as true (they had
         // Docker routes always registered before the docker.enabled config existed).
         dockerEnabled = health.dockerOk !== false;
+
+        // Update last_seen on successful contact
+        await updateRunnerLastSeen(runner.id);
+
+        // Update Docker status and log if changed
+        const dockerStatus = health.dockerOk === false ? "unavailable" : "ok";
+        const dockerChanged = await updateRunnerDockerStatus(runner.id, dockerStatus);
+        if (dockerChanged) {
+          insertRunnerEvent({
+            runnerId: runner.id,
+            eventType: EVENT_TYPES.DOCKER_CHANGE,
+            message: `Docker status changed to "${dockerStatus}" (via poller)`,
+            details: { from: runner.docker_status || "unknown", to: dockerStatus },
+          }).catch(() => {});
+        }
+
+        // Log version change
+        if (runningVersion && runner.version && runningVersion !== runner.version) {
+          insertRunnerEvent({
+            runnerId: runner.id,
+            eventType: EVENT_TYPES.VERSION_CHANGE,
+            message: `Version changed: ${runner.version} → ${runningVersion}`,
+            details: { from: runner.version, to: runningVersion },
+          }).catch(() => {});
+        }
+
         // Success — reset failure count
         _failureCounts.set(runner.id, 0);
       } catch {
@@ -93,6 +126,19 @@ async function pollRunnerVersions() {
           `runnerVersionPoller: runner "${runner.name}" unreachable (${failures + 1} consecutive failures)`,
           { module: "runnerVersionPoller", runnerId: runner.id }
         );
+
+        // Log health check error on first failure or when entering backoff
+        if (failures === 0 || failures + 1 === MAX_CONSECUTIVE_FAILURES) {
+          insertRunnerEvent({
+            runnerId: runner.id,
+            eventType: EVENT_TYPES.HEALTH_CHECK_ERROR,
+            message:
+              failures + 1 === MAX_CONSECUTIVE_FAILURES
+                ? `Runner unreachable — entering backoff after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+                : `Runner unreachable (poller)`,
+            details: { consecutiveFailures: failures + 1 },
+          }).catch(() => {});
+        }
       }
       try {
         await updateRunnerVersion(
@@ -114,6 +160,13 @@ async function pollRunnerVersions() {
     runners: runners.length,
     latestVersion,
   });
+
+  // Periodically prune old events (every 6th poll = ~6 hours)
+  if (_pollCount % 6 === 0) {
+    pruneRunnerEvents(200).catch((err) =>
+      logger.warn("runnerVersionPoller: event pruning failed", { error: err.message })
+    );
+  }
 }
 
 /**
