@@ -372,6 +372,56 @@ body.dark-mode .containerCard:hover {
   border-color: var(--dodger-blue-light, var(--dodger-blue));
 }
 
+/* Excluded container card */
+.containerCardExcluded {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.containerCardExcluded:hover {
+  border-color: var(--dodger-red);
+}
+
+body.dark-mode .containerCardExcluded:hover {
+  border-color: var(--dodger-red);
+}
+
+.containerCardNameExcluded {
+  text-decoration: line-through;
+}
+
+.excludedIcon {
+  color: var(--dodger-red);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.exclusionBadge {
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(239, 62, 66, 0.1);
+  color: var(--dodger-red);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+body.dark-mode .exclusionBadge {
+  background: rgba(239, 62, 66, 0.18);
+}
+
+/* Excluded count in matches header */
+.excludedCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--dodger-red);
+  margin-left: 10px;
+}
+
 .containerCardHeader {
   display: flex;
   align-items: center;

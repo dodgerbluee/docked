@@ -619,7 +619,9 @@ async function getIntentPreviewHandler(req, res) {
     }
 
     // Get current matches (all containers matching the intent, regardless of update status)
-    const allMatchingContainers = await findMatchingContainers(intent, userId, false);
+    // Track excluded containers so the UI can show what's excluded and why
+    const { matched: allMatchingContainers, excluded: excludedContainers } =
+      await findMatchingContainers(intent, userId, false, { trackExcluded: true });
 
     // Get containers that would be upgraded (matches with updates available)
     // This is read-only — no execution records are created
@@ -634,6 +636,15 @@ async function getIntentPreviewHandler(req, res) {
         stackName: c.stackName || null,
         sourceInstanceId: c.sourceInstanceId,
         hasUpdate: c.hasUpdate || false,
+      })),
+      excludedContainers: excludedContainers.map((c) => ({
+        containerId: c.containerId,
+        containerName: c.containerName,
+        imageName: c.imageName,
+        stackName: c.stackName || null,
+        sourceInstanceId: c.sourceInstanceId,
+        hasUpdate: c.hasUpdate || false,
+        exclusionReason: c.exclusionReason,
       })),
       nextExecutionPreview: {
         containers: upgradeableContainers.map((c) => ({

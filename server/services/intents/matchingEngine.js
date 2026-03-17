@@ -64,7 +64,7 @@ function matchesAnyName(containerName, names) {
 }
 
 /**
- * Test if a container matches all of the intent's criteria.
+ * Test if a container matches all of the intent's inclusion criteria (ignoring exclusions).
  * Criteria are AND-ed: if an intent specifies both matchImages and matchStacks,
  * the container must match at least one pattern in EACH specified criterion.
  * An unset/empty criterion is ignored (treated as "match all" for that dimension).
@@ -73,17 +73,12 @@ function matchesAnyName(containerName, names) {
  * @param {Object} intent - Intent object (parsed from DB, snake_case fields with JSON arrays parsed)
  * @returns {boolean}
  */
-// eslint-disable-next-line complexity -- Multiple match criteria require sequential checks
-function containerMatchesIntent(container, intent) {
+function containerMatchesInclusion(container, intent) {
   const matchContainers = intent.match_containers;
   const matchImages = intent.match_images;
   const matchSources = intent.match_sources;
   const matchStacks = intent.match_stacks;
   const matchRegistries = intent.match_registries;
-  const excludeContainers = intent.exclude_containers;
-  const excludeImages = intent.exclude_images;
-  const excludeStacks = intent.exclude_stacks;
-  const excludeRegistries = intent.exclude_registries;
 
   // Check container names (glob match)
   if (matchContainers && matchContainers.length > 0) {
@@ -127,32 +122,63 @@ function containerMatchesIntent(container, intent) {
     }
   }
 
-  // Exclusion checks: if any exclusion matches, exclude the container
+  return true;
+}
+
+/**
+ * Get the exclusion reason for a container that matched inclusion criteria.
+ * Returns null if the container is NOT excluded, or a human-readable reason string.
+ *
+ * @param {Object} container - Container from getContainersWithUpdates
+ * @param {Object} intent - Intent object (parsed from DB)
+ * @returns {string|null} - Exclusion reason or null if not excluded
+ */
+function getExclusionReason(container, intent) {
+  const excludeContainers = intent.exclude_containers;
+  const excludeImages = intent.exclude_images;
+  const excludeStacks = intent.exclude_stacks;
+  const excludeRegistries = intent.exclude_registries;
+
   if (excludeContainers && excludeContainers.length > 0) {
     if (matchesAnyGlob(container.containerName, excludeContainers)) {
-      return false;
+      return "container name excluded";
     }
   }
 
   if (excludeImages && excludeImages.length > 0) {
     if (matchesAnyGlob(container.imageName, excludeImages)) {
-      return false;
+      return "image excluded";
     }
   }
 
   if (excludeStacks && excludeStacks.length > 0) {
     if (matchesAnyGlob(container.stackName, excludeStacks)) {
-      return false;
+      return "stack excluded";
     }
   }
 
   if (excludeRegistries && excludeRegistries.length > 0) {
     if (matchesAnyGlob(container.registry, excludeRegistries)) {
-      return false;
+      return "registry excluded";
     }
   }
 
-  return true;
+  return null;
+}
+
+/**
+ * Test if a container matches all of the intent's criteria (inclusion + exclusion).
+ *
+ * @param {Object} container - Container from getContainersWithUpdates
+ * @param {Object} intent - Intent object (parsed from DB, snake_case fields with JSON arrays parsed)
+ * @returns {boolean}
+ */
+// eslint-disable-next-line complexity -- Multiple match criteria require sequential checks
+function containerMatchesIntent(container, intent) {
+  if (!containerMatchesInclusion(container, intent)) {
+    return false;
+  }
+  return getExclusionReason(container, intent) === null;
 }
 
 /**
@@ -210,6 +236,52 @@ function mapRunnerContainerForMatching(rc) {
 }
 
 /**
+ * Enrich a container with its source URL info.
+ * Returns the enriched container, or null if the source is unknown (logs a warning).
+ *
+ * @param {Object} container - Container in matching-engine shape
+ * @param {Map} sourceInstanceUrlMap - Map of source instance ID → URL
+ * @param {Map} runnerMap - Map of runner ID → { url, apiKey }
+ * @returns {Object|null}
+ */
+function enrichContainerWithSource(container, sourceInstanceUrlMap, runnerMap) {
+  if (container.sourceInstanceId) {
+    const portainerUrl = sourceInstanceUrlMap.get(container.sourceInstanceId);
+    if (!portainerUrl) {
+      logger.warn("Skipping container with unknown source instance", {
+        containerId: container.containerId,
+        containerName: container.containerName,
+        sourceInstanceId: container.sourceInstanceId,
+      });
+      return null;
+    }
+    return { ...container, portainerUrl, registry: container.registry || null };
+  } else if (container.runnerId) {
+    const runner = runnerMap.get(container.runnerId);
+    if (!runner) {
+      logger.warn("Skipping container with unknown runner", {
+        containerId: container.containerId,
+        containerName: container.containerName,
+        runnerId: container.runnerId,
+      });
+      return null;
+    }
+    return {
+      ...container,
+      portainerUrl: null,
+      runnerUrl: runner.url,
+      registry: container.registry || null,
+    };
+  } else {
+    logger.warn("Skipping container with no source instance or runner", {
+      containerId: container.containerId,
+      containerName: container.containerName,
+    });
+    return null;
+  }
+}
+
+/**
  * Find all containers that match an intent's criteria.
  *
  * Queries both DB-persisted containers (Portainer) and live runner containers
@@ -218,9 +290,17 @@ function mapRunnerContainerForMatching(rc) {
  * @param {Object} intent - Intent object (parsed from DB)
  * @param {number} userId - User ID
  * @param {boolean} [requireUpdate=true] - If true, only include containers with available updates
- * @returns {Promise<Array<Object>>} - Matched containers, each enriched with portainerUrl or runnerId/runnerUrl
+ * @param {Object} [options] - Additional options
+ * @param {boolean} [options.trackExcluded=false] - If true, also return containers that matched
+ *   inclusion criteria but were excluded, along with exclusion reasons
+ * @returns {Promise<Array<Object>|{matched: Array<Object>, excluded: Array<Object>}>}
+ *   When trackExcluded is false (default), returns an array of matched containers.
+ *   When trackExcluded is true, returns { matched, excluded } where each excluded entry
+ *   includes an `exclusionReason` string.
  */
-async function findMatchingContainers(intent, userId, requireUpdate = true) {
+async function findMatchingContainers(intent, userId, requireUpdate = true, options = {}) {
+  const { trackExcluded = false } = options;
+
   try {
     // Fetch DB containers (Portainer) and runners in parallel
     const [dbContainers, sourceInstances, runners] = await Promise.all([
@@ -251,53 +331,39 @@ async function findMatchingContainers(intent, userId, requireUpdate = true) {
 
     // Filter: must match intent criteria (and optionally have update available)
     const matched = [];
+    const excluded = [];
+
     for (const container of allContainers) {
       if (requireUpdate && !container.hasUpdate) {
         continue;
       }
 
-      if (!containerMatchesIntent(container, intent)) {
+      // Check inclusion first
+      if (!containerMatchesInclusion(container, intent)) {
         continue;
       }
 
-      // Enrich with backend URL (required by upgradeSingleContainer)
-      if (container.sourceInstanceId) {
-        const portainerUrl = sourceInstanceUrlMap.get(container.sourceInstanceId);
-        if (!portainerUrl) {
-          logger.warn("Skipping container with unknown source instance", {
-            containerId: container.containerId,
-            containerName: container.containerName,
-            sourceInstanceId: container.sourceInstanceId,
-          });
-          continue;
+      // Check exclusion
+      const exclusionReason = getExclusionReason(container, intent);
+
+      if (exclusionReason && trackExcluded) {
+        // Matched inclusion but excluded — track it
+        const enriched = enrichContainerWithSource(container, sourceInstanceUrlMap, runnerMap);
+        if (enriched) {
+          excluded.push({ ...enriched, exclusionReason });
         }
-        matched.push({
-          ...container,
-          portainerUrl,
-          registry: container.registry || null,
-        });
-      } else if (container.runnerId) {
-        const runner = runnerMap.get(container.runnerId);
-        if (!runner) {
-          logger.warn("Skipping container with unknown runner", {
-            containerId: container.containerId,
-            containerName: container.containerName,
-            runnerId: container.runnerId,
-          });
-          continue;
-        }
-        matched.push({
-          ...container,
-          portainerUrl: null,
-          runnerUrl: runner.url,
-          registry: container.registry || null,
-        });
-      } else {
-        logger.warn("Skipping container with no source instance or runner", {
-          containerId: container.containerId,
-          containerName: container.containerName,
-        });
         continue;
+      }
+
+      if (exclusionReason) {
+        // Excluded but not tracking — skip
+        continue;
+      }
+
+      // Fully matched — enrich with source URL
+      const enriched = enrichContainerWithSource(container, sourceInstanceUrlMap, runnerMap);
+      if (enriched) {
+        matched.push(enriched);
       }
     }
 
@@ -309,9 +375,14 @@ async function findMatchingContainers(intent, userId, requireUpdate = true) {
       runnerContainers: runnerContainers.length,
       containersWithUpdates: allContainers.filter((c) => c.hasUpdate).length,
       matchedContainers: matched.length,
+      excludedContainers: excluded.length,
       requireUpdate,
+      trackExcluded,
     });
 
+    if (trackExcluded) {
+      return { matched, excluded };
+    }
     return matched;
   } catch (error) {
     logger.error("Error in intent matching engine:", {
@@ -325,6 +396,8 @@ async function findMatchingContainers(intent, userId, requireUpdate = true) {
 module.exports = {
   findMatchingContainers,
   containerMatchesIntent,
+  containerMatchesInclusion,
+  getExclusionReason,
   matchesAnyGlob,
   matchesAnyName,
   globToRegex,

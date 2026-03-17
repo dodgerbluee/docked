@@ -353,8 +353,9 @@ function MatchesTab({ intent, previewData, loading }) {
   }
 
   const matches = previewData.currentMatches || [];
+  const excluded = previewData.excludedContainers || [];
 
-  if (matches.length === 0) {
+  if (matches.length === 0 && excluded.length === 0) {
     return <EmptyState icon={Target} message="No containers currently match this intent." />;
   }
 
@@ -364,14 +365,43 @@ function MatchesTab({ intent, previewData, loading }) {
         <span className={styles.matchesCount}>
           <Container size={14} />
           {matches.length} container{matches.length !== 1 ? "s" : ""} matched
+          {excluded.length > 0 && (
+            <span className={styles.excludedCount}>
+              <ShieldOff size={12} />
+              {excluded.length} excluded
+            </span>
+          )}
         </span>
       </div>
       <div className={styles.containerList}>
         {matches.map((container, i) => (
-          <div key={i} className={styles.containerCard}>
+          <div key={`m-${i}`} className={styles.containerCard}>
             <div className={styles.containerCardHeader}>
               <Container size={14} className={styles.containerIcon} />
               <span className={styles.containerCardName}>{container.containerName}</span>
+            </div>
+            <div className={styles.containerCardDetails}>
+              <div className={styles.containerDetail}>
+                <span className={styles.detailLabel}>Image:</span>
+                <span className={styles.detailValueCode}>{container.imageName || "-"}</span>
+              </div>
+              {container.stackName && (
+                <div className={styles.containerDetail}>
+                  <span className={styles.detailLabel}>Stack:</span>
+                  <span className={styles.detailValue}>{container.stackName}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {excluded.map((container, i) => (
+          <div key={`e-${i}`} className={`${styles.containerCard} ${styles.containerCardExcluded}`}>
+            <div className={styles.containerCardHeader}>
+              <ShieldOff size={14} className={styles.excludedIcon} />
+              <span className={`${styles.containerCardName} ${styles.containerCardNameExcluded}`}>
+                {container.containerName}
+              </span>
+              <span className={styles.exclusionBadge}>{container.exclusionReason}</span>
             </div>
             <div className={styles.containerCardDetails}>
               <div className={styles.containerDetail}>

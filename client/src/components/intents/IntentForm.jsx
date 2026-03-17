@@ -72,7 +72,7 @@ function useExcludeSuggestions(containers, matchType, matchValues, allSuggestion
           case MATCH_TYPES.STACKS:
             return fieldMatchesValue(c.stackName || "", val);
           case MATCH_TYPES.SOURCES:
-            return fieldMatchesValue(c.sourceName || c.portainerName || "", val);
+            return fieldMatchesValue(c.sourceName || c.portainerName || c.runnerName || "", val);
           case MATCH_TYPES.REGISTRIES: {
             const parts = (c.image || "").split("/");
             const registry = parts.length >= 2 && parts[0].includes(".") ? parts[0] : "";
