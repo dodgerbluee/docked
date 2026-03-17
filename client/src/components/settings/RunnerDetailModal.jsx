@@ -379,9 +379,9 @@ function RunnerDetailModal({
                 <button
                   className={styles.updateBannerBtn}
                   onClick={() => onUpdate && onUpdate(runner)}
-                  disabled={updatingRunner === runner.id}
+                  disabled={updatingRunner?.has?.(runner.id)}
                 >
-                  {updatingRunner === runner.id ? (
+                  {updatingRunner?.has?.(runner.id) ? (
                     <>
                       <Loader size={11} className={styles.spinIcon} /> Updating...
                     </>
@@ -584,7 +584,7 @@ RunnerDetailModal.propTypes = {
   onUpdate: PropTypes.func,
   onOperations: PropTypes.func,
   healthStatus: PropTypes.object,
-  updatingRunner: PropTypes.number,
+  updatingRunner: PropTypes.instanceOf(Set),
   updatedRunners: PropTypes.instanceOf(Set),
   onHealthUpdate: PropTypes.func,
   onRefreshRunners: PropTypes.func,

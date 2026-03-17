@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
+import { hasVersionUpdate } from "../utils/versionHelpers";
 
 export function useRunnerState() {
   const [runners, setRunners] = useState([]);
@@ -15,7 +16,7 @@ export function useRunnerState() {
   const [showEnrollment, setShowEnrollment] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [healthStatus, setHealthStatus] = useState({}); // id -> { online, checking, health }
-  const [updatingRunner, setUpdatingRunner] = useState(null); // runnerId
+  const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
   const [updatedRunners, setUpdatedRunners] = useState(new Set()); // ids that finished updating
   const updatePollRef = useRef({}); // runnerId -> intervalId
   const [runOp, setRunOp] = useState(null); // { runner, appName, operationName }
@@ -85,7 +86,7 @@ export function useRunnerState() {
 
   const handleUpdate = useCallback(
     async (runner) => {
-      setUpdatingRunner(runner.id);
+      setUpdatingRunners((prev) => new Set([...prev, runner.id]));
       try {
         await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
         const targetVersion = (runner.latest_version || "").replace(/^v/, "");
@@ -98,7 +99,11 @@ export function useRunnerState() {
             if (liveVersion === targetVersion) {
               clearInterval(updatePollRef.current[runner.id]);
               delete updatePollRef.current[runner.id];
-              setUpdatingRunner(null);
+              setUpdatingRunners((prev) => {
+                const next = new Set(prev);
+                next.delete(runner.id);
+                return next;
+              });
               setUpdatedRunners((prev) => new Set([...prev, runner.id]));
               fetchRunners();
               return;
@@ -110,17 +115,42 @@ export function useRunnerState() {
             // 2 min max
             clearInterval(updatePollRef.current[runner.id]);
             delete updatePollRef.current[runner.id];
-            setUpdatingRunner(null);
+            setUpdatingRunners((prev) => {
+              const next = new Set(prev);
+              next.delete(runner.id);
+              return next;
+            });
             fetchRunners();
           }
         }, 5000);
       } catch (err) {
         console.error("Failed to update runner:", err);
-        setUpdatingRunner(null);
+        setUpdatingRunners((prev) => {
+          const next = new Set(prev);
+          next.delete(runner.id);
+          return next;
+        });
       }
     },
     [fetchRunners]
   );
+
+  /**
+   * Update all online runners that have a pending version update.
+   * Fires handleUpdate for each eligible runner concurrently.
+   */
+  const handleUpdateAll = useCallback(() => {
+    const eligible = runners.filter(
+      (r) =>
+        r.version &&
+        r.latest_version &&
+        hasVersionUpdate(r.version, r.latest_version) &&
+        !updatedRunners.has(r.id) &&
+        !updatingRunners.has(r.id) &&
+        healthStatus[r.id]?.online
+    );
+    eligible.forEach((r) => handleUpdate(r));
+  }, [runners, healthStatus, updatedRunners, updatingRunners, handleUpdate]);
 
   // Clean up any active update polls on unmount
   useEffect(() => {
@@ -169,7 +199,7 @@ export function useRunnerState() {
     showEnrollment,
     deleteConfirm,
     healthStatus,
-    updatingRunner,
+    updatingRunners,
     updatedRunners,
     runOp,
     showOpsRunner,
@@ -187,6 +217,7 @@ export function useRunnerState() {
     fetchRunners,
     handleEdit,
     handleUpdate,
+    handleUpdateAll,
     handlePing,
     handleHealthUpdate,
     handleEnrolled,
