@@ -710,10 +710,22 @@ const SourcesTab = React.memo(function SourcesTab({
                     <span className={`${styles.typeBadge} ${styles.typeBadgeRunner}`}>Runner</span>
                   </div>
 
-                  {hs?.online && hs?.health?.docker !== undefined && (
-                    <div className={styles.healthInfo}>
-                      <span className={styles.healthBadge}>
-                        Docker: {hs.health.docker ? "connected" : "unavailable"}
+                  {!!r.docker_enabled && hs && !hs.checking && (
+                    <div className={styles.dockerStatus}>
+                      <span
+                        className={
+                          hs.online && hs.health?.docker
+                            ? styles.dockerConnected
+                            : styles.dockerUnavailable
+                        }
+                        title={
+                          hs.online && hs.health?.docker
+                            ? "Container management connected"
+                            : "Container management unavailable"
+                        }
+                      >
+                        <Terminal size={12} />
+                        {hs.online && hs.health?.docker ? "Docker" : "Docker offline"}
                       </span>
                     </div>
                   )}
