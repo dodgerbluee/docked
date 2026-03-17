@@ -47,6 +47,7 @@ const {
   proxyAppOperationRunStream,
   triggerRunnerUpdate,
   triggerRunnerUninstall,
+  triggerRunnerRestart,
   fetchRunnerLogs,
 } = require("../services/runnerService");
 const githubService = require("../services/githubService");
@@ -1083,6 +1084,41 @@ async function uninstallRunnerHandler(req, res, next) {
 }
 
 /**
+ * POST /api/runners/:id/restart
+ * Tells the runner to restart its dockhand service.
+ */
+async function restartRunnerHandler(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Authentication required" });
+    }
+    const runner = await getRunnerById(parseInt(req.params.id, 10), userId);
+    if (!runner) {
+      return res.status(404).json({ success: false, error: "Runner not found" });
+    }
+
+    try {
+      const result = await triggerRunnerRestart(runner);
+
+      // Log the restart event
+      await insertRunnerEvent({
+        runnerId: runner.id,
+        eventType: EVENT_TYPES.INFO,
+        message: `Restart triggered remotely`,
+      });
+
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      logger.warn(`Runner "${runner.name}" restart trigger failed: ${err.message}`);
+      return res.status(502).json({ success: false, error: err.message });
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * GET /api/runners/enrollment-status?token=...  (authenticated)
  * Returns { status: 'pending' } or { status: 'registered', runner } for the given token.
  */
@@ -1390,6 +1426,7 @@ module.exports = {
   reEnrollRunner,
   updateRunnerBinary,
   uninstallRunnerHandler,
+  restartRunnerHandler,
   getRunnerEventsHandler,
   getRunnerLogsHandler,
 };

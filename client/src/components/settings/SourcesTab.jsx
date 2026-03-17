@@ -489,6 +489,18 @@ const SourcesTab = React.memo(function SourcesTab({
   const hasDockerRunners = runner.runners && runner.runners.some((r) => r.docker_enabled !== 0);
   const hasAnySources = hasPortainerInstances || hasDockerRunners;
 
+  // Runners that are online and have a pending version update
+  const runnersWithUpdates = runner.runners.filter(
+    (r) =>
+      r.version &&
+      r.latest_version &&
+      hasVersionUpdate(r.version, r.latest_version) &&
+      !runner.updatedRunners.has(r.id) &&
+      !runner.updatingRunners.has(r.id) &&
+      runner.healthStatus[r.id]?.online
+  );
+  const isAnyUpdating = runner.updatingRunners.size > 0;
+
   if (runner.loading) {
     return (
       <div className={styles.wrapper}>
@@ -528,6 +540,26 @@ const SourcesTab = React.memo(function SourcesTab({
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h4 className={styles.sectionTitle}>Sources</h4>
+          {(runnersWithUpdates.length > 0 || isAnyUpdating) && (
+            <button
+              className={styles.updateAllBtn}
+              onClick={runner.handleUpdateAll}
+              disabled={isAnyUpdating || runnersWithUpdates.length === 0}
+            >
+              {isAnyUpdating ? (
+                <>
+                  <Loader size={13} className={styles.spinIcon} />
+                  Updating {runner.updatingRunners.size} runner
+                  {runner.updatingRunners.size !== 1 ? "s" : ""}...
+                </>
+              ) : (
+                <>
+                  <ArrowUpCircle size={13} />
+                  Update All ({runnersWithUpdates.length})
+                </>
+              )}
+            </button>
+          )}
         </div>
         <div className={styles.description}>
           <p className={styles.descriptionIntro}>
@@ -899,7 +931,7 @@ const SourcesTab = React.memo(function SourcesTab({
           runner.setShowOpsRunner(r);
         }}
         healthStatus={runner.healthStatus}
-        updatingRunner={runner.updatingRunner}
+        updatingRunner={runner.updatingRunners}
         updatedRunners={runner.updatedRunners}
         onHealthUpdate={runner.handleHealthUpdate}
         onRefreshRunners={runner.fetchRunners}

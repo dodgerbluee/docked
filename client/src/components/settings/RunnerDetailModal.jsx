@@ -8,6 +8,7 @@ import {
   Loader,
   ArrowUpCircle,
   RefreshCw,
+  RotateCcw,
   Terminal,
   Clock,
   Activity,
@@ -103,6 +104,7 @@ function RunnerDetailModal({
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
   const logsEndRef = useRef(null);
+  const [restarting, setRestarting] = useState(false);
 
   const fetchEvents = useCallback(
     async (offset = 0) => {
@@ -207,6 +209,26 @@ function RunnerDetailModal({
     }
   }, [runner, onHealthUpdate, onRefreshRunners]);
 
+  const handleRestart = useCallback(async () => {
+    if (!runner) return;
+    const confirmed = window.confirm(
+      `Restart dockhand on "${runner.name}"? The runner will be briefly unavailable.`
+    );
+    if (!confirmed) return;
+    setRestarting(true);
+    try {
+      await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/restart`);
+    } catch {
+      // ignore — runner will go offline momentarily regardless
+    } finally {
+      // Give the runner time to restart before refreshing
+      setTimeout(async () => {
+        setRestarting(false);
+        if (onRefreshRunners) await onRefreshRunners();
+      }, 5000);
+    }
+  }, [runner, onRefreshRunners]);
+
   if (!runner) return null;
 
   const hs = healthStatus?.[runner.id];
@@ -233,7 +255,7 @@ function RunnerDetailModal({
       isOpen={isOpen}
       onClose={onClose}
       title={runner.name || "Runner Details"}
-      size="md"
+      size="xl"
       fullScreenMobile
     >
       <div className={styles.modalBody}>
@@ -357,9 +379,9 @@ function RunnerDetailModal({
                 <button
                   className={styles.updateBannerBtn}
                   onClick={() => onUpdate && onUpdate(runner)}
-                  disabled={updatingRunner === runner.id}
+                  disabled={updatingRunner?.has?.(runner.id)}
                 >
-                  {updatingRunner === runner.id ? (
+                  {updatingRunner?.has?.(runner.id) ? (
                     <>
                       <Loader size={11} className={styles.spinIcon} /> Updating...
                     </>
@@ -399,6 +421,25 @@ function RunnerDetailModal({
             >
               <Terminal size={13} />
               Operations
+            </button>
+
+            {/* Restart Dockhand button */}
+            <button
+              className={styles.checkUpdatesBtn}
+              onClick={handleRestart}
+              disabled={restarting}
+            >
+              {restarting ? (
+                <>
+                  <Loader size={13} className={styles.spinIcon} />
+                  Restarting...
+                </>
+              ) : (
+                <>
+                  <RotateCcw size={13} />
+                  Restart Dockhand
+                </>
+              )}
             </button>
           </div>
         )}
@@ -543,7 +584,7 @@ RunnerDetailModal.propTypes = {
   onUpdate: PropTypes.func,
   onOperations: PropTypes.func,
   healthStatus: PropTypes.object,
-  updatingRunner: PropTypes.number,
+  updatingRunner: PropTypes.instanceOf(Set),
   updatedRunners: PropTypes.instanceOf(Set),
   onHealthUpdate: PropTypes.func,
   onRefreshRunners: PropTypes.func,
