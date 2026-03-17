@@ -17,7 +17,12 @@
  */
 
 const logger = require("../../utils/logger");
-const { addColumnIfNotExists, tableExists, createIndexIfNotExists, executeSql } = require("./helpers");
+const {
+  addColumnIfNotExists,
+  tableExists,
+  createIndexIfNotExists,
+  executeSql,
+} = require("./helpers");
 
 module.exports = {
   version: 15,

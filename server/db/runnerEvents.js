@@ -181,14 +181,10 @@ function updateRunnerLastSeen(runnerId) {
   return new Promise((resolve, reject) => {
     try {
       const db = getDatabase();
-      db.run(
-        "UPDATE runners SET last_seen = datetime('now') WHERE id = ?",
-        [runnerId],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
+      db.run("UPDATE runners SET last_seen = datetime('now') WHERE id = ?", [runnerId], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
     } catch (err) {
       reject(err);
     }
@@ -206,28 +202,24 @@ function updateRunnerDockerStatus(runnerId, status) {
     try {
       const db = getDatabase();
       // First check current status to detect a change
-      db.get(
-        "SELECT docker_status FROM runners WHERE id = ?",
-        [runnerId],
-        (err, row) => {
-          if (err) return reject(err);
-          const oldStatus = row?.docker_status || "unknown";
-          const changed = oldStatus !== status;
+      db.get("SELECT docker_status FROM runners WHERE id = ?", [runnerId], (err, row) => {
+        if (err) return reject(err);
+        const oldStatus = row?.docker_status || "unknown";
+        const changed = oldStatus !== status;
 
-          if (changed) {
-            db.run(
-              "UPDATE runners SET docker_status = ?, docker_status_since = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-              [status, runnerId],
-              (err2) => {
-                if (err2) reject(err2);
-                else resolve(true);
-              }
-            );
-          } else {
-            resolve(false);
-          }
+        if (changed) {
+          db.run(
+            "UPDATE runners SET docker_status = ?, docker_status_since = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [status, runnerId],
+            (err2) => {
+              if (err2) reject(err2);
+              else resolve(true);
+            }
+          );
+        } else {
+          resolve(false);
         }
-      );
+      });
     } catch (err) {
       reject(err);
     }
