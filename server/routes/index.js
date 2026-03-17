@@ -1575,6 +1575,9 @@ router.delete(
 );
 router.post("/runners/:id/health", asyncHandler(runnerController.healthCheckRunner));
 router.post("/runners/:id/update", writeLimiter, asyncHandler(runnerController.updateRunnerBinary));
+// Runner health & diagnostics
+router.get("/runners/:id/events", asyncHandler(runnerController.getRunnerEventsHandler));
+router.get("/runners/:id/logs", asyncHandler(runnerController.getRunnerLogsHandler));
 router.post(
   "/runners/:id/uninstall",
   destructiveLimiter,
