@@ -37,7 +37,9 @@
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tab:hover {
@@ -391,7 +393,9 @@ body.dark-mode .checkUpdatesBtn:hover:not(:disabled) {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .loadMoreBtn:hover:not(:disabled) {
@@ -440,7 +444,9 @@ body.dark-mode .checkUpdatesBtn:hover:not(:disabled) {
   border-radius: 4px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .logsRefreshBtn:hover:not(:disabled) {

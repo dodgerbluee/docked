@@ -132,9 +132,10 @@ async function pollRunnerVersions() {
           insertRunnerEvent({
             runnerId: runner.id,
             eventType: EVENT_TYPES.HEALTH_CHECK_ERROR,
-            message: failures + 1 === MAX_CONSECUTIVE_FAILURES
-              ? `Runner unreachable — entering backoff after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-              : `Runner unreachable (poller)`,
+            message:
+              failures + 1 === MAX_CONSECUTIVE_FAILURES
+                ? `Runner unreachable — entering backoff after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+                : `Runner unreachable (poller)`,
             details: { consecutiveFailures: failures + 1 },
           }).catch(() => {});
         }

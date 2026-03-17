@@ -39,7 +39,11 @@ const EVENT_META = {
   heartbeat: { label: "Heartbeat", icon: Activity, color: "var(--text-secondary)" },
   heartbeat_error: { label: "Heartbeat Error", icon: XCircle, color: "var(--text-error, #ef4444)" },
   health_check: { label: "Health Check", icon: CheckCircle, color: "#22c55e" },
-  health_check_error: { label: "Health Check Failed", icon: XCircle, color: "var(--text-error, #ef4444)" },
+  health_check_error: {
+    label: "Health Check Failed",
+    icon: XCircle,
+    color: "var(--text-error, #ef4444)",
+  },
   fetch_error: { label: "Fetch Error", icon: AlertTriangle, color: "var(--text-error, #ef4444)" },
   url_change: { label: "URL Changed", icon: Info, color: "var(--dodger-blue)" },
   version_change: { label: "Version", icon: ArrowUpCircle, color: "#22c55e" },
@@ -100,32 +104,6 @@ function RunnerDetailModal({
   const [logsError, setLogsError] = useState(null);
   const logsEndRef = useRef(null);
 
-  // Reset state when modal opens/closes or runner changes
-  useEffect(() => {
-    if (isOpen && runner) {
-      setActiveTab(TABS.DETAILS);
-      setEvents([]);
-      setEventsOffset(0);
-      setEventsTotal(0);
-      setLogs([]);
-      setLogsError(null);
-    }
-  }, [isOpen, runner?.id]);
-
-  // Fetch events when Events tab is selected
-  useEffect(() => {
-    if (activeTab === TABS.EVENTS && runner && events.length === 0 && !eventsLoading) {
-      fetchEvents(0);
-    }
-  }, [activeTab, runner?.id]);
-
-  // Fetch logs when Logs tab is selected
-  useEffect(() => {
-    if (activeTab === TABS.LOGS && runner && logs.length === 0 && !logsLoading) {
-      fetchLogs();
-    }
-  }, [activeTab, runner?.id]);
-
   const fetchEvents = useCallback(
     async (offset = 0) => {
       if (!runner) return;
@@ -153,9 +131,7 @@ function RunnerDetailModal({
     setLogsLoading(true);
     setLogsError(null);
     try {
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/runners/${runner.id}/logs?lines=200`
-      );
+      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/logs?lines=200`);
       if (data.success) {
         setLogs(data.lines || []);
       } else {
@@ -169,6 +145,36 @@ function RunnerDetailModal({
       setLogsLoading(false);
     }
   }, [runner]);
+
+  // Reset state when modal opens/closes or runner changes
+  useEffect(() => {
+    if (isOpen && runner) {
+      setActiveTab(TABS.DETAILS);
+      setEvents([]);
+      setEventsOffset(0);
+      setEventsTotal(0);
+      setLogs([]);
+      setLogsError(null);
+    }
+  }, [isOpen, runner]);
+
+  // Fetch events when Events tab is selected
+  useEffect(() => {
+    if (activeTab === TABS.EVENTS && runner) {
+      setEvents([]);
+      setEventsOffset(0);
+      fetchEvents(0);
+    }
+  }, [activeTab, runner, fetchEvents]);
+
+  // Fetch logs when Logs tab is selected
+  useEffect(() => {
+    if (activeTab === TABS.LOGS && runner) {
+      setLogs([]);
+      setLogsError(null);
+      fetchLogs();
+    }
+  }, [activeTab, runner, fetchLogs]);
 
   // Auto-scroll logs to bottom
   useEffect(() => {
@@ -467,11 +473,7 @@ function RunnerDetailModal({
           <div className={styles.logsSection}>
             <div className={styles.logsToolbar}>
               <span className={styles.logsLabel}>Dockhand Service Logs</span>
-              <button
-                className={styles.logsRefreshBtn}
-                onClick={fetchLogs}
-                disabled={logsLoading}
-              >
+              <button className={styles.logsRefreshBtn} onClick={fetchLogs} disabled={logsLoading}>
                 {logsLoading ? (
                   <Loader size={12} className={styles.spinIcon} />
                 ) : (

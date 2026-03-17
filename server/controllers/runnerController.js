@@ -324,7 +324,11 @@ async function healthCheckRunner(req, res, next) {
         runnerId: runner.id,
         eventType: EVENT_TYPES.HEALTH_CHECK,
         message: `Health check: online, Docker ${dockerStatus}`,
-        details: { version: health.version, dockerOk: health.dockerOk, uptimeSeconds: health.uptimeSeconds },
+        details: {
+          version: health.version,
+          dockerOk: health.dockerOk,
+          uptimeSeconds: health.uptimeSeconds,
+        },
       }).catch(() => {});
 
       // Log Docker state change
