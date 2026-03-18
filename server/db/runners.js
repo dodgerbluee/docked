@@ -22,7 +22,10 @@ const { getDatabase } = require("./connection");
  * @returns {string} Hex-encoded SHA-256 hash
  */
 function hashApiKey(apiKey) {
-  return crypto.createHash("sha256").update(apiKey).digest("hex");
+  // SHA-256 is intentional: this hashes a high-entropy random API key (not a
+  // user password), so bcrypt/scrypt are unnecessary. Plaintext is kept
+  // separately for outbound auth to the runner.
+  return crypto.createHash("sha256").update(apiKey).digest("hex"); // lgtm[js/insufficient-password-hash]
 }
 
 /**
