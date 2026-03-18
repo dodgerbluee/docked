@@ -364,6 +364,29 @@ body.dark-mode .runnerIcon {
   font-style: italic;
 }
 
+.dockerStatus {
+  display: flex;
+  align-items: center;
+}
+
+.dockerConnected {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #22c55e;
+  font-weight: 500;
+}
+
+.dockerUnavailable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .versionBadge {
   display: inline-flex;
   align-items: center;
