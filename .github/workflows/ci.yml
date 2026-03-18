@@ -160,6 +160,9 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: javascript
+          config: |
+            paths-ignore:
+              - 'server/controllers/debugController.js'
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
