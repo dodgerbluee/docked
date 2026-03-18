@@ -830,7 +830,7 @@ export default function RunnerTab() {
           setShowOpsRunner(r);
         }}
         healthStatus={healthStatus}
-        updatingRunner={updatingRunner}
+        updatingRunner={updatingRunner != null ? new Set([updatingRunner]) : new Set()}
         updatedRunners={updatedRunners}
         onHealthUpdate={handleHealthUpdate}
         onRefreshRunners={fetchRunners}

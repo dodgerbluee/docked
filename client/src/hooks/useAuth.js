@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
+import { clearAllCaches } from "../utils/cacheRegistry";
 
 /**
  * Custom hook for authentication state and operations
@@ -49,6 +50,8 @@ export const useAuth = () => {
     setInstanceAdmin(false);
     setIsAuthenticated(false);
     delete axios.defaults.headers.common["Authorization"];
+    // Clear module-level caches to prevent cross-user data leaks
+    clearAllCaches();
   }, []);
 
   // Validate token on mount (guard prevents StrictMode double-fetch)
@@ -137,12 +140,8 @@ export const useAuth = () => {
       setAuthToken(newToken);
       localStorage.setItem("authToken", newToken);
       axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-    } else {
-      const token = btoa(`${newUsername}:${Date.now()}`);
-      setAuthToken(token);
-      localStorage.setItem("authToken", token);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
+    // If no new token provided, keep the existing valid token — do NOT fabricate one
   }, []);
 
   // Handle password update success (no-op, kept for backward compatibility)
