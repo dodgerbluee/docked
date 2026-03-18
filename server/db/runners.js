@@ -5,7 +5,26 @@
  * - Runner CRUD operations (runners are dockhand instances)
  */
 
+const crypto = require("crypto");
 const { getDatabase } = require("./connection");
+
+// Internal key used solely to produce fixed-length HMAC output for timingSafeEqual.
+// This is NOT a password hash — it's a keyed MAC to normalize key length before
+// constant-time comparison. The security of inbound auth comes from the high-entropy
+// random API key itself, not from this derivation step.
+const COMPARISON_HMAC_KEY = Buffer.from("docked-runner-api-key-comparison-v1");
+
+/**
+ * Constant-time comparison of two API keys.
+ * Prevents timing side-channel attacks during inbound authentication.
+ * @param {string} a - First API key (plaintext)
+ * @param {string} b - Second API key (plaintext)
+ * @returns {boolean}
+ */
+function apiKeysEqual(a, b) {
+  const mac = (v) => crypto.createHmac("sha256", COMPARISON_HMAC_KEY).update(v).digest();
+  return crypto.timingSafeEqual(mac(a), mac(b));
+}
 
 /**
  * Get all runners for a user
@@ -154,7 +173,7 @@ function deleteRunner(id, userId) {
  * Update runner version info after a health check.
  * @param {number} id - Runner ID
  * @param {number} userId - User ID
- * @param {string|null} version - Running binary version (e.g. "1.0.0")
+ * @param {string|null} version - Running binary version (e.g. "v1.0.0")
  * @param {string|null} latestVersion - Latest GitHub release tag (e.g. "v1.1.0")
  * @param {boolean|null} [dockerEnabled] - Whether Docker management is enabled on this runner
  * @returns {Promise<void>}
@@ -359,4 +378,5 @@ module.exports = {
   updateRunnerVersion,
   getAllRunnersWithKeys,
   getEnabledRunnersWithKeysByUser,
+  apiKeysEqual,
 };

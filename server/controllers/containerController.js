@@ -13,7 +13,7 @@ const {
   // isValidContainerId, // Unused
   validateContainerArray,
 } = require("../utils/validation");
-const { RateLimitExceededError } = require("../utils/retry");
+const { RateLimitExceededError } = require("../utils/errors");
 const { getAllSourceInstances } = require("../db/index");
 const upgradeLockManager = require("../services/intents/upgradeLockManager");
 const logger = require("../utils/logger");
@@ -413,22 +413,42 @@ async function upgradeContainer(req, res, next) {
       });
     }
 
-    // Backend resolution and authentication is handled inside upgradeSingleContainer
-    // via dockerBackendFactory.resolveBackend.
-    const result = await containerService.upgradeSingleContainer(
-      portainerUrl || null,
-      endpointId || null,
-      containerId,
-      imageName,
-      userId,
-      runnerId ? Number(runnerId) : null
-    );
-
-    return res.json({
-      success: true,
-      message: "Container upgraded successfully",
-      ...result,
+    // Acquire upgrade lock to prevent conflicts with intent-driven or batch upgrades
+    const lockOpts = runnerId
+      ? { runnerId: Number(runnerId) }
+      : { sourceInstanceId: endpointId };
+    const acquired = upgradeLockManager.acquire(containerId, {
+      ...lockOpts,
+      owner: "manual-single",
     });
+    if (!acquired) {
+      const lockInfo = upgradeLockManager.isLocked(containerId, lockOpts);
+      return res.status(409).json({
+        success: false,
+        error: `Upgrade already in progress (locked by ${lockInfo.owner || "unknown"})`,
+      });
+    }
+
+    try {
+      // Backend resolution and authentication is handled inside upgradeSingleContainer
+      // via dockerBackendFactory.resolveBackend.
+      const result = await containerService.upgradeSingleContainer(
+        portainerUrl || null,
+        endpointId || null,
+        containerId,
+        imageName,
+        userId,
+        runnerId ? Number(runnerId) : null
+      );
+
+      return res.json({
+        success: true,
+        message: "Container upgraded successfully",
+        ...result,
+      });
+    } finally {
+      upgradeLockManager.release(containerId, lockOpts);
+    }
   } catch (error) {
     next(error);
   }

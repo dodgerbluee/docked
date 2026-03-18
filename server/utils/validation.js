@@ -3,19 +3,17 @@
  */
 
 /**
- * Validates that required fields are present in request body
- * @param {Object} body - Request body
- * @param {string[]} requiredFields - Array of required field names
- * @returns {Object|null} - Error object if validation fails, null otherwise
- */
-/**
- * Validates that required fields are present in request body
+ * Validates that required fields are present in request body.
+ * Uses strict null/undefined checks so that falsy values like 0, false,
+ * and '' are accepted as valid.
  * @param {Object} body - Request body
  * @param {string[]} requiredFields - Array of required field names
  * @returns {Object|null} - Standardized error object if validation fails, null otherwise
  */
 function validateRequiredFields(body, requiredFields) {
-  const missing = requiredFields.filter((field) => !body[field]);
+  const missing = requiredFields.filter(
+    (field) => body[field] === undefined || body[field] === null
+  );
   if (missing.length > 0) {
     return {
       success: false,
@@ -272,9 +270,17 @@ function validateIPv6(hostname, allowPrivateIPs) {
     return { valid: false, error: "IPv6 localhost addresses are not allowed" };
   }
 
-  // Block IPv6 private ranges (fc00::/7) unless allowed
-  if (!allowPrivateIPs && (hostname.startsWith("[fc") || hostname.startsWith("fc"))) {
-    return { valid: false, error: "IPv6 private addresses (fc00::/7) are not allowed" };
+  // Block IPv6 private ranges (fc00::/7 covers both fc and fd prefixes) and
+  // link-local (fe80::/10) unless allowed
+  if (!allowPrivateIPs) {
+    const bare = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    if (
+      bare.startsWith("fc") ||
+      bare.startsWith("fd") ||
+      bare.startsWith("fe80")
+    ) {
+      return { valid: false, error: "IPv6 private/link-local addresses are not allowed" };
+    }
   }
 
   return null;

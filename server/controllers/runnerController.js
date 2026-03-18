@@ -18,6 +18,7 @@ const {
   updateRunnerApiKey,
   deleteRunner,
   updateRunnerVersion,
+  apiKeysEqual,
 } = require("../db/runners");
 const {
   createEnrollmentToken,
@@ -128,6 +129,7 @@ function detectLanIp() {
 // In-memory map from enrollment token → runnerId, set when runner registers.
 // Ephemeral (lost on server restart), but that's fine — the polling window is short.
 const enrollmentResults = new Map(); // token → { runnerId, ts }
+const ENROLLMENT_RESULTS_MAX_SIZE = 1000;
 setInterval(
   () => {
     const cutoff = Date.now() - 30 * 60 * 1000;
@@ -396,7 +398,26 @@ async function upgradeRunnerContainer(req, res, next) {
       return res.status(400).json({ success: false, error: "Runner is disabled" });
     }
 
-    await proxyUpgradeStream(runner, containerId, req, res);
+    // Acquire upgrade lock to prevent conflicts with intent-driven, batch, or manual upgrades
+    const upgradeLockManager = require("../services/intents/upgradeLockManager");
+    const lockOpts = { runnerId };
+    const acquired = upgradeLockManager.acquire(containerId, {
+      ...lockOpts,
+      owner: "runner-sse",
+    });
+    if (!acquired) {
+      const lockInfo = upgradeLockManager.isLocked(containerId, lockOpts);
+      return res.status(409).json({
+        success: false,
+        error: `Upgrade already in progress (locked by ${lockInfo.owner || "unknown"})`,
+      });
+    }
+
+    try {
+      await proxyUpgradeStream(runner, containerId, req, res);
+    } finally {
+      upgradeLockManager.release(containerId, lockOpts);
+    }
   } catch (err) {
     next(err);
   }
@@ -619,6 +640,12 @@ async function registerRunner(req, res, next) {
     }
 
     // Allow the client's polling to resolve this specific token to a runner
+    // Enforce max size to prevent unbounded memory growth
+    if (enrollmentResults.size >= ENROLLMENT_RESULTS_MAX_SIZE) {
+      // Evict the oldest entry
+      const oldestKey = enrollmentResults.keys().next().value;
+      enrollmentResults.delete(oldestKey);
+    }
     enrollmentResults.set(token, { runnerId, ts: Date.now() });
 
     logger.info(`Runner "${name}" registered via enrollment (id=${runnerId})`, {
@@ -654,6 +681,24 @@ async function registerRunner(req, res, next) {
  * @returns {string} bash script
  */
 function generateInstallScript({ token, dockedUrl, dockhandVersion, port }) {
+  // Validate inputs to prevent shell injection
+  // Token should be hex-only (from crypto.randomBytes)
+  if (!/^[a-f0-9]+$/i.test(token)) {
+    throw new Error("Invalid enrollment token format");
+  }
+  // Version should be semver-like (digits, dots, hyphens, plus signs)
+  if (!/^[\d]+\.[\d]+\.[\d]+[\w.+-]*$/.test(dockhandVersion)) {
+    throw new Error("Invalid dockhand version format");
+  }
+  // URL should not contain shell metacharacters beyond what's in a valid URL
+  if (/[`$\\!#&|;()\n\r]/.test(dockedUrl)) {
+    throw new Error("Invalid docked URL — contains disallowed characters");
+  }
+  // Port should be numeric
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("Invalid port number");
+  }
+
   return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -1302,6 +1347,25 @@ async function reEnrollRunner(req, res, next) {
         success: false,
         error: "No runner with that name exists. Use the enrollment flow to register a new runner.",
       });
+    }
+
+    // Security: if the runner already has an API key on file, verify the request
+    // is coming from the same runner by checking the old key.
+    // This prevents unauthorized API key replacement for healthy runners.
+    // Re-enrollment without verification is only allowed when the runner has no
+    // stored API key (e.g., after a DB rebuild).
+    if (runner.api_key) {
+      // The runner should present its current API key via Authorization header
+      const bearerKey = req.headers.authorization?.replace("Bearer ", "");
+      if (!bearerKey || !apiKeysEqual(bearerKey, runner.api_key)) {
+        logger.warn(`Re-enrollment rejected for runner "${name}" — API key mismatch`, {
+          module: "runnerController",
+        });
+        return res.status(401).json({
+          success: false,
+          error: "Current API key verification failed. The runner must present its existing API key.",
+        });
+      }
     }
 
     // Update the runner's API key and URL

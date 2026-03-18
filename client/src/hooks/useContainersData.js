@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
+import { registerCacheClear } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so container-dependent tabs
 // (Summary, Containers) render instantly on re-navigation instead of showing
@@ -12,6 +13,17 @@ let cachedUnusedImages = null;
 let cachedUnusedImagesCount = null;
 let cachedSourceInstances = null;
 let cachedDataFetched = false;
+
+/** Clear module-level cache (call on logout to prevent cross-user data leaks) */
+export function clearContainersDataCache() {
+  cachedContainers = null;
+  cachedStacks = null;
+  cachedUnusedImages = null;
+  cachedUnusedImagesCount = null;
+  cachedSourceInstances = null;
+  cachedDataFetched = false;
+}
+registerCacheClear(clearContainersDataCache);
 
 /**
  * Custom hook for managing container data fetching and state

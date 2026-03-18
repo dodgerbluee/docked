@@ -44,7 +44,7 @@ function createEnrollmentToken(userId) {
 /**
  * Validate and consume an enrollment token.
  * Returns the associated user_id if the token is valid (not expired, not used).
- * Marks the token as used atomically.
+ * Uses a single UPDATE to atomically mark the token as used, preventing TOCTOU races.
  *
  * @param {string} token
  * @returns {Promise<{userId: number} | null>} null if token is invalid/expired/used
@@ -55,20 +55,23 @@ function consumeEnrollmentToken(token) {
       const db = getDatabase();
       const now = new Date().toISOString();
 
-      // Find valid token
-      db.get(
-        "SELECT id, user_id FROM runner_enrollment_tokens WHERE token = ? AND used = 0 AND expires_at > ?",
+      // Atomically mark the token as used — only succeeds if the token exists,
+      // hasn't been used, and hasn't expired. `this.changes` tells us whether
+      // the UPDATE matched a row.
+      db.run(
+        "UPDATE runner_enrollment_tokens SET used = 1 WHERE token = ? AND used = 0 AND expires_at > ?",
         [token, now],
-        (err, row) => {
+        function (err) {
           if (err) return reject(err);
-          if (!row) return resolve(null);
+          if (this.changes === 0) return resolve(null); // invalid, expired, or already consumed
 
-          // Mark as used
-          db.run(
-            "UPDATE runner_enrollment_tokens SET used = 1 WHERE id = ?",
-            [row.id],
-            (updateErr) => {
-              if (updateErr) return reject(updateErr);
+          // Token was consumed — fetch the associated user_id
+          db.get(
+            "SELECT user_id FROM runner_enrollment_tokens WHERE token = ?",
+            [token],
+            (selectErr, row) => {
+              if (selectErr) return reject(selectErr);
+              if (!row) return resolve(null); // shouldn't happen, but be defensive
               resolve({ userId: row.user_id });
             }
           );

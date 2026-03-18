@@ -7,8 +7,10 @@ import { API_BASE_URL } from "../utils/api";
  * Manages admin general settings like log level (admin-only settings)
  */
 export function useAdminGeneralSettings() {
-  const [logLevel, setLogLevel] = useState(null); // Initialize as null, will be set from DB
-  const [localLogLevel, setLocalLogLevel] = useState(null); // Initialize as null, will be set from DB
+  const [logLevel, setLogLevel] = useState(null);
+  const [localLogLevel, setLocalLogLevel] = useState(null);
+  const [debugEndpointsEnabled, setDebugEndpointsEnabled] = useState(false);
+  const [localDebugEndpointsEnabled, setLocalDebugEndpointsEnabled] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [generalSettingsChanged, setGeneralSettingsChanged] = useState(false);
   const isSavingRef = useRef(false);
@@ -38,14 +40,27 @@ export function useAdminGeneralSettings() {
     }
   }, []);
 
+  const fetchDebugEndpointsEnabled = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/settings/debug-endpoints-enabled`);
+      const enabled = response.data.enabled || false;
+      setDebugEndpointsEnabled(enabled);
+      setLocalDebugEndpointsEnabled(enabled);
+    } catch (err) {
+      console.error("Error fetching debug endpoints enabled:", err);
+      setDebugEndpointsEnabled(false);
+      setLocalDebugEndpointsEnabled(false);
+    }
+  }, []);
+
   // Initialize settings on mount
   useEffect(() => {
     const initializeSettings = async () => {
-      await Promise.all([fetchLogLevel()]);
+      await Promise.all([fetchLogLevel(), fetchDebugEndpointsEnabled()]);
       setIsInitialized(true);
     };
     initializeSettings();
-  }, [fetchLogLevel]);
+  }, [fetchLogLevel, fetchDebugEndpointsEnabled]);
 
   // Sync logLevel to localLogLevel after initialization (only if logLevel changes externally)
   useEffect(() => {
@@ -81,20 +96,31 @@ export function useAdminGeneralSettings() {
         errors.push("Failed to save log level");
       }
 
+      // Save debug endpoints enabled
+      let debugEndpointsSuccess = false;
+      try {
+        const debugResponse = await axios.post(`${API_BASE_URL}/api/settings/debug-endpoints-enabled`, {
+          enabled: localDebugEndpointsEnabled,
+        });
+        debugEndpointsSuccess = debugResponse.data.success;
+        if (debugEndpointsSuccess) {
+          setDebugEndpointsEnabled(localDebugEndpointsEnabled);
+        }
+      } catch (err) {
+        console.error("Error saving debug endpoints enabled:", err);
+        errors.push("Failed to save debug endpoints setting");
+      }
+
       // Check if all settings were saved successfully
-      if (logLevelSuccess) {
+      if (logLevelSuccess && debugEndpointsSuccess) {
         setGeneralSettingsChanged(false);
-        setGeneralSettingsSuccess("Log level saved successfully!");
-        // Dispatch custom event to notify other components
+        setGeneralSettingsSuccess("Settings saved successfully!");
         window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
-        // Settings failed - show which ones
         const errorMessage =
-          errors.length > 0 ? `Failed to save: ${errors.join(", ")}` : "Failed to save log level";
+          errors.length > 0 ? `Failed to save: ${errors.join(", ")}` : "Failed to save one or more settings";
         setGeneralSettingsSuccess(errorMessage);
-        console.error("Log level failed to save:", {
-          logLevelSuccess,
-        });
+        console.error("Admin settings save failed:", { logLevelSuccess, debugEndpointsSuccess });
       }
     } catch (err) {
       console.error("Error saving general settings:", err);
@@ -107,10 +133,16 @@ export function useAdminGeneralSettings() {
         setGeneralSettingsSuccess("");
       }, 3000);
     }
-  }, [localLogLevel]);
+  }, [localLogLevel, localDebugEndpointsEnabled]);
 
   const handleLogLevelChange = useCallback((newLevel) => {
     setLocalLogLevel(newLevel);
+    setGeneralSettingsChanged(true);
+    setGeneralSettingsSuccess("");
+  }, []);
+
+  const handleDebugEndpointsChange = useCallback((val) => {
+    setLocalDebugEndpointsEnabled(val === "on");
     setGeneralSettingsChanged(true);
     setGeneralSettingsSuccess("");
   }, []);
@@ -120,6 +152,9 @@ export function useAdminGeneralSettings() {
     logLevel,
     localLogLevel,
     handleLogLevelChange,
+    debugEndpointsEnabled,
+    localDebugEndpointsEnabled,
+    handleDebugEndpointsChange,
     generalSettingsChanged,
     generalSettingsSaving,
     generalSettingsSuccess,
