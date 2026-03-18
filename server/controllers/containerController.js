@@ -13,7 +13,7 @@ const {
   // isValidContainerId, // Unused
   validateContainerArray,
 } = require("../utils/validation");
-const { RateLimitExceededError } = require("../utils/retry");
+const { RateLimitExceededError } = require("../utils/errors");
 const { getAllSourceInstances } = require("../db/index");
 const upgradeLockManager = require("../services/intents/upgradeLockManager");
 const logger = require("../utils/logger");

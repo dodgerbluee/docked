@@ -17,6 +17,7 @@ const { computeHasUpdate } = require("../../utils/containerUpdateHelpers");
 // Memory cache with TTL
 const memoryCache = new Map();
 const CACHE_TTL = 120000; // 120 seconds (2 minutes)
+const MAX_CACHE_ENTRIES = 200; // Cap cache size to prevent unbounded growth
 
 /**
  * Cache entry structure
@@ -104,7 +105,18 @@ async function getContainersWithCache(userId, options = {}) {
       unusedImagesCount: portainerResult.unusedImagesCount || 0,
     };
 
-    // Step 5: Update memory cache
+    // Step 5: Update memory cache (evict stale entries if at capacity)
+    if (memoryCache.size >= MAX_CACHE_ENTRIES) {
+      // Evict stale entries first, then oldest if still over limit
+      for (const [key, entry] of memoryCache) {
+        if (entry.isStale()) memoryCache.delete(key);
+      }
+      if (memoryCache.size >= MAX_CACHE_ENTRIES) {
+        // Delete the oldest entry (first key in insertion order)
+        const oldestKey = memoryCache.keys().next().value;
+        memoryCache.delete(oldestKey);
+      }
+    }
     memoryCache.set(cacheKey, new CacheEntry(result));
 
     return result;

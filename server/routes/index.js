@@ -281,6 +281,16 @@ const publicLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// OAuth endpoints limiter: very strict, 10 requests per 15 minutes per IP
+// OAuth flows involve external redirects so brute-force attempts are cheap
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: "Too many OAuth attempts, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /**
  * @swagger
  * /health:
@@ -401,9 +411,9 @@ router.post(
 
 // OAuth/SSO routes (public - always registered; providers checked at runtime)
 router.get("/auth/oauth/providers", publicLimiter, asyncHandler(oauthController.getProviders));
-router.get("/auth/oauth/login", authLimiter, asyncHandler(oauthController.initiateLogin));
-router.get("/auth/oauth/callback", authLimiter, asyncHandler(oauthController.handleCallback));
-router.post("/auth/oauth/link", authLimiter, asyncHandler(oauthController.completeAccountLink));
+router.get("/auth/oauth/login", oauthLimiter, asyncHandler(oauthController.initiateLogin));
+router.get("/auth/oauth/callback", oauthLimiter, asyncHandler(oauthController.handleCallback));
+router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.completeAccountLink));
 
 /**
  * @swagger
