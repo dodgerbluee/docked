@@ -185,7 +185,7 @@ function deleteRunner(id, userId) {
  * Update runner version info after a health check.
  * @param {number} id - Runner ID
  * @param {number} userId - User ID
- * @param {string|null} version - Running binary version (e.g. "1.0.0")
+ * @param {string|null} version - Running binary version (e.g. "v1.0.0")
  * @param {string|null} latestVersion - Latest GitHub release tag (e.g. "v1.1.0")
  * @param {boolean|null} [dockerEnabled] - Whether Docker management is enabled on this runner
  * @returns {Promise<void>}
