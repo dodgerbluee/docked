@@ -10,9 +10,8 @@ import {
   DEFAULT_INTERVAL_MINUTES,
 } from "../constants/numbers";
 
-const TIMEZONE = "America/Chicago";
+// Uses browser's local timezone (no hardcoded timeZone)
 const DATE_FORMAT_OPTIONS = {
-  timeZone: TIMEZONE,
   year: "numeric",
   month: "numeric",
   day: "numeric",
