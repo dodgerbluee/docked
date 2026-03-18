@@ -96,7 +96,7 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
 
             if (!dataLine) continue;
 
-            if (eventLine === "line") {
+            if (eventLine === "log" || eventLine === "line") {
               // Raw log line — data is plain text (may be JSON-encoded string)
               try {
                 appendLine(JSON.parse(dataLine));

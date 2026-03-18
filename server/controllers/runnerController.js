@@ -398,7 +398,26 @@ async function upgradeRunnerContainer(req, res, next) {
       return res.status(400).json({ success: false, error: "Runner is disabled" });
     }
 
-    await proxyUpgradeStream(runner, containerId, req, res);
+    // Acquire upgrade lock to prevent conflicts with intent-driven, batch, or manual upgrades
+    const upgradeLockManager = require("../services/intents/upgradeLockManager");
+    const lockOpts = { runnerId };
+    const acquired = upgradeLockManager.acquire(containerId, {
+      ...lockOpts,
+      owner: "runner-sse",
+    });
+    if (!acquired) {
+      const lockInfo = upgradeLockManager.isLocked(containerId, lockOpts);
+      return res.status(409).json({
+        success: false,
+        error: `Upgrade already in progress (locked by ${lockInfo.owner || "unknown"})`,
+      });
+    }
+
+    try {
+      await proxyUpgradeStream(runner, containerId, req, res);
+    } finally {
+      upgradeLockManager.release(containerId, lockOpts);
+    }
   } catch (err) {
     next(err);
   }

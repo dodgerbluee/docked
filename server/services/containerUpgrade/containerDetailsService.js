@@ -19,11 +19,14 @@ const { validateUrlForSSRF, validatePathComponent } = require("../../utils/valid
  * @returns {string} - Normalized container ID (shortened if full 64-char hash)
  */
 function normalizeContainerId(id) {
+  if (!id) return id;
+  // Normalize to lowercase for consistent comparison across Docker backends.
+  const lower = id.toLowerCase();
   // If it's a full 64-character hash, try both full and shortened
-  if (id && id.length === 64) {
-    return id.substring(0, 12);
+  if (lower.length === 64) {
+    return lower.substring(0, 12);
   }
-  return id;
+  return lower;
 }
 
 /**
