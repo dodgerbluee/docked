@@ -106,9 +106,8 @@ async function runDbQuery(req, res) {
     const db = getDatabase();
     // sql is validated above to start with SELECT/EXPLAIN/PRAGMA (read-only).
     // params are passed separately (parameterized query). Admin-only endpoint.
-    // lgtm[js/sql-injection]
     const rows = await new Promise((resolve, reject) => {
-      db.all(sql, params, (err, result) => {
+      db.all(sql, params, (err, result) => { // lgtm[js/sql-injection]
         if (err) reject(err);
         else resolve(result || []);
       });
