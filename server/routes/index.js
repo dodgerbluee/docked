@@ -50,6 +50,7 @@ const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
 const ssoAdminController = require("../controllers/ssoAdminController");
 const runnerController = require("../controllers/runnerController");
+const debugRouter = require("./debug");
 const { getAllRunners } = require("../db/runners");
 const { getContainersFromRunners } = require("../services/runnerService");
 const {
@@ -1484,6 +1485,16 @@ router.put(
   asyncHandler(settingsController.setDisallowedContainersHandler)
 );
 
+router.get(
+  "/settings/debug-endpoints-enabled",
+  asyncHandler(settingsController.getDebugEndpointsEnabledHandler)
+);
+router.post(
+  "/settings/debug-endpoints-enabled",
+  writeLimiter,
+  asyncHandler(settingsController.setDebugEndpointsEnabledHandler)
+);
+
 // Repository access token routes
 router.get("/repository-access-tokens", asyncHandler(repositoryAccessTokenController.getTokens));
 router.get(
@@ -1578,5 +1589,8 @@ router.get(
   "/runners/:runnerId/apps/:appName/operations/:opName/history",
   asyncHandler(runnerController.getRunnerAppOperationHistory)
 );
+
+// Debug routes (admin-only introspection, mounted after authenticate middleware)
+router.use("/debug", debugRouter);
 
 module.exports = router;

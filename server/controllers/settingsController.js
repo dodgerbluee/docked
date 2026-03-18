@@ -4,8 +4,11 @@
  */
 
 const { getSetting, setSetting } = require("../db/index");
+const { getSystemSetting, setSystemSetting } = require("../db/settings");
 const { DEFAULT_BLOCKED_PATTERNS } = require("../constants/blocklistDefaults");
 const logger = require("../utils/logger");
+
+const DEBUG_ENDPOINTS_ENABLED_KEY = "debug_endpoints_enabled";
 
 const COLOR_SCHEME_KEY = "color_scheme";
 const DEFAULT_COLOR_SCHEME = "system";
@@ -230,6 +233,41 @@ async function setDisallowedContainersHandler(req, res) {
   }
 }
 
+/**
+ * Get debug endpoints enabled (system-wide setting)
+ * Available to any authenticated user so the middleware can gate without admin privileges.
+ */
+async function getDebugEndpointsEnabledHandler(req, res, _next) {
+  try {
+    const value = await getSystemSetting(DEBUG_ENDPOINTS_ENABLED_KEY);
+    const enabled = value === "true";
+    return res.json({ success: true, enabled });
+  } catch (error) {
+    logger.error("Error getting debug endpoints enabled:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to get setting" });
+  }
+}
+
+/**
+ * Set debug endpoints enabled (system-wide, instance admin only)
+ */
+async function setDebugEndpointsEnabledHandler(req, res, _next) {
+  try {
+    if (!req.user?.instanceAdmin) {
+      return res.status(403).json({ success: false, error: "Instance admin access required" });
+    }
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ success: false, error: "enabled must be a boolean" });
+    }
+    await setSystemSetting(DEBUG_ENDPOINTS_ENABLED_KEY, enabled.toString());
+    return res.json({ success: true, enabled, message: `Debug endpoints ${enabled ? "enabled" : "disabled"}` });
+  } catch (error) {
+    logger.error("Error setting debug endpoints enabled:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to set setting" });
+  }
+}
+
 module.exports = {
   getColorSchemeHandler,
   setColorSchemeHandler,
@@ -237,4 +275,6 @@ module.exports = {
   setRefreshingTogglesEnabledHandler,
   getDisallowedContainersHandler,
   setDisallowedContainersHandler,
+  getDebugEndpointsEnabledHandler,
+  setDebugEndpointsEnabledHandler,
 };
