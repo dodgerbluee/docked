@@ -78,46 +78,51 @@ async function getServerHealth(req, res) {
 
 // ── POST /api/debug/db ───────────────────────────────────────────────────────
 
-// Only these statement types are allowed.
-const ALLOWED_SQL_PREFIXES = ["select", "explain", "pragma"];
+// Named read-only queries. SQL is never sourced from user input.
+const DB_QUERY_CATALOG = {
+  "list-tables": "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
+  "schema": "SELECT name, type, sql FROM sqlite_master WHERE type IN ('table','view') ORDER BY name",
+  "containers": "SELECT id, user_id, container_id, runner_id, portainer_instance_id, endpoint_id, image, name, created_at FROM containers ORDER BY created_at DESC LIMIT 100",
+  "containers-count": "SELECT COUNT(*) AS count FROM containers",
+  "runners": "SELECT id, user_id, name, url, enabled, docker_enabled, version, latest_version, last_seen, docker_status, created_at FROM runners ORDER BY created_at ASC",
+  "upgrade-history": "SELECT id, user_id, container_id, runner_id, runner_name, old_image, new_image, status, created_at FROM upgrade_history ORDER BY created_at DESC LIMIT 100",
+  "upgrade-history-failed": "SELECT id, user_id, container_id, runner_id, runner_name, old_image, new_image, status, error, created_at FROM upgrade_history WHERE status = 'failed' ORDER BY created_at DESC LIMIT 50",
+  "settings": "SELECT key, user_id, SUBSTR(value, 1, 200) AS value_preview, created_at FROM settings ORDER BY user_id, key",
+  "system-settings": "SELECT key, value, created_at FROM system_settings ORDER BY key",
+};
 
 async function runDbQuery(req, res) {
   if (!requireAdmin(req, res)) return;
   try {
-    const { sql, params = [] } = req.body || {};
+    const { query: queryKey } = req.body || {};
 
-    if (!sql || typeof sql !== "string") {
-      return res.status(400).json({ error: "sql is required" });
+    if (!queryKey || typeof queryKey !== "string") {
+      return res.status(400).json({ error: "query is required", available: Object.keys(DB_QUERY_CATALOG) });
     }
 
-    // Reject anything that's not a read-only statement
-    const normalized = sql.trim().toLowerCase();
-    const allowed = ALLOWED_SQL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
-    if (!allowed) {
-      return res
-        .status(400)
-        .json({ error: "Only SELECT, EXPLAIN, and PRAGMA statements are allowed" });
-    }
-
-    if (!Array.isArray(params)) {
-      return res.status(400).json({ error: "params must be an array" });
+    const sql = DB_QUERY_CATALOG[queryKey];
+    if (!sql) {
+      return res.status(400).json({ error: `Unknown query "${queryKey}"`, available: Object.keys(DB_QUERY_CATALOG) });
     }
 
     const db = getDatabase();
-    // sql is validated above to start with SELECT/EXPLAIN/PRAGMA (read-only).
-    // params are passed separately (parameterized query). Admin-only endpoint.
     const rows = await new Promise((resolve, reject) => {
-      db.all(sql, params, (err, result) => { // lgtm[js/sql-injection]
+      db.all(sql, [], (err, result) => {
         if (err) reject(err);
         else resolve(result || []);
       });
     });
 
-    res.json({ rows, count: rows.length });
+    res.json({ rows, count: rows.length, query: queryKey });
   } catch (err) {
     logger.error("debugController: runDbQuery error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
+}
+
+async function getDbQueryCatalog(req, res) {
+  if (!requireAdmin(req, res)) return;
+  res.json({ queries: Object.keys(DB_QUERY_CATALOG) });
 }
 
 // ── GET /api/debug/cache ─────────────────────────────────────────────────────
@@ -265,6 +270,7 @@ async function proxyToRunner(req, res) {
 module.exports = {
   getServerHealth,
   runDbQuery,
+  getDbQueryCatalog,
   getCacheState,
   getLockState,
   getServerLogs,

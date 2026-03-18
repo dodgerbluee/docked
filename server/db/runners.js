@@ -8,25 +8,11 @@
 const crypto = require("crypto");
 const { getDatabase } = require("./connection");
 
-/**
- * Hash an API key using SHA-256 for constant-time comparison.
- * Used for inbound authentication (heartbeat, re-enroll) to avoid timing attacks.
- *
- * NOTE: API keys are stored in plaintext in the `api_key` column because they
- * are used bidirectionally: for inbound auth (runner→docked) AND outbound auth
- * (docked→runner HTTP calls). One-way hashing would break outbound calls since
- * the server needs the plaintext key to authenticate with dockhand. Full
- * encryption-at-rest of the key column is a future improvement.
- *
- * @param {string} apiKey - Plain-text API key
- * @returns {string} Hex-encoded SHA-256 hash
- */
-function hashApiKey(apiKey) {
-  // SHA-256 is intentional: this hashes a high-entropy random API key (not a
-  // user password), so bcrypt/scrypt are unnecessary. Plaintext is kept
-  // separately for outbound auth to the runner.
-  return crypto.createHash("sha256").update(apiKey).digest("hex"); // lgtm[js/insufficient-password-hash]
-}
+// Internal key used solely to produce fixed-length HMAC output for timingSafeEqual.
+// This is NOT a password hash — it's a keyed MAC to normalize key length before
+// constant-time comparison. The security of inbound auth comes from the high-entropy
+// random API key itself, not from this derivation step.
+const COMPARISON_HMAC_KEY = Buffer.from("docked-runner-api-key-comparison-v1");
 
 /**
  * Constant-time comparison of two API keys.
@@ -36,9 +22,8 @@ function hashApiKey(apiKey) {
  * @returns {boolean}
  */
 function apiKeysEqual(a, b) {
-  const hashA = hashApiKey(a);
-  const hashB = hashApiKey(b);
-  return crypto.timingSafeEqual(Buffer.from(hashA, "hex"), Buffer.from(hashB, "hex"));
+  const mac = (v) => crypto.createHmac("sha256", COMPARISON_HMAC_KEY).update(v).digest();
+  return crypto.timingSafeEqual(mac(a), mac(b));
 }
 
 /**
