@@ -20,7 +20,9 @@ async function requireDebugEnabled(req, res, next) {
   try {
     const value = await getSystemSetting("debug_endpoints_enabled");
     if (value !== "true") {
-      return res.status(403).json({ error: "Debug endpoints are disabled. Enable them in Admin → General Settings." });
+      return res
+        .status(403)
+        .json({ error: "Debug endpoints are disabled. Enable them in Admin → General Settings." });
     }
     return next();
   } catch (err) {
@@ -36,7 +38,8 @@ router.get("/cache", asyncHandler(debug.getCacheState));
 router.get("/locks", asyncHandler(debug.getLockState));
 router.get("/logs", debug.getServerLogs);
 
-// Read-only SQL query
+// Named read-only SQL queries
+router.get("/db/queries", asyncHandler(debug.getDbQueryCatalog));
 router.post("/db", asyncHandler(debug.runDbQuery));
 
 // Cache management
