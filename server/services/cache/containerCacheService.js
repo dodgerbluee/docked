@@ -502,9 +502,18 @@ function clearMemoryCache() {
   logger.debug("Cleared all memory cache");
 }
 
+/**
+ * Return the current number of entries in the memory cache.
+ * @returns {number}
+ */
+function getMemoryCacheSize() {
+  return memoryCache.size;
+}
+
 module.exports = {
   getContainersWithCache,
   invalidateCache,
   clearMemoryCache,
+  getMemoryCacheSize,
   mergeAndDetectChanges,
 };
