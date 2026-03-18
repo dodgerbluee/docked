@@ -414,43 +414,10 @@ async function verifyToken(req, res, next) {
         instanceAdmin: user.instance_admin === 1,
       });
     } catch (_jwtError) {
-      // Try legacy token format for backward compatibility
-      try {
-        const decoded = Buffer.from(token, "base64").toString("utf-8");
-        const parts = decoded.split(":");
-        const userId = parseInt(parts[0], 10);
-        const username = parts[1];
-
-        const { getUserById: getUserByIdLocal } = require("../db/index");
-        const user = await getUserByIdLocal(userId);
-        if (!user) {
-          const userByUsername = await getUserByUsername(username);
-          if (!userByUsername) {
-            return res.status(401).json({
-              success: false,
-              error: "Invalid token",
-            });
-          }
-          return res.json({
-            success: true,
-            username: userByUsername.username,
-            role: userByUsername.role,
-            instanceAdmin: userByUsername.instance_admin === 1,
-          });
-        }
-
-        return res.json({
-          success: true,
-          username: user.username,
-          role: user.role,
-          instanceAdmin: user.instance_admin === 1,
-        });
-      } catch (_legacyError) {
-        return res.status(401).json({
-          success: false,
-          error: "Invalid token",
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+      });
     }
   } catch (error) {
     next(error);
@@ -485,10 +452,10 @@ async function updateUserPassword(req, res, next) {
     }
 
     // Validate new password length
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        error: "New password must be at least 6 characters long",
+        error: "New password must be at least 8 characters long",
       });
     }
 
@@ -1597,7 +1564,9 @@ async function createUserWithConfig(req, res, next) {
         credentials.dockerHub &&
         !skippedSteps.includes("dockerhub")
       ) {
-        await importDockerHubCredentials(user, credentials, results);
+        // Docker Hub credential import removed - crane/skopeo use system Docker credentials
+        // Users should run 'docker login' on the server if registry authentication is needed
+        results.errors.push("Docker Hub credential import is no longer supported. Use 'docker login' instead.");
       }
 
       if (
@@ -1872,10 +1841,10 @@ async function adminUpdateUserPassword(req, res, next) {
     }
 
     // Validate new password length
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        error: "New password must be at least 6 characters long",
+        error: "New password must be at least 8 characters long",
       });
     }
 

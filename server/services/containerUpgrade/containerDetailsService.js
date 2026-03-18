@@ -102,7 +102,7 @@ async function tryFetchWithFallback(
 ) {
   if (isNginxProxyManager) {
     try {
-      return portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
+      return await portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
     } catch (originalError) {
       if (isConnectionError(originalError)) {
         logger.info("Original URL failed, trying IP URL", {
@@ -114,7 +114,7 @@ async function tryFetchWithFallback(
       throw originalError;
     }
   }
-  return portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
+  return await portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
 }
 
 /**
@@ -184,7 +184,7 @@ async function retryFetchAfterAuth(
 ) {
   if (isNginxProxyManager) {
     try {
-      return portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
+      return await portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
     } catch (retryError) {
       if (isConnectionError(retryError)) {
         return makeDirectIpRequest(workingPortainerUrl, portainerUrl, endpointId, containerIdToTry);
@@ -192,7 +192,7 @@ async function retryFetchAfterAuth(
       throw retryError;
     }
   }
-  return portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
+  return await portainerService.getContainerDetails(portainerUrl, endpointId, containerIdToTry);
 }
 
 /**
@@ -212,12 +212,13 @@ async function fetchContainerDetails(
   workingPortainerUrl,
   endpointId,
   containerId,
-  isNginxProxyManager
+  isNginxProxyManager,
+  userId = null
 ) {
   // eslint-disable-next-line max-lines-per-function -- Container fetching with retry requires comprehensive error handling
   const fetchWithRetry = async (containerIdToTry) => {
     try {
-      return tryFetchWithFallback(
+      return await tryFetchWithFallback(
         portainerUrl,
         workingPortainerUrl,
         endpointId,
@@ -227,7 +228,7 @@ async function fetchContainerDetails(
     } catch (error) {
       if (error.response?.status === 401) {
         try {
-          const instances = await getAllSourceInstances();
+          const instances = await getAllSourceInstances(userId);
           const instance = instances.find((inst) => inst.url === portainerUrl);
 
           if (instance) {
@@ -334,7 +335,8 @@ async function getContainerDetailsWithNormalization(
   workingPortainerUrl,
   endpointId,
   containerId,
-  isNginxProxyManager
+  isNginxProxyManager,
+  userId = null
 ) {
   // fetchContainerDetails now returns both containerDetails and workingContainerId
   return fetchContainerDetails(
@@ -342,7 +344,8 @@ async function getContainerDetailsWithNormalization(
     workingPortainerUrl,
     endpointId,
     containerId,
-    isNginxProxyManager
+    isNginxProxyManager,
+    userId
   );
 }
 

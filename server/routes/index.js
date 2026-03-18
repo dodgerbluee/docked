@@ -390,13 +390,6 @@ router.post(
   authLimiter,
   asyncHandler(authController.verifyRegistrationCode)
 );
-// Auth routes (public - no authentication required)
-router.get("/auth/check-user-exists", asyncHandler(authController.checkUserExists));
-router.post(
-  "/auth/generate-registration-code",
-  asyncHandler(authController.generateRegistrationCodeEndpoint)
-);
-router.post("/auth/verify-registration-code", asyncHandler(authController.verifyRegistrationCode));
 router.post("/auth/register", authLimiter, asyncHandler(authController.register));
 router.post("/auth/login", authLimiter, asyncHandler(authController.login));
 router.post("/auth/import-users", authLimiter, asyncHandler(authController.importUsers));
@@ -404,21 +397,6 @@ router.post(
   "/auth/create-user-with-config",
   authLimiter,
   asyncHandler(authController.createUserWithConfig)
-);
-router.post(
-  "/auth/generate-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.generateInstanceAdminToken)
-);
-router.post(
-  "/auth/regenerate-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.regenerateInstanceAdminToken)
-);
-router.post(
-  "/auth/verify-instance-admin-token",
-  authLimiter,
-  asyncHandler(authController.verifyInstanceAdminToken)
 );
 
 // OAuth/SSO routes (public - always registered; providers checked at runtime)
@@ -469,6 +447,23 @@ router.post("/runners/re-enroll", publicLimiter, asyncHandler(runnerController.r
 // Protected routes - require authentication
 // All routes below this line require authentication
 router.use(authenticate);
+
+// Instance admin token routes (require authentication)
+router.post(
+  "/auth/generate-instance-admin-token",
+  authLimiter,
+  asyncHandler(authController.generateInstanceAdminToken)
+);
+router.post(
+  "/auth/regenerate-instance-admin-token",
+  authLimiter,
+  asyncHandler(authController.regenerateInstanceAdminToken)
+);
+router.post(
+  "/auth/verify-instance-admin-token",
+  authLimiter,
+  asyncHandler(authController.verifyInstanceAdminToken)
+);
 
 // Admin SSO provider management routes (protected - instanceAdmin checked inside handlers)
 router.get("/admin/sso/providers", asyncHandler(ssoAdminController.listProviders));
@@ -838,53 +833,6 @@ router.get(
 router.get(
   "/containers/:containerId/debug",
   asyncHandler(containerDebugController.getContainerDebugInfo)
-);
-
-/**
- * @swagger
- * /containers/upgrade-history/stats:
- *   get:
- *     summary: Get upgrade history statistics
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Upgrade history statistics retrieved successfully
- *       401:
- *         description: Authentication required
- */
-router.get(
-  "/containers/upgrade-history/stats",
-  asyncHandler(containerController.getUpgradeHistoryStats)
-);
-
-/**
- * @swagger
- * /containers/upgrade-history/{id}:
- *   get:
- *     summary: Get a single upgrade history record by ID
- *     tags: [Containers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Upgrade history record ID
- *     responses:
- *       200:
- *         description: Upgrade history record retrieved successfully
- *       401:
- *         description: Authentication required
- *       404:
- *         description: Upgrade history record not found
- */
-router.get(
-  "/containers/upgrade-history/:id",
-  asyncHandler(containerController.getUpgradeHistoryById)
 );
 
 // Portainer instance routes (legacy - kept for backward compatibility)
@@ -1546,19 +1494,17 @@ router.delete(
 router.get(
   "/repository-access-tokens/:id/associated-images",
   repositoryAssociatedImagesRateLimiter,
-  authenticate,
   asyncHandler(repositoryAccessTokenController.getAssociatedImages)
 );
 
 router.post(
   "/repository-access-tokens/:id/associate-images",
   associateImagesLimiter,
-  authenticate,
   asyncHandler(repositoryAccessTokenController.associateImages)
 );
 
 // Logs routes
-router.get("/logs", authenticate, asyncHandler(logsController.getLogsHandler));
+router.get("/logs", asyncHandler(logsController.getLogsHandler));
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes

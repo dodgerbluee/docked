@@ -5,7 +5,38 @@
  * - Runner CRUD operations (runners are dockhand instances)
  */
 
+const crypto = require("crypto");
 const { getDatabase } = require("./connection");
+
+/**
+ * Hash an API key using SHA-256 for constant-time comparison.
+ * Used for inbound authentication (heartbeat, re-enroll) to avoid timing attacks.
+ *
+ * NOTE: API keys are stored in plaintext in the `api_key` column because they
+ * are used bidirectionally: for inbound auth (runner→docked) AND outbound auth
+ * (docked→runner HTTP calls). One-way hashing would break outbound calls since
+ * the server needs the plaintext key to authenticate with dockhand. Full
+ * encryption-at-rest of the key column is a future improvement.
+ *
+ * @param {string} apiKey - Plain-text API key
+ * @returns {string} Hex-encoded SHA-256 hash
+ */
+function hashApiKey(apiKey) {
+  return crypto.createHash("sha256").update(apiKey).digest("hex");
+}
+
+/**
+ * Constant-time comparison of two API keys.
+ * Prevents timing side-channel attacks during inbound authentication.
+ * @param {string} a - First API key (plaintext)
+ * @param {string} b - Second API key (plaintext)
+ * @returns {boolean}
+ */
+function apiKeysEqual(a, b) {
+  const hashA = hashApiKey(a);
+  const hashB = hashApiKey(b);
+  return crypto.timingSafeEqual(Buffer.from(hashA, "hex"), Buffer.from(hashB, "hex"));
+}
 
 /**
  * Get all runners for a user
@@ -359,4 +390,5 @@ module.exports = {
   updateRunnerVersion,
   getAllRunnersWithKeys,
   getEnabledRunnersWithKeysByUser,
+  apiKeysEqual,
 };

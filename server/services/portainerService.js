@@ -32,7 +32,7 @@ const { requestWithIpFallback } = ipFallbackService;
  * @param {string} portainerUrl - Portainer instance URL
  * @returns {Promise<Array>} - Array of endpoints
  */
-async function getEndpoints(portainerUrl) {
+async function getEndpoints(portainerUrl, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = {
@@ -44,9 +44,9 @@ async function getEndpoints(portainerUrl) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getEndpoints(portainerUrl);
+      return getEndpoints(portainerUrl, _retryCount + 1);
     }
     throw error;
   }
@@ -58,7 +58,7 @@ async function getEndpoints(portainerUrl) {
  * @param {string|number} endpointId - Endpoint ID
  * @returns {Promise<Array>} - Array of containers
  */
-async function getContainers(portainerUrl, endpointId) {
+async function getContainers(portainerUrl, endpointId, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -70,9 +70,9 @@ async function getContainers(portainerUrl, endpointId) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getContainers(portainerUrl, endpointId);
+      return getContainers(portainerUrl, endpointId, _retryCount + 1);
     }
     throw error;
   }
@@ -85,7 +85,7 @@ async function getContainers(portainerUrl, endpointId) {
  * @param {string} containerId - Container ID
  * @returns {Promise<Object>} - Container details
  */
-async function getContainerDetails(portainerUrl, endpointId, containerId) {
+async function getContainerDetails(portainerUrl, endpointId, containerId, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -97,9 +97,9 @@ async function getContainerDetails(portainerUrl, endpointId, containerId) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getContainerDetails(portainerUrl, endpointId, containerId);
+      return getContainerDetails(portainerUrl, endpointId, containerId, _retryCount + 1);
     }
     throw error;
   }
@@ -111,7 +111,7 @@ async function getContainerDetails(portainerUrl, endpointId, containerId) {
  * @param {string|number} endpointId - Endpoint ID
  * @returns {Promise<Array>} - Array of images
  */
-async function getImages(portainerUrl, endpointId) {
+async function getImages(portainerUrl, endpointId, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -120,9 +120,9 @@ async function getImages(portainerUrl, endpointId) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getImages(portainerUrl, endpointId);
+      return getImages(portainerUrl, endpointId, _retryCount + 1);
     }
     throw error;
   }
@@ -135,7 +135,7 @@ async function getImages(portainerUrl, endpointId) {
  * @param {string} imageId - Image ID
  * @returns {Promise<Object>} - Image details
  */
-async function getImageDetails(portainerUrl, endpointId, imageId) {
+async function getImageDetails(portainerUrl, endpointId, imageId, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -147,9 +147,9 @@ async function getImageDetails(portainerUrl, endpointId, imageId) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getImageDetails(portainerUrl, endpointId, imageId);
+      return getImageDetails(portainerUrl, endpointId, imageId, _retryCount + 1);
     }
     throw error;
   }
@@ -163,7 +163,7 @@ async function getImageDetails(portainerUrl, endpointId, imageId) {
  * @param {boolean} force - Force deletion
  * @returns {Promise<Object>} - Deletion result
  */
-async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
+async function deleteImage(portainerUrl, endpointId, imageId, force = false, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const apiUrl = `${url}/api/endpoints/${endpointId}/docker/images/${imageId}${
@@ -175,9 +175,9 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return deleteImage(portainerUrl, endpointId, imageId, force);
+      return deleteImage(portainerUrl, endpointId, imageId, force, _retryCount + 1);
     }
     throw error;
   }
@@ -192,7 +192,7 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false) {
  * @param {number|null} [userId=null] - User ID for authentication
  * @returns {Promise<Object>} - Pull result
  */
-async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null, userId = null) {
+async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null, userId = null, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       // Remove @sha256 digest suffix if present before parsing
@@ -221,7 +221,7 @@ async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       // Pass originalUrl for authentication so it can fetch credentials from database
       await authenticatePortainer({
         userId,
@@ -233,7 +233,7 @@ async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null
         skipCache: false,
         originalUrl: originalUrl || portainerUrl,
       });
-      return pullImage(portainerUrl, endpointId, imageName, originalUrl, userId);
+      return pullImage(portainerUrl, endpointId, imageName, originalUrl, userId, _retryCount + 1);
     }
     throw error;
   }
@@ -351,7 +351,7 @@ async function handleStopStatusError(error, portainerUrl, endpointId, containerI
  * @param {number|null} [userId=null] - User ID for authentication
  * @returns {Promise<void>}
  */
-async function stopContainer(portainerUrl, endpointId, containerId, userId = null) {
+async function stopContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -363,9 +363,9 @@ async function stopContainer(portainerUrl, endpointId, containerId, userId = nul
       );
     }, portainerUrl);
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ userId, portainerUrl });
-      return stopContainer(portainerUrl, endpointId, containerId, userId);
+      return stopContainer(portainerUrl, endpointId, containerId, userId, _retryCount + 1);
     }
 
     const handled = await handleStopConnectionError(error, portainerUrl, endpointId, containerId);
@@ -390,7 +390,7 @@ async function stopContainer(portainerUrl, endpointId, containerId, userId = nul
  * @returns {Promise<void>}
  */
 
-async function removeContainer(portainerUrl, endpointId, containerId, userId = null) {
+async function removeContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -401,9 +401,9 @@ async function removeContainer(portainerUrl, endpointId, containerId, userId = n
       );
     }, portainerUrl);
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ userId, portainerUrl });
-      return removeContainer(portainerUrl, endpointId, containerId, userId);
+      return removeContainer(portainerUrl, endpointId, containerId, userId, _retryCount + 1);
     }
     // Handle "already removed" scenarios gracefully
     // 404 = Not Found (container already removed)
@@ -441,7 +441,8 @@ async function createContainer(
   endpointId,
   containerConfig,
   containerName,
-  userId = null
+  userId = null,
+  _retryCount = 0
 ) {
   try {
     const response = await requestWithIpFallback(async (url) => {
@@ -464,9 +465,9 @@ async function createContainer(
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ userId, portainerUrl });
-      return createContainer(portainerUrl, endpointId, containerConfig, containerName, userId);
+      return createContainer(portainerUrl, endpointId, containerConfig, containerName, userId, _retryCount + 1);
     }
     throw error;
   }
@@ -535,7 +536,7 @@ async function handleStartStatusError(error, portainerUrl, endpointId, container
  * @param {string} containerId - Container ID
  * @returns {Promise<void>}
  */
-async function startContainer(portainerUrl, endpointId, containerId, userId = null) {
+async function startContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -547,9 +548,9 @@ async function startContainer(portainerUrl, endpointId, containerId, userId = nu
       );
     }, portainerUrl);
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ userId, portainerUrl });
-      return startContainer(portainerUrl, endpointId, containerId, userId);
+      return startContainer(portainerUrl, endpointId, containerId, userId, _retryCount + 1);
     }
 
     const handled = await handleStartStatusError(error, portainerUrl, endpointId, containerId);
@@ -569,7 +570,7 @@ async function startContainer(portainerUrl, endpointId, containerId, userId = nu
  * @param {number} tail - Number of lines to return (default: 100)
  * @returns {Promise<string>} - Container logs
  */
-async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100) {
+async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100, _retryCount = 0) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = {
@@ -590,9 +591,9 @@ async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 10
     }, portainerUrl);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ portainerUrl });
-      return getContainerLogs(portainerUrl, endpointId, containerId, tail);
+      return getContainerLogs(portainerUrl, endpointId, containerId, tail, _retryCount + 1);
     }
     throw error;
   }
