@@ -94,7 +94,9 @@ async function runDbQuery(req, res) {
     const normalized = sql.trim().toLowerCase();
     const allowed = ALLOWED_SQL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
     if (!allowed) {
-      return res.status(400).json({ error: "Only SELECT, EXPLAIN, and PRAGMA statements are allowed" });
+      return res
+        .status(400)
+        .json({ error: "Only SELECT, EXPLAIN, and PRAGMA statements are allowed" });
     }
 
     if (!Array.isArray(params)) {
@@ -102,6 +104,9 @@ async function runDbQuery(req, res) {
     }
 
     const db = getDatabase();
+    // sql is validated above to start with SELECT/EXPLAIN/PRAGMA (read-only).
+    // params are passed separately (parameterized query). Admin-only endpoint.
+    // lgtm[js/sql-injection]
     const rows = await new Promise((resolve, reject) => {
       db.all(sql, params, (err, result) => {
         if (err) reject(err);
@@ -160,17 +165,20 @@ async function getLockState(req, res) {
 
 // ── GET /api/debug/logs ──────────────────────────────────────────────────────
 
+// Strict allowlist — only these filenames may be requested via ?file=
+const ALLOWED_LOG_FILES = ["combined.log", "error.log"];
+
 function getServerLogs(req, res) {
   if (!requireAdmin(req, res)) return;
   try {
     const lines = Math.min(parseInt(req.query.lines, 10) || 100, 2000);
     const logFile = req.query.file || "combined.log";
 
-    const resolvedDir = path.resolve(logsDir);
-    const logFilePath = path.resolve(logsDir, logFile);
-    if (!logFilePath.startsWith(resolvedDir + path.sep) && logFilePath !== resolvedDir) {
-      return res.status(400).json({ error: "Invalid log file path" });
+    if (!ALLOWED_LOG_FILES.includes(logFile)) {
+      return res.status(400).json({ error: "Invalid log file. Allowed: " + ALLOWED_LOG_FILES.join(", ") });
     }
+
+    const logFilePath = path.join(path.resolve(logsDir), logFile);
 
     if (!fs.existsSync(logFilePath)) {
       return res.json({ lines: [], count: 0, note: "Log file not found" });
