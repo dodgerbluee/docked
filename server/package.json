@@ -50,6 +50,15 @@
     },
     "glob@10": {
       "minimatch": "^9.0.7"
+    },
+    "tinyglobby": {
+      "picomatch": "^4.0.3",
+      "fdir": {
+        "picomatch": "^4.0.3"
+      }
+    },
+    "fdir": {
+      "picomatch": "^4.0.3"
     }
   }
 }
