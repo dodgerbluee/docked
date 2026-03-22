@@ -55,7 +55,9 @@ export default [
     },
     settings: {
       react: {
-        version: "detect",
+        // Pinned: eslint-plugin-react@7 calls context.getFilename() (removed in ESLint 10) when
+        // version is "detect". Pin to the actual version to avoid the crash.
+        version: "19",
       },
     },
     rules: {
