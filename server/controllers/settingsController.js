@@ -244,7 +244,9 @@ async function getDebugEndpointsEnabledHandler(req, res, _next) {
     return res.json({ success: true, enabled });
   } catch (error) {
     logger.error("Error getting debug endpoints enabled:", error);
-    return res.status(500).json({ success: false, error: error.message || "Failed to get setting" });
+    return res
+      .status(500)
+      .json({ success: false, error: error.message || "Failed to get setting" });
   }
 }
 
@@ -261,10 +263,16 @@ async function setDebugEndpointsEnabledHandler(req, res, _next) {
       return res.status(400).json({ success: false, error: "enabled must be a boolean" });
     }
     await setSystemSetting(DEBUG_ENDPOINTS_ENABLED_KEY, enabled.toString());
-    return res.json({ success: true, enabled, message: `Debug endpoints ${enabled ? "enabled" : "disabled"}` });
+    return res.json({
+      success: true,
+      enabled,
+      message: `Debug endpoints ${enabled ? "enabled" : "disabled"}`,
+    });
   } catch (error) {
     logger.error("Error setting debug endpoints enabled:", error);
-    return res.status(500).json({ success: false, error: error.message || "Failed to set setting" });
+    return res
+      .status(500)
+      .json({ success: false, error: error.message || "Failed to set setting" });
   }
 }
 
