@@ -8,22 +8,26 @@
 const crypto = require("crypto");
 const { getDatabase } = require("./connection");
 
-// Internal key used solely to produce fixed-length HMAC output for timingSafeEqual.
-// This is NOT a password hash — it's a keyed MAC to normalize key length before
-// constant-time comparison. The security of inbound auth comes from the high-entropy
-// random API key itself, not from this derivation step.
-const COMPARISON_HMAC_KEY = Buffer.from("docked-runner-api-key-comparison-v1");
-
 /**
  * Constant-time comparison of two API keys.
- * Prevents timing side-channel attacks during inbound authentication.
+ * Pads both values to the same byte length before calling timingSafeEqual so
+ * that neither hashing nor a variable-time early-exit leaks information.
+ * API keys are high-entropy random tokens — no password-hashing algorithm is
+ * needed or appropriate here.
  * @param {string} a - First API key (plaintext)
  * @param {string} b - Second API key (plaintext)
  * @returns {boolean}
  */
 function apiKeysEqual(a, b) {
-  const mac = (v) => crypto.createHmac("sha256", COMPARISON_HMAC_KEY).update(v).digest();
-  return crypto.timingSafeEqual(mac(a), mac(b));
+  const bufA = Buffer.from(String(a), "utf8");
+  const bufB = Buffer.from(String(b), "utf8");
+  const len = Math.max(bufA.length, bufB.length);
+  // Zero-pad to equal length so timingSafeEqual can run without early-exit.
+  const padA = Buffer.alloc(len);
+  const padB = Buffer.alloc(len);
+  bufA.copy(padA);
+  bufB.copy(padB);
+  return crypto.timingSafeEqual(padA, padB);
 }
 
 /**
