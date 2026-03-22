@@ -46,6 +46,6 @@ router.post("/db", asyncHandler(debug.runDbQuery));
 router.post("/cache/clear", asyncHandler(debug.clearAllCaches));
 
 // Runner debug proxy — forwards to runner's /debug/* endpoints
-router.all("/runner/:runnerId/*", asyncHandler(debug.proxyToRunner));
+router.all("/runner/:runnerId/*path", asyncHandler(debug.proxyToRunner));
 
 module.exports = router;
