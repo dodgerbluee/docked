@@ -39,10 +39,7 @@ export const useContainerPull = ({
 }) => {
   const handlePull = useCallback(
     async (additionalParams = {}) => {
-      const {
-        setSourceInstancesFromAPI,
-        setLastPullTime,
-      } = additionalParams;
+      const { setSourceInstancesFromAPI, setLastPullTime } = additionalParams;
       try {
         setPulling(true);
         // Clear any previous errors when starting a new pull
