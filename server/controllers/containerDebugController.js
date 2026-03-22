@@ -390,9 +390,7 @@ async function getContainerDebugInfo(req, res) {
           if (match) {
             const raw = match.repoDigests || [];
             const cleaned = raw
-              .map((rd) =>
-                rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd
-              )
+              .map((rd) => (rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd))
               .filter(Boolean);
             if (cleaned.length > 0) {
               repoDigests = cleaned;

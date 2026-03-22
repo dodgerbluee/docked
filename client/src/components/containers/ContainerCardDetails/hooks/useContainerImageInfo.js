@@ -45,7 +45,7 @@ export const useContainerImageInfo = (container) => {
   const handleImageClick = useCallback(
     async (e) => {
       e.stopPropagation();
-      let url = null;
+      let url;
       const fullImageName = imageNameWithoutVersion;
 
       if (fullImageName.startsWith("ghcr.io/")) {

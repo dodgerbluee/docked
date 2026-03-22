@@ -35,7 +35,7 @@ export const formatDuration = (ms) => {
   const minutes = Math.floor(seconds / SECONDS_PER_MINUTE);
   const hours = Math.floor(minutes / MINUTES_PER_HOUR);
 
-  let result = "";
+  let result;
   if (hours > 0) {
     result = `${hours}h ${minutes % MINUTES_PER_HOUR}m ${seconds % SECONDS_PER_MINUTE}s`;
   } else if (minutes > 0) {

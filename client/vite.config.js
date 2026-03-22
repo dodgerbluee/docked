@@ -16,12 +16,14 @@ export default defineConfig({
   build: {
     outDir: "build",
     sourcemap: false,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-charts": ["recharts"],
-          "vendor-ui": ["react-select", "lucide-react"],
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (/react|react-dom|react-router-dom/.test(id)) return "vendor-react";
+            if (/recharts/.test(id)) return "vendor-charts";
+            if (/react-select|lucide-react/.test(id)) return "vendor-ui";
+          }
         },
       },
     },
