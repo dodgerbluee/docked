@@ -39,12 +39,7 @@ export const useContainerPull = ({
 }) => {
   const handlePull = useCallback(
     async (additionalParams = {}) => {
-      const {
-        setSourceInstancesFromAPI,
-        setLastPullTime,
-        fetchDockerHubCredentials,
-        dockerHubCredentials,
-      } = additionalParams;
+      const { setSourceInstancesFromAPI, setLastPullTime } = additionalParams;
       try {
         setPulling(true);
         // Clear any previous errors when starting a new pull
@@ -153,14 +148,8 @@ export const useContainerPull = ({
         await fetchUnusedImages();
         setPullSuccess("Data pulled successfully!");
       } catch (err) {
-        // fetchDockerHubCredentials and dockerHubCredentials come from additionalParams
-        // They're optional and may not be provided, so handle gracefully
-        const errorMessage = await handleDockerHubError(
-          err,
-          fetchDockerHubCredentials || null,
-          dockerHubCredentials || null,
-          setError
-        );
+        // handleDockerHubError(err, setError) — previous call incorrectly passed 4 args
+        const errorMessage = await handleDockerHubError(err, setError);
         setPullError(errorMessage);
         console.error("Error pulling containers:", err);
       } finally {

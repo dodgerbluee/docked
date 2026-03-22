@@ -117,7 +117,8 @@ async function upgradeSingleContainer(
           workingPortainerUrl,
           endpointId,
           containerId,
-          isNginxProxyManager
+          isNginxProxyManager,
+          userId
         ));
     }
 

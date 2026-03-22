@@ -147,14 +147,22 @@ async function startContainer(runnerUrl, _endpointId, containerId, apiKey) {
  * @returns {Promise<string>}
  */
 async function getContainerLogs(runnerUrl, _endpointId, containerId, tail = 100, apiKey) {
-  // Existing runner log endpoint returns SSE; for synchronous log fetching
-  // we request without follow=true and collect the streamed text.
+  // The runner log endpoint returns SSE-formatted text (event: log\ndata: ...\n\n).
+  // We request without follow=true and strip the SSE framing to get plain log lines.
   const resp = await axios.get(`${runnerUrl}/containers/${encodeURIComponent(containerId)}/logs`, {
     ...inspectConfig(apiKey),
     params: { tail, follow: false },
     responseType: "text",
   });
-  return resp.data || "";
+  const raw = resp.data || "";
+  // Extract plain text from SSE `data:` lines, ignoring `event:` and empty lines.
+  const lines = [];
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("data: ") || line.startsWith("data:")) {
+      lines.push(line.replace(/^data:\s?/, ""));
+    }
+  }
+  return lines.join("\n");
 }
 
 // ── Image operations ───────────────────────────────────────────────────────

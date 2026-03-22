@@ -30,18 +30,8 @@ async function retry(fn, options = {}) {
 }
 
 const { recordRateLimitError, recordSuccess } = require("./rateLimiter");
+const { RateLimitExceededError } = require("./errors");
 const logger = require("./logger");
-
-/**
- * Custom error for rate limit threshold exceeded
- */
-class RateLimitExceededError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "RateLimitExceededError";
-    this.isRateLimitExceeded = true;
-  }
-}
 
 /**
  * Create a delay promise

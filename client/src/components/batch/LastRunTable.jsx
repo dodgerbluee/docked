@@ -14,7 +14,8 @@ import styles from "./LastRunTable.module.css";
 const LastRunTable = React.memo(function LastRunTable({ latestRunsByJobType }) {
   const hasRuns =
     latestRunsByJobType[BATCH_JOB_TYPES.DOCKER_HUB_PULL] ||
-    latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK];
+    latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK] ||
+    latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN];
 
   if (!hasRuns) {
     return null;
@@ -49,6 +50,13 @@ const LastRunTable = React.memo(function LastRunTable({ latestRunsByJobType }) {
             isContainer={false}
           />
         )}
+        {latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN] && (
+          <LastRunRow
+            run={latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN]}
+            jobType={BATCH_JOB_TYPES.APP_VERSION_SCAN}
+            isContainer={false}
+          />
+        )}
       </div>
 
       {/* Error messages */}
@@ -60,8 +68,14 @@ const LastRunTable = React.memo(function LastRunTable({ latestRunsByJobType }) {
       )}
       {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK]?.error_message && (
         <Alert variant="error" className={styles.error}>
-          <strong>App Version Scan Error:</strong>{" "}
+          <strong>Repo Version Scan Error:</strong>{" "}
           {latestRunsByJobType[BATCH_JOB_TYPES.TRACKED_APPS_CHECK].error_message}
+        </Alert>
+      )}
+      {latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN]?.error_message && (
+        <Alert variant="error" className={styles.error}>
+          <strong>App Version Scan Error:</strong>{" "}
+          {latestRunsByJobType[BATCH_JOB_TYPES.APP_VERSION_SCAN].error_message}
         </Alert>
       )}
     </Card>

@@ -6,6 +6,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../../utils/api";
 
+// Limit concurrent upgrade requests to avoid overwhelming the server
+const MAX_CONCURRENT_UPGRADES = 3;
+
 /**
  * Hook to manage batch upgrade progress
  * @param {boolean} isOpen - Whether modal is open
@@ -72,9 +75,9 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
     });
 
     try {
-      // Make individual upgrade calls for each container concurrently
-      // This allows us to track each container's real progress independently
-      const upgradePromises = containers.map(async (container) => {
+      // Upgrade each container with concurrency limiting to avoid
+      // overwhelming the server with too many simultaneous requests
+      const upgradeOne = async (container) => {
         const startTime = Date.now();
         let apiCompleted = false;
 
@@ -174,18 +177,45 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
           error: null,
           duration: actualDuration,
         };
-      });
+      };
 
-      // Wait for all upgrades to complete
-      const results = await Promise.allSettled(upgradePromises);
+      // Run upgrades with concurrency limit
+      const results = [];
+      const queue = [...containers];
+      const inFlight = new Set();
+
+      await new Promise((resolveAll) => {
+        const startNext = () => {
+          while (inFlight.size < MAX_CONCURRENT_UPGRADES && queue.length > 0) {
+            const container = queue.shift();
+            const promise = upgradeOne(container).then(
+              (value) => ({ status: "fulfilled", value }),
+              (reason) => ({ status: "rejected", reason })
+            );
+            inFlight.add(promise);
+            promise.then((result) => {
+              results.push(result);
+              inFlight.delete(promise);
+              if (queue.length > 0) {
+                startNext();
+              } else if (inFlight.size === 0) {
+                resolveAll();
+              }
+            });
+          }
+          if (queue.length === 0 && inFlight.size === 0) {
+            resolveAll();
+          }
+        };
+        startNext();
+      });
 
       // Process results and update states
       const successfulIds = new Set();
       const errorMap = new Map();
       const allResults = [];
 
-      results.forEach((settledResult, index) => {
-        const container = containers[index];
+      results.forEach((settledResult) => {
         if (settledResult.status === "fulfilled") {
           const result = settledResult.value;
           if (result.success) {
@@ -194,13 +224,9 @@ export const useBatchUpgradeProgress = (isOpen, containers, onSuccess, onError, 
           } else {
             errorMap.set(result.containerId, result.error || "Upgrade failed");
           }
-        } else {
-          const error =
-            settledResult.reason?.response?.data?.error ||
-            settledResult.reason?.message ||
-            "Unknown error occurred";
-          errorMap.set(container.id, error);
         }
+        // Note: rejected case should not occur since upgradeOne catches all
+        // errors internally and returns { success: false } instead of throwing.
       });
 
       // Update container states based on results

@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { Info, Search } from "lucide-react";
+import { Info, Search, Power, PowerOff } from "lucide-react";
 import { LOG_LEVELS } from "../../constants/settings";
 import ToggleButton from "../ui/ToggleButton";
 import Button from "../ui/Button";
@@ -14,6 +14,8 @@ import styles from "./AdminGeneralTab.module.css";
 const AdminGeneralTab = React.memo(function AdminGeneralTab({
   localLogLevel,
   handleLogLevelChange,
+  localDebugEndpointsEnabled,
+  handleDebugEndpointsChange,
   generalSettingsChanged,
   generalSettingsSaving,
   generalSettingsSuccess,
@@ -22,6 +24,11 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
   const logLevelOptions = [
     { value: LOG_LEVELS.INFO, label: "Info", icon: Info },
     { value: LOG_LEVELS.DEBUG, label: "Debug", icon: Search },
+  ];
+
+  const debugEndpointsOptions = [
+    { value: "off", label: "Off", icon: PowerOff },
+    { value: "on", label: "On", icon: Power },
   ];
 
   return (
@@ -51,6 +58,22 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
             diagnostic information.
           </small>
         </div>
+        <div className={styles.formGroup}>
+          <label htmlFor="debugEndpoints" className={styles.label}>
+            Debug Endpoints
+          </label>
+          <ToggleButton
+            options={debugEndpointsOptions}
+            value={localDebugEndpointsEnabled ? "on" : "off"}
+            onChange={handleDebugEndpointsChange}
+            className={styles.toggle}
+          />
+          <small className={styles.helperText}>
+            Exposes <code>/api/debug/*</code> endpoints for AI-assisted debugging (server health, DB
+            queries, cache state, runner introspection). Keep off in production unless actively
+            debugging.
+          </small>
+        </div>
         <div className={styles.formActions}>
           <Button
             type="submit"
@@ -69,6 +92,8 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
 AdminGeneralTab.propTypes = {
   localLogLevel: PropTypes.string.isRequired,
   handleLogLevelChange: PropTypes.func.isRequired,
+  localDebugEndpointsEnabled: PropTypes.bool.isRequired,
+  handleDebugEndpointsChange: PropTypes.func.isRequired,
   generalSettingsChanged: PropTypes.bool.isRequired,
   generalSettingsSaving: PropTypes.bool.isRequired,
   generalSettingsSuccess: PropTypes.string,

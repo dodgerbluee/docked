@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../constants/api";
+import { lockScroll, unlockScroll } from "../../utils/scrollLock";
 import styles from "./ContainerDebugModal.module.css";
 
 function ContainerDebugModal({
@@ -97,23 +98,10 @@ function ContainerDebugModal({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when modal is open (uses shared ref-counted lock)
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    const originalPaddingRight = document.body.style.paddingRight;
-
-    // Calculate scrollbar width
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.paddingRight = originalPaddingRight;
-    };
+    lockScroll();
+    return () => unlockScroll();
   }, []);
 
   // Focus trap implementation

@@ -26,6 +26,8 @@ function AdminPage() {
           <AdminGeneralTab
             localLogLevel={adminSettings.localLogLevel}
             handleLogLevelChange={adminSettings.handleLogLevelChange}
+            localDebugEndpointsEnabled={adminSettings.localDebugEndpointsEnabled}
+            handleDebugEndpointsChange={adminSettings.handleDebugEndpointsChange}
             generalSettingsChanged={adminSettings.generalSettingsChanged}
             generalSettingsSaving={adminSettings.generalSettingsSaving}
             generalSettingsSuccess={adminSettings.generalSettingsSuccess}

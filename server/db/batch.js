@@ -560,7 +560,7 @@ function getLatestBatchRunByJobType(userId, jobType) {
  */
 function getLatestBatchRunsByJobType(userId) {
   return new Promise((resolve, reject) => {
-    const jobTypes = ["docker-hub-pull", "tracked-apps-check"];
+    const jobTypes = ["docker-hub-pull", "tracked-apps-check", "app-version-scan"];
     const promises = jobTypes.map((jobType) =>
       getLatestBatchRunByJobType(userId, jobType).then((run) => ({ jobType, run }))
     );

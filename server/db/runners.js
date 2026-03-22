@@ -5,7 +5,30 @@
  * - Runner CRUD operations (runners are dockhand instances)
  */
 
+const crypto = require("crypto");
 const { getDatabase } = require("./connection");
+
+/**
+ * Constant-time comparison of two API keys.
+ * Pads both values to the same byte length before calling timingSafeEqual so
+ * that neither hashing nor a variable-time early-exit leaks information.
+ * API keys are high-entropy random tokens — no password-hashing algorithm is
+ * needed or appropriate here.
+ * @param {string} a - First API key (plaintext)
+ * @param {string} b - Second API key (plaintext)
+ * @returns {boolean}
+ */
+function apiKeysEqual(a, b) {
+  const bufA = Buffer.from(String(a), "utf8");
+  const bufB = Buffer.from(String(b), "utf8");
+  const len = Math.max(bufA.length, bufB.length);
+  // Zero-pad to equal length so timingSafeEqual can run without early-exit.
+  const padA = Buffer.alloc(len);
+  const padB = Buffer.alloc(len);
+  bufA.copy(padA);
+  bufB.copy(padB);
+  return crypto.timingSafeEqual(padA, padB);
+}
 
 /**
  * Get all runners for a user
@@ -154,7 +177,7 @@ function deleteRunner(id, userId) {
  * Update runner version info after a health check.
  * @param {number} id - Runner ID
  * @param {number} userId - User ID
- * @param {string|null} version - Running binary version (e.g. "1.0.0")
+ * @param {string|null} version - Running binary version (e.g. "v1.0.0")
  * @param {string|null} latestVersion - Latest GitHub release tag (e.g. "v1.1.0")
  * @param {boolean|null} [dockerEnabled] - Whether Docker management is enabled on this runner
  * @returns {Promise<void>}
@@ -359,4 +382,5 @@ module.exports = {
   updateRunnerVersion,
   getAllRunnersWithKeys,
   getEnabledRunnersWithKeysByUser,
+  apiKeysEqual,
 };

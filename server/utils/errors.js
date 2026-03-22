@@ -72,7 +72,8 @@ class ConflictError extends AppError {
  */
 class RateLimitExceededError extends AppError {
   constructor(message = "Rate limit exceeded", details = null) {
-    super(message, HTTP_STATUS.BAD_REQUEST, ERROR_CODES.RATE_LIMIT_EXCEEDED, details);
+    super(message, 429, ERROR_CODES.RATE_LIMIT_EXCEEDED, details);
+    this.isRateLimitExceeded = true;
   }
 }
 

@@ -51,10 +51,8 @@ export const PORTAINER_CONTAINER_MESSAGE =
 export const BLOCKLISTED_CONTAINER_MESSAGE =
   "This container is on the upgrade blocklist and cannot be upgraded. Manage the blocklist in Settings.";
 
-// Date formatting
-export const DEFAULT_TIMEZONE = "America/Chicago";
+// Date formatting — uses browser's local timezone (no hardcoded timeZone)
 export const DATE_FORMAT_OPTIONS = {
-  timeZone: DEFAULT_TIMEZONE,
   year: "numeric",
   month: "numeric",
   day: "numeric",

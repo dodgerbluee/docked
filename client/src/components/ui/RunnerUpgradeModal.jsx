@@ -26,6 +26,7 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
   const outputRef = useRef(null);
   const xhrRef = useRef(null);
   const startedRef = useRef(false);
+  const statusRef = useRef(STATUS.IDLE);
 
   const appendLine = useCallback((line) => {
     setLines((prev) => [...prev, line]);
@@ -47,6 +48,7 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
     const containerId = container.id;
 
     setStatus(STATUS.RUNNING);
+    statusRef.current = STATUS.RUNNING;
     setLines([]);
     setResult(null);
     setErrorMsg("");
@@ -94,7 +96,7 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
 
             if (!dataLine) continue;
 
-            if (eventLine === "line") {
+            if (eventLine === "log" || eventLine === "line") {
               // Raw log line — data is plain text (may be JSON-encoded string)
               try {
                 appendLine(JSON.parse(dataLine));
@@ -112,13 +114,16 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
                 const payload = JSON.parse(dataLine);
                 if (payload.exitCode === 0) {
                   setStatus(STATUS.DONE);
+                  statusRef.current = STATUS.DONE;
                   if (onSuccess) onSuccess(container);
                 } else {
                   setStatus(STATUS.ERROR);
+                  statusRef.current = STATUS.ERROR;
                   setErrorMsg("Upgrade exited with a non-zero status.");
                 }
               } catch {
                 setStatus(STATUS.DONE);
+                statusRef.current = STATUS.DONE;
                 if (onSuccess) onSuccess(container);
               }
             } else if (eventLine === "error") {
@@ -129,20 +134,23 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
                 setErrorMsg(dataLine);
               }
               setStatus(STATUS.ERROR);
+              statusRef.current = STATUS.ERROR;
             } else if (eventLine === "start") {
               // start event — container id echoed back, ignore
             }
           }
         }
 
-        // Stream ended without explicit done event
-        if (status === STATUS.RUNNING) {
+        // Stream ended without explicit done event — use ref to avoid stale closure
+        if (statusRef.current === STATUS.RUNNING) {
           setStatus(STATUS.DONE);
+          statusRef.current = STATUS.DONE;
         }
       } catch (err) {
         if (err.name === "AbortError") return;
         setErrorMsg(err.message || "Connection failed");
         setStatus(STATUS.ERROR);
+        statusRef.current = STATUS.ERROR;
       }
     })();
 
@@ -157,6 +165,7 @@ export default function RunnerUpgradeModal({ isOpen, container, onClose, onSucce
     if (!isOpen) {
       startedRef.current = false;
       setStatus(STATUS.IDLE);
+      statusRef.current = STATUS.IDLE;
       setLines([]);
       setResult(null);
       setErrorMsg("");
