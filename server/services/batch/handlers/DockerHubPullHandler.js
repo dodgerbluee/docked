@@ -54,7 +54,8 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
 
       const parsed = imageRepoParser.parseImageName(imageName);
       const imageTag = imageName.includes(":") ? imageName.split(":").pop() : "latest";
-      const containerName = (container.Names?.[0] || "").replace(/^\//, "") || container.Id.substring(0, 12);
+      const containerName =
+        (container.Names?.[0] || "").replace(/^\//, "") || container.Id.substring(0, 12);
       const stackName = details.Config?.Labels?.["com.docker.compose.project"] || null;
 
       await upsertContainerWithVersion(

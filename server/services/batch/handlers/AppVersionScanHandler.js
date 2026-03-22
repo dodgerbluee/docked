@@ -11,7 +11,11 @@ const { getEnabledRunnersWithKeysByUser } = require("../../../db/runners");
 let _discordService = null;
 function getDiscordService() {
   if (!_discordService) {
-    try { _discordService = require("../../discordService"); } catch { /* no-op */ }
+    try {
+      _discordService = require("../../discordService");
+    } catch {
+      /* no-op */
+    }
   }
   return _discordService;
 }
@@ -79,20 +83,22 @@ class AppVersionScanHandler extends JobHandler {
         const discord = getDiscordService();
         if (discord?.queueNotification) {
           for (const app of updated) {
-            await discord.queueNotification({
-              id: `runner-${runner.id}-app-${app.name}`,
-              name: app.name,
-              imageName: app.name,
-              githubRepo: app.githubRepo || null,
-              sourceType: app.sourceType || "app",
-              currentVersion: app.currentVersion || "unknown",
-              latestVersion: app.latestVersion || "unknown",
-              latestDigest: null,
-              latestVersionPublishDate: app.latestVersionPublishDate || null,
-              releaseUrl: app.releaseUrl || null,
-              notificationType: "tracked-app",
-              userId,
-            }).catch(() => {}); // notifications are best-effort
+            await discord
+              .queueNotification({
+                id: `runner-${runner.id}-app-${app.name}`,
+                name: app.name,
+                imageName: app.name,
+                githubRepo: app.githubRepo || null,
+                sourceType: app.sourceType || "app",
+                currentVersion: app.currentVersion || "unknown",
+                latestVersion: app.latestVersion || "unknown",
+                latestDigest: null,
+                latestVersionPublishDate: app.latestVersionPublishDate || null,
+                releaseUrl: app.releaseUrl || null,
+                notificationType: "tracked-app",
+                userId,
+              })
+              .catch(() => {}); // notifications are best-effort
           }
         }
 
