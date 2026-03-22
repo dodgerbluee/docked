@@ -8,6 +8,14 @@ const githubService = require("../../githubService");
 const { fetchRunnerApps, enrichAppsWithVersions } = require("../../runnerService");
 const { getEnabledRunnersWithKeysByUser } = require("../../../db/runners");
 
+let _discordService = null;
+function getDiscordService() {
+  if (!_discordService) {
+    try { _discordService = require("../../discordService"); } catch { /* no-op */ }
+  }
+  return _discordService;
+}
+
 class AppVersionScanHandler extends JobHandler {
   getJobType() {
     return "app-version-scan";
@@ -66,6 +74,27 @@ class AppVersionScanHandler extends JobHandler {
             (app.latestVersion && app.currentVersion && app.latestVersion !== app.currentVersion) ||
             app.systemUpdatesAvailable === true
         );
+
+        // Queue Discord notifications for newly-detected app updates
+        const discord = getDiscordService();
+        if (discord?.queueNotification) {
+          for (const app of updated) {
+            await discord.queueNotification({
+              id: `runner-${runner.id}-app-${app.name}`,
+              name: app.name,
+              imageName: app.name,
+              githubRepo: app.githubRepo || null,
+              sourceType: app.sourceType || "app",
+              currentVersion: app.currentVersion || "unknown",
+              latestVersion: app.latestVersion || "unknown",
+              latestDigest: null,
+              latestVersionPublishDate: app.latestVersionPublishDate || null,
+              releaseUrl: app.releaseUrl || null,
+              notificationType: "tracked-app",
+              userId,
+            }).catch(() => {}); // notifications are best-effort
+          }
+        }
 
         return { checked: enriched.length, updated: updated.length, skipped: 0 };
       })
