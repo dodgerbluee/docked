@@ -42,8 +42,6 @@ export const useContainerPull = ({
       const {
         setSourceInstancesFromAPI,
         setLastPullTime,
-        fetchDockerHubCredentials,
-        dockerHubCredentials,
       } = additionalParams;
       try {
         setPulling(true);
