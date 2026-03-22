@@ -375,6 +375,40 @@ async function getContainerDebugInfo(req, res) {
       }
     }
 
+    // Runner fallback: fetch RepoDigests live from the runner API
+    if (!repoDigests && containerRecord.runner_id) {
+      try {
+        const runners = await getEnabledRunnersWithKeysByUser(userId);
+        const runner = runners.find((r) => r.id === containerRecord.runner_id);
+        if (runner) {
+          const allContainers = await runnerDockerService.getContainers(
+            runner.url,
+            null,
+            runner.api_key
+          );
+          const match = allContainers.find((c) => (c.Id || c.id) === containerId);
+          if (match) {
+            const raw = match.repoDigests || [];
+            const cleaned = raw
+              .map((rd) =>
+                rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd
+              )
+              .filter(Boolean);
+            if (cleaned.length > 0) {
+              repoDigests = cleaned;
+              logger.debug(
+                `Fetched ${repoDigests.length} RepoDigests from runner for container ${containerRecord.container_name}`
+              );
+            }
+          }
+        }
+      } catch (runnerErr) {
+        logger.debug(
+          `Could not fetch RepoDigests from runner for container ${containerId}: ${runnerErr.message}`
+        );
+      }
+    }
+
     // Build response
     const debugInfo = {
       container: containerRecord,

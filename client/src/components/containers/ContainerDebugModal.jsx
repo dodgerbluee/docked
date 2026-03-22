@@ -390,7 +390,9 @@ function ContainerDebugModal({
                           </div>
                         ) : debugInfo.deployedImage?.image_digest ? (
                           <code className={styles.digestCode}>
-                            {debugInfo.deployedImage.image_digest}
+                            {debugInfo.deployedImage.image_digest.startsWith("sha256:")
+                              ? debugInfo.deployedImage.image_digest
+                              : `sha256:${debugInfo.deployedImage.image_digest}`}
                           </code>
                         ) : (
                           <span className={styles.nullValue}>Not available</span>
