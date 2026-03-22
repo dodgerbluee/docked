@@ -11,11 +11,20 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate } from "../utils/versionHelpers";
+import { registerCacheClear } from "../utils/cacheRegistry";
 
 // Module-level cache – survives unmount/remount so pages render instantly
 let cachedRunners = null;
 let cachedAppsByRunner = null;
 let cachedHistory = null;
+
+/** Clear module-level cache (call on logout to prevent cross-user data leaks) */
+export function clearRunnerAppsCache() {
+  cachedRunners = null;
+  cachedAppsByRunner = null;
+  cachedHistory = null;
+}
+registerCacheClear(clearRunnerAppsCache);
 
 export const useRunnerApps = () => {
   const [runners, setRunners] = useState(cachedRunners || []);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { CheckCircle2, Loader2, AlertCircle, Wifi, Square } from "lucide-react";
 import axios from "axios";
@@ -29,6 +29,15 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const mountedRef = useRef(true);
+
+  // Track mounted state to prevent state updates after unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const steps = useMemo(() => {
     // For tunnel containers (providesNetwork) - show all steps including dependent container handling
@@ -139,6 +148,7 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
 
       // Show progress steps
       for (let i = 0; i < steps.length; i++) {
+        if (!mountedRef.current) return; // bail if unmounted
         const stepIndex = i;
         const stepDuration = steps[stepIndex].duration;
         const minStepDuration = TIMING.MIN_STEP_DURATION;
@@ -149,6 +159,11 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
         const stepStartTime = Date.now();
         await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
+            if (!mountedRef.current) {
+              clearInterval(checkInterval);
+              resolve();
+              return;
+            }
             const elapsed = Date.now() - stepStartTime;
             // Always wait for minimum duration first
             if (elapsed < minStepDuration) {
@@ -196,7 +211,9 @@ const UpgradeProgressModal = React.memo(function UpgradeProgressModal({
           let attempts = 0;
 
           while (Date.now() - startTime < maxWaitTime && !upgradeCompleted) {
+            if (!mountedRef.current) return; // bail if unmounted
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
+            if (!mountedRef.current) return;
             attempts++;
             setReconnectAttempts(attempts);
 

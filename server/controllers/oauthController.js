@@ -285,10 +285,16 @@ async function handleCallback(req, res, next) {
       logger.warn("Failed to update last login for OAuth user:", { error: err });
     }
 
-    // Cookies are a short-lived transport mechanism for the OAuth redirect flow. The client
-    // (OAuthCallback.jsx) reads them immediately on the redirect page, moves the values to
-    // localStorage, then clears the cookies. httpOnly:false is required so the client-side
-    // js-cookie library can read them. maxAge:60s limits the exposure window.
+    // SECURITY: Cookies are a short-lived transport mechanism for the OAuth redirect flow.
+    // The client (OAuthCallback.jsx) reads them immediately on the redirect landing page,
+    // moves the values to localStorage, then clears the cookies.
+    // httpOnly:false is intentionally required so the client-side js-cookie library can
+    // read them — this is a known XSS surface tradeoff. Mitigations:
+    //   1. maxAge:60s limits the exposure window to 1 minute
+    //   2. sameSite:"lax" prevents CSRF cross-origin reads
+    //   3. secure:true (when behind TLS) prevents network interception
+    // A future improvement would be to use a server-side session exchange (POST back to
+    // the server with a one-time code) to avoid non-httpOnly cookies entirely.
     const cookieOpts = { httpOnly: false, secure: req.secure, sameSite: "lax", maxAge: 60 * 1000 };
     res.cookie("authToken", token, cookieOpts);
     res.cookie("refreshToken", refreshToken, cookieOpts);

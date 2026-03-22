@@ -222,15 +222,6 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
         )}
         {!showUpdates && container.currentDigest && (
           <>
-            {container.noDigest && (
-              <div
-                className={styles.noDigestBadge}
-                title="Container was checked but no digest was returned from the registry"
-              >
-                <AlertCircle size={14} />
-                <span>No Digest</span>
-              </div>
-            )}
             <ContainerVersionDisplay
               container={container}
               imageVersion={imageVersion}

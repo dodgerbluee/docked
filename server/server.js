@@ -24,7 +24,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
+const { rateLimit } = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 const path = require("path");
 const fs = require("fs");
@@ -173,29 +173,6 @@ logger.info("Global rate limiter enabled: 300 req/min per IP", {
   module: "server",
 });
 
-// OAuth-specific rate limiter - stricter limits for OAuth endpoints
-const oauthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 OAuth attempts per window per IP
-  message: { success: false, error: "Too many OAuth attempts, please try again later." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Use IP for rate limiting (ipKeyGenerator normalizes IPv6 addresses)
-  keyGenerator: ipKeyGenerator,
-  // Skip rate limiting for localhost in development
-  skip: (req) => {
-    if (process.env.NODE_ENV === "production") {
-      return false;
-    }
-    const ip = req.ip || req.connection?.remoteAddress || "";
-    return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1";
-  },
-});
-
-logger.info("OAuth rate limiter enabled: 10 req/15min per IP", {
-  module: "server",
-});
-
 // API Documentation
 app.use(
   "/api-docs",
@@ -304,14 +281,6 @@ process.on("uncaughtException", (error) => {
 process.on("exit", (code) => {
   logger.debug(`Process exiting with code ${code}`, { module: "server" });
 });
-
-// Log before exit
-const originalExit = process.exit;
-
-process.exit = function (code) {
-  logger.debug(`process.exit(${code}) called`, { module: "server" });
-  return originalExit.call(process, code);
-};
 
 // Only start the server if this file is being run directly (not required by tests)
 // require.main === module means this file was executed directly (e.g., node server.js)

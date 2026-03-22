@@ -80,7 +80,6 @@ function CurrentTab({
         <div className={styles.lastPullTime}>
           Last scanned:{" "}
           {lastPullTime.toLocaleString("en-US", {
-            timeZone: "America/Chicago",
             year: "numeric",
             month: "numeric",
             day: "numeric",

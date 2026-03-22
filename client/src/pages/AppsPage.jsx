@@ -20,12 +20,20 @@ import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
+import { registerCacheClear } from "../utils/cacheRegistry";
 import styles from "./AppsPage.module.css";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of showing a loading spinner.
 let cachedRunners = null;
 let cachedApps = null;
+
+/** Clear module-level cache (call on logout to prevent cross-user data leaks) */
+export function clearAppsPageCache() {
+  cachedRunners = null;
+  cachedApps = null;
+}
+registerCacheClear(clearAppsPageCache);
 
 function appHasUpdate(app) {
   return (

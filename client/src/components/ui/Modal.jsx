@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { X } from "lucide-react";
 import Button from "./Button";
+import { lockScroll, unlockScroll } from "../../utils/scrollLock";
 import styles from "./Modal.module.css";
 
 /**
@@ -25,18 +26,10 @@ const Modal = React.memo(function Modal({
   const mouseDownTargetRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen) {
-      // Only lock body scroll if modal is blocking
-      if (!nonBlocking) {
-        document.body.style.overflow = "hidden";
-      }
-    } else {
-      document.body.style.overflow = "";
+    if (isOpen && !nonBlocking) {
+      lockScroll();
+      return () => unlockScroll();
     }
-
-    return () => {
-      document.body.style.overflow = "";
-    };
   }, [isOpen, nonBlocking]);
 
   useEffect(() => {
