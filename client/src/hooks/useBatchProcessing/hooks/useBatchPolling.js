@@ -3,9 +3,11 @@
  */
 
 import { useEffect, useRef } from "react";
+import axios from "axios";
 import { parseUTCTimestamp } from "../../../utils/formatters";
 import { fetchLatestRunsByJobType } from "../../batchRunsCache";
 import { isBackendUp } from "../../../utils/backendStatus";
+import { API_BASE_URL } from "../../../utils/api";
 
 /**
  * Hook for batch run polling
@@ -30,6 +32,8 @@ export const useBatchPolling = ({
   const lastCheckedBatchRunStatusRef = useRef(null);
   const lastCheckedTrackedAppsBatchRunIdRef = useRef(null);
   const lastCheckedTrackedAppsBatchRunStatusRef = useRef(null);
+  const lastCheckedIntentExecutionIdRef = useRef(null);
+  const lastCheckedIntentExecutionStatusRef = useRef(null);
   const initialPollDoneRef = useRef(false);
   // Track whether this is the very first poll check – on the first check we
   // seed the "last seen" refs but do NOT trigger data refreshes because the
@@ -42,13 +46,8 @@ export const useBatchPolling = ({
       return;
     }
 
-    // Only run polling if at least one batch job type is enabled
     const dockerHubEnabled = batchConfig["docker-hub-pull"]?.enabled || false;
     const trackedAppsEnabled = batchConfig["tracked-apps-check"]?.enabled || false;
-
-    if (!dockerHubEnabled && !trackedAppsEnabled) {
-      return;
-    }
 
     const checkBatchRuns = async () => {
       const isFirstCheck = isFirstCheckRef.current;
@@ -133,6 +132,42 @@ export const useBatchPolling = ({
                 }
               }
             }
+          }
+        }
+
+        // Check for newly-completed intent executions to refresh container update status.
+        // This runs unconditionally (independent of batch job config) so that containers
+        // refresh automatically after an intent finishes upgrading them.
+        if (fetchContainers) {
+          try {
+            const response = await axios.get(`${API_BASE_URL}/intents/executions/recent`, {
+              params: { limit: 1 },
+              headers: { Authorization: `Bearer ${authToken}` },
+            });
+            const executions = response.data?.executions || [];
+            if (executions.length > 0) {
+              const latestExecution = executions[0];
+              const previousId = lastCheckedIntentExecutionIdRef.current;
+              const previousStatus = lastCheckedIntentExecutionStatusRef.current;
+
+              lastCheckedIntentExecutionIdRef.current = latestExecution.id;
+              lastCheckedIntentExecutionStatusRef.current = latestExecution.status;
+
+              const terminalStatuses = ["completed", "partial-success"];
+              if (terminalStatuses.includes(latestExecution.status)) {
+                const isNewRun = latestExecution.id !== previousId;
+                const justCompleted =
+                  latestExecution.id === previousId &&
+                  !terminalStatuses.includes(previousStatus) &&
+                  previousStatus !== null;
+
+                if ((isNewRun || justCompleted) && !isFirstCheck) {
+                  fetchContainers(false);
+                }
+              }
+            }
+          } catch {
+            // Intent execution polling is best-effort
           }
         }
       } catch (err) {
