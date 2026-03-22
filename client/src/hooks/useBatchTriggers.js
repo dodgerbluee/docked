@@ -29,7 +29,7 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
       console.error("Error triggering batch:", err);
       const errorMessage = getErrorMessage("BATCH", "TRIGGER");
       // Could add error state here if needed
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     } finally {
       setTriggeringBatch(false);
     }
@@ -51,7 +51,7 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
       console.error("Error triggering tracked apps batch:", err);
       const errorMessage = getErrorMessage("BATCH", "TRIGGER");
       // Could add error state here if needed
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     } finally {
       setTriggeringTrackedAppsBatch(false);
     }
@@ -70,7 +70,7 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
     } catch (err) {
       console.error("Error triggering app version scan batch:", err);
       const errorMessage = getErrorMessage("BATCH", "TRIGGER");
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     } finally {
       setTriggeringAppVersionScanBatch(false);
     }

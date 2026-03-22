@@ -365,7 +365,7 @@ export function useIntents(isAuthenticated, authToken) {
       }
       throw new Error("Failed to fetch preview");
     } catch (err) {
-      throw new Error(err.response?.data?.error || "Failed to fetch preview");
+      throw new Error(err.response?.data?.error || "Failed to fetch preview", { cause: err });
     }
   }, []);
 
