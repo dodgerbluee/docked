@@ -43,13 +43,9 @@ export const extractErrorMessage = (err, defaultMessage = "An error occurred") =
  * @returns {string} The error message that was set
  */
 export const handleDockerHubError = async (err, setError) => {
-  let errorMessage = "Failed to pull container data";
-
-  if (isRateLimitError(err)) {
-    errorMessage = getRateLimitErrorMessage(err);
-  } else {
-    errorMessage = extractErrorMessage(err, "Failed to pull container data");
-  }
+  const errorMessage = isRateLimitError(err)
+    ? getRateLimitErrorMessage(err)
+    : extractErrorMessage(err, "Failed to pull container data");
 
   if (setError) {
     setError(errorMessage);

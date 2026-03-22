@@ -25,7 +25,7 @@ export const useSourceInstances = ({ sourceInstancesFromAPI, containers }) => {
 
   // Merge API instances with container data
   const sourceInstances = useMemo(() => {
-    let instances = [];
+    let instances;
 
     if (sourceInstancesFromAPI && sourceInstancesFromAPI.length > 0) {
       // Merge API instances with container data to ensure all properties are present
