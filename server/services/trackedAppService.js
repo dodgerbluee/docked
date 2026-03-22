@@ -436,7 +436,10 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
         trackedApp.latest_digest &&
         normalizeDigestForComparison(latestDigest) !==
           normalizeDigestForComparison(trackedApp.latest_digest)) ||
-      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+      (latestVersion &&
+        trackedApp.latest_version &&
+        String(latestVersion).replace(/^v/i, "").trim().toLowerCase() !==
+          String(trackedApp.latest_version).replace(/^v/i, "").trim().toLowerCase()));
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (isNewlyDetectedUpdate) {
@@ -715,7 +718,10 @@ async function checkGitHubTrackedApp(trackedApp, batchLogger = null) {
     hasUpdate &&
     (!trackedApp.has_update ||
       // If already had an update, check if the latest version has changed (new update available)
-      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+      (latestVersion &&
+        trackedApp.latest_version &&
+        String(latestVersion).replace(/^v/i, "").trim().toLowerCase() !==
+          String(trackedApp.latest_version).replace(/^v/i, "").trim().toLowerCase()));
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (isNewlyDetectedUpdate) {
@@ -1074,7 +1080,10 @@ async function checkGitLabTrackedApp(trackedApp, batchLogger = null) {
     hasUpdate &&
     (!trackedApp.has_update ||
       // If already had an update, check if the latest version has changed (new update available)
-      (latestVersion && trackedApp.latest_version && latestVersion !== trackedApp.latest_version));
+      (latestVersion &&
+        trackedApp.latest_version &&
+        String(latestVersion).replace(/^v/i, "").trim().toLowerCase() !==
+          String(trackedApp.latest_version).replace(/^v/i, "").trim().toLowerCase()));
 
   // Log and send Discord notification if update detected (only if newly detected, not if already had update)
   if (isNewlyDetectedUpdate) {

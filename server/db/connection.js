@@ -672,7 +672,7 @@ async function initializeDatabase() {
                   }
                 );
                 db.run(
-                  "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(portainer_instance_id)",
+                  "CREATE INDEX IF NOT EXISTS idx_containers_instance ON containers(source_instance_id)",
                   (idxErr) => {
                     if (idxErr && !idxErr.message.includes("already exists")) {
                       logger.error("Error creating containers instance index:", {

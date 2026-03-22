@@ -140,7 +140,7 @@ export const useBatchPolling = ({
         // refresh automatically after an intent finishes upgrading them.
         if (fetchContainers) {
           try {
-            const response = await axios.get(`${API_BASE_URL}/intents/executions/recent`, {
+            const response = await axios.get(`${API_BASE_URL}/api/intents/executions/recent`, {
               params: { limit: 1 },
               headers: { Authorization: `Bearer ${authToken}` },
             });
