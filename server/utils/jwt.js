@@ -9,7 +9,8 @@ const config = require("../config");
 const DEFAULT_SECRET = "change-this-secret-in-production";
 const JWT_SECRET = process.env.JWT_SECRET || config.jwt?.secret || DEFAULT_SECRET;
 const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET || (JWT_SECRET !== DEFAULT_SECRET ? JWT_SECRET + "-refresh" : DEFAULT_SECRET + "-refresh");
+  process.env.JWT_REFRESH_SECRET ||
+  (JWT_SECRET !== DEFAULT_SECRET ? JWT_SECRET + "-refresh" : DEFAULT_SECRET + "-refresh");
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || config.jwt?.expiresIn || "24h";
 const JWT_REFRESH_EXPIRES_IN =
   process.env.JWT_REFRESH_EXPIRES_IN || config.jwt?.refreshExpiresIn || "7d";
@@ -18,7 +19,7 @@ const JWT_REFRESH_EXPIRES_IN =
 if (JWT_SECRET === DEFAULT_SECRET) {
   console.warn(
     "[SECURITY WARNING] JWT_SECRET is using the default value. " +
-    "Set JWT_SECRET environment variable to a strong random string in production."
+      "Set JWT_SECRET environment variable to a strong random string in production."
   );
 }
 

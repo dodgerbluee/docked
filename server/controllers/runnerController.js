@@ -1363,7 +1363,8 @@ async function reEnrollRunner(req, res, next) {
         });
         return res.status(401).json({
           success: false,
-          error: "Current API key verification failed. The runner must present its existing API key.",
+          error:
+            "Current API key verification failed. The runner must present its existing API key.",
         });
       }
     }

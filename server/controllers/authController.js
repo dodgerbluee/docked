@@ -1566,7 +1566,9 @@ async function createUserWithConfig(req, res, next) {
       ) {
         // Docker Hub credential import removed - crane/skopeo use system Docker credentials
         // Users should run 'docker login' on the server if registry authentication is needed
-        results.errors.push("Docker Hub credential import is no longer supported. Use 'docker login' instead.");
+        results.errors.push(
+          "Docker Hub credential import is no longer supported. Use 'docker login' instead."
+        );
       }
 
       if (

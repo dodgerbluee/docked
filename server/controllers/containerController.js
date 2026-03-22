@@ -414,9 +414,7 @@ async function upgradeContainer(req, res, next) {
     }
 
     // Acquire upgrade lock to prevent conflicts with intent-driven or batch upgrades
-    const lockOpts = runnerId
-      ? { runnerId: Number(runnerId) }
-      : { sourceInstanceId: endpointId };
+    const lockOpts = runnerId ? { runnerId: Number(runnerId) } : { sourceInstanceId: endpointId };
     const acquired = upgradeLockManager.acquire(containerId, {
       ...lockOpts,
       owner: "manual-single",

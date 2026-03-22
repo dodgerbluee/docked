@@ -192,7 +192,14 @@ async function deleteImage(portainerUrl, endpointId, imageId, force = false, _re
  * @param {number|null} [userId=null] - User ID for authentication
  * @returns {Promise<Object>} - Pull result
  */
-async function pullImage(portainerUrl, endpointId, imageName, originalUrl = null, userId = null, _retryCount = 0) {
+async function pullImage(
+  portainerUrl,
+  endpointId,
+  imageName,
+  originalUrl = null,
+  userId = null,
+  _retryCount = 0
+) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       // Remove @sha256 digest suffix if present before parsing
@@ -351,7 +358,13 @@ async function handleStopStatusError(error, portainerUrl, endpointId, containerI
  * @param {number|null} [userId=null] - User ID for authentication
  * @returns {Promise<void>}
  */
-async function stopContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
+async function stopContainer(
+  portainerUrl,
+  endpointId,
+  containerId,
+  userId = null,
+  _retryCount = 0
+) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -390,7 +403,13 @@ async function stopContainer(portainerUrl, endpointId, containerId, userId = nul
  * @returns {Promise<void>}
  */
 
-async function removeContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
+async function removeContainer(
+  portainerUrl,
+  endpointId,
+  containerId,
+  userId = null,
+  _retryCount = 0
+) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -467,7 +486,14 @@ async function createContainer(
   } catch (error) {
     if (error.response?.status === 401 && _retryCount < 1) {
       await authenticatePortainer({ userId, portainerUrl });
-      return createContainer(portainerUrl, endpointId, containerConfig, containerName, userId, _retryCount + 1);
+      return createContainer(
+        portainerUrl,
+        endpointId,
+        containerConfig,
+        containerName,
+        userId,
+        _retryCount + 1
+      );
     }
     throw error;
   }
@@ -536,7 +562,13 @@ async function handleStartStatusError(error, portainerUrl, endpointId, container
  * @param {string} containerId - Container ID
  * @returns {Promise<void>}
  */
-async function startContainer(portainerUrl, endpointId, containerId, userId = null, _retryCount = 0) {
+async function startContainer(
+  portainerUrl,
+  endpointId,
+  containerId,
+  userId = null,
+  _retryCount = 0
+) {
   try {
     await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
@@ -570,7 +602,13 @@ async function startContainer(portainerUrl, endpointId, containerId, userId = nu
  * @param {number} tail - Number of lines to return (default: 100)
  * @returns {Promise<string>} - Container logs
  */
-async function getContainerLogs(portainerUrl, endpointId, containerId, tail = 100, _retryCount = 0) {
+async function getContainerLogs(
+  portainerUrl,
+  endpointId,
+  containerId,
+  tail = 100,
+  _retryCount = 0
+) {
   try {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = {

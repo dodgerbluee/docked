@@ -99,9 +99,12 @@ export function useAdminGeneralSettings() {
       // Save debug endpoints enabled
       let debugEndpointsSuccess = false;
       try {
-        const debugResponse = await axios.post(`${API_BASE_URL}/api/settings/debug-endpoints-enabled`, {
-          enabled: localDebugEndpointsEnabled,
-        });
+        const debugResponse = await axios.post(
+          `${API_BASE_URL}/api/settings/debug-endpoints-enabled`,
+          {
+            enabled: localDebugEndpointsEnabled,
+          }
+        );
         debugEndpointsSuccess = debugResponse.data.success;
         if (debugEndpointsSuccess) {
           setDebugEndpointsEnabled(localDebugEndpointsEnabled);
@@ -118,7 +121,9 @@ export function useAdminGeneralSettings() {
         window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
         const errorMessage =
-          errors.length > 0 ? `Failed to save: ${errors.join(", ")}` : "Failed to save one or more settings";
+          errors.length > 0
+            ? `Failed to save: ${errors.join(", ")}`
+            : "Failed to save one or more settings";
         setGeneralSettingsSuccess(errorMessage);
         console.error("Admin settings save failed:", { logLevelSuccess, debugEndpointsSuccess });
       }

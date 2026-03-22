@@ -70,7 +70,8 @@ const AdminGeneralTab = React.memo(function AdminGeneralTab({
           />
           <small className={styles.helperText}>
             Exposes <code>/api/debug/*</code> endpoints for AI-assisted debugging (server health, DB
-            queries, cache state, runner introspection). Keep off in production unless actively debugging.
+            queries, cache state, runner introspection). Keep off in production unless actively
+            debugging.
           </small>
         </div>
         <div className={styles.formActions}>

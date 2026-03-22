@@ -274,11 +274,7 @@ function validateIPv6(hostname, allowPrivateIPs) {
   // link-local (fe80::/10) unless allowed
   if (!allowPrivateIPs) {
     const bare = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    if (
-      bare.startsWith("fc") ||
-      bare.startsWith("fd") ||
-      bare.startsWith("fe80")
-    ) {
+    if (bare.startsWith("fc") || bare.startsWith("fd") || bare.startsWith("fe80")) {
       return { valid: false, error: "IPv6 private/link-local addresses are not allowed" };
     }
   }
