@@ -95,6 +95,12 @@ const DB_QUERY_CATALOG = {
   settings:
     "SELECT key, user_id, SUBSTR(value, 1, 200) AS value_preview, created_at FROM settings ORDER BY user_id, key",
   "system-settings": "SELECT key, value, created_at FROM system_settings ORDER BY key",
+  "registry-image-versions":
+    "SELECT id, user_id, registry, namespace, repository, tag, latest_digest, updated_at FROM registry_image_versions ORDER BY updated_at DESC LIMIT 100",
+  "batch-runs":
+    "SELECT id, user_id, status, containers_checked, updates_found, started_at, completed_at FROM batch_runs ORDER BY started_at DESC LIMIT 20",
+  "deployed-images":
+    "SELECT id, user_id, container_id, image_digest, image_tag, deployed_at FROM deployed_images ORDER BY deployed_at DESC LIMIT 50",
 };
 
 // Only these SQL statement types are permitted for raw queries
