@@ -4,8 +4,9 @@ FROM node:25-alpine AS frontend-builder
 
 WORKDIR /app/client
 
-# Copy client package files
+# Copy client package files and npm config
 COPY client/package*.json ./
+COPY client/.npmrc ./
 
 # Install client dependencies
 RUN npm install
