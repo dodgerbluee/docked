@@ -97,33 +97,57 @@ const DB_QUERY_CATALOG = {
   "system-settings": "SELECT key, value, created_at FROM system_settings ORDER BY key",
 };
 
+// Only these SQL statement types are permitted for raw queries
+const ALLOWED_SQL_PREFIXES = ["select", "explain", "pragma", "with"];
+
+function isReadOnlySql(sql) {
+  const first = sql.trim().toLowerCase().split(/\s+/)[0];
+  return ALLOWED_SQL_PREFIXES.includes(first);
+}
+
 async function runDbQuery(req, res) {
   if (!requireAdmin(req, res)) return;
   try {
-    const { query: queryKey } = req.body || {};
+    const { query: queryKey, sql: rawSql, params: rawParams } = req.body || {};
 
-    if (!queryKey || typeof queryKey !== "string") {
+    let sql;
+    let queryLabel;
+
+    if (rawSql) {
+      // Raw SQL path (used by MCP client)
+      if (typeof rawSql !== "string" || !isReadOnlySql(rawSql)) {
+        return res.status(400).json({
+          error: "Only SELECT, EXPLAIN, PRAGMA, and WITH queries are allowed",
+        });
+      }
+      sql = rawSql;
+      queryLabel = "raw";
+    } else if (queryKey) {
+      // Named query path (used by UI)
+      const namedSql = DB_QUERY_CATALOG[queryKey];
+      if (!namedSql) {
+        return res
+          .status(400)
+          .json({ error: `Unknown query "${queryKey}"`, available: Object.keys(DB_QUERY_CATALOG) });
+      }
+      sql = namedSql;
+      queryLabel = queryKey;
+    } else {
       return res
         .status(400)
-        .json({ error: "query is required", available: Object.keys(DB_QUERY_CATALOG) });
+        .json({ error: "Either sql or query is required", available: Object.keys(DB_QUERY_CATALOG) });
     }
 
-    const sql = DB_QUERY_CATALOG[queryKey];
-    if (!sql) {
-      return res
-        .status(400)
-        .json({ error: `Unknown query "${queryKey}"`, available: Object.keys(DB_QUERY_CATALOG) });
-    }
-
+    const params = Array.isArray(rawParams) ? rawParams : [];
     const db = getDatabase();
     const rows = await new Promise((resolve, reject) => {
-      db.all(sql, [], (err, result) => {
+      db.all(sql, params, (err, result) => {
         if (err) reject(err);
         else resolve(result || []);
       });
     });
 
-    res.json({ rows, count: rows.length, query: queryKey });
+    res.json({ rows, count: rows.length, query: queryLabel });
   } catch (err) {
     logger.error("debugController: runDbQuery error", { error: err.message });
     res.status(500).json({ error: err.message });
