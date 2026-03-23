@@ -81,7 +81,7 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
               currentTag: updateInfo.currentTag || imageTag,
               latestTag: updateInfo.latestTag || imageTag,
               latestVersion: updateInfo.latestVersion || null,
-              latestDigest: updateInfo.latestDigest || null,
+              latestDigest: updateInfo.latestDigestFull || null,
               hasUpdate: true,
             }
           : null,
