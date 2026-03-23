@@ -184,10 +184,12 @@ async function getContainerDebugInfo(req, res) {
     // Get container record
     const containerRecord = await new Promise((resolve, reject) => {
       db.get(
-        `SELECT c.*, pi.name as source_instance_name, pi.url as source_url,
-                pi.name as portainer_name, pi.url as portainer_url
+        `SELECT c.*, si.name as source_instance_name, si.url as source_url,
+                si.name as portainer_name, si.url as portainer_url,
+                r.name as runner_name
          FROM containers c
-         LEFT JOIN portainer_instances pi ON c.source_instance_id = pi.id
+         LEFT JOIN source_instances si ON c.source_instance_id = si.id
+         LEFT JOIN runners r ON c.runner_id = r.id
          WHERE c.container_id = ? AND c.user_id = ?`,
         [containerId, userId],
         (err, row) => {

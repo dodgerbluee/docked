@@ -58,6 +58,21 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
         (container.Names?.[0] || "").replace(/^\//, "") || container.Id.substring(0, 12);
       const stackName = details.Config?.Labels?.["com.docker.compose.project"] || null;
 
+      // Clean repoDigests from the runner container listing (same format as Portainer path).
+      // Dockhand returns entries like "nginx@sha256:abc..." — strip the image prefix.
+      const cleanRepoDigests = (container.repoDigests || [])
+        .map((rd) => (rd.includes("@sha256:") ? "sha256:" + rd.split("@sha256:")[1] : rd))
+        .filter(Boolean);
+
+      // Recalculate hasUpdate using repoDigests when available, to avoid false positives.
+      // Without repoDigests the batch falls back to raw digest comparison which fails for
+      // multi-arch images where the running-container digest differs from the index digest.
+      let hasUpdate = updateInfo.hasUpdate;
+      if (cleanRepoDigests.length > 0 && updateInfo.latestDigestFull) {
+        const latestHash = updateInfo.latestDigestFull.replace("sha256:", "");
+        hasUpdate = !cleanRepoDigests.some((rd) => rd.replace("sha256:", "") === latestHash);
+      }
+
       await upsertContainerWithVersion(
         userId,
         null,
@@ -71,12 +86,13 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
           status: container.Status || null,
           state: container.State || null,
           stackName,
-          currentDigest: updateInfo.currentDigest || null,
+          currentDigest: updateInfo.currentDigestFull || null,
           registry: parsed.registry,
           namespace: parsed.namespace,
           repository: parsed.repository,
+          repoDigests: cleanRepoDigests.length > 0 ? cleanRepoDigests : null,
         },
-        updateInfo.hasUpdate
+        hasUpdate
           ? {
               currentTag: updateInfo.currentTag || imageTag,
               latestTag: updateInfo.latestTag || imageTag,
@@ -89,7 +105,7 @@ async function scanRunnerContainers(runner, userId, batchLogger) {
       );
 
       checked++;
-      if (updateInfo.hasUpdate) updated++;
+      if (hasUpdate) updated++;
     } catch (err) {
       batchLogger.debug("Failed to scan runner container", {
         runnerId: runner.id,
