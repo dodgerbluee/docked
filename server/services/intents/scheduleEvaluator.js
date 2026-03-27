@@ -157,7 +157,6 @@ function isIntentDue(intent) {
   const job = new Cron(intent.schedule_cron, { paused: true });
   const nextAfterLastEval = job.nextRun(lastEval);
 
-
   // A cron trigger point exists between lastEval and now — intent is due.
   // Return the trigger time so the executor can record it as the new lastEvaluatedAt.
   if (nextAfterLastEval && nextAfterLastEval <= now) {

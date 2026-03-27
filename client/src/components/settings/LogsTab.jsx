@@ -107,9 +107,7 @@ function LogsTab() {
 
         wasAtBottomRef.current = checkIfAtBottom();
 
-        const params = incremental
-          ? { offset: lastFileSizeRef.current }
-          : { lines: tailLines };
+        const params = incremental ? { offset: lastFileSizeRef.current } : { lines: tailLines };
 
         const response = await axios.get(`${API_BASE_URL}/api/logs`, {
           params,
@@ -176,12 +174,9 @@ function LogsTab() {
   }, [fetchLogs, logLines.length]);
 
   // Re-tail when the user changes tailLines (full reload with new line count)
-  const handleTailLinesChange = useCallback(
-    (e) => {
-      setTailLinesInput(e.target.value);
-    },
-    []
-  );
+  const handleTailLinesChange = useCallback((e) => {
+    setTailLinesInput(e.target.value);
+  }, []);
 
   const handleTailLinesBlur = useCallback(() => {
     const parsed = parseInt(tailLinesInput, 10);
@@ -197,14 +192,11 @@ function LogsTab() {
     }
   }, [tailLinesInput, tailLines]);
 
-  const handleTailLinesKeyDown = useCallback(
-    (e) => {
-      if (e.key === "Enter") {
-        e.target.blur();
-      }
-    },
-    []
-  );
+  const handleTailLinesKeyDown = useCallback((e) => {
+    if (e.key === "Enter") {
+      e.target.blur();
+    }
+  }, []);
 
   const toggleLogExpansion = (logIndex) => {
     setExpandedLogs((prev) => {
@@ -295,7 +287,18 @@ function LogsTab() {
             value !== null &&
             value !== undefined &&
             value !== "" &&
-            !["timestamp", "level", "message", "module", "service", "requestId", "userId", "jobId", "batchId", "stack"].includes(key)
+            ![
+              "timestamp",
+              "level",
+              "message",
+              "module",
+              "service",
+              "requestId",
+              "userId",
+              "jobId",
+              "batchId",
+              "stack",
+            ].includes(key)
           );
         });
 
@@ -323,7 +326,11 @@ function LogsTab() {
               <span className={styles.logMeta}>
                 <span className={styles.expandIcon}>
                   {hasExpandableContent ? (
-                    isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                    isExpanded ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronRight size={14} />
+                    )
                   ) : (
                     <span style={{ width: "14px", display: "inline-block" }}></span>
                   )}
@@ -352,7 +359,11 @@ function LogsTab() {
               <div className={styles.logMetadata}>
                 <div className={styles.metadataHeader}>Metadata</div>
                 <pre className={styles.logMetadataContent}>
-                  {JSON.stringify(Object.fromEntries(metaKeys.map((k) => [k, metadata[k]])), null, 2)}
+                  {JSON.stringify(
+                    Object.fromEntries(metaKeys.map((k) => [k, metadata[k]])),
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
             )}

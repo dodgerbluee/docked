@@ -136,7 +136,8 @@ function extractContainerVersionInfo(container) {
     // DB shape uses imageName; API shape uses image
     imageName: container.image || container.imageName || "Unknown",
     // DB shape uses imageTag; API shape uses currentTag/currentVersion
-    currentVersion: container.currentVersion || container.currentTag || container.imageTag || "Unknown",
+    currentVersion:
+      container.currentVersion || container.currentTag || container.imageTag || "Unknown",
     latestVersion:
       container.newVersion || container.latestTag || container.latestVersion || "Unknown",
     currentDigest: container.currentDigest || container.currentDigestFull || "N/A",
