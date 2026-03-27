@@ -45,8 +45,10 @@ function requestLogger(req, res, next) {
   // Run request handler with context
   // eslint-disable-next-line max-lines-per-function -- Request logging requires comprehensive context handling
   logger.withContext(context, () => {
-    // Skip verbose logging for frequent polling endpoints
-    const isPollingEndpoint = req.path === "/api/batch/runs/latest" && req.method === "GET";
+    // Skip verbose logging for frequent polling/heartbeat endpoints
+    const isPollingEndpoint =
+      (req.path === "/api/batch/runs/latest" && req.method === "GET") ||
+      (req.path === "/api/runners/heartbeat" && req.method === "POST");
 
     // Log request start (only for non-polling endpoints or in debug mode)
     if (!isPollingEndpoint) {

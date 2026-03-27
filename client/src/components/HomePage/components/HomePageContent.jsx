@@ -326,7 +326,8 @@ const HomePageContent = ({
               )}
 
               {activeTab === TAB_NAMES.SUMMARY && renderSummary()}
-              {activeTab === TAB_NAMES.APPS && (
+              {/* AppsPage is always mounted so it can report update counts for the tab badge */}
+              <div style={activeTab !== TAB_NAMES.APPS ? { display: "none" } : undefined}>
                 <AppsPage
                   onAppsUpdatesChange={setAppsWithUpdates}
                   onNavigateToRunners={() => {
@@ -346,7 +347,7 @@ const HomePageContent = ({
                     });
                   }}
                 />
-              )}
+              </div>
               {activeTab === TAB_NAMES.ANALYTICS && (
                 <AnalyticsPage sourceInstances={sourceInstances} />
               )}

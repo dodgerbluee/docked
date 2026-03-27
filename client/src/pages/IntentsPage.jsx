@@ -69,10 +69,15 @@ function IntentsPage({ containers = [], sourceInstances = [], runners = [] }) {
       }
       if (result?.success) {
         await handleModalSuccess();
+        // Sync the detail modal to show the freshly saved intent data.
+        // Without this, the detail modal keeps displaying the pre-edit snapshot.
+        if (isEditing && result.intent && detailIntent?.id === editingIntentData.id) {
+          setDetailIntent(result.intent);
+        }
       }
       return result;
     },
-    [editingIntentData, handleCreateIntent, handleUpdateIntent, handleModalSuccess]
+    [editingIntentData, handleCreateIntent, handleUpdateIntent, handleModalSuccess, detailIntent]
   );
 
   const handleViewHistory = useCallback(
