@@ -6,19 +6,23 @@ import (
 	"net/http"
 
 	apimiddleware "github.com/dockedapp/backend/internal/api/middleware"
+	"github.com/dockedapp/backend/internal/containers"
 	"github.com/dockedapp/backend/internal/domain"
 	"github.com/dockedapp/backend/internal/respond"
 )
 
 // ContainerLister is the subset of containers.Service used by this handler.
 type ContainerLister interface {
-	List(ctx context.Context, userID int64) (domain.ListResponse, error)
+	List(ctx context.Context, userID int64, opts containers.ListOptions) (domain.ListResponse, error)
 }
 
 // Containers handles GET /api/containers.
 func Containers(service ContainerLister) http.HandlerFunc {
 	return apimiddleware.WithUserID(func(w http.ResponseWriter, r *http.Request, userID int64) {
-		result, err := service.List(r.Context(), userID)
+		opts := containers.ListOptions{
+			PortainerOnly: r.URL.Query().Get("portainerOnly") == "true",
+		}
+		result, err := service.List(r.Context(), userID, opts)
 		if err != nil {
 			slog.Error("list containers", "userID", userID, "error", err)
 			respond.Error(w, http.StatusInternalServerError, "internal server error")

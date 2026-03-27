@@ -22,10 +22,17 @@ func NewService(database *sql.DB) *Service {
 	return &Service{database: database}
 }
 
+// ListOptions controls what sources are included in the response.
+type ListOptions struct {
+	// PortainerOnly skips live runner fetching. Used when the frontend is
+	// refreshing Portainer data only and will merge runner containers itself.
+	PortainerOnly bool
+}
+
 // List fetches all containers for the user — DB-backed Portainer containers
 // plus live containers from each enabled dockhand runner — and returns them
 // grouped by stack.
-func (s *Service) List(ctx context.Context, userID int64) (domain.ListResponse, error) {
+func (s *Service) List(ctx context.Context, userID int64, opts ListOptions) (domain.ListResponse, error) {
 	// Fetch DB containers (Portainer-backed).
 	rows, err := db.GetContainers(ctx, s.database, userID)
 	if err != nil {
@@ -35,6 +42,15 @@ func (s *Service) List(ctx context.Context, userID int64) (domain.ListResponse, 
 	containers := make([]domain.Container, 0, len(rows))
 	for _, row := range rows {
 		containers = append(containers, toContainer(row))
+	}
+
+	if opts.PortainerOnly {
+		return domain.ListResponse{
+			Grouped:           true,
+			Stacks:            groupByStack(containers),
+			Containers:        containers,
+			UnusedImagesCount: 0,
+		}, nil
 	}
 
 	// Fetch enabled runners and pull their containers live.
