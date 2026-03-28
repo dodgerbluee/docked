@@ -531,10 +531,10 @@ async function upgradeSingleContainer(
         // Get the latest digest/version from database (which was the target of the upgrade)
         // Use getRegistryImageVersion instead of deprecated getDockerHubImageVersion
         const versionInfo = await getRegistryImageVersion(userId, imageRepo, currentTag);
-        if (versionInfo && versionInfo.latest_digest) {
+        if (versionInfo && versionInfo.latest_digest && versionInfo.latest_version) {
           // Update upgrade history data with new version info
           upgradeHistoryData.newDigest = versionInfo.latest_digest;
-          upgradeHistoryData.newVersion = versionInfo.latest_version || null;
+          upgradeHistoryData.newVersion = versionInfo.latest_version;
           upgradeHistoryData.oldVersion = currentTag; // We don't have currentVersion in registry_image_versions
           upgradeHistoryData.registry = versionInfo.registry || "docker.io";
           upgradeHistoryData.namespace = versionInfo.namespace || null;
@@ -548,7 +548,7 @@ async function upgradeSingleContainer(
             userId,
             imageRepo,
             versionInfo.latest_digest,
-            versionInfo.latest_version || null,
+            versionInfo.latest_version,
             currentTag
           );
 
@@ -589,15 +589,6 @@ async function upgradeSingleContainer(
               });
             }
 
-            // Build repoDigests for the new deployed_images record.
-            // Include both the container digest and the registry manifest digest so that
-            // computeHasUpdate can find latestDigest in repoDigests and return false (up-to-date).
-            // This is critical for multi-arch images where the container digest (arch-specific)
-            // differs from the manifest digest stored in registry_image_versions.latest_digest.
-            const upgradeRepoDigests = Array.from(
-              new Set([newContainerDigest, versionInfo.latest_digest].filter(Boolean))
-            );
-
             const containerCacheUpdateService = require("./cache/containerCacheUpdateService");
             await containerCacheUpdateService.updateCacheAfterUpgrade(
               userId,
@@ -619,7 +610,6 @@ async function upgradeSingleContainer(
                 usesNetworkMode: false,
                 providesNetwork: false,
                 runnerId: cacheRunnerId,
-                repoDigests: upgradeRepoDigests,
               }
             );
           }
