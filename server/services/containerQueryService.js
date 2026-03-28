@@ -701,7 +701,6 @@ async function getUnusedImages(userId = null) {
             const { password } = instance;
             const apiKey = instance.api_key;
             const authType = instance.auth_type || "apikey";
-
             try {
               await portainerService.authenticatePortainer({
                 portainerUrl,

@@ -343,7 +343,9 @@ function validateImageArray(images) {
   }
 
   for (const image of images) {
-    if (!image.id || !image.portainerUrl || !image.endpointId) {
+    const isRunnerImage = image.runnerId != null;
+    const isPortainerImage = image.portainerUrl || image.sourceUrl;
+    if (!image.id || (!isRunnerImage && !isPortainerImage)) {
       return {
         error: "Each image must have id, portainerUrl, and endpointId",
         invalidImage: image,
