@@ -37,9 +37,7 @@ export const useSummaryStats = ({
   const unusedImagesByKey = useMemo(() => {
     return unusedImages.reduce((acc, img) => {
       const key =
-        img.runnerId != null
-          ? `runner:${img.runnerId}`
-          : img.sourceUrl || img.portainerUrl || "Unknown";
+        img.runnerId != null ? `runner:${img.runnerId}` : img.sourceUrl || img.portainerUrl || "Unknown";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});

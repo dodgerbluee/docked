@@ -98,9 +98,7 @@ async function deleteImages(req, res, next) {
           }
           logger.info(`Deleting image ${shortId} from runner ${runner.name || runner.url}`);
           await runnerDockerService.deleteImage(runner.url, null, id, true, runner.api_key);
-          logger.info(
-            `Successfully deleted image ${shortId} from runner ${runner.name || runner.url}`
-          );
+          logger.info(`Successfully deleted image ${shortId} from runner ${runner.name || runner.url}`);
           return { id, success: true };
         }
 

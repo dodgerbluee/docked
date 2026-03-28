@@ -134,7 +134,9 @@ const UnusedTab = React.memo(function UnusedTab({
                 >
                   <div className={styles.cardHeader}>
                     <div className={styles.headerLeft}>
-                      <h3 title={getDisplayName(image)}>{getDisplayName(image)}</h3>
+                      <h3 title={getDisplayName(image)}>
+                        {getDisplayName(image)}
+                      </h3>
                     </div>
                     <label className={styles.checkbox} onClick={(e) => e.stopPropagation()}>
                       <input
