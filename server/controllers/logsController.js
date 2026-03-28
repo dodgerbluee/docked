@@ -94,15 +94,9 @@ function getLogsHandler(req, res, _next) {
   try {
     const lines = parseInt(req.query.lines, 10) || 500;
     const offset = req.query.offset !== undefined ? parseInt(req.query.offset, 10) : null;
-    const logFile = req.query.file || "combined.log";
-
-    // Security: validate log file path to prevent path traversal
-    const resolvedLogsDir = path.resolve(logsDir);
-    const logFilePath = path.resolve(logsDir, logFile);
-    if (!logFilePath.startsWith(resolvedLogsDir + path.sep) && logFilePath !== resolvedLogsDir) {
-      logger.warn(`[logs] Path traversal attempt blocked: ${logFile}`);
-      return res.status(400).json({ success: false, error: "Invalid log file path" });
-    }
+    // Sanitize: path.basename strips all directory components, preventing path traversal
+    const logFile = path.basename(req.query.file || "combined.log");
+    const logFilePath = path.join(logsDir, logFile);
 
     if (!fs.existsSync(logsDir)) {
       return res.json({
