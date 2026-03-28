@@ -5,8 +5,10 @@
 
 const containerService = require("../services/containerService");
 const portainerService = require("../services/portainerService");
+const runnerDockerService = require("../services/runnerDockerService");
 const { validateImageArray } = require("../utils/validation");
 const { getAllSourceInstances } = require("../db/index");
+const { getAllRunners } = require("../db/runners");
 const logger = require("../utils/logger");
 
 /**
@@ -59,11 +61,12 @@ async function deleteImages(req, res, next) {
     const results = [];
     const errors = [];
 
-    // Deduplicate images by id+portainerUrl+endpointId
+    // Deduplicate images by id+source+endpointId
     const uniqueImages = [];
     const seenKeys = new Set();
     for (const image of images) {
-      const key = `${image.id}-${image.portainerUrl}-${image.endpointId}`;
+      const source = image.runnerId ?? image.portainerUrl ?? image.sourceUrl;
+      const key = `${image.id}-${source}-${image.endpointId}`;
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         uniqueImages.push(image);
@@ -74,36 +77,57 @@ async function deleteImages(req, res, next) {
       `Received ${images.length} images, deduplicated to ${uniqueImages.length} unique images`
     );
 
-    // Get user's instances once to avoid repeated DB queries
-    const instances = await getAllSourceInstances(userId);
+    // Get user's instances and runners once to avoid repeated DB queries
+    const [instances, runners] = await Promise.all([
+      getAllSourceInstances(userId),
+      getAllRunners(userId),
+    ]);
     const instanceMap = new Map(instances.map((inst) => [inst.url, inst]));
+    const runnerMap = new Map(runners.map((r) => [r.id, r]));
 
     // Delete images in parallel
     const deletePromises = uniqueImages.map(async (image) => {
-      const { id, portainerUrl, endpointId } = image;
+      const { id, portainerUrl, endpointId, runnerId, sourceUrl } = image;
+      const shortId = (id || "").substring(0, 12);
       try {
-        const instance = instanceMap.get(portainerUrl);
+        // Runner image: use runner API
+        if (runnerId) {
+          const runner = runnerMap.get(runnerId);
+          if (!runner) {
+            return { id, error: `Runner not found: ${runnerId}` };
+          }
+          logger.info(`Deleting image ${shortId} from runner ${runner.name || runner.url}`);
+          await runnerDockerService.deleteImage(runner.url, null, id, true, runner.api_key);
+          logger.info(
+            `Successfully deleted image ${shortId} from runner ${runner.name || runner.url}`
+          );
+          return { id, success: true };
+        }
+
+        // Portainer image: use Portainer API
+        const resolvedUrl = portainerUrl || sourceUrl;
+        const instance = instanceMap.get(resolvedUrl);
         if (!instance) {
           return {
             id,
-            error: `Portainer instance not found: ${portainerUrl}`,
+            error: `Portainer instance not found: ${resolvedUrl}`,
           };
         }
 
         await portainerService.authenticatePortainer({
-          portainerUrl,
+          portainerUrl: resolvedUrl,
           username: instance.username,
           password: instance.password,
           apiKey: instance.api_key,
           authType: instance.auth_type || "apikey",
         });
-        logger.info(`Deleting image ${id.substring(0, 12)} from ${portainerUrl}`);
+        logger.info(`Deleting image ${shortId} from ${resolvedUrl}`);
 
-        await portainerService.deleteImage(portainerUrl, endpointId, id, true);
-        logger.info(`Successfully deleted image ${id.substring(0, 12)} from ${portainerUrl}`);
+        await portainerService.deleteImage(resolvedUrl, endpointId, id, true);
+        logger.info(`Successfully deleted image ${shortId} from ${resolvedUrl}`);
         return { id, success: true };
       } catch (error) {
-        logger.error(`Failed to delete image ${id.substring(0, 12)}:`, { error });
+        logger.error(`Failed to delete image ${shortId}:`, { error });
         return { id, error: error.message };
       }
     });

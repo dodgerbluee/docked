@@ -54,6 +54,12 @@ const UnusedTab = React.memo(function UnusedTab({
 
   const totalSize = unusedImages.reduce((sum, img) => sum + (img.size || 0), 0);
 
+  const getDisplayName = (image) => {
+    const tag = image.repoTags?.[0];
+    if (tag) return tag.replace(/:<none>$/, "");
+    return "<none>";
+  };
+
   const handleDeleteClick = (image) => {
     const deleteData = onDeleteImage(image);
     if (deleteData) {
@@ -128,17 +134,7 @@ const UnusedTab = React.memo(function UnusedTab({
                 >
                   <div className={styles.cardHeader}>
                     <div className={styles.headerLeft}>
-                      <h3
-                        title={
-                          image.repoTags && image.repoTags.length > 0
-                            ? image.repoTags[0].replace(/:<none>$/, "")
-                            : "<none>"
-                        }
-                      >
-                        {image.repoTags && image.repoTags.length > 0
-                          ? image.repoTags[0].replace(/:<none>$/, "")
-                          : "<none>"}
-                      </h3>
+                      <h3 title={getDisplayName(image)}>{getDisplayName(image)}</h3>
                     </div>
                     <label className={styles.checkbox} onClick={(e) => e.stopPropagation()}>
                       <input
@@ -154,25 +150,25 @@ const UnusedTab = React.memo(function UnusedTab({
                   </div>
                   <div className={styles.cardBody}>
                     <div className={styles.portainerSection}>
-                      {image.portainerName && (
+                      {image.sourceName && (
                         <>
-                          {image.portainerUrl ? (
+                          {image.sourceUrl ? (
                             <a
-                              href={image.portainerUrl}
+                              href={image.sourceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className={styles.portainerBadge}
-                              title={`Open Portainer instance: ${image.portainerName}`}
+                              title={`Open instance: ${image.sourceName}`}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {image.portainerName}
+                              {image.sourceName}
                             </a>
                           ) : (
                             <span
                               className={styles.portainerBadge}
-                              title={`Portainer instance: ${image.portainerName}`}
+                              title={`Instance: ${image.sourceName}`}
                             >
-                              {image.portainerName}
+                              {image.sourceName}
                             </span>
                           )}
                           <span
@@ -222,7 +218,7 @@ const UnusedTab = React.memo(function UnusedTab({
         onClose={() => setDeleteConfirm(null)}
         onConfirm={handleDeleteConfirm}
         title="Delete Image?"
-        message={`Delete image ${deleteConfirm?.imageName?.replace(/:<none>$/, "") || ""}? This action cannot be undone.`}
+        message={`Delete image ${deleteConfirm?.imageName || ""}? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
