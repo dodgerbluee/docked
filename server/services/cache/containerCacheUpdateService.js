@@ -85,6 +85,9 @@ async function updateCacheAfterUpgrade(
         imageCreatedDate: containerData.imageCreatedDate,
         usesNetworkMode: containerData.usesNetworkMode || false,
         providesNetwork: containerData.providesNetwork || false,
+        // Include repoDigests so computeHasUpdate can find latestDigest in the array.
+        // Falls back to [newDigest] so the record always has at least the container's own digest.
+        repoDigests: containerData.repoDigests || [newDigest],
       },
       null, // No version data update needed
       runnerId || null
