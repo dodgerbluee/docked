@@ -80,7 +80,9 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
   const fetchUnusedImages = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/images/unused`);
-      setUnusedImages(response.data.unusedImages || []);
+      const images = response.data.unusedImages || [];
+      setUnusedImages(images);
+      setUnusedImagesCount(images.length);
     } catch (err) {
       console.error("Error fetching unused images:", err);
     }
