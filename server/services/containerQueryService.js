@@ -692,154 +692,157 @@ async function getUnusedImages(userId = null) {
     }
   }
 
-  const unusedImagesPerInstance = sourceInstances.length > 0 ? await Promise.all(
-    sourceInstances.map(async (instance) => {
-      const portainerUrl = instance.url;
-      const { username } = instance;
-      const { password } = instance;
-      const apiKey = instance.api_key;
-      const authType = instance.auth_type || "apikey";
+  const unusedImagesPerInstance =
+    sourceInstances.length > 0
+      ? await Promise.all(
+          sourceInstances.map(async (instance) => {
+            const portainerUrl = instance.url;
+            const { username } = instance;
+            const { password } = instance;
+            const apiKey = instance.api_key;
+            const authType = instance.auth_type || "apikey";
 
-      try {
-        await portainerService.authenticatePortainer({
-          portainerUrl,
-          username,
-          password,
-          apiKey,
-          authType,
-        });
-        const endpoints = await portainerService.getEndpoints(portainerUrl);
-        if (endpoints.length === 0) {
-          return [];
-        }
-
-        const endpointId = endpoints[0].Id;
-
-        // Fetch images and containers in parallel (already authenticated)
-        const [images, containers] = await Promise.all([
-          portainerService.getImages(portainerUrl, endpointId),
-          portainerService.getContainers(portainerUrl, endpointId),
-        ]);
-
-        // OPTIMIZED: Use ImageID from container list response instead of calling
-        // getContainerDetails per container. The list API already includes ImageID.
-        const usedIds = new Set();
-        const normalizeImageId = (id) => {
-          const cleanId = id.replace(/^sha256:/, "");
-          return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
-        };
-
-        for (const container of containers) {
-          if (container.ImageID) {
-            usedIds.add(container.ImageID);
-            usedIds.add(normalizeImageId(container.ImageID));
-          }
-        }
-
-        // Find unused images
-        const collectedUnusedImages = [];
-        // Images whose RepoTags are absent/invalid in the list response — need inspect.
-        // The list API often omits tags (returns null / ["<none>:<none>"]) even when the
-        // image has a real tag; inspect always returns the correct RepoTags.
-        const needsInspection = [];
-
-        for (const image of images) {
-          const imageIdNormalized = normalizeImageId(image.Id);
-          const isUsed = usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
-
-          if (!isUsed) {
-            const repoTags = image.RepoTags;
-            const hasValidRepoTags =
-              repoTags &&
-              repoTags.length > 0 &&
-              !(repoTags.length === 1 && repoTags[0] === "<none>:<none>");
-
-            if (!hasValidRepoTags) {
-              // Always inspect to get the real tags — RepoDigests will be the fallback
-              // inside the inspection handler if inspect also returns nothing useful.
-              needsInspection.push(image);
-              continue;
-            }
-
-            const instanceName = instance.name || new URL(portainerUrl).hostname;
-            collectedUnusedImages.push({
-              id: image.Id,
-              repoTags,
-              size: image.Size,
-              created: image.Created,
-              sourceUrl: portainerUrl,
-              endpointId,
-              sourceName: instanceName,
-            });
-          }
-        }
-
-        // Batch-inspect all images that need tag lookups (all in parallel)
-        if (needsInspection.length > 0) {
-          const extractRepoTagsFromDigests = (digests) =>
-            digests.map((digest) => {
-              const repoPart = digest.split("@sha256:")[0];
-              return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
-            });
-
-          const inspectionResults = await Promise.all(
-            needsInspection.map(async (image) => {
-              try {
-                const imageDetails = await portainerService.getImageDetails(
-                  portainerUrl,
-                  endpointId,
-                  image.Id
-                );
-                const hasValidDetailsTags =
-                  imageDetails.RepoTags &&
-                  imageDetails.RepoTags.length > 0 &&
-                  !(
-                    imageDetails.RepoTags.length === 1 &&
-                    imageDetails.RepoTags[0] === "<none>:<none>"
-                  );
-                const hasValidDetailsDigests =
-                  imageDetails.RepoDigests && imageDetails.RepoDigests.length > 0;
-
-                let repoTags = null;
-                if (hasValidDetailsTags) {
-                  repoTags = imageDetails.RepoTags;
-                } else if (hasValidDetailsDigests) {
-                  repoTags = extractRepoTagsFromDigests(imageDetails.RepoDigests);
-                } else if (image.RepoDigests && image.RepoDigests.length > 0) {
-                  repoTags = extractRepoTagsFromDigests(image.RepoDigests);
-                }
-                return { image, repoTags };
-              } catch (err) {
-                logger.debug(`Could not inspect image ${image.Id}: ${err.message}`);
-                const fallback =
-                  image.RepoDigests && image.RepoDigests.length > 0
-                    ? extractRepoTagsFromDigests(image.RepoDigests)
-                    : null;
-                return { image, repoTags: fallback };
+            try {
+              await portainerService.authenticatePortainer({
+                portainerUrl,
+                username,
+                password,
+                apiKey,
+                authType,
+              });
+              const endpoints = await portainerService.getEndpoints(portainerUrl);
+              if (endpoints.length === 0) {
+                return [];
               }
-            })
-          );
 
-          const instanceName = instance.name || new URL(portainerUrl).hostname;
-          for (const { image, repoTags } of inspectionResults) {
-            collectedUnusedImages.push({
-              id: image.Id,
-              repoTags: repoTags || ["<none>:<none>"],
-              size: image.Size,
-              created: image.Created,
-              sourceUrl: portainerUrl,
-              endpointId,
-              sourceName: instanceName,
-            });
-          }
-        }
-        return collectedUnusedImages;
-      } catch (error) {
-        logger.error(`Error fetching unused images from ${portainerUrl}:`, { error });
-        return [];
-      }
-    })
-  ) : [];
+              const endpointId = endpoints[0].Id;
+
+              // Fetch images and containers in parallel (already authenticated)
+              const [images, containers] = await Promise.all([
+                portainerService.getImages(portainerUrl, endpointId),
+                portainerService.getContainers(portainerUrl, endpointId),
+              ]);
+
+              // OPTIMIZED: Use ImageID from container list response instead of calling
+              // getContainerDetails per container. The list API already includes ImageID.
+              const usedIds = new Set();
+              const normalizeImageId = (id) => {
+                const cleanId = id.replace(/^sha256:/, "");
+                return cleanId.length >= 12 ? cleanId.substring(0, 12) : cleanId;
+              };
+
+              for (const container of containers) {
+                if (container.ImageID) {
+                  usedIds.add(container.ImageID);
+                  usedIds.add(normalizeImageId(container.ImageID));
+                }
+              }
+
+              // Find unused images
+              const collectedUnusedImages = [];
+              // Images whose RepoTags are absent/invalid in the list response — need inspect.
+              // The list API often omits tags (returns null / ["<none>:<none>"]) even when the
+              // image has a real tag; inspect always returns the correct RepoTags.
+              const needsInspection = [];
+
+              for (const image of images) {
+                const imageIdNormalized = normalizeImageId(image.Id);
+                const isUsed = usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
+
+                if (!isUsed) {
+                  const repoTags = image.RepoTags;
+                  const hasValidRepoTags =
+                    repoTags &&
+                    repoTags.length > 0 &&
+                    !(repoTags.length === 1 && repoTags[0] === "<none>:<none>");
+
+                  if (!hasValidRepoTags) {
+                    // Always inspect to get the real tags — RepoDigests will be the fallback
+                    // inside the inspection handler if inspect also returns nothing useful.
+                    needsInspection.push(image);
+                    continue;
+                  }
+
+                  const instanceName = instance.name || new URL(portainerUrl).hostname;
+                  collectedUnusedImages.push({
+                    id: image.Id,
+                    repoTags,
+                    size: image.Size,
+                    created: image.Created,
+                    sourceUrl: portainerUrl,
+                    endpointId,
+                    sourceName: instanceName,
+                  });
+                }
+              }
+
+              // Batch-inspect all images that need tag lookups (all in parallel)
+              if (needsInspection.length > 0) {
+                const extractRepoTagsFromDigests = (digests) =>
+                  digests.map((digest) => {
+                    const repoPart = digest.split("@sha256:")[0];
+                    return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
+                  });
+
+                const inspectionResults = await Promise.all(
+                  needsInspection.map(async (image) => {
+                    try {
+                      const imageDetails = await portainerService.getImageDetails(
+                        portainerUrl,
+                        endpointId,
+                        image.Id
+                      );
+                      const hasValidDetailsTags =
+                        imageDetails.RepoTags &&
+                        imageDetails.RepoTags.length > 0 &&
+                        !(
+                          imageDetails.RepoTags.length === 1 &&
+                          imageDetails.RepoTags[0] === "<none>:<none>"
+                        );
+                      const hasValidDetailsDigests =
+                        imageDetails.RepoDigests && imageDetails.RepoDigests.length > 0;
+
+                      let repoTags = null;
+                      if (hasValidDetailsTags) {
+                        repoTags = imageDetails.RepoTags;
+                      } else if (hasValidDetailsDigests) {
+                        repoTags = extractRepoTagsFromDigests(imageDetails.RepoDigests);
+                      } else if (image.RepoDigests && image.RepoDigests.length > 0) {
+                        repoTags = extractRepoTagsFromDigests(image.RepoDigests);
+                      }
+                      return { image, repoTags };
+                    } catch (err) {
+                      logger.debug(`Could not inspect image ${image.Id}: ${err.message}`);
+                      const fallback =
+                        image.RepoDigests && image.RepoDigests.length > 0
+                          ? extractRepoTagsFromDigests(image.RepoDigests)
+                          : null;
+                      return { image, repoTags: fallback };
+                    }
+                  })
+                );
+
+                const instanceName = instance.name || new URL(portainerUrl).hostname;
+                for (const { image, repoTags } of inspectionResults) {
+                  collectedUnusedImages.push({
+                    id: image.Id,
+                    repoTags: repoTags || ["<none>:<none>"],
+                    size: image.Size,
+                    created: image.Created,
+                    sourceUrl: portainerUrl,
+                    endpointId,
+                    sourceName: instanceName,
+                  });
+                }
+              }
+              return collectedUnusedImages;
+            } catch (error) {
+              logger.error(`Error fetching unused images from ${portainerUrl}:`, { error });
+              return [];
+            }
+          })
+        )
+      : [];
 
   const result = unusedImagesPerInstance.flat();
 
@@ -847,7 +850,9 @@ async function getUnusedImages(userId = null) {
   if (userId) {
     try {
       const runners = await getAllRunners(userId);
-      const enabledRunners = runners.filter((r) => r.enabled && r.docker_enabled && r.url && r.api_key);
+      const enabledRunners = runners.filter(
+        (r) => r.enabled && r.docker_enabled && r.url && r.api_key
+      );
 
       if (enabledRunners.length > 0) {
         const normalizeId = (id) => {
