@@ -57,6 +57,7 @@ const {
   getRegistryImageVersion,
   upsertRegistryImageVersion,
 } = require("../db/registryImageVersions");
+const { getDatabase } = require("../db/connection");
 const { parseImageName } = require("../utils/imageRepoParser");
 const { computeHasUpdate } = require("../utils/containerUpdateHelpers");
 const { asyncHandler } = require("../middleware/errorHandler");
@@ -94,6 +95,39 @@ async function checkRunnerImageRegistry(userId, container, imageRepo, tag) {
 }
 
 /**
+ * Fetch stored repo_digests from deployed_images for a container.
+ * Used as a fallback when the live runner doesn't return repoDigests.
+ * @returns {string[]|null} parsed repo_digests array or null
+ */
+async function getStoredRepoDigests(userId, containerId) {
+  const db = getDatabase();
+  return new Promise((resolve) => {
+    db.get(
+      `SELECT di.repo_digests
+       FROM containers c
+       JOIN deployed_images di ON c.deployed_image_id = di.id
+       WHERE c.container_id = ? AND c.user_id = ?
+       LIMIT 1`,
+      [containerId, userId],
+      (err, row) => {
+        if (err || !row || !row.repo_digests) {
+          resolve(null);
+          return;
+        }
+        try {
+          resolve(JSON.parse(row.repo_digests));
+        } catch (parseErr) {
+          logger.debug("getStoredRepoDigests: failed to parse repo_digests", {
+            error: parseErr.message,
+          });
+          resolve(null);
+        }
+      }
+    );
+  });
+}
+
+/**
  * Enrich a runner container with registry update info.
  * - forceRefresh=false (default): use cached registry_image_versions; if missing, trigger
  *   a background check so the next page load has data.
@@ -104,11 +138,21 @@ async function enrichRunnerContainer(userId, container, forceRefresh = false) {
   try {
     const { imageRepo, tag } = parseImageName(container.image);
 
+    // Fetch stored repo_digests as fallback when the live runner provides none.
+    // After a batch scan, deployed_images.repo_digests holds manifest-list digests
+    // which are required for accurate multi-arch update detection.
+    const liveRepoDigests = container.repoDigests;
+    const repoDigests =
+      liveRepoDigests && liveRepoDigests.length > 0
+        ? liveRepoDigests
+        : (await getStoredRepoDigests(userId, container.id)) || liveRepoDigests;
+
     if (!forceRefresh) {
       const cached = await getRegistryImageVersion(userId, imageRepo, tag);
       if (cached && cached.latest_digest) {
         const enriched = {
           ...container,
+          repoDigests,
           latestDigest: cached.latest_digest,
           latestVersion: cached.latest_version || null,
           latestPublishDate: cached.latest_publish_date || null,
@@ -135,6 +179,7 @@ async function enrichRunnerContainer(userId, container, forceRefresh = false) {
       const fullDigest = result.latestDigestFull || result.latestDigest;
       const enriched = {
         ...container,
+        repoDigests,
         latestDigest: fullDigest,
         latestVersion: result.latestVersion || null,
         latestPublishDate: result.latestPublishDate || null,

@@ -139,9 +139,10 @@ async function runDbQuery(req, res) {
       sql = namedSql;
       queryLabel = queryKey;
     } else {
-      return res
-        .status(400)
-        .json({ error: "Either sql or query is required", available: Object.keys(DB_QUERY_CATALOG) });
+      return res.status(400).json({
+        error: "Either sql or query is required",
+        available: Object.keys(DB_QUERY_CATALOG),
+      });
     }
 
     const params = Array.isArray(rawParams) ? rawParams : [];

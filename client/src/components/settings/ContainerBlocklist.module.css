@@ -182,6 +182,20 @@ body.dark-mode .stackBadge {
   font-style: italic;
 }
 
+.selfManagedBadge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  font-weight: 500;
+}
+
+body.dark-mode .selfManagedBadge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
 .transferButtons {
   display: flex;
   flex-direction: column;

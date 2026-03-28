@@ -24,3 +24,16 @@ ignore:
           when eslint migrates to ajv 8.
         expires: 2026-08-20T00:00:00.000Z
         created: 2026-02-20T00:00:00.000Z
+  SNYK-JS-BRACEEXPANSION-15789759:
+    - "*":
+        reason: >-
+          brace-expansion@1.x Infinite loop via zero-step sequence: introduced
+          by swagger-jsdoc > glob@7 > minimatch@3 > brace-expansion@1.1.13.
+          Snyk considers all 1.x versions vulnerable (fix requires 5.0.5+), but
+          minimatch@3 requires brace-expansion@^1.x (API-incompatible with 5.x
+          major). swagger-jsdoc uses glob only to find JSDoc source files at
+          build time with hardcoded patterns — untrusted user input never
+          reaches this code path. Will re-evaluate when swagger-jsdoc migrates
+          to glob@10+.
+        expires: 2026-08-20T00:00:00.000Z
+        created: 2026-03-27T00:00:00.000Z

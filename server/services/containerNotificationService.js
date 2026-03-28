@@ -133,8 +133,11 @@ async function buildPreviousContainersMap(previousContainers, userId) {
  */
 function extractContainerVersionInfo(container) {
   return {
-    imageName: container.image || "Unknown",
-    currentVersion: container.currentVersion || container.currentTag || "Unknown",
+    // DB shape uses imageName; API shape uses image
+    imageName: container.image || container.imageName || "Unknown",
+    // DB shape uses imageTag; API shape uses currentTag/currentVersion
+    currentVersion:
+      container.currentVersion || container.currentTag || container.imageTag || "Unknown",
     latestVersion:
       container.newVersion || container.latestTag || container.latestVersion || "Unknown",
     currentDigest: container.currentDigest || container.currentDigestFull || "N/A",
@@ -191,7 +194,8 @@ async function queueContainerNotification(discord, container, versionInfo, userI
 
   await discord.queueNotification({
     id: container.id,
-    name: container.name,
+    // DB shape uses containerName; API shape uses name
+    name: container.name || container.containerName,
     imageName,
     githubRepo: null,
     sourceType: "docker",

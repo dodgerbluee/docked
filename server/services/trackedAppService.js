@@ -216,6 +216,15 @@ async function checkTrackedApp(trackedApp, batchLogger = null) {
   // Handle Docker Hub images - use new Docker Hub API v2 tags flow
   const imageName = trackedApp.image_name;
 
+  // Guard: if image_name is missing (e.g. source_type column absent on older DBs causing
+  // a GitHub repo to fall through to the docker branch), bail out gracefully.
+  if (!imageName) {
+    return {
+      hasUpdate: false,
+      error: "No image name found — app may be a GitHub/GitLab repo missing source_type column",
+    };
+  }
+
   // Extract image name and tag
   const imageParts = imageName.includes(":") ? imageName.split(":") : [imageName, "latest"];
   const repo = imageParts[0];

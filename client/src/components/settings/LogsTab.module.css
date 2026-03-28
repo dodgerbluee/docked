@@ -34,6 +34,43 @@
   align-items: center;
 }
 
+.tailLinesControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tailLinesLabel {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tailLinesInput {
+  width: 60px;
+  padding: 4px 6px;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.tailLinesInput::-webkit-outer-spin-button,
+.tailLinesInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tailLinesInput:focus {
+  outline: 2px solid var(--dodger-blue);
+  outline-offset: 1px;
+  border-color: var(--dodger-blue);
+}
+
 /* Level filter buttons - color coded (in header row) */
 .levelFilters {
   display: flex;
@@ -386,11 +423,16 @@ body.dark-mode .logDebug {
   .actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .actions button {
     min-width: unset;
     font-size: 0.8rem;
+  }
+
+  .tailLinesInput {
+    width: 52px;
   }
 
   .content {
