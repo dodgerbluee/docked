@@ -1,6 +1,6 @@
 {
   "name": "docked-server",
-  "version": "3.0.3-dev",
+  "version": "3.1.0-dev",
   "description": "Backend server for Docked",
   "main": "server.js",
   "scripts": {
@@ -45,20 +45,32 @@
     "lodash": "^4.17.23",
     "flatted": "^3.4.2",
     "qs": "^6.14.2",
+    "path-to-regexp": "^8.4.0",
+    "picomatch": "^4.0.4",
+    "minimatch@3": {
+      "brace-expansion": "^1.1.13"
+    },
     "glob@7": {
-      "minimatch": "^3.1.3"
+      "minimatch": "^3.1.3",
+      "brace-expansion": "^1.1.13"
     },
     "glob@10": {
       "minimatch": "^9.0.7"
     },
+    "minimatch@9": {
+      "brace-expansion": "^2.0.3"
+    },
+    "minimatch@10": {
+      "brace-expansion": "^5.0.5"
+    },
     "tinyglobby": {
-      "picomatch": "^4.0.3",
+      "picomatch": "^4.0.4",
       "fdir": {
-        "picomatch": "^4.0.3"
+        "picomatch": "^4.0.4"
       }
     },
     "fdir": {
-      "picomatch": "^4.0.3"
+      "picomatch": "^4.0.4"
     }
   }
 }

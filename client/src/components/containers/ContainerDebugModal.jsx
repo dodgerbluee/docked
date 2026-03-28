@@ -416,9 +416,7 @@ function ContainerDebugModal({
                         const normalizedLatest = norm(latestDigest);
                         if (repoDigests.length > 0) {
                           // Primary: check if latest is absent from stored RepoDigests
-                          digestMismatch = !repoDigests.some(
-                            (rd) => norm(rd) === normalizedLatest
-                          );
+                          digestMismatch = !repoDigests.some((rd) => norm(rd) === normalizedLatest);
                         } else if (debugInfo.deployedImage?.image_digest) {
                           // Fallback: direct comparison against stored image_digest
                           digestMismatch =

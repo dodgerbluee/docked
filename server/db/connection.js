@@ -416,6 +416,19 @@ async function initializeDatabase() {
                     }
                   }
                 );
+                // Add source_type column if it doesn't exist (migration for existing databases)
+                db.run(
+                  "ALTER TABLE tracked_apps ADD COLUMN source_type TEXT DEFAULT 'docker'",
+                  (alterErr) => {
+                    // Ignore error if column already exists
+                    if (alterErr && !alterErr.message.includes("duplicate column")) {
+                      logger.debug(
+                        "Source type column may already exist or migration not needed:",
+                        alterErr.message
+                      );
+                    }
+                  }
+                );
                 // Create indexes
                 db.run(
                   "CREATE INDEX IF NOT EXISTS idx_tracked_apps_user_id ON tracked_apps(user_id)",

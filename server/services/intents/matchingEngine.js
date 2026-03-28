@@ -316,8 +316,13 @@ async function findMatchingContainers(intent, userId, requireUpdate = true, opti
     );
     const runnerContainers = enrichedRunnerContainers.map(mapRunnerContainerForMatching);
 
+    // Exclude runner-backed containers from dbContainers — they appear in both the DB
+    // (persisted during scans with runner_id set) and in the live runner fetch above.
+    // Using live data avoids duplicates and ensures up-to-date container state.
+    const portainerContainers = dbContainers.filter((c) => !c.runnerId);
+
     // Combine all containers
-    const allContainers = [...dbContainers, ...runnerContainers];
+    const allContainers = [...portainerContainers, ...runnerContainers];
 
     const sourceInstanceUrlMap = new Map();
     for (const inst of sourceInstances) {
@@ -371,7 +376,7 @@ async function findMatchingContainers(intent, userId, requireUpdate = true, opti
       intentId: intent.id,
       intentName: intent.name,
       totalContainers: allContainers.length,
-      dbContainers: dbContainers.length,
+      portainerContainers: portainerContainers.length,
       runnerContainers: runnerContainers.length,
       containersWithUpdates: allContainers.filter((c) => c.hasUpdate).length,
       matchedContainers: matched.length,

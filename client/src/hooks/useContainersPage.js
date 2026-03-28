@@ -1,10 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
-import {
-  PORTAINER_CONTAINER_MESSAGE,
-  BLOCKLISTED_CONTAINER_MESSAGE,
-} from "../constants/containersPage";
+import { BLOCKLISTED_CONTAINER_MESSAGE } from "../constants/containersPage";
 import { formatBytes as formatBytesUtil } from "../utils/formatters";
 import { useContainersTabs } from "./useContainersPage/hooks/useContainersTabs";
 import { useSourceInstanceSelection } from "./useContainersPage/hooks/useSourceInstanceSelection";
@@ -178,14 +175,11 @@ export function useContainersPage({
       });
   }, []);
 
-  // Check if container is Portainer OR on the upgrade blocklist
+  // Check if a container is on the upgrade blocklist
   const isPortainerContainer = useCallback(
     (container) => {
       const imageName = container.image?.toLowerCase() || "";
       const containerName = container.name?.toLowerCase() || "";
-      if (imageName.includes("portainer") || containerName.includes("portainer")) {
-        return true;
-      }
       if (blockedNames.has(containerName)) {
         return true;
       }
@@ -203,9 +197,6 @@ export function useContainersPage({
     (container) => {
       const imageName = container.image?.toLowerCase() || "";
       const containerName = container.name?.toLowerCase() || "";
-      if (imageName.includes("portainer") || containerName.includes("portainer")) {
-        return PORTAINER_CONTAINER_MESSAGE;
-      }
       if (blockedNames.has(containerName)) {
         return BLOCKLISTED_CONTAINER_MESSAGE;
       }

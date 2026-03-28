@@ -523,7 +523,7 @@ async function checkTrackedAppsUpdates(req, res, next) {
       });
     }
     const images = await getAllTrackedApps(userId);
-    const results = await trackedAppService.checkAllTrackedImages(images);
+    const results = await trackedAppService.checkAllTrackedApps(images);
 
     res.json({
       success: true,
