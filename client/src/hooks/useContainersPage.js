@@ -147,8 +147,19 @@ export function useContainersPage({
 
   // Filter unused images for selected source instances
   const sourceUnusedImages = useMemo(() => {
+    // Portainer instances use their HTTP URL as key; runner instances use "runner:<id>"
     const selectedUrls = new Set(instancesToShow.map((inst) => inst?.url).filter(Boolean));
-    return unusedImages.filter((img) => selectedUrls.has(img.sourceUrl));
+    const selectedRunnerIds = new Set(
+      instancesToShow
+        .filter((inst) => inst?.isRunner && inst.runnerId != null)
+        .map((inst) => inst.runnerId)
+    );
+    return unusedImages.filter((img) => {
+      if (img.runnerId != null) {
+        return selectedRunnerIds.has(img.runnerId);
+      }
+      return selectedUrls.has(img.sourceUrl);
+    });
   }, [instancesToShow, unusedImages]);
 
   // Fetch the upgrade blocklist so we can grey-out blocked containers

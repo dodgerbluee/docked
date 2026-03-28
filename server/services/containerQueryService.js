@@ -15,6 +15,8 @@ const containerProcessingService = require("./containerProcessingService");
 const containerDataService = require("./containerDataService");
 const containerQueryOrchestrationService = require("./containerQueryOrchestrationService");
 const { getAllSourceInstances, getAllTrackedApps } = require("../db/index");
+const { getAllRunners } = require("../db/runners");
+const runnerDockerService = require("./runnerDockerService");
 const logger = require("../utils/logger");
 
 /**
@@ -671,7 +673,7 @@ async function getContainersFromPortainer(userId = null) {
 }
 
 /**
- * Get unused images from all Portainer instances
+ * Get unused images from all Portainer instances and runners
  * @returns {Promise<Array>} - Array of unused images
  */
 // eslint-disable-next-line max-lines-per-function, complexity -- Unused image detection requires comprehensive analysis
@@ -690,11 +692,7 @@ async function getUnusedImages(userId = null) {
     }
   }
 
-  if (sourceInstances.length === 0) {
-    return [];
-  }
-
-  const unusedImagesPerInstance = await Promise.all(
+  const unusedImagesPerInstance = sourceInstances.length > 0 ? await Promise.all(
     sourceInstances.map(async (instance) => {
       const portainerUrl = instance.url;
       const { username } = instance;
@@ -740,7 +738,9 @@ async function getUnusedImages(userId = null) {
 
         // Find unused images
         const collectedUnusedImages = [];
-        // Collect images needing inspection separately so we can batch the API calls
+        // Images whose RepoTags are absent/invalid in the list response — need inspect.
+        // The list API often omits tags (returns null / ["<none>:<none>"]) even when the
+        // image has a real tag; inspect always returns the correct RepoTags.
         const needsInspection = [];
 
         for (const image of images) {
@@ -748,34 +748,17 @@ async function getUnusedImages(userId = null) {
           const isUsed = usedIds.has(image.Id) || usedIds.has(imageIdNormalized);
 
           if (!isUsed) {
-            let repoTags = image.RepoTags;
-
-            // If RepoTags is null or empty, try to get from RepoDigests
+            const repoTags = image.RepoTags;
             const hasValidRepoTags =
               repoTags &&
               repoTags.length > 0 &&
               !(repoTags.length === 1 && repoTags[0] === "<none>:<none>");
 
             if (!hasValidRepoTags) {
-              const extractRepoTagsFromDigests = (digests) =>
-                digests.map((digest) => {
-                  const repoPart = digest.split("@sha256:")[0];
-                  return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
-                });
-
-              const hasRepoDigests = image.RepoDigests && image.RepoDigests.length > 0;
-              if (hasRepoDigests) {
-                repoTags = extractRepoTagsFromDigests(image.RepoDigests);
-              } else {
-                // Queue for batch inspection instead of inspecting inline
-                needsInspection.push(image);
-                continue; // Will be processed after batch inspection
-              }
-            }
-
-            // Fallback to default if still no tags
-            if (!repoTags || repoTags.length === 0) {
-              repoTags = ["<none>:<none>"];
+              // Always inspect to get the real tags — RepoDigests will be the fallback
+              // inside the inspection handler if inspect also returns nothing useful.
+              needsInspection.push(image);
+              continue;
             }
 
             const instanceName = instance.name || new URL(portainerUrl).hostname;
@@ -791,9 +774,8 @@ async function getUnusedImages(userId = null) {
           }
         }
 
-        // Batch-inspect images that need repo tag lookups (max 10 to avoid hammering the API)
-        const imagesToInspect = needsInspection.slice(0, 10);
-        if (imagesToInspect.length > 0) {
+        // Batch-inspect all images that need tag lookups (all in parallel)
+        if (needsInspection.length > 0) {
           const extractRepoTagsFromDigests = (digests) =>
             digests.map((digest) => {
               const repoPart = digest.split("@sha256:")[0];
@@ -801,7 +783,7 @@ async function getUnusedImages(userId = null) {
             });
 
           const inspectionResults = await Promise.all(
-            imagesToInspect.map(async (image) => {
+            needsInspection.map(async (image) => {
               try {
                 const imageDetails = await portainerService.getImageDetails(
                   portainerUrl,
@@ -809,7 +791,12 @@ async function getUnusedImages(userId = null) {
                   image.Id
                 );
                 const hasValidDetailsTags =
-                  imageDetails.RepoTags && imageDetails.RepoTags.length > 0;
+                  imageDetails.RepoTags &&
+                  imageDetails.RepoTags.length > 0 &&
+                  !(
+                    imageDetails.RepoTags.length === 1 &&
+                    imageDetails.RepoTags[0] === "<none>:<none>"
+                  );
                 const hasValidDetailsDigests =
                   imageDetails.RepoDigests && imageDetails.RepoDigests.length > 0;
 
@@ -818,11 +805,17 @@ async function getUnusedImages(userId = null) {
                   repoTags = imageDetails.RepoTags;
                 } else if (hasValidDetailsDigests) {
                   repoTags = extractRepoTagsFromDigests(imageDetails.RepoDigests);
+                } else if (image.RepoDigests && image.RepoDigests.length > 0) {
+                  repoTags = extractRepoTagsFromDigests(image.RepoDigests);
                 }
                 return { image, repoTags };
               } catch (err) {
                 logger.debug(`Could not inspect image ${image.Id}: ${err.message}`);
-                return { image, repoTags: null };
+                const fallback =
+                  image.RepoDigests && image.RepoDigests.length > 0
+                    ? extractRepoTagsFromDigests(image.RepoDigests)
+                    : null;
+                return { image, repoTags: fallback };
               }
             })
           );
@@ -839,20 +832,6 @@ async function getUnusedImages(userId = null) {
               sourceName: instanceName,
             });
           }
-
-          // Also add any images beyond the inspect limit without inspection
-          for (let i = 10; i < needsInspection.length; i++) {
-            const image = needsInspection[i];
-            collectedUnusedImages.push({
-              id: image.Id,
-              repoTags: ["<none>:<none>"],
-              size: image.Size,
-              created: image.Created,
-              sourceUrl: portainerUrl,
-              endpointId,
-              sourceName: instanceName,
-            });
-          }
         }
         return collectedUnusedImages;
       } catch (error) {
@@ -860,9 +839,97 @@ async function getUnusedImages(userId = null) {
         return [];
       }
     })
-  );
+  ) : [];
 
-  return unusedImagesPerInstance.flat();
+  const result = unusedImagesPerInstance.flat();
+
+  // Also fetch unused images from runner Docker hosts
+  if (userId) {
+    try {
+      const runners = await getAllRunners(userId);
+      const enabledRunners = runners.filter((r) => r.enabled && r.docker_enabled && r.url && r.api_key);
+
+      if (enabledRunners.length > 0) {
+        const normalizeId = (id) => {
+          const clean = (id || "").replace(/^sha256:/, "");
+          return clean.length >= 12 ? clean.substring(0, 12) : clean;
+        };
+
+        const runnerUnused = await Promise.all(
+          enabledRunners.map(async (runner) => {
+            try {
+              const [images, containers] = await Promise.all([
+                runnerDockerService.getImages(runner.url, null, runner.api_key),
+                runnerDockerService.getContainers(runner.url, null, runner.api_key),
+              ]);
+
+              const usedIds = new Set();
+              for (const c of containers) {
+                // Runner containers use camelCase imageId; normalisation adds both forms
+                const imgId = c.ImageID || c.imageId;
+                if (imgId) {
+                  usedIds.add(imgId);
+                  usedIds.add(normalizeId(imgId));
+                }
+              }
+
+              const extractRunnerRepoTags = (digests) =>
+                digests.map((d) => {
+                  const repoPart = d.split("@sha256:")[0];
+                  return repoPart ? `${repoPart}:<none>` : "<none>:<none>";
+                });
+
+              const unused = [];
+              for (const img of images) {
+                const imgId = img.id || img.Id;
+                if (!imgId) continue;
+                if (!usedIds.has(imgId) && !usedIds.has(normalizeId(imgId))) {
+                  const repoTags = img.repoTags || img.RepoTags;
+                  const repoDigests = img.repoDigests || img.RepoDigests;
+                  const hasValidTags =
+                    repoTags &&
+                    repoTags.length > 0 &&
+                    !(repoTags.length === 1 && repoTags[0] === "<none>:<none>");
+                  const hasValidDigests = repoDigests && repoDigests.length > 0;
+                  let resolvedTags;
+                  if (hasValidTags) {
+                    resolvedTags = repoTags;
+                  } else if (hasValidDigests) {
+                    resolvedTags = extractRunnerRepoTags(repoDigests);
+                  } else {
+                    resolvedTags = ["<none>:<none>"];
+                  }
+                  unused.push({
+                    id: imgId,
+                    repoTags: resolvedTags,
+                    size: img.size || img.Size || 0,
+                    created: img.created || img.Created || 0,
+                    sourceUrl: runner.url,
+                    endpointId: null,
+                    sourceName: runner.name || runner.url,
+                    runnerId: runner.id,
+                  });
+                }
+              }
+              return unused;
+            } catch (err) {
+              logger.error(
+                `Error fetching unused images from runner ${runner.name || runner.url}:`,
+                { error: err }
+              );
+              return [];
+            }
+          })
+        );
+
+        result.push(...runnerUnused.flat());
+      }
+    } catch (err) {
+      logger.error("Error fetching runner unused images:", { error: err });
+    }
+  }
+
+  return result;
 }
 
 module.exports = {

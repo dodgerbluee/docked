@@ -28,10 +28,9 @@ export const useImageDeletion = ({
   // Delete single image
   // Returns image data for confirmation dialog
   const handleDeleteImage = useCallback((image) => {
-    return {
-      image,
-      imageName: image.repoTags?.[0] || image.id,
-    };
+    const firstTag = image.repoTags?.[0];
+    const imageName = firstTag ? firstTag.replace(/:<none>$/, "") : "<none>";
+    return { image, imageName };
   }, []);
 
   // Execute delete after confirmation
@@ -44,7 +43,9 @@ export const useImageDeletion = ({
             {
               id: image.id,
               portainerUrl: image.portainerUrl,
+              sourceUrl: image.sourceUrl,
               endpointId: image.endpointId,
+              runnerId: image.runnerId,
             },
           ],
         });
@@ -103,7 +104,7 @@ export const useImageDeletion = ({
         const uniqueImages = [];
         const seenKeys = new Set();
         for (const img of imagesToDelete) {
-          const key = `${img.id}-${img.portainerUrl}-${img.endpointId}`;
+          const key = `${img.id}-${img.sourceUrl ?? img.portainerUrl}-${img.endpointId}`;
           if (!seenKeys.has(key)) {
             seenKeys.add(key);
             uniqueImages.push(img);
@@ -114,7 +115,9 @@ export const useImageDeletion = ({
           images: uniqueImages.map((img) => ({
             id: img.id,
             portainerUrl: img.portainerUrl,
+            sourceUrl: img.sourceUrl,
             endpointId: img.endpointId,
+            runnerId: img.runnerId,
           })),
         });
 

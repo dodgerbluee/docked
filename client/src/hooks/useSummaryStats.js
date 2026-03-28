@@ -33,11 +33,12 @@ export const useSummaryStats = ({
     [containers]
   );
 
-  // Calculate unused images per Portainer instance (match by URL)
-  const unusedImagesByPortainer = useMemo(() => {
+  // Calculate unused images per instance — keyed by sourceUrl for Portainer, runnerId for runners
+  const unusedImagesByKey = useMemo(() => {
     return unusedImages.reduce((acc, img) => {
-      const portainerUrl = img.portainerUrl || "Unknown";
-      acc[portainerUrl] = (acc[portainerUrl] || 0) + 1;
+      const key =
+        img.runnerId != null ? `runner:${img.runnerId}` : img.sourceUrl || img.portainerUrl || "Unknown";
+      acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
   }, [unusedImages]);
@@ -71,7 +72,7 @@ export const useSummaryStats = ({
           total: (p.containers || []).length,
           withUpdates: (p.withUpdates || []).length,
           upToDate: (p.upToDate || []).length,
-          unusedImages: unusedImagesByPortainer[p.url] || 0, // Match by URL instead of name
+          unusedImages: unusedImagesByKey[p.isRunner ? `runner:${p.runnerId}` : p.url] || 0,
         })),
     };
   }, [
@@ -84,7 +85,7 @@ export const useSummaryStats = ({
     trackedAppsUpToDate,
     trackedAppsBehind,
     trackedAppsUnknown,
-    unusedImagesByPortainer,
+    unusedImagesByKey,
   ]);
 
   return summaryStats;

@@ -116,7 +116,7 @@ async function getImages(portainerUrl, endpointId, _retryCount = 0) {
     const response = await requestWithIpFallback(async (url) => {
       const baseConfig = { headers: getAuthHeaders(url) };
       const ipConfig = getIpFallbackConfig(url, portainerUrl, baseConfig);
-      return axios.get(`${url}/api/endpoints/${endpointId}/docker/images/json?all=true`, ipConfig);
+      return axios.get(`${url}/api/endpoints/${endpointId}/docker/images/json`, ipConfig);
     }, portainerUrl);
     return response.data;
   } catch (error) {
