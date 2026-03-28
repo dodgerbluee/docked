@@ -95,24 +95,25 @@ const SourceContainerCard = React.memo(function SourceContainerCard({
   );
 
   // Render instance badge — Portainer instance link or runner name tag
-  const instanceBadge = container.portainerName ? (
+  const portainerInstanceName = container.sourceName || container.portainerName;
+  const instanceBadge = portainerInstanceName ? (
     container.portainerUrl ? (
       <a
         href={container.portainerUrl}
         target="_blank"
         rel="noopener noreferrer"
         className={styles.portainerBadge}
-        title={`Open Portainer instance: ${container.portainerName}`}
+        title={`Open Portainer instance: ${portainerInstanceName}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {container.portainerName}
+        {portainerInstanceName}
       </a>
     ) : (
       <span
         className={styles.portainerBadge}
-        title={`Portainer instance: ${container.portainerName}`}
+        title={`Portainer instance: ${portainerInstanceName}`}
       >
-        {container.portainerName}
+        {portainerInstanceName}
       </span>
     )
   ) : container.source === "runner" && container.runnerName ? (
