@@ -926,8 +926,20 @@ async function restartDependentContainers(options) {
     originalContainerId,
     stackName,
     backend,
+    isSharedNetworkMode,
   } = options;
   try {
+    // When the upgraded container itself uses shared network mode (e.g. network_mode: service:tunnel),
+    // it is deliberately in "created" state at this point — the caller starts it separately.
+    // Skip dependent-container work: this container is a network consumer, not a provider,
+    // so nothing else depends on it via network_mode.
+    if (isSharedNetworkMode) {
+      logger.debug(
+        `Skipping dependent container restart — upgraded container uses shared network mode`
+      );
+      return;
+    }
+
     logger.debug(` Checking for dependent containers...`);
     const dependentContainers = await findDependentContainersAfterUpgrade({
       portainerUrl,

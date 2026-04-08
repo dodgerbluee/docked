@@ -32,33 +32,78 @@ function matchesNetworkMode(networkMode, cleanContainerName) {
   return targetContainerRef === cleanContainerName;
 }
 
+// ── Routing helpers ──────────────────────────────────────────────────────────
+// Route through backend.service when present, otherwise fall back to portainerService.
+
+function svcGetContainers(url, endpointId, backend) {
+  if (backend?.service?.getContainers) {
+    return backend.service.getContainers(backend.url, backend.endpointId, backend.apiKey);
+  }
+  return portainerService.getContainers(url, endpointId);
+}
+
+function svcGetContainerDetails(url, endpointId, containerId, backend) {
+  if (backend?.service?.getContainerDetails) {
+    return backend.service.getContainerDetails(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
+  }
+  return portainerService.getContainerDetails(url, endpointId, containerId);
+}
+
+function svcStopContainer(url, endpointId, containerId, backend) {
+  if (backend?.service?.stopContainer) {
+    return backend.service.stopContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
+  }
+  return portainerService.stopContainer(url, endpointId, containerId);
+}
+
+function svcRemoveContainer(url, endpointId, containerId, backend) {
+  if (backend?.service?.removeContainer) {
+    return backend.service.removeContainer(
+      backend.url,
+      backend.endpointId,
+      containerId,
+      backend.apiKey
+    );
+  }
+  return portainerService.removeContainer(url, endpointId, containerId);
+}
+
 /**
  * Process a single container for dependencies
- * @param {Object} container - Container object
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {string} targetContainerId - Target container ID
- * @param {string} cleanContainerName - Clean container name
+ * @param {Object} params - Parameters object
+ * @param {Object} params.container - Container object
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} params.targetContainerId - Target container ID
+ * @param {string} params.cleanContainerName - Clean container name
+ * @param {Object} params.backend - Backend descriptor
  * @returns {Promise<Object|null>} - Dependent container info or null
  */
 // eslint-disable-next-line complexity -- Container dependency processing requires multiple conditional checks
-async function processContainerForDependency(
+async function processContainerForDependency({
   container,
   portainerUrl,
   endpointId,
   targetContainerId,
-  cleanContainerName
-) {
+  cleanContainerName,
+  backend,
+}) {
   if (container.Id === targetContainerId) {
     return null;
   }
 
   try {
-    const details = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      container.Id
-    );
+    const details = await svcGetContainerDetails(portainerUrl, endpointId, container.Id, backend);
     const networkMode = details.HostConfig?.NetworkMode || "";
 
     if (matchesNetworkMode(networkMode, cleanContainerName)) {
@@ -84,29 +129,32 @@ async function processContainerForDependency(
  * @param {string} endpointId - Endpoint ID
  * @param {string} targetContainerId - Container ID being upgraded
  * @param {string} targetContainerName - Container name being upgraded
+ * @param {Object} backend - Backend descriptor
  * @returns {Promise<Array<Object>>} - Array of dependent containers with id and name
  */
 async function findDependentContainers(
   portainerUrl,
   endpointId,
   targetContainerId,
-  targetContainerName
+  targetContainerName,
+  backend
 ) {
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 
   try {
     logger.debug(" Checking for containers that depend on this container via network_mode...");
-    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const allContainers = await svcGetContainers(portainerUrl, endpointId, backend);
     const dependentContainers = [];
 
     for (const container of allContainers) {
-      const dependent = await processContainerForDependency(
+      const dependent = await processContainerForDependency({
         container,
         portainerUrl,
         endpointId,
         targetContainerId,
-        cleanContainerName
-      );
+        cleanContainerName,
+        backend,
+      });
       if (dependent) {
         dependentContainers.push(dependent);
       }
@@ -127,9 +175,15 @@ async function findDependentContainers(
  * @param {string} portainerUrl - Portainer URL
  * @param {string} endpointId - Endpoint ID
  * @param {Array<Object>} dependentContainers - Array of dependent containers
+ * @param {Object} backend - Backend descriptor
  * @returns {Promise<void>}
  */
-async function stopAndRemoveDependentContainers(portainerUrl, endpointId, dependentContainers) {
+async function stopAndRemoveDependentContainers(
+  portainerUrl,
+  endpointId,
+  dependentContainers,
+  backend
+) {
   if (dependentContainers.length === 0) {
     return;
   }
@@ -151,14 +205,14 @@ async function stopAndRemoveDependentContainers(portainerUrl, endpointId, depend
       );
       // Stop first, then remove
       try {
-        await portainerService.stopContainer(portainerUrl, endpointId, container.id);
+        await svcStopContainer(portainerUrl, endpointId, container.id, backend);
         logger.info(`    ${container.name} stopped`);
       } catch (stopErr) {
         logger.debug(`   Container ${container.name} may already be stopped: ${stopErr.message}`);
       }
 
       // Now remove it completely
-      await portainerService.removeContainer(portainerUrl, endpointId, container.id);
+      await svcRemoveContainer(portainerUrl, endpointId, container.id, backend);
       logger.info(`    ${container.name} removed`);
     } catch (err) {
       logger.warn(`     Failed to remove ${container.name}:`, { error: err });
@@ -204,6 +258,7 @@ function isInSameStack(details, stackName) {
  * @param {string} params.newContainerId - New container ID
  * @param {string} params.cleanContainerName - Clean container name
  * @param {string} params.stackName - Stack name
+ * @param {Object} params.backend - Backend descriptor
  * @returns {Promise<Object|null>} - Container dependency info or null
  */
 // eslint-disable-next-line complexity -- Container restart processing requires complex dependency validation
@@ -214,17 +269,14 @@ async function processContainerForRestart({
   newContainerId,
   cleanContainerName,
   stackName,
+  backend,
 }) {
   if (container.Id === newContainerId) {
     return null;
   }
 
   try {
-    const details = await portainerService.getContainerDetails(
-      portainerUrl,
-      endpointId,
-      container.Id
-    );
+    const details = await svcGetContainerDetails(portainerUrl, endpointId, container.Id, backend);
     const containerStatus =
       details.State?.Status || (details.State?.Running ? "running" : "exited");
     const isRunning = containerStatus === "running";
@@ -262,25 +314,28 @@ async function processContainerForRestart({
 
 /**
  * Find containers that should be restarted after upgrade
- * @param {string} portainerUrl - Portainer URL
- * @param {string} endpointId - Endpoint ID
- * @param {string} newContainerId - New container ID
- * @param {string} targetContainerName - Container name
- * @param {string} stackName - Stack name (if part of stack)
+ * @param {Object} params - Parameters object
+ * @param {string} params.portainerUrl - Portainer URL
+ * @param {string} params.endpointId - Endpoint ID
+ * @param {string} params.newContainerId - New container ID
+ * @param {string} params.targetContainerName - Container name
+ * @param {string} params.stackName - Stack name (if part of stack)
+ * @param {Object} params.backend - Backend descriptor
  * @returns {Promise<{networkModeContainers: Array, otherContainers: Array}>} - Dependent containers grouped by type
  */
-async function findContainersToRestart(
+async function findContainersToRestart({
   portainerUrl,
   endpointId,
   newContainerId,
   targetContainerName,
-  stackName
-) {
+  stackName,
+  backend,
+}) {
   const cleanContainerName = targetContainerName.replace(/^\//, "");
 
   try {
     logger.info(` Checking for dependent containers...`);
-    const allContainers = await portainerService.getContainers(portainerUrl, endpointId);
+    const allContainers = await svcGetContainers(portainerUrl, endpointId, backend);
     const networkModeContainers = [];
     const otherContainers = [];
 
@@ -292,6 +347,7 @@ async function findContainersToRestart(
         newContainerId,
         cleanContainerName,
         stackName,
+        backend,
       });
 
       if (dependency) {
