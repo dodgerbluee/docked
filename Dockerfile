@@ -1,6 +1,6 @@
 # Multi-stage build for Docked
 # Stage 1: Build React frontend
-FROM node:25-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /app/client
 
@@ -18,7 +18,7 @@ COPY client/ ./
 RUN npm run build
 
 # Stage 2: Build backend and serve frontend
-FROM node:25-alpine
+FROM node:26-alpine
 
 # Set timezone
 RUN apk add --no-cache tzdata
