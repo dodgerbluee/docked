@@ -312,52 +312,55 @@ async function upgradeSingleContainer(
       throw error;
     }
 
-    // If using network_mode, don't start yet - wait for tunnel and start with other containers
-    let startTime; // Declare outside the if block so it's accessible later
-    if (!isSharedNetworkMode) {
-      // Start the new container
-      const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
-      logger.info("Starting new container", {
-        module: "containerService",
-        operation: "upgradeSingleContainer",
-        containerName: originalContainerName,
-        newContainerId: newContainer.Id.substring(0, 12),
-        usingUrl: startContainerUrl,
-      });
+    // Start the new container
+    const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
+    logger.info("Starting new container", {
+      module: "containerService",
+      operation: "upgradeSingleContainer",
+      containerName: originalContainerName,
+      newContainerId: newContainer.Id.substring(0, 12),
+      isSharedNetworkMode,
+      networkMode: containerDetails.HostConfig?.NetworkMode || "default",
+      usingUrl: startContainerUrl,
+    });
+    try {
       await backend.service.startContainer(
         startContainerUrl,
         effectiveEndpointId,
         newContainer.Id,
         backend.apiKey ?? userId
       );
-
-      // Wait for container to be healthy/ready (CRITICAL for databases)
-      startTime = Date.now();
-      await containerReadinessService.waitForContainerReady({
-        portainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
-        endpointId: effectiveEndpointId,
-        containerId: newContainer.Id,
-        containerName: originalContainerName,
-        imageName,
-        backend,
-      });
-    }
-
-    if (!isSharedNetworkMode) {
-      logger.info("Container upgrade completed and container is ready", {
-        module: "containerService",
-        operation: "upgradeSingleContainer",
-        containerName: originalContainerName,
-        totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
-      });
-    } else {
-      logger.info("Container created (using network_mode - will start after tunnel is ready)", {
+    } catch (startError) {
+      logger.error("Failed to start new container after creation", {
         module: "containerService",
         operation: "upgradeSingleContainer",
         containerName: originalContainerName,
         newContainerId: newContainer.Id.substring(0, 12),
+        isSharedNetworkMode,
+        networkMode: containerDetails.HostConfig?.NetworkMode || "default",
+        error: startError.message,
+        errorDetails: startError.response?.data,
       });
+      throw startError;
     }
+
+    // Wait for container to be healthy/ready (CRITICAL for databases)
+    const startTime = Date.now();
+    await containerReadinessService.waitForContainerReady({
+      portainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
+      endpointId: effectiveEndpointId,
+      containerId: newContainer.Id,
+      containerName: originalContainerName,
+      imageName,
+      backend,
+    });
+
+    logger.info("Container upgrade completed and container is ready", {
+      module: "containerService",
+      operation: "upgradeSingleContainer",
+      containerName: originalContainerName,
+      totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
+    });
 
     // Find and restart dependent containers
     // This handles containers that depend on the upgraded container via:
@@ -380,143 +383,84 @@ async function upgradeSingleContainer(
       // Don't fail the upgrade if dependent restart fails
     }
 
-    // If this container uses network_mode (service:* or container:*), restart all containers
-    // that use the same network provider (including itself). Docker requires containers sharing
-    // a network namespace to be bounced so they properly reattach to the provider's network.
+    // If this container uses network_mode (service:* or container:*), restart sibling
+    // containers that share the same network provider so they properly reattach.
     if (isSharedNetworkMode) {
-      const networkMode = containerDetails.HostConfig?.NetworkMode || "";
-      const networkContainerName = networkMode.startsWith("service:")
-        ? networkMode.replace("service:", "")
-        : networkMode.replace("container:", "");
+      try {
+        const networkMode = containerDetails.HostConfig?.NetworkMode || "";
+        const networkContainerName = networkMode.startsWith("service:")
+          ? networkMode.replace("service:", "")
+          : networkMode.replace("container:", "");
 
-      logger.info(
-        `Container uses shared network mode (${networkMode}), restarting all containers using the same network...`,
-        {
-          module: "containerService",
-          operation: "upgradeSingleContainer",
-          containerName: originalContainerName,
-          networkContainerName,
-        }
-      );
+        const allContainers = await backend.service.getContainers(
+          isNginxProxyManager ? workingPortainerUrl : backend.url,
+          effectiveEndpointId,
+          backend.apiKey
+        );
 
-      // Wait a moment for the network container to be fully ready
-      await new Promise((resolve) => {
-        setTimeout(resolve, 3000);
-      });
-
-      // Get all containers that use the same network container (including the upgraded container)
-      const allContainers = await backend.service.getContainers(
-        isNginxProxyManager ? workingPortainerUrl : backend.url,
-        effectiveEndpointId,
-        backend.apiKey
-      );
-      const containersToStart = [];
-
-      for (const container of allContainers) {
-        try {
-          const details = await backend.service.getContainerDetails(
-            backend.url,
-            effectiveEndpointId,
-            container.Id,
-            backend.apiKey
-          );
-          const containerNetworkMode = details.HostConfig?.NetworkMode || "";
-          if (!containerNetworkMode) {
+        const siblingContainers = [];
+        for (const container of allContainers) {
+          if (container.Id === newContainer.Id) {
             continue;
           }
-
-          let targetContainerName = null;
-          if (containerNetworkMode.startsWith("service:")) {
-            targetContainerName = containerNetworkMode.replace("service:", "");
-          } else if (containerNetworkMode.startsWith("container:")) {
-            targetContainerName = containerNetworkMode.replace("container:", "");
-          }
-
-          // Check if this container uses the same network container
-          if (targetContainerName !== networkContainerName) {
-            continue;
-          }
-
-          const containerStatus =
-            details.State?.Status || (details.State?.Running ? "running" : "exited");
-          // Include the new container (which is created but not started) and running containers (to restart)
-          const shouldIncludeContainer =
-            container.Id === newContainer.Id || containerStatus === "running";
-          if (shouldIncludeContainer) {
-            containersToStart.push({
-              id: container.Id,
-              name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
-              isNewContainer: container.Id === newContainer.Id,
-            });
-          }
-        } catch (err) {
-          logger.warn(`Error getting container details for ${container.Id}:`, err);
-        }
-      }
-
-      // Start all containers that use the same network (including the newly created one)
-      // Start the new container FIRST, then restart siblings
-      const newContainerEntry = containersToStart.find((c) => c.isNewContainer);
-      const siblingContainers = containersToStart.filter((c) => !c.isNewContainer);
-
-      // Start the upgraded container — this MUST succeed for the upgrade to be valid
-      if (newContainerEntry) {
-        logger.info(
-          `   Starting ${newContainerEntry.name} (newly created) to connect to network container...`
-        );
-        await backend.service.startContainer(
-          backend.url,
-          effectiveEndpointId,
-          newContainerEntry.id,
-          backend.apiKey ?? userId
-        );
-        logger.info(`    ${newContainerEntry.name} started successfully`);
-      } else {
-        // Fallback: container wasn't matched in the scan — start it directly
-        logger.info(
-          `   Starting ${cleanContainerName} (newly created) to connect to network container...`
-        );
-        await backend.service.startContainer(
-          backend.url,
-          effectiveEndpointId,
-          newContainer.Id,
-          backend.apiKey ?? userId
-        );
-        logger.info(`    ${cleanContainerName} started successfully`);
-      }
-
-      // Restart sibling containers so they properly reattach to the shared network namespace
-      if (siblingContainers.length > 0) {
-        logger.info(
-          `   Restarting ${siblingContainers.length} sibling container(s) to reconnect to network...`
-        );
-        for (const container of siblingContainers) {
           try {
-            logger.info(`   Restarting ${container.name} to reconnect to network container...`);
-            await backend.service.stopContainer(
+            const details = await backend.service.getContainerDetails(
               backend.url,
               effectiveEndpointId,
-              container.id,
-              backend.apiKey ?? userId
+              container.Id,
+              backend.apiKey
             );
-            await new Promise((resolve) => {
-              setTimeout(resolve, 1000);
-            });
-            await backend.service.startContainer(
-              backend.url,
-              effectiveEndpointId,
-              container.id,
-              backend.apiKey ?? userId
-            );
-            logger.info(`    ${container.name} restarted successfully`);
+            const containerNetworkMode = details.HostConfig?.NetworkMode || "";
+            let targetContainerName = null;
+            if (containerNetworkMode.startsWith("service:")) {
+              targetContainerName = containerNetworkMode.replace("service:", "");
+            } else if (containerNetworkMode.startsWith("container:")) {
+              targetContainerName = containerNetworkMode.replace("container:", "");
+            }
+            if (
+              targetContainerName === networkContainerName &&
+              (details.State?.Status === "running" || details.State?.Running)
+            ) {
+              siblingContainers.push({
+                id: container.Id,
+                name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
+              });
+            }
           } catch (err) {
-            logger.error(`     Failed to restart ${container.name}: ${err.message}`);
-            // Continue with other siblings — don't fail the whole upgrade
+            logger.warn(`Error getting container details for ${container.Id}:`, err);
           }
         }
-      }
 
-      logger.info(`All network-dependent containers started`);
+        if (siblingContainers.length > 0) {
+          logger.info(
+            `Restarting ${siblingContainers.length} sibling container(s) sharing network provider ${networkContainerName}...`
+          );
+          for (const container of siblingContainers) {
+            try {
+              await backend.service.stopContainer(
+                backend.url,
+                effectiveEndpointId,
+                container.id,
+                backend.apiKey ?? userId
+              );
+              await new Promise((resolve) => {
+                setTimeout(resolve, 1000);
+              });
+              await backend.service.startContainer(
+                backend.url,
+                effectiveEndpointId,
+                container.id,
+                backend.apiKey ?? userId
+              );
+              logger.info(`    ${container.name} restarted successfully`);
+            } catch (err) {
+              logger.error(`     Failed to restart ${container.name}: ${err.message}`);
+            }
+          }
+        }
+      } catch (err) {
+        logger.error("Error restarting sibling network containers:", { error: err });
+      }
     }
 
     // Invalidate cache for this image so next check gets fresh data
