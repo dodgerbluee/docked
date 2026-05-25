@@ -22,7 +22,7 @@
     "express-rate-limit": "^8.3.1",
     "express-validator": "^7.3.1",
     "findstr": "^1.0.4",
-    "helmet": "^8.1.0",
+    "helmet": "^8.2.0",
     "jose": "^6.2.2",
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.1.7",
