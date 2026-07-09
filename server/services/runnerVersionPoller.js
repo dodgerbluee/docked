@@ -12,7 +12,11 @@
  */
 
 const logger = require("../utils/logger");
-const { getAllRunnersWithKeys, updateRunnerVersion, updateRunnerOnlineStatus } = require("../db/runners");
+const {
+  getAllRunnersWithKeys,
+  updateRunnerVersion,
+  updateRunnerOnlineStatus,
+} = require("../db/runners");
 const {
   EVENT_TYPES,
   insertRunnerEvent,

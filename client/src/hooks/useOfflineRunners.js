@@ -15,9 +15,7 @@ export function useOfflineRunners(isAuthenticated) {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
       if (data.success && Array.isArray(data.runners)) {
-        const offline = data.runners.filter(
-          (r) => r.enabled && r.online_status === "offline"
-        );
+        const offline = data.runners.filter((r) => r.enabled && r.online_status === "offline");
         setOfflineRunners(offline);
       }
     } catch {
