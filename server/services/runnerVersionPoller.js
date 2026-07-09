@@ -49,7 +49,7 @@ async function pollGithubRelease() {
 
   let latestVersion;
   try {
-    const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
+    const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO, { skipCache: true });
     latestVersion = release?.tag_name ?? null;
   } catch (err) {
     logger.warn("runnerVersionPoller: failed to fetch latest release", { error: err.message });
