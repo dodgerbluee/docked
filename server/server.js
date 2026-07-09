@@ -389,6 +389,16 @@ if (shouldStartServer) {
               error: pollerError.message,
             });
           }
+
+          // Start runner health checker (detects offline runners every 5 min)
+          try {
+            const { startHealthChecker } = require("./services/runnerHealthService");
+            startHealthChecker();
+          } catch (healthError) {
+            logger.warn("Runner health checker setup skipped:", {
+              error: healthError.message,
+            });
+          }
         } catch (dbError) {
           logger.error("Database not ready, batch system will not start", {
             module: "server",

@@ -34,6 +34,7 @@ module.exports = [
         setImmediate: "readonly",
         // Browser/Web API globals
         URL: "readonly",
+        structuredClone: "readonly",
         // Jest globals
         jest: "readonly",
         describe: "readonly",

@@ -50,6 +50,7 @@ import { useEnhancedNavigation } from "./hooks/useEnhancedNavigation";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAddSourceModal } from "./hooks/useAddSourceModal";
 import { useDiscordSettings } from "./hooks/useDiscordSettings";
+import { useOfflineRunners } from "./hooks/useOfflineRunners";
 import { useContainerUpgrade } from "./hooks/useContainersPage/hooks/useContainerUpgrade";
 import HomePage from "./components/HomePage";
 import { TAB_NAMES } from "./constants/apiConstants";
@@ -154,6 +155,9 @@ function App() {
 
   // Discord webhooks - using custom hook
   const { discordWebhooks } = useDiscordSettings(isAuthenticated, authToken);
+
+  // Offline runners - polls runner status for global banner
+  const offlineRunners = useOfflineRunners(isAuthenticated);
 
   // Initialize performance monitoring and PWA
   useEffect(() => {
@@ -683,6 +687,7 @@ function App() {
               toggleStack={toggleStack}
               discordWebhooks={discordWebhooks}
               containerUpgrade={containerUpgrade}
+              offlineRunners={offlineRunners}
             />
           }
         />
