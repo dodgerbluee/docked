@@ -1,12 +1,9 @@
 import React, { memo } from "react";
 import PropTypes from "prop-types";
+import { WifiOff } from "lucide-react";
 import AvatarMenu from "./AvatarMenu";
 import styles from "./Header.module.css";
 
-/**
- * Header component for the application
- * Contains logo and user avatar menu
- */
 const Header = ({
   username,
   userRole,
@@ -22,10 +19,17 @@ const Header = ({
   onTemporaryThemeToggle,
   onLogout,
   API_BASE_URL,
+  offlineRunners = [],
 }) => {
   const handleLogoClick = () => {
     onNavigateToSummary();
   };
+
+  const offlineCount = offlineRunners.length;
+  const offlineLabel =
+    offlineCount === 1
+      ? `"${offlineRunners[0].name}" is offline`
+      : `${offlineCount} runners offline`;
 
   return (
     <header className={styles.header}>
@@ -50,6 +54,18 @@ const Header = ({
         </div>
         <div className={styles.headerActions}>
           <div className={styles.actionsContainer}>
+            {offlineCount > 0 && (
+              <button
+                className={styles.runnerAlert}
+                onClick={onNavigateToSettings}
+                title={offlineLabel}
+                aria-label={offlineLabel}
+              >
+                <span className={styles.runnerAlertDot} />
+                <WifiOff size={14} />
+                <span className={styles.runnerAlertText}>{offlineLabel}</span>
+              </button>
+            )}
             <AvatarMenu
               username={username}
               userRole={userRole}
@@ -88,6 +104,7 @@ Header.propTypes = {
   onTemporaryThemeToggle: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
   API_BASE_URL: PropTypes.string.isRequired,
+  offlineRunners: PropTypes.array,
 };
 
 export default memo(Header);

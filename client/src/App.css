@@ -2030,26 +2030,6 @@ body.dark-mode .portainer-sidebar-add:hover {
   }
 }
 
-/* Offline runner banner */
-.offline-runner-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--dodger-red);
-  color: #ffffff;
-  font-weight: 600;
-  font-size: 14px;
-  text-align: center;
-  z-index: 100;
-  width: 100%;
-}
-
-.offline-runner-banner:hover {
-  background: var(--dodger-red-light);
-}
-
 /* Screen reader only content - accessibility */
 .sr-only {
   position: absolute;
