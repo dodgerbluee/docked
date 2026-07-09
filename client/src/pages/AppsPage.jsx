@@ -688,13 +688,20 @@ export default function AppsPage({
 
     // Updates filter
     if (view === APPS_VIEWS.UPDATES) {
+      const q = search.trim().toLowerCase();
       const updateItems = appsWithUpdatesList.filter(({ app, runner }) => {
         if (selectedRunners.size > 0 && !selectedRunners.has(runner.id)) return false;
-        const q = search.trim().toLowerCase();
         return !q || app.name.toLowerCase().includes(q) || runner.name.toLowerCase().includes(q);
       });
 
-      if (updateItems.length === 0) {
+      const updateableRunners = filteredRunners.filter(
+        (r) =>
+          hasVersionUpdate(r.version, r.latest_version) &&
+          (selectedRunners.size === 0 || selectedRunners.has(r.id)) &&
+          (!q || r.name.toLowerCase().includes(q))
+      );
+
+      if (updateItems.length === 0 && updateableRunners.length === 0) {
         return (
           <div className={styles.emptyStateMessage}>
             <p className={styles.emptyStateText}>No apps with pending updates.</p>
@@ -702,7 +709,23 @@ export default function AppsPage({
         );
       }
 
-      return <div className={styles.appsContainer}>{renderGrid(updateItems)}</div>;
+      return (
+        <div className={styles.appsContainer}>
+          {updateableRunners.length > 0 && (
+            <div className={styles.updateCards}>
+              {updateableRunners.map((r) => (
+                <RunnerUpdateCard
+                  key={r.id}
+                  runner={r}
+                  onUpdate={handleUpdate}
+                  updating={updatingRunners.has(r.id)}
+                />
+              ))}
+            </div>
+          )}
+          {renderGrid(updateItems)}
+        </div>
+      );
     }
 
     if (allApps.length === 0 && search) {
