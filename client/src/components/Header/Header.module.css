@@ -237,12 +237,12 @@ body.dark-mode .logo {
   overflow: hidden;
 }
 
-:root .alertDropdown {
+:global(:root) .alertDropdown {
   background: #ffffff;
   border-color: #e0e0e0;
 }
 
-body.dark-mode .alertDropdown {
+:global(body.dark-mode) .alertDropdown {
   background: #1a1a1a;
   border-color: #404040;
 }
