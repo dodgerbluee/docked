@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - fable-fixes
 
 env:
   REGISTRY: ghcr.io

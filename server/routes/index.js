@@ -210,7 +210,10 @@ function appendRunnerContainers(req, res, next) {
     res.json = originalJson;
 
     if (!Array.isArray(data?.containers) || !req.user?.id) {
-      logger.debug(`appendRunnerContainers: skipping — containers array: ${Array.isArray(data?.containers)}, userId: ${req.user?.id}`, { module: "routes" });
+      logger.debug(
+        `appendRunnerContainers: skipping — containers array: ${Array.isArray(data?.containers)}, userId: ${req.user?.id}`,
+        { module: "routes" }
+      );
       return originalJson(data);
     }
 
@@ -222,11 +225,17 @@ function appendRunnerContainers(req, res, next) {
     const userId = req.user.id;
     getAllRunners(userId)
       .then((runners) => {
-        logger.debug(`appendRunnerContainers: found ${runners.length} runners for user ${userId}, enabled: ${runners.filter((r) => r.enabled).length}`, { module: "routes" });
+        logger.debug(
+          `appendRunnerContainers: found ${runners.length} runners for user ${userId}, enabled: ${runners.filter((r) => r.enabled).length}`,
+          { module: "routes" }
+        );
         return getContainersFromRunners(runners, { bypassCache: req.method === "POST" });
       })
       .then(async (runnerContainers) => {
-        logger.debug(`appendRunnerContainers: got ${runnerContainers.length} runner containers, base containers: ${data.containers.length}`, { module: "routes" });
+        logger.debug(
+          `appendRunnerContainers: got ${runnerContainers.length} runner containers, base containers: ${data.containers.length}`,
+          { module: "routes" }
+        );
         if (runnerContainers.length > 0) {
           // Two-pass: detect which containers are network providers before enriching.
           // A container "provides network" if another container has networkMode = "container:<id|name>"
@@ -254,7 +263,10 @@ function appendRunnerContainers(req, res, next) {
             runnerContainers.map((c) => enrichRunnerContainer(userId, c, isForceRefresh))
           );
           data = { ...data, containers: [...data.containers, ...enriched] };
-          logger.debug(`appendRunnerContainers: final container count: ${data.containers.length} (${enriched.length} from runners)`, { module: "routes" });
+          logger.debug(
+            `appendRunnerContainers: final container count: ${data.containers.length} (${enriched.length} from runners)`,
+            { module: "routes" }
+          );
         }
         originalJson(data);
       })

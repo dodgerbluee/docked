@@ -1299,6 +1299,86 @@ async function getWebhookInfo(webhookUrl) {
   }
 }
 
+/**
+ * Format a runner status change notification (offline or back online).
+ * @param {Object} data
+ * @param {string} data.runnerName - Runner name
+ * @param {string} data.status - 'offline' or 'online'
+ * @param {string} [data.lastSeen] - ISO-8601 timestamp of last contact
+ * @returns {Object} - Discord embed payload
+ */
+function formatRunnerStatusNotification({ runnerName, status, lastSeen }) {
+  const isOffline = status === "offline";
+  const color = isOffline ? 15158332 : 3066993; // red : green
+  const emoji = isOffline ? "\u{1F534}" : "\u{1F7E2}";
+  const title = isOffline
+    ? `${emoji} Runner Offline: ${runnerName}`
+    : `${emoji} Runner Back Online: ${runnerName}`;
+
+  const description = isOffline
+    ? `Runner **${runnerName}** has stopped responding and is now considered offline.`
+    : `Runner **${runnerName}** is back online and reporting in.`;
+
+  const fields = [];
+  if (isOffline && lastSeen) {
+    fields.push({
+      name: "Last Seen",
+      value: new Date(lastSeen).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }),
+      inline: true,
+    });
+  }
+
+  return {
+    embeds: [
+      {
+        title,
+        description,
+        color,
+        fields,
+        timestamp: new Date().toISOString(),
+        footer: { text: "Docked System" },
+      },
+    ],
+  };
+}
+
+/**
+ * Send a runner status notification (offline/online) to all enabled webhooks for a user.
+ * No deduplication — state transitions are already guarded by the caller.
+ * @param {Object} data
+ * @param {number} data.userId - User ID
+ * @param {string} data.runnerName - Runner name
+ * @param {string} data.status - 'offline' or 'online'
+ * @param {string} [data.lastSeen] - ISO-8601 timestamp
+ * @returns {Promise<void>}
+ */
+async function sendRunnerStatusNotification({ userId, runnerName, status, lastSeen }) {
+  if (!userId) return;
+
+  const { getEnabledDiscordWebhooks } = getDatabase();
+  const webhooks = await getEnabledDiscordWebhooks(userId);
+  if (!webhooks || webhooks.length === 0) return;
+
+  const payload = formatRunnerStatusNotification({ runnerName, status, lastSeen });
+
+  for (const webhook of webhooks) {
+    try {
+      await sendNotificationWithRetry(webhook.webhook_url, payload);
+    } catch (err) {
+      logger.warn(`Failed to send runner ${status} notification to webhook ${webhook.id}:`, {
+        error: err.message,
+      });
+    }
+  }
+}
+
 module.exports = {
   validateWebhookUrl,
   testWebhook,
@@ -1308,6 +1388,8 @@ module.exports = {
   sendIntentExecutionNotification,
   formatVersionUpdateNotification,
   formatIntentExecutionNotification,
+  formatRunnerStatusNotification,
+  sendRunnerStatusNotification,
   startCleanupInterval,
   stopCleanupInterval,
   cleanupExpiredEntries, // Exported for testing

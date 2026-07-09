@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useMemo } from "react";
 import PropTypes from "prop-types";
 import Header from "./Header/Header";
+import OfflineRunnerBanner from "./OfflineRunnerBanner";
 import VersionFooter from "./Footer/VersionFooter";
 import { BatchConfigContext } from "../contexts/BatchConfigContext";
 import HomePageContent from "./HomePage/components/HomePageContent";
@@ -129,6 +130,7 @@ function HomePage({
   toggleStack,
   discordWebhooks = [],
   containerUpgrade,
+  offlineRunners = [],
 }) {
   // Page visibility settings removed - all pages are now always visible
   // Memoize context value
@@ -164,6 +166,11 @@ function HomePage({
           onTemporaryThemeToggle={handleTemporaryThemeToggle}
           onLogout={handleLogoutWithCleanup}
           API_BASE_URL={API_BASE_URL}
+        />
+
+        <OfflineRunnerBanner
+          offlineRunners={offlineRunners}
+          onNavigateToSettings={handleNavigateToSettings}
         />
 
         <HomePageContent

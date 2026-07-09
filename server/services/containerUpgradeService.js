@@ -6,11 +6,8 @@
 const dockerRegistryService = require("./dockerRegistryService");
 const logger = require("../utils/logger");
 const nginxProxyManagerService = require("./containerUpgrade/nginxProxyManagerService");
-const dependentContainerService = require("./containerUpgrade/dependentContainerService");
-const containerReadinessService = require("./containerUpgrade/containerReadinessService");
 const containerDetailsService = require("./containerUpgrade/containerDetailsService");
-const containerConfigService = require("./containerUpgrade/containerConfigService");
-const dependentContainerRestartService = require("./containerUpgrade/dependentContainerRestartService");
+const upgradePlanner = require("./containerUpgrade/upgradePlanner");
 const { resolveBackend } = require("./dockerBackendFactory");
 
 const {
@@ -190,115 +187,61 @@ async function upgradeSingleContainer(
       usingIpFallback: isNginxProxyManager,
     });
 
-    // CRITICAL: Find and stop dependent containers BEFORE removing the main container
-    // Containers using network_mode: service:containerName will break if we remove
-    // the main container while they're still running (they reference the old container ID)
-    const dependentContainersToStop = await dependentContainerService.findDependentContainers(
-      effectiveUrl,
-      effectiveEndpointId,
-      workingContainerId,
-      cleanContainerName,
-      backend
+    // ── Plan-then-execute upgrade (PLAN-2 §0.1) ────────────────────────────────
+    // A single correlation id ties every log line of this run together.
+    const upgradeId = upgradePlanner.makeUpgradeId();
+
+    // Uniform backend adapter. Read calls pass backend.apiKey; mutating calls
+    // pass `backend.apiKey ?? userId` (runner uses the api key, Portainer the
+    // user id in that slot). For nginx-proxy-manager we route through the IP URL.
+    const opsUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
+    const opsApiKey = backend.apiKey;
+    const opsAuthArg = backend.apiKey ?? userId;
+    const pullOriginalUrl = isNginxProxyManager ? portainerUrl : null;
+    const ops = {
+      listContainers: () => backend.service.getContainers(opsUrl, effectiveEndpointId, opsApiKey),
+      inspect: (id) =>
+        backend.service.getContainerDetails(opsUrl, effectiveEndpointId, id, opsApiKey),
+      stop: (id) => backend.service.stopContainer(opsUrl, effectiveEndpointId, id, opsAuthArg),
+      start: (id) => backend.service.startContainer(opsUrl, effectiveEndpointId, id, opsAuthArg),
+      remove: (id) => backend.service.removeContainer(opsUrl, effectiveEndpointId, id, opsAuthArg),
+      create: (config, name) =>
+        backend.service.createContainer(opsUrl, effectiveEndpointId, config, name, opsAuthArg),
+      pull: (image) =>
+        backend.service.pullImage(opsUrl, effectiveEndpointId, image, pullOriginalUrl, opsAuthArg),
+    };
+
+    // Plan phase (read-only): capture the target + every network_mode dependent.
+    const plan = await upgradePlanner.buildUpgradePlan({
+      ops,
+      upgradeId,
+      targetInspect: containerDetails,
+      targetId: workingContainerId,
+      targetName: cleanContainerName,
+    });
+
+    logger.info(
+      `[upgrade ${upgradeId}] Upgrading ${originalContainerName} ${imageName} -> ${newImageName} (${plan.dependents.length} dependent(s))`
     );
 
-    if (dependentContainersToStop.length > 0) {
-      await dependentContainerService.stopAndRemoveDependentContainers(
-        backend.url,
-        effectiveEndpointId,
-        dependentContainersToStop,
-        backend
-      );
-    }
-
-    // Stop the container
-    logger.info("Stopping container", {
-      module: "containerService",
-      operation: "upgradeSingleContainer",
-      containerName: originalContainerName,
-      containerId: workingContainerId.substring(0, 12),
-    });
-    await backend.service.stopContainer(
-      backend.url,
-      effectiveEndpointId,
-      workingContainerId,
-      backend.apiKey ?? userId
-    );
-
-    // Wait for container to fully stop (important for databases and services)
-    const checkStatusUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
-    await containerReadinessService.waitForContainerStop({
-      portainerUrl: checkStatusUrl,
-      endpointId: effectiveEndpointId,
-      containerId: workingContainerId,
-      containerName: originalContainerName,
-      backend,
-    });
-
-    // Pull the latest image
-    const pullImageUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
-    const pullImageOriginalUrl = isNginxProxyManager ? portainerUrl : null;
-    logger.info("Pulling latest image", {
-      module: "containerService",
-      operation: "upgradeSingleContainer",
-      containerName: originalContainerName,
-      image: newImageName,
-      usingUrl: pullImageUrl,
-    });
-    await backend.service.pullImage(
-      pullImageUrl,
-      effectiveEndpointId,
-      newImageName,
-      pullImageOriginalUrl,
-      backend.apiKey ?? userId
-    );
-
-    // Remove old container
-    logger.info("Removing old container", {
-      module: "containerService",
-      operation: "upgradeSingleContainer",
-      containerName: originalContainerName,
-      containerId: workingContainerId.substring(0, 12),
-    });
-    await backend.service.removeContainer(
-      isNginxProxyManager ? workingPortainerUrl : backend.url,
-      effectiveEndpointId,
-      workingContainerId,
-      backend.apiKey ?? userId
-    );
-
-    // Prepare container configuration using the service
-    logger.info("Creating new container", {
-      module: "containerService",
-      operation: "upgradeSingleContainer",
-      containerName: originalContainerName,
-      image: newImageName,
-    });
-
-    const { containerConfig, isSharedNetworkMode, stackName } =
-      containerConfigService.prepareContainerConfig(
-        containerDetails,
-        newImageName,
-        originalContainerName
-      );
-
-    const createContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
+    // Execute phase: stop dependents -> upgrade target -> recreate dependents,
+    // with rollback on any failure after the dependents are stopped.
     let newContainer;
     try {
-      newContainer = await backend.service.createContainer(
-        createContainerUrl,
-        effectiveEndpointId,
-        containerConfig,
-        originalContainerName,
-        backend.apiKey ?? userId
-      );
+      ({ newContainer } = await upgradePlanner.executeUpgradePlan({
+        ops,
+        plan,
+        newImage: newImageName,
+        upgradeId,
+      }));
     } catch (error) {
-      // Provide more detailed error information
       if (error.response?.status === 400) {
         const errorMessage =
           error.response?.data?.message || error.message || "Invalid container configuration";
         logger.error("Failed to create container - invalid configuration", {
           module: "containerService",
           operation: "upgradeSingleContainer",
+          upgradeId,
           containerName: originalContainerName,
           error: errorMessage,
           errorDetails: error.response?.data,
@@ -306,162 +249,18 @@ async function upgradeSingleContainer(
         throw new Error(
           `Failed to create container: ${errorMessage}. ` +
             `This may be due to invalid network configuration, port conflicts, or other container settings. ` +
-            `Please check the container configuration in Portainer.`
+            `Please check the container configuration.`
         );
       }
       throw error;
     }
 
-    // Start the new container
-    const startContainerUrl = isNginxProxyManager ? workingPortainerUrl : backend.url;
-    logger.info("Starting new container", {
+    logger.info(`[upgrade ${upgradeId}] Container upgrade completed and container is ready`, {
       module: "containerService",
       operation: "upgradeSingleContainer",
       containerName: originalContainerName,
       newContainerId: newContainer.Id.substring(0, 12),
-      isSharedNetworkMode,
-      networkMode: containerDetails.HostConfig?.NetworkMode || "default",
-      usingUrl: startContainerUrl,
     });
-    try {
-      await backend.service.startContainer(
-        startContainerUrl,
-        effectiveEndpointId,
-        newContainer.Id,
-        backend.apiKey ?? userId
-      );
-    } catch (startError) {
-      logger.error("Failed to start new container after creation", {
-        module: "containerService",
-        operation: "upgradeSingleContainer",
-        containerName: originalContainerName,
-        newContainerId: newContainer.Id.substring(0, 12),
-        isSharedNetworkMode,
-        networkMode: containerDetails.HostConfig?.NetworkMode || "default",
-        error: startError.message,
-        errorDetails: startError.response?.data,
-      });
-      throw startError;
-    }
-
-    // Wait for container to be healthy/ready (CRITICAL for databases)
-    const startTime = Date.now();
-    await containerReadinessService.waitForContainerReady({
-      portainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
-      endpointId: effectiveEndpointId,
-      containerId: newContainer.Id,
-      containerName: originalContainerName,
-      imageName,
-      backend,
-    });
-
-    logger.info("Container upgrade completed and container is ready", {
-      module: "containerService",
-      operation: "upgradeSingleContainer",
-      containerName: originalContainerName,
-      totalWaitTime: `${(Date.now() - startTime) / 1000}s`,
-    });
-
-    // Find and restart dependent containers
-    // This handles containers that depend on the upgraded container via:
-    // 1. network_mode: service:containerName
-    // 2. depends_on relationships (containers in the same stack)
-    try {
-      await dependentContainerRestartService.restartDependentContainers({
-        portainerUrl: backend.url,
-        workingPortainerUrl: isNginxProxyManager ? workingPortainerUrl : backend.url,
-        endpointId: effectiveEndpointId,
-        newContainer,
-        cleanContainerName,
-        originalContainerId: containerDetails.Id,
-        stackName,
-        backend,
-        isSharedNetworkMode,
-      });
-    } catch (err) {
-      logger.error("  Error restarting dependent containers:", { error: err });
-      // Don't fail the upgrade if dependent restart fails
-    }
-
-    // If this container uses network_mode (service:* or container:*), restart sibling
-    // containers that share the same network provider so they properly reattach.
-    if (isSharedNetworkMode) {
-      try {
-        const networkMode = containerDetails.HostConfig?.NetworkMode || "";
-        const networkContainerName = networkMode.startsWith("service:")
-          ? networkMode.replace("service:", "")
-          : networkMode.replace("container:", "");
-
-        const allContainers = await backend.service.getContainers(
-          isNginxProxyManager ? workingPortainerUrl : backend.url,
-          effectiveEndpointId,
-          backend.apiKey
-        );
-
-        const siblingContainers = [];
-        for (const container of allContainers) {
-          if (container.Id === newContainer.Id) {
-            continue;
-          }
-          try {
-            const details = await backend.service.getContainerDetails(
-              backend.url,
-              effectiveEndpointId,
-              container.Id,
-              backend.apiKey
-            );
-            const containerNetworkMode = details.HostConfig?.NetworkMode || "";
-            let targetContainerName = null;
-            if (containerNetworkMode.startsWith("service:")) {
-              targetContainerName = containerNetworkMode.replace("service:", "");
-            } else if (containerNetworkMode.startsWith("container:")) {
-              targetContainerName = containerNetworkMode.replace("container:", "");
-            }
-            if (
-              targetContainerName === networkContainerName &&
-              (details.State?.Status === "running" || details.State?.Running)
-            ) {
-              siblingContainers.push({
-                id: container.Id,
-                name: container.Names[0]?.replace("/", "") || container.Id.substring(0, 12),
-              });
-            }
-          } catch (err) {
-            logger.warn(`Error getting container details for ${container.Id}:`, err);
-          }
-        }
-
-        if (siblingContainers.length > 0) {
-          logger.info(
-            `Restarting ${siblingContainers.length} sibling container(s) sharing network provider ${networkContainerName}...`
-          );
-          for (const container of siblingContainers) {
-            try {
-              await backend.service.stopContainer(
-                backend.url,
-                effectiveEndpointId,
-                container.id,
-                backend.apiKey ?? userId
-              );
-              await new Promise((resolve) => {
-                setTimeout(resolve, 1000);
-              });
-              await backend.service.startContainer(
-                backend.url,
-                effectiveEndpointId,
-                container.id,
-                backend.apiKey ?? userId
-              );
-              logger.info(`    ${container.name} restarted successfully`);
-            } catch (err) {
-              logger.error(`     Failed to restart ${container.name}: ${err.message}`);
-            }
-          }
-        }
-      } catch (err) {
-        logger.error("Error restarting sibling network containers:", { error: err });
-      }
-    }
 
     // Invalidate cache for this image so next check gets fresh data
     dockerRegistryService.clearDigestCache(imageRepo, currentTag);

@@ -18,6 +18,7 @@ const {
   updateRunnerApiKey,
   deleteRunner,
   updateRunnerVersion,
+  updateRunnerOnlineStatus,
   apiKeysEqual,
 } = require("../db/runners");
 const {
@@ -318,6 +319,26 @@ async function healthCheckRunner(req, res, next) {
 
       // Update last_seen and docker status
       await updateRunnerLastSeen(runner.id);
+
+      // Transition to online if previously offline
+      if (runner.online_status === "offline") {
+        const changed = await updateRunnerOnlineStatus(runner.id, "online");
+        if (changed) {
+          insertRunnerEvent({
+            runnerId: runner.id,
+            eventType: EVENT_TYPES.STATUS_CHANGE,
+            message: "Runner is back online (manual health check)",
+            details: {},
+          }).catch(() => {});
+
+          const { sendRunnerStatusNotification } = require("../services/discordService");
+          sendRunnerStatusNotification({
+            userId,
+            runnerName: runner.name,
+            status: "online",
+          }).catch(() => {});
+        }
+      }
 
       const dockerStatus = health.dockerOk === false ? "unavailable" : "ok";
       const dockerChanged = await updateRunnerDockerStatus(runner.id, dockerStatus);
@@ -1230,6 +1251,31 @@ async function heartbeatRunner(req, res, next) {
 
     // Update last_seen on every heartbeat
     await updateRunnerLastSeen(runner.id);
+
+    // If runner was offline, transition to online and notify
+    if (runner.online_status === "offline") {
+      const changed = await updateRunnerOnlineStatus(runner.id, "online");
+      if (changed) {
+        logger.info(`Runner "${runner.name}" is back online`, {
+          module: "runnerController",
+          runnerId: runner.id,
+        });
+
+        insertRunnerEvent({
+          runnerId: runner.id,
+          eventType: EVENT_TYPES.STATUS_CHANGE,
+          message: "Runner is back online",
+          details: {},
+        }).catch(() => {});
+
+        const { sendRunnerStatusNotification } = require("../services/discordService");
+        sendRunnerStatusNotification({
+          userId: runner.user_id,
+          runnerName: runner.name,
+          status: "online",
+        }).catch(() => {});
+      }
+    }
 
     // Update Docker status
     if (dockerOk !== undefined) {

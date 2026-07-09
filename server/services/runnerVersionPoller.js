@@ -12,7 +12,11 @@
  */
 
 const logger = require("../utils/logger");
-const { getAllRunnersWithKeys, updateRunnerVersion } = require("../db/runners");
+const {
+  getAllRunnersWithKeys,
+  updateRunnerVersion,
+  updateRunnerOnlineStatus,
+} = require("../db/runners");
 const {
   EVENT_TYPES,
   insertRunnerEvent,
@@ -94,6 +98,26 @@ async function pollRunnerVersions() {
 
         // Update last_seen on successful contact
         await updateRunnerLastSeen(runner.id);
+
+        // Transition to online if previously offline
+        if (runner.online_status === "offline") {
+          const changed = await updateRunnerOnlineStatus(runner.id, "online");
+          if (changed) {
+            insertRunnerEvent({
+              runnerId: runner.id,
+              eventType: EVENT_TYPES.STATUS_CHANGE,
+              message: "Runner is back online (via poller)",
+              details: {},
+            }).catch(() => {});
+
+            const { sendRunnerStatusNotification } = require("./discordService");
+            sendRunnerStatusNotification({
+              userId: runner.user_id,
+              runnerName: runner.name,
+              status: "online",
+            }).catch(() => {});
+          }
+        }
 
         // Update Docker status and log if changed
         const dockerStatus = health.dockerOk === false ? "unavailable" : "ok";
