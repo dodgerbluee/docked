@@ -1,6 +1,6 @@
-import React, { memo } from "react";
+import React, { memo, useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
-import { WifiOff } from "lucide-react";
+import { AlertTriangle, WifiOff } from "lucide-react";
 import AvatarMenu from "./AvatarMenu";
 import styles from "./Header.module.css";
 
@@ -21,28 +21,34 @@ const Header = ({
   API_BASE_URL,
   offlineRunners = [],
 }) => {
-  const handleLogoClick = () => {
-    onNavigateToSummary();
-  };
+  const [showAlertMenu, setShowAlertMenu] = useState(false);
+  const alertRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAlertMenu) return;
+    const handler = (e) => {
+      if (alertRef.current && !alertRef.current.contains(e.target)) {
+        setShowAlertMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAlertMenu]);
 
   const offlineCount = offlineRunners.length;
-  const offlineLabel =
-    offlineCount === 1
-      ? `"${offlineRunners[0].name}" is offline`
-      : `${offlineCount} runners offline`;
 
   return (
     <header className={styles.header}>
       <div className={styles.headerContent}>
         <div
-          onClick={handleLogoClick}
+          onClick={onNavigateToSummary}
           className={styles.logoContainer}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              handleLogoClick();
+              onNavigateToSummary();
             }
           }}
           aria-label="Navigate to Summary"
@@ -55,16 +61,35 @@ const Header = ({
         <div className={styles.headerActions}>
           <div className={styles.actionsContainer}>
             {offlineCount > 0 && (
-              <button
-                className={styles.runnerAlert}
-                onClick={onNavigateToSettings}
-                title={offlineLabel}
-                aria-label={offlineLabel}
-              >
-                <span className={styles.runnerAlertDot} />
-                <WifiOff size={14} />
-                <span className={styles.runnerAlertText}>{offlineLabel}</span>
-              </button>
+              <div className={styles.alertContainer} ref={alertRef}>
+                <button
+                  className={styles.alertBtn}
+                  onClick={() => setShowAlertMenu((v) => !v)}
+                  aria-label={`${offlineCount} alert${offlineCount !== 1 ? "s" : ""}`}
+                  title={`${offlineCount} alert${offlineCount !== 1 ? "s" : ""}`}
+                >
+                  <AlertTriangle size={18} />
+                </button>
+                {showAlertMenu && (
+                  <div className={styles.alertDropdown}>
+                    <div className={styles.alertDropdownHeader}>Alerts</div>
+                    {offlineRunners.map((runner) => (
+                      <button
+                        key={runner.id ?? runner.name}
+                        className={styles.alertItem}
+                        onClick={() => {
+                          setShowAlertMenu(false);
+                          onNavigateToSettings();
+                        }}
+                      >
+                        <WifiOff size={14} className={styles.alertItemIcon} />
+                        <span className={styles.alertItemName}>{runner.name}</span>
+                        <span className={styles.alertItemBadge}>Offline</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <AvatarMenu
               username={username}
