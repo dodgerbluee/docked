@@ -1,14 +1,12 @@
 /**
  * Runner Version Poller
  *
- * Background job that periodically:
- *  1. Fetches the latest dockhand release from GitHub (one request, shared
- *     across all runners).
- *  2. Pings each enabled runner to get its running binary version.
- *  3. Persists both values via updateRunnerVersion so the UI shows the
- *     update badge without requiring a manual health-check.
- *
- * Runs once at startup then every POLL_INTERVAL_MS thereafter.
+ * Two independent background loops:
+ *  1. GitHub release check — runs every GITHUB_POLL_INTERVAL_MS (5 min).
+ *     Fetches the latest dockhand release tag once and writes it to every
+ *     runner row so the UI shows the update badge as soon as a release drops.
+ *  2. Runner ping loop — runs every RUNNER_POLL_INTERVAL_MS (1 hour).
+ *     Pings each runner to get its live binary version and online status.
  */
 
 const logger = require("../utils/logger");
@@ -28,7 +26,8 @@ const { pingRunner } = require("./runnerService");
 const githubService = require("./githubService");
 
 const DOCKHAND_GITHUB_REPO = "dockedapp/dockhand";
-const POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const GITHUB_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const RUNNER_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 // Track consecutive failures per runner to implement backoff.
 // After MAX_CONSECUTIVE_FAILURES, only try every BACKOFF_MULTIPLIER polls.
@@ -36,6 +35,39 @@ const _failureCounts = new Map(); // runnerId -> consecutive failure count
 const MAX_CONSECUTIVE_FAILURES = 3;
 const BACKOFF_MULTIPLIER = 3; // After 3 failures, only ping every 3rd poll (= 3 hours)
 let _pollCount = 0;
+
+// Fetch latest GitHub release and write it to all runner rows.
+async function pollGithubRelease() {
+  let runners;
+  try {
+    runners = await getAllRunnersWithKeys();
+  } catch (err) {
+    logger.warn("runnerVersionPoller: could not load runners", { error: err.message });
+    return;
+  }
+  if (runners.length === 0) return;
+
+  let latestVersion;
+  try {
+    const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
+    latestVersion = release?.tag_name ?? null;
+  } catch (err) {
+    logger.warn("runnerVersionPoller: failed to fetch latest release", { error: err.message });
+    return;
+  }
+
+  if (!latestVersion) return;
+
+  await Promise.allSettled(
+    runners.map((runner) =>
+      updateRunnerVersion(runner.id, runner.user_id, runner.version, latestVersion, null).catch(
+        () => {}
+      )
+    )
+  );
+
+  logger.debug("runnerVersionPoller: github release check complete", { latestVersion });
+}
 
 async function pollRunnerVersions() {
   _pollCount++;
@@ -49,16 +81,7 @@ async function pollRunnerVersions() {
 
   if (runners.length === 0) return;
 
-  // Fetch latest GitHub release once for all runners
-  let latestVersion = null;
-  let latestVersionFetched = false;
-  try {
-    const release = await githubService.getLatestRelease(DOCKHAND_GITHUB_REPO);
-    latestVersion = release?.tag_name ?? null;
-    latestVersionFetched = true;
-  } catch (err) {
-    logger.warn("runnerVersionPoller: failed to fetch latest release", { error: err.message });
-  }
+  // latest_version in the DB is kept fresh by the pollGithubRelease loop
 
   // Ping each runner in parallel, update DB with whatever we learn
   await Promise.allSettled(
@@ -71,18 +94,6 @@ async function pollRunnerVersions() {
           `runnerVersionPoller: skipping runner "${runner.name}" (${failures} consecutive failures, backoff)`,
           { module: "runnerVersionPoller", runnerId: runner.id }
         );
-        // Still update latest version from GitHub even if we skip the ping
-        try {
-          await updateRunnerVersion(
-            runner.id,
-            runner.user_id,
-            runner.version,
-            latestVersionFetched ? latestVersion : runner.latest_version,
-            null // keep existing docker_enabled
-          );
-        } catch {
-          // ignore
-        }
         return;
       }
 
@@ -169,7 +180,7 @@ async function pollRunnerVersions() {
           runner.id,
           runner.user_id,
           runningVersion,
-          latestVersionFetched ? latestVersion : runner.latest_version,
+          runner.latest_version,
           dockerEnabled
         );
       } catch (err) {
@@ -180,10 +191,7 @@ async function pollRunnerVersions() {
     })
   );
 
-  logger.debug("runnerVersionPoller: version check complete", {
-    runners: runners.length,
-    latestVersion,
-  });
+  logger.debug("runnerVersionPoller: runner ping complete", { runners: runners.length });
 
   // Periodically prune old events (every 6th poll = ~6 hours)
   if (_pollCount % 6 === 0) {
@@ -204,16 +212,25 @@ function resetRunnerBackoff(runnerId) {
 }
 
 function startVersionPoller() {
-  // Run immediately on startup, then on a fixed interval
-  pollRunnerVersions().catch((err) =>
-    logger.warn("runnerVersionPoller: startup check failed", { error: err.message })
+  // GitHub release check: run immediately, then every 5 minutes
+  pollGithubRelease().catch((err) =>
+    logger.warn("runnerVersionPoller: startup github check failed", { error: err.message })
   );
+  setInterval(() => {
+    pollGithubRelease().catch((err) =>
+      logger.warn("runnerVersionPoller: github check failed", { error: err.message })
+    );
+  }, GITHUB_POLL_INTERVAL_MS);
 
+  // Runner ping loop: run immediately, then every hour
+  pollRunnerVersions().catch((err) =>
+    logger.warn("runnerVersionPoller: startup runner ping failed", { error: err.message })
+  );
   setInterval(() => {
     pollRunnerVersions().catch((err) =>
-      logger.warn("runnerVersionPoller: periodic check failed", { error: err.message })
+      logger.warn("runnerVersionPoller: runner ping failed", { error: err.message })
     );
-  }, POLL_INTERVAL_MS);
+  }, RUNNER_POLL_INTERVAL_MS);
 }
 
 module.exports = { startVersionPoller, resetRunnerBackoff };
