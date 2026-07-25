@@ -71,13 +71,23 @@ async function getAllContainersWithUpdates(
       if (normalizedContainers && normalizedContainers.length > 0) {
         // We have data in normalized tables - format it for the frontend
         const userInstances = await getAllSourceInstances(userId);
+        const userRunners = await getAllRunners(userId);
 
         // Create instance map for quick lookup
         const instanceMap = new Map(userInstances.map((inst) => [inst.id, inst]));
+        const runnerMap = new Map(userRunners.map((r) => [r.id, r]));
 
         // Format containers to match expected structure
         const formattedContainers = normalizedContainers.map((c) => {
           const instance = instanceMap.get(c.sourceInstanceId);
+          // Attach runner info so formatContainerFromDatabase can set source/runnerId/runnerName
+          if (c.runnerId && !c.runnerName) {
+            const runner = runnerMap.get(c.runnerId);
+            if (runner) {
+              c.runnerName = runner.name;
+              c.runnerUrl = runner.url;
+            }
+          }
           return containerFormattingService.formatContainerFromDatabase(
             c,
             instance,
@@ -91,7 +101,7 @@ async function getAllContainersWithUpdates(
           "Unstacked"
         );
 
-        // Build sourceInstances array
+        // Build sourceInstances array (Portainer instances + runner instances)
         const sourceInstancesArray = containerDataService.buildSourceInstancesArray(
           formattedContainers,
           userInstances

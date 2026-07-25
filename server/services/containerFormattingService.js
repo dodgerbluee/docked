@@ -161,6 +161,9 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
     updateGitLabRepo = gitlabRepo;
   }
 
+  // Determine if this is a runner container
+  const isRunner = !!dbContainer.runnerId;
+
   // Build container object first, then compute hasUpdate
   const container = {
     id: dbContainer.containerId,
@@ -171,6 +174,12 @@ function formatContainerFromDatabase(dbContainer, instance, trackedAppsMap = nul
     endpointId: dbContainer.endpointId,
     sourceUrl: instance ? instance.url : null,
     sourceName: instance ? instance.name : null,
+    ...(isRunner && {
+      source: "runner",
+      runnerId: dbContainer.runnerId,
+      runnerName: dbContainer.runnerName || null,
+      runnerUrl: dbContainer.runnerUrl || null,
+    }),
     currentTag,
     currentVersion: currentTag,
     currentDigest: dbContainer.currentDigest,

@@ -505,6 +505,9 @@ async function triggerRunnerRestart(runner) {
 async function enrichOperationsWithVersions(operations, githubService) {
   return Promise.all(
     operations.map(async (op) => {
+      if (op.versionSource?.type === "command") {
+        return op;
+      }
       if (op.versionSource?.type !== "github" || !op.versionSource?.repo) {
         return op;
       }
@@ -570,6 +573,9 @@ async function fetchRunnerAppsAllHistory(url, apiKey, limit = 100) {
 async function enrichAppsWithVersions(apps, githubService) {
   return Promise.all(
     apps.map(async (app) => {
+      if (app.versionSource?.type === "command") {
+        return app;
+      }
       if (app.versionSource?.type !== "github" || !app.versionSource?.repo) {
         return app;
       }

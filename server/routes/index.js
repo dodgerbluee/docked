@@ -227,6 +227,10 @@ function appendRunnerContainers(req, res, next) {
       })
       .then(async (runnerContainers) => {
         logger.debug(`appendRunnerContainers: got ${runnerContainers.length} runner containers, base containers: ${data.containers.length}`, { module: "routes" });
+        // Always remove runner containers from the DB cache — fresh runner data
+        // is the source of truth (avoids duplicates and stale entries)
+        const baseContainers = data.containers.filter((c) => c.source !== "runner" && !c.runnerId);
+
         if (runnerContainers.length > 0) {
           // Two-pass: detect which containers are network providers before enriching.
           // A container "provides network" if another container has networkMode = "container:<id|name>"
@@ -253,8 +257,10 @@ function appendRunnerContainers(req, res, next) {
           const enriched = await Promise.all(
             runnerContainers.map((c) => enrichRunnerContainer(userId, c, isForceRefresh))
           );
-          data = { ...data, containers: [...data.containers, ...enriched] };
+          data = { ...data, containers: [...baseContainers, ...enriched] };
           logger.debug(`appendRunnerContainers: final container count: ${data.containers.length} (${enriched.length} from runners)`, { module: "routes" });
+        } else {
+          data = { ...data, containers: baseContainers };
         }
         originalJson(data);
       })
