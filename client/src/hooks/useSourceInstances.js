@@ -64,9 +64,14 @@ export const useSourceInstances = ({ sourceInstancesFromAPI, containers }) => {
       instances = [];
     }
 
-    // Append synthetic runner instances from containersBySource
+    // Append synthetic runner instances from containersBySource,
+    // but only if they aren't already present (the fallback path above
+    // includes them when sourceInstancesFromAPI is empty)
+    const existingRunnerKeys = new Set(
+      instances.filter((i) => i.isRunner).map((i) => i.url)
+    );
     const runnerInstances = Object.entries(containersBySource)
-      .filter(([key]) => key.startsWith("runner:"))
+      .filter(([key]) => key.startsWith("runner:") && !existingRunnerKeys.has(key))
       .map(([key, data]) => ({
         name: data.name,
         url: key,
