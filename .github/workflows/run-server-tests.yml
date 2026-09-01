@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload server test coverage
         if: inputs.run-coverage == true
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./server/coverage/coverage-final.json
           flags: server
