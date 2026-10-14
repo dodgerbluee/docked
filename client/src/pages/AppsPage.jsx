@@ -15,7 +15,10 @@ import MobileDrawer from "../components/ui/MobileDrawer";
 import AppsPageSkeleton from "../components/apps/AppsPageSkeleton";
 import Button from "../components/ui/Button";
 import SearchInput from "../components/ui/SearchInput";
-import RunOperationModal from "../components/ui/RunOperationModal";
+import OperationTaskModal from "../components/ui/OperationTaskModal";
+import OperationTasksDock from "../components/ui/OperationTasksDock";
+import { useOperationTasks } from "../hooks/useOperationTasks";
+import { STATUS } from "../utils/operationLog";
 import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
@@ -379,8 +382,9 @@ export default function AppsPage({
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
-  const [runOp, setRunOp] = useState(null); // { runnerId, appName, operationName } — executing
+  const [activeTaskId, setActiveTaskId] = useState(null); // task whose output modal is open
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
+  const { tasks, startTask, runningKeys, dismissTask, dismissAll } = useOperationTasks();
 
   /* ── Data fetching ──────────────────────────────────────────────────── */
 
@@ -539,8 +543,22 @@ export default function AppsPage({
     if (!pendingRun) return;
     const { runner, app, op } = pendingRun;
     setPendingRun(null);
-    setRunOp({ runnerId: runner.id, appName: app.name, operationName: op.name });
-  }, [pendingRun]);
+    const id = startTask(runner, app, op);
+    setActiveTaskId(id);
+  }, [pendingRun, startTask]);
+
+  // When a task finishes, refresh apps so op.active / lastRun / version badges
+  // reflect the completed run.
+  const seenFinishedRef = useRef(new Set());
+  useEffect(() => {
+    const newly = tasks.filter(
+      (t) => t.status !== STATUS.RUNNING && !seenFinishedRef.current.has(t.id)
+    );
+    if (newly.length) {
+      newly.forEach((t) => seenFinishedRef.current.add(t.id));
+      fetchAll(true);
+    }
+  }, [tasks, fetchAll]);
 
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
@@ -610,6 +628,7 @@ export default function AppsPage({
           runner={runner}
           onRun={handleRun}
           showRunner={showRunner}
+          runningKeys={runningKeys}
         />
       ))}
     </div>
@@ -826,16 +845,16 @@ export default function AppsPage({
         />
       )}
 
-      <RunOperationModal
-        isOpen={!!runOp}
-        runnerId={runOp?.runnerId}
-        appName={runOp?.appName}
-        operationName={runOp?.operationName}
-        onClose={() => {
-          setRunOp(null);
-          // Refresh to pick up updated active state
-          fetchAll(true);
-        }}
+      <OperationTasksDock
+        tasks={tasks}
+        onOpenTask={setActiveTaskId}
+        onDismiss={dismissTask}
+        onDismissAll={dismissAll}
+      />
+
+      <OperationTaskModal
+        task={tasks.find((t) => t.id === activeTaskId) || null}
+        onClose={() => setActiveTaskId(null)}
       />
     </div>
   );

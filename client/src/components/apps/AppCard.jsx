@@ -47,7 +47,7 @@ function getRepoInfo(versionSource) {
   return { url: versionSource.repo, Icon: ExternalLink };
 }
 
-const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true }) {
+const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true, runningKeys }) {
   const mostRecent = getMostRecentOp(app.operations || []);
   const hasRun = !!mostRecent;
   const exitOk = hasRun && mostRecent.lastRun.exitCode === 0;
@@ -127,20 +127,23 @@ const AppCard = memo(function AppCard({ app, runner, onRun, showRunner = true })
         {/* Operations row — inline buttons */}
         {(app.operations || []).length > 0 && (
           <div className={styles.operationsRow}>
-            {(app.operations || []).map((op) => (
-              <button
-                key={op.name}
-                className={`${styles.opBtn} ${op.active ? styles.opBtnActive : ""}`}
-                onClick={() => onRun(runner, app, op)}
-                disabled={op.active}
-                title={
-                  op.active ? `${op.label || op.name} is running…` : `Run ${op.label || op.name}`
-                }
-              >
-                {op.active && <Loader size={10} className={styles.opBtnSpinner} />}
-                {op.label || op.name}
-              </button>
-            ))}
+            {(app.operations || []).map((op) => {
+              const running = op.active || runningKeys?.has(`${runner.id}:${app.name}:${op.name}`);
+              return (
+                <button
+                  key={op.name}
+                  className={`${styles.opBtn} ${running ? styles.opBtnActive : ""}`}
+                  onClick={() => onRun(runner, app, op)}
+                  disabled={running}
+                  title={
+                    running ? `${op.label || op.name} is running…` : `Run ${op.label || op.name}`
+                  }
+                >
+                  {running && <Loader size={10} className={styles.opBtnSpinner} />}
+                  {op.label || op.name}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -198,6 +201,7 @@ AppCard.propTypes = {
   }).isRequired,
   onRun: PropTypes.func.isRequired,
   showRunner: PropTypes.bool,
+  runningKeys: PropTypes.instanceOf(Set),
 };
 
 export default AppCard;
