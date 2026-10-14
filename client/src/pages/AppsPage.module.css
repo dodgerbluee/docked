@@ -614,6 +614,44 @@ body.dark-mode .emptyStateLink:hover {
   color: var(--text-error, #ef4444);
 }
 
+.confirmCommand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.confirmCommandLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.confirmCommandBlock {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.confirmCommandMissing {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 .confirmFooter {
   display: flex;
   align-items: center;

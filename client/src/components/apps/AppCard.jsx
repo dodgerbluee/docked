@@ -182,6 +182,7 @@ AppCard.propTypes = {
       PropTypes.shape({
         name: PropTypes.string.isRequired,
         label: PropTypes.string,
+        command: PropTypes.string,
         active: PropTypes.bool,
         lastRun: PropTypes.shape({
           exitCode: PropTypes.number,

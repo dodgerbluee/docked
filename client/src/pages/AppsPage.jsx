@@ -327,6 +327,19 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
               </div>
             )}
           </div>
+
+          {op.command ? (
+            <div className={styles.confirmCommand}>
+              <span className={styles.confirmCommandLabel}>
+                Command{op.command.includes("\n") ? "s" : ""}
+              </span>
+              <pre className={styles.confirmCommandBlock}>{op.command}</pre>
+            </div>
+          ) : (
+            <p className={styles.confirmCommandMissing}>
+              Command not available. Update the runner to view the commands this operation runs.
+            </p>
+          )}
         </div>
 
         <div className={styles.confirmFooter}>
