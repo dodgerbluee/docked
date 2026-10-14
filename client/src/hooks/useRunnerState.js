@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
-import { hasVersionUpdate } from "../utils/versionHelpers";
+import { hasVersionUpdate, versionsEqual } from "../utils/versionHelpers";
 
 export function useRunnerState() {
   const [runners, setRunners] = useState([]);
@@ -89,14 +89,14 @@ export function useRunnerState() {
       setUpdatingRunners((prev) => new Set([...prev, runner.id]));
       try {
         await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
-        const targetVersion = (runner.latest_version || "").replace(/^v/, "");
+        const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
           attempts++;
           try {
             const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
-            const liveVersion = (data.health?.version || "").replace(/^v/, "");
-            if (liveVersion === targetVersion) {
+            const liveVersion = data.health?.version || "";
+            if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
               delete updatePollRef.current[runner.id];
               setUpdatingRunners((prev) => {

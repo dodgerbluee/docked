@@ -29,7 +29,7 @@ import {
   ArrowUpCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
-import { hasVersionUpdate } from "../../utils/versionHelpers";
+import { hasVersionUpdate, versionsEqual } from "../../utils/versionHelpers";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
@@ -575,14 +575,14 @@ export default function RunnerTab() {
       setUpdatingRunner(runner.id);
       try {
         await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
-        const targetVersion = (runner.latest_version || "").replace(/^v/, "");
+        const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
           attempts++;
           try {
             const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
-            const liveVersion = (data.health?.version || "").replace(/^v/, "");
-            if (liveVersion === targetVersion) {
+            const liveVersion = data.health?.version || "";
+            if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
               delete updatePollRef.current[runner.id];
               setUpdatingRunner(null);
