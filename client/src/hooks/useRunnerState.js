@@ -8,6 +8,10 @@ import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate, versionsEqual } from "../utils/versionHelpers";
 
+// How often to refresh runner data while the Runners view is open, so runners
+// updated outside docked clear their "update available" badge automatically.
+const RUNNER_REFRESH_INTERVAL_MS = 60 * 1000;
+
 export function useRunnerState() {
   const [runners, setRunners] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,32 +40,50 @@ export function useRunnerState() {
     }
   }, []);
 
-  // Auto-ping all runners on mount
+  // Ping a single runner's health. The server persists the reported version to
+  // the DB, so a later fetchRunners() reflects any out-of-band update.
+  const pingRunnerHealth = useCallback((id) => {
+    setHealthStatus((prev) => ({ ...prev, [id]: { checking: true } }));
+    return axios
+      .post(`${API_BASE_URL}/api/runners/${id}/health`)
+      .then(({ data }) => {
+        setHealthStatus((prev) => ({
+          ...prev,
+          [id]: { online: data.online, checking: false, health: data.health },
+        }));
+      })
+      .catch(() => {
+        setHealthStatus((prev) => ({ ...prev, [id]: { online: false, checking: false } }));
+      });
+  }, []);
+
+  // Auto-ping all runners on mount, then refetch so the version badge reflects
+  // the versions the health pings just persisted. This clears a stale "update
+  // available" badge on page load without a manual Update/Upgrade or reload.
   const hasAutoPinged = useRef(false);
   useEffect(() => {
     if (hasAutoPinged.current) return;
     hasAutoPinged.current = true;
     fetchRunners().then((list) => {
       if (!list?.length) return;
-      list.forEach((r) => {
-        setHealthStatus((prev) => ({ ...prev, [r.id]: { checking: true } }));
-        axios
-          .post(`${API_BASE_URL}/api/runners/${r.id}/health`)
-          .then(({ data }) => {
-            setHealthStatus((prev) => ({
-              ...prev,
-              [r.id]: { online: data.online, checking: false, health: data.health },
-            }));
-          })
-          .catch(() => {
-            setHealthStatus((prev) => ({
-              ...prev,
-              [r.id]: { online: false, checking: false },
-            }));
-          });
-      });
+      Promise.allSettled(list.map((r) => pingRunnerHealth(r.id))).then(() => fetchRunners());
     });
-  }, [fetchRunners]);
+  }, [fetchRunners, pingRunnerHealth]);
+
+  // Keep runner data fresh while the view is open so runners updated outside
+  // docked drop their "update available" badge automatically (no reload needed).
+  useEffect(() => {
+    const refresh = () => {
+      fetchRunners().then((list) => {
+        if (!list?.length) return;
+        list.forEach((r) => pingRunnerHealth(r.id));
+      });
+    };
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, RUNNER_REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [fetchRunners, pingRunnerHealth]);
 
   const handleEdit = useCallback(
     async ({ name, url, enabled }) => {
