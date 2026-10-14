@@ -185,10 +185,11 @@ Use this checklist during release process review:
 
 ```yaml
 # .github/workflows/release.yml
-version: 1.2.3          # Current version
-next_version: 1.2.4    # Patch (bug fix)
-next_version: 1.3.0    # Minor (new feature, backward compatible)
-next_version: 2.0.0    # Major (breaking change)
+version: 1.2.3 # Current version
+next_version: 1.2.4 # Patch (bug fix)
+next_version: 1.3.0 # Minor (new feature, backward compatible)
+next_version: 2.0.0 # Major (breaking change)
+
 
 # Breaking changes trigger MAJOR increment
 # New features trigger MINOR increment

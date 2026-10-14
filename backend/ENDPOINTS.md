@@ -32,14 +32,10 @@ Containers come from two sources, merged into a single response:
       "updateCount": 1,
       "uptodateCount": 2,
       "totalCount": 3,
-      "containers": [
-        /* same Container objects as flat list */
-      ]
+      "containers": [/* same Container objects as flat list */]
     }
   ],
-  "containers": [
-    /* flat list of all containers */
-  ],
+  "containers": [/* flat list of all containers */],
   "unusedImagesCount": 0
 }
 ```
