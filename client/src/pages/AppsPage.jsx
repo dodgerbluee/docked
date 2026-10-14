@@ -15,7 +15,7 @@ import MobileDrawer from "../components/ui/MobileDrawer";
 import AppsPageSkeleton from "../components/apps/AppsPageSkeleton";
 import Button from "../components/ui/Button";
 import SearchInput from "../components/ui/SearchInput";
-import OperationTaskModal from "../components/ui/OperationTaskModal";
+import OperationTasksModal from "../components/ui/OperationTasksModal";
 import OperationTasksDock from "../components/ui/OperationTasksDock";
 import { useOperationTasks } from "../hooks/useOperationTasks";
 import { STATUS } from "../utils/operationLog";
@@ -382,7 +382,8 @@ export default function AppsPage({
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [pendingRun, setPendingRun] = useState(null); // { runner, app, op } — confirmation
-  const [activeTaskId, setActiveTaskId] = useState(null); // task whose output modal is open
+  const [tasksOpen, setTasksOpen] = useState(false); // unified tasks modal open
+  const [activeTaskId, setActiveTaskId] = useState(null); // task selected in the modal
   const [updatingRunners, setUpdatingRunners] = useState(new Set()); // runnerIds being updated
   const { tasks, startTask, runningKeys, dismissTask, dismissAll } = useOperationTasks();
 
@@ -545,7 +546,13 @@ export default function AppsPage({
     setPendingRun(null);
     const id = startTask(runner, app, op);
     setActiveTaskId(id);
+    setTasksOpen(true);
   }, [pendingRun, startTask]);
+
+  // Auto-close the tasks modal once every task has been dismissed.
+  useEffect(() => {
+    if (tasksOpen && tasks.length === 0) setTasksOpen(false);
+  }, [tasksOpen, tasks.length]);
 
   // When a task finishes, refresh apps so op.active / lastRun / version badges
   // reflect the completed run.
@@ -845,17 +852,29 @@ export default function AppsPage({
         />
       )}
 
-      <OperationTasksDock
-        tasks={tasks}
-        onOpenTask={setActiveTaskId}
-        onDismiss={dismissTask}
-        onDismissAll={dismissAll}
-      />
+      {!tasksOpen && (
+        <OperationTasksDock
+          tasks={tasks}
+          onOpen={() => {
+            if (!tasks.find((t) => t.id === activeTaskId)) {
+              const firstRunning = tasks.find((t) => t.status === STATUS.RUNNING);
+              setActiveTaskId((firstRunning || tasks[0])?.id ?? null);
+            }
+            setTasksOpen(true);
+          }}
+        />
+      )}
 
-      <OperationTaskModal
-        task={tasks.find((t) => t.id === activeTaskId) || null}
-        onClose={() => setActiveTaskId(null)}
-      />
+      {tasksOpen && (
+        <OperationTasksModal
+          tasks={tasks}
+          activeTaskId={activeTaskId}
+          onSelectTask={setActiveTaskId}
+          onDismiss={dismissTask}
+          onDismissAll={dismissAll}
+          onClose={() => setTasksOpen(false)}
+        />
+      )}
     </div>
   );
 }
