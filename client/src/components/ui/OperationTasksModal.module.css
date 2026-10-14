@@ -223,6 +223,15 @@
   color: var(--text-error, #ef4444);
 }
 
+/* Status chips in the tab list */
+.chipDone {
+  color: #22c55e;
+}
+
+.chipError {
+  color: var(--text-error, #ef4444);
+}
+
 .statusMeta {
   margin-left: auto;
   font-size: 0.75rem;
