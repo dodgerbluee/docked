@@ -2206,7 +2206,7 @@ func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
 	if u == nil {
 		return nil
 	}
-	return &model.UpgradeRecord{
+	rec := &model.UpgradeRecord{
 		ID:                strconv.FormatInt(u.ID, 10),
 		DockerContainerID: u.ContainerID,
 		ContainerName:     u.ContainerName,
@@ -2228,6 +2228,18 @@ func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
 		IntentID:          nullInt64StrPtr(u.IntentID),
 		CreatedAt:         parseTime(u.CreatedAt),
 	}
+	if u.RunnerID.Valid {
+		rec.Source = &model.Runner{
+			ID:   strconv.FormatInt(u.RunnerID.Int64, 10),
+			Name: nullStrDefault(u.RunnerName),
+		}
+	} else if u.SourceInstanceID.Valid {
+		rec.Source = &model.SourceInstance{
+			ID:   strconv.FormatInt(u.SourceInstanceID.Int64, 10),
+			Name: nullStrDefault(u.SourceName),
+		}
+	}
+	return rec
 }
 
 func discordWebhookToModel(d *db.DiscordWebhookRow) *model.DiscordWebhook {
