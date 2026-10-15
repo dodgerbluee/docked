@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -99,6 +100,144 @@ CREATE TABLE intents (
   dry_run INTEGER DEFAULT 0,
   sequential_delay_sec INTEGER DEFAULT 0,
   last_evaluated_at DATETIME,
+  last_execution_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE intent_executions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  intent_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  trigger_type TEXT NOT NULL,
+  containers_matched INTEGER DEFAULT 0,
+  containers_upgraded INTEGER DEFAULT 0,
+  containers_failed INTEGER DEFAULT 0,
+  containers_skipped INTEGER DEFAULT 0,
+  error_message TEXT,
+  started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME,
+  duration_ms INTEGER
+);
+CREATE TABLE runners (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT,
+  api_key TEXT,
+  enabled INTEGER DEFAULT 1,
+  version TEXT,
+  latest_version TEXT,
+  docker_enabled INTEGER DEFAULT 0,
+  last_seen DATETIME,
+  docker_status TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE containers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  source_instance_id INTEGER,
+  container_id TEXT NOT NULL,
+  container_name TEXT NOT NULL,
+  endpoint_id TEXT,
+  image_name TEXT,
+  image_repo TEXT,
+  status TEXT,
+  state TEXT,
+  stack_name TEXT,
+  deployed_image_id INTEGER,
+  uses_network_mode INTEGER DEFAULT 0,
+  provides_network INTEGER DEFAULT 0,
+  runner_id INTEGER,
+  last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE deployed_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  image_repo TEXT,
+  image_tag TEXT,
+  image_digest TEXT,
+  repo_digests TEXT,
+  registry TEXT
+);
+CREATE TABLE registry_image_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  image_repo TEXT,
+  tag TEXT,
+  latest_digest TEXT,
+  latest_version TEXT,
+  latest_publish_date TEXT,
+  provider TEXT,
+  last_checked TEXT
+);
+CREATE TABLE upgrade_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  source_instance_id INTEGER,
+  source_instance_name TEXT,
+  runner_id INTEGER,
+  runner_name TEXT,
+  container_id TEXT,
+  container_name TEXT,
+  endpoint_id TEXT,
+  source_url TEXT,
+  old_image TEXT,
+  new_image TEXT,
+  old_digest TEXT,
+  new_digest TEXT,
+  old_version TEXT,
+  new_version TEXT,
+  image_repo TEXT,
+  registry TEXT,
+  namespace TEXT,
+  repository TEXT,
+  status TEXT,
+  error_message TEXT,
+  upgrade_duration_ms INTEGER,
+  intent_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE tracked_apps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT,
+  image_name TEXT,
+  github_repo TEXT,
+  source_type TEXT,
+  current_version TEXT,
+  current_digest TEXT,
+  latest_version TEXT,
+  latest_digest TEXT,
+  has_update INTEGER DEFAULT 0,
+  current_version_publish_date TEXT,
+  latest_version_publish_date TEXT,
+  last_checked TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE discord_webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  webhook_url TEXT,
+  server_name TEXT,
+  channel_name TEXT,
+  name TEXT,
+  enabled INTEGER DEFAULT 1,
+  avatar_url TEXT,
+  guild_id TEXT,
+  channel_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE repository_access_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  provider TEXT NOT NULL,
+  name TEXT,
+  access_token TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -445,9 +584,11 @@ func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
 
-	// DOCKER_HUB_PULL enum -> DB must store "docker-hub-pull".
+	// TRACKED_APPS_CHECK enum -> DB must store "tracked-apps-check".
+	// (DOCKER_HUB_PULL is honestly rejected by the Go API, so the enum
+	// write-side guard uses the job type that is actually implemented.)
 	r := env.gql(t, admin, `mutation($jt: BatchJobType){ triggerBatchJob(jobType: $jt){ id jobType } }`,
-		map[string]any{"jt": "DOCKER_HUB_PULL"})
+		map[string]any{"jt": "TRACKED_APPS_CHECK"})
 	if len(r.Errors) != 0 {
 		t.Fatalf("triggerBatchJob errored: %+v", r.Errors)
 	}
@@ -456,12 +597,17 @@ func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
 		"SELECT job_type FROM batch_runs ORDER BY id DESC LIMIT 1").Scan(&stored); err != nil {
 		t.Fatalf("read batch run job_type: %v", err)
 	}
-	if stored != "docker-hub-pull" {
-		t.Fatalf("DB job_type = %q, want docker-hub-pull", stored)
+	if stored != "tracked-apps-check" {
+		t.Fatalf("DB job_type = %q, want tracked-apps-check", stored)
 	}
 
-	// Seed a second run with a different (lowercase, Node-domain) job_type so
-	// the filter's discrimination is actually exercised, not just "returns 1".
+	// Seed runs with other (lowercase, Node-domain) job_types so the filter's
+	// discrimination is actually exercised, not just "returns 1".
+	if _, err := env.database.ExecContext(context.Background(),
+		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'docker-hub-pull', 'completed')",
+		env.adminID); err != nil {
+		t.Fatalf("seed docker-hub-pull run: %v", err)
+	}
 	if _, err := env.database.ExecContext(context.Background(),
 		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'app-version-scan', 'completed')",
 		env.adminID); err != nil {
@@ -567,6 +713,289 @@ func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
 		map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": "UTC"}})
 	if !unsupported.hasErrorContaining("scheduleTimezone is not supported") {
 		t.Fatalf("unsupported timezone must be rejected, got: %+v", unsupported)
+	}
+}
+
+// --- regression tests for the full-sweep findings ---
+
+func TestEntityQueriesReturnNullForMissing(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	cases := map[string]string{
+		"container":       `query { container(id: "999999") { id } }`,
+		"sourceInstance":  `query { sourceInstance(id: "999999") { id } }`,
+		"runner":          `query { runner(id: "999999") { id } }`,
+		"trackedApp":      `query { trackedApp(id: "999999") { id } }`,
+		"intent":          `query { intent(id: "999999") { id } }`,
+		"batchRun":        `query { batchRun(id: "999999") { id } }`,
+		"discordWebhook":  `query { discordWebhook(id: "999999") { id } }`,
+		"repositoryToken": `query { repositoryToken(provider: "github") { id } }`,
+	}
+	for name, q := range cases {
+		r := env.gql(t, admin, q, nil)
+		if len(r.Errors) != 0 {
+			t.Errorf("%s: missing record must return null, got errors: %+v", name, r.Errors)
+			continue
+		}
+		var v any
+		if err := json.Unmarshal(r.Data[name], &v); err != nil {
+			t.Errorf("%s: decode data: %v", name, err)
+			continue
+		}
+		if v != nil {
+			t.Errorf("%s: expected null, got %v", name, v)
+		}
+	}
+}
+
+func seedContainer(t *testing.T, env *testEnv, name, image, state, stack string, diID, runnerID, sourceID *int64) {
+	t.Helper()
+	var di, rid, sid any
+	if diID != nil {
+		di = *diID
+	}
+	if runnerID != nil {
+		rid = *runnerID
+	}
+	if sourceID != nil {
+		sid = *sourceID
+	}
+	_, err := env.database.Exec(
+		`INSERT INTO containers (user_id, container_id, container_name, image_name, image_repo, state, stack_name, deployed_image_id, runner_id, source_instance_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		env.adminID, "cid-"+name, name, image, image, state, stack, di, rid, sid)
+	if err != nil {
+		t.Fatalf("seed container %s: %v", name, err)
+	}
+}
+
+func totalOf(t *testing.T, r gqlResp, field string) int {
+	t.Helper()
+	var conn struct {
+		TotalCount int `json:"totalCount"`
+	}
+	if err := json.Unmarshal(r.Data[field], &conn); err != nil {
+		t.Fatalf("decode %s: %v (%+v)", field, err, r)
+	}
+	return conn.TotalCount
+}
+
+func TestContainersFilterAndPagination(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	res, err := env.database.Exec(
+		"INSERT INTO runners (user_id, name, url, api_key) VALUES (?, 'r1', 'http://runner', 'k')", env.adminID)
+	if err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
+	runnerID, _ := res.LastInsertId()
+	res, err = env.database.Exec(
+		"INSERT INTO source_instances (user_id, name, url, auth_type) VALUES (?, 'src', 'http://x', 'apikey')", env.adminID)
+	if err != nil {
+		t.Fatalf("seed source: %v", err)
+	}
+	sourceID, _ := res.LastInsertId()
+	res, err = env.database.Exec(
+		`INSERT INTO deployed_images (user_id, image_repo, image_tag, image_digest, repo_digests)
+		 VALUES (?, 'nginx', '1.24', 'sha256:aaa', '["nginx@sha256:aaa"]')`, env.adminID)
+	if err != nil {
+		t.Fatalf("seed deployed image: %v", err)
+	}
+	diID, _ := res.LastInsertId()
+	_, err = env.database.Exec(
+		`INSERT INTO registry_image_versions (user_id, image_repo, tag, latest_digest, provider)
+		 VALUES (?, 'nginx', '1.24', 'sha256:bbb', 'docker-hub')`, env.adminID)
+	if err != nil {
+		t.Fatalf("seed registry version: %v", err)
+	}
+
+	seedContainer(t, env, "web", "nginx:1.24", "running", "frontend", &diID, &runnerID, nil)
+	seedContainer(t, env, "db", "postgres:16", "exited", "backend", nil, &runnerID, nil)
+	seedContainer(t, env, "cache", "redis:7", "running", "", nil, nil, &sourceID)
+
+	cases := []struct {
+		filter string
+		want   int
+	}{
+		{`{ containers { totalCount } }`, 3},
+		{`{ containers(filter: { state: RUNNING }) { totalCount } }`, 2},
+		{`{ containers(filter: { imageName: "nginx" }) { totalCount } }`, 1},
+		{`{ containers(filter: { search: "web" }) { totalCount } }`, 1},
+		{`{ containers(filter: { search: "redis" }) { totalCount } }`, 1},
+		{`{ containers(filter: { stackName: "backend" }) { totalCount } }`, 1},
+		{`{ containers(filter: { hasUpdate: true }) { totalCount } }`, 1},
+		{`{ containers(filter: { hasUpdate: false }) { totalCount } }`, 2},
+		{fmt.Sprintf(`{ containers(filter: { runnerId: %q }) { totalCount } }`, strconv.FormatInt(runnerID, 10)), 2},
+		{fmt.Sprintf(`{ containers(filter: { sourceInstanceId: %q }) { totalCount } }`, strconv.FormatInt(sourceID, 10)), 1},
+		{`{ containers(filter: { state: RUNNING, hasUpdate: true }) { totalCount } }`, 1},
+	}
+	for _, c := range cases {
+		r := env.gql(t, admin, c.filter, nil)
+		if len(r.Errors) != 0 {
+			t.Fatalf("query %s errored: %+v", c.filter, r.Errors)
+		}
+		if got := totalOf(t, r, "containers"); got != c.want {
+			t.Errorf("query %s: totalCount=%d want %d", c.filter, got, c.want)
+		}
+	}
+
+	// Pagination over the filtered set.
+	r := env.gql(t, admin, `{ containers(first: 2) { totalCount items { id } pageInfo { hasNextPage } } }`, nil)
+	var conn struct {
+		TotalCount int           `json:"totalCount"`
+		Items      []interface{} `json:"items"`
+		PageInfo   struct {
+			HasNextPage bool `json:"hasNextPage"`
+		} `json:"pageInfo"`
+	}
+	if err := json.Unmarshal(r.Data["containers"], &conn); err != nil {
+		t.Fatalf("decode page: %v", err)
+	}
+	if conn.TotalCount != 3 || len(conn.Items) != 2 || !conn.PageInfo.HasNextPage {
+		t.Fatalf("pagination wrong: %+v", conn)
+	}
+}
+
+func TestUpgradeHistoryFilter(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	seed := func(name, status, createdAt string) {
+		if _, err := env.database.Exec(
+			`INSERT INTO upgrade_history (user_id, container_id, container_name, old_image, new_image, status, created_at)
+			 VALUES (?, ?, ?, 'img:1', 'img:2', ?, ?)`, env.adminID, "cid-"+name, name, status, createdAt); err != nil {
+			t.Fatalf("seed upgrade history %s: %v", name, err)
+		}
+	}
+	seed("web", "success", "2026-10-01 10:00:00")
+	seed("db", "failed", "2026-10-02 10:00:00")
+	seed("webby", "skipped", "2026-10-03 10:00:00")
+
+	cases := []struct {
+		filter string
+		want   int
+	}{
+		{`{ upgradeHistory { totalCount } }`, 3},
+		{`{ upgradeHistory(filter: { containerName: "web" }) { totalCount } }`, 2},
+		{`{ upgradeHistory(filter: { status: FAILED }) { totalCount } }`, 1},
+		{`{ upgradeHistory(filter: { from: "2026-10-02T00:00:00Z", to: "2026-10-02T23:59:59Z" }) { totalCount } }`, 1},
+		{`{ upgradeHistory(filter: { containerName: "web", status: SKIPPED }) { totalCount } }`, 1},
+	}
+	for _, c := range cases {
+		r := env.gql(t, admin, c.filter, nil)
+		if len(r.Errors) != 0 {
+			t.Fatalf("query %s errored: %+v", c.filter, r.Errors)
+		}
+		if got := totalOf(t, r, "upgradeHistory"); got != c.want {
+			t.Errorf("query %s: totalCount=%d want %d", c.filter, got, c.want)
+		}
+	}
+}
+
+func TestIntentExecutionsRelations(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	res, err := env.database.Exec(
+		`INSERT INTO intents (user_id, name, schedule_type) VALUES (?, 'i1', 'immediate')`, env.adminID)
+	if err != nil {
+		t.Fatalf("seed intent: %v", err)
+	}
+	intentID, _ := res.LastInsertId()
+	res, err = env.database.Exec(
+		`INSERT INTO intent_executions (intent_id, user_id, status, trigger_type, started_at)
+		 VALUES (?, ?, 'completed', 'manual', '2026-10-01 10:00:00')`, intentID, env.adminID)
+	if err != nil {
+		t.Fatalf("seed execution 1: %v", err)
+	}
+	res, err = env.database.Exec(
+		`INSERT INTO intent_executions (intent_id, user_id, status, trigger_type, started_at)
+		 VALUES (?, ?, 'failed', 'scheduled', '2026-10-02 10:00:00')`, intentID, env.adminID)
+	if err != nil {
+		t.Fatalf("seed execution 2: %v", err)
+	}
+	e2, _ := res.LastInsertId()
+	if _, err := env.database.Exec("UPDATE intents SET last_execution_id = ? WHERE id = ?", e2, intentID); err != nil {
+		t.Fatalf("link last execution: %v", err)
+	}
+
+	r := env.gql(t, admin, `{ intents { id executions(first: 5) { totalCount items { id status } } lastExecution { id status } } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("intents with executions errored: %+v", r.Errors)
+	}
+	var out []struct {
+		ID         string `json:"id"`
+		Executions struct {
+			TotalCount int `json:"totalCount"`
+			Items      []struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"items"`
+		} `json:"executions"`
+		LastExecution *struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"lastExecution"`
+	}
+	if err := json.Unmarshal(r.Data["intents"], &out); err != nil {
+		t.Fatalf("decode intents: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("want 1 intent, got %d", len(out))
+	}
+	ig := out[0]
+	if ig.Executions.TotalCount != 2 || len(ig.Executions.Items) != 2 {
+		t.Fatalf("executions connection wrong: %+v", ig.Executions)
+	}
+	if ig.LastExecution == nil || ig.LastExecution.ID != strconv.FormatInt(e2, 10) || ig.LastExecution.Status != "FAILED" {
+		t.Fatalf("lastExecution wrong: %+v (want id=%d FAILED)", ig.LastExecution, e2)
+	}
+}
+
+func TestBatchAndPullGuards(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	if r := env.gql(t, admin, `mutation { pullContainers(runnerId: "999999") { id } }`, nil); !r.hasErrorContaining("runner not found") {
+		t.Fatalf("pullContainers with unknown runner must report not found, got: %+v", r)
+	}
+	if r := env.gql(t, admin, `mutation { pullContainers { id } }`, nil); !r.hasErrorContaining("not supported") {
+		t.Fatalf("pullContainers must be rejected honestly, got: %+v", r)
+	}
+	if r := env.gql(t, admin, `mutation { triggerBatchJob(jobType: DOCKER_HUB_PULL) { id } }`, nil); !r.hasErrorContaining("not supported") {
+		t.Fatalf("DOCKER_HUB_PULL batch job must be rejected honestly, got: %+v", r)
+	}
+
+	r := env.gql(t, admin, `mutation { triggerBatchJob(jobType: TRACKED_APPS_CHECK) { id jobType status isManual } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("TRACKED_APPS_CHECK must be accepted, got: %+v", r.Errors)
+	}
+	var out struct {
+		ID       string `json:"id"`
+		JobType  string `json:"jobType"`
+		Status   string `json:"status"`
+		IsManual bool   `json:"isManual"`
+	}
+	if err := json.Unmarshal(r.Data["triggerBatchJob"], &out); err != nil {
+		t.Fatalf("decode batch run: %v", err)
+	}
+	if out.JobType != "TRACKED_APPS_CHECK" || !out.IsManual {
+		t.Fatalf("batch run fields wrong: %+v", out)
+	}
+}
+
+func TestUploadAvatarRequiresMultipartTransport(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	// A JSON body cannot carry a real file; the scalar must explain the
+	// multipart requirement instead of silently accepting a placeholder.
+	r := env.gql(t, admin, `mutation Q($f: Upload!) { uploadAvatar(file: $f) { success } }`,
+		map[string]any{"f": map[string]any{"filename": "x.png"}})
+	if !r.hasErrorContaining("multipart") {
+		t.Fatalf("JSON upload attempt must explain the multipart requirement, got: %+v", r)
 	}
 }
 

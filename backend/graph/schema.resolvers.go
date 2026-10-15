@@ -7,9 +7,10 @@ package graph
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -37,6 +38,61 @@ func (r *containerResolver) UpgradeHistory(ctx context.Context, obj *model.Conta
 		items[i] = upgradeRecordToModel(&rows[i])
 	}
 	return &model.UpgradeRecordConnection{
+		Items:      items,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(items), total, limit, offset),
+	}, nil
+}
+
+// LastExecution is the resolver for the lastExecution field.
+func (r *intentResolver) LastExecution(ctx context.Context, obj *model.Intent) (*model.IntentExecution, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, err := strconv.ParseInt(obj.ID, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := db.GetIntentLastExecution(ctx, r.DB, iid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, nil
+	}
+	return intentExecutionToModel(*row), nil
+}
+
+// Executions is the resolver for the executions field.
+func (r *intentResolver) Executions(ctx context.Context, obj *model.Intent, first *int, after *string) (*model.IntentExecutionConnection, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, err := strconv.ParseInt(obj.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid intent id")
+	}
+
+	limit := 20
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	offset := 0
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+	}
+
+	rows, total, err := db.GetIntentExecutions(ctx, r.DB, uid, &iid, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*model.IntentExecution, len(rows))
+	for i, row := range rows {
+		items[i] = intentExecutionToModel(row)
+	}
+	return &model.IntentExecutionConnection{
 		Items:      items,
 		TotalCount: total,
 		PageInfo:   buildPageInfo(len(items), total, limit, offset),
@@ -289,36 +345,23 @@ func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID 
 		return nil, err
 	}
 
-	// Determine target: runner or source instance
+	// Validate the requested target so bad IDs still report "not found",
+	// then reject: container inventory sync (fetch + upsert into the shared
+	// DB) is only implemented by the Node backend.
 	if runnerID != nil && *runnerID != "" {
 		rid, _ := strconv.ParseInt(*runnerID, 10, 64)
 		runner, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
 		if err != nil || runner == nil {
 			return nil, fmt.Errorf("runner not found")
 		}
-		// Trigger pull via runner HTTP API
-		go func() {
-			payload := map[string]any{"fromImage": "", "tag": ""}
-			_ = runnerPost(runner.URL, runner.APIKey, "/containers/pull-all", payload)
-		}()
 	} else if sourceInstanceID != nil && *sourceInstanceID != "" {
 		sid, _ := strconv.ParseInt(*sourceInstanceID, 10, 64)
 		src, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
 		if err != nil || src == nil {
 			return nil, fmt.Errorf("source instance not found")
 		}
-		go func() {
-			_ = portainerPullAll(src)
-		}()
 	}
-
-	return &model.Operation{
-		ID:       "pull-" + strconv.FormatInt(time.Now().UnixMilli(), 10),
-		Type:     model.OperationTypePullContainers,
-		Status:   model.OperationStatusPending,
-		QueuedAt: time.Now(),
-		Message:  strPtr("Pull initiated"),
-	}, nil
+	return nil, fmt.Errorf("container sync is not supported by the Go API; use the primary server")
 }
 
 // UpgradeContainer is the resolver for the upgradeContainer field.
@@ -826,13 +869,21 @@ func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.T
 	if err != nil {
 		return nil, err
 	}
+	checked, updated := r.runTrackedAppsCheck(ctx, uid)
+	return &model.TrackedAppCheckResult{
+		Success: true,
+		Checked: &checked,
+		Updated: &updated,
+	}, nil
+}
 
+// runTrackedAppsCheck checks every tracked app for a newer registry version
+// and persists any updates. Shared by the mutation and the batch job.
+func (r *Resolver) runTrackedAppsCheck(ctx context.Context, uid int64) (checked, updated int) {
 	apps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
 	if err != nil {
-		return nil, err
+		return 0, 0
 	}
-
-	updated := 0
 	for _, app := range apps {
 		if app.ImageName.Valid && app.ImageName.String != "" {
 			// Check Docker Hub / GHCR for latest tag
@@ -843,13 +894,7 @@ func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.T
 			}
 		}
 	}
-
-	checked := len(apps)
-	return &model.TrackedAppCheckResult{
-		Success: true,
-		Checked: &checked,
-		Updated: &updated,
-	}, nil
+	return len(apps), updated
 }
 
 // CheckTrackedAppUpdate is the resolver for the checkTrackedAppUpdate field.
@@ -1168,13 +1213,18 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 	if err != nil {
 		return nil, err
 	}
-	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
-		return nil, err
-	}
 
 	jt := "docker-hub-pull"
 	if jobType != nil {
 		jt = dbEnumValue(string(*jobType))
+	}
+	// Only tracked-apps-check is implemented here; container inventory sync
+	// (docker-hub-pull) and the remaining job types live in the Node backend.
+	if jt != "tracked-apps-check" {
+		return nil, fmt.Errorf("batch job %s is not supported by the Go API; use the primary server", jt)
+	}
+	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
+		return nil, err
 	}
 
 	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, jt, true)
@@ -1182,21 +1232,11 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 		return nil, fmt.Errorf("create batch run: %w", err)
 	}
 
-	// Fire-and-forget: pull containers from all sources
+	// Fire-and-forget: check every tracked app for a newer version.
 	go func() {
 		ctx := context.Background()
-		sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
-		runners, _ := db.GetEnabledRunners(ctx, r.DB, uid)
-		checked := 0
-		for _, src := range sources {
-			_ = portainerPullAll(&src)
-			checked++
-		}
-		for _, runner := range runners {
-			_ = runnerPost(runner.URL, runner.APIKey, "/containers/pull-all", map[string]any{})
-			checked++
-		}
-		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", checked, 0, nil)
+		checked, updated := r.runTrackedAppsCheck(ctx, uid)
+		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", checked, updated, nil)
 	}()
 
 	return &model.BatchRun{
@@ -1427,19 +1467,25 @@ func (r *mutationResolver) ValidateRegistryCredentials(ctx context.Context, inpu
 
 	username := input.Username
 	token := input.Token
+	if username == "" || token == "" {
+		return &model.ValidationResult{Valid: false, Message: strPtr("Username and token required")}, nil
+	}
 
-	url := "https://hub.docker.com/v2/repositories/library/"
-	if username != "" && token != "" {
-		status, _, err := httpGetWithAuth(url, username, token)
-		if err != nil {
-			return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed")}, nil
-		}
-		if status == 200 {
-			return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
-		}
+	// auth.docker.io issues a registry token only when the Basic credentials
+	// are valid; the public hub.docker.com API would answer 200 regardless.
+	tokenURL := "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/hello-world:pull"
+	status, _, err := httpGetWithAuth(tokenURL, username, token)
+	if err != nil {
+		return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed")}, nil
+	}
+	switch status {
+	case http.StatusOK:
+		return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return &model.ValidationResult{Valid: false, Message: strPtr("Invalid username or token")}, nil
+	default:
 		return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
 	}
-	return &model.ValidationResult{Valid: false, Message: strPtr("Username and token required")}, nil
 }
 
 // UpdateUserPreferences is the resolver for the updateUserPreferences field.
@@ -1458,18 +1504,63 @@ func (r *mutationResolver) UpdateUserPreferences(ctx context.Context, input mode
 
 // UploadAvatar is the resolver for the uploadAvatar field.
 func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	// Upload scalar carries metadata only (filename, contentType, size).
-	// Actual file transfer happens via multipart; the Node backend handles this.
-	// Store the filename reference for the avatar path.
-	if file.Filename == "" {
-		return nil, fmt.Errorf("upload filename required")
+	if file.Stream == nil {
+		return nil, fmt.Errorf("uploadAvatar requires a multipart/form-data request (graphql-multipart-request-spec)")
 	}
-	return &model.SuccessResult{Success: true}, nil
+	if file.ContentType != "" && !strings.HasPrefix(strings.ToLower(file.ContentType), "image/") {
+		return nil, fmt.Errorf("uploaded file must be an image")
+	}
+	const maxAvatarBytes = 5 << 20
+	data, err := io.ReadAll(io.LimitReader(file.Stream, maxAvatarBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read upload: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("uploaded file is empty")
+	}
+	if len(data) > maxAvatarBytes {
+		return nil, fmt.Errorf("uploaded file exceeds %d bytes", maxAvatarBytes)
+	}
+
+	// Match Node's avatarController layout: DATA_DIR/avatars/<uid>/avatar.jpg
+	// plus timestamped copies in avatars/<uid>/recent (newest 3 kept).
+	avatarDir := fmt.Sprintf("%s/avatars/%d", getDataDir(), uid)
+	if err := os.MkdirAll(avatarDir+"/recent", 0o755); err != nil {
+		return nil, fmt.Errorf("create avatar dir: %w", err)
+	}
+	if err := os.WriteFile(avatarDir+"/avatar.jpg", data, 0o644); err != nil {
+		return nil, fmt.Errorf("write avatar: %w", err)
+	}
+	recentName := fmt.Sprintf("%d.jpg", time.Now().UnixMilli())
+	if err := os.WriteFile(avatarDir+"/recent/"+recentName, data, 0o644); err != nil {
+		return nil, fmt.Errorf("write recent avatar: %w", err)
+	}
+	pruneRecentAvatars(avatarDir + "/recent")
+
+	return &model.SuccessResult{Success: true, Message: strPtr("/api/avatars")}, nil
+}
+
+// pruneRecentAvatars keeps only the 3 newest files in a recent-avatars dir,
+// mirroring Node's cleanup after upload.
+func pruneRecentAvatars(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	// Timestamp-based names sort chronologically; keep the newest 3.
+	for i := 0; i+3 < len(names); i++ {
+		_ = os.Remove(dir + "/" + names[i])
+	}
 }
 
 // DeleteAvatar is the resolver for the deleteAvatar field.
@@ -1479,10 +1570,14 @@ func (r *mutationResolver) DeleteAvatar(ctx context.Context) (*model.SuccessResu
 		return nil, err
 	}
 
-	dataDir := getDataDir()
-	avatarDir := dataDir + "/avatars"
+	avatarDir := fmt.Sprintf("%s/avatars/%d", getDataDir(), uid)
+	if err := os.RemoveAll(avatarDir); err != nil {
+		return nil, fmt.Errorf("delete avatar: %w", err)
+	}
+	// Legacy flat layout written by earlier builds.
+	legacyDir := getDataDir() + "/avatars"
 	for _, ext := range []string{".png", ".jpg"} {
-		os.Remove(fmt.Sprintf("%s/user_%d%s", avatarDir, uid, ext))
+		os.Remove(fmt.Sprintf("%s/user_%d%s", legacyDir, uid, ext))
 	}
 	return &model.SuccessResult{Success: true}, nil
 }
@@ -1580,14 +1675,24 @@ func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerF
 		offset, _ = strconv.Atoi(*after)
 	}
 
-	rows, total, err := db.GetContainersPaginated(ctx, r.DB, uid, limit, offset)
+	rows, err := db.GetContainers(ctx, r.DB, uid)
 	if err != nil {
 		return nil, err
 	}
+	rows = filterContainerRows(rows, filter)
+	total := len(rows)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	page := rows[offset:end]
 
-	containers := make([]*model.Container, len(rows))
-	for i, row := range rows {
-		containers[i] = containerRowToModel(&row)
+	containers := make([]*model.Container, len(page))
+	for i := range page {
+		containers[i] = containerRowToModel(&page[i])
 	}
 
 	return &model.ContainerConnection{
@@ -1707,7 +1812,7 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("container not found")
+		return nil, nil
 	}
 	return containerRowToModel(row), nil
 }
@@ -1769,7 +1874,7 @@ func (r *queryResolver) SourceInstance(ctx context.Context, id string) (*model.S
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("source instance not found")
+		return nil, nil
 	}
 	return sourceInstanceToModel(row), nil
 }
@@ -1804,7 +1909,7 @@ func (r *queryResolver) Runner(ctx context.Context, id string) (*model.Runner, e
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("runner not found")
+		return nil, nil
 	}
 	return runnerToModel(row), nil
 }
@@ -1839,7 +1944,7 @@ func (r *queryResolver) TrackedApp(ctx context.Context, id string) (*model.Track
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("tracked app not found")
+		return nil, nil
 	}
 	return trackedAppToModel(row), nil
 }
@@ -1874,7 +1979,7 @@ func (r *queryResolver) Intent(ctx context.Context, id string) (*model.Intent, e
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("intent not found")
+		return nil, nil
 	}
 	return intentToModel(row), nil
 }
@@ -1908,27 +2013,7 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 
 	items := make([]*model.IntentExecution, len(rows))
 	for i, row := range rows {
-		items[i] = &model.IntentExecution{
-			ID:                 strconv.FormatInt(row.ID, 10),
-			IntentID:           strconv.FormatInt(row.IntentID, 10),
-			Status:             model.IntentExecutionStatus(enumConst(row.Status)),
-			TriggerType:        model.IntentTriggerType(enumConst(row.TriggerType)),
-			ContainersMatched:  row.ContainersMatched,
-			ContainersUpgraded: row.ContainersUpgraded,
-			ContainersFailed:   row.ContainersFailed,
-			ContainersSkipped:  row.ContainersSkipped,
-			ErrorMessage:       nullStrPtr(row.ErrorMessage),
-			QueuedAt:           parseTime(row.StartedAt),
-			StartedAt:          nullTimePtr(sql.NullString{String: row.StartedAt, Valid: row.StartedAt != ""}),
-			CompletedAt:        nullTimePtr(row.CompletedAt),
-			DurationMs:         nullInt64Ptr(row.DurationMs),
-		}
-		if row.IntentName.Valid {
-			items[i].Intent = &model.Intent{
-				ID:   strconv.FormatInt(row.IntentID, 10),
-				Name: row.IntentName.String,
-			}
-		}
+		items[i] = intentExecutionToModel(row)
 	}
 
 	return &model.IntentExecutionConnection{
@@ -2056,7 +2141,7 @@ func (r *queryResolver) BatchRun(ctx context.Context, id string) (*model.BatchRu
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("batch run not found")
+		return nil, nil
 	}
 	return batchRunToModel(row), nil
 }
@@ -2077,7 +2162,23 @@ func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.Upgrad
 		offset, _ = strconv.Atoi(*after)
 	}
 
-	rows, total, err := db.GetUpgradeHistory(ctx, r.DB, uid, limit, offset)
+	var f *db.UpgradeHistoryFilter
+	if filter != nil {
+		f = &db.UpgradeHistoryFilter{
+			ContainerName:    filter.ContainerName,
+			IntentID:         parseIDPtr(filter.IntentID),
+			SourceInstanceID: parseIDPtr(filter.SourceInstanceID),
+			RunnerID:         parseIDPtr(filter.RunnerID),
+			From:             filter.From,
+			To:               filter.To,
+		}
+		if filter.Status != nil {
+			sv := dbEnumValue(string(*filter.Status))
+			f.Status = &sv
+		}
+	}
+
+	rows, total, err := db.GetUpgradeHistoryFiltered(ctx, r.DB, uid, limit, offset, f)
 	if err != nil {
 		return nil, err
 	}
@@ -2124,7 +2225,7 @@ func (r *queryResolver) DiscordWebhook(ctx context.Context, id string) (*model.D
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("webhook not found")
+		return nil, nil
 	}
 	return discordWebhookToModel(row), nil
 }
@@ -2160,7 +2261,7 @@ func (r *queryResolver) RepositoryToken(ctx context.Context, provider string) (*
 		return nil, err
 	}
 	if row == nil {
-		return nil, fmt.Errorf("repository token not found for provider: %s", provider)
+		return nil, nil
 	}
 	return repoTokenToModel(row), nil
 }
@@ -2614,6 +2715,9 @@ func (r *userResolver) Preferences(ctx context.Context, obj *model.User) (*model
 // Container returns ContainerResolver implementation.
 func (r *Resolver) Container() ContainerResolver { return &containerResolver{r} }
 
+// Intent returns IntentResolver implementation.
+func (r *Resolver) Intent() IntentResolver { return &intentResolver{r} }
+
 // IntentExecution returns IntentExecutionResolver implementation.
 func (r *Resolver) IntentExecution() IntentExecutionResolver { return &intentExecutionResolver{r} }
 
@@ -2645,6 +2749,7 @@ func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type (
 	containerResolver             struct{ *Resolver }
+	intentResolver                struct{ *Resolver }
 	intentExecutionResolver       struct{ *Resolver }
 	mutationResolver              struct{ *Resolver }
 	queryResolver                 struct{ *Resolver }

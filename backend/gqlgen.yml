@@ -67,6 +67,12 @@ models:
     fields:
       containers:
         resolver: true
+  Intent:
+    fields:
+      executions:
+        resolver: true
+      lastExecution:
+        resolver: true
   RepositoryAccessToken:
     fields:
       associatedImages:

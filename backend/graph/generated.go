@@ -30,6 +30,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Container() ContainerResolver
+	Intent() IntentResolver
 	IntentExecution() IntentExecutionResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
@@ -659,6 +660,11 @@ type ComplexityRoot struct {
 
 type ContainerResolver interface {
 	UpgradeHistory(ctx context.Context, obj *model.Container, first *int, after *string) (*model.UpgradeRecordConnection, error)
+}
+type IntentResolver interface {
+	LastExecution(ctx context.Context, obj *model.Intent) (*model.IntentExecution, error)
+
+	Executions(ctx context.Context, obj *model.Intent, first *int, after *string) (*model.IntentExecutionConnection, error)
 }
 type IntentExecutionResolver interface {
 	Containers(ctx context.Context, obj *model.IntentExecution, first *int, after *string) (*model.IntentExecutionContainerConnection, error)
@@ -10820,7 +10826,7 @@ func (ec *executionContext) _Intent_lastExecution(ctx context.Context, field gra
 			return ec.fieldContext_Intent_lastExecution(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.LastExecution, nil
+			return ec.Resolvers.Intent().LastExecution(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.IntentExecution) graphql.Marshaler {
@@ -10834,8 +10840,8 @@ func (ec *executionContext) fieldContext_Intent_lastExecution(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "Intent",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_IntentExecution(ctx, field)
 		},
@@ -10898,7 +10904,8 @@ func (ec *executionContext) _Intent_executions(ctx context.Context, field graphq
 			return ec.fieldContext_Intent_executions(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Executions, nil
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Intent().Executions(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.IntentExecutionConnection) graphql.Marshaler {
@@ -10912,8 +10919,8 @@ func (ec *executionContext) fieldContext_Intent_executions(ctx context.Context, 
 	fc = &graphql.FieldContext{
 		Object:     "Intent",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_IntentExecutionConnection(ctx, field)
 		},
@@ -24216,123 +24223,189 @@ func (ec *executionContext) _Intent(ctx context.Context, sel ast.SelectionSet, o
 		case "id":
 			out.Values[i] = ec._Intent_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Intent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._Intent_description(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "enabled":
 			out.Values[i] = ec._Intent_enabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "matchContainers":
 			out.Values[i] = ec._Intent_matchContainers(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "matchImages":
 			out.Values[i] = ec._Intent_matchImages(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "matchSources":
 			out.Values[i] = ec._Intent_matchSources(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "matchStacks":
 			out.Values[i] = ec._Intent_matchStacks(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "matchRegistries":
 			out.Values[i] = ec._Intent_matchRegistries(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "excludeContainers":
 			out.Values[i] = ec._Intent_excludeContainers(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "excludeImages":
 			out.Values[i] = ec._Intent_excludeImages(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "excludeStacks":
 			out.Values[i] = ec._Intent_excludeStacks(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "excludeRegistries":
 			out.Values[i] = ec._Intent_excludeRegistries(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "scheduleType":
 			out.Values[i] = ec._Intent_scheduleType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "scheduleCron":
 			out.Values[i] = ec._Intent_scheduleCron(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "scheduleTimezone":
 			out.Values[i] = ec._Intent_scheduleTimezone(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "maxConcurrent":
 			out.Values[i] = ec._Intent_maxConcurrent(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "dryRun":
 			out.Values[i] = ec._Intent_dryRun(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sequentialDelaySec":
 			out.Values[i] = ec._Intent_sequentialDelaySec(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "lastEvaluatedAt":
 			out.Values[i] = ec._Intent_lastEvaluatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "lastExecution":
-			out.Values[i] = ec._Intent_lastExecution(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Intent_lastExecution(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "createdAt":
 			out.Values[i] = ec._Intent_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Intent_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "executions":
-			out.Values[i] = ec._Intent_executions(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Intent_executions(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

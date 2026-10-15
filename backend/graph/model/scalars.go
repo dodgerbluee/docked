@@ -71,11 +71,14 @@ func UnmarshalJSON(v any) (JSON, error) {
 	return JSON(m), nil
 }
 
-// Upload is a placeholder scalar for multipart file uploads.
+// Upload carries a file submitted through the multipart form request spec.
+// The transport injects a graphql.Upload into the variable slot; UnmarshalUpload
+// converts it into this model so resolvers can stream the file.
 type Upload struct {
 	Filename    string
 	ContentType string
 	Size        int64
+	Stream      io.Reader
 }
 
 func MarshalUpload(u Upload) graphql.Marshaler {
@@ -85,5 +88,13 @@ func MarshalUpload(u Upload) graphql.Marshaler {
 }
 
 func UnmarshalUpload(v any) (Upload, error) {
-	return Upload{}, nil
+	if u, ok := v.(graphql.Upload); ok {
+		return Upload{
+			Filename:    u.Filename,
+			ContentType: u.ContentType,
+			Size:        u.Size,
+			Stream:      u.File,
+		}, nil
+	}
+	return Upload{}, fmt.Errorf("uploadAvatar requires a multipart/form-data request (graphql-multipart-request-spec)")
 }

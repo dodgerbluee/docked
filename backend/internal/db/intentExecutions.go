@@ -61,6 +61,50 @@ func GetIntentExecutions(ctx context.Context, database *sql.DB, userID int64, in
 	return result, total, rows.Err()
 }
 
+// GetIntentExecutionByID returns a single execution owned by userID, or nil
+// when no matching row exists.
+func GetIntentExecutionByID(ctx context.Context, database *sql.DB, id, userID int64) (*IntentExecutionRow, error) {
+	row := database.QueryRowContext(ctx,
+		`SELECT ie.id, ie.intent_id, ie.user_id, ie.status, ie.trigger_type, ie.containers_matched,
+			ie.containers_upgraded, ie.containers_failed, ie.containers_skipped, ie.error_message,
+			ie.started_at, ie.completed_at, ie.duration_ms, i.name AS intent_name
+		 FROM intent_executions ie LEFT JOIN intents i ON ie.intent_id = i.id
+		 WHERE ie.id = ? AND ie.user_id = ?`, id, userID)
+	var r IntentExecutionRow
+	if err := row.Scan(&r.ID, &r.IntentID, &r.UserID, &r.Status, &r.TriggerType,
+		&r.ContainersMatched, &r.ContainersUpgraded, &r.ContainersFailed, &r.ContainersSkipped,
+		&r.ErrorMessage, &r.StartedAt, &r.CompletedAt, &r.DurationMs, &r.IntentName); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &r, nil
+}
+
+// GetIntentLastExecution returns the execution referenced by the intent's
+// last_execution_id pointer, or nil when the intent has not run yet.
+func GetIntentLastExecution(ctx context.Context, database *sql.DB, intentID, userID int64) (*IntentExecutionRow, error) {
+	row := database.QueryRowContext(ctx,
+		`SELECT ie.id, ie.intent_id, ie.user_id, ie.status, ie.trigger_type, ie.containers_matched,
+			ie.containers_upgraded, ie.containers_failed, ie.containers_skipped, ie.error_message,
+			ie.started_at, ie.completed_at, ie.duration_ms, i2.name AS intent_name
+		 FROM intents i
+		 JOIN intent_executions ie ON ie.id = i.last_execution_id
+		 LEFT JOIN intents i2 ON ie.intent_id = i2.id
+		 WHERE i.id = ? AND i.user_id = ?`, intentID, userID)
+	var r IntentExecutionRow
+	if err := row.Scan(&r.ID, &r.IntentID, &r.UserID, &r.Status, &r.TriggerType,
+		&r.ContainersMatched, &r.ContainersUpgraded, &r.ContainersFailed, &r.ContainersSkipped,
+		&r.ErrorMessage, &r.StartedAt, &r.CompletedAt, &r.DurationMs, &r.IntentName); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &r, nil
+}
+
 func CreateIntentExecution(ctx context.Context, database *sql.DB, intentID, userID int64, triggerType string) (int64, error) {
 	res, err := database.ExecContext(ctx,
 		"INSERT INTO intent_executions (intent_id, user_id, status, trigger_type) VALUES (?, ?, 'pending', ?)",

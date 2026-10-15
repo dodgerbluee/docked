@@ -126,7 +126,7 @@ func userRowToModel(u *db.UserRow) *model.User {
 	if u == nil {
 		return nil
 	}
-	return &model.User{
+	m := &model.User{
 		ID:              strconv.FormatInt(u.ID, 10),
 		Username:        u.Username,
 		Role:            model.Role(enumConst(u.Role)),
@@ -134,6 +134,106 @@ func userRowToModel(u *db.UserRow) *model.User {
 		CreatedAt:       parseTime(u.CreatedAt),
 		UpdatedAt:       parseTime(u.UpdatedAt),
 	}
+	// Match Node's avatar semantics: the current avatar is the file
+	// DATA_DIR/avatars/<uid>/avatar.jpg, served at /api/avatars.
+	if avatarExists(u.ID) {
+		m.AvatarURL = strPtr("/api/avatars")
+	}
+	return m
+}
+
+// avatarExists reports whether the user's current avatar file is present,
+// using the same on-disk layout the Node server writes.
+func avatarExists(userID int64) bool {
+	path := fmt.Sprintf("%s/avatars/%d/avatar.jpg", getDataDir(), userID)
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// parseIDPtr converts an optional GraphQL ID string to an int64 pointer.
+// Empty or invalid IDs yield nil (no constraint).
+func parseIDPtr(s *string) *int64 {
+	if s == nil || *s == "" {
+		return nil
+	}
+	v, err := strconv.ParseInt(*s, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &v
+}
+
+// filterContainerRows applies ContainerFilterInput semantics in memory:
+// search/imageName are case-insensitive substrings, state/stackName are
+// case-insensitive exact matches, hasUpdate uses the same computed check as
+// the imageInfo field, and the ID filters are exact.
+func filterContainerRows(rows []db.ContainerRow, f *model.ContainerFilterInput) []db.ContainerRow {
+	if f == nil {
+		return rows
+	}
+	var out []db.ContainerRow
+	for _, row := range rows {
+		if f.Search != nil && *f.Search != "" {
+			q := strings.ToLower(*f.Search)
+			if !strings.Contains(strings.ToLower(row.ContainerName), q) &&
+				!strings.Contains(strings.ToLower(nullStrDefault(row.ImageName)), q) {
+				continue
+			}
+		}
+		if f.State != nil && !strings.EqualFold(nullStrDefault(row.State), dbEnumValue(string(*f.State))) {
+			continue
+		}
+		if f.StackName != nil && *f.StackName != "" && !strings.EqualFold(nullStrDefault(row.StackName), *f.StackName) {
+			continue
+		}
+		if f.ImageName != nil && *f.ImageName != "" &&
+			!strings.Contains(strings.ToLower(nullStrDefault(row.ImageName)), strings.ToLower(*f.ImageName)) {
+			continue
+		}
+		if f.HasUpdate != nil && db.ContainerHasUpdate(row) != *f.HasUpdate {
+			continue
+		}
+		if f.SourceInstanceID != nil {
+			want := parseIDPtr(f.SourceInstanceID)
+			if want == nil || row.SourceInstanceID.Int64 != *want || !row.SourceInstanceID.Valid {
+				continue
+			}
+		}
+		if f.RunnerID != nil {
+			want := parseIDPtr(f.RunnerID)
+			if want == nil || row.RunnerID.Int64 != *want || !row.RunnerID.Valid {
+				continue
+			}
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// intentExecutionToModel converts an intent execution row to its GraphQL model.
+func intentExecutionToModel(row db.IntentExecutionRow) *model.IntentExecution {
+	m := &model.IntentExecution{
+		ID:                 strconv.FormatInt(row.ID, 10),
+		IntentID:           strconv.FormatInt(row.IntentID, 10),
+		Status:             model.IntentExecutionStatus(enumConst(row.Status)),
+		TriggerType:        model.IntentTriggerType(enumConst(row.TriggerType)),
+		ContainersMatched:  row.ContainersMatched,
+		ContainersUpgraded: row.ContainersUpgraded,
+		ContainersFailed:   row.ContainersFailed,
+		ContainersSkipped:  row.ContainersSkipped,
+		ErrorMessage:       nullStrPtr(row.ErrorMessage),
+		QueuedAt:           parseTime(row.StartedAt),
+		StartedAt:          nullTimePtr(sql.NullString{String: row.StartedAt, Valid: row.StartedAt != ""}),
+		CompletedAt:        nullTimePtr(row.CompletedAt),
+		DurationMs:         nullInt64Ptr(row.DurationMs),
+	}
+	if row.IntentName.Valid {
+		m.Intent = &model.Intent{
+			ID:   strconv.FormatInt(row.IntentID, 10),
+			Name: row.IntentName.String,
+		}
+	}
+	return m
 }
 func sourceInstanceToModel(s *db.SourceInstanceRow) *model.SourceInstance {
 	if s == nil {
@@ -728,27 +828,6 @@ func runnerDelete(baseURL, apiKey, path string) error {
 		return fmt.Errorf("runner returned %d", resp.StatusCode)
 	}
 	return nil
-}
-func portainerPullAll(src *db.SourceInstanceRow) error {
-	// Get Portainer JWT token
-	authPayload := map[string]string{"Username": "", "Password": ""}
-	if src.APIKey.Valid && src.APIKey.String != "" {
-		// API key auth - use directly
-		return runnerPost(src.URL, src.APIKey.String, "/api/docker/images/create?fromImage=portainer&tag=latest", nil)
-	}
-	if src.Password.Valid && src.Password.String != "" {
-		authPayload["Username"] = "admin"
-		authPayload["Password"] = src.Password.String
-	}
-	status, body, err := httpPostJSON(src.URL+"/api/auth", authPayload, "")
-	if err != nil || status != 200 {
-		return fmt.Errorf("portainer auth failed: %d", status)
-	}
-	var tokenResp struct {
-		JWT string `json:"jwt"`
-	}
-	json.Unmarshal(body, &tokenResp)
-	return runnerPost(src.URL, tokenResp.JWT, "/api/docker/images/create?fromImage=portainer&tag=latest", nil)
 }
 func checkRegistryForImage(imageName string) (string, string) {
 	// Parse image name to get repo and tag

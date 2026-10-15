@@ -84,6 +84,10 @@ func GetContainersMatchingIntent(ctx context.Context, database *sql.DB, userID i
 	return matched[offset:end], total, nil
 }
 
+// ContainerHasUpdate exposes the row-level update check so GraphQL filters can
+// evaluate the computed hasUpdate flag consistently with the imageInfo field.
+func ContainerHasUpdate(c ContainerRow) bool { return containerHasUpdate(c) }
+
 func containerHasUpdate(c ContainerRow) bool {
 	if c.Provider.Valid && strings.EqualFold(c.Provider.String, "github-releases") &&
 		c.ImageTag.Valid && c.LatestVersion.Valid {

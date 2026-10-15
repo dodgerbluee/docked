@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 )
 
 // UpgradeHistoryRow is a row from the upgrade_history table.
@@ -62,6 +64,82 @@ func GetUpgradeHistory(ctx context.Context, database *sql.DB, userID int64, limi
 	rows, err := database.QueryContext(ctx,
 		"SELECT "+upgradeCols+" FROM upgrade_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
 		userID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get upgrade history: %w", err)
+	}
+	defer rows.Close()
+
+	var results []UpgradeHistoryRow
+	for rows.Next() {
+		r, err := scanUpgrade(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan upgrade history: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, total, rows.Err()
+}
+
+// UpgradeHistoryFilter narrows GetUpgradeHistoryFiltered results. All fields
+// are optional; nil means "no constraint". Status must already be a DB domain
+// value (e.g. "success"), not the GraphQL enum.
+type UpgradeHistoryFilter struct {
+	ContainerName    *string
+	Status           *string
+	IntentID         *int64
+	SourceInstanceID *int64
+	RunnerID         *int64
+	From             *time.Time
+	To               *time.Time
+}
+
+// GetUpgradeHistoryFiltered returns upgrade history matching every set field
+// of the filter. created_at is stored as "YYYY-MM-DD HH:MM:SS" (UTC) by both
+// backends, so range bounds are formatted the same way for lexicographic
+// comparison.
+func GetUpgradeHistoryFiltered(ctx context.Context, database *sql.DB, userID int64, limit, offset int, f *UpgradeHistoryFilter) ([]UpgradeHistoryRow, int, error) {
+	where := []string{"user_id = ?"}
+	args := []any{userID}
+	if f != nil {
+		if f.ContainerName != nil && *f.ContainerName != "" {
+			where = append(where, "container_name LIKE ?")
+			args = append(args, "%"+*f.ContainerName+"%")
+		}
+		if f.Status != nil {
+			where = append(where, "status = ?")
+			args = append(args, *f.Status)
+		}
+		if f.IntentID != nil {
+			where = append(where, "intent_id = ?")
+			args = append(args, *f.IntentID)
+		}
+		if f.SourceInstanceID != nil {
+			where = append(where, "source_instance_id = ?")
+			args = append(args, *f.SourceInstanceID)
+		}
+		if f.RunnerID != nil {
+			where = append(where, "runner_id = ?")
+			args = append(args, *f.RunnerID)
+		}
+		if f.From != nil {
+			where = append(where, "created_at >= ?")
+			args = append(args, f.From.UTC().Format("2006-01-02 15:04:05"))
+		}
+		if f.To != nil {
+			where = append(where, "created_at <= ?")
+			args = append(args, f.To.UTC().Format("2006-01-02 15:04:05"))
+		}
+	}
+	cond := strings.Join(where, " AND ")
+
+	var total int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM upgrade_history WHERE "+cond, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count upgrade history: %w", err)
+	}
+
+	q := "SELECT " + upgradeCols + " FROM upgrade_history WHERE " + cond + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	rows, err := database.QueryContext(ctx, q, append(args, limit, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get upgrade history: %w", err)
 	}

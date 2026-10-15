@@ -193,13 +193,19 @@ const GRAPHQL_BACKEND = process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
 
 app.use("/graphql", (req, res) => {
   const isGet = req.method === "GET";
+  const contentType = req.headers["content-type"] || "";
+  // Multipart (graphql-multipart-request-spec) and other non-JSON bodies must
+  // be streamed through untouched; re-serializing req.body would destroy them.
+  const passthrough = !isGet && !contentType.includes("application/json");
   const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const targetUrl = `${GRAPHQL_BACKEND}/graphql${isGet ? qs : ""}`;
-  const body = isGet ? null : JSON.stringify(req.body || {});
+  const body = isGet || passthrough ? null : JSON.stringify(req.body || {});
   const headers = {
     ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
   };
-  if (!isGet) {
+  if (passthrough) {
+    headers["Content-Type"] = contentType;
+  } else if (!isGet) {
     headers["Content-Type"] = "application/json";
     headers["Content-Length"] = Buffer.byteLength(body);
   }
@@ -217,7 +223,8 @@ app.use("/graphql", (req, res) => {
   proxyReq.on("error", (err) => {
     res.status(502).json({ error: "GraphQL backend unavailable", detail: err.message });
   });
-  if (!isGet) proxyReq.end(body);
+  if (passthrough) req.pipe(proxyReq);
+  else if (!isGet) proxyReq.end(body);
   else proxyReq.end();
 });
 
