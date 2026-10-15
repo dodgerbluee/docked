@@ -41,6 +41,8 @@ models:
         resolver: true
       repositoryTokens:
         resolver: true
+      preferences:
+        resolver: true
   SourceInstance:
     fields:
       containers:

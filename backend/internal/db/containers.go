@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // ContainerRow is the raw data read from the database JOIN query.
@@ -227,7 +228,10 @@ func GetContainersPaginated(ctx context.Context, database *sql.DB, userID int64,
 
 // GetContainerByID returns a single container by primary key, scoped to user.
 func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (*ContainerRow, error) {
-	query := containersQuery + " AND c.id = ?"
+	// Inject the id predicate into the WHERE clause (containersQuery already
+	// ends with "WHERE c.user_id = ? ORDER BY ...", so appending "AND ..." after
+	// it would land past the ORDER BY and produce invalid SQL).
+	query := strings.Replace(containersQuery, "WHERE c.user_id = ?", "WHERE c.user_id = ? AND c.id = ?", 1)
 	row := database.QueryRowContext(ctx, query, userID, id)
 
 	var r ContainerRow

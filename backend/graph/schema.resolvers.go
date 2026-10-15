@@ -2394,6 +2394,24 @@ func (r *userResolver) RepositoryTokens(ctx context.Context, obj *model.User) ([
 	return result, nil
 }
 
+// Preferences is the resolver for the preferences field.
+func (r *userResolver) Preferences(ctx context.Context, obj *model.User) (*model.UserPreferences, error) {
+	uid, err := strconv.ParseInt(obj.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user id")
+	}
+	row, err := db.GetUserSettings(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.UserPreferences{
+		ColorScheme:              row.ColorScheme,
+		DisablePortainerPage:     row.DisablePortainerPage == 1,
+		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
+		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
+	}, nil
+}
+
 // Container returns ContainerResolver implementation.
 func (r *Resolver) Container() ContainerResolver { return &containerResolver{r} }
 
