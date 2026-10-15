@@ -679,3 +679,49 @@ export const LOGOUT_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const TRIGGER_INTENT_MUTATION = /* GraphQL */ `
+  mutation TriggerIntent($id: ID!) {
+    triggerIntent(id: $id) {
+      id
+      intentId
+      status
+      triggerType
+      containersMatched
+      containersUpgraded
+      containersFailed
+      containersSkipped
+      errorMessage
+      queuedAt
+      startedAt
+      completedAt
+      durationMs
+    }
+  }
+`;
+
+export const INTENT_EXECUTIONS_QUERY = /* GraphQL */ `
+  query IntentExecutions($intentId: ID, $first: Int) {
+    intentExecutions(intentId: $intentId, first: $first) {
+      items {
+        id
+        intentId
+        status
+        triggerType
+        containersMatched
+        containersUpgraded
+        containersFailed
+        containersSkipped
+        errorMessage
+        queuedAt
+        startedAt
+        completedAt
+        durationMs
+        intent {
+          name
+        }
+      }
+      totalCount
+    }
+  }
+`;

@@ -1,7 +1,7 @@
 /**
  * Custom hook for Intents functionality
  * Manages state and operations for automated upgrade intents
- * Uses GraphQL for CRUD, REST for execution operations
+ * Uses GraphQL for CRUD and execution operations, REST for dry-run/detail
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -13,6 +13,8 @@ import {
   CREATE_INTENT_MUTATION,
   UPDATE_INTENT_MUTATION,
   DELETE_INTENT_MUTATION,
+  TRIGGER_INTENT_MUTATION,
+  INTENT_EXECUTIONS_QUERY,
 } from "../graphql/queries";
 import { SHORT_SUCCESS_MESSAGE_DURATION } from "../constants/intents";
 
@@ -266,20 +268,21 @@ export function useIntents(isAuthenticated, authToken) {
     await fetchIntents(false);
   }, [fetchIntents]);
 
-  // Execute an intent manually (REST - involves runner communication)
+  // Execute an intent manually (GraphQL triggerIntent)
   const handleExecuteIntent = useCallback(
     async (id) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/intents/${id}/execute`);
-        if (response.data.success) {
+        const result = await graphqlClient.mutation(TRIGGER_INTENT_MUTATION, { id }).toPromise();
+        if (result.error) throw new Error(result.error.message);
+        if (result.data?.triggerIntent) {
           await fetchIntents(false);
           setSuccess("Intent executed successfully");
           setTimeout(() => setSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);
-          return { success: true, execution: response.data.execution };
+          return { success: true, execution: result.data.triggerIntent };
         }
-        return { success: false, error: response.data.error || "Failed to execute intent" };
+        return { success: false, error: "Failed to execute intent" };
       } catch (err) {
-        const errorMsg = err.response?.data?.error || "Failed to execute intent";
+        const errorMsg = err.message || "Failed to execute intent";
         setError(errorMsg);
         return { success: false, error: errorMsg };
       }
@@ -302,21 +305,36 @@ export function useIntents(isAuthenticated, authToken) {
     }
   }, []);
 
-  // Fetch execution history for an intent (REST)
+  // Fetch execution history for an intent (GraphQL)
   const fetchExecutions = useCallback(async (intentId, limit = 50) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/intents/${intentId}/executions?limit=${limit}`
-      );
-      if (response.data.success) {
+      const result = await graphqlClient
+        .query(INTENT_EXECUTIONS_QUERY, { intentId, first: limit })
+        .toPromise();
+      if (result.error) throw new Error(result.error.message);
+      if (result.data?.intentExecutions) {
         return {
           success: true,
-          executions: (response.data.executions || []).map(transformExecution),
+          executions: (result.data.intentExecutions.items || []).map((row) => ({
+            id: row.id,
+            intentId: row.intentId,
+            status: row.status?.toLowerCase(),
+            triggerType: row.triggerType?.toLowerCase(),
+            containersMatched: row.containersMatched,
+            containersUpgraded: row.containersUpgraded,
+            containersFailed: row.containersFailed,
+            containersSkipped: row.containersSkipped,
+            errorMessage: row.errorMessage,
+            startedAt: row.startedAt,
+            completedAt: row.completedAt,
+            durationMs: row.durationMs,
+            intentName: row.intent?.name,
+          })),
         };
       }
       return { success: false, error: "Failed to fetch executions" };
     } catch (err) {
-      return { success: false, error: err.response?.data?.error || "Failed to fetch executions" };
+      return { success: false, error: err.message || "Failed to fetch executions" };
     }
   }, []);
 
@@ -333,23 +351,38 @@ export function useIntents(isAuthenticated, authToken) {
     }
   }, []);
 
-  // Fetch recent executions across all intents (REST)
+  // Fetch recent executions across all intents (GraphQL)
   const fetchRecentExecutions = useCallback(async (limit = 20) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/intents/executions/recent?limit=${limit}`
-      );
-      if (response.data.success) {
+      const result = await graphqlClient
+        .query(INTENT_EXECUTIONS_QUERY, { first: limit })
+        .toPromise();
+      if (result.error) throw new Error(result.error.message);
+      if (result.data?.intentExecutions) {
         return {
           success: true,
-          executions: (response.data.executions || []).map(transformExecution),
+          executions: (result.data.intentExecutions.items || []).map((row) => ({
+            id: row.id,
+            intentId: row.intentId,
+            status: row.status?.toLowerCase(),
+            triggerType: row.triggerType?.toLowerCase(),
+            containersMatched: row.containersMatched,
+            containersUpgraded: row.containersUpgraded,
+            containersFailed: row.containersFailed,
+            containersSkipped: row.containersSkipped,
+            errorMessage: row.errorMessage,
+            startedAt: row.startedAt,
+            completedAt: row.completedAt,
+            durationMs: row.durationMs,
+            intentName: row.intent?.name,
+          })),
         };
       }
       return { success: false, error: "Failed to fetch recent executions" };
     } catch (err) {
       return {
         success: false,
-        error: err.response?.data?.error || "Failed to fetch recent executions",
+        error: err.message || "Failed to fetch recent executions",
       };
     }
   }, []);
