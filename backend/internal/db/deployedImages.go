@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 type DeployedImageRow struct {
@@ -44,61 +45,80 @@ func GetUnusedImages(ctx context.Context, database *sql.DB, userID int64) ([]Dep
 }
 
 // GetContainersMatchingIntent returns container rows matching the intent's match/exclude criteria.
+// Uses the same JOIN structure as containersQuery so scanRow works correctly.
 func GetContainersMatchingIntent(ctx context.Context, database *sql.DB, userID int64,
 	matchContainers, matchImages, matchSources, matchStacks, matchRegistries []string,
 	excludeContainers, excludeImages, excludeStacks, excludeRegistries []string,
 	limit, offset int) ([]ContainerRow, int, error) {
 
-	// Build WHERE clause dynamically
-	base := "SELECT id, user_id, source_instance_id, runner_id, container_id, container_name, endpoint_id, image_name, image_repo, status, state, stack_name, current_digest, uses_network_mode, provides_network, last_seen, created_at FROM containers WHERE user_id = ?"
+	// Build extra AND clauses for intent matching
+	var extra string
 	args := []any{userID}
 
 	if len(matchContainers) > 0 {
-		base += " AND container_name IN (" + placeholders(len(matchContainers)) + ")"
+		extra += " AND c.container_name IN (" + placeholders(len(matchContainers)) + ")"
 		for _, v := range matchContainers {
 			args = append(args, v)
 		}
 	}
 	if len(matchImages) > 0 {
-		base += " AND image_repo IN (" + placeholders(len(matchImages)) + ")"
+		extra += " AND c.image_repo IN (" + placeholders(len(matchImages)) + ")"
 		for _, v := range matchImages {
 			args = append(args, v)
 		}
 	}
 	if len(matchStacks) > 0 {
-		base += " AND stack_name IN (" + placeholders(len(matchStacks)) + ")"
+		extra += " AND c.stack_name IN (" + placeholders(len(matchStacks)) + ")"
 		for _, v := range matchStacks {
 			args = append(args, v)
 		}
 	}
+	if len(matchSources) > 0 {
+		extra += " AND c.source_instance_id IN (" + placeholders(len(matchSources)) + ")"
+		for _, v := range matchSources {
+			args = append(args, v)
+		}
+	}
 	if len(excludeContainers) > 0 {
-		base += " AND container_name NOT IN (" + placeholders(len(excludeContainers)) + ")"
+		extra += " AND c.container_name NOT IN (" + placeholders(len(excludeContainers)) + ")"
 		for _, v := range excludeContainers {
 			args = append(args, v)
 		}
 	}
 	if len(excludeImages) > 0 {
-		base += " AND image_repo NOT IN (" + placeholders(len(excludeImages)) + ")"
+		extra += " AND c.image_repo NOT IN (" + placeholders(len(excludeImages)) + ")"
 		for _, v := range excludeImages {
 			args = append(args, v)
 		}
 	}
 	if len(excludeStacks) > 0 {
-		base += " AND (stack_name IS NULL OR stack_name NOT IN (" + placeholders(len(excludeStacks)) + "))"
+		extra += " AND (c.stack_name IS NULL OR c.stack_name NOT IN (" + placeholders(len(excludeStacks)) + "))"
 		for _, v := range excludeStacks {
 			args = append(args, v)
 		}
 	}
 
-	// Count
-	countQ := "SELECT COUNT(*) FROM (" + base + ")"
+	// Count using the same FROM/JOIN structure
+	countQ := `SELECT COUNT(*) FROM containers c
+		LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
+		WHERE c.user_id = ?` + extra
 	var total int
 	database.QueryRowContext(ctx, countQ, args...).Scan(&total)
 
-	base += " ORDER BY container_name LIMIT ? OFFSET ?"
+	// Main query: reuse containersQuery structure with extra clauses
+	query := containersQuery
+	// Strip trailing backtick and ORDER BY, then inject extra conditions
+	if end := strings.LastIndex(query, "`"); end != -1 {
+		query = query[:end]
+	}
+	if idx := strings.LastIndex(query, "WHERE c.user_id = ?"); idx != -1 {
+		query = query[:idx+len("WHERE c.user_id = ?")] + extra + " ORDER BY c.container_name LIMIT ? OFFSET ?"
+	} else {
+		query += extra + " ORDER BY c.container_name LIMIT ? OFFSET ?"
+	}
 	args = append(args, limit, offset)
 
-	rows, err := database.QueryContext(ctx, base, args...)
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
