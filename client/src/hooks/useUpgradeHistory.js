@@ -35,7 +35,7 @@ function mapUpgradeRecord(r) {
     error_message: r.errorMessage,
     upgrade_duration_ms: r.upgradeDurationMs,
     intent_id: r.intentId,
-    performed_by: r.performedBy,
+    performed_by: r.performedBy?.username ?? null,
     created_at: r.createdAt,
     // Fields from source relation (if available)
     portainer_instance_name: r.source?.name,

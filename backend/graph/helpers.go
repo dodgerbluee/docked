@@ -26,10 +26,25 @@ func requireUser(ctx context.Context) (int64, error) {
 	}
 	return uid, nil
 }
-func requireAdmin(ctx context.Context) (int64, error) {
+
+// requireAdmin returns the caller's user id only if that user is an
+// administrator (instance_admin=1 or role "Administrator"). Unlike requireUser
+// it actually enforces the role, so it must be used for privileged mutations
+// (setUserPassword, setUserRole) and the users listing.
+func requireAdmin(ctx context.Context, database *sql.DB) (int64, error) {
 	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {
 		return 0, fmt.Errorf("authentication required")
+	}
+	u, err := db.GetUserByID(ctx, database, uid)
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, fmt.Errorf("authentication required")
+	}
+	if u.InstanceAdmin != 1 && !strings.EqualFold(u.Role, "Administrator") {
+		return 0, fmt.Errorf("insufficient privileges: administrator role required")
 	}
 	return uid, nil
 }

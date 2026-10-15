@@ -258,8 +258,6 @@ export const BATCH_CONFIGS_QUERY = /* GraphQL */ `
       jobType
       enabled
       intervalMinutes
-      lastRunAt
-      nextRunAt
     }
   }
 `;
@@ -312,7 +310,10 @@ export const UPGRADE_HISTORY_QUERY = /* GraphQL */ `
         errorMessage
         upgradeDurationMs
         intentId
-        performedBy
+        performedBy {
+          id
+          username
+        }
         createdAt
         source {
           ... on SourceInstance {
@@ -606,7 +607,7 @@ export const TRIGGER_BATCH_JOB_MUTATION = /* GraphQL */ `
 `;
 
 export const PULL_CONTAINERS_MUTATION = /* GraphQL */ `
-  mutation PullContainers($sourceInstanceId: String, $runnerId: String) {
+  mutation PullContainers($sourceInstanceId: ID, $runnerId: ID) {
     pullContainers(sourceInstanceId: $sourceInstanceId, runnerId: $runnerId) {
       id
       type
@@ -674,8 +675,8 @@ export const REGISTER_MUTATION = /* GraphQL */ `
 `;
 
 export const REFRESH_TOKEN_MUTATION = /* GraphQL */ `
-  mutation RefreshToken($refreshToken: String!) {
-    refreshToken(refreshToken: $refreshToken) {
+  mutation RefreshToken($input: RefreshTokenInput!) {
+    refreshToken(input: $input) {
       token
       refreshToken
       user {
@@ -688,8 +689,8 @@ export const REFRESH_TOKEN_MUTATION = /* GraphQL */ `
 `;
 
 export const LOGOUT_MUTATION = /* GraphQL */ `
-  mutation Logout($refreshToken: String) {
-    logout(refreshToken: $refreshToken) {
+  mutation Logout {
+    logout {
       success
       message
     }

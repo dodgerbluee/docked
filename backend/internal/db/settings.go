@@ -31,7 +31,7 @@ func GetUserSettings(ctx context.Context, database *sql.DB, userID int64) (*Sett
 			return nil, fmt.Errorf("scan setting: %w", err)
 		}
 		switch key {
-		case "colorScheme":
+		case "color_scheme":
 			s.ColorScheme = value
 		case "disablePortainerPage":
 			if value == "true" {
@@ -41,7 +41,7 @@ func GetUserSettings(ctx context.Context, database *sql.DB, userID int64) (*Sett
 			if value == "true" {
 				s.DisableTrackedAppsPage = 1
 			}
-		case "refreshingTogglesEnabled":
+		case "refreshing_toggles_enabled":
 			if value == "true" {
 				s.RefreshingToggles = 1
 			}
@@ -69,7 +69,7 @@ func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
 	}
 
 	if colorScheme != nil {
-		if err := upsert("colorScheme", *colorScheme); err != nil {
+		if err := upsert("color_scheme", *colorScheme); err != nil {
 			return err
 		}
 	}
@@ -96,7 +96,7 @@ func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
 		if *refreshingToggles {
 			v = "true"
 		}
-		if err := upsert("refreshingTogglesEnabled", v); err != nil {
+		if err := upsert("refreshing_toggles_enabled", v); err != nil {
 			return err
 		}
 	}

@@ -130,12 +130,13 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 		return nil, fmt.Errorf("username already taken")
 	}
 
-	// First user becomes admin
+	// First user becomes admin. Role strings must match the Node-owned domain
+	// ("Administrator"/"Member") so both backends and the GraphQL enum agree.
 	userCount, _ := db.GetUserCount(ctx, r.DB)
-	role := "user"
+	role := "Member"
 	instanceAdmin := 0
 	if userCount == 0 {
-		role = "admin"
+		role = "Administrator"
 		instanceAdmin = 1
 	}
 
@@ -233,7 +234,7 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.Updat
 
 // SetUserPassword is the resolver for the setUserPassword field.
 func (r *mutationResolver) SetUserPassword(ctx context.Context, userID string, newPassword string) (*model.SuccessResult, error) {
-	_, err := requireAdmin(ctx)
+	_, err := requireAdmin(ctx, r.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -251,13 +252,17 @@ func (r *mutationResolver) SetUserPassword(ctx context.Context, userID string, n
 
 // SetUserRole is the resolver for the setUserRole field.
 func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role model.Role) (*model.SuccessResult, error) {
-	_, err := requireAdmin(ctx)
+	_, err := requireAdmin(ctx, r.DB)
 	if err != nil {
 		return nil, err
 	}
 	uid, _ := strconv.ParseInt(userID, 10, 64)
 
-	if err := db.SetUserRole(ctx, r.DB, uid, string(role)); err != nil {
+	dbRole := "Member"
+	if role == model.RoleAdministrator {
+		dbRole = "Administrator"
+	}
+	if err := db.SetUserRole(ctx, r.DB, uid, dbRole); err != nil {
 		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
@@ -1356,7 +1361,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
-	_, err := requireAdmin(ctx)
+	_, err := requireAdmin(ctx, r.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -2017,7 +2022,12 @@ func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *
 	dataDir := getDataDir()
 	logFile := dataDir + "/logs/out.log"
 	if file != nil && *file != "" {
-		logFile = dataDir + "/logs/" + *file
+		name := *file
+		// Prevent path traversal: only a bare log file name is allowed.
+		if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+			return nil, fmt.Errorf("invalid log file name")
+		}
+		logFile = dataDir + "/logs/" + name
 	}
 
 	maxLines := 100

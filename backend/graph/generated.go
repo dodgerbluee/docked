@@ -4064,7 +4064,7 @@ scalar Upload   # graphql-upload multipart file
 
 enum Role {
   ADMINISTRATOR
-  USER
+  MEMBER
 }
 
 enum AuthType {

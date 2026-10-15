@@ -11,7 +11,10 @@ const DEFAULTS = {
 function mapConfigs(items) {
   const out = { ...DEFAULTS };
   for (const item of items || []) {
-    out[item.jobType] = {
+    // GraphQL returns jobType as an UPPER_SNAKE enum (e.g. DOCKER_HUB_PULL);
+    // the UI keys on hyphenated-lowercase (docker-hub-pull).
+    const key = (item.jobType || "").toLowerCase().replace(/_/g, "-");
+    out[key] = {
       enabled: item.enabled,
       intervalMinutes: item.intervalMinutes,
     };
