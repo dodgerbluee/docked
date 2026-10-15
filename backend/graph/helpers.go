@@ -27,10 +27,12 @@ func requireUser(ctx context.Context) (int64, error) {
 	return uid, nil
 }
 
-// requireAdmin returns the caller's user id only if that user is an
-// administrator (instance_admin=1 or role "Administrator"). Unlike requireUser
-// it actually enforces the role, so it must be used for privileged mutations
-// (setUserPassword, setUserRole) and the users listing.
+// requireAdmin returns the caller's user id only if that user is an INSTANCE
+// administrator (instance_admin=1). This deliberately matches the Node backend,
+// which gates privileged endpoints on req.user.instanceAdmin (see
+// server/controllers/authController.js) and assigns the "Administrator" ROLE to
+// every user it creates. Role alone is therefore NOT a privilege signal here:
+// only instance_admin=1 is.
 func requireAdmin(ctx context.Context, database *sql.DB) (int64, error) {
 	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {
@@ -43,8 +45,8 @@ func requireAdmin(ctx context.Context, database *sql.DB) (int64, error) {
 	if u == nil {
 		return 0, fmt.Errorf("authentication required")
 	}
-	if u.InstanceAdmin != 1 && !strings.EqualFold(u.Role, "Administrator") {
-		return 0, fmt.Errorf("insufficient privileges: administrator role required")
+	if u.InstanceAdmin != 1 {
+		return 0, fmt.Errorf("insufficient privileges: instance administrator required")
 	}
 	return uid, nil
 }

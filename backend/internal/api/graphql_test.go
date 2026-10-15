@@ -187,6 +187,28 @@ func TestRequireAdminEnforcesRole(t *testing.T) {
 	}
 }
 
+// TestRoleAdminWithoutInstanceAdminDenied guards the privilege-escalation class:
+// Node creates every user with role "Administrator" and uses instance_admin as
+// the real privilege signal. A user with role "Administrator" but
+// instance_admin=0 must NOT be able to reach privileged operations.
+func TestRoleAdminWithoutInstanceAdminDenied(t *testing.T) {
+	env := newTestEnv(t, true)
+	hash, _ := auth.HashPassword("pw12345")
+	id, err := db.CreateUser(context.Background(), env.database, "role_only_admin", hash, "Administrator", 0)
+	if err != nil {
+		t.Fatalf("seed role-only admin: %v", err)
+	}
+	tok := env.token(t, id, "role_only_admin")
+
+	if r := env.gql(t, tok, `{ users { id } }`, nil); !r.hasErrorContaining("insufficient privileges") {
+		t.Fatalf("role-only Administrator (instance_admin=0) must be denied, got: %+v", r)
+	}
+	if r := env.gql(t, tok, `mutation($id: ID!, $role: Role!){ setUserRole(userId: $id, role: $role){ success } }`,
+		map[string]any{"id": strconv.FormatInt(env.adminID, 10), "role": "MEMBER"}); !r.hasErrorContaining("insufficient privileges") {
+		t.Fatalf("role-only Administrator must not change roles, got: %+v", r)
+	}
+}
+
 func TestSetUserRoleAuthzAndPersistence(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
