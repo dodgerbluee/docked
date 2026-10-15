@@ -19,6 +19,7 @@ type IntentExecutionRow struct {
 	StartedAt          string
 	CompletedAt        sql.NullString
 	DurationMs         sql.NullInt64
+	IntentName         sql.NullString
 }
 
 func GetIntentExecutions(ctx context.Context, database *sql.DB, userID int64, intentID *int64, limit, offset int) ([]IntentExecutionRow, int, error) {
@@ -31,13 +32,13 @@ func GetIntentExecutions(ctx context.Context, database *sql.DB, userID int64, in
 	}
 	database.QueryRowContext(ctx, countQ, args...).Scan(&total)
 
-	q := "SELECT id, intent_id, user_id, status, trigger_type, containers_matched, containers_upgraded, containers_failed, containers_skipped, error_message, started_at, completed_at, duration_ms FROM intent_executions WHERE user_id = ?"
+	q := "SELECT ie.id, ie.intent_id, ie.user_id, ie.status, ie.trigger_type, ie.containers_matched, ie.containers_upgraded, ie.containers_failed, ie.containers_skipped, ie.error_message, ie.started_at, ie.completed_at, ie.duration_ms, i.name AS intent_name FROM intent_executions ie LEFT JOIN intents i ON ie.intent_id = i.id WHERE ie.user_id = ?"
 	args2 := []any{userID}
 	if intentID != nil {
-		q += " AND intent_id = ?"
+		q += " AND ie.intent_id = ?"
 		args2 = append(args2, *intentID)
 	}
-	q += " ORDER BY started_at DESC LIMIT ? OFFSET ?"
+	q += " ORDER BY ie.started_at DESC LIMIT ? OFFSET ?"
 	args2 = append(args2, limit, offset)
 
 	rows, err := database.QueryContext(ctx, q, args2...)
@@ -51,7 +52,7 @@ func GetIntentExecutions(ctx context.Context, database *sql.DB, userID int64, in
 		var r IntentExecutionRow
 		if err := rows.Scan(&r.ID, &r.IntentID, &r.UserID, &r.Status, &r.TriggerType,
 			&r.ContainersMatched, &r.ContainersUpgraded, &r.ContainersFailed, &r.ContainersSkipped,
-			&r.ErrorMessage, &r.StartedAt, &r.CompletedAt, &r.DurationMs); err != nil {
+			&r.ErrorMessage, &r.StartedAt, &r.CompletedAt, &r.DurationMs, &r.IntentName); err != nil {
 			return nil, 0, err
 		}
 		result = append(result, r)

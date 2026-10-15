@@ -1583,6 +1583,12 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 			CompletedAt:        nullTimePtr(row.CompletedAt),
 			DurationMs:         nullInt64Ptr(row.DurationMs),
 		}
+		if row.IntentName.Valid {
+			items[i].Intent = &model.Intent{
+				ID:   strconv.FormatInt(row.IntentID, 10),
+				Name: row.IntentName.String,
+			}
+		}
 	}
 
 	return &model.IntentExecutionConnection{
