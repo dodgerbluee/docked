@@ -65,7 +65,7 @@ export const useUpgradeHistory = (options = {}) => {
         setLoading(false);
       }
     }
-  }, [options.limit, options.offset, options.containerName, options.status]);
+  }, [options.limit, options.containerName, options.status]);
 
   const fetchStats = useCallback(async () => {
     try {

@@ -324,6 +324,19 @@ export const UPGRADE_HISTORY_QUERY = /* GraphQL */ `
   }
 `;
 
+export const UNUSED_IMAGES_QUERY = /* GraphQL */ `
+  query UnusedImages {
+    unusedImages {
+      id
+      repoTags
+      sizeBytes
+      created
+      sourceUrl
+      endpointId
+    }
+  }
+`;
+
 export const RUNNERS_QUERY = /* GraphQL */ `
   query Runners {
     runners {
