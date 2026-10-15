@@ -1336,13 +1336,40 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 		return nil, err
 	}
 
-	containers := make([]*model.Container, len(rows))
-	for i, row := range rows {
-		containers[i] = containerRowToModel(&row)
+	// Partition into stacks and standalone
+	stackMap := map[string][]*model.Container{}
+	var standalone []*model.Container
+	withUpdates := 0
+	for i := range rows {
+		row := &rows[i]
+		c := containerRowToModel(row)
+		if c.ImageInfo != nil && c.ImageInfo.HasUpdate {
+			withUpdates++
+		}
+		if row.StackName.Valid && row.StackName.String != "" {
+			stackMap[row.StackName.String] = append(stackMap[row.StackName.String], c)
+		} else {
+			standalone = append(standalone, c)
+		}
+	}
+
+	stacks := make([]*model.StackGroup, 0, len(stackMap))
+	for name, cs := range stackMap {
+		stacks = append(stacks, &model.StackGroup{
+			ID:   name,
+			Name: name,
+			Containers: &model.ContainerConnection{
+				Items:      cs,
+				TotalCount: len(cs),
+				PageInfo:   buildPageInfo(len(cs), len(cs), len(cs), 0),
+			},
+		})
 	}
 
 	sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
 	runners, _ := db.GetAllRunners(ctx, r.DB, uid)
+	trackedApps, _ := db.GetAllTrackedApps(ctx, r.DB, uid)
+	unusedImages, _ := db.GetUnusedImages(ctx, r.DB, uid)
 
 	sourceModels := make([]*model.SourceInstance, len(sources))
 	for i, s := range sources {
@@ -1353,15 +1380,32 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 		runnerModels[i] = runnerToModel(&rn)
 	}
 
+	trackedWithUpdates := 0
+	for _, ta := range trackedApps {
+		if ta.HasUpdate == 1 {
+			trackedWithUpdates++
+		}
+	}
+
 	return &model.ContainerGroup{
+		Stacks: stacks,
 		Standalone: &model.ContainerConnection{
-			Items:      containers,
-			TotalCount: len(containers),
-			PageInfo:   buildPageInfo(len(containers), len(containers), len(containers), 0),
+			Items:      standalone,
+			TotalCount: len(standalone),
+			PageInfo:   buildPageInfo(len(standalone), len(standalone), len(standalone), 0),
 		},
-		Sources: sourceModels,
-		Runners: runnerModels,
-		Stats:   &model.SummaryStats{TotalContainers: len(containers), TotalSources: len(sources), TotalRunners: len(runners)},
+		Sources:           sourceModels,
+		Runners:           runnerModels,
+		UnusedImagesCount: len(unusedImages),
+		Stats: &model.SummaryStats{
+			TotalContainers:        len(rows),
+			ContainersWithUpdates:  withUpdates,
+			TotalSources:           len(sources),
+			TotalRunners:           len(runners),
+			TotalTrackedApps:       len(trackedApps),
+			TrackedAppsWithUpdates: trackedWithUpdates,
+			UnusedImagesCount:      len(unusedImages),
+		},
 	}, nil
 }
 
