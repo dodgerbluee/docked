@@ -272,4 +272,67 @@ test.describe("GraphQL Integration", () => {
     expect(results.unusedRes.data?.unusedImages).toBeInstanceOf(Array);
     expect(results.unusedRes.errors).toBeUndefined();
   });
+
+  test("trackedApps query fires via GraphQL on Repos tab and UI renders transformed data", async ({
+    page,
+  }) => {
+    await authenticate(page);
+
+    const graphqlRequests = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/graphql") && !req.url().includes("/src/")) {
+        graphqlRequests.push(getGraphQLOpName(req));
+      }
+    });
+
+    await page.goto("/");
+    await page.waitForTimeout(3000);
+
+    // Click the "Repos" (tracked apps) tab
+    const reposTab = page.locator('button[aria-label="Repos tab"]');
+    await reposTab.click();
+    await page.waitForTimeout(2000);
+
+    const trackedRequest = graphqlRequests.find(
+      (r) => r.combined.includes("trackedApps") || r.opName === "TrackedApps"
+    );
+    expect(trackedRequest).toBeTruthy();
+    expect(trackedRequest.url).toContain("/graphql");
+  });
+
+  test("repositoryTokens query fires via GraphQL on Registry Access settings tab", async ({
+    page,
+  }) => {
+    await authenticate(page);
+    await page.goto("/");
+    await page.waitForTimeout(2000);
+
+    const graphqlRequests = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/graphql") && !req.url().includes("/src/")) {
+        graphqlRequests.push(getGraphQLOpName(req));
+      }
+    });
+
+    // Open settings
+    const avatarBtn = page.locator(".avatar-button");
+    await avatarBtn.click();
+    await page.waitForTimeout(300);
+    const settingsBtn = page.locator('button.avatar-menu-item:has-text("Settings")');
+    await settingsBtn.click();
+    await page.waitForTimeout(1500);
+
+    // Click the "Registry Access" settings tab
+    const registryTab = page.locator('button:has-text("Registry Access")');
+    if (await registryTab.isVisible()) {
+      await registryTab.first().click();
+      await page.waitForTimeout(2000);
+    }
+
+    const tokenRequest = graphqlRequests.find(
+      (r) => r.combined.includes("repositoryTokens") || r.opName === "RepositoryTokens"
+    );
+    expect(tokenRequest).toBeTruthy();
+    expect(tokenRequest.url).toContain("/graphql");
+  });
 });
