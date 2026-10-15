@@ -4754,6 +4754,9 @@ input UpdatePasswordInput {
 
 input UpdateUsernameInput {
   newUsername: String!
+  # Required at runtime: matches the REST contract, which verifies the
+  # current password before allowing a rename.
+  password: String
 }
 
 input CreateSourceInstanceInput {
@@ -22679,7 +22682,7 @@ func (ec *executionContext) unmarshalInputUpdateUsernameInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"newUsername"}
+	fieldsInOrder := [...]string{"newUsername", "password"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22693,6 +22696,13 @@ func (ec *executionContext) unmarshalInputUpdateUsernameInput(ctx context.Contex
 				return it, err
 			}
 			it.NewUsername = data
+		case "password":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Password = data
 		}
 	}
 	return it, nil

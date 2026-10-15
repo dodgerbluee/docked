@@ -464,17 +464,13 @@ func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
 		}
 	}
 	namespace, repository := parseRepoParts(repo)
-	hasUpdate := false
-	if c.LatestDigest.Valid && c.CurrentDigest.Valid {
-		hasUpdate = c.LatestDigest.String != c.CurrentDigest.String
-	} else if c.LatestTag.Valid && c.ImageTag.Valid {
-		hasUpdate = c.LatestTag.String != c.ImageTag.String
-	}
+	// Same Node-mirroring computation the containers(hasUpdate:) filter uses,
+	// so the displayed badge and the filter can never disagree.
 	info := &model.ImageVersionInfo{
 		Registry:   registry,
 		Namespace:  namespace,
 		Repository: repository,
-		HasUpdate:  hasUpdate,
+		HasUpdate:  db.ContainerHasUpdate(*c),
 	}
 	if c.ImageTag.Valid {
 		info.CurrentTag = &c.ImageTag.String
@@ -829,6 +825,44 @@ func runnerDelete(baseURL, apiKey, path string) error {
 	}
 	return nil
 }
+func pruneRecentAvatars(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	// Timestamp-based names sort chronologically; keep the newest 3.
+	for i := 0; i+3 < len(names); i++ {
+		_ = os.Remove(dir + "/" + names[i])
+	}
+}
+
+// runTrackedAppsCheck refreshes tracked-app versions from registries and
+// returns (checked, updated). Shared by checkTrackedAppUpdate-all flows and
+// triggerBatchJob(TRACKED_APPS_CHECK).
+func (r *Resolver) runTrackedAppsCheck(ctx context.Context, uid int64) (checked, updated int) {
+	apps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
+	if err != nil {
+		return 0, 0
+	}
+	for _, app := range apps {
+		if app.ImageName.Valid && app.ImageName.String != "" {
+			// Check Docker Hub / GHCR for latest tag
+			latest, digest := checkRegistryForImage(app.ImageName.String)
+			if latest != "" && latest != nullStrDefault(app.CurrentVersion) {
+				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
+				updated++
+			}
+		}
+	}
+	return len(apps), updated
+}
+
 func checkRegistryForImage(imageName string) (string, string) {
 	// Parse image name to get repo and tag
 	parts := strings.Split(imageName, ":")

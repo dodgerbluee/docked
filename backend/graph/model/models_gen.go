@@ -658,7 +658,8 @@ type UpdateUserPreferencesInput struct {
 }
 
 type UpdateUsernameInput struct {
-	NewUsername string `json:"newUsername"`
+	NewUsername string  `json:"newUsername"`
+	Password    *string `json:"password,omitempty"`
 }
 
 type UpgradeContainerInput struct {

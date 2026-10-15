@@ -291,12 +291,32 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.Updat
 		return nil, err
 	}
 
-	exists, _ := db.UserExists(ctx, r.DB, input.NewUsername)
+	newUsername := strings.TrimSpace(input.NewUsername)
+	if newUsername == "" {
+		return nil, fmt.Errorf("new username is required")
+	}
+	if len(newUsername) < 3 {
+		return nil, fmt.Errorf("username must be at least 3 characters long")
+	}
+	// Parity with the REST contract: a rename requires proof of the current
+	// password, so a stolen access token alone cannot take over an account.
+	if input.Password == nil || *input.Password == "" {
+		return nil, fmt.Errorf("password is required to change username")
+	}
+	user, err := db.GetUserByID(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || !user.PasswordHash.Valid || !auth.CheckPassword(user.PasswordHash.String, *input.Password) {
+		return nil, fmt.Errorf("password is incorrect")
+	}
+
+	exists, _ := db.UserExists(ctx, r.DB, newUsername)
 	if exists {
 		return nil, fmt.Errorf("username already taken")
 	}
 
-	if err := db.UpdateUsername(ctx, r.DB, uid, input.NewUsername); err != nil {
+	if err := db.UpdateUsername(ctx, r.DB, uid, newUsername); err != nil {
 		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
@@ -875,26 +895,6 @@ func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.T
 		Checked: &checked,
 		Updated: &updated,
 	}, nil
-}
-
-// runTrackedAppsCheck checks every tracked app for a newer registry version
-// and persists any updates. Shared by the mutation and the batch job.
-func (r *Resolver) runTrackedAppsCheck(ctx context.Context, uid int64) (checked, updated int) {
-	apps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
-	if err != nil {
-		return 0, 0
-	}
-	for _, app := range apps {
-		if app.ImageName.Valid && app.ImageName.String != "" {
-			// Check Docker Hub / GHCR for latest tag
-			latest, digest := checkRegistryForImage(app.ImageName.String)
-			if latest != "" && latest != nullStrDefault(app.CurrentVersion) {
-				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
-				updated++
-			}
-		}
-	}
-	return len(apps), updated
 }
 
 // CheckTrackedAppUpdate is the resolver for the checkTrackedAppUpdate field.
@@ -1542,25 +1542,6 @@ func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) 
 	pruneRecentAvatars(avatarDir + "/recent")
 
 	return &model.SuccessResult{Success: true, Message: strPtr("/api/avatars")}, nil
-}
-
-// pruneRecentAvatars keeps only the 3 newest files in a recent-avatars dir,
-// mirroring Node's cleanup after upload.
-func pruneRecentAvatars(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if !e.IsDir() {
-			names = append(names, e.Name())
-		}
-	}
-	// Timestamp-based names sort chronologically; keep the newest 3.
-	for i := 0; i+3 < len(names); i++ {
-		_ = os.Remove(dir + "/" + names[i])
-	}
 }
 
 // DeleteAvatar is the resolver for the deleteAvatar field.

@@ -705,6 +705,9 @@ input UpdatePasswordInput {
 
 input UpdateUsernameInput {
   newUsername: String!
+  # Required at runtime: matches the REST contract, which verifies the
+  # current password before allowing a rename.
+  password: String
 }
 
 input CreateSourceInstanceInput {

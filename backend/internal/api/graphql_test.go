@@ -781,6 +781,39 @@ func totalOf(t *testing.T, r gqlResp, field string) int {
 	return conn.TotalCount
 }
 
+// TestUpdateUsernameRequiresCorrectPassword guards the REST-parity security
+// boundary: a rename must prove knowledge of the current password, so a
+// stolen access token alone cannot take over an account.
+func TestUpdateUsernameRequiresCorrectPassword(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+	mut := `mutation($i:UpdateUsernameInput!){ updateUsername(input:$i){ success } }`
+
+	if r := env.gql(t, admin, mut,
+		map[string]any{"i": map[string]any{"newUsername": "renamed-ok"}}); !r.hasErrorContaining("password is required") {
+		t.Fatalf("missing password must be rejected: %+v", r)
+	}
+	if r := env.gql(t, admin, mut,
+		map[string]any{"i": map[string]any{"newUsername": "renamed-ok", "password": "nope"}}); !r.hasErrorContaining("incorrect") {
+		t.Fatalf("wrong password must be rejected: %+v", r)
+	}
+	if r := env.gql(t, admin, mut,
+		map[string]any{"i": map[string]any{"newUsername": "ab", "password": "adminpass"}}); !r.hasErrorContaining("3 characters") {
+		t.Fatalf("short username must be rejected: %+v", r)
+	}
+
+	r := env.gql(t, admin, mut,
+		map[string]any{"i": map[string]any{"newUsername": " renamed-ok ", "password": "adminpass"}})
+	if len(r.Errors) != 0 {
+		t.Fatalf("valid rename failed: %+v", r)
+	}
+	var got string
+	if err := env.database.QueryRowContext(context.Background(),
+		"SELECT username FROM users WHERE id = ?", env.adminID).Scan(&got); err != nil || got != "renamed-ok" {
+		t.Fatalf("username = %q (err %v), want trimmed renamed-ok", got, err)
+	}
+}
+
 func TestContainersFilterAndPagination(t *testing.T) {
 	env := newTestEnv(t, true)
 	admin := env.token(t, env.adminID, "admin")
@@ -841,8 +874,28 @@ func TestContainersFilterAndPagination(t *testing.T) {
 		}
 	}
 
+	// The displayed imageInfo.hasUpdate must agree with the filter (same
+	// computation), otherwise filtered queries appear to "leak" rows.
+	r := env.gql(t, admin, `{ containers(filter: { hasUpdate: true }) { items { imageInfo { hasUpdate } } } }`, nil)
+	if len(r.Errors) != 0 {
+		t.Fatalf("hasUpdate items query errored: %+v", r.Errors)
+	}
+	var items struct {
+		Items []struct {
+			ImageInfo *struct {
+				HasUpdate bool `json:"hasUpdate"`
+			} `json:"imageInfo"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(r.Data["containers"], &items); err != nil {
+		t.Fatalf("decode hasUpdate items: %v", err)
+	}
+	if len(items.Items) != 1 || items.Items[0].ImageInfo == nil || !items.Items[0].ImageInfo.HasUpdate {
+		t.Fatalf("filter/imageInfo disagree: %+v", items.Items)
+	}
+
 	// Pagination over the filtered set.
-	r := env.gql(t, admin, `{ containers(first: 2) { totalCount items { id } pageInfo { hasNextPage } } }`, nil)
+	r = env.gql(t, admin, `{ containers(first: 2) { totalCount items { id } pageInfo { hasNextPage } } }`, nil)
 	var conn struct {
 		TotalCount int           `json:"totalCount"`
 		Items      []interface{} `json:"items"`

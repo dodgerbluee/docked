@@ -23,6 +23,9 @@ const BASE = process.env.E2E_BASE || "https://docked.dbluee.net";
 const LOGIN_TIMEOUT_MS = 300000;
 const SKIP_DESTRUCTIVE = process.env.E2E_SKIP_DESTRUCTIVE === "1";
 const TAG = "e2etmp";
+// Idempotency claims live 24h in the shared DB, so keys must be unique per
+// run or a second run within the window is falsely rejected as duplicate.
+const RUN = Date.now().toString(36);
 
 // ---- Enum contracts from schema.graphql -------------------------------------
 const ENUM = {
@@ -506,7 +509,7 @@ async function phase2() {
     ok("previewIntent(new intent)", await gql(`query Q($id:ID!){ previewIntent(id:$id) { matchedCount excludedCount matchedContainers(first:5) { totalCount } } }`, { id }));
     const trig = ok("triggerIntent(dryRun, idempotencyKey)", await gql(`mutation Q($id:ID!,$k:String){ triggerIntent(id:$id, idempotencyKey:$k) { ${EXEC} } }`, {
       id,
-      k: `${TAG}-ik1`,
+      k: `${TAG}-ik1-${RUN}`,
     }), (d) => (d.triggerIntent?.id ? null : "no execution id"));
     if (trig) {
       const execId = trig.triggerIntent.id;
@@ -529,7 +532,7 @@ async function phase2() {
     }
     expectErr("triggerIntent duplicate idempotency key rejected", await gql(`mutation Q($id:ID!,$k:String){ triggerIntent(id:$id, idempotencyKey:$k) { id } }`, {
       id,
-      k: `${TAG}-ik1`,
+      k: `${TAG}-ik1-${RUN}`,
     }), "idempotency");
     ok("intentExecutions(intentId) sees execution", await gql(`query Q($id:ID!){ intentExecutions(intentId:$id) { totalCount } }`, { id }), (d) =>
       d.intentExecutions.totalCount >= 1 ? null : "not visible"
@@ -661,17 +664,17 @@ async function phase3() {
   // the container-sync job types are honestly rejected)
   expectErr("triggerBatchJob(DOCKER_HUB_PULL) rejected", await gql(`mutation Q($j:BatchJobType,$k:String){ triggerBatchJob(jobType:$j, idempotencyKey:$k) { id } }`, {
     j: "DOCKER_HUB_PULL",
-    k: `${TAG}-bj0`,
+    k: `${TAG}-bj0-${RUN}`,
   }), "not supported");
   const bj = ok("triggerBatchJob(TRACKED_APPS_CHECK, key)", await gql(`mutation Q($j:BatchJobType,$k:String){ triggerBatchJob(jobType:$j, idempotencyKey:$k) { id status jobType isManual containersChecked containersUpdated } }`, {
     j: "TRACKED_APPS_CHECK",
-    k: `${TAG}-bj1`,
+    k: `${TAG}-bj1-${RUN}`,
   }), (d) => (d.triggerBatchJob?.id ? null : "no id"));
   if (bj) {
     enumOk("triggerBatchJob.status enum", [bj.triggerBatchJob.status], "BatchRunStatus");
     expectErr("triggerBatchJob duplicate key rejected", await gql(`mutation Q($j:BatchJobType,$k:String){ triggerBatchJob(jobType:$j, idempotencyKey:$k) { id } }`, {
       j: "TRACKED_APPS_CHECK",
-      k: `${TAG}-bj1`,
+      k: `${TAG}-bj1-${RUN}`,
     }), "idempotency");
     ok("batchRun(triggered id)", await gql(`query Q($id:ID!){ batchRun(id:$id) { id status jobType } }`, { id: bj.triggerBatchJob.id }), (d) =>
       d.batchRun?.jobType === "TRACKED_APPS_CHECK" ? null : "wrong jobType"
@@ -726,16 +729,20 @@ async function phase4() {
   ok("containers empty after clear", await gql(`query { containers { totalCount } }`), (d) =>
     d.containers.totalCount === 0 ? null : `totalCount=${d.containers.totalCount}`
   );
-  // Go rejects container sync, so trigger Node's own sync (GET /api/containers
-  // re-pulls and re-persists the inventory) and poll until rows are back.
+  // Go rejects container sync, so trigger Node's own persistence path
+  // (POST /api/containers/pull = the UI "Pull" button, which re-fetches and
+  // re-writes the container cache) and poll until GraphQL rows are back.
   const trig = await page.evaluate(async () => {
     const token = localStorage.getItem("authToken");
-    const r = await fetch("/api/containers", { headers: { Authorization: `Bearer ${token}` } });
+    const r = await fetch("/api/containers/pull", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: "{}",
+    });
     const j = await r.json().catch(() => ({}));
-    const arr = Array.isArray(j.containers) ? j.containers : Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : [];
-    return { status: r.status, count: arr.length };
+    return { status: r.status, message: j.message || j.error || "" };
   });
-  record("Node REST GET /api/containers triggered restore", trig.status === 200, `status=${trig.status} count=${trig.count}`);
+  record("Node REST POST /api/containers/pull triggered restore", trig.status === 200, `status=${trig.status} ${trig.message}`.slice(0, 120));
   let restored = 0;
   for (let i = 0; i < 30; i++) {
     const d = await gql(`query { summaryStats { totalContainers } }`);
@@ -874,21 +881,14 @@ async function phase4() {
     i: { currentPassword: "definitely-wrong-e2e", newPassword: "whatever-123" },
   }), "incorrect");
 
-  const ren = ok("updateUsername(rename)", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
+  // ---- username rename: password enforcement parity with Node REST
+  // (positive rename+revert runs against the temp user, whose password is known)
+  expectErr("updateUsername(no password) rejected", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
     i: { newUsername: `${TAG}-renamed` },
-  }), (d) => (d.updateUsername.success ? null : "success=false"));
-  if (ren) {
-    ok("me.username reflects rename", await gql(`query { me { username } }`), (d) =>
-      d.me.username === `${TAG}-renamed` ? null : `got ${d.me.username}`
-    );
-    ok("updateUsername(revert)", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
-      i: { newUsername: S.me.username },
-    }));
-    ok("me.username restored", await gql(`query { me { username } }`), (d) =>
-      d.me.username === S.me.username ? null : `got ${d.me.username}`
-    );
-  }
-  note("FINDING: updateUsername requires no currentPassword (Node REST requires it) — parity gap");
+  }), "password is required");
+  expectErr("updateUsername(wrong password) rejected", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
+    i: { newUsername: `${TAG}-renamed`, password: "definitely-wrong-9" },
+  }), "incorrect");
 
   // ---- temp user lifecycle (register/login/refresh/admin ops/cleanup)
   const regReq = await gql(`query { registrationCodeRequired }`);
@@ -911,6 +911,22 @@ async function phase4() {
       ok("refreshToken(temp user)", await gql(`mutation Q($rt:String!){ refreshToken(input:{refreshToken:$rt}) { token user { id } } }`, {
         rt: reg.register.refreshToken,
       }), (d) => (d.refreshToken?.token ? null : "no token"));
+      // positive rename path on the temp user (known password), as the
+      // deployment admin's own password is not available to the harness
+      const mainToken = await page.evaluate(() => localStorage.getItem("authToken"));
+      await page.evaluate((t) => localStorage.setItem("authToken", t), reg.register.token);
+      const ren = ok("updateUsername(temp rename)", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
+        i: { newUsername: `${TAG}-renamed`, password: "e2ePass!123" },
+      }), (d) => (d.updateUsername.success ? null : "success=false"));
+      if (ren) {
+        ok("me.username reflects rename", await gql(`query { me { username } }`), (d) =>
+          d.me.username === `${TAG}-renamed` ? null : `got ${d.me.username}`
+        );
+        ok("updateUsername(revert)", await gql(`mutation Q($i:UpdateUsernameInput!){ updateUsername(input:$i) { success } }`, {
+          i: { newUsername: `${TAG}user`, password: "e2ePass!123" },
+        }), (d) => (d.updateUsername.success ? null : "success=false"));
+      }
+      await page.evaluate((t) => localStorage.setItem("authToken", t), mainToken);
       ok("setUserPassword(admin on temp user)", await gql(`mutation Q($id:ID!,$p:String!){ setUserPassword(userId:$id, newPassword:$p) { success } }`, {
         id: tu.id,
         p: "e2ePass!456",
