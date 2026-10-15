@@ -29,6 +29,12 @@ jobs:
             package-lock.json
             server/package-lock.json
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
       - name: Install dependencies
         run: |
           npm ci
@@ -45,6 +51,12 @@ jobs:
           else
             npm test -- --watchAll=false
           fi
+
+      - name: Run Go backend tests
+        run: |
+          cd backend
+          go vet ./...
+          go test ./...
 
       - name: Upload server test coverage
         if: inputs.run-coverage == true

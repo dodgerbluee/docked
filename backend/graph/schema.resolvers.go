@@ -132,7 +132,12 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 
 	// First user becomes admin. Role strings must match the Node-owned domain
 	// ("Administrator"/"Member") so both backends and the GraphQL enum agree.
-	userCount, _ := db.GetUserCount(ctx, r.DB)
+	// A count error must NOT default to 0, or a transient DB blip would mint a
+	// new Administrator.
+	userCount, err := db.GetUserCount(ctx, r.DB)
+	if err != nil {
+		return nil, fmt.Errorf("count users: %w", err)
+	}
 	role := "Member"
 	instanceAdmin := 0
 	if userCount == 0 {
@@ -367,6 +372,13 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		return nil, err
 	}
 
+	// An explicitly empty container list means "nothing selected". Without this
+	// guard the targetIDs set stays empty and the loop below upgrades EVERY
+	// container for the user.
+	if input.Containers != nil && len(input.Containers) == 0 {
+		return nil, fmt.Errorf("no containers selected for batch upgrade")
+	}
+
 	// Create a batch run record
 	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, "batch-upgrade", true)
 	if err != nil {
@@ -376,7 +388,12 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 	// Fire-and-forget: iterate containers and upgrade each via runner
 	go func() {
 		ctx := context.Background()
-		containers, _ := db.GetContainers(ctx, r.DB, uid)
+		containers, err := db.GetContainers(ctx, r.DB, uid)
+		if err != nil {
+			// Record the failure instead of silently marking the run completed.
+			db.CompleteBatchRun(ctx, r.DB, batchID, "failed", 0, 0, strPtr(err.Error()))
+			return
+		}
 		upgraded := 0
 
 		// Build set of target container IDs if specified
