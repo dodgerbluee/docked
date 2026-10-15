@@ -33,6 +33,13 @@ func requireAdmin(ctx context.Context) (int64, error) {
 	}
 	return uid, nil
 }
+
+// enumConst normalizes a raw DB enum-ish string (e.g. "docker-hub-pull",
+// "Administrator", "dry_run") into the GraphQL enum's UPPER_SNAKE form so the
+// value is always a valid member of its enum.
+func enumConst(s string) string {
+	return strings.ToUpper(strings.NewReplacer("-", "_", " ", "_").Replace(s))
+}
 func userRowToModel(u *db.UserRow) *model.User {
 	if u == nil {
 		return nil
@@ -40,7 +47,7 @@ func userRowToModel(u *db.UserRow) *model.User {
 	return &model.User{
 		ID:              strconv.FormatInt(u.ID, 10),
 		Username:        u.Username,
-		Role:            model.Role(u.Role),
+		Role:            model.Role(enumConst(u.Role)),
 		PasswordChanged: u.PasswordChanged == 1,
 		CreatedAt:       parseTime(u.CreatedAt),
 		UpdatedAt:       parseTime(u.UpdatedAt),
@@ -55,7 +62,7 @@ func sourceInstanceToModel(s *db.SourceInstanceRow) *model.SourceInstance {
 		Name:         s.Name,
 		URL:          s.URL,
 		Type:         model.SourceTypePortainer,
-		AuthType:     model.AuthType(s.AuthType),
+		AuthType:     model.AuthType(enumConst(s.AuthType)),
 		IPAddress:    nullStrPtr(s.IPAddress),
 		DisplayOrder: s.DisplayOrder,
 		CreatedAt:    parseTime(s.CreatedAt),
@@ -92,7 +99,7 @@ func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
 		Name:                      t.Name,
 		ImageName:                 nullStrPtr(t.ImageName),
 		GithubRepo:                nullStrPtr(t.GithubRepo),
-		SourceType:                model.TrackedAppSourceType(t.SourceType),
+		SourceType:                model.TrackedAppSourceType(enumConst(t.SourceType)),
 		CurrentVersion:            nullStrPtr(t.CurrentVersion),
 		CurrentDigest:             nullStrPtr(t.CurrentDigest),
 		LatestVersion:             nullStrPtr(t.LatestVersion),
@@ -123,7 +130,7 @@ func intentToModel(i *db.IntentRow) *model.Intent {
 		ExcludeImages:      db.UnmarshalStringArr(i.ExcludeImages),
 		ExcludeStacks:      db.UnmarshalStringArr(i.ExcludeStacks),
 		ExcludeRegistries:  db.UnmarshalStringArr(i.ExcludeRegistries),
-		ScheduleType:       model.IntentScheduleType(i.ScheduleType),
+		ScheduleType:       model.IntentScheduleType(enumConst(i.ScheduleType)),
 		ScheduleCron:       nullStrPtr(i.ScheduleCron),
 		MaxConcurrent:      i.MaxConcurrent,
 		DryRun:             i.DryRun == 1,
@@ -139,7 +146,7 @@ func batchConfigToModel(b *db.BatchConfigRow) *model.BatchConfig {
 	}
 	return &model.BatchConfig{
 		ID:              strconv.FormatInt(b.ID, 10),
-		JobType:         model.BatchJobType(b.JobType),
+		JobType:         model.BatchJobType(enumConst(b.JobType)),
 		Enabled:         b.Enabled == 1,
 		IntervalMinutes: b.IntervalMinutes,
 		CreatedAt:       parseTime(b.CreatedAt),
@@ -152,8 +159,8 @@ func batchRunToModel(b *db.BatchRunRow) *model.BatchRun {
 	}
 	return &model.BatchRun{
 		ID:                strconv.FormatInt(b.ID, 10),
-		Status:            model.BatchRunStatus(b.Status),
-		JobType:           model.BatchJobType(b.JobType),
+		Status:            model.BatchRunStatus(enumConst(b.Status)),
+		JobType:           model.BatchJobType(enumConst(b.JobType)),
 		QueuedAt:          parseTime(b.StartedAt),
 		StartedAt:         nullTimePtr(sql.NullString{String: b.StartedAt, Valid: b.StartedAt != ""}),
 		CompletedAt:       nullTimePtr(b.CompletedAt),
@@ -185,7 +192,7 @@ func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
 		Registry:          nullStrPtr(u.Registry),
 		Namespace:         nullStrPtr(u.Namespace),
 		Repository:        nullStrPtr(u.Repository),
-		Status:            model.UpgradeStatus(u.Status),
+		Status:            model.UpgradeStatus(enumConst(u.Status)),
 		ErrorMessage:      nullStrPtr(u.ErrorMessage),
 		UpgradeDurationMs: nullInt64ToIntPtr(u.UpgradeDuration),
 		IntentID:          nullInt64StrPtr(u.IntentID),

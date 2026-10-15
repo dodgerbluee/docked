@@ -838,20 +838,20 @@ type BatchJobType string
 const (
 	BatchJobTypeDockerHubPull     BatchJobType = "DOCKER_HUB_PULL"
 	BatchJobTypeUpgradeContainers BatchJobType = "UPGRADE_CONTAINERS"
-	BatchJobTypeCheckTrackedApps  BatchJobType = "CHECK_TRACKED_APPS"
+	BatchJobTypeTrackedAppsCheck  BatchJobType = "TRACKED_APPS_CHECK"
 	BatchJobTypeAppVersionScan    BatchJobType = "APP_VERSION_SCAN"
 )
 
 var AllBatchJobType = []BatchJobType{
 	BatchJobTypeDockerHubPull,
 	BatchJobTypeUpgradeContainers,
-	BatchJobTypeCheckTrackedApps,
+	BatchJobTypeTrackedAppsCheck,
 	BatchJobTypeAppVersionScan,
 }
 
 func (e BatchJobType) IsValid() bool {
 	switch e {
-	case BatchJobTypeDockerHubPull, BatchJobTypeUpgradeContainers, BatchJobTypeCheckTrackedApps, BatchJobTypeAppVersionScan:
+	case BatchJobTypeDockerHubPull, BatchJobTypeUpgradeContainers, BatchJobTypeTrackedAppsCheck, BatchJobTypeAppVersionScan:
 		return true
 	}
 	return false
@@ -1090,26 +1090,26 @@ func (e ErrorCode) MarshalJSON() ([]byte, error) {
 type ExecutionContainerStatus string
 
 const (
-	ExecutionContainerStatusPending   ExecutionContainerStatus = "PENDING"
-	ExecutionContainerStatusRunning   ExecutionContainerStatus = "RUNNING"
-	ExecutionContainerStatusSuccess   ExecutionContainerStatus = "SUCCESS"
-	ExecutionContainerStatusFailed    ExecutionContainerStatus = "FAILED"
-	ExecutionContainerStatusSkipped   ExecutionContainerStatus = "SKIPPED"
-	ExecutionContainerStatusCancelled ExecutionContainerStatus = "CANCELLED"
+	ExecutionContainerStatusPending  ExecutionContainerStatus = "PENDING"
+	ExecutionContainerStatusRunning  ExecutionContainerStatus = "RUNNING"
+	ExecutionContainerStatusUpgraded ExecutionContainerStatus = "UPGRADED"
+	ExecutionContainerStatusFailed   ExecutionContainerStatus = "FAILED"
+	ExecutionContainerStatusSkipped  ExecutionContainerStatus = "SKIPPED"
+	ExecutionContainerStatusDryRun   ExecutionContainerStatus = "DRY_RUN"
 )
 
 var AllExecutionContainerStatus = []ExecutionContainerStatus{
 	ExecutionContainerStatusPending,
 	ExecutionContainerStatusRunning,
-	ExecutionContainerStatusSuccess,
+	ExecutionContainerStatusUpgraded,
 	ExecutionContainerStatusFailed,
 	ExecutionContainerStatusSkipped,
-	ExecutionContainerStatusCancelled,
+	ExecutionContainerStatusDryRun,
 }
 
 func (e ExecutionContainerStatus) IsValid() bool {
 	switch e {
-	case ExecutionContainerStatusPending, ExecutionContainerStatusRunning, ExecutionContainerStatusSuccess, ExecutionContainerStatusFailed, ExecutionContainerStatusSkipped, ExecutionContainerStatusCancelled:
+	case ExecutionContainerStatusPending, ExecutionContainerStatusRunning, ExecutionContainerStatusUpgraded, ExecutionContainerStatusFailed, ExecutionContainerStatusSkipped, ExecutionContainerStatusDryRun:
 		return true
 	}
 	return false
@@ -1215,17 +1215,17 @@ type IntentScheduleType string
 
 const (
 	IntentScheduleTypeImmediate IntentScheduleType = "IMMEDIATE"
-	IntentScheduleTypeCron      IntentScheduleType = "CRON"
+	IntentScheduleTypeScheduled IntentScheduleType = "SCHEDULED"
 )
 
 var AllIntentScheduleType = []IntentScheduleType{
 	IntentScheduleTypeImmediate,
-	IntentScheduleTypeCron,
+	IntentScheduleTypeScheduled,
 }
 
 func (e IntentScheduleType) IsValid() bool {
 	switch e {
-	case IntentScheduleTypeImmediate, IntentScheduleTypeCron:
+	case IntentScheduleTypeImmediate, IntentScheduleTypeScheduled:
 		return true
 	}
 	return false
@@ -1269,20 +1269,20 @@ func (e IntentScheduleType) MarshalJSON() ([]byte, error) {
 type IntentTriggerType string
 
 const (
-	IntentTriggerTypeSchedule   IntentTriggerType = "SCHEDULE"
-	IntentTriggerTypeManual     IntentTriggerType = "MANUAL"
-	IntentTriggerTypeEvaluation IntentTriggerType = "EVALUATION"
+	IntentTriggerTypeManual          IntentTriggerType = "MANUAL"
+	IntentTriggerTypeScanDetected    IntentTriggerType = "SCAN_DETECTED"
+	IntentTriggerTypeScheduledWindow IntentTriggerType = "SCHEDULED_WINDOW"
 )
 
 var AllIntentTriggerType = []IntentTriggerType{
-	IntentTriggerTypeSchedule,
 	IntentTriggerTypeManual,
-	IntentTriggerTypeEvaluation,
+	IntentTriggerTypeScanDetected,
+	IntentTriggerTypeScheduledWindow,
 }
 
 func (e IntentTriggerType) IsValid() bool {
 	switch e {
-	case IntentTriggerTypeSchedule, IntentTriggerTypeManual, IntentTriggerTypeEvaluation:
+	case IntentTriggerTypeManual, IntentTriggerTypeScanDetected, IntentTriggerTypeScheduledWindow:
 		return true
 	}
 	return false
@@ -1625,18 +1625,18 @@ func (e Registry) MarshalJSON() ([]byte, error) {
 type Role string
 
 const (
-	RoleAdmin Role = "ADMIN"
-	RoleUser  Role = "USER"
+	RoleAdministrator Role = "ADMINISTRATOR"
+	RoleUser          Role = "USER"
 )
 
 var AllRole = []Role{
-	RoleAdmin,
+	RoleAdministrator,
 	RoleUser,
 }
 
 func (e Role) IsValid() bool {
 	switch e {
-	case RoleAdmin, RoleUser:
+	case RoleAdministrator, RoleUser:
 		return true
 	}
 	return false

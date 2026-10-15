@@ -64,7 +64,7 @@ func (r *intentExecutionResolver) Containers(ctx context.Context, obj *model.Int
 			ImageName:         row.ImageName,
 			SourceInstanceID:  nullInt64StrPtr(row.SourceInstanceID),
 			RunnerID:          nullInt64StrPtr(row.RunnerID),
-			Status:            model.ExecutionContainerStatus(strings.ToUpper(row.Status)),
+			Status:            model.ExecutionContainerStatus(enumConst(row.Status)),
 			OldImage:          nullStrPtr(row.OldImage),
 			NewImage:          nullStrPtr(row.NewImage),
 			OldDigest:         nullStrPtr(row.OldDigest),
@@ -1036,7 +1036,7 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 	return &model.BatchRun{
 		ID:       strconv.FormatInt(batchID, 10),
 		Status:   model.BatchRunStatusRunning,
-		JobType:  model.BatchJobType(jt),
+		JobType:  model.BatchJobType(enumConst(jt)),
 		QueuedAt: time.Now(),
 		IsManual: true,
 	}, nil
@@ -1730,8 +1730,8 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 		items[i] = &model.IntentExecution{
 			ID:                 strconv.FormatInt(row.ID, 10),
 			IntentID:           strconv.FormatInt(row.IntentID, 10),
-			Status:             model.IntentExecutionStatus(row.Status),
-			TriggerType:        model.IntentTriggerType(row.TriggerType),
+			Status:             model.IntentExecutionStatus(enumConst(row.Status)),
+			TriggerType:        model.IntentTriggerType(enumConst(row.TriggerType)),
 			ContainersMatched:  row.ContainersMatched,
 			ContainersUpgraded: row.ContainersUpgraded,
 			ContainersFailed:   row.ContainersFailed,
@@ -2292,7 +2292,7 @@ func (r *trackedAppResolver) UpgradeHistory(ctx context.Context, obj *model.Trac
 			NewVersion:   nullStrPtr(row.NewVersion),
 			OldDigest:    nullStrPtr(row.OldCommitSHA),
 			NewDigest:    nullStrPtr(row.NewCommitSHA),
-			Status:       model.UpgradeStatus(strings.ToUpper(row.Status)),
+			Status:       model.UpgradeStatus(enumConst(row.Status)),
 			CreatedAt:    parseTime(row.CreatedAt),
 		}
 	}

@@ -4062,7 +4062,7 @@ scalar Upload   # graphql-upload multipart file
 # -----------------------------------------------------------------------------
 
 enum Role {
-  ADMIN
+  ADMINISTRATOR
   USER
 }
 
@@ -4098,7 +4098,7 @@ enum Registry {
 enum BatchJobType {
   DOCKER_HUB_PULL
   UPGRADE_CONTAINERS
-  CHECK_TRACKED_APPS
+  TRACKED_APPS_CHECK
   APP_VERSION_SCAN
 }
 
@@ -4112,7 +4112,7 @@ enum BatchRunStatus {
 
 enum IntentScheduleType {
   IMMEDIATE
-  CRON
+  SCHEDULED
 }
 
 enum IntentExecutionStatus {
@@ -4124,9 +4124,9 @@ enum IntentExecutionStatus {
 }
 
 enum IntentTriggerType {
-  SCHEDULE
   MANUAL
-  EVALUATION
+  SCAN_DETECTED
+  SCHEDULED_WINDOW
 }
 
 enum UpgradeStatus {
@@ -4139,10 +4139,10 @@ enum UpgradeStatus {
 enum ExecutionContainerStatus {
   PENDING
   RUNNING
-  SUCCESS
+  UPGRADED
   FAILED
   SKIPPED
-  CANCELLED
+  DRY_RUN
 }
 
 enum TrackedAppSourceType {
