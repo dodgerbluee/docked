@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { parseUTCTimestamp } from "../utils/formatters";
 import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { TRACKED_APPS_QUERY } from "../graphql/queries";
 import {
   // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
   SHORT_SUCCESS_MESSAGE_DURATION,
@@ -20,6 +22,25 @@ let cachedLastScanTime = null;
 // Module-level flag to prevent duplicate fetches across hook instances
 // (e.g. App.jsx and TrackedAppsPage both call useTrackedApps)
 let initialFetchStarted = false;
+
+/** Maps GraphQL camelCase TrackedApp to the snake_case shape UI components expect. */
+function mapTrackedApp(a) {
+  return {
+    id: a.id,
+    name: a.name,
+    image_name: a.imageName,
+    github_repo: a.githubRepo,
+    source_type: a.sourceType?.toLowerCase(),
+    current_version: a.currentVersion,
+    current_digest: a.currentDigest,
+    latest_version: a.latestVersion,
+    latest_digest: a.latestDigest,
+    has_update: a.hasUpdate,
+    last_checked: a.lastChecked,
+    created_at: a.createdAt,
+    updated_at: a.updatedAt,
+  };
+}
 
 /**
  * Custom hook for managing tracked apps
@@ -64,9 +85,10 @@ export function useTrackedApps(isAuthenticated, authToken) {
         if (showLoading) {
           setIsLoading(true);
         }
-        const response = await axios.get(`${API_BASE_URL}/api/tracked-apps`);
-        if (response.data.success && mountedRef.current) {
-          const apps = response.data.images || [];
+        const result = await graphqlClient.query(TRACKED_APPS_QUERY).toPromise();
+        if (result.error) throw new Error(result.error.message);
+        if (result.data?.trackedApps && mountedRef.current) {
+          const apps = (result.data.trackedApps || []).map(mapTrackedApp);
 
           // Sort alphabetically by name
           const sortedApps = apps.sort((a, b) => {
