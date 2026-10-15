@@ -725,3 +725,34 @@ export const INTENT_EXECUTIONS_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+export const REPOSITORY_TOKENS_QUERY = /* GraphQL */ `
+  query RepositoryTokens {
+    repositoryTokens {
+      id
+      provider
+      maskedToken
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const SAVE_REPOSITORY_TOKEN_MUTATION = /* GraphQL */ `
+  mutation SaveRepositoryToken($input: CreateRepositoryTokenInput!) {
+    saveRepositoryToken(input: $input) {
+      id
+      provider
+      maskedToken
+    }
+  }
+`;
+
+export const DELETE_REPOSITORY_TOKEN_MUTATION = /* GraphQL */ `
+  mutation DeleteRepositoryToken($id: ID!) {
+    deleteRepositoryToken(id: $id) {
+      success
+      message
+    }
+  }
+`;

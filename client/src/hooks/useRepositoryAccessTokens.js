@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  REPOSITORY_TOKENS_QUERY,
+  SAVE_REPOSITORY_TOKEN_MUTATION,
+  DELETE_REPOSITORY_TOKEN_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useRepositoryAccessTokens Hook
- * Manages repository access tokens (GitHub/GitLab)
+ * Manages repository access tokens (GitHub/GitLab) via GraphQL
  */
 export function useRepositoryAccessTokens({ activeSection }) {
   const [tokens, setTokens] = useState([]);
@@ -15,13 +19,12 @@ export function useRepositoryAccessTokens({ activeSection }) {
     try {
       setLoading(true);
       setError("");
-      const response = await axios.get(`${API_BASE_URL}/api/repository-access-tokens`);
-      if (response.data.success) {
-        setTokens(response.data.tokens || []);
-      }
+      const result = await graphqlClient.query(REPOSITORY_TOKENS_QUERY).toPromise();
+      if (result.error) throw new Error(result.error.message);
+      setTokens(result.data?.repositoryTokens || []);
     } catch (err) {
       console.error("Error fetching repository access tokens:", err);
-      setError(err.response?.data?.error || "Failed to fetch repository access tokens");
+      setError(err.message || "Failed to fetch repository access tokens");
     } finally {
       setLoading(false);
     }
@@ -40,23 +43,23 @@ export function useRepositoryAccessTokens({ activeSection }) {
   }, [activeSection]);
 
   const createOrUpdateToken = useCallback(
-    async (provider, name, accessToken, tokenId = null) => {
+    async (provider, _name, accessToken, _tokenId = null) => {
       try {
         setLoading(true);
         setError("");
-        const response = await axios.post(`${API_BASE_URL}/api/repository-access-tokens`, {
-          provider,
-          name,
-          accessToken,
-          tokenId,
-        });
-        if (response.data.success) {
+        const result = await graphqlClient
+          .mutation(SAVE_REPOSITORY_TOKEN_MUTATION, {
+            input: { provider, token: accessToken },
+          })
+          .toPromise();
+        if (result.error) throw new Error(result.error.message);
+        if (result.data?.saveRepositoryToken) {
           await fetchTokens();
-          return { success: true, id: response.data.id };
+          return { success: true, id: result.data.saveRepositoryToken.id };
         }
-        return { success: false, error: response.data.error || "Failed to save token" };
+        return { success: false, error: "Failed to save token" };
       } catch (err) {
-        const errorMessage = err.response?.data?.error || "Failed to save repository access token";
+        const errorMessage = err.message || "Failed to save repository access token";
         setError(errorMessage);
         return { success: false, error: errorMessage };
       } finally {
@@ -71,15 +74,17 @@ export function useRepositoryAccessTokens({ activeSection }) {
       try {
         setLoading(true);
         setError("");
-        const response = await axios.delete(`${API_BASE_URL}/api/repository-access-tokens/${id}`);
-        if (response.data.success) {
+        const result = await graphqlClient
+          .mutation(DELETE_REPOSITORY_TOKEN_MUTATION, { id })
+          .toPromise();
+        if (result.error) throw new Error(result.error.message);
+        if (result.data?.deleteRepositoryToken?.success) {
           await fetchTokens();
           return { success: true };
         }
-        return { success: false, error: response.data.error || "Failed to delete token" };
+        return { success: false, error: "Failed to delete token" };
       } catch (err) {
-        const errorMessage =
-          err.response?.data?.error || "Failed to delete repository access token";
+        const errorMessage = err.message || "Failed to delete repository access token";
         setError(errorMessage);
         return { success: false, error: errorMessage };
       } finally {
