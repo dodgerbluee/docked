@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { TRIGGER_BATCH_JOB_MUTATION } from "../graphql/queries";
 import { REFETCH_DELAY_MS } from "../constants/numbers";
 import { getErrorMessage } from "../utils/errorMessages";
 
@@ -57,11 +57,14 @@ export function useBatchTriggers(onTriggerBatch, onTriggerTrackedAppsBatch, refe
     }
   }, [onTriggerTrackedAppsBatch, refetch]);
 
-  // Handle app version scan batch trigger
+  // Handle app version scan batch trigger (GraphQL)
   const handleTriggerAppVersionScanBatch = useCallback(async () => {
     setTriggeringAppVersionScanBatch(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/batch/trigger`, { jobType: "app-version-scan" });
+      const result = await graphqlClient
+        .mutation(TRIGGER_BATCH_JOB_MUTATION, { jobType: "APP_VERSION_SCAN" })
+        .toPromise();
+      if (result.error) throw new Error(result.error.message);
       setTimeout(() => {
         if (refetch) {
           refetch();
