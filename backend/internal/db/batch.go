@@ -129,3 +129,27 @@ func GetBatchRunByID(ctx context.Context, database *sql.DB, id, userID int64) (*
 	}
 	return &r, nil
 }
+
+func CreateBatchRun(ctx context.Context, database *sql.DB, userID int64, jobType string, isManual bool) (int64, error) {
+	manual := 0
+	if isManual {
+		manual = 1
+	}
+	res, err := database.ExecContext(ctx,
+		"INSERT INTO batch_runs (user_id, job_type, status, is_manual) VALUES (?, ?, 'running', ?)",
+		userID, jobType, manual)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func CompleteBatchRun(ctx context.Context, database *sql.DB, id int64, status string, checked, updated int, errMsg *string) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET status=?, completed_at=CURRENT_TIMESTAMP,
+		 duration_ms=CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
+		 containers_checked=?, containers_updated=?, error_message=?
+		 WHERE id=?`,
+		status, checked, updated, errMsg, id)
+	return err
+}

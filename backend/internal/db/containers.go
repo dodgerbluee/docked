@@ -39,10 +39,11 @@ type ContainerRow struct {
 	NoDigest          bool
 
 	// From source_instances / runners
-	SourceName sql.NullString
-	SourceURL  sql.NullString
-	RunnerName sql.NullString
-	RunnerURL  sql.NullString
+	SourceName       sql.NullString
+	SourceURL        sql.NullString
+	SourceInstanceID sql.NullInt64
+	RunnerName       sql.NullString
+	RunnerURL        sql.NullString
 }
 
 // The query is a direct port of the Node.js getContainersWithUpdates function.
@@ -82,6 +83,7 @@ SELECT
 
     si.name  AS source_name,
     si.url   AS source_url,
+    c.source_instance_id,
     r.name   AS runner_name,
     r.url    AS runner_url
 
@@ -182,6 +184,7 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 		&noDigest,
 		&row.SourceName,
 		&row.SourceURL,
+		&row.SourceInstanceID,
 		&row.RunnerName,
 		&row.RunnerURL,
 	)
@@ -236,7 +239,7 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests,
 		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
 		&r.Provider, &r.LastChecked, &noDigest,
-		&r.SourceName, &r.SourceURL, &r.RunnerName, &r.RunnerURL,
+		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil

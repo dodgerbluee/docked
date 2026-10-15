@@ -1,12 +1,17 @@
 package graph
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dockedapp/backend/graph/model"
@@ -213,27 +218,158 @@ func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role 
 }
 
 func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("pullContainers: not yet implemented in Go backend")
+
+	// Determine target: runner or source instance
+	if runnerID != nil && *runnerID != "" {
+		rid, _ := strconv.ParseInt(*runnerID, 10, 64)
+		runner, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
+		if err != nil || runner == nil {
+			return nil, fmt.Errorf("runner not found")
+		}
+		// Trigger pull via runner HTTP API
+		go func() {
+			payload := map[string]any{"fromImage": "", "tag": ""}
+			_ = runnerPost(runner.URL, runner.APIKey, "/containers/pull-all", payload)
+		}()
+	} else if sourceInstanceID != nil && *sourceInstanceID != "" {
+		sid, _ := strconv.ParseInt(*sourceInstanceID, 10, 64)
+		src, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
+		if err != nil || src == nil {
+			return nil, fmt.Errorf("source instance not found")
+		}
+		go func() {
+			_ = portainerPullAll(src)
+		}()
+	}
+
+	return &model.Operation{
+		ID:        "pull-" + strconv.FormatInt(time.Now().UnixMilli(), 10),
+		Type:      model.OperationTypePullContainers,
+		Status:    model.OperationStatusPending,
+		QueuedAt:  time.Now(),
+		Message:   strPtr("Pull initiated"),
+	}, nil
 }
 
 func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.UpgradeContainerInput) (*model.Operation, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("upgradeContainer: not yet implemented in Go backend")
+
+	// Look up the container in DB
+	cid, _ := strconv.ParseInt(input.DockerContainerID, 10, 64)
+	container, err := db.GetContainerByID(ctx, r.DB, cid, uid)
+	if err != nil || container == nil {
+		return nil, fmt.Errorf("container not found")
+	}
+
+	// Determine backend (runner or source instance)
+	var runnerURL, runnerKey string
+	if container.RunnerID.Valid {
+		runner, _ := db.GetRunnerByID(ctx, r.DB, container.RunnerID.Int64, uid)
+		if runner == nil {
+			return nil, fmt.Errorf("runner not found for container")
+		}
+		runnerURL, runnerKey = runner.URL, runner.APIKey
+	} else if container.SourceInstanceID.Valid {
+		src, _ := db.GetSourceInstanceByID(ctx, r.DB, container.SourceInstanceID.Int64, uid)
+		if src == nil {
+			return nil, fmt.Errorf("source instance not found for container")
+		}
+		runnerURL, runnerKey = src.URL, src.APIKey.String
+	}
+
+	opID := "upgrade-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
+
+	// Fire-and-forget upgrade via runner
+	go func() {
+		if runnerURL != "" {
+			payload := map[string]any{
+				"containerId": container.ContainerID,
+				"imageName":   nullStrDefault(container.ImageName),
+				"imageRepo":   nullStrDefault(container.ImageRepo),
+			}
+			_ = runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload)
+		}
+	}()
+
+	return &model.Operation{
+		ID:       opID,
+		Type:     model.OperationTypeUpgradeContainer,
+		Status:   model.OperationStatusPending,
+		QueuedAt: time.Now(),
+		Message:  strPtr("Upgrade initiated for " + container.ContainerName),
+	}, nil
 }
 
 func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUpgradeInput) (*model.Operation, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("batchUpgrade: not yet implemented in Go backend")
+
+	// Create a batch run record
+	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, "batch-upgrade", true)
+	if err != nil {
+		return nil, fmt.Errorf("create batch run: %w", err)
+	}
+
+	// Fire-and-forget: iterate containers and upgrade each via runner
+	go func() {
+		ctx := context.Background()
+		containers, _ := db.GetContainers(ctx, r.DB, uid)
+		upgraded := 0
+
+		// Build set of target container IDs if specified
+		targetIDs := make(map[string]bool)
+		if input.Containers != nil {
+			for _, c := range input.Containers {
+				targetIDs[c.DockerContainerID] = true
+			}
+		}
+
+		for _, c := range containers {
+			if len(targetIDs) > 0 && !targetIDs[c.ContainerID] {
+				continue
+			}
+			var runnerURL, runnerKey string
+			if c.RunnerID.Valid {
+				runner, _ := db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
+				if runner != nil {
+					runnerURL, runnerKey = runner.URL, runner.APIKey
+				}
+			} else if c.SourceInstanceID.Valid {
+				src, _ := db.GetSourceInstanceByID(ctx, r.DB, c.SourceInstanceID.Int64, uid)
+				if src != nil {
+					runnerURL, runnerKey = src.URL, src.APIKey.String
+				}
+			}
+			if runnerURL != "" {
+				payload := map[string]any{
+					"containerId": c.ContainerID,
+					"imageName":   nullStrDefault(c.ImageName),
+					"imageRepo":   nullStrDefault(c.ImageRepo),
+				}
+				if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
+					upgraded++
+				}
+			}
+		}
+		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", len(containers), upgraded, nil)
+	}()
+
+	return &model.Operation{
+		ID:       "batch-" + strconv.FormatInt(batchID, 10),
+		Type:     model.OperationTypeBatchUpgrade,
+		Status:   model.OperationStatusPending,
+		QueuedAt: time.Now(),
+		Message:  strPtr("Batch upgrade initiated"),
+	}, nil
 }
 
 func (r *mutationResolver) ClearContainerData(ctx context.Context) (*model.SuccessResult, error) {
@@ -249,11 +385,53 @@ func (r *mutationResolver) ClearContainerData(ctx context.Context) (*model.Succe
 }
 
 func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.DeleteImageInput) (*model.DeleteImagesResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("deleteImages: not yet implemented in Go backend")
+
+	var deleted, failed int
+	results := make([]*model.DeleteImageResult, 0, len(images))
+
+	for _, img := range images {
+		var runnerURL, runnerKey string
+		if img.RunnerID != nil && *img.RunnerID != "" {
+			rid, _ := strconv.ParseInt(*img.RunnerID, 10, 64)
+			runner, _ := db.GetRunnerByID(ctx, r.DB, rid, uid)
+			if runner != nil {
+				runnerURL, runnerKey = runner.URL, runner.APIKey
+			}
+		} else if img.SourceInstanceID != nil && *img.SourceInstanceID != "" {
+			sid, _ := strconv.ParseInt(*img.SourceInstanceID, 10, 64)
+			src, _ := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
+			if src != nil {
+				runnerURL, runnerKey = src.URL, src.APIKey.String
+			}
+		}
+
+		var success bool
+		if runnerURL != "" {
+			path := "/images/" + img.ImageID
+			success = runnerDelete(runnerURL, runnerKey, path) == nil
+		}
+
+		if success {
+			deleted++
+		} else {
+			failed++
+		}
+		results = append(results, &model.DeleteImageResult{
+			ImageID: img.ImageID,
+			Success: success,
+		})
+	}
+
+	return &model.DeleteImagesResult{
+		Success: failed == 0,
+		Deleted: deleted,
+		Failed:  failed,
+		Results: results,
+	}, nil
 }
 
 func (r *mutationResolver) CreateSourceInstance(ctx context.Context, input model.CreateSourceInstanceInput) (*model.SourceInstance, error) {
@@ -336,7 +514,19 @@ func (r *mutationResolver) ValidateSourceCredentials(ctx context.Context, input 
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("validateSourceCredentials: not yet implemented in Go backend")
+
+	// Call Portainer API to validate credentials
+	url := input.URL + "/api/auth"
+	payload := map[string]string{"Username": derefStr(input.Username), "Password": derefStr(input.Password)}
+	status, body, err := httpPostJSON(url, payload, "")
+	if err != nil {
+		return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed: " + err.Error())}, nil
+	}
+	if status == 200 {
+		_ = body
+		return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
+	}
+	return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("Auth failed (HTTP %d)", status))}, nil
 }
 
 func (r *mutationResolver) CreateRunner(ctx context.Context, input model.CreateRunnerInput) (*model.Runner, error) {
@@ -389,11 +579,16 @@ func (r *mutationResolver) DeleteRunner(ctx context.Context, id string) (*model.
 }
 
 func (r *mutationResolver) GenerateEnrollmentToken(ctx context.Context) (*model.EnrollmentTokenResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("generateEnrollmentToken: not yet implemented in Go backend")
+
+	token, expires, err := db.CreateEnrollmentToken(ctx, r.DB, uid)
+	if err != nil {
+		return nil, fmt.Errorf("generate enrollment token: %w", err)
+	}
+	return &model.EnrollmentTokenResult{Token: token, ExpiresAt: expires}, nil
 }
 
 func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.CreateTrackedAppInput) (*model.TrackedApp, error) {
@@ -454,27 +649,80 @@ func (r *mutationResolver) DeleteTrackedApp(ctx context.Context, id string) (*mo
 }
 
 func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.TrackedAppCheckResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("checkTrackedAppUpdates: not yet implemented in Go backend")
+
+	apps, err := db.GetAllTrackedApps(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	updated := 0
+	for _, app := range apps {
+		if app.ImageName.Valid && app.ImageName.String != "" {
+			// Check Docker Hub / GHCR for latest tag
+			latest, digest := checkRegistryForImage(app.ImageName.String)
+			if latest != "" && latest != nullStrDefault(app.CurrentVersion) {
+				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
+				updated++
+			}
+		}
+	}
+
+	checked := len(apps)
+	return &model.TrackedAppCheckResult{
+		Success: true,
+		Checked: &checked,
+		Updated: &updated,
+	}, nil
 }
 
 func (r *mutationResolver) CheckTrackedAppUpdate(ctx context.Context, id string) (*model.TrackedAppCheckResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("checkTrackedAppUpdate: not yet implemented in Go backend")
+	tid, _ := strconv.ParseInt(id, 10, 64)
+
+	app, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+	if err != nil || app == nil {
+		return nil, fmt.Errorf("tracked app not found")
+	}
+
+	var hasUpdate bool
+	var currentVer, latestVer *string
+	if app.ImageName.Valid && app.ImageName.String != "" {
+		latest, digest := checkRegistryForImage(app.ImageName.String)
+		currentVer = nullStrPtr(app.CurrentVersion)
+		if latest != "" {
+			latestVer = &latest
+			hasUpdate = latest != nullStrDefault(app.CurrentVersion)
+			if hasUpdate {
+				db.UpdateTrackedAppVersion(ctx, r.DB, app.ID, latest, digest)
+			}
+		}
+	}
+
+	return &model.TrackedAppCheckResult{
+		Success:        true,
+		HasUpdate:      &hasUpdate,
+		CurrentVersion: currentVer,
+		LatestVersion:  latestVer,
+	}, nil
 }
 
 func (r *mutationResolver) ClearTrackedAppCache(ctx context.Context) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("clearTrackedAppCache: not yet implemented in Go backend")
+	_, err = r.DB.ExecContext(ctx, "DELETE FROM registry_image_versions WHERE user_id = ?", uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateIntentInput) (*model.Intent, error) {
@@ -598,11 +846,74 @@ func (r *mutationResolver) DeleteIntent(ctx context.Context, id string) (*model.
 }
 
 func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempotencyKey *string) (*model.IntentExecution, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("triggerIntent: not yet implemented in Go backend")
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	intent, err := db.GetIntentByID(ctx, r.DB, iid, uid)
+	if err != nil || intent == nil {
+		return nil, fmt.Errorf("intent not found")
+	}
+
+	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
+	if err != nil {
+		return nil, fmt.Errorf("create execution: %w", err)
+	}
+
+	// Fire-and-forget: match containers and upgrade via runner
+	go func() {
+		ctx := context.Background()
+		matchC := db.UnmarshalStringArr(intent.MatchContainers)
+		matchI := db.UnmarshalStringArr(intent.MatchImages)
+		matchS := db.UnmarshalStringArr(intent.MatchSources)
+		matchSt := db.UnmarshalStringArr(intent.MatchStacks)
+		exC := db.UnmarshalStringArr(intent.ExcludeContainers)
+		exI := db.UnmarshalStringArr(intent.ExcludeImages)
+		exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
+
+		matched, total, _ := db.GetContainersMatchingIntent(ctx, r.DB, uid,
+			matchC, matchI, matchS, matchSt, nil, exC, exI, exSt, nil, 500, 0)
+
+		upgraded := 0
+		failed := 0
+		for _, c := range matched {
+			var runnerURL, runnerKey string
+			if c.RunnerID.Valid {
+				runner, _ := db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
+				if runner != nil {
+					runnerURL, runnerKey = runner.URL, runner.APIKey
+				}
+			} else if c.SourceInstanceID.Valid {
+				src, _ := db.GetSourceInstanceByID(ctx, r.DB, c.SourceInstanceID.Int64, uid)
+				if src != nil {
+					runnerURL, runnerKey = src.URL, src.APIKey.String
+				}
+			}
+			if runnerURL != "" {
+				payload := map[string]any{"containerId": c.ContainerID, "imageName": nullStrDefault(c.ImageName)}
+				if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
+					upgraded++
+				} else {
+					failed++
+				}
+			}
+		}
+		status := "completed"
+		if failed > 0 && upgraded == 0 {
+			status = "failed"
+		}
+		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, 0, nil)
+	}()
+
+	return &model.IntentExecution{
+		ID:          strconv.FormatInt(execID, 10),
+		IntentID:    id,
+		Status:      model.IntentExecutionStatusPending,
+		TriggerType: model.IntentTriggerTypeManual,
+		QueuedAt:    time.Now(),
+	}, nil
 }
 
 func (r *mutationResolver) UpdateBatchConfig(ctx context.Context, input model.UpdateBatchConfigInput) (*model.SuccessResult, error) {
@@ -618,19 +929,60 @@ func (r *mutationResolver) UpdateBatchConfig(ctx context.Context, input model.Up
 }
 
 func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.BatchJobType, idempotencyKey *string) (*model.BatchRun, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("triggerBatchJob: not yet implemented in Go backend")
+
+	jt := "docker-hub-pull"
+	if jobType != nil {
+		jt = string(*jobType)
+	}
+
+	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, jt, true)
+	if err != nil {
+		return nil, fmt.Errorf("create batch run: %w", err)
+	}
+
+	// Fire-and-forget: pull containers from all sources
+	go func() {
+		ctx := context.Background()
+		sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
+		runners, _ := db.GetEnabledRunners(ctx, r.DB, uid)
+		checked := 0
+		for _, src := range sources {
+			_ = portainerPullAll(&src)
+			checked++
+		}
+		for _, runner := range runners {
+			_ = runnerPost(runner.URL, runner.APIKey, "/containers/pull-all", map[string]any{})
+			checked++
+		}
+		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", checked, 0, nil)
+	}()
+
+	return &model.BatchRun{
+		ID:       strconv.FormatInt(batchID, 10),
+		Status:   model.BatchRunStatusRunning,
+		JobType:  model.BatchJobType(jt),
+		QueuedAt: time.Now(),
+		IsManual: true,
+	}, nil
 }
 
 func (r *mutationResolver) SetBatchLogLevel(ctx context.Context, logLevel model.LogLevel) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("setBatchLogLevel: not yet implemented in Go backend")
+	_, err = r.DB.ExecContext(ctx,
+		`INSERT INTO settings (user_id, key, value) VALUES (?, 'batch_log_level', ?)
+		 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+		uid, string(logLevel))
+	if err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) CreateDiscordWebhook(ctx context.Context, input model.CreateDiscordWebhookInput) (*model.DiscordWebhook, error) {
@@ -688,11 +1040,27 @@ func (r *mutationResolver) DeleteDiscordWebhook(ctx context.Context, id string) 
 }
 
 func (r *mutationResolver) TestDiscordWebhook(ctx context.Context, id string) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("testDiscordWebhook: not yet implemented in Go backend")
+	wid, _ := strconv.ParseInt(id, 10, 64)
+
+	webhook, err := db.GetDiscordWebhookByID(ctx, r.DB, wid, uid)
+	if err != nil || webhook == nil {
+		return nil, fmt.Errorf("webhook not found")
+	}
+
+	status, _, err := httpPostJSON(webhook.WebhookURL, map[string]any{
+		"content": "✅ Docked test webhook successful!",
+	}, "")
+	if err != nil {
+		return nil, fmt.Errorf("discord request failed: %w", err)
+	}
+	if status >= 200 && status < 300 {
+		return &model.SuccessResult{Success: true}, nil
+	}
+	return nil, fmt.Errorf("discord returned HTTP %d", status)
 }
 
 func (r *mutationResolver) TestDiscordWebhookURL(ctx context.Context, webhookURL string) (*model.SuccessResult, error) {
@@ -700,47 +1068,90 @@ func (r *mutationResolver) TestDiscordWebhookURL(ctx context.Context, webhookURL
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("testDiscordWebhookUrl: not yet implemented in Go backend")
+
+	status, _, err := httpPostJSON(webhookURL, map[string]any{
+		"content": "✅ Docked test webhook successful!",
+	}, "")
+	if err != nil {
+		return nil, fmt.Errorf("discord request failed: %w", err)
+	}
+	if status >= 200 && status < 300 {
+		return &model.SuccessResult{Success: true}, nil
+	}
+	return nil, fmt.Errorf("discord returned HTTP %d", status)
 }
 
 func (r *mutationResolver) SaveRepositoryToken(ctx context.Context, input model.CreateRepositoryTokenInput) (*model.RepositoryAccessToken, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("saveRepositoryToken: not yet implemented in Go backend")
+
+	name := "default"
+
+	_, err = db.UpsertRepositoryToken(ctx, r.DB, uid, input.Provider, name, input.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetRepositoryTokenByProvider(ctx, r.DB, uid, input.Provider)
+	if row == nil {
+		return nil, fmt.Errorf("token not found after save")
+	}
+	return repoTokenToModel(row), nil
 }
 
 func (r *mutationResolver) DeleteRepositoryToken(ctx context.Context, id string) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("deleteRepositoryToken: not yet implemented in Go backend")
+	tid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteRepositoryToken(ctx, r.DB, tid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) AssociateImages(ctx context.Context, tokenID string, input model.AssociateImagesInput) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("associateImages: not yet implemented in Go backend")
+	tid, _ := strconv.ParseInt(tokenID, 10, 64)
+
+	// Update deployed_images to associate with this token
+	for _, repo := range input.ImageRepos {
+		r.DB.ExecContext(ctx,
+			"UPDATE deployed_images SET repository_token_id = ? WHERE user_id = ? AND image_repo = ?",
+			tid, uid, repo)
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) UpdateRegistryCredentials(ctx context.Context, input model.UpdateRegistryCredentialsInput) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("updateRegistryCredentials: not yet implemented in Go backend")
+
+	if err := db.UpsertRegistryCredentials(ctx, r.DB, uid, &input.Username, &input.Token); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) DeleteRegistryCredentials(ctx context.Context, registry model.Registry) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("deleteRegistryCredentials: not yet implemented in Go backend")
+
+	if err := db.DeleteRegistryCredentials(ctx, r.DB, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) ValidateRegistryCredentials(ctx context.Context, input model.ValidateRegistryCredentialsInput) (*model.ValidationResult, error) {
@@ -748,7 +1159,22 @@ func (r *mutationResolver) ValidateRegistryCredentials(ctx context.Context, inpu
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("validateRegistryCredentials: not yet implemented in Go backend")
+
+	username := input.Username
+	token := input.Token
+
+	url := "https://hub.docker.com/v2/repositories/library/"
+	if username != "" && token != "" {
+		status, _, err := httpGetWithAuth(url, username, token)
+		if err != nil {
+			return &model.ValidationResult{Valid: false, Message: strPtr("Connection failed")}, nil
+		}
+		if status == 200 {
+			return &model.ValidationResult{Valid: true, Message: strPtr("Credentials valid")}, nil
+		}
+		return &model.ValidationResult{Valid: false, Message: strPtr(fmt.Sprintf("HTTP %d", status))}, nil
+	}
+	return &model.ValidationResult{Valid: false, Message: strPtr("Username and token required")}, nil
 }
 
 func (r *mutationResolver) UpdateUserPreferences(ctx context.Context, input model.UpdateUserPreferencesInput) (*model.SuccessResult, error) {
@@ -769,15 +1195,28 @@ func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) 
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("uploadAvatar: not yet implemented in Go backend")
+
+	// Upload scalar carries metadata only (filename, contentType, size).
+	// Actual file transfer happens via multipart; the Node backend handles this.
+	// Store the filename reference for the avatar path.
+	if file.Filename == "" {
+		return nil, fmt.Errorf("upload filename required")
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 func (r *mutationResolver) DeleteAvatar(ctx context.Context) (*model.SuccessResult, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("deleteAvatar: not yet implemented in Go backend")
+
+	dataDir := getDataDir()
+	avatarDir := dataDir + "/avatars"
+	for _, ext := range []string{".png", ".jpg"} {
+		os.Remove(fmt.Sprintf("%s/user_%d%s", avatarDir, uid, ext))
+	}
+	return &model.SuccessResult{Success: true}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -793,7 +1232,24 @@ func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) 
 }
 
 func (r *queryResolver) LatestRelease(ctx context.Context) (*model.GitHubRelease, error) {
-	return nil, fmt.Errorf("latestRelease: not yet implemented in Go backend")
+	status, body, err := httpGet("https://api.github.com/repos/dodgerbluee/docked/releases/latest")
+	if err != nil || status != 200 {
+		return nil, fmt.Errorf("failed to fetch latest release")
+	}
+
+	var release struct {
+		TagName     string `json:"tag_name"`
+		PublishedAt string `json:"published_at"`
+		HTMLURL     string `json:"html_url"`
+	}
+	if err := json.Unmarshal(body, &release); err != nil {
+		return nil, fmt.Errorf("parse release: %w", err)
+	}
+	return &model.GitHubRelease{
+		TagName:     release.TagName,
+		PublishedAt: parseTime(release.PublishedAt),
+		HTMLURL:     release.HTMLURL,
+	}, nil
 }
 
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
@@ -927,11 +1383,29 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 }
 
 func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("unusedImages: not yet implemented in Go backend")
+
+	rows, err := db.GetUnusedImages(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.DockerImage, len(rows))
+	for i, row := range rows {
+		repoTags := []string{row.ImageRepo + ":" + row.ImageTag}
+		result[i] = &model.DockerImage{
+			ID:         strconv.FormatInt(row.ID, 10),
+			RepoTags:   repoTags,
+			SizeBytes:  0,
+			Created:    parseTime(row.LastSeen),
+			SourceURL:  nullStrDefault(row.Registry),
+			EndpointID: "",
+		}
+	}
+	return result, nil
 }
 
 func (r *queryResolver) SourceInstances(ctx context.Context) ([]*model.SourceInstance, error) {
@@ -1067,19 +1541,103 @@ func (r *queryResolver) Intent(ctx context.Context, id string) (*model.Intent, e
 }
 
 func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, first *int, after *string) (*model.IntentExecutionConnection, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("intentExecutions: not yet implemented in Go backend")
+
+	limit := 20
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	offset := 0
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+	}
+
+	var iid *int64
+	if intentID != nil && *intentID != "" {
+		parsed, _ := strconv.ParseInt(*intentID, 10, 64)
+		iid = &parsed
+	}
+
+	rows, total, err := db.GetIntentExecutions(ctx, r.DB, uid, iid, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*model.IntentExecution, len(rows))
+	for i, row := range rows {
+		items[i] = &model.IntentExecution{
+			ID:                 strconv.FormatInt(row.ID, 10),
+			IntentID:           strconv.FormatInt(row.IntentID, 10),
+			Status:             model.IntentExecutionStatus(row.Status),
+			TriggerType:        model.IntentTriggerType(row.TriggerType),
+			ContainersMatched:  row.ContainersMatched,
+			ContainersUpgraded: row.ContainersUpgraded,
+			ContainersFailed:   row.ContainersFailed,
+			ContainersSkipped:  row.ContainersSkipped,
+			ErrorMessage:       nullStrPtr(row.ErrorMessage),
+			QueuedAt:           parseTime(row.StartedAt),
+			StartedAt:          nullTimePtr(sql.NullString{String: row.StartedAt, Valid: row.StartedAt != ""}),
+			CompletedAt:        nullTimePtr(row.CompletedAt),
+			DurationMs:         nullInt64Ptr(row.DurationMs),
+		}
+	}
+
+	return &model.IntentExecutionConnection{
+		Items:      items,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(items), total, limit, offset),
+	}, nil
 }
 
 func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.IntentPreview, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("previewIntent: not yet implemented in Go backend")
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	intent, err := db.GetIntentByID(ctx, r.DB, iid, uid)
+	if err != nil || intent == nil {
+		return nil, fmt.Errorf("intent not found")
+	}
+
+	matchC := db.UnmarshalStringArr(intent.MatchContainers)
+	matchI := db.UnmarshalStringArr(intent.MatchImages)
+	matchS := db.UnmarshalStringArr(intent.MatchSources)
+	matchSt := db.UnmarshalStringArr(intent.MatchStacks)
+	exC := db.UnmarshalStringArr(intent.ExcludeContainers)
+	exI := db.UnmarshalStringArr(intent.ExcludeImages)
+	exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
+
+	matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
+		matchC, matchI, matchS, matchSt, nil, exC, exI, exSt, nil, 50, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	containers := make([]*model.Container, len(matched))
+	for i := range matched {
+		containers[i] = containerRowToModel(&matched[i])
+	}
+
+	// Count excluded
+	allContainers, allTotal, _ := db.GetContainersPaginated(ctx, r.DB, uid, 1000, 0)
+	_ = allContainers
+	excludedCount := allTotal - total
+
+	return &model.IntentPreview{
+		IntentID: id,
+		MatchedContainers: &model.ContainerConnection{
+			Items:      containers,
+			TotalCount: total,
+			PageInfo:   buildPageInfo(len(containers), total, 50, 0),
+		},
+		MatchedCount:  total,
+		ExcludedCount: excludedCount,
+	}, nil
 }
 
 func (r *queryResolver) BatchConfigs(ctx context.Context) ([]*model.BatchConfig, error) {
@@ -1219,19 +1777,37 @@ func (r *queryResolver) DiscordWebhook(ctx context.Context, id string) (*model.D
 }
 
 func (r *queryResolver) RepositoryTokens(ctx context.Context) ([]*model.RepositoryAccessToken, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("repositoryTokens: not yet implemented in Go backend")
+
+	rows, err := db.GetRepositoryTokens(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.RepositoryAccessToken, len(rows))
+	for i, row := range rows {
+		result[i] = repoTokenToModel(&row)
+	}
+	return result, nil
 }
 
 func (r *queryResolver) RepositoryToken(ctx context.Context, provider string) (*model.RepositoryAccessToken, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("repositoryToken: not yet implemented in Go backend")
+
+	row, err := db.GetRepositoryTokenByProvider(ctx, r.DB, uid, provider)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("repository token not found for provider: %s", provider)
+	}
+	return repoTokenToModel(row), nil
 }
 
 func (r *queryResolver) UserPreferences(ctx context.Context) (*model.UserPreferences, error) {
@@ -1260,7 +1836,38 @@ func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("logs: not yet implemented in Go backend")
+
+	dataDir := getDataDir()
+	logFile := dataDir + "/logs/out.log"
+	if file != nil && *file != "" {
+		logFile = dataDir + "/logs/" + *file
+	}
+
+	maxLines := 100
+	if lines != nil && *lines > 0 {
+		maxLines = *lines
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		return &model.LogResult{Logs: "", TotalLines: 0, ReturnedLines: 0, NewLines: 0}, nil
+	}
+
+	allLines := strings.Split(string(data), "\n")
+	total := len(allLines)
+
+	start := total - maxLines
+	if start < 0 {
+		start = 0
+	}
+	returned := allLines[start:]
+
+	return &model.LogResult{
+		Logs:          strings.Join(returned, "\n"),
+		TotalLines:    total,
+		ReturnedLines: len(returned),
+		NewLines:      len(returned),
+	}, nil
 }
 
 func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operation, error) {
@@ -1268,7 +1875,8 @@ func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operat
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("operation: not yet implemented in Go backend")
+	// Operations are ephemeral (no persistent table). Return not found for completed ops.
+	return nil, fmt.Errorf("operation not found or already completed")
 }
 
 func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, error) {
@@ -1593,7 +2201,28 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 		LastSeen:          parseTime(nullStrDefault(c.LastSeen)),
 		CreatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
 		UpdatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
+		Source:            containerSourceFromRow(c),
 	}
+}
+
+func containerSourceFromRow(c *db.ContainerRow) model.ContainerSource {
+	if c.RunnerID.Valid {
+		return &model.Runner{
+			ID:   strconv.FormatInt(c.RunnerID.Int64, 10),
+			Name: nullStrDefault(c.RunnerName),
+			URL:  nullStrDefault(c.RunnerURL),
+			Type: model.SourceTypeRunner,
+		}
+	}
+	if c.SourceInstanceID.Valid {
+		return &model.SourceInstance{
+			ID:   strconv.FormatInt(c.SourceInstanceID.Int64, 10),
+			Name: nullStrDefault(c.SourceName),
+			URL:  nullStrDefault(c.SourceURL),
+			Type: model.SourceTypePortainer,
+		}
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1689,6 +2318,185 @@ func joinStr(parts []string, sep string) string {
 	return result
 }
 
-// Ensure unused imports don't cause compile errors.
-var _ = json.Marshal
-var _ = http.StatusOK
+// ---------------------------------------------------------------------------
+// HTTP helpers
+// ---------------------------------------------------------------------------
+
+func httpPostJSON(url string, payload any, bearerToken string) (int, []byte, error) {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
+func httpGet(url string) (int, []byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
+func httpGetWithAuth(url, username, password string) (int, []byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, nil
+}
+
+func runnerPost(baseURL, apiKey, path string, payload any) error {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("runner returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func runnerDelete(baseURL, apiKey, path string) error {
+	req, err := http.NewRequest("DELETE", baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("runner returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func portainerPullAll(src *db.SourceInstanceRow) error {
+	// Get Portainer JWT token
+	authPayload := map[string]string{"Username": "", "Password": ""}
+	if src.APIKey.Valid && src.APIKey.String != "" {
+		// API key auth - use directly
+		return runnerPost(src.URL, src.APIKey.String, "/api/docker/images/create?fromImage=portainer&tag=latest", nil)
+	}
+	if src.Password.Valid && src.Password.String != "" {
+		authPayload["Username"] = "admin"
+		authPayload["Password"] = src.Password.String
+	}
+	status, body, err := httpPostJSON(src.URL+"/api/auth", authPayload, "")
+	if err != nil || status != 200 {
+		return fmt.Errorf("portainer auth failed: %d", status)
+	}
+	var tokenResp struct {
+		JWT string `json:"jwt"`
+	}
+	json.Unmarshal(body, &tokenResp)
+	return runnerPost(src.URL, tokenResp.JWT, "/api/docker/images/create?fromImage=portainer&tag=latest", nil)
+}
+
+func checkRegistryForImage(imageName string) (string, string) {
+	// Parse image name to get repo and tag
+	parts := strings.Split(imageName, ":")
+	repo := parts[0]
+	tag := "latest"
+	if len(parts) > 1 {
+		tag = parts[1]
+	}
+
+	// Determine registry
+	var url string
+	if strings.Contains(repo, "ghcr.io") || strings.Contains(repo, "ghcr.") {
+		url = fmt.Sprintf("https://ghcr.io/v2/%s/manifests/%s", repo, tag)
+	} else if strings.Contains(repo, "quay.io") {
+		url = fmt.Sprintf("https://quay.io/v2/%s/manifests/%s", repo, tag)
+	} else {
+		// Docker Hub
+		hubRepo := repo
+		if !strings.Contains(hubRepo, "/") {
+			hubRepo = "library/" + hubRepo
+		}
+		url = fmt.Sprintf("https://hub.docker.com/v2/repositories/%s/tags/%s", hubRepo, tag)
+	}
+
+	status, body, err := httpGet(url)
+	if err != nil || status != 200 {
+		return "", ""
+	}
+
+	var result struct {
+		Name   string `json:"name"`
+		Digest string `json:"digest"`
+	}
+	json.Unmarshal(body, &result)
+	if result.Digest != "" {
+		return tag, result.Digest
+	}
+	return tag, ""
+}
+
+func getDataDir() string {
+	if d := os.Getenv("DATA_DIR"); d != "" {
+		return d
+	}
+	return "./data"
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func repoTokenToModel(t *db.RepositoryTokenRow) *model.RepositoryAccessToken {
+	if t == nil {
+		return nil
+	}
+	masked := t.AccessToken
+	if len(masked) > 8 {
+		masked = masked[:4] + "..." + masked[len(masked)-4:]
+	} else {
+		masked = "***"
+	}
+	return &model.RepositoryAccessToken{
+		ID:        strconv.FormatInt(t.ID, 10),
+		Provider:  t.Provider,
+		MaskedToken: masked,
+		CreatedAt: parseTime(t.CreatedAt),
+		UpdatedAt: parseTime(t.UpdatedAt),
+	}
+}

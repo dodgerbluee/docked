@@ -127,3 +127,14 @@ func DeleteTrackedApp(ctx context.Context, database *sql.DB, id, userID int64) e
 		"DELETE FROM tracked_apps WHERE id = ? AND user_id = ?", id, userID)
 	return err
 }
+
+func UpdateTrackedAppVersion(ctx context.Context, database *sql.DB, id int64, latestVersion, latestDigest string) error {
+	hasUpdate := 0
+	if latestVersion != "" {
+		hasUpdate = 1
+	}
+	_, err := database.ExecContext(ctx,
+		`UPDATE tracked_apps SET latest_version=?, latest_digest=?, has_update=?, last_checked=CURRENT_TIMESTAMP WHERE id=?`,
+		latestVersion, latestDigest, hasUpdate, id)
+	return err
+}

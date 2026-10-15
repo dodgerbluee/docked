@@ -1,10 +1,13 @@
 /**
  * Hook for fetching and managing upgrade history
+ * Uses GraphQL for the main list, REST for stats and detail
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { UPGRADE_HISTORY_QUERY } from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
@@ -15,7 +18,7 @@ let cachedStats = null;
  * Hook to fetch and manage upgrade history
  * @param {Object} options - Options
  * @param {number} [options.limit] - Maximum number of records
- * @param {number} [options.offset] - Offset for pagination
+ * @param {number} [options.offset] - Offset for pagination (unused, GraphQL uses cursors)
  * @param {string} [options.containerName] - Filter by container name
  * @param {string} [options.status] - Filter by status
  * @returns {Object} Upgrade history state and functions
@@ -35,23 +38,26 @@ export const useUpgradeHistory = (options = {}) => {
         setLoading(true);
       }
       setError(null);
-      const params = new URLSearchParams();
-      if (options.limit) params.append("limit", options.limit);
-      if (options.offset) params.append("offset", options.offset);
-      if (options.containerName) params.append("containerName", options.containerName);
-      if (options.status) params.append("status", options.status);
 
-      const response = await axios.get(
-        `${API_BASE_URL}/api/containers/upgrade-history?${params.toString()}`
-      );
-      if (response.data.success && mountedRef.current) {
-        const data = response.data.history || [];
+      const filter = {};
+      if (options.containerName) filter.containerName = options.containerName;
+      if (options.status) filter.status = options.status;
+
+      const result = await graphqlClient
+        .query(UPGRADE_HISTORY_QUERY, {
+          first: options.limit || 100,
+          filter: Object.keys(filter).length ? filter : null,
+        })
+        .toPromise();
+
+      if (result.data?.upgradeHistory && mountedRef.current) {
+        const data = result.data.upgradeHistory.items || [];
         cachedHistory = data;
         setHistory(data);
       }
     } catch (err) {
       if (mountedRef.current) {
-        setError(err.response?.data?.error || err.message || "Failed to fetch upgrade history");
+        setError(err.message || "Failed to fetch upgrade history");
         console.error("Error fetching upgrade history:", err);
       }
     } finally {

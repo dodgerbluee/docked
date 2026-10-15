@@ -1,17 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { BATCH_CONFIGS_QUERY } from "../graphql/queries";
+
+const DEFAULTS = {
+  "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
+  "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
+  "app-version-scan": { enabled: false, intervalMinutes: 60 },
+};
+
+function mapConfigs(items) {
+  const out = { ...DEFAULTS };
+  for (const item of items || []) {
+    out[item.jobType] = {
+      enabled: item.enabled,
+      intervalMinutes: item.intervalMinutes,
+    };
+  }
+  return out;
+}
 
 /**
  * Custom hook for batch configuration management
- * Handles fetching and updating batch configuration
+ * Fetches batch configuration via GraphQL
  */
 export const useBatchConfig = (isAuthenticated, authToken) => {
-  const [batchConfig, setBatchConfig] = useState({
-    "docker-hub-pull": { enabled: false, intervalMinutes: 60 },
-    "tracked-apps-check": { enabled: false, intervalMinutes: 60 },
-    "app-version-scan": { enabled: false, intervalMinutes: 60 },
-  });
+  const [batchConfig, setBatchConfig] = useState(DEFAULTS);
 
   // Fetch batch configuration (guard prevents StrictMode double-fetch)
   const fetchDoneRef = useRef(false);
@@ -20,24 +33,9 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
       fetchDoneRef.current = true;
       const fetchBatchConfig = async () => {
         try {
-          const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
-          if (response.data.success) {
-            const configs = response.data.config || {};
-            // Ensure both job types exist with defaults
-            setBatchConfig({
-              "docker-hub-pull": configs["docker-hub-pull"] || {
-                enabled: false,
-                intervalMinutes: 60,
-              },
-              "tracked-apps-check": configs["tracked-apps-check"] || {
-                enabled: false,
-                intervalMinutes: 60,
-              },
-              "app-version-scan": configs["app-version-scan"] || {
-                enabled: false,
-                intervalMinutes: 60,
-              },
-            });
+          const result = await graphqlClient.query(BATCH_CONFIGS_QUERY).toPromise();
+          if (result.data?.batchConfigs) {
+            setBatchConfig(mapConfigs(result.data.batchConfigs));
           }
         } catch (err) {
           console.error("Error fetching batch config:", err);
@@ -47,33 +45,12 @@ export const useBatchConfig = (isAuthenticated, authToken) => {
     }
   }, [isAuthenticated, authToken]);
 
-  // Memoize batch config update callback to prevent it from being recreated on every render
+  // Refetch batch config after update
   const handleBatchConfigUpdate = useCallback(async () => {
-    // Refetch batch config after update
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
-      if (response.data.success) {
-        const configs = response.data.config || {};
-        // Ensure both job types exist with defaults
-        const newConfigs = {
-          "docker-hub-pull": configs["docker-hub-pull"] || {
-            enabled: false,
-            intervalMinutes: 60,
-          },
-          "tracked-apps-check": configs["tracked-apps-check"] || {
-            enabled: false,
-            intervalMinutes: 60,
-          },
-          "app-version-scan": configs["app-version-scan"] || {
-            enabled: false,
-            intervalMinutes: 60,
-          },
-        };
-        // Force state update with new object - this will trigger Context update
-        setBatchConfig((prev) => {
-          // Always return new object to ensure React detects the change
-          return newConfigs;
-        });
+      const result = await graphqlClient.query(BATCH_CONFIGS_QUERY).toPromise();
+      if (result.data?.batchConfigs) {
+        setBatchConfig(mapConfigs(result.data.batchConfigs));
       }
     } catch (err) {
       console.error("Error refetching batch config:", err);

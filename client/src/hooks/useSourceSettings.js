@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  SOURCE_INSTANCES_QUERY,
+  CREATE_SOURCE_INSTANCE_MUTATION,
+  UPDATE_SOURCE_INSTANCE_MUTATION,
+  DELETE_SOURCE_INSTANCE_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useSourceSettings Hook
- * Manages source instances
+ * Manages source instances via GraphQL
  */
 export function useSourceSettings({ onSourceInstancesChange, refreshInstances, activeSection }) {
   const [sourceInstances, setSourceInstances] = useState([]);
@@ -21,9 +26,9 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
 
   const fetchSourceInstances = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/sources/instances`);
-      if (response.data.success) {
-        setSourceInstances(response.data.instances || []);
+      const result = await graphqlClient.query(SOURCE_INSTANCES_QUERY).toPromise();
+      if (result.data?.sourceInstances) {
+        setSourceInstances(result.data.sourceInstances);
       }
     } catch (err) {
       console.error("Error fetching source instances:", err);
@@ -57,14 +62,33 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
       setInstanceLoading(true);
 
       try {
+        const authType = instanceForm.username ? "PASSWORD" : "APIKEY";
+        const input = {
+          name: instanceForm.name,
+          url: instanceForm.url,
+          authType,
+        };
+        if (instanceForm.username) {
+          input.username = instanceForm.username;
+        }
+        if (instanceForm.password) {
+          input.password = instanceForm.password;
+        }
+
         if (editingInstance) {
-          await axios.put(
-            `${API_BASE_URL}/api/sources/instances/${editingInstance.id}`,
-            instanceForm
-          );
+          const result = await graphqlClient
+            .mutation(UPDATE_SOURCE_INSTANCE_MUTATION, {
+              id: editingInstance.id,
+              input,
+            })
+            .toPromise();
+          if (result.error) throw new Error(result.error.message);
           setInstanceSuccess("Source instance updated successfully!");
         } else {
-          await axios.post(`${API_BASE_URL}/api/sources/instances`, instanceForm);
+          const result = await graphqlClient
+            .mutation(CREATE_SOURCE_INSTANCE_MUTATION, { input })
+            .toPromise();
+          if (result.error) throw new Error(result.error.message);
           setInstanceSuccess("Source instance added successfully!");
         }
 
@@ -76,7 +100,7 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
         }
         setTimeout(() => setInstanceSuccess(""), 3000);
       } catch (err) {
-        setInstanceError(err.response?.data?.error || "Failed to save source instance");
+        setInstanceError(err.message || "Failed to save source instance");
       } finally {
         setInstanceLoading(false);
       }
@@ -87,7 +111,10 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
   const handleDeleteInstance = useCallback(
     async (id) => {
       try {
-        await axios.delete(`${API_BASE_URL}/api/sources/instances/${id}`);
+        const result = await graphqlClient
+          .mutation(DELETE_SOURCE_INSTANCE_MUTATION, { id })
+          .toPromise();
+        if (result.error) throw new Error(result.error.message);
         setInstanceSuccess("Source instance deleted successfully!");
         await fetchSourceInstances();
         if (onSourceInstancesChange) {
@@ -95,7 +122,7 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
         }
         setTimeout(() => setInstanceSuccess(""), 3000);
       } catch (err) {
-        setInstanceError(err.response?.data?.error || "Failed to delete source instance");
+        setInstanceError(err.message || "Failed to delete source instance");
       }
     },
     [fetchSourceInstances, onSourceInstancesChange]
@@ -106,8 +133,8 @@ export function useSourceSettings({ onSourceInstancesChange, refreshInstances, a
     setInstanceForm({
       name: instance.name,
       url: instance.url,
-      username: instance.username || "",
-      password: "", // Don't pre-fill password for security
+      username: "",
+      password: "",
     });
   }, []);
 
