@@ -14,6 +14,37 @@ import { UPGRADE_HISTORY_QUERY } from "../graphql/queries";
 let cachedHistory = null;
 let cachedStats = null;
 
+/** Maps GraphQL camelCase UpgradeRecord to the snake_case shape UI components expect. */
+function mapUpgradeRecord(r) {
+  return {
+    id: r.id,
+    docker_container_id: r.dockerContainerId,
+    container_name: r.containerName,
+    endpoint_id: r.endpointId,
+    old_image: r.oldImage,
+    new_image: r.newImage,
+    old_digest: r.oldDigest,
+    new_digest: r.newDigest,
+    old_version: r.oldVersion,
+    new_version: r.newVersion,
+    image_repo: r.imageRepo,
+    registry: r.registry,
+    namespace: r.namespace,
+    repository: r.repository,
+    status: r.status?.toLowerCase(),
+    error_message: r.errorMessage,
+    upgrade_duration_ms: r.upgradeDurationMs,
+    intent_id: r.intentId,
+    performed_by: r.performedBy,
+    created_at: r.createdAt,
+    // Fields from source relation (if available)
+    portainer_instance_name: r.source?.name,
+    portainer_url: r.source?.url,
+    runner_name: r.source?.name,
+    provider: r.registry?.toLowerCase(),
+  };
+}
+
 /**
  * Hook to fetch and manage upgrade history
  * @param {Object} options - Options
@@ -51,7 +82,7 @@ export const useUpgradeHistory = (options = {}) => {
         .toPromise();
 
       if (result.data?.upgradeHistory && mountedRef.current) {
-        const data = result.data.upgradeHistory.items || [];
+        const data = (result.data.upgradeHistory.items || []).map(mapUpgradeRecord);
         cachedHistory = data;
         setHistory(data);
       }

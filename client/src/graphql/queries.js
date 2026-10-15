@@ -306,12 +306,28 @@ export const UPGRADE_HISTORY_QUERY = /* GraphQL */ `
         newVersion
         imageRepo
         registry
+        namespace
+        repository
         status
         errorMessage
         upgradeDurationMs
         intentId
         performedBy
         createdAt
+        source {
+          ... on SourceInstance {
+            id
+            name
+            url
+            type
+          }
+          ... on Runner {
+            id
+            name
+            url
+            type
+          }
+        }
       }
       totalCount
       pageInfo {
