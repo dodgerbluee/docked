@@ -146,7 +146,7 @@ export function useGeneralSettings({
         localRefreshingTogglesEnabled === null ? false : Boolean(localRefreshingTogglesEnabled);
 
       const res = await graphqlClient
-        .mutate(UPDATE_USER_PREFERENCES_MUTATION, {
+        .mutation(UPDATE_USER_PREFERENCES_MUTATION, {
           input: {
             colorScheme: localColorScheme,
             refreshingTogglesEnabled: enabledValue,
