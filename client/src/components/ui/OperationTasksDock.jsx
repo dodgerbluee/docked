@@ -16,11 +16,12 @@ import styles from "./OperationTasksDock.module.css";
 export default function OperationTasksDock({ tasks, onOpen }) {
   if (!tasks.length) return null;
 
-  const running = tasks.filter((t) => t.status === STATUS.RUNNING).length;
+  // Reconnecting tasks are still running on the runner, so count them as active.
+  const active = tasks.filter(
+    (t) => t.status === STATUS.RUNNING || t.status === STATUS.RECONNECTING
+  ).length;
   const failed = tasks.filter((t) => t.status === STATUS.ERROR).length;
-  const label = running
-    ? `${running} running`
-    : `${tasks.length} task${tasks.length > 1 ? "s" : ""}`;
+  const label = active ? `${active} running` : `${tasks.length} task${tasks.length > 1 ? "s" : ""}`;
 
   return (
     <div className={styles.dock}>

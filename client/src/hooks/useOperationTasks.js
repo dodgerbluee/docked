@@ -6,17 +6,26 @@
  * modal is closed. Each task buffers its (ANSI-stripped) output and a terminal
  * status; finished tasks stay until dismissed.
  *
- * The operation's lifetime is tied to the SSE request (dockhand runs the command
- * via exec.CommandContext on the request context), so the stream is kept alive
- * here — independent of any modal — until it completes or the page unmounts.
+ * A run's own `done` event (with an exit code) is the only authoritative
+ * terminal signal. If the stream instead ends without one — because docked
+ * itself restarted (e.g. an update upgraded the Docker daemon hosting docked),
+ * or the connection otherwise dropped — the task is NOT marked failed. It moves
+ * to a `reconnecting` state and is reconciled from the runner's persisted
+ * history: we poll the operation's live `active` flag and `lastRun.exitCode`
+ * until the run has finished on the runner, then finalize from that real exit
+ * code. Persistent operations (dockhand `persistent: true`) keep running across
+ * the disconnect, so this recovers their true result instead of a false failure.
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { STATUS, processRawLog } from "../utils/operationLog";
 
 // Cap buffered output per task so a chatty operation can't grow memory unbounded.
 const MAX_LINES = 2000;
+// How often a reconnecting task polls the runner for its live state.
+const RECONCILE_INTERVAL_MS = 4000;
 
 function makeId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -29,9 +38,20 @@ function runKey(runnerId, appName, opName) {
   return `${runnerId}:${appName ?? ""}:${opName}`;
 }
 
+// A task is "active" (occupying its operation, not dismissable) while running or
+// reconnecting — in both cases the operation is still going on the runner.
+function isActiveStatus(status) {
+  return status === STATUS.RUNNING || status === STATUS.RECONNECTING;
+}
+
 export function useOperationTasks() {
   const [tasks, setTasks] = useState([]);
   const controllersRef = useRef({}); // taskId -> AbortController
+  const tasksRef = useRef([]); // latest tasks, read by the reconcile poller
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   const updateTask = useCallback((id, updater) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? updater(t) : t)));
@@ -65,6 +85,12 @@ export function useOperationTasks() {
       controllersRef.current[id] = controller;
 
       (async () => {
+        // Distinguishes a real HTTP error (409 already-running, 404 unknown op,
+        // 500) — terminal — from a dropped connection (docked down / network),
+        // which we reconcile instead of failing.
+        let httpFailed = false;
+        let sawDone = false;
+
         try {
           const resp = await fetch(url, {
             method: "POST",
@@ -77,13 +103,13 @@ export function useOperationTasks() {
 
           if (!resp.ok) {
             const text = await resp.text();
+            httpFailed = true;
             throw new Error(`Server error ${resp.status}: ${text}`);
           }
 
           const reader = resp.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
-          let sawTerminal = false;
 
           while (true) {
             const { done, value } = await reader.read();
@@ -107,7 +133,8 @@ export function useOperationTasks() {
                   return { ...t, lines: next };
                 });
               } else if (eventLine === "done") {
-                sawTerminal = true;
+                // Authoritative terminal event.
+                sawDone = true;
                 let exitCode = 0;
                 try {
                   exitCode = JSON.parse(dataLine).exitCode ?? 0;
@@ -118,44 +145,68 @@ export function useOperationTasks() {
                   ...t,
                   status: exitCode === 0 ? STATUS.DONE : STATUS.ERROR,
                   exitCode,
-                  error: exitCode !== 0 ? `Exited with code ${exitCode}` : "",
+                  error: exitCode !== 0 ? t.error || `Exited with code ${exitCode}` : "",
                   finishedAt: new Date().toISOString(),
                 }));
               } else if (eventLine === "error") {
-                sawTerminal = true;
+                // dockhand always follows a genuine error with done(1); a lone
+                // error event means the connection dropped mid-error. Record the
+                // message but don't treat it as terminal — reconcile instead.
                 let msg = dataLine;
                 try {
                   msg = JSON.parse(dataLine).message || dataLine;
                 } catch {
                   msg = dataLine;
                 }
-                updateTask(id, (t) => ({
-                  ...t,
-                  status: STATUS.ERROR,
-                  error: msg,
-                  finishedAt: new Date().toISOString(),
-                }));
+                updateTask(id, (t) => ({ ...t, error: msg }));
               }
               // "start" event — operation name echoed back, ignore
             }
           }
 
-          // Stream ended without an explicit terminal event.
-          if (!sawTerminal) {
+          // Stream ended without a `done` event: the connection dropped (e.g.
+          // docked restarted). Don't fail the task — reconcile from the runner.
+          if (!sawDone) {
             updateTask(id, (t) =>
               t.status === STATUS.RUNNING
-                ? { ...t, status: STATUS.DONE, finishedAt: new Date().toISOString() }
+                ? {
+                    ...t,
+                    status: STATUS.RECONNECTING,
+                    lines: [
+                      ...t.lines,
+                      "[connection lost — waiting for the run to finish on the runner…]",
+                    ],
+                  }
                 : t
             );
           }
         } catch (err) {
           if (err.name === "AbortError") return;
-          updateTask(id, (t) => ({
-            ...t,
-            status: STATUS.ERROR,
-            error: err.message || "Connection failed",
-            finishedAt: new Date().toISOString(),
-          }));
+          if (sawDone) return;
+          if (httpFailed) {
+            // A real HTTP response error (already-running, unknown op, server
+            // error) is terminal.
+            updateTask(id, (t) => ({
+              ...t,
+              status: STATUS.ERROR,
+              error: err.message || "Request failed",
+              finishedAt: new Date().toISOString(),
+            }));
+          } else {
+            // Connection dropped before/while streaming — reconcile.
+            updateTask(id, (t) =>
+              t.status === STATUS.RUNNING
+                ? {
+                    ...t,
+                    status: STATUS.RECONNECTING,
+                    lines: [
+                      ...t.lines,
+                      "[connection lost — waiting for the run to finish on the runner…]",
+                    ],
+                  }
+                : t
+            );
+          }
         } finally {
           delete controllersRef.current[id];
         }
@@ -166,13 +217,78 @@ export function useOperationTasks() {
     [updateTask]
   );
 
-  // Stable Set of "runnerId:appName:opName" keys for currently-running tasks.
-  // Recomputed only when the running set actually changes, so memoized AppCards
+  // Reconcile reconnecting tasks: poll the runner for each operation's live
+  // state and finalize once the run has ended there. While the operation is
+  // still `active` on the runner we keep waiting (a persistent op survives the
+  // disconnect); once it's inactive we read its persisted `lastRun.exitCode`.
+  const reconnectingSig = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.status === STATUS.RECONNECTING)
+        .map((t) => t.id)
+        .sort()
+        .join("|"),
+    [tasks]
+  );
+
+  useEffect(() => {
+    if (!reconnectingSig) return undefined;
+    let cancelled = false;
+
+    const poll = async () => {
+      const reconnecting = tasksRef.current.filter((t) => t.status === STATUS.RECONNECTING);
+      for (const t of reconnecting) {
+        try {
+          const url = t.appName
+            ? `${API_BASE_URL}/api/runners/${t.runnerId}/apps`
+            : `${API_BASE_URL}/api/runners/${t.runnerId}/operations`;
+          const { data } = await axios.get(url);
+          if (cancelled) return;
+
+          let op;
+          if (t.appName) {
+            const app = (data.apps || []).find((a) => a.name === t.appName);
+            op = app?.operations?.find((o) => o.name === t.operationName);
+          } else {
+            op = (data.operations || []).find((o) => o.name === t.operationName);
+          }
+          // App/op not visible yet (docked still settling) or still running on
+          // the runner — keep polling.
+          if (!op || op.active) continue;
+
+          const exitCode = op.lastRun?.exitCode ?? 1;
+          updateTask(t.id, (cur) =>
+            cur.status === STATUS.RECONNECTING
+              ? {
+                  ...cur,
+                  status: exitCode === 0 ? STATUS.DONE : STATUS.ERROR,
+                  exitCode,
+                  error: exitCode !== 0 ? cur.error || `Exited with code ${exitCode}` : "",
+                  finishedAt: new Date().toISOString(),
+                }
+              : cur
+          );
+        } catch {
+          // docked still down / network error — keep polling on the next tick.
+        }
+      }
+    };
+
+    poll();
+    const timer = setInterval(poll, RECONCILE_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [reconnectingSig, updateTask]);
+
+  // Stable Set of "runnerId:appName:opName" keys for currently-active tasks.
+  // Recomputed only when the active set actually changes, so memoized AppCards
   // don't re-render on every streamed log line.
   const runningSig = useMemo(
     () =>
       tasks
-        .filter((t) => t.status === STATUS.RUNNING)
+        .filter((t) => isActiveStatus(t.status))
         .map((t) => runKey(t.runnerId, t.appName, t.operationName))
         .sort()
         .join("|"),
@@ -185,13 +301,16 @@ export function useOperationTasks() {
     [runningKeys]
   );
 
-  // Dismiss finished tasks only; running tasks can't be dismissed (no cancel).
+  // Dismiss finished tasks only; running/reconnecting tasks can't be dismissed
+  // (the operation is still going on the runner).
   const dismissTask = useCallback((id) => {
-    setTasks((prev) => prev.filter((t) => !(t.id === id && t.status !== STATUS.RUNNING)));
+    setTasks((prev) =>
+      prev.filter((t) => !(t.id === id && (t.status === STATUS.DONE || t.status === STATUS.ERROR)))
+    );
   }, []);
 
   const dismissAll = useCallback(() => {
-    setTasks((prev) => prev.filter((t) => t.status === STATUS.RUNNING));
+    setTasks((prev) => prev.filter((t) => isActiveStatus(t.status)));
   }, []);
 
   // Abort all in-flight streams when the owning page unmounts.

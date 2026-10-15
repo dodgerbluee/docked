@@ -10,7 +10,7 @@
 
 import React, { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { X, CheckCircle, AlertCircle } from "lucide-react";
+import { X, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { STATUS } from "../../utils/operationLog";
 import styles from "./OperationTasksModal.module.css";
 
@@ -25,6 +25,14 @@ function formatAge(ts) {
 
 function StatusChip({ status }) {
   if (status === STATUS.RUNNING) return <span className={styles.spinner} title="Running" />;
+  if (status === STATUS.RECONNECTING)
+    return (
+      <RefreshCw
+        size={15}
+        className={`${styles.chipReconnecting} ${styles.spinIcon}`}
+        aria-label="Reconnecting"
+      />
+    );
   if (status === STATUS.DONE)
     return <CheckCircle size={15} className={styles.chipDone} aria-label="Completed" />;
   return <AlertCircle size={15} className={styles.chipError} aria-label="Failed" />;
@@ -42,7 +50,7 @@ export default function OperationTasksModal({
 }) {
   const outputRef = useRef(null);
   const selected = tasks.find((t) => t.id === activeTaskId) || tasks[0] || null;
-  const finished = tasks.filter((t) => t.status !== STATUS.RUNNING);
+  const finished = tasks.filter((t) => t.status === STATUS.DONE || t.status === STATUS.ERROR);
 
   // Auto-scroll the console to the newest line of the selected task.
   useEffect(() => {
@@ -81,7 +89,7 @@ export default function OperationTasksModal({
                     </span>
                     <span className={styles.tabAge}>{formatAge(t.finishedAt || t.startedAt)}</span>
                   </button>
-                  {t.status !== STATUS.RUNNING && (
+                  {(t.status === STATUS.DONE || t.status === STATUS.ERROR) && (
                     <button
                       className={styles.tabDismiss}
                       onClick={() => onDismiss(t.id)}
@@ -114,16 +122,23 @@ export default function OperationTasksModal({
                   className={`${styles.statusBar} ${
                     selected.status === STATUS.RUNNING
                       ? styles.statusRunning
-                      : selected.status === STATUS.DONE
-                        ? styles.statusDone
-                        : selected.status === STATUS.ERROR
-                          ? styles.statusError
-                          : ""
+                      : selected.status === STATUS.RECONNECTING
+                        ? styles.statusReconnecting
+                        : selected.status === STATUS.DONE
+                          ? styles.statusDone
+                          : selected.status === STATUS.ERROR
+                            ? styles.statusError
+                            : ""
                   }`}
                 >
                   {selected.status === STATUS.RUNNING && (
                     <>
                       <span className={styles.spinner} /> Running…
+                    </>
+                  )}
+                  {selected.status === STATUS.RECONNECTING && (
+                    <>
+                      <RefreshCw size={15} className={styles.spinIcon} /> Reconnecting to runner…
                     </>
                   )}
                   {selected.status === STATUS.DONE && (

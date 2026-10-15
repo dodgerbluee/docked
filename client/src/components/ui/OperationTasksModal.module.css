@@ -223,6 +223,10 @@
   color: var(--text-error, #ef4444);
 }
 
+.statusReconnecting {
+  color: #f59e0b;
+}
+
 /* Status chips in the tab list */
 .chipDone {
   color: #22c55e;
@@ -230,6 +234,10 @@
 
 .chipError {
   color: var(--text-error, #ef4444);
+}
+
+.chipReconnecting {
+  color: #f59e0b;
 }
 
 .statusMeta {
@@ -257,6 +265,12 @@
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Rotate an icon (e.g. the reconnect arrow) in place */
+.spinIcon {
+  animation: spin 1s linear infinite;
   flex-shrink: 0;
 }
 

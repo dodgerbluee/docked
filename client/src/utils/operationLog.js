@@ -9,6 +9,7 @@
 export const STATUS = {
   IDLE: "idle",
   RUNNING: "running",
+  RECONNECTING: "reconnecting",
   DONE: "done",
   ERROR: "error",
 };

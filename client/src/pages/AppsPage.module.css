@@ -652,6 +652,17 @@ body.dark-mode .emptyStateLink:hover {
   font-style: italic;
 }
 
+.confirmPersistentNote {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-secondary, rgba(148, 163, 184, 0.08));
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+}
+
 .confirmFooter {
   display: flex;
   align-items: center;

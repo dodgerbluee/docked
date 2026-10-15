@@ -343,6 +343,13 @@ const ConfirmRunModal = memo(function ConfirmRunModal({ pending, onConfirm, onCa
               Command not available. Update the runner to view the commands this operation runs.
             </p>
           )}
+
+          {op.persistent && (
+            <p className={styles.confirmPersistentNote}>
+              This operation runs detached on the runner. It keeps going even if this page or docked
+              restarts mid-run, and its real result is reconciled once the connection returns.
+            </p>
+          )}
         </div>
 
         <div className={styles.confirmFooter}>
@@ -554,12 +561,15 @@ export default function AppsPage({
     if (tasksOpen && tasks.length === 0) setTasksOpen(false);
   }, [tasksOpen, tasks.length]);
 
-  // When a task finishes, refresh apps so op.active / lastRun / version badges
-  // reflect the completed run.
+  // When a task truly finishes (done/error), refresh apps so op.active / lastRun
+  // / version badges reflect the completed run. Reconnecting tasks are still
+  // running on the runner, so we don't refresh for those.
   const seenFinishedRef = useRef(new Set());
   useEffect(() => {
     const newly = tasks.filter(
-      (t) => t.status !== STATUS.RUNNING && !seenFinishedRef.current.has(t.id)
+      (t) =>
+        (t.status === STATUS.DONE || t.status === STATUS.ERROR) &&
+        !seenFinishedRef.current.has(t.id)
     );
     if (newly.length) {
       newly.forEach((t) => seenFinishedRef.current.add(t.id));
@@ -857,8 +867,10 @@ export default function AppsPage({
           tasks={tasks}
           onOpen={() => {
             if (!tasks.find((t) => t.id === activeTaskId)) {
-              const firstRunning = tasks.find((t) => t.status === STATUS.RUNNING);
-              setActiveTaskId((firstRunning || tasks[0])?.id ?? null);
+              const firstActive = tasks.find(
+                (t) => t.status === STATUS.RUNNING || t.status === STATUS.RECONNECTING
+              );
+              setActiveTaskId((firstActive || tasks[0])?.id ?? null);
             }
             setTasksOpen(true);
           }}
