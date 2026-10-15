@@ -1355,7 +1355,7 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 
 	stacks := make([]*model.StackGroup, 0, len(stackMap))
 	for name, cs := range stackMap {
-		stacks = append(stacks, &model.StackGroup{
+		sg := &model.StackGroup{
 			ID:   name,
 			Name: name,
 			Containers: &model.ContainerConnection{
@@ -1363,7 +1363,19 @@ func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGro
 				TotalCount: len(cs),
 				PageInfo:   buildPageInfo(len(cs), len(cs), len(cs), 0),
 			},
-		})
+		}
+		// Populate source and endpointId from first container in the stack
+		for _, row := range rows {
+			if row.StackName.Valid && row.StackName.String == name {
+				if row.EndpointID.Valid {
+					eid := strconv.FormatInt(row.EndpointID.Int64, 10)
+					sg.EndpointID = &eid
+				}
+				sg.Source = containerSourceFromRow(&row)
+				break
+			}
+		}
+		stacks = append(stacks, sg)
 	}
 
 	sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
