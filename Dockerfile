@@ -27,7 +27,7 @@ RUN go mod download
 
 COPY backend/ ./
 
-RUN CGO_ENABLED=0 go build -o /docked-graphql ./cmd/server
+RUN CGO_ENABLED=0 go build -o /docked-graphql ./cmd/api
 
 # Stage 3: Final image
 FROM node:25-alpine
