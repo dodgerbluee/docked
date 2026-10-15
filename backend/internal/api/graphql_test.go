@@ -335,6 +335,39 @@ func TestBatchUpgradeEmptyListGuard(t *testing.T) {
 	}
 }
 
+// TestOperationResolvesBatchRun guards the operation(id) resolver: batch
+// operations are persisted in batch_runs and must be pollable by the id that
+// batchUpgrade returns ("batch-<runID>"), with the DB status mapped onto the
+// OperationStatus enum. Ephemeral (non-batch) ids stay not-found.
+func TestOperationResolvesBatchRun(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	ctx := context.Background()
+	res, err := env.database.ExecContext(ctx,
+		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'batch-upgrade', 'failed')",
+		env.adminID)
+	if err != nil {
+		t.Fatalf("insert batch run: %v", err)
+	}
+	runID, _ := res.LastInsertId()
+
+	r := env.gql(t, admin, `query($id: ID!){ operation(id: $id){ id type status } }`,
+		map[string]any{"id": "batch-" + strconv.FormatInt(runID, 10)})
+	if len(r.Errors) != 0 {
+		t.Fatalf("operation(batch run) errored: %+v", r.Errors)
+	}
+	if !bytes.Contains(r.Data["operation"], []byte("FAILED")) {
+		t.Fatalf("operation status not mapped to FAILED: %s", r.Data["operation"])
+	}
+
+	// A non-batch id has no backing table and must remain not-found.
+	if r := env.gql(t, admin, `query($id: ID!){ operation(id: $id){ id } }`,
+		map[string]any{"id": "op-123"}); !r.hasErrorContaining("not found") {
+		t.Fatalf("ephemeral operation should be not-found, got: %+v", r)
+	}
+}
+
 // --- small DB helpers used by assertions ---
 
 func dbRole(t *testing.T, database *sql.DB, id int64) string {

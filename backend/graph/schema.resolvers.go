@@ -130,27 +130,18 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 		return nil, fmt.Errorf("username already taken")
 	}
 
-	// First user becomes admin. Role strings must match the Node-owned domain
-	// ("Administrator"/"Member") so both backends and the GraphQL enum agree.
-	// A count error must NOT default to 0, or a transient DB blip would mint a
-	// new Administrator.
-	userCount, err := db.GetUserCount(ctx, r.DB)
-	if err != nil {
-		return nil, fmt.Errorf("count users: %w", err)
-	}
-	role := "Member"
-	instanceAdmin := 0
-	if userCount == 0 {
-		role = "Administrator"
-		instanceAdmin = 1
-	}
-
+	// Hash first so a hashing failure cannot leave a half-registered user.
 	hash, err := auth.HashPassword(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	id, err := db.CreateUser(ctx, r.DB, input.Username, hash, role, instanceAdmin)
+	// First user becomes admin. The role decision and the INSERT happen in a
+	// single SQL statement (see db.RegisterUser) so two concurrent
+	// first-registrations cannot both be minted Administrator. Role strings
+	// match the Node-owned domain ("Administrator"/"Member") so both backends
+	// and the GraphQL enum agree.
+	id, role, _, err := db.RegisterUser(ctx, r.DB, input.Username, hash)
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
@@ -394,7 +385,8 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			db.CompleteBatchRun(ctx, r.DB, batchID, "failed", 0, 0, strPtr(err.Error()))
 			return
 		}
-		upgraded := 0
+		upgraded, attempted := 0, 0
+		var firstErr string
 
 		// Build set of target container IDs if specified
 		targetIDs := make(map[string]bool)
@@ -420,18 +412,45 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 					runnerURL, runnerKey = src.URL, src.APIKey.String
 				}
 			}
-			if runnerURL != "" {
-				payload := map[string]any{
-					"containerId": c.ContainerID,
-					"imageName":   nullStrDefault(c.ImageName),
-					"imageRepo":   nullStrDefault(c.ImageRepo),
-				}
-				if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
-					upgraded++
-				}
+			// A container with no reachable runner is skipped, not counted as
+			// an attempt, so it does not skew the success/failure ratio.
+			if runnerURL == "" {
+				continue
+			}
+			attempted++
+			payload := map[string]any{
+				"containerId": c.ContainerID,
+				"imageName":   nullStrDefault(c.ImageName),
+				"imageRepo":   nullStrDefault(c.ImageRepo),
+			}
+			if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
+				upgraded++
+			} else if firstErr == "" {
+				firstErr = err.Error()
 			}
 		}
-		db.CompleteBatchRun(ctx, r.DB, batchID, "completed", len(containers), upgraded, nil)
+
+		// Report an honest terminal status instead of always "completed":
+		//   - nothing attempted  -> completed (nothing to do)
+		//   - every attempt fails -> failed
+		//   - some attempts fail  -> completed, but surface the failures in
+		//     error_message (BatchRunStatus has no PARTIAL member, and Node's
+		//     scheduler only understands running/completed/failed).
+		status := "completed"
+		var msg *string
+		failed := attempted - upgraded
+		switch {
+		case attempted == 0:
+			msg = strPtr("no eligible containers with a configured runner")
+		case failed == 0:
+			// clean success
+		case upgraded == 0:
+			status = "failed"
+			msg = strPtr(fmt.Sprintf("all %d upgrades failed: %s", attempted, firstErr))
+		default:
+			msg = strPtr(fmt.Sprintf("partial: %d of %d upgrades failed: %s", failed, attempted, firstErr))
+		}
+		db.CompleteBatchRun(ctx, r.DB, batchID, status, attempted, upgraded, msg)
 	}()
 
 	return &model.Operation{
@@ -514,7 +533,7 @@ func (r *mutationResolver) CreateSourceInstance(ctx context.Context, input model
 		return nil, err
 	}
 
-	id, err := db.CreateSourceInstance(ctx, r.DB, uid, input.Name, input.URL, string(input.AuthType),
+	id, err := db.CreateSourceInstance(ctx, r.DB, uid, input.Name, input.URL, dbEnumValue(string(input.AuthType)),
 		input.Username, input.Password, input.APIKey, input.IPAddress)
 	if err != nil {
 		return nil, err
@@ -681,7 +700,7 @@ func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.Cre
 	}
 
 	id, err := db.CreateTrackedApp(ctx, r.DB, uid, input.Name, input.ImageName,
-		input.GithubRepo, string(input.SourceType))
+		input.GithubRepo, dbEnumValue(string(input.SourceType)))
 	if err != nil {
 		return nil, err
 	}
@@ -840,7 +859,7 @@ func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateI
 	id, err := db.CreateIntent(ctx, r.DB, uid, input.Name, input.Description, enabled,
 		input.MatchContainers, input.MatchImages, input.MatchSources, input.MatchStacks, input.MatchRegistries,
 		input.ExcludeContainers, input.ExcludeImages, input.ExcludeStacks, input.ExcludeRegistries,
-		string(input.ScheduleType), input.ScheduleCron,
+		dbEnumValue(string(input.ScheduleType)), input.ScheduleCron,
 		maxConcurrent, dryRun, seqDelay)
 	if err != nil {
 		return nil, err
@@ -1015,7 +1034,7 @@ func (r *mutationResolver) UpdateBatchConfig(ctx context.Context, input model.Up
 		return nil, err
 	}
 
-	if err := db.UpdateBatchConfig(ctx, r.DB, uid, string(input.JobType), input.Enabled, input.IntervalMinutes); err != nil {
+	if err := db.UpdateBatchConfig(ctx, r.DB, uid, dbEnumValue(string(input.JobType)), input.Enabled, input.IntervalMinutes); err != nil {
 		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
@@ -2076,11 +2095,24 @@ func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *
 
 // Operation is the resolver for the operation field.
 func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operation, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	// Operations are ephemeral (no persistent table). Return not found for completed ops.
+	// Batch operations are persisted in batch_runs and can be polled by id
+	// (batchUpgrade returns "batch-<runID>"). Single-container pull/upgrade
+	// operations are ephemeral with no backing table, so those stay not-found.
+	if strings.HasPrefix(id, "batch-") {
+		if n, perr := strconv.ParseInt(strings.TrimPrefix(id, "batch-"), 10, 64); perr == nil {
+			run, gerr := db.GetBatchRunByID(ctx, r.DB, n, uid)
+			if gerr != nil {
+				return nil, gerr
+			}
+			if run != nil {
+				return batchRunToOperation(run), nil
+			}
+		}
+	}
 	return nil, fmt.Errorf("operation not found or already completed")
 }
 

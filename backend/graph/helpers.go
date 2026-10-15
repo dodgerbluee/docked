@@ -57,6 +57,41 @@ func requireAdmin(ctx context.Context, database *sql.DB) (int64, error) {
 func enumConst(s string) string {
 	return strings.ToUpper(strings.NewReplacer("-", "_", " ", "_").Replace(s))
 }
+
+// dbEnumValue is the inverse of enumConst: it maps a GraphQL enum member
+// (UPPER_SNAKE) back to the lowercase/hyphenated form the Node backend and the
+// shared SQLite DB use ("DOCKER_HUB_PULL" -> "docker-hub-pull",
+// "SCHEDULED" -> "scheduled", "APIKEY" -> "apikey"). Writing the raw enum
+// member would persist values Node's consumers never match — e.g.
+// intentEvaluator.js filters on schedule_type === "scheduled", so a stored
+// "SCHEDULED" intent is silently skipped by the scheduler.
+func dbEnumValue(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, "_", "-"))
+}
+
+// batchRunToOperation projects a persisted batch_runs row onto the ephemeral
+// Operation type so operation(id) can report progress for batch jobs, which
+// are the only operations with a backing table.
+func batchRunToOperation(run *db.BatchRunRow) *model.Operation {
+	op := &model.Operation{
+		ID:       "batch-" + strconv.FormatInt(run.ID, 10),
+		Type:     model.OperationTypeBatchUpgrade,
+		Status:   model.OperationStatus(enumConst(run.Status)),
+		QueuedAt: parseTime(run.StartedAt),
+	}
+	if st := parseTime(run.StartedAt); !st.IsZero() {
+		op.StartedAt = &st
+	}
+	if run.CompletedAt.Valid {
+		if ct := parseTime(run.CompletedAt.String); !ct.IsZero() {
+			op.CompletedAt = &ct
+		}
+	}
+	if run.ErrorMessage.Valid {
+		op.Message = strPtr(run.ErrorMessage.String)
+	}
+	return op
+}
 func userRowToModel(u *db.UserRow) *model.User {
 	if u == nil {
 		return nil

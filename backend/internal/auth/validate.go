@@ -21,6 +21,8 @@ type accessClaims struct {
 func ValidateToken(tokenString, secret string) (int64, error) {
 	parser := jwt.NewParser(
 		jwt.WithIssuer("docked"),
+		jwt.WithAudience("docked-users"),
+		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods([]string{"HS256"}),
 	)
 

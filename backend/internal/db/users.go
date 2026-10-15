@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 )
 
 // UserRow is the raw user data from the database.
@@ -97,6 +99,50 @@ func CreateUser(ctx context.Context, database *sql.DB, username, passwordHash, r
 		return 0, fmt.Errorf("create user: %w", err)
 	}
 	return result.LastInsertId()
+}
+
+// RegisterUser atomically decides the bootstrap role and inserts the user in a
+// single statement. SQLite evaluates the COUNT(*) guard under the same write
+// lock as the INSERT, so two concurrent first-registrations cannot both be
+// minted Administrator: the second sees count=1 and becomes a Member. This
+// holds across processes because Node and Go share one DB file and SQLite
+// permits a single writer at a time. Returns the new id and the role actually
+// persisted so the caller can mint a matching token.
+//
+// modernc/sqlite can return SQLITE_BUSY immediately when a write tries to take
+// the lock another writer already holds, without waiting out the busy timeout.
+// A failed attempt inserts nothing, so we retry a bounded number of times with
+// a short backoff; the COUNT(*) guard is re-evaluated on each attempt.
+func RegisterUser(ctx context.Context, database *sql.DB, username, passwordHash string) (id int64, role string, instanceAdmin int, err error) {
+	const stmt = `INSERT INTO users (username, password_hash, role, instance_admin)
+	             SELECT ?, ?,
+		            CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'Administrator' ELSE 'Member' END,
+		            CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END
+	             RETURNING id, role, instance_admin`
+
+	for attempt := 0; ; attempt++ {
+		err = database.QueryRowContext(ctx, stmt, username, passwordHash).Scan(&id, &role, &instanceAdmin)
+		if err == nil {
+			return id, role, instanceAdmin, nil
+		}
+		if !isBusy(err) || attempt >= 20 {
+			return 0, "", 0, fmt.Errorf("register user: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return 0, "", 0, fmt.Errorf("register user: %w", ctx.Err())
+		case <-time.After(time.Duration(5*(1<<min(attempt, 5))) * time.Millisecond):
+		}
+	}
+}
+
+// isBusy reports whether err is a SQLite write-lock contention error.
+func isBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
 }
 
 // UpdateUserPassword updates a user's password hash.

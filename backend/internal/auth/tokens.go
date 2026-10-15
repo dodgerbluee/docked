@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -66,13 +67,19 @@ func GenerateTokens(userID int64, username, role string) (accessToken, refreshTo
 	refreshClaims := RefreshClaims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "docked",
-			Audience:  jwt.ClaimStrings{"docked-refresh"},
+			Issuer: "docked",
+			// Node signs refresh tokens with the SAME audience as access
+			// tokens ("docked-users") but a DIFFERENT secret. Matching that
+			// keeps Go- and Node-issued tokens interchangeable across the two
+			// backends while the distinct signing secret is what prevents a
+			// refresh token from being replayed as an access token (and vice
+			// versa).
+			Audience:  jwt.ClaimStrings{"docked-users"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
-	refreshToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(secret))
+	refreshToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(getRefreshSecret()))
 	if err != nil {
 		return "", "", fmt.Errorf("sign refresh token: %w", err)
 	}
@@ -81,16 +88,19 @@ func GenerateTokens(userID int64, username, role string) (accessToken, refreshTo
 }
 
 // VerifyRefreshToken validates a refresh token and returns its claims.
+// It uses the refresh secret (distinct from the access secret) and enforces
+// the shared "docked-users" audience plus a required expiry, so an access
+// token cannot be accepted here and an expired token is always rejected.
 func VerifyRefreshToken(tokenString string) (*RefreshClaims, error) {
-	secret := getSecret()
-
 	parser := jwt.NewParser(
 		jwt.WithIssuer("docked"),
+		jwt.WithAudience("docked-users"),
+		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods([]string{"HS256"}),
 	)
 
 	token, err := parser.ParseWithClaims(tokenString, &RefreshClaims{}, func(_ *jwt.Token) (any, error) {
-		return []byte(secret), nil
+		return []byte(getRefreshSecret()), nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("parse refresh token: %w", err)
@@ -111,6 +121,17 @@ func getSecret() string {
 		return "change-this-secret-in-production-use-strong-random-string"
 	}
 	return s
+}
+
+// getRefreshSecret mirrors the Node backend's refresh-secret derivation:
+// JWT_REFRESH_SECRET if set, otherwise the access secret with a "-refresh"
+// suffix. Keeping this identical is what lets tokens minted by either backend
+// verify on the other.
+func getRefreshSecret() string {
+	if s := os.Getenv("JWT_REFRESH_SECRET"); s != "" {
+		return s
+	}
+	return getSecret() + "-refresh"
 }
 
 // jwtSecret is set at startup by the server initialization.

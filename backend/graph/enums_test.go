@@ -81,3 +81,40 @@ func strAll(n int, at func(int) string) []string {
 	}
 	return out
 }
+
+// TestDBEnumValueMatchesNodeDomain guards the WRITE side of the enum contract.
+// The resolvers persist enum inputs via dbEnumValue; if that mapping drifts
+// from the lowercase/hyphenated values Node's consumers compare against, the
+// value is written but never matched (e.g. intentEvaluator filters on
+// schedule_type === "scheduled", so a stored "SCHEDULED" is silently skipped).
+// Each case pins the exact DB literal Node reads, and the round-trip
+// enumConst(dbEnumValue(member)) == member proves the two helpers stay inverse.
+func TestDBEnumValueMatchesNodeDomain(t *testing.T) {
+	cases := []struct {
+		member string
+		want   string // exact value Node writes/reads in SQLite
+	}{
+		// AuthType -> source_instances.auth_type
+		{"PASSWORD", "password"}, {"APIKEY", "apikey"},
+		// TrackedAppSourceType -> tracked_apps.source_type
+		{"DOCKER", "docker"}, {"GITHUB", "github"}, {"GITLAB", "gitlab"},
+		// IntentScheduleType -> intents.schedule_type
+		{"IMMEDIATE", "immediate"}, {"SCHEDULED", "scheduled"},
+		// BatchJobType -> batch_config.job_type
+		{"DOCKER_HUB_PULL", "docker-hub-pull"},
+		{"TRACKED_APPS_CHECK", "tracked-apps-check"},
+		{"APP_VERSION_SCAN", "app-version-scan"},
+		{"UPGRADE_CONTAINERS", "upgrade-containers"},
+	}
+	for _, c := range cases {
+		got := dbEnumValue(c.member)
+		if got != c.want {
+			t.Errorf("dbEnumValue(%q) = %q, want %q", c.member, got, c.want)
+		}
+		// The value we write must normalize back to the same enum member, so a
+		// Go read of a Node-written row (and vice versa) stays consistent.
+		if back := enumConst(got); back != c.member {
+			t.Errorf("round-trip: enumConst(dbEnumValue(%q)) = %q, want %q", c.member, back, c.member)
+		}
+	}
+}
