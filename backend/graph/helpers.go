@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -557,7 +558,7 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 		return 0, nil, err
 	}
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -565,6 +566,11 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 	data, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, data, nil
 }
+
+// httpClient bounds transport time for runner/portainer calls so a hung
+// upstream cannot wedge a fire-and-forget goroutine forever.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
 func runnerPost(baseURL, apiKey, path string, payload any) error {
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", baseURL+path, bytes.NewReader(body))
@@ -575,13 +581,47 @@ func runnerPost(baseURL, apiKey, path string, payload any) error {
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("runner returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// runnerUpgrade triggers a single container upgrade on a runner, matching the
+// contract the Node backend uses: POST /containers/{id}/upgrade (container id
+// in the path, no JSON body) returning a text/event-stream. The response body
+// MUST be drained to EOF rather than closed immediately, otherwise the runner
+// aborts the upgrade mid-flight; a per-request context bounds the wait.
+func runnerUpgrade(baseURL, apiKey, containerID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	u := baseURL + "/containers/" + url.PathEscape(containerID) + "/upgrade"
+	req, err := http.NewRequestWithContext(ctx, "POST", u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("runner returned %d", resp.StatusCode)
+	}
+	// Drain the SSE stream so the upgrade runs to completion. io.Copy returns
+	// when the runner closes the stream (upgrade finished) or ctx expires.
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		return fmt.Errorf("upgrade stream: %w", err)
 	}
 	return nil
 }
@@ -593,7 +633,7 @@ func runnerDelete(baseURL, apiKey, path string) error {
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

@@ -335,15 +335,11 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 
 	opID := "upgrade-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
 
-	// Fire-and-forget upgrade via runner
+	// Fire-and-forget upgrade via runner. Matches the Node runner contract:
+	// POST /containers/{id}/upgrade (SSE), not a JSON-body endpoint.
 	go func() {
 		if runnerURL != "" {
-			payload := map[string]any{
-				"containerId": container.ContainerID,
-				"imageName":   nullStrDefault(container.ImageName),
-				"imageRepo":   nullStrDefault(container.ImageRepo),
-			}
-			_ = runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload)
+			_ = runnerUpgrade(runnerURL, runnerKey, container.ContainerID)
 		}
 	}()
 
@@ -370,8 +366,10 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		return nil, fmt.Errorf("no containers selected for batch upgrade")
 	}
 
-	// Create a batch run record
-	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, "batch-upgrade", true)
+	// Create a batch run record. job_type must be a valid BatchJobType DB value
+	// ("upgrade-containers"); "batch-upgrade" was not a member and surfaced as
+	// an invalid BATCH_UPGRADE enum on read.
+	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, "upgrade-containers", true)
 	if err != nil {
 		return nil, fmt.Errorf("create batch run: %w", err)
 	}
@@ -418,12 +416,7 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				continue
 			}
 			attempted++
-			payload := map[string]any{
-				"containerId": c.ContainerID,
-				"imageName":   nullStrDefault(c.ImageName),
-				"imageRepo":   nullStrDefault(c.ImageRepo),
-			}
-			if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
+			if err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID); err == nil {
 				upgraded++
 			} else if firstErr == "" {
 				firstErr = err.Error()
@@ -556,7 +549,7 @@ func (r *mutationResolver) UpdateSourceInstance(ctx context.Context, id string, 
 
 	var authType *string
 	if input.AuthType != nil {
-		s := string(*input.AuthType)
+		s := dbEnumValue(string(*input.AuthType))
 		authType = &s
 	}
 
@@ -722,7 +715,7 @@ func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, inpu
 
 	var sourceType *string
 	if input.SourceType != nil {
-		s := string(*input.SourceType)
+		s := dbEnumValue(string(*input.SourceType))
 		sourceType = &s
 	}
 
@@ -902,7 +895,7 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 	}
 	if input.ScheduleType != nil {
 		setClauses = append(setClauses, "schedule_type = ?")
-		args = append(args, string(*input.ScheduleType))
+		args = append(args, dbEnumValue(string(*input.ScheduleType)))
 	}
 	if input.ScheduleCron != nil {
 		setClauses = append(setClauses, "schedule_cron = ?")
@@ -1003,8 +996,7 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 				}
 			}
 			if runnerURL != "" {
-				payload := map[string]any{"containerId": c.ContainerID, "imageName": nullStrDefault(c.ImageName)}
-				if err := runnerPost(runnerURL, runnerKey, "/containers/upgrade", payload); err == nil {
+				if err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID); err == nil {
 					upgraded++
 				} else {
 					failed++
@@ -1049,7 +1041,7 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 
 	jt := "docker-hub-pull"
 	if jobType != nil {
-		jt = string(*jobType)
+		jt = dbEnumValue(string(*jobType))
 	}
 
 	batchID, err := db.CreateBatchRun(ctx, r.DB, uid, jt, true)
@@ -1882,7 +1874,7 @@ func (r *queryResolver) BatchRuns(ctx context.Context, jobType *model.BatchJobTy
 
 	var jt *string
 	if jobType != nil {
-		s := string(*jobType)
+		s := dbEnumValue(string(*jobType))
 		jt = &s
 	}
 

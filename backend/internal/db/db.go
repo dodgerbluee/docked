@@ -10,8 +10,12 @@ import (
 // Open opens the SQLite database at path and configures it for concurrent
 // read access alongside the Node.js backend (WAL mode, 5-second busy timeout).
 func Open(path string) (*sql.DB, error) {
+	// modernc.org/sqlite applies PRAGMAs only through the _pragma query
+	// parameter (the _journal_mode/_busy_timeout form is mattn/go-sqlite3
+	// syntax and is silently ignored here). Using the wrong form meant WAL and
+	// the busy timeout were never actually installed.
 	dsn := fmt.Sprintf(
-		"file:%s?_journal_mode=WAL&_busy_timeout=5000&_cache_size=-8000",
+		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=cache_size(-8000)",
 		path,
 	)
 

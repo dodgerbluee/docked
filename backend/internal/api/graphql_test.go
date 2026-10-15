@@ -64,6 +64,20 @@ CREATE TABLE batch_runs (
   error_message TEXT,
   logs TEXT
 );
+CREATE TABLE source_instances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT,
+  username TEXT,
+  password TEXT,
+  api_key TEXT,
+  auth_type TEXT DEFAULT 'apikey',
+  display_order INTEGER DEFAULT 0,
+  ip_address TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 
 type testEnv struct {
@@ -345,7 +359,7 @@ func TestOperationResolvesBatchRun(t *testing.T) {
 
 	ctx := context.Background()
 	res, err := env.database.ExecContext(ctx,
-		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'batch-upgrade', 'failed')",
+		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'upgrade-containers', 'failed')",
 		env.adminID)
 	if err != nil {
 		t.Fatalf("insert batch run: %v", err)
@@ -365,6 +379,92 @@ func TestOperationResolvesBatchRun(t *testing.T) {
 	if r := env.gql(t, admin, `query($id: ID!){ operation(id: $id){ id } }`,
 		map[string]any{"id": "op-123"}); !r.hasErrorContaining("not found") {
 		t.Fatalf("ephemeral operation should be not-found, got: %+v", r)
+	}
+}
+
+// TestBatchJobTypePersistsAndFiltersNodeDomain guards the enum write-side fix
+// at the DB level (not just the helper): triggerBatchJob must store the
+// Node-domain lowercase/hyphenated job_type, and the batchRuns jobType filter
+// must match those lowercase rows. A run written as an UPPER_SNAKE enum member
+// would be invisible to both Node's scheduler and this filter.
+func TestBatchJobTypePersistsAndFiltersNodeDomain(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	// DOCKER_HUB_PULL enum -> DB must store "docker-hub-pull".
+	r := env.gql(t, admin, `mutation($jt: BatchJobType){ triggerBatchJob(jobType: $jt){ id jobType } }`,
+		map[string]any{"jt": "DOCKER_HUB_PULL"})
+	if len(r.Errors) != 0 {
+		t.Fatalf("triggerBatchJob errored: %+v", r.Errors)
+	}
+	var stored string
+	if err := env.database.QueryRowContext(context.Background(),
+		"SELECT job_type FROM batch_runs ORDER BY id DESC LIMIT 1").Scan(&stored); err != nil {
+		t.Fatalf("read batch run job_type: %v", err)
+	}
+	if stored != "docker-hub-pull" {
+		t.Fatalf("DB job_type = %q, want docker-hub-pull", stored)
+	}
+
+	// Seed a second run with a different (lowercase, Node-domain) job_type so
+	// the filter's discrimination is actually exercised, not just "returns 1".
+	if _, err := env.database.ExecContext(context.Background(),
+		"INSERT INTO batch_runs (user_id, job_type, status) VALUES (?, 'app-version-scan', 'completed')",
+		env.adminID); err != nil {
+		t.Fatalf("seed second run: %v", err)
+	}
+
+	// The jobType filter must match the lowercase DB row and return its enum.
+	match := env.gql(t, admin, `query($jt: BatchJobType){ batchRuns(jobType: $jt){ totalCount items { id jobType } } }`,
+		map[string]any{"jt": "DOCKER_HUB_PULL"})
+	if len(match.Errors) != 0 {
+		t.Fatalf("batchRuns filter errored: %+v", match.Errors)
+	}
+	if !bytes.Contains(match.Data["batchRuns"], []byte(`"totalCount":1`)) ||
+		!bytes.Contains(match.Data["batchRuns"], []byte("DOCKER_HUB_PULL")) {
+		t.Fatalf("batchRuns(jobType:DOCKER_HUB_PULL) did not match the lowercase row: %s", match.Data["batchRuns"])
+	}
+
+	// Negative control: the other job type must select only its own row.
+	other := env.gql(t, admin, `query($jt: BatchJobType){ batchRuns(jobType: $jt){ totalCount items { jobType } } }`,
+		map[string]any{"jt": "APP_VERSION_SCAN"})
+	if len(other.Errors) != 0 {
+		t.Fatalf("batchRuns negative filter errored: %+v", other.Errors)
+	}
+	if !bytes.Contains(other.Data["batchRuns"], []byte(`"totalCount":1`)) ||
+		!bytes.Contains(other.Data["batchRuns"], []byte("APP_VERSION_SCAN")) {
+		t.Fatalf("batchRuns(APP_VERSION_SCAN) should match only its own row, got: %s", other.Data["batchRuns"])
+	}
+}
+
+// TestUpdateSourceInstanceWritesNodeAuthType guards the UPDATE-path enum fix:
+// updateSourceInstance must persist auth_type in the Node domain ("apikey"/
+// "password"), not the UPPER_SNAKE GraphQL enum member.
+func TestUpdateSourceInstanceWritesNodeAuthType(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+
+	ctx := context.Background()
+	res, err := env.database.ExecContext(ctx,
+		"INSERT INTO source_instances (user_id, name, url, auth_type) VALUES (?, 'src', 'http://x', 'apikey')",
+		env.adminID)
+	if err != nil {
+		t.Fatalf("seed source instance: %v", err)
+	}
+	sid, _ := res.LastInsertId()
+
+	r := env.gql(t, admin, `mutation($id: ID!, $in: UpdateSourceInstanceInput!){ updateSourceInstance(id: $id, input: $in){ id authType } }`,
+		map[string]any{"id": strconv.FormatInt(sid, 10), "in": map[string]any{"authType": "PASSWORD"}})
+	if len(r.Errors) != 0 {
+		t.Fatalf("updateSourceInstance errored: %+v", r.Errors)
+	}
+
+	var stored string
+	if err := env.database.QueryRowContext(ctx, "SELECT auth_type FROM source_instances WHERE id = ?", sid).Scan(&stored); err != nil {
+		t.Fatalf("read auth_type: %v", err)
+	}
+	if stored != "password" {
+		t.Fatalf("DB auth_type = %q, want password", stored)
 	}
 }
 
