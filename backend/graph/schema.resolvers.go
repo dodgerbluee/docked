@@ -1941,11 +1941,28 @@ func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, 
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners)
 	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
 
+	// containersWithUpdates: compare deployed digest vs latest digest
+	var withUpdates int
+	r.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM containers c
+		JOIN deployed_images di ON c.deployed_image_id = di.id
+		JOIN registry_image_versions riv ON di.user_id = riv.user_id AND di.image_repo = riv.image_repo
+		WHERE c.user_id = ? AND riv.latest_digest IS NOT NULL AND di.image_digest IS NOT NULL AND riv.latest_digest != di.image_digest`, uid).Scan(&withUpdates)
+
+	// trackedAppsWithUpdates
+	var trackedWithUpdates int
+	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ? AND has_update = 1", uid).Scan(&trackedWithUpdates)
+
+	// unusedImagesCount
+	unusedImages, _ := db.GetUnusedImages(ctx, r.DB, uid)
+
 	return &model.SummaryStats{
-		TotalContainers: totalContainers,
-		TotalSources:    totalSources,
-		TotalRunners:    totalRunners,
-		TotalTrackedApps: totalTrackedApps,
+		TotalContainers:        totalContainers,
+		ContainersWithUpdates:  withUpdates,
+		TotalSources:           totalSources,
+		TotalRunners:           totalRunners,
+		TotalTrackedApps:       totalTrackedApps,
+		TrackedAppsWithUpdates: trackedWithUpdates,
+		UnusedImagesCount:      len(unusedImages),
 	}, nil
 }
 
