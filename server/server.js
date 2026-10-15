@@ -187,6 +187,33 @@ app.use(
 // In production: always serve
 // In development: serve if public directory exists (Docker/local build scenario)
 const publicPath = path.join(__dirname, "public");
+// GraphQL proxy → Go backend (localhost:4000)
+const http = require("http");
+const GRAPHQL_BACKEND = process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
+
+app.use("/graphql", (req, res) => {
+  const body = JSON.stringify(req.body || {});
+  const proxyReq = http.request(
+    `${GRAPHQL_BACKEND}/graphql`,
+    {
+      method: req.method,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      },
+    },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
+  );
+  proxyReq.on("error", (err) => {
+    res.status(502).json({ error: "GraphQL backend unavailable", detail: err.message });
+  });
+  proxyReq.end(body);
+});
+
 const shouldServeStatic =
   process.env.NODE_ENV === "production" ||
   (process.env.NODE_ENV === "development" && fs.existsSync(publicPath));
