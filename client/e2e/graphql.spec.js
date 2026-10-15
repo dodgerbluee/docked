@@ -165,4 +165,111 @@ test.describe("GraphQL Integration", () => {
     expect(mutationRequest).toBeTruthy();
     expect(mutationRequest.url).toContain("/graphql");
   });
+
+  test("sourceInstances query fires via GraphQL on settings sources tab", async ({ page }) => {
+    await authenticate(page);
+
+    await page.goto("/");
+    await page.waitForTimeout(2000);
+
+    const graphqlRequests = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/graphql") && !req.url().includes("/src/")) {
+        graphqlRequests.push(getGraphQLOpName(req));
+      }
+    });
+
+    // Navigate to settings → sources tab
+    const avatarBtn = page.locator(".avatar-button");
+    await avatarBtn.click();
+    await page.waitForTimeout(300);
+    const settingsBtn = page.locator('button.avatar-menu-item:has-text("Settings")');
+    await settingsBtn.click();
+    await page.waitForTimeout(2000);
+
+    // Click the Sources/Portainer tab
+    const sourcesTab = page.locator('button:has-text("Sources"), button:has-text("Portainer")');
+    if (await sourcesTab.isVisible()) {
+      await sourcesTab.first().click();
+      await page.waitForTimeout(2000);
+    }
+
+    const srcRequest = graphqlRequests.find(
+      (r) => r.combined.includes("sourceInstances") || r.opName === "SourceInstances"
+    );
+    expect(srcRequest).toBeTruthy();
+    expect(srcRequest.url).toContain("/graphql");
+  });
+
+  test("GraphQL queries return correct data shapes for new resolvers", async ({ page }) => {
+    await authenticate(page);
+    await page.goto("/");
+    await page.waitForTimeout(2000);
+
+    // Execute queries directly and verify response shapes
+    const results = await page.evaluate(async () => {
+      const token = localStorage.getItem("authToken");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const [srcRes, intentRes, batchRes, unusedRes] = await Promise.all([
+        fetch("/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query: "{ sourceInstances { id name url type authType hasApiKey } }",
+          }),
+        }).then((r) => r.json()),
+        fetch("/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query: "{ intents { id name enabled } }" }),
+        }).then((r) => r.json()),
+        fetch("/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query: "{ batchConfigs { jobType enabled intervalMinutes } }",
+          }),
+        }).then((r) => r.json()),
+        fetch("/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query: "{ unusedImages { id repoTags sizeBytes } }",
+          }),
+        }).then((r) => r.json()),
+      ]);
+
+      return { srcRes, intentRes, batchRes, unusedRes };
+    });
+
+    // sourceInstances returns array with expected fields
+    expect(results.srcRes.data?.sourceInstances).toBeInstanceOf(Array);
+    if (results.srcRes.data.sourceInstances.length > 0) {
+      const src = results.srcRes.data.sourceInstances[0];
+      expect(src).toHaveProperty("id");
+      expect(src).toHaveProperty("name");
+      expect(src).toHaveProperty("url");
+      expect(src).toHaveProperty("type");
+      expect(src).toHaveProperty("authType");
+      expect(src).toHaveProperty("hasApiKey");
+    }
+
+    // intents returns array
+    expect(results.intentRes.data?.intents).toBeInstanceOf(Array);
+
+    // batchConfigs returns array with jobType
+    expect(results.batchRes.data?.batchConfigs).toBeInstanceOf(Array);
+    if (results.batchRes.data.batchConfigs.length > 0) {
+      expect(results.batchRes.data.batchConfigs[0]).toHaveProperty("jobType");
+      expect(results.batchRes.data.batchConfigs[0]).toHaveProperty("enabled");
+    }
+
+    // unusedImages returns array
+    expect(results.unusedRes.data?.unusedImages).toBeInstanceOf(Array);
+    expect(results.unusedRes.errors).toBeUndefined();
+  });
 });
