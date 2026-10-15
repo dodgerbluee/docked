@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { graphqlClient } from "../graphql/client";
-import {
-  DISCORD_WEBHOOKS_QUERY,
-  DELETE_DISCORD_WEBHOOK_MUTATION,
-} from "../graphql/queries";
+import { DISCORD_WEBHOOKS_QUERY, DELETE_DISCORD_WEBHOOK_MUTATION } from "../graphql/queries";
 
 /**
  * useDiscordSettings Hook
@@ -19,9 +16,7 @@ export function useDiscordSettings(isAuthenticated, authToken) {
 
   // If not provided, check if we have auth via localStorage
   const hasAuth =
-    isAuthenticated !== undefined
-      ? isAuthenticated
-      : !!localStorage.getItem("authToken");
+    isAuthenticated !== undefined ? isAuthenticated : !!localStorage.getItem("authToken");
   const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
 
   const fetchDiscordWebhooks = useCallback(async () => {

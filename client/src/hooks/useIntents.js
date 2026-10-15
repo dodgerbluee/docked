@@ -75,9 +75,7 @@ function transformExecutionContainer(row) {
  */
 export function useIntents(isAuthenticated, authToken) {
   const hasAuth =
-    isAuthenticated !== undefined
-      ? isAuthenticated
-      : !!localStorage.getItem("authToken");
+    isAuthenticated !== undefined ? isAuthenticated : !!localStorage.getItem("authToken");
   const effectiveToken = authToken !== undefined ? authToken : localStorage.getItem("authToken");
 
   const [intents, setIntents] = useState([]);
@@ -175,9 +173,7 @@ export function useIntents(isAuthenticated, authToken) {
           isResolved = true;
 
           try {
-            const result = await graphqlClient
-              .mutation(DELETE_INTENT_MUTATION, { id })
-              .toPromise();
+            const result = await graphqlClient.mutation(DELETE_INTENT_MUTATION, { id }).toPromise();
             if (result.error) throw new Error(result.error.message);
 
             await fetchIntents(false);
