@@ -192,16 +192,22 @@ const http = require("http");
 const GRAPHQL_BACKEND = process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
 
 app.use("/graphql", (req, res) => {
-  const body = JSON.stringify(req.body || {});
+  const isGet = req.method === "GET";
+  const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  const targetUrl = `${GRAPHQL_BACKEND}/graphql${isGet ? qs : ""}`;
+  const body = isGet ? null : JSON.stringify(req.body || {});
+  const headers = {
+    ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+  };
+  if (!isGet) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = Buffer.byteLength(body);
+  }
   const proxyReq = http.request(
-    `${GRAPHQL_BACKEND}/graphql`,
+    targetUrl,
     {
       method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
-      },
+      headers,
     },
     (proxyRes) => {
       res.writeHead(proxyRes.statusCode, proxyRes.headers);
@@ -211,7 +217,8 @@ app.use("/graphql", (req, res) => {
   proxyReq.on("error", (err) => {
     res.status(502).json({ error: "GraphQL backend unavailable", detail: err.message });
   });
-  proxyReq.end(body);
+  if (!isGet) proxyReq.end(body);
+  else proxyReq.end();
 });
 
 const shouldServeStatic =
