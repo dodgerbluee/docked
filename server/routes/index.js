@@ -138,14 +138,17 @@ async function enrichRunnerContainer(userId, container, forceRefresh = false) {
   try {
     const { imageRepo, tag } = parseImageName(container.image);
 
-    // Fetch stored repo_digests as fallback when the live runner provides none.
-    // After a batch scan, deployed_images.repo_digests holds manifest-list digests
-    // which are required for accurate multi-arch update detection.
-    const liveRepoDigests = container.repoDigests;
+    // Merge live and stored repo_digests for accurate multi-arch update detection.
+    // Live digests from dockhand contain the arch-specific digest, while stored
+    // digests (from deployed_images after upgrade) may also include the manifest-list
+    // digest. Both are needed: computeHasUpdate checks if latestDigest (manifest-list)
+    // exists in repoDigests to determine if the container is up-to-date.
+    const liveRepoDigests = container.repoDigests || [];
+    const storedRepoDigests = (await getStoredRepoDigests(userId, container.id)) || [];
     const repoDigests =
-      liveRepoDigests && liveRepoDigests.length > 0
-        ? liveRepoDigests
-        : (await getStoredRepoDigests(userId, container.id)) || liveRepoDigests;
+      liveRepoDigests.length > 0 || storedRepoDigests.length > 0
+        ? [...new Set([...liveRepoDigests, ...storedRepoDigests])]
+        : liveRepoDigests;
 
     if (!forceRefresh) {
       const cached = await getRegistryImageVersion(userId, imageRepo, tag);

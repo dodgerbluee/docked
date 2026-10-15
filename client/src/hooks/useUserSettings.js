@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { ME_QUERY } from "../graphql/queries";
 
 /**
  * useUserSettings Hook
@@ -23,9 +25,9 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
 
   const fetchUserInfo = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/auth/me`);
-      if (response.data.success) {
-        setUserInfo(response.data.user);
+      const res = await graphqlClient.query(ME_QUERY).toPromise();
+      if (res.data?.me) {
+        setUserInfo(res.data.me);
       }
     } catch (err) {
       console.error("Error fetching user info:", err);

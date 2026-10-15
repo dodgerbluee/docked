@@ -3,6 +3,8 @@ import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
 import { BATCH_JOB_TYPES, DEFAULT_BATCH_CONFIG } from "../constants/settings";
 import { getErrorMessage, SUCCESS_MESSAGES } from "../utils/errorMessages";
+import { graphqlClient } from "../graphql/client";
+import { USER_PREFERENCES_QUERY, UPDATE_USER_PREFERENCES_MUTATION } from "../graphql/queries";
 
 /**
  * useGeneralSettings Hook
@@ -33,20 +35,19 @@ export function useGeneralSettings({
 
   const fetchRefreshingTogglesEnabled = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
-      if (response.data.success) {
-        const fetchedEnabled = response.data.enabled || false;
+      const res = await graphqlClient
+        .query(USER_PREFERENCES_QUERY, undefined, { requestPolicy: "network-only" })
+        .toPromise();
+      if (res.data?.userPreferences) {
+        const fetchedEnabled = res.data.userPreferences.refreshingTogglesEnabled || false;
         setRefreshingTogglesEnabled(fetchedEnabled);
-        // Set local state immediately with DB value to prevent flicker
         setLocalRefreshingTogglesEnabled(fetchedEnabled);
       } else {
-        // If no value in DB, use default
         const defaultEnabled = false;
         setRefreshingTogglesEnabled(defaultEnabled);
         setLocalRefreshingTogglesEnabled(defaultEnabled);
       }
     } catch (err) {
-      // If endpoint doesn't exist yet, default to false
       console.error("Error fetching refreshing toggles enabled:", err);
       const defaultEnabled = false;
       setRefreshingTogglesEnabled(defaultEnabled);
@@ -136,76 +137,46 @@ export function useGeneralSettings({
   const handleSaveGeneralSettings = useCallback(async () => {
     setGeneralSettingsSaving(true);
     setGeneralSettingsSuccess("");
-    isSavingRef.current = true; // Prevent sync useEffect hooks from running during save
+    isSavingRef.current = true;
     const errors = [];
 
     try {
-      // Save color scheme to DB
-      let colorSchemeSuccess = false;
-      try {
-        const colorSchemeResponse = await axios.post(`${API_BASE_URL}/api/settings/color-scheme`, {
-          colorScheme: localColorScheme,
-        });
-        colorSchemeSuccess = colorSchemeResponse.data.success;
-        if (colorSchemeSuccess && onColorSchemeChange) {
-          // Update color scheme immediately for instant UI update
+      // Save all preferences in a single GraphQL mutation
+      const enabledValue =
+        localRefreshingTogglesEnabled === null ? false : Boolean(localRefreshingTogglesEnabled);
+
+      const res = await graphqlClient
+        .mutate(UPDATE_USER_PREFERENCES_MUTATION, {
+          input: {
+            colorScheme: localColorScheme,
+            refreshingTogglesEnabled: enabledValue,
+          },
+        })
+        .toPromise();
+
+      if (res.error) {
+        errors.push(res.error.message || "Failed to save settings");
+      } else if (res.data?.updateUserPreferences?.success) {
+        if (onColorSchemeChange) {
           onColorSchemeChange(localColorScheme);
         }
-      } catch (err) {
-        console.error("Error saving color scheme:", err);
-        errors.push("Failed to save color scheme");
-      }
-
-      // Save refreshing toggles enabled to DB
-      // Note: logLevel is now handled in Admin page
-      let refreshingTogglesSuccess = false;
-      try {
-        // Ensure we always send a boolean value (default to false if null)
-        const enabledValue =
-          localRefreshingTogglesEnabled === null ? false : Boolean(localRefreshingTogglesEnabled);
-        const refreshingTogglesResponse = await axios.post(
-          `${API_BASE_URL}/api/settings/refreshing-toggles-enabled`,
-          {
-            enabled: enabledValue,
-          }
-        );
-        refreshingTogglesSuccess = refreshingTogglesResponse.data.success;
-        if (refreshingTogglesSuccess) {
-          // Use the value returned from the server to ensure we're in sync
-          const serverValue = refreshingTogglesResponse.data.enabled || false;
-          setRefreshingTogglesEnabled(serverValue);
-          setLocalRefreshingTogglesEnabled(serverValue);
-        }
-      } catch (err) {
-        console.error("Error saving developer mode:", err);
-        errors.push("Failed to save developer mode");
-      }
-
-      // Check if all settings were saved successfully
-      // Note: logLevel is now handled in Admin page, so we only check colorScheme and refreshingToggles
-      if (colorSchemeSuccess && refreshingTogglesSuccess) {
+        setRefreshingTogglesEnabled(enabledValue);
+        setLocalRefreshingTogglesEnabled(enabledValue);
         setGeneralSettingsChanged(false);
         setGeneralSettingsSuccess("General settings saved successfully!");
-        // Dispatch custom event to notify other components (e.g., ContainersPage) to refetch settings
         window.dispatchEvent(new CustomEvent("generalSettingsSaved"));
       } else {
-        // Some settings failed - show which ones
-        const errorMessage =
-          errors.length > 0
-            ? `Failed to save: ${errors.join(", ")}`
-            : "Failed to save one or more settings";
-        setGeneralSettingsSuccess(errorMessage);
-        console.error("Some settings failed to save:", {
-          colorSchemeSuccess,
-          refreshingTogglesSuccess,
-        });
+        errors.push("Failed to save settings");
+      }
+
+      if (errors.length > 0) {
+        setGeneralSettingsSuccess(`Failed to save: ${errors.join(", ")}`);
       }
     } catch (err) {
       console.error("Error saving general settings:", err);
       setGeneralSettingsSuccess(`Failed to save settings: ${err.message || "Unknown error"}`);
     } finally {
       setGeneralSettingsSaving(false);
-      // Use setTimeout to allow state updates to complete before re-enabling sync
       setTimeout(() => {
         isSavingRef.current = false;
       }, 0);

@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { Provider as UrqlProvider } from "urql";
+import { graphqlClient } from "./graphql/client";
 import "./index.css";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -31,9 +33,11 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <UrqlProvider value={graphqlClient}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </UrqlProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

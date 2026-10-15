@@ -55,3 +55,4 @@ release-artifacts/
 tmp/
 temp/
 dockhand
+test-results/

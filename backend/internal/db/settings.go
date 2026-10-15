@@ -1,0 +1,128 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+)
+
+// SettingsRow holds user preferences from the settings key-value table.
+type SettingsRow struct {
+	UserID                 int64
+	ColorScheme            string
+	DisablePortainerPage   int
+	DisableTrackedAppsPage int
+	RefreshingToggles      int
+}
+
+// GetUserSettings reads user preferences from the key-value settings table.
+func GetUserSettings(ctx context.Context, database *sql.DB, userID int64) (*SettingsRow, error) {
+	rows, err := database.QueryContext(ctx,
+		"SELECT key, value FROM settings WHERE user_id = ?", userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user settings: %w", err)
+	}
+	defer rows.Close()
+
+	s := &SettingsRow{UserID: userID, ColorScheme: "system"}
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, fmt.Errorf("scan setting: %w", err)
+		}
+		switch key {
+		case "colorScheme":
+			s.ColorScheme = value
+		case "disablePortainerPage":
+			if value == "true" {
+				s.DisablePortainerPage = 1
+			}
+		case "disableTrackedAppsPage":
+			if value == "true" {
+				s.DisableTrackedAppsPage = 1
+			}
+		case "refreshingTogglesEnabled":
+			if value == "true" {
+				s.RefreshingToggles = 1
+			}
+		}
+	}
+	return s, rows.Err()
+}
+
+// UpsertUserSettings writes user preferences to the key-value settings table.
+func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
+	colorScheme *string, disablePortainer, disableTrackedApps, refreshingToggles *bool) error {
+
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	upsert := func(key, value string) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO settings (user_id, key, value, updated_at) VALUES (?, ?, ?, datetime('now'))
+			 ON CONFLICT(user_id, key) DO UPDATE SET value = ?, updated_at = datetime('now')`,
+			userID, key, value, value)
+		return err
+	}
+
+	if colorScheme != nil {
+		if err := upsert("colorScheme", *colorScheme); err != nil {
+			return err
+		}
+	}
+	if disablePortainer != nil {
+		v := "false"
+		if *disablePortainer {
+			v = "true"
+		}
+		if err := upsert("disablePortainerPage", v); err != nil {
+			return err
+		}
+	}
+	if disableTrackedApps != nil {
+		v := "false"
+		if *disableTrackedApps {
+			v = "true"
+		}
+		if err := upsert("disableTrackedAppsPage", v); err != nil {
+			return err
+		}
+	}
+	if refreshingToggles != nil {
+		v := "false"
+		if *refreshingToggles {
+			v = "true"
+		}
+		if err := upsert("refreshingTogglesEnabled", v); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// GetRegistrationCode returns the current registration code, if set.
+func GetRegistrationCode(ctx context.Context, database *sql.DB) (*string, error) {
+	row := database.QueryRowContext(ctx,
+		"SELECT value FROM settings WHERE key = 'registration_code' AND value != '' LIMIT 1")
+
+	var val string
+	err := row.Scan(&val)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get registration code: %w", err)
+	}
+	return &val, nil
+}
+
+// HasRegistrationCode checks if a registration code is configured.
+func HasRegistrationCode(ctx context.Context, database *sql.DB) (bool, error) {
+	var count int
+	err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM settings WHERE key = 'registration_code' AND value != ''").Scan(&count)
+	return count > 0, err
+}

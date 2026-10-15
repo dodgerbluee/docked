@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { USER_PREFERENCES_QUERY } from "../graphql/queries";
 
 /**
  * Custom hook for theme/color scheme management
@@ -22,13 +22,15 @@ export const useTheme = (isAuthenticated, authToken) => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
 
-  // Fetch color scheme from API
+  // Fetch color scheme from GraphQL
   const fetchColorScheme = useCallback(async () => {
     if (!isAuthenticated || !authToken) return;
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/settings/color-scheme`);
-      if (response.data.success) {
-        setColorScheme(response.data.colorScheme || "system");
+      const res = await graphqlClient
+        .query(USER_PREFERENCES_QUERY, undefined, { requestPolicy: "network-only" })
+        .toPromise();
+      if (res.data?.userPreferences) {
+        setColorScheme(res.data.userPreferences.colorScheme || "system");
       }
     } catch (err) {
       console.error("Error fetching color scheme:", err);

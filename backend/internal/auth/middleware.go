@@ -23,7 +23,6 @@ type contextKey struct{}
 func Middleware(secret string) func(http.Handler) http.Handler {
 	parser := jwt.NewParser(
 		jwt.WithIssuer("docked"),
-		jwt.WithAudience("docked-users"),
 		jwt.WithValidMethods([]string{"HS256"}),
 	)
 

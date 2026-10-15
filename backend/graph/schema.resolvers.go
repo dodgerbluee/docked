@@ -1,0 +1,1694 @@
+package graph
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/dockedapp/backend/graph/model"
+	"github.com/dockedapp/backend/internal/auth"
+	"github.com/dockedapp/backend/internal/db"
+)
+
+// ---------------------------------------------------------------------------
+// Auth helpers
+// ---------------------------------------------------------------------------
+
+func requireUser(ctx context.Context) (int64, error) {
+	uid := auth.UserIDFromContext(ctx)
+	if uid == 0 {
+		return 0, fmt.Errorf("authentication required")
+	}
+	return uid, nil
+}
+
+func requireAdmin(ctx context.Context) (int64, error) {
+	uid := auth.UserIDFromContext(ctx)
+	if uid == 0 {
+		return 0, fmt.Errorf("authentication required")
+	}
+	return uid, nil
+}
+
+// ---------------------------------------------------------------------------
+// Mutation resolvers
+// ---------------------------------------------------------------------------
+
+func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error) {
+	user, err := db.GetUserByUsername(ctx, r.DB, input.Username)
+	if err != nil {
+		return nil, fmt.Errorf("login: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("invalid username or password")
+	}
+
+	if !user.PasswordHash.Valid || !auth.CheckPassword(user.PasswordHash.String, input.Password) {
+		return nil, fmt.Errorf("invalid username or password")
+	}
+
+	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("generate token: %w", err)
+	}
+
+	return &model.AuthPayload{
+		Token:        token,
+		RefreshToken: refreshToken,
+		User:         userRowToModel(user),
+	}, nil
+}
+
+func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
+	// Check if registration code is required
+	hasCode, err := db.HasRegistrationCode(ctx, r.DB)
+	if err != nil {
+		return nil, fmt.Errorf("check registration: %w", err)
+	}
+	if hasCode {
+		code, _ := db.GetRegistrationCode(ctx, r.DB)
+		if code != nil && (input.RegistrationCode == nil || *input.RegistrationCode != *code) {
+			return nil, fmt.Errorf("invalid registration code")
+		}
+	}
+
+	// Check username uniqueness
+	exists, err := db.UserExists(ctx, r.DB, input.Username)
+	if err != nil {
+		return nil, fmt.Errorf("check user: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("username already taken")
+	}
+
+	// First user becomes admin
+	userCount, _ := db.GetUserCount(ctx, r.DB)
+	role := "user"
+	instanceAdmin := 0
+	if userCount == 0 {
+		role = "admin"
+		instanceAdmin = 1
+	}
+
+	hash, err := auth.HashPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	id, err := db.CreateUser(ctx, r.DB, input.Username, hash, role, instanceAdmin)
+	if err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+
+	user, _ := db.GetUserByID(ctx, r.DB, id)
+	token, refreshToken, _ := auth.GenerateTokens(id, input.Username, role)
+
+	return &model.AuthPayload{
+		Token:        token,
+		RefreshToken: refreshToken,
+		User:         userRowToModel(user),
+	}, nil
+}
+
+func (r *mutationResolver) RefreshToken(ctx context.Context, input model.RefreshTokenInput) (*model.AuthPayload, error) {
+	claims, err := auth.VerifyRefreshToken(input.RefreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refresh token")
+	}
+
+	user, err := db.GetUserByID(ctx, r.DB, claims.UserID)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	token, refreshToken, err := auth.GenerateTokens(user.ID, user.Username, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("generate token: %w", err)
+	}
+
+	return &model.AuthPayload{
+		Token:        token,
+		RefreshToken: refreshToken,
+		User:         userRowToModel(user),
+	}, nil
+}
+
+func (r *mutationResolver) Logout(ctx context.Context) (*model.SuccessResult, error) {
+	return &model.SuccessResult{Success: true, Message: strPtr("Logged out")}, nil
+}
+
+func (r *mutationResolver) UpdatePassword(ctx context.Context, input model.UpdatePasswordInput) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	user, _ := db.GetUserByID(ctx, r.DB, uid)
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	if !user.PasswordHash.Valid || !auth.CheckPassword(user.PasswordHash.String, input.CurrentPassword) {
+		return nil, fmt.Errorf("current password is incorrect")
+	}
+
+	hash, err := auth.HashPassword(input.NewPassword)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.UpdateUserPassword(ctx, r.DB, uid, hash); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	exists, _ := db.UserExists(ctx, r.DB, input.NewUsername)
+	if exists {
+		return nil, fmt.Errorf("username already taken")
+	}
+
+	if err := db.UpdateUsername(ctx, r.DB, uid, input.NewUsername); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) SetUserPassword(ctx context.Context, userID string, newPassword string) (*model.SuccessResult, error) {
+	_, err := requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	uid, _ := strconv.ParseInt(userID, 10, 64)
+
+	hash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.UpdateUserPassword(ctx, r.DB, uid, hash); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role model.Role) (*model.SuccessResult, error) {
+	_, err := requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	uid, _ := strconv.ParseInt(userID, 10, 64)
+
+	if err := db.SetUserRole(ctx, r.DB, uid, string(role)); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("pullContainers: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.UpgradeContainerInput) (*model.Operation, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("upgradeContainer: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUpgradeInput) (*model.Operation, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("batchUpgrade: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) ClearContainerData(ctx context.Context) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, err = r.DB.ExecContext(ctx, "DELETE FROM containers WHERE user_id = ?", uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.DeleteImageInput) (*model.DeleteImagesResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("deleteImages: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CreateSourceInstance(ctx context.Context, input model.CreateSourceInstanceInput) (*model.SourceInstance, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := db.CreateSourceInstance(ctx, r.DB, uid, input.Name, input.URL, string(input.AuthType),
+		input.Username, input.Password, input.APIKey, input.IPAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetSourceInstanceByID(ctx, r.DB, id, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return sourceInstanceToModel(row), nil
+}
+
+func (r *mutationResolver) UpdateSourceInstance(ctx context.Context, id string, input model.UpdateSourceInstanceInput) (*model.SourceInstance, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sid, _ := strconv.ParseInt(id, 10, 64)
+
+	var authType *string
+	if input.AuthType != nil {
+		s := string(*input.AuthType)
+		authType = &s
+	}
+
+	if err := db.UpdateSourceInstance(ctx, r.DB, sid, uid, input.Name, input.URL, authType,
+		input.Username, input.Password, input.APIKey, input.IPAddress); err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return sourceInstanceToModel(row), nil
+}
+
+func (r *mutationResolver) DeleteSourceInstance(ctx context.Context, id string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteSourceInstance(ctx, r.DB, sid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) ReorderSourceInstances(ctx context.Context, instances []*model.ReorderSourceInput) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	orders := make(map[int64]int)
+	for _, inst := range instances {
+		id, _ := strconv.ParseInt(inst.ID, 10, 64)
+		orders[id] = inst.Order
+	}
+
+	if err := db.ReorderSourceInstances(ctx, r.DB, uid, orders); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) ValidateSourceCredentials(ctx context.Context, input model.ValidateSourceCredentialsInput) (*model.ValidationResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("validateSourceCredentials: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CreateRunner(ctx context.Context, input model.CreateRunnerInput) (*model.Runner, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := db.CreateRunner(ctx, r.DB, uid, input.Name, input.URL, input.APIKey)
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetRunnerByID(ctx, r.DB, id, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return runnerToModel(row), nil
+}
+
+func (r *mutationResolver) UpdateRunner(ctx context.Context, id string, input model.UpdateRunnerInput) (*model.Runner, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.UpdateRunner(ctx, r.DB, rid, uid, input.Name, input.URL, input.APIKey, input.Enabled); err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetRunnerByID(ctx, r.DB, rid, uid)
+	if row == nil {
+		return nil, fmt.Errorf("runner not found")
+	}
+	return runnerToModel(row), nil
+}
+
+func (r *mutationResolver) DeleteRunner(ctx context.Context, id string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteRunner(ctx, r.DB, rid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) GenerateEnrollmentToken(ctx context.Context) (*model.EnrollmentTokenResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("generateEnrollmentToken: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CreateTrackedApp(ctx context.Context, input model.CreateTrackedAppInput) (*model.TrackedApp, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := db.CreateTrackedApp(ctx, r.DB, uid, input.Name, input.ImageName,
+		input.GithubRepo, string(input.SourceType))
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetTrackedAppByID(ctx, r.DB, id, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return trackedAppToModel(row), nil
+}
+
+func (r *mutationResolver) UpdateTrackedApp(ctx context.Context, id string, input model.UpdateTrackedAppInput) (*model.TrackedApp, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tid, _ := strconv.ParseInt(id, 10, 64)
+
+	var sourceType *string
+	if input.SourceType != nil {
+		s := string(*input.SourceType)
+		sourceType = &s
+	}
+
+	if err := db.UpdateTrackedApp(ctx, r.DB, tid, uid, input.Name, input.ImageName,
+		input.GithubRepo, sourceType); err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return trackedAppToModel(row), nil
+}
+
+func (r *mutationResolver) DeleteTrackedApp(ctx context.Context, id string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteTrackedApp(ctx, r.DB, tid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) CheckTrackedAppUpdates(ctx context.Context) (*model.TrackedAppCheckResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("checkTrackedAppUpdates: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CheckTrackedAppUpdate(ctx context.Context, id string) (*model.TrackedAppCheckResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("checkTrackedAppUpdate: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) ClearTrackedAppCache(ctx context.Context) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("clearTrackedAppCache: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateIntentInput) (*model.Intent, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	dryRun := false
+	if input.DryRun != nil {
+		dryRun = *input.DryRun
+	}
+	maxConcurrent := 1
+	if input.MaxConcurrent != nil {
+		maxConcurrent = *input.MaxConcurrent
+	}
+	seqDelay := 0
+	if input.SequentialDelaySec != nil {
+		seqDelay = *input.SequentialDelaySec
+	}
+
+	id, err := db.CreateIntent(ctx, r.DB, uid, input.Name, input.Description, enabled,
+		input.MatchContainers, input.MatchImages, input.MatchSources, input.MatchStacks, input.MatchRegistries,
+		input.ExcludeContainers, input.ExcludeImages, input.ExcludeStacks, input.ExcludeRegistries,
+		string(input.ScheduleType), input.ScheduleCron,
+		maxConcurrent, dryRun, seqDelay)
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetIntentByID(ctx, r.DB, id, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return intentToModel(row), nil
+}
+
+func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input model.UpdateIntentInput) (*model.Intent, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	// Build dynamic update
+	setClauses := []string{}
+	args := []any{}
+
+	if input.Name != nil {
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, *input.Name)
+	}
+	if input.Description != nil {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, *input.Description)
+	}
+	if input.Enabled != nil {
+		v := 0
+		if *input.Enabled {
+			v = 1
+		}
+		setClauses = append(setClauses, "enabled = ?")
+		args = append(args, v)
+	}
+	if input.ScheduleType != nil {
+		setClauses = append(setClauses, "schedule_type = ?")
+		args = append(args, string(*input.ScheduleType))
+	}
+	if input.ScheduleCron != nil {
+		setClauses = append(setClauses, "schedule_cron = ?")
+		args = append(args, *input.ScheduleCron)
+	}
+	if input.MaxConcurrent != nil {
+		setClauses = append(setClauses, "max_concurrent = ?")
+		args = append(args, *input.MaxConcurrent)
+	}
+	if input.DryRun != nil {
+		v := 0
+		if *input.DryRun {
+			v = 1
+		}
+		setClauses = append(setClauses, "dry_run = ?")
+		args = append(args, v)
+	}
+	if input.SequentialDelaySec != nil {
+		setClauses = append(setClauses, "sequential_delay_sec = ?")
+		args = append(args, *input.SequentialDelaySec)
+	}
+
+	if len(setClauses) > 0 {
+		setClauses = append(setClauses, "updated_at = datetime('now')")
+		args = append(args, iid, uid)
+		query := fmt.Sprintf("UPDATE intents SET %s WHERE id = ? AND user_id = ?", joinStr(setClauses, ", "))
+		if _, err := r.DB.ExecContext(ctx, query, args...); err != nil {
+			return nil, err
+		}
+	}
+
+	row, _ := db.GetIntentByID(ctx, r.DB, iid, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return intentToModel(row), nil
+}
+
+func (r *mutationResolver) DeleteIntent(ctx context.Context, id string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteIntent(ctx, r.DB, iid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempotencyKey *string) (*model.IntentExecution, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("triggerIntent: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) UpdateBatchConfig(ctx context.Context, input model.UpdateBatchConfigInput) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.UpdateBatchConfig(ctx, r.DB, uid, string(input.JobType), input.Enabled, input.IntervalMinutes); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.BatchJobType, idempotencyKey *string) (*model.BatchRun, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("triggerBatchJob: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) SetBatchLogLevel(ctx context.Context, logLevel model.LogLevel) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("setBatchLogLevel: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) CreateDiscordWebhook(ctx context.Context, input model.CreateDiscordWebhookInput) (*model.DiscordWebhook, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+
+	id, err := db.CreateDiscordWebhook(ctx, r.DB, uid, input.WebhookURL, input.ServerName, input.ChannelName, enabled)
+	if err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetDiscordWebhookByID(ctx, r.DB, id, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return discordWebhookToModel(row), nil
+}
+
+func (r *mutationResolver) UpdateDiscordWebhook(ctx context.Context, id string, input model.UpdateDiscordWebhookInput) (*model.DiscordWebhook, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.UpdateDiscordWebhook(ctx, r.DB, wid, uid, input.WebhookURL, input.ServerName, input.ChannelName, input.Enabled); err != nil {
+		return nil, err
+	}
+
+	row, _ := db.GetDiscordWebhookByID(ctx, r.DB, wid, uid)
+	if row == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return discordWebhookToModel(row), nil
+}
+
+func (r *mutationResolver) DeleteDiscordWebhook(ctx context.Context, id string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wid, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := db.DeleteDiscordWebhook(ctx, r.DB, wid, uid); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) TestDiscordWebhook(ctx context.Context, id string) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("testDiscordWebhook: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) TestDiscordWebhookURL(ctx context.Context, webhookURL string) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("testDiscordWebhookUrl: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) SaveRepositoryToken(ctx context.Context, input model.CreateRepositoryTokenInput) (*model.RepositoryAccessToken, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("saveRepositoryToken: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) DeleteRepositoryToken(ctx context.Context, id string) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("deleteRepositoryToken: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) AssociateImages(ctx context.Context, tokenID string, input model.AssociateImagesInput) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("associateImages: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) UpdateRegistryCredentials(ctx context.Context, input model.UpdateRegistryCredentialsInput) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("updateRegistryCredentials: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) DeleteRegistryCredentials(ctx context.Context, registry model.Registry) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("deleteRegistryCredentials: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) ValidateRegistryCredentials(ctx context.Context, input model.ValidateRegistryCredentialsInput) (*model.ValidationResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("validateRegistryCredentials: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) UpdateUserPreferences(ctx context.Context, input model.UpdateUserPreferencesInput) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.UpsertUserSettings(ctx, r.DB, uid, input.ColorScheme,
+		input.DisablePortainerPage, input.DisableTrackedAppsPage, input.RefreshingTogglesEnabled); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
+func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("uploadAvatar: not yet implemented in Go backend")
+}
+
+func (r *mutationResolver) DeleteAvatar(ctx context.Context) (*model.SuccessResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("deleteAvatar: not yet implemented in Go backend")
+}
+
+// ---------------------------------------------------------------------------
+// Query resolvers
+// ---------------------------------------------------------------------------
+
+func (r *queryResolver) Health(ctx context.Context) (*model.HealthCheck, error) {
+	return &model.HealthCheck{Status: "ok"}, nil
+}
+
+func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) {
+	return &model.AppVersion{Version: "0.0.0-dev", Environment: "development", IsDevBuild: true}, nil
+}
+
+func (r *queryResolver) LatestRelease(ctx context.Context) (*model.GitHubRelease, error) {
+	return nil, fmt.Errorf("latestRelease: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user, uerr := db.GetUserByID(ctx, r.DB, uid)
+	if uerr != nil {
+		return nil, fmt.Errorf("user lookup: %w", uerr)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found (uid=%d)", uid)
+	}
+	return userRowToModel(user), nil
+}
+
+func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
+	_, err := requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetAllUsers(ctx, r.DB)
+	if err != nil {
+		return nil, err
+	}
+	users := make([]*model.User, len(rows))
+	for i, row := range rows {
+		users[i] = userRowToModel(&row)
+	}
+	return users, nil
+}
+
+func (r *queryResolver) RegistrationCodeRequired(ctx context.Context) (bool, error) {
+	has, _ := db.HasRegistrationCode(ctx, r.DB)
+	return has, nil
+}
+
+func (r *queryResolver) UserExists(ctx context.Context, username string) (bool, error) {
+	exists, _ := db.UserExists(ctx, r.DB, username)
+	return exists, nil
+}
+
+func (r *queryResolver) Containers(ctx context.Context, filter *model.ContainerFilterInput, first *int, after *string) (*model.ContainerConnection, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := 100
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	offset := 0
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+	}
+
+	rows, total, err := db.GetContainersPaginated(ctx, r.DB, uid, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	containers := make([]*model.Container, len(rows))
+	for i, row := range rows {
+		containers[i] = containerRowToModel(&row)
+	}
+
+	return &model.ContainerConnection{
+		Items:      containers,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(containers), total, limit, offset),
+	}, nil
+}
+
+func (r *queryResolver) ContainerGroup(ctx context.Context) (*model.ContainerGroup, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.GetContainers(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	containers := make([]*model.Container, len(rows))
+	for i, row := range rows {
+		containers[i] = containerRowToModel(&row)
+	}
+
+	sources, _ := db.GetAllSourceInstances(ctx, r.DB, uid)
+	runners, _ := db.GetAllRunners(ctx, r.DB, uid)
+
+	sourceModels := make([]*model.SourceInstance, len(sources))
+	for i, s := range sources {
+		sourceModels[i] = sourceInstanceToModel(&s)
+	}
+	runnerModels := make([]*model.Runner, len(runners))
+	for i, rn := range runners {
+		runnerModels[i] = runnerToModel(&rn)
+	}
+
+	return &model.ContainerGroup{
+		Standalone: &model.ContainerConnection{
+			Items:      containers,
+			TotalCount: len(containers),
+			PageInfo:   buildPageInfo(len(containers), len(containers), len(containers), 0),
+		},
+		Sources: sourceModels,
+		Runners: runnerModels,
+		Stats:   &model.SummaryStats{TotalContainers: len(containers), TotalSources: len(sources), TotalRunners: len(runners)},
+	}, nil
+}
+
+func (r *queryResolver) Container(ctx context.Context, id string) (*model.Container, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetContainerByID(ctx, r.DB, cid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("container not found")
+	}
+	return containerRowToModel(row), nil
+}
+
+func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("unusedImages: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) SourceInstances(ctx context.Context) ([]*model.SourceInstance, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetAllSourceInstances(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.SourceInstance, len(rows))
+	for i, row := range rows {
+		result[i] = sourceInstanceToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) SourceInstance(ctx context.Context, id string) (*model.SourceInstance, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("source instance not found")
+	}
+	return sourceInstanceToModel(row), nil
+}
+
+func (r *queryResolver) Runners(ctx context.Context) ([]*model.Runner, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetAllRunners(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Runner, len(rows))
+	for i, row := range rows {
+		result[i] = runnerToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) Runner(ctx context.Context, id string) (*model.Runner, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetRunnerByID(ctx, r.DB, rid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("runner not found")
+	}
+	return runnerToModel(row), nil
+}
+
+func (r *queryResolver) TrackedApps(ctx context.Context) ([]*model.TrackedApp, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetAllTrackedApps(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.TrackedApp, len(rows))
+	for i, row := range rows {
+		result[i] = trackedAppToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) TrackedApp(ctx context.Context, id string) (*model.TrackedApp, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetTrackedAppByID(ctx, r.DB, tid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("tracked app not found")
+	}
+	return trackedAppToModel(row), nil
+}
+
+func (r *queryResolver) Intents(ctx context.Context) ([]*model.Intent, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetIntentsByUser(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Intent, len(rows))
+	for i, row := range rows {
+		result[i] = intentToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) Intent(ctx context.Context, id string) (*model.Intent, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetIntentByID(ctx, r.DB, iid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("intent not found")
+	}
+	return intentToModel(row), nil
+}
+
+func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, first *int, after *string) (*model.IntentExecutionConnection, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("intentExecutions: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.IntentPreview, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("previewIntent: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) BatchConfigs(ctx context.Context) ([]*model.BatchConfig, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetBatchConfigs(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.BatchConfig, len(rows))
+	for i, row := range rows {
+		result[i] = batchConfigToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) BatchRuns(ctx context.Context, jobType *model.BatchJobType, first *int, after *string) (*model.BatchRunConnection, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := 20
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	offset := 0
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+	}
+
+	var jt *string
+	if jobType != nil {
+		s := string(*jobType)
+		jt = &s
+	}
+
+	rows, total, err := db.GetBatchRuns(ctx, r.DB, uid, jt, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*model.BatchRun, len(rows))
+	for i, row := range rows {
+		items[i] = batchRunToModel(&row)
+	}
+
+	return &model.BatchRunConnection{
+		Items:      items,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(items), total, limit, offset),
+	}, nil
+}
+
+func (r *queryResolver) BatchRun(ctx context.Context, id string) (*model.BatchRun, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetBatchRunByID(ctx, r.DB, bid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("batch run not found")
+	}
+	return batchRunToModel(row), nil
+}
+
+func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.UpgradeHistoryFilterInput, first *int, after *string) (*model.UpgradeRecordConnection, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := 50
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	offset := 0
+	if after != nil && *after != "" {
+		offset, _ = strconv.Atoi(*after)
+	}
+
+	rows, total, err := db.GetUpgradeHistory(ctx, r.DB, uid, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*model.UpgradeRecord, len(rows))
+	for i, row := range rows {
+		items[i] = upgradeRecordToModel(&row)
+	}
+
+	return &model.UpgradeRecordConnection{
+		Items:      items,
+		TotalCount: total,
+		PageInfo:   buildPageInfo(len(items), total, limit, offset),
+	}, nil
+}
+
+func (r *queryResolver) DiscordWebhooks(ctx context.Context) ([]*model.DiscordWebhook, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetDiscordWebhooks(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.DiscordWebhook, len(rows))
+	for i, row := range rows {
+		result[i] = discordWebhookToModel(&row)
+	}
+	return result, nil
+}
+
+func (r *queryResolver) DiscordWebhook(ctx context.Context, id string) (*model.DiscordWebhook, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetDiscordWebhookByID(ctx, r.DB, wid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("webhook not found")
+	}
+	return discordWebhookToModel(row), nil
+}
+
+func (r *queryResolver) RepositoryTokens(ctx context.Context) ([]*model.RepositoryAccessToken, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("repositoryTokens: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) RepositoryToken(ctx context.Context, provider string) (*model.RepositoryAccessToken, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("repositoryToken: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) UserPreferences(ctx context.Context) (*model.UserPreferences, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	row, err := db.GetUserSettings(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.UserPreferences{
+		ColorScheme:              row.ColorScheme,
+		DisablePortainerPage:     row.DisablePortainerPage == 1,
+		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
+		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
+	}, nil
+}
+
+func (r *queryResolver) OauthProviders(ctx context.Context) ([]*model.OAuthProvider, error) {
+	return []*model.OAuthProvider{}, nil
+}
+
+func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *string) (*model.LogResult, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("logs: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) Operation(ctx context.Context, id string) (*model.Operation, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("operation: not yet implemented in Go backend")
+}
+
+func (r *queryResolver) SummaryStats(ctx context.Context) (*model.SummaryStats, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalContainers, totalSources, totalRunners, totalTrackedApps int
+	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM containers WHERE user_id = ?", uid).Scan(&totalContainers)
+	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM source_instances WHERE user_id = ?", uid).Scan(&totalSources)
+	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM runners WHERE user_id = ?", uid).Scan(&totalRunners)
+	r.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tracked_apps WHERE user_id = ?", uid).Scan(&totalTrackedApps)
+
+	return &model.SummaryStats{
+		TotalContainers: totalContainers,
+		TotalSources:    totalSources,
+		TotalRunners:    totalRunners,
+		TotalTrackedApps: totalTrackedApps,
+	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Subscription resolvers
+// ---------------------------------------------------------------------------
+
+func (r *subscriptionResolver) ContainersUpdated(ctx context.Context) (<-chan *model.ContainersUpdatedEvent, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.ContainersUpdatedEvent, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (r *subscriptionResolver) ContainerUpgradeProgress(ctx context.Context) (<-chan *model.UpgradeProgressEvent, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.UpgradeProgressEvent, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (r *subscriptionResolver) BatchJobProgress(ctx context.Context) (<-chan *model.BatchRun, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.BatchRun, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (r *subscriptionResolver) IntentExecutionProgress(ctx context.Context) (<-chan *model.IntentExecution, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.IntentExecution, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (r *subscriptionResolver) RunnerStatusChanged(ctx context.Context) (<-chan *model.RunnerStatusEvent, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.RunnerStatusEvent, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (r *subscriptionResolver) OperationProgress(ctx context.Context) (<-chan *model.Operation, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan *model.Operation, 1)
+	<-ctx.Done()
+	return ch, nil
+}
+
+// ---------------------------------------------------------------------------
+// Mutation returns MutationResolver implementation.
+// ---------------------------------------------------------------------------
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
+// Query returns QueryResolver implementation.
+func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
+type (
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
+
+// ---------------------------------------------------------------------------
+// Mapping helpers
+// ---------------------------------------------------------------------------
+
+func userRowToModel(u *db.UserRow) *model.User {
+	if u == nil {
+		return nil
+	}
+	return &model.User{
+		ID:              strconv.FormatInt(u.ID, 10),
+		Username:        u.Username,
+		Role:            model.Role(u.Role),
+		PasswordChanged: u.PasswordChanged == 1,
+		CreatedAt:       parseTime(u.CreatedAt),
+		UpdatedAt:       parseTime(u.UpdatedAt),
+	}
+}
+
+func sourceInstanceToModel(s *db.SourceInstanceRow) *model.SourceInstance {
+	if s == nil {
+		return nil
+	}
+	return &model.SourceInstance{
+		ID:           strconv.FormatInt(s.ID, 10),
+		Name:         s.Name,
+		URL:          s.URL,
+		Type:         model.SourceTypePortainer,
+		AuthType:     model.AuthType(s.AuthType),
+		IPAddress:    nullStrPtr(s.IPAddress),
+		DisplayOrder: s.DisplayOrder,
+		CreatedAt:    parseTime(s.CreatedAt),
+		UpdatedAt:    parseTime(s.UpdatedAt),
+		HasAPIKey:    s.APIKey.Valid && s.APIKey.String != "",
+		HasPassword:  s.Password.Valid && s.Password.String != "",
+	}
+}
+
+func runnerToModel(r *db.RunnerRow) *model.Runner {
+	if r == nil {
+		return nil
+	}
+	return &model.Runner{
+		ID:            strconv.FormatInt(r.ID, 10),
+		Name:          r.Name,
+		URL:           r.URL,
+		Type:          model.SourceTypeRunner,
+		Enabled:       r.Enabled,
+		Version:       nullStrPtr(r.Version),
+		DockerEnabled: r.DockerEnabled.Valid && r.DockerEnabled.Int64 == 1,
+		LastHeartbeat: nullTimePtr(r.LastSeen),
+		HealthStatus:  nullStrPtr(r.DockerStatus),
+		CreatedAt:     parseTime(r.CreatedAt),
+		UpdatedAt:     parseTime(r.UpdatedAt),
+		HasAPIKey:     r.APIKey != "",
+	}
+}
+
+func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {
+	if t == nil {
+		return nil
+	}
+	return &model.TrackedApp{
+		ID:                        strconv.FormatInt(t.ID, 10),
+		Name:                      t.Name,
+		ImageName:                 nullStrPtr(t.ImageName),
+		GithubRepo:                nullStrPtr(t.GithubRepo),
+		SourceType:                model.TrackedAppSourceType(t.SourceType),
+		CurrentVersion:            nullStrPtr(t.CurrentVersion),
+		CurrentDigest:             nullStrPtr(t.CurrentDigest),
+		LatestVersion:             nullStrPtr(t.LatestVersion),
+		LatestDigest:              nullStrPtr(t.LatestDigest),
+		HasUpdate:                 t.HasUpdate == 1,
+		CurrentVersionPublishDate: nullTimePtr(t.CurrentVersionPublishDate),
+		LatestVersionPublishDate:  nullTimePtr(t.LatestVersionPublishDate),
+		LastChecked:               nullTimePtr(t.LastChecked),
+		CreatedAt:                 parseTime(t.CreatedAt),
+		UpdatedAt:                 parseTime(t.UpdatedAt),
+	}
+}
+
+func intentToModel(i *db.IntentRow) *model.Intent {
+	if i == nil {
+		return nil
+	}
+	return &model.Intent{
+		ID:                 strconv.FormatInt(i.ID, 10),
+		Name:               i.Name,
+		Description:        nullStrPtr(i.Description),
+		Enabled:            i.Enabled == 1,
+		MatchContainers:    db.UnmarshalStringArr(i.MatchContainers),
+		MatchImages:        db.UnmarshalStringArr(i.MatchImages),
+		MatchSources:       db.UnmarshalStringArr(i.MatchSources),
+		MatchStacks:        db.UnmarshalStringArr(i.MatchStacks),
+		MatchRegistries:    db.UnmarshalStringArr(i.MatchRegistries),
+		ExcludeContainers:  db.UnmarshalStringArr(i.ExcludeContainers),
+		ExcludeImages:      db.UnmarshalStringArr(i.ExcludeImages),
+		ExcludeStacks:      db.UnmarshalStringArr(i.ExcludeStacks),
+		ExcludeRegistries:  db.UnmarshalStringArr(i.ExcludeRegistries),
+		ScheduleType:       model.IntentScheduleType(i.ScheduleType),
+		ScheduleCron:       nullStrPtr(i.ScheduleCron),
+		MaxConcurrent:      i.MaxConcurrent,
+		DryRun:             i.DryRun == 1,
+		SequentialDelaySec: i.SequentialDelaySec,
+		LastEvaluatedAt:    nullTimePtr(i.LastEvaluatedAt),
+		CreatedAt:          parseTime(i.CreatedAt),
+		UpdatedAt:          parseTime(i.UpdatedAt),
+	}
+}
+
+func batchConfigToModel(b *db.BatchConfigRow) *model.BatchConfig {
+	if b == nil {
+		return nil
+	}
+	return &model.BatchConfig{
+		ID:              strconv.FormatInt(b.ID, 10),
+		JobType:         model.BatchJobType(b.JobType),
+		Enabled:         b.Enabled == 1,
+		IntervalMinutes: b.IntervalMinutes,
+		CreatedAt:       parseTime(b.CreatedAt),
+		UpdatedAt:       parseTime(b.UpdatedAt),
+	}
+}
+
+func batchRunToModel(b *db.BatchRunRow) *model.BatchRun {
+	if b == nil {
+		return nil
+	}
+	return &model.BatchRun{
+		ID:                strconv.FormatInt(b.ID, 10),
+		Status:            model.BatchRunStatus(b.Status),
+		JobType:           model.BatchJobType(b.JobType),
+		QueuedAt:          parseTime(b.StartedAt),
+		StartedAt:         nullTimePtr(sql.NullString{String: b.StartedAt, Valid: b.StartedAt != ""}),
+		CompletedAt:       nullTimePtr(b.CompletedAt),
+		DurationMs:        nullInt64Ptr(b.DurationMs),
+		ContainersChecked: b.ContainersChecked,
+		ContainersUpdated: b.ContainersUpdated,
+		ErrorMessage:      nullStrPtr(b.ErrorMessage),
+		Logs:              nullStrPtr(b.Logs),
+		IsManual:          b.IsManual == 1,
+	}
+}
+
+func upgradeRecordToModel(u *db.UpgradeHistoryRow) *model.UpgradeRecord {
+	if u == nil {
+		return nil
+	}
+	return &model.UpgradeRecord{
+		ID:                strconv.FormatInt(u.ID, 10),
+		DockerContainerID: u.ContainerID,
+		ContainerName:     u.ContainerName,
+		EndpointID:        nullStrPtr(u.EndpointID),
+		SourceURL:         nullStrPtr(u.SourceURL),
+		OldImage:          u.OldImage,
+		NewImage:          u.NewImage,
+		OldDigest:         nullStrPtr(u.OldDigest),
+		NewDigest:         nullStrPtr(u.NewDigest),
+		OldVersion:        nullStrPtr(u.OldVersion),
+		NewVersion:        nullStrPtr(u.NewVersion),
+		ImageRepo:         nullStrPtr(u.ImageRepo),
+		Registry:          nullStrPtr(u.Registry),
+		Namespace:         nullStrPtr(u.Namespace),
+		Repository:        nullStrPtr(u.Repository),
+		Status:            model.UpgradeStatus(u.Status),
+		ErrorMessage:      nullStrPtr(u.ErrorMessage),
+		UpgradeDurationMs: nullInt64ToIntPtr(u.UpgradeDuration),
+		IntentID:          nullInt64StrPtr(u.IntentID),
+		CreatedAt:         parseTime(u.CreatedAt),
+	}
+}
+
+func discordWebhookToModel(d *db.DiscordWebhookRow) *model.DiscordWebhook {
+	if d == nil {
+		return nil
+	}
+	return &model.DiscordWebhook{
+		ID:          strconv.FormatInt(d.ID, 10),
+		MaskedURL:   maskURL(d.WebhookURL),
+		ServerName:  nullStrPtr(d.ServerName),
+		ChannelName: nullStrPtr(d.ChannelName),
+		Enabled:     d.Enabled == 1,
+		AvatarURL:   nullStrPtr(d.AvatarURL),
+		GuildID:     nullStrPtr(d.GuildID),
+		ChannelID:   nullStrPtr(d.ChannelID),
+		CreatedAt:   parseTime(d.CreatedAt),
+		UpdatedAt:   parseTime(d.UpdatedAt),
+	}
+}
+
+func containerRowToModel(c *db.ContainerRow) *model.Container {
+	if c == nil {
+		return nil
+	}
+	state := model.ContainerStateUnknown
+	if c.State.Valid {
+		switch c.State.String {
+		case "running":
+			state = model.ContainerStateRunning
+		case "exited":
+			state = model.ContainerStateExited
+		case "restarting":
+			state = model.ContainerStateRestarting
+		}
+	}
+
+	return &model.Container{
+		ID:                strconv.FormatInt(c.ID, 10),
+		DockerContainerID: c.ContainerID,
+		Name:              c.ContainerName,
+		ImageName:         nullStrDefault(c.ImageName),
+		ImageRepo:         nullStrDefault(c.ImageRepo),
+		Status:            nullStrPtr(c.Status),
+		State:             state,
+		StackName:         nullStrPtr(c.StackName),
+		EndpointID:        nullInt64StrPtr(c.EndpointID),
+		CurrentDigest:     nullStrPtr(c.CurrentDigest),
+		UsesNetworkMode:   c.UsesNetworkMode,
+		ProvidesNetwork:   c.ProvidesNetwork,
+		LastSeen:          parseTime(nullStrDefault(c.LastSeen)),
+		CreatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
+		UpdatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Utility helpers
+// ---------------------------------------------------------------------------
+
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, _ := time.Parse("2006-01-02 15:04:05", s)
+	if t.IsZero() {
+		t, _ = time.Parse(time.RFC3339, s)
+	}
+	return t
+}
+
+func nullStrPtr(s sql.NullString) *string {
+	if !s.Valid {
+		return nil
+	}
+	return &s.String
+}
+
+func nullStrDefault(s sql.NullString) string {
+	if !s.Valid {
+		return ""
+	}
+	return s.String
+}
+
+func nullInt64StrPtr(s sql.NullInt64) *string {
+	if !s.Valid {
+		return nil
+	}
+	str := strconv.FormatInt(s.Int64, 10)
+	return &str
+}
+
+func nullInt64Ptr(s sql.NullInt64) *int {
+	if !s.Valid {
+		return nil
+	}
+	v := int(s.Int64)
+	return &v
+}
+
+func nullInt64ToIntPtr(s sql.NullInt64) *int {
+	if !s.Valid {
+		return nil
+	}
+	v := int(s.Int64)
+	return &v
+}
+
+func nullTimePtr(s sql.NullString) *time.Time {
+	if !s.Valid || s.String == "" {
+		return nil
+	}
+	t := parseTime(s.String)
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func strPtr(s string) *string { return &s }
+
+func buildPageInfo(returned, total, limit, offset int) *model.PageInfo {
+	return &model.PageInfo{
+		HasNextPage:     offset+returned < total,
+		HasPreviousPage: offset > 0,
+		StartCursor:     strPtr(strconv.Itoa(offset)),
+		EndCursor:       strPtr(strconv.Itoa(offset + returned)),
+	}
+}
+
+func maskURL(url string) string {
+	if len(url) <= 10 {
+		return "***"
+	}
+	return url[:20] + "..."
+}
+
+func joinStr(parts []string, sep string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += sep
+		}
+		result += p
+	}
+	return result
+}
+
+// Ensure unused imports don't cause compile errors.
+var _ = json.Marshal
+var _ = http.StatusOK

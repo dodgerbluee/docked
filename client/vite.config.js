@@ -7,6 +7,11 @@ export default defineConfig({
   server: {
     port: 3002,
     proxy: {
+      // GraphQL → Go backend
+      "/graphql": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
       // Route GET /api/containers (with or without query string) to the Go backend.
       // The (\?.*)? allows query params like ?useNewCache=true to still match.
       // Sub-paths like /api/containers/data fall through to the Node.js catch-all below.

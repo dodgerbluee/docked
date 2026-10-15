@@ -1,0 +1,1212 @@
+# =============================================================================
+# Docked — GraphQL Schema (v2)
+# =============================================================================
+# A unified GraphQL API layer over the existing REST backend.
+# Mirrors the SQLite domain model with a richer, composable query surface.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Scalars
+# -----------------------------------------------------------------------------
+
+scalar DateTime
+scalar JSON
+scalar BigInt   # 64-bit integer for byte sizes etc.
+scalar Upload   # graphql-upload multipart file
+
+# -----------------------------------------------------------------------------
+# Enums
+# -----------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum AuthType {
+  PASSWORD
+  APIKEY
+}
+
+enum SourceType {
+  PORTAINER
+  RUNNER
+}
+
+enum ContainerState {
+  RUNNING
+  EXITED
+  RESTARTING
+  CREATED
+  PAUSED
+  DEAD
+  UNKNOWN
+}
+
+enum Registry {
+  DOCKER_HUB
+  GHCR
+  GITLAB
+  GCR
+  QUAY
+  OTHER
+}
+
+enum BatchJobType {
+  DOCKER_HUB_PULL
+  UPGRADE_CONTAINERS
+  CHECK_TRACKED_APPS
+  APP_VERSION_SCAN
+}
+
+enum BatchRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum IntentScheduleType {
+  IMMEDIATE
+  CRON
+}
+
+enum IntentExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum IntentTriggerType {
+  SCHEDULE
+  MANUAL
+  EVALUATION
+}
+
+enum UpgradeStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+# Per-container lifecycle within an intent execution (supports in-flight states)
+enum ExecutionContainerStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+enum TrackedAppSourceType {
+  DOCKER
+  GITHUB
+  GITLAB
+}
+
+enum OAuthProviderType {
+  AUTHENTIK
+  GENERIC_OIDC
+}
+
+enum LogLevel {
+  ERROR
+  WARN
+  INFO
+  DEBUG
+}
+
+enum UpgradePhase {
+  PULLING
+  STOPPING
+  RECREATING
+  STARTING
+  RESTARTING_DEPENDENTS
+  COMPLETED
+  FAILED
+}
+
+enum RunnerStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+}
+
+enum ErrorCode {
+  UNAUTHENTICATED
+  FORBIDDEN
+  NOT_FOUND
+  VALIDATION_ERROR
+  CONFLICT
+  RATE_LIMITED
+  INTERNAL_ERROR
+  REGISTRY_UNAVAILABLE
+  DOCKER_ERROR
+}
+
+# -----------------------------------------------------------------------------
+# Interfaces
+# -----------------------------------------------------------------------------
+
+# Unified interface for anything that hosts Docker containers
+interface ContainerSource {
+  id: ID!
+  name: String!
+  type: SourceType!
+  containers(first: Int, after: String): ContainerConnection!
+}
+
+# -----------------------------------------------------------------------------
+# Core Types
+# -----------------------------------------------------------------------------
+
+type User {
+  id: ID!
+  username: String!
+  role: Role!
+  passwordChanged: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  avatarUrl: String
+
+  # Relations
+  containers(first: Int, after: String): ContainerConnection!
+  trackedApps: [TrackedApp!]!
+  intents: [Intent!]!
+  discordWebhooks: [DiscordWebhook!]!
+  repositoryTokens: [RepositoryAccessToken!]!
+  preferences: UserPreferences!
+
+  # Stats
+  containerCount: Int!
+  sourceInstanceCount: Int!
+  trackedAppCount: Int!
+}
+
+# Auth payload — no success flag; errors are thrown as GraphQL errors
+type AuthPayload {
+  token: String!
+  refreshToken: String!
+  user: User!
+}
+
+type SourceInstance implements ContainerSource {
+  id: ID!
+  name: String!
+  url: String!
+  type: SourceType!
+  authType: AuthType!
+  ipAddress: String
+  displayOrder: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Secrets are never returned — only presence
+  hasApiKey: Boolean!
+  hasPassword: Boolean!
+
+  # Relations
+  containers(first: Int, after: String): ContainerConnection!
+  upgradeHistory(first: Int, after: String): UpgradeRecordConnection!
+}
+
+type Runner implements ContainerSource {
+  id: ID!
+  name: String!
+  url: String!
+  type: SourceType!
+  enabled: Boolean!
+  version: String
+  dockerEnabled: Boolean!
+  lastHeartbeat: DateTime
+  healthStatus: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  hasApiKey: Boolean!
+
+  # Relations
+  containers(first: Int, after: String): ContainerConnection!
+  upgradeHistory(first: Int, after: String): UpgradeRecordConnection!
+  apps: [RunnerApp!]!
+}
+
+type Container {
+  id: ID!
+  dockerContainerId: String!
+  name: String!
+  imageName: String!
+  imageRepo: String!
+  status: String
+  state: ContainerState!
+  stackName: String
+  endpointId: String
+  currentDigest: String
+  imageCreatedDate: DateTime
+  usesNetworkMode: Boolean!
+  providesNetwork: Boolean!
+  lastSeen: DateTime!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Source — exactly one, enforced via interface
+  source: ContainerSource!
+
+  # Image update info (resolved from deployed_images / registry_image_versions)
+  imageInfo: ImageVersionInfo
+
+  # Relations
+  upgradeHistory(first: Int, after: String): UpgradeRecordConnection!
+}
+
+type ImageVersionInfo {
+  registry: Registry!
+  namespace: String
+  repository: String!
+  currentTag: String
+  currentVersion: String
+  currentDigest: String
+  latestTag: String
+  latestVersion: String
+  latestDigest: String
+  hasUpdate: Boolean!
+  latestPublishDate: DateTime
+  currentVersionPublishDate: DateTime
+  lastChecked: DateTime!
+}
+
+type UpgradeRecord {
+  id: ID!
+  dockerContainerId: String!
+  containerName: String!
+  endpointId: String
+  source: ContainerSource
+  sourceUrl: String
+
+  oldImage: String!
+  newImage: String!
+  oldDigest: String
+  newDigest: String
+  oldVersion: String
+  newVersion: String
+
+  imageRepo: String
+  registry: String
+  namespace: String
+  repository: String
+
+  status: UpgradeStatus!
+  errorMessage: String
+  upgradeDurationMs: Int
+  intentId: ID
+  intent: Intent
+  performedBy: User
+  createdAt: DateTime!
+}
+
+type TrackedApp {
+  id: ID!
+  name: String!
+  imageName: String
+  githubRepo: String
+  gitlabRepo: String
+  sourceType: TrackedAppSourceType!
+  currentVersion: String
+  currentDigest: String
+  latestVersion: String
+  latestDigest: String
+  hasUpdate: Boolean!
+  currentVersionPublishDate: DateTime
+  latestVersionPublishDate: DateTime
+  lastChecked: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  upgradeHistory(first: Int, after: String): TrackedAppUpgradeRecordConnection!
+}
+
+type TrackedAppUpgradeRecord {
+  id: ID!
+  trackedAppId: ID!
+  oldVersion: String
+  newVersion: String
+  oldDigest: String
+  newDigest: String
+  status: UpgradeStatus!
+  performedBy: User
+  createdAt: DateTime!
+}
+
+# -----------------------------------------------------------------------------
+# Intents (Declarative Auto-Upgrade Policies)
+# -----------------------------------------------------------------------------
+# Match semantics:
+#   - null/omitted = no filter (matches all)
+#   - [] (empty array) = matches nothing
+#   - non-empty array = OR within field, AND across fields
+#   - exclusions are applied after inclusions
+#   - matchSources uses typed IDs: "portainer:<id>", "runner:<id>"
+#   - scheduleCron uses the intent's scheduleTimezone (IANA), defaults to server TZ
+
+type Intent {
+  id: ID!
+  name: String!
+  description: String
+  enabled: Boolean!
+
+  # Match criteria (glob patterns)
+  matchContainers: [String!]
+  matchImages: [String!]
+  matchSources: [String!]
+  matchStacks: [String!]
+  matchRegistries: [String!]
+
+  # Exclusion criteria
+  excludeContainers: [String!]
+  excludeImages: [String!]
+  excludeStacks: [String!]
+  excludeRegistries: [String!]
+
+  # Schedule
+  scheduleType: IntentScheduleType!
+  scheduleCron: String
+  scheduleTimezone: String  # IANA timezone, e.g. "America/Chicago". Defaults to server TZ.
+
+  # Execution config
+  maxConcurrent: Int!
+  dryRun: Boolean!
+  sequentialDelaySec: Int!
+
+  # State
+  lastEvaluatedAt: DateTime
+  lastExecution: IntentExecution
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  executions(first: Int, after: String): IntentExecutionConnection!
+}
+
+# Preview result returned by previewIntent query
+type IntentPreview {
+  intentId: ID!
+  matchedContainers(first: Int, after: String): ContainerConnection!
+  matchedCount: Int!
+  excludedCount: Int!
+}
+
+type IntentExecution {
+  id: ID!
+  intentId: ID!
+  intent: Intent
+  status: IntentExecutionStatus!
+  triggerType: IntentTriggerType!
+  containersMatched: Int!
+  containersUpgraded: Int!
+  containersFailed: Int!
+  containersSkipped: Int!
+  errorMessage: String
+  queuedAt: DateTime!
+  startedAt: DateTime
+  completedAt: DateTime
+  durationMs: Int
+  performedBy: User
+
+  containers(first: Int, after: String): IntentExecutionContainerConnection!
+}
+
+type IntentExecutionContainer {
+  id: ID!
+  executionId: ID!
+  execution: IntentExecution
+  dockerContainerId: String!
+  containerName: String!
+  imageName: String!
+  sourceInstanceId: ID
+  sourceInstance: SourceInstance
+  runnerId: ID
+  runner: Runner
+  status: ExecutionContainerStatus!
+  oldImage: String
+  newImage: String
+  oldDigest: String
+  newDigest: String
+  errorMessage: String
+  durationMs: Int
+  createdAt: DateTime!
+}
+
+# -----------------------------------------------------------------------------
+# Batch System
+# -----------------------------------------------------------------------------
+
+type BatchConfig {
+  id: ID!
+  jobType: BatchJobType!
+  enabled: Boolean!
+  intervalMinutes: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type BatchRun {
+  id: ID!
+  status: BatchRunStatus!
+  jobType: BatchJobType!
+  queuedAt: DateTime!
+  startedAt: DateTime
+  completedAt: DateTime
+  durationMs: Int
+  containersChecked: Int!
+  containersUpdated: Int!
+  errorMessage: String
+  logs: String
+  isManual: Boolean!
+  performedBy: User
+}
+
+# -----------------------------------------------------------------------------
+# Discord Notifications
+# -----------------------------------------------------------------------------
+
+type DiscordWebhook {
+  id: ID!
+  maskedUrl: String!
+  serverName: String
+  channelName: String
+  enabled: Boolean!
+  avatarUrl: String
+  guildId: String
+  channelId: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# -----------------------------------------------------------------------------
+# Repository Access Tokens
+# -----------------------------------------------------------------------------
+
+type RepositoryAccessToken {
+  id: ID!
+  provider: String!
+  maskedToken: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  associatedImages: [AssociatedImage!]!
+}
+
+type AssociatedImage {
+  imageRepo: String!
+  associated: Boolean!
+}
+
+# -----------------------------------------------------------------------------
+# Runner Apps (dockhand agent operations)
+# -----------------------------------------------------------------------------
+
+type RunnerApp {
+  name: String!
+  description: String
+  currentVersion: String
+  versionCommand: String
+  versionSource: String
+  systemUpdateCheck: Boolean
+  systemUpdates: Int
+  packageManager: String
+  operations: [RunnerOperation!]!
+}
+
+type RunnerOperation {
+  name: String!
+  description: String
+}
+
+# -----------------------------------------------------------------------------
+# OAuth / SSO
+# -----------------------------------------------------------------------------
+
+type OAuthProvider {
+  id: ID!
+  name: String!
+  type: OAuthProviderType!
+  enabled: Boolean!
+  issuerUrl: String
+  clientId: String
+  scopes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# -----------------------------------------------------------------------------
+# Settings (allowlisted — no generic key/value exposure)
+# -----------------------------------------------------------------------------
+
+type UserPreferences {
+  colorScheme: String!
+  disablePortainerPage: Boolean!
+  disableTrackedAppsPage: Boolean!
+  refreshingTogglesEnabled: Boolean!
+}
+
+# -----------------------------------------------------------------------------
+# Docker Images
+# -----------------------------------------------------------------------------
+
+type DockerImage {
+  id: String!
+  repoTags: [String!]!
+  sizeBytes: BigInt!
+  created: DateTime!
+  sourceUrl: String!
+  endpointId: String!
+}
+
+# -----------------------------------------------------------------------------
+# Summary / Stats
+# -----------------------------------------------------------------------------
+
+type SummaryStats {
+  totalContainers: Int!
+  containersWithUpdates: Int!
+  totalSources: Int!
+  totalRunners: Int!
+  totalTrackedApps: Int!
+  trackedAppsWithUpdates: Int!
+  unusedImagesCount: Int!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type ContainerConnection {
+  items: [Container!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type UpgradeRecordConnection {
+  items: [UpgradeRecord!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TrackedAppUpgradeRecordConnection {
+  items: [TrackedAppUpgradeRecord!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type IntentExecutionConnection {
+  items: [IntentExecution!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type IntentExecutionContainerConnection {
+  items: [IntentExecutionContainer!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type BatchRunConnection {
+  items: [BatchRun!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+# -----------------------------------------------------------------------------
+# Container Grouping (mirrors the REST grouped response)
+# -----------------------------------------------------------------------------
+
+type ContainerGroup {
+  stacks: [StackGroup!]!
+  standalone(first: Int, after: String): ContainerConnection!
+  sources: [SourceInstance!]!
+  runners: [Runner!]!
+  unusedImagesCount: Int!
+  stats: SummaryStats!
+}
+
+type StackGroup {
+  id: ID!
+  name: String!
+  source: ContainerSource!
+  endpointId: String
+  containers(first: Int, after: String): ContainerConnection!
+}
+
+# -----------------------------------------------------------------------------
+# Long-Running Operations
+# -----------------------------------------------------------------------------
+
+type Operation {
+  id: ID!
+  type: OperationType!
+  status: OperationStatus!
+  progress: Int
+  message: String
+  queuedAt: DateTime!
+  startedAt: DateTime
+  completedAt: DateTime
+  result: OperationResult
+  errorCode: ErrorCode
+}
+
+union OperationResult = IntentExecution | BatchRun | BatchUpgradeResult | UpgradeResult
+
+enum OperationType {
+  PULL_CONTAINERS
+  UPGRADE_CONTAINER
+  BATCH_UPGRADE
+  INTENT_EXECUTION
+  BATCH_JOB
+}
+
+enum OperationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+# -----------------------------------------------------------------------------
+# Input Types
+# -----------------------------------------------------------------------------
+
+input LoginInput {
+  username: String!
+  password: String!
+}
+
+input RegisterInput {
+  username: String!
+  password: String!
+  registrationCode: String
+}
+
+input RefreshTokenInput {
+  refreshToken: String!
+}
+
+input UpdatePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input UpdateUsernameInput {
+  newUsername: String!
+}
+
+input CreateSourceInstanceInput {
+  name: String!
+  url: String!
+  authType: AuthType!
+  apiKey: String
+  username: String
+  password: String
+  ipAddress: String
+}
+
+input UpdateSourceInstanceInput {
+  name: String
+  url: String
+  authType: AuthType
+  apiKey: String
+  username: String
+  password: String
+  ipAddress: String
+}
+
+input ValidateSourceCredentialsInput {
+  url: String!
+  authType: AuthType!
+  apiKey: String
+  username: String
+  password: String
+}
+
+input ReorderSourceInput {
+  id: ID!
+  order: Int!
+}
+
+input CreateRunnerInput {
+  name: String!
+  url: String!
+  apiKey: String!
+}
+
+input UpdateRunnerInput {
+  name: String
+  url: String
+  apiKey: String
+  enabled: Boolean
+}
+
+# Exactly one of sourceInstanceId or runnerId must be provided (enforced in resolvers)
+input UpgradeContainerInput {
+  dockerContainerId: String!
+  sourceInstanceId: ID
+  runnerId: ID
+  endpointId: String
+  imageName: String!
+  idempotencyKey: String
+}
+
+input BatchUpgradeInput {
+  containers: [UpgradeContainerInput!]!
+  idempotencyKey: String
+}
+
+input CreateTrackedAppInput {
+  name: String!
+  imageName: String
+  githubRepo: String
+  gitlabRepo: String
+  sourceType: TrackedAppSourceType!
+}
+
+input UpdateTrackedAppInput {
+  name: String
+  imageName: String
+  githubRepo: String
+  gitlabRepo: String
+  sourceType: TrackedAppSourceType
+}
+
+input CreateIntentInput {
+  name: String!
+  description: String
+  enabled: Boolean
+  matchContainers: [String!]
+  matchImages: [String!]
+  matchSources: [String!]
+  matchStacks: [String!]
+  matchRegistries: [String!]
+  excludeContainers: [String!]
+  excludeImages: [String!]
+  excludeStacks: [String!]
+  excludeRegistries: [String!]
+  scheduleType: IntentScheduleType!
+  scheduleCron: String
+  scheduleTimezone: String
+  maxConcurrent: Int
+  dryRun: Boolean
+  sequentialDelaySec: Int
+}
+
+input UpdateIntentInput {
+  name: String
+  description: String
+  enabled: Boolean
+  matchContainers: [String!]
+  matchImages: [String!]
+  matchSources: [String!]
+  matchStacks: [String!]
+  matchRegistries: [String!]
+  excludeContainers: [String!]
+  excludeImages: [String!]
+  excludeStacks: [String!]
+  excludeRegistries: [String!]
+  scheduleType: IntentScheduleType
+  scheduleCron: String
+  scheduleTimezone: String
+  maxConcurrent: Int
+  dryRun: Boolean
+  sequentialDelaySec: Int
+}
+
+input UpdateBatchConfigInput {
+  jobType: BatchJobType!
+  enabled: Boolean!
+  intervalMinutes: Int!
+}
+
+input CreateDiscordWebhookInput {
+  webhookUrl: String!
+  serverName: String
+  channelName: String
+  enabled: Boolean
+}
+
+input UpdateDiscordWebhookInput {
+  webhookUrl: String
+  serverName: String
+  channelName: String
+  enabled: Boolean
+}
+
+input CreateRepositoryTokenInput {
+  provider: String!
+  token: String!
+}
+
+input AssociateImagesInput {
+  imageRepos: [String!]!
+}
+
+input UpdateRegistryCredentialsInput {
+  registry: Registry!
+  username: String!
+  token: String!
+}
+
+input ValidateRegistryCredentialsInput {
+  registry: Registry!
+  username: String!
+  token: String!
+}
+
+input UpdateUserPreferencesInput {
+  colorScheme: String
+  disablePortainerPage: Boolean
+  disableTrackedAppsPage: Boolean
+  refreshingTogglesEnabled: Boolean
+}
+
+input ContainerFilterInput {
+  sourceInstanceId: ID
+  runnerId: ID
+  state: ContainerState
+  hasUpdate: Boolean
+  stackName: String
+  imageName: String
+  search: String
+}
+
+input UpgradeHistoryFilterInput {
+  containerName: String
+  status: UpgradeStatus
+  intentId: ID
+  sourceInstanceId: ID
+  runnerId: ID
+  from: DateTime
+  to: DateTime
+}
+
+input DeleteImageInput {
+  imageId: String!
+  sourceInstanceId: ID
+  runnerId: ID
+  endpointId: String
+  idempotencyKey: String
+}
+
+# -----------------------------------------------------------------------------
+# Query Root
+# -----------------------------------------------------------------------------
+
+type Query {
+  # ── Health & Version ──────────────────────────────────────────────────────
+  health: HealthCheck!
+  version: AppVersion!
+  latestRelease: GitHubRelease
+
+  # ── Auth / User ───────────────────────────────────────────────────────────
+  me: User!
+  users: [User!]!                          # admin only
+  registrationCodeRequired: Boolean!
+  userExists(username: String!): Boolean!
+
+  # ── Containers ────────────────────────────────────────────────────────────
+  containers(
+    filter: ContainerFilterInput
+    first: Int
+    after: String
+  ): ContainerConnection!
+
+  # Grouped view (stacks + standalone) — mirrors the main dashboard
+  containerGroup: ContainerGroup!
+
+  # Single container by canonical ID (source/endpoint resolved server-side)
+  container(id: ID!): Container
+
+  # ── Images ────────────────────────────────────────────────────────────────
+  unusedImages: [DockerImage!]!
+
+  # ── Sources (Portainer instances) ─────────────────────────────────────────
+  sourceInstances: [SourceInstance!]!
+  sourceInstance(id: ID!): SourceInstance
+
+  # ── Runners (dockhand agents) ─────────────────────────────────────────────
+  runners: [Runner!]!
+  runner(id: ID!): Runner
+
+  # ── Tracked Apps ──────────────────────────────────────────────────────────
+  trackedApps: [TrackedApp!]!
+  trackedApp(id: ID!): TrackedApp
+
+  # ── Intents ───────────────────────────────────────────────────────────────
+  intents: [Intent!]!
+  intent(id: ID!): Intent
+  intentExecutions(
+    intentId: ID
+    first: Int
+    after: String
+  ): IntentExecutionConnection!
+
+  # Preview which containers an intent would match (dry-run, no side effects)
+  previewIntent(id: ID!): IntentPreview!
+
+  # ── Batch System ──────────────────────────────────────────────────────────
+  batchConfigs: [BatchConfig!]!
+  batchRuns(
+    jobType: BatchJobType
+    first: Int
+    after: String
+  ): BatchRunConnection!
+  batchRun(id: ID!): BatchRun
+
+  # ── Upgrade History ───────────────────────────────────────────────────────
+  upgradeHistory(
+    filter: UpgradeHistoryFilterInput
+    first: Int
+    after: String
+  ): UpgradeRecordConnection!
+
+  # ── Discord ───────────────────────────────────────────────────────────────
+  discordWebhooks: [DiscordWebhook!]!
+  discordWebhook(id: ID!): DiscordWebhook
+
+  # ── Repository Tokens ─────────────────────────────────────────────────────
+  repositoryTokens: [RepositoryAccessToken!]!
+  repositoryToken(provider: String!): RepositoryAccessToken
+
+  # ── Settings ──────────────────────────────────────────────────────────────
+  userPreferences: UserPreferences!
+
+  # ── OAuth / SSO ───────────────────────────────────────────────────────────
+  oauthProviders: [OAuthProvider!]!
+
+  # ── Logs ──────────────────────────────────────────────────────────────────
+  logs(lines: Int, since: Int, file: String): LogResult!
+
+  # ── Operations (long-running task tracking) ───────────────────────────────
+  operation(id: ID!): Operation
+
+  # ── Summary ───────────────────────────────────────────────────────────────
+  summaryStats: SummaryStats!
+}
+
+type HealthCheck {
+  status: String!
+}
+
+type AppVersion {
+  version: String!
+  environment: String!
+  isDevBuild: Boolean!
+}
+
+type GitHubRelease {
+  tagName: String!
+  publishedAt: DateTime!
+  htmlUrl: String!
+}
+
+type LogResult {
+  logs: String!
+  totalLines: Int!
+  returnedLines: Int!
+  newLines: Int!
+}
+
+# -----------------------------------------------------------------------------
+# Mutation Root
+# -----------------------------------------------------------------------------
+
+type Mutation {
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  login(input: LoginInput!): AuthPayload!
+  register(input: RegisterInput!): AuthPayload!
+  refreshToken(input: RefreshTokenInput!): AuthPayload!
+  logout: SuccessResult!
+  updatePassword(input: UpdatePasswordInput!): SuccessResult!
+  updateUsername(input: UpdateUsernameInput!): SuccessResult!
+
+  # Admin user management
+  setUserPassword(userId: ID!, newPassword: String!): SuccessResult!
+  setUserRole(userId: ID!, role: Role!): SuccessResult!
+
+  # ── Containers ────────────────────────────────────────────────────────────
+  # Returns an Operation for tracking long-running pull
+  pullContainers(sourceInstanceId: ID, runnerId: ID): Operation!
+  upgradeContainer(input: UpgradeContainerInput!): Operation!
+  batchUpgrade(input: BatchUpgradeInput!): Operation!
+  clearContainerData: SuccessResult!
+
+  # ── Images ────────────────────────────────────────────────────────────────
+  deleteImages(images: [DeleteImageInput!]!): DeleteImagesResult!
+
+  # ── Sources ───────────────────────────────────────────────────────────────
+  createSourceInstance(input: CreateSourceInstanceInput!): SourceInstance!
+  updateSourceInstance(id: ID!, input: UpdateSourceInstanceInput!): SourceInstance!
+  deleteSourceInstance(id: ID!): SuccessResult!
+  reorderSourceInstances(instances: [ReorderSourceInput!]!): SuccessResult!
+  validateSourceCredentials(input: ValidateSourceCredentialsInput!): ValidationResult!
+
+  # ── Runners ───────────────────────────────────────────────────────────────
+  createRunner(input: CreateRunnerInput!): Runner!
+  updateRunner(id: ID!, input: UpdateRunnerInput!): Runner!
+  deleteRunner(id: ID!): SuccessResult!
+  generateEnrollmentToken: EnrollmentTokenResult!
+
+  # ── Tracked Apps ──────────────────────────────────────────────────────────
+  createTrackedApp(input: CreateTrackedAppInput!): TrackedApp!
+  updateTrackedApp(id: ID!, input: UpdateTrackedAppInput!): TrackedApp!
+  deleteTrackedApp(id: ID!): SuccessResult!
+  checkTrackedAppUpdates: TrackedAppCheckResult!
+  checkTrackedAppUpdate(id: ID!): TrackedAppCheckResult!
+  clearTrackedAppCache: SuccessResult!
+
+  # ── Intents ───────────────────────────────────────────────────────────────
+  createIntent(input: CreateIntentInput!): Intent!
+  updateIntent(id: ID!, input: UpdateIntentInput!): Intent!
+  deleteIntent(id: ID!): SuccessResult!
+  triggerIntent(id: ID!, idempotencyKey: String): IntentExecution!
+
+  # ── Batch System ──────────────────────────────────────────────────────────
+  updateBatchConfig(input: UpdateBatchConfigInput!): SuccessResult!
+  triggerBatchJob(jobType: BatchJobType, idempotencyKey: String): BatchRun!
+  setBatchLogLevel(logLevel: LogLevel!): SuccessResult!
+
+  # ── Discord ───────────────────────────────────────────────────────────────
+  createDiscordWebhook(input: CreateDiscordWebhookInput!): DiscordWebhook!
+  updateDiscordWebhook(id: ID!, input: UpdateDiscordWebhookInput!): DiscordWebhook!
+  deleteDiscordWebhook(id: ID!): SuccessResult!
+  testDiscordWebhook(id: ID!): SuccessResult!
+  testDiscordWebhookUrl(webhookUrl: String!): SuccessResult!
+
+  # ── Repository Tokens ─────────────────────────────────────────────────────
+  saveRepositoryToken(input: CreateRepositoryTokenInput!): RepositoryAccessToken!
+  deleteRepositoryToken(id: ID!): SuccessResult!
+  associateImages(tokenId: ID!, input: AssociateImagesInput!): SuccessResult!
+
+  # ── Registry Credentials ──────────────────────────────────────────────────
+  updateRegistryCredentials(input: UpdateRegistryCredentialsInput!): SuccessResult!
+  deleteRegistryCredentials(registry: Registry!): SuccessResult!
+  validateRegistryCredentials(input: ValidateRegistryCredentialsInput!): ValidationResult!
+
+  # ── Settings ──────────────────────────────────────────────────────────────
+  updateUserPreferences(input: UpdateUserPreferencesInput!): SuccessResult!
+
+  # ── Avatars ───────────────────────────────────────────────────────────────
+  uploadAvatar(file: Upload!): SuccessResult!
+  deleteAvatar: SuccessResult!
+}
+
+# -----------------------------------------------------------------------------
+# Mutation Result Types
+# -----------------------------------------------------------------------------
+
+type SuccessResult {
+  success: Boolean!
+  message: String
+  errorCode: ErrorCode
+}
+
+type ValidationResult {
+  valid: Boolean!
+  message: String
+  errorCode: ErrorCode
+}
+
+type UpgradeResult {
+  success: Boolean!
+  message: String
+  dockerContainerId: String!
+  errorCode: ErrorCode
+}
+
+type BatchUpgradeResult {
+  success: Boolean!
+  upgraded: Int!
+  failed: Int!
+  results: [UpgradeResult!]!
+}
+
+type DeleteImagesResult {
+  success: Boolean!
+  deleted: Int!
+  failed: Int!
+  results: [DeleteImageResult!]!
+}
+
+type DeleteImageResult {
+  imageId: String!
+  success: Boolean!
+  errorCode: ErrorCode
+}
+
+type EnrollmentTokenResult {
+  token: String!
+  expiresAt: DateTime!
+}
+
+type TrackedAppCheckResult {
+  success: Boolean!
+  checked: Int
+  updated: Int
+  hasUpdate: Boolean
+  currentVersion: String
+  latestVersion: String
+}
+
+# -----------------------------------------------------------------------------
+# Subscriptions (real-time updates via WebSocket)
+# -----------------------------------------------------------------------------
+# All subscriptions derive the user scope from the authenticated connection.
+# No userId argument is accepted.
+
+type Subscription {
+  # Fires when container data is refreshed (pull) — scoped invalidation
+  containersUpdated: ContainersUpdatedEvent!
+
+  # Fires when a container upgrade progresses
+  containerUpgradeProgress: UpgradeProgressEvent!
+
+  # Fires when a batch job starts/progresses/completes
+  batchJobProgress: BatchRun!
+
+  # Fires when an intent execution starts/progresses/completes
+  intentExecutionProgress: IntentExecution!
+
+  # Fires when a runner connects/disconnects
+  runnerStatusChanged: RunnerStatusEvent!
+
+  # Fires for any long-running operation status change
+  operationProgress: Operation!
+}
+
+type ContainersUpdatedEvent {
+  sourceIds: [ID!]!
+  containerCount: Int!
+  stats: SummaryStats!
+}
+
+type UpgradeProgressEvent {
+  operationId: ID!
+  dockerContainerId: String!
+  containerName: String!
+  sourceType: SourceType!
+  sourceName: String!
+  phase: UpgradePhase!
+  message: String
+  progress: Int
+}
+
+type RunnerStatusEvent {
+  runnerId: ID!
+  runnerName: String!
+  status: RunnerStatus!
+  lastHeartbeat: DateTime
+}

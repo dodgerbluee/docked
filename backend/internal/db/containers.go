@@ -9,6 +9,7 @@ import (
 // ContainerRow is the raw data read from the database JOIN query.
 // It maps 1:1 with query columns and is intentionally not the API shape.
 type ContainerRow struct {
+	ID              int64
 	ContainerID     string
 	ContainerName   string
 	ImageName       sql.NullString
@@ -49,6 +50,7 @@ type ContainerRow struct {
 // (@sha256 suffix) to match deployed_images against registry_image_versions.
 const containersQuery = `
 SELECT
+    c.id,
     c.container_id,
     c.container_name,
     c.image_name,
@@ -154,6 +156,7 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 	)
 
 	err := rows.Scan(
+		&row.ID,
 		&row.ContainerID,
 		&row.ContainerName,
 		&row.ImageName,
@@ -191,4 +194,58 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 	row.NoDigest = noDigest == 1
 
 	return row, nil
+}
+
+// GetContainersPaginated returns a page of containers for the given user.
+func GetContainersPaginated(ctx context.Context, database *sql.DB, userID int64, limit, offset int) ([]ContainerRow, int, error) {
+	var total int
+	err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM containers WHERE user_id = ?", userID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count containers: %w", err)
+	}
+
+	query := containersQuery + " LIMIT ? OFFSET ?"
+	rows, err := database.QueryContext(ctx, query, userID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query containers paginated: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ContainerRow
+	for rows.Next() {
+		row, err := scanRow(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan container row: %w", err)
+		}
+		result = append(result, row)
+	}
+	return result, total, rows.Err()
+}
+
+// GetContainerByID returns a single container by primary key, scoped to user.
+func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (*ContainerRow, error) {
+	query := containersQuery + " AND c.id = ?"
+	row := database.QueryRowContext(ctx, query, userID, id)
+
+	var r ContainerRow
+	var usesNetworkMode, providesNetwork, noDigest int
+	err := row.Scan(
+		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
+		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
+		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
+		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests,
+		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
+		&r.Provider, &r.LastChecked, &noDigest,
+		&r.SourceName, &r.SourceURL, &r.RunnerName, &r.RunnerURL,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get container by id: %w", err)
+	}
+	r.UsesNetworkMode = usesNetworkMode == 1
+	r.ProvidesNetwork = providesNetwork == 1
+	r.NoDigest = noDigest == 1
+	return &r, nil
 }
