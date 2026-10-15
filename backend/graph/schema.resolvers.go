@@ -109,16 +109,28 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
-	// Check if registration code is required
+	// Node keeps its first-user registration code in process memory, which the
+	// standalone Go process cannot validate. Fail closed on an empty database
+	// unless an operator explicitly configured a shared DB-backed code; otherwise
+	// Go would provide an unauthenticated bypass around Node's bootstrap gate.
+	userCount, err := db.GetUserCount(ctx, r.DB)
+	if err != nil {
+		return nil, fmt.Errorf("check registration: %w", err)
+	}
 	hasCode, err := db.HasRegistrationCode(ctx, r.DB)
 	if err != nil {
 		return nil, fmt.Errorf("check registration: %w", err)
 	}
+	if userCount == 0 && !hasCode {
+		return nil, fmt.Errorf("first-user registration must be completed through the primary server or with a shared registration code")
+	}
+	var sharedCode *string
 	if hasCode {
 		code, _ := db.GetRegistrationCode(ctx, r.DB)
-		if code != nil && (input.RegistrationCode == nil || *input.RegistrationCode != *code) {
+		if code == nil || input.RegistrationCode == nil || !registrationCodesEqual(*input.RegistrationCode, *code) {
 			return nil, fmt.Errorf("invalid registration code")
 		}
+		sharedCode = code
 	}
 
 	// Check username uniqueness
@@ -141,7 +153,13 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 	// first-registrations cannot both be minted Administrator. Role strings
 	// match the Node-owned domain ("Administrator"/"Member") so both backends
 	// and the GraphQL enum agree.
-	id, role, _, err := db.RegisterUser(ctx, r.DB, input.Username, hash)
+	var id int64
+	var role string
+	if userCount == 0 && sharedCode != nil {
+		id, role, _, err = db.RegisterUserWithCode(ctx, r.DB, input.Username, hash, *sharedCode)
+	} else {
+		id, role, _, err = db.RegisterUser(ctx, r.DB, input.Username, hash)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
@@ -310,9 +328,26 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		return nil, err
 	}
 
-	// Look up the container in DB
-	cid, _ := strconv.ParseInt(input.DockerContainerID, 10, 64)
-	container, err := db.GetContainerByID(ctx, r.DB, cid, uid)
+	// Docker ids are scoped to a backend. Requiring exactly one backend identity
+	// prevents selecting a same-id container on a different runner/instance.
+	if (input.RunnerID == nil) == (input.SourceInstanceID == nil) {
+		return nil, fmt.Errorf("exactly one of runnerId or sourceInstanceId is required")
+	}
+	var runnerID, sourceID *int64
+	if input.RunnerID != nil {
+		parsed, err := strconv.ParseInt(*input.RunnerID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid runnerId")
+		}
+		runnerID = &parsed
+	} else {
+		parsed, err := strconv.ParseInt(*input.SourceInstanceID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid sourceInstanceId")
+		}
+		sourceID = &parsed
+	}
+	container, err := db.GetContainerByDockerID(ctx, r.DB, uid, input.DockerContainerID, runnerID, sourceID)
 	if err != nil || container == nil {
 		return nil, fmt.Errorf("container not found")
 	}
@@ -326,18 +361,26 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		}
 		runnerURL, runnerKey = runner.URL, runner.APIKey
 	} else if container.SourceInstanceID.Valid {
-		src, _ := db.GetSourceInstanceByID(ctx, r.DB, container.SourceInstanceID.Int64, uid)
-		if src == nil {
-			return nil, fmt.Errorf("source instance not found for container")
-		}
-		runnerURL, runnerKey = src.URL, src.APIKey.String
+		return nil, fmt.Errorf("Portainer-backed upgrades are not supported by the Go API; use the primary server")
 	}
-
 	opID := "upgrade-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
+	targetKey := containerTargetKey(container.ContainerID, runnerID, nil)
+	locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, opID)
+	if err != nil {
+		return nil, fmt.Errorf("acquire upgrade lock: %w", err)
+	}
+	if !locked {
+		return nil, fmt.Errorf("upgrade already in progress for container")
+	}
+	if err := claimIdempotency(ctx, r.DB, uid, "upgrade-container", input.IdempotencyKey); err != nil {
+		_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, opID)
+		return nil, err
+	}
 
 	// Fire-and-forget upgrade via runner. Matches the Node runner contract:
 	// POST /containers/{id}/upgrade (SSE), not a JSON-body endpoint.
 	go func() {
+		defer db.ReleaseUpgradeLock(context.Background(), r.DB, targetKey, opID)
 		if runnerURL != "" {
 			_ = runnerUpgrade(runnerURL, runnerKey, container.ContainerID)
 		}
@@ -365,6 +408,17 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 	if input.Containers != nil && len(input.Containers) == 0 {
 		return nil, fmt.Errorf("no containers selected for batch upgrade")
 	}
+	for _, target := range input.Containers {
+		if (target.RunnerID == nil) == (target.SourceInstanceID == nil) {
+			return nil, fmt.Errorf("each container requires exactly one of runnerId or sourceInstanceId")
+		}
+		if target.SourceInstanceID != nil {
+			return nil, fmt.Errorf("Portainer-backed upgrades are not supported by the Go API; use the primary server")
+		}
+	}
+	if err := claimIdempotency(ctx, r.DB, uid, "batch-upgrade", input.IdempotencyKey); err != nil {
+		return nil, err
+	}
 
 	// Create a batch run record. job_type must be a valid BatchJobType DB value
 	// ("upgrade-containers"); "batch-upgrade" was not a member and surfaced as
@@ -389,13 +443,30 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 		// Build set of target container IDs if specified
 		targetIDs := make(map[string]bool)
 		if input.Containers != nil {
-			for _, c := range input.Containers {
-				targetIDs[c.DockerContainerID] = true
+			for _, target := range input.Containers {
+				var runnerID, sourceID *int64
+				if target.RunnerID != nil {
+					if parsed, err := strconv.ParseInt(*target.RunnerID, 10, 64); err == nil {
+						runnerID = &parsed
+					}
+				}
+				if target.SourceInstanceID != nil {
+					if parsed, err := strconv.ParseInt(*target.SourceInstanceID, 10, 64); err == nil {
+						sourceID = &parsed
+					}
+				}
+				targetIDs[containerTargetKey(target.DockerContainerID, runnerID, sourceID)] = true
 			}
 		}
 
 		for _, c := range containers {
-			if len(targetIDs) > 0 && !targetIDs[c.ContainerID] {
+			var rowRunnerID, rowSourceID *int64
+			if c.RunnerID.Valid {
+				rowRunnerID = &c.RunnerID.Int64
+			} else if c.SourceInstanceID.Valid {
+				rowSourceID = &c.SourceInstanceID.Int64
+			}
+			if len(targetIDs) > 0 && !targetIDs[containerTargetKey(c.ContainerID, rowRunnerID, rowSourceID)] {
 				continue
 			}
 			var runnerURL, runnerKey string
@@ -404,11 +475,6 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				if runner != nil {
 					runnerURL, runnerKey = runner.URL, runner.APIKey
 				}
-			} else if c.SourceInstanceID.Valid {
-				src, _ := db.GetSourceInstanceByID(ctx, r.DB, c.SourceInstanceID.Int64, uid)
-				if src != nil {
-					runnerURL, runnerKey = src.URL, src.APIKey.String
-				}
 			}
 			// A container with no reachable runner is skipped, not counted as
 			// an attempt, so it does not skew the success/failure ratio.
@@ -416,10 +482,25 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				continue
 			}
 			attempted++
-			if err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID); err == nil {
+			targetKey := containerTargetKey(c.ContainerID, rowRunnerID, nil)
+			owner := "batch:" + strconv.FormatInt(batchID, 10)
+			locked, err := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
+			if err != nil || !locked {
+				if firstErr == "" {
+					if err != nil {
+						firstErr = err.Error()
+					} else {
+						firstErr = "upgrade already in progress"
+					}
+				}
+				continue
+			}
+			upgradeErr := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
+			_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
+			if upgradeErr == nil {
 				upgraded++
 			} else if firstErr == "" {
-				firstErr = err.Error()
+				firstErr = upgradeErr.Error()
 			}
 		}
 
@@ -485,12 +566,6 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 			runner, _ := db.GetRunnerByID(ctx, r.DB, rid, uid)
 			if runner != nil {
 				runnerURL, runnerKey = runner.URL, runner.APIKey
-			}
-		} else if img.SourceInstanceID != nil && *img.SourceInstanceID != "" {
-			sid, _ := strconv.ParseInt(*img.SourceInstanceID, 10, 64)
-			src, _ := db.GetSourceInstanceByID(ctx, r.DB, sid, uid)
-			if src != nil {
-				runnerURL, runnerKey = src.URL, src.APIKey.String
 			}
 		}
 
@@ -831,6 +906,9 @@ func (r *mutationResolver) CreateIntent(ctx context.Context, input model.CreateI
 	if err != nil {
 		return nil, err
 	}
+	if input.ScheduleTimezone != nil {
+		return nil, fmt.Errorf("scheduleTimezone is not supported by the shared database schema")
+	}
 
 	enabled := true
 	if input.Enabled != nil {
@@ -872,6 +950,9 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 		return nil, err
 	}
 	iid, _ := strconv.ParseInt(id, 10, 64)
+	if input.ScheduleTimezone != nil {
+		return nil, fmt.Errorf("scheduleTimezone is not supported by the shared database schema")
+	}
 
 	// Build dynamic update
 	setClauses := []string{}
@@ -893,6 +974,23 @@ func (r *mutationResolver) UpdateIntent(ctx context.Context, id string, input mo
 		setClauses = append(setClauses, "enabled = ?")
 		args = append(args, v)
 	}
+	appendArray := func(column string, values []string) {
+		if values == nil {
+			return
+		}
+		encoded, _ := json.Marshal(values)
+		setClauses = append(setClauses, column+" = ?")
+		args = append(args, string(encoded))
+	}
+	appendArray("match_containers", input.MatchContainers)
+	appendArray("match_images", input.MatchImages)
+	appendArray("match_sources", input.MatchSources)
+	appendArray("match_stacks", input.MatchStacks)
+	appendArray("match_registries", input.MatchRegistries)
+	appendArray("exclude_containers", input.ExcludeContainers)
+	appendArray("exclude_images", input.ExcludeImages)
+	appendArray("exclude_stacks", input.ExcludeStacks)
+	appendArray("exclude_registries", input.ExcludeRegistries)
 	if input.ScheduleType != nil {
 		setClauses = append(setClauses, "schedule_type = ?")
 		args = append(args, dbEnumValue(string(*input.ScheduleType)))
@@ -960,6 +1058,9 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 	if err != nil || intent == nil {
 		return nil, fmt.Errorf("intent not found")
 	}
+	if err := claimIdempotency(ctx, r.DB, uid, "trigger-intent:"+id, idempotencyKey); err != nil {
+		return nil, err
+	}
 
 	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
 	if err != nil {
@@ -973,15 +1074,32 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		matchI := db.UnmarshalStringArr(intent.MatchImages)
 		matchS := db.UnmarshalStringArr(intent.MatchSources)
 		matchSt := db.UnmarshalStringArr(intent.MatchStacks)
+		matchR := db.UnmarshalStringArr(intent.MatchRegistries)
 		exC := db.UnmarshalStringArr(intent.ExcludeContainers)
 		exI := db.UnmarshalStringArr(intent.ExcludeImages)
 		exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
+		exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
 
-		matched, total, _ := db.GetContainersMatchingIntent(ctx, r.DB, uid,
-			matchC, matchI, matchS, matchSt, nil, exC, exI, exSt, nil, 500, 0)
+		matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
+			matchC, matchI, matchS, matchSt, matchR, exC, exI, exSt, exR, 0, 0)
+		if err != nil {
+			message := err.Error()
+			_ = db.UpdateIntentExecution(ctx, r.DB, execID, "failed", 0, 0, 0, 0, &message)
+			return
+		}
+
+		// A dry-run is an evaluation only. It must never make an upstream
+		// mutation request; report every match as skipped instead.
+		if intent.DryRun == 1 {
+			if err := db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil); err != nil {
+				return
+			}
+			return
+		}
 
 		upgraded := 0
 		failed := 0
+		skipped := 0
 		for _, c := range matched {
 			var runnerURL, runnerKey string
 			if c.RunnerID.Valid {
@@ -989,25 +1107,37 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 				if runner != nil {
 					runnerURL, runnerKey = runner.URL, runner.APIKey
 				}
-			} else if c.SourceInstanceID.Valid {
-				src, _ := db.GetSourceInstanceByID(ctx, r.DB, c.SourceInstanceID.Int64, uid)
-				if src != nil {
-					runnerURL, runnerKey = src.URL, src.APIKey.String
-				}
 			}
 			if runnerURL != "" {
-				if err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID); err == nil {
+				runnerID := c.RunnerID.Int64
+				targetKey := containerTargetKey(c.ContainerID, &runnerID, nil)
+				owner := "intent:" + strconv.FormatInt(execID, 10)
+				locked, lockErr := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
+				if lockErr != nil || !locked {
+					skipped++
+					continue
+				}
+				err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
+				_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
+				if err == nil {
 					upgraded++
 				} else {
 					failed++
 				}
+			} else {
+				skipped++
+			}
+			if intent.SequentialDelaySec > 0 {
+				time.Sleep(time.Duration(intent.SequentialDelaySec) * time.Second)
 			}
 		}
 		status := "completed"
 		if failed > 0 && upgraded == 0 {
 			status = "failed"
+		} else if failed > 0 || skipped > 0 {
+			status = "partial"
 		}
-		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, 0, nil)
+		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, skipped, nil)
 	}()
 
 	return &model.IntentExecution{
@@ -1036,6 +1166,9 @@ func (r *mutationResolver) UpdateBatchConfig(ctx context.Context, input model.Up
 func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.BatchJobType, idempotencyKey *string) (*model.BatchRun, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := claimIdempotency(ctx, r.DB, uid, "trigger-batch-job", idempotencyKey); err != nil {
 		return nil, err
 	}
 
@@ -1077,14 +1210,20 @@ func (r *mutationResolver) TriggerBatchJob(ctx context.Context, jobType *model.B
 
 // SetBatchLogLevel is the resolver for the setBatchLogLevel field.
 func (r *mutationResolver) SetBatchLogLevel(ctx context.Context, logLevel model.LogLevel) (*model.SuccessResult, error) {
-	uid, err := requireUser(ctx)
+	_, err := requireAdmin(ctx, r.DB)
 	if err != nil {
 		return nil, err
 	}
+	level := strings.ToLower(string(logLevel))
+	if level != "info" && level != "debug" {
+		return nil, fmt.Errorf("log level must be INFO or DEBUG")
+	}
+	// Node owns this as a system-wide setting: user_id=0, key=log_level,
+	// lowercase value. Writing a per-user batch_log_level was a no-op to Node.
 	_, err = r.DB.ExecContext(ctx,
-		`INSERT INTO settings (user_id, key, value) VALUES (?, 'batch_log_level', ?)
+		`INSERT INTO settings (user_id, key, value) VALUES (0, 'log_level', ?)
 		 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
-		uid, string(logLevel))
+		level)
 	if err != nil {
 		return nil, err
 	}
@@ -1250,6 +1389,9 @@ func (r *mutationResolver) UpdateRegistryCredentials(ctx context.Context, input 
 	if err != nil {
 		return nil, err
 	}
+	if input.Registry != model.RegistryDockerHub {
+		return nil, fmt.Errorf("registry credentials are currently supported only for DOCKER_HUB")
+	}
 
 	if err := db.UpsertRegistryCredentials(ctx, r.DB, uid, &input.Username, &input.Token); err != nil {
 		return nil, err
@@ -1263,6 +1405,9 @@ func (r *mutationResolver) DeleteRegistryCredentials(ctx context.Context, regist
 	if err != nil {
 		return nil, err
 	}
+	if registry != model.RegistryDockerHub {
+		return nil, fmt.Errorf("registry credentials are currently supported only for DOCKER_HUB")
+	}
 
 	if err := db.DeleteRegistryCredentials(ctx, r.DB, uid); err != nil {
 		return nil, err
@@ -1275,6 +1420,9 @@ func (r *mutationResolver) ValidateRegistryCredentials(ctx context.Context, inpu
 	_, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if input.Registry != model.RegistryDockerHub {
+		return nil, fmt.Errorf("registry credentials are currently supported only for DOCKER_HUB")
 	}
 
 	username := input.Username

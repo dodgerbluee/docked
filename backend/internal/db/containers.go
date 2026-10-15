@@ -29,6 +29,7 @@ type ContainerRow struct {
 	CurrentDigest sql.NullString
 	ImageTag      sql.NullString
 	RepoDigests   sql.NullString // JSON array stored as TEXT
+	Registry      sql.NullString
 
 	// From registry_image_versions
 	LatestDigest      sql.NullString
@@ -67,9 +68,10 @@ SELECT
     c.last_seen,
     c.created_at,
 
-    di.image_digest          AS current_digest,
-    di.image_tag,
-    di.repo_digests,
+	    di.image_digest          AS current_digest,
+	    di.image_tag,
+	    di.repo_digests,
+	    di.registry,
 
     riv.latest_digest,
     riv.latest_version,
@@ -176,6 +178,7 @@ func scanRow(rows *sql.Rows) (ContainerRow, error) {
 		&row.CurrentDigest,
 		&row.ImageTag,
 		&row.RepoDigests,
+		&row.Registry,
 		&row.LatestDigest,
 		&row.LatestVersion,
 		&row.LatestTag,
@@ -240,7 +243,7 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
 		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
 		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
-		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests,
+		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry,
 		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
 		&r.Provider, &r.LastChecked, &noDigest,
 		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
@@ -250,6 +253,48 @@ func GetContainerByID(ctx context.Context, database *sql.DB, id, userID int64) (
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get container by id: %w", err)
+	}
+	r.UsesNetworkMode = usesNetworkMode == 1
+	r.ProvidesNetwork = providesNetwork == 1
+	r.NoDigest = noDigest == 1
+	return &r, nil
+}
+
+// GetContainerByDockerID resolves a Docker container id within one explicit
+// backend identity. Docker ids are not globally unique across runners and
+// Portainer instances, so both user ownership and backend identity are part of
+// the predicate.
+func GetContainerByDockerID(ctx context.Context, database *sql.DB, userID int64, containerID string, runnerID, sourceInstanceID *int64) (*ContainerRow, error) {
+	predicate := "WHERE c.user_id = ? AND c.container_id = ?"
+	args := []any{userID, containerID}
+	if runnerID != nil {
+		predicate += " AND c.runner_id = ?"
+		args = append(args, *runnerID)
+	} else if sourceInstanceID != nil {
+		predicate += " AND c.source_instance_id = ?"
+		args = append(args, *sourceInstanceID)
+	} else {
+		return nil, fmt.Errorf("container backend identity is required")
+	}
+	query := strings.Replace(containersQuery, "WHERE c.user_id = ?", predicate, 1)
+	row := database.QueryRowContext(ctx, query, args...)
+
+	var r ContainerRow
+	var usesNetworkMode, providesNetwork, noDigest int
+	err := row.Scan(
+		&r.ID, &r.ContainerID, &r.ContainerName, &r.ImageName, &r.ImageRepo,
+		&r.Status, &r.State, &r.StackName, &r.EndpointID, &r.RunnerID,
+		&usesNetworkMode, &providesNetwork, &r.LastSeen, &r.CreatedAt,
+		&r.CurrentDigest, &r.ImageTag, &r.RepoDigests, &r.Registry,
+		&r.LatestDigest, &r.LatestVersion, &r.LatestTag, &r.LatestPublishDate,
+		&r.Provider, &r.LastChecked, &noDigest,
+		&r.SourceName, &r.SourceURL, &r.SourceInstanceID, &r.RunnerName, &r.RunnerURL,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get container by docker id: %w", err)
 	}
 	r.UsesNetworkMode = usesNetworkMode == 1
 	r.ProvidesNetwork = providesNetwork == 1

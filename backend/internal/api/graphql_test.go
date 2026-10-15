@@ -78,6 +78,30 @@ CREATE TABLE source_instances (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE intents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  enabled INTEGER DEFAULT 1,
+  match_containers TEXT,
+  match_images TEXT,
+  match_sources TEXT,
+  match_stacks TEXT,
+  match_registries TEXT,
+  exclude_containers TEXT,
+  exclude_images TEXT,
+  exclude_stacks TEXT,
+  exclude_registries TEXT,
+  schedule_type TEXT NOT NULL,
+  schedule_cron TEXT,
+  max_concurrent INTEGER DEFAULT 1,
+  dry_run INTEGER DEFAULT 0,
+  sequential_delay_sec INTEGER DEFAULT 0,
+  last_evaluated_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 
 type testEnv struct {
@@ -266,10 +290,21 @@ func TestRegistrationRoleAssignment(t *testing.T) {
 }
 
 func TestFirstRegistrationBecomesAdministrator(t *testing.T) {
-	// Empty DB: the first user must be an Administrator with instance_admin=1.
+	// Empty DB must fail closed unless an operator supplied a shared code.
 	env := newTestEnv(t, false)
+	withoutCode := env.gql(t, "", `mutation($in: RegisterInput!){ register(input: $in){ user { username } } }`,
+		map[string]any{"in": map[string]any{"username": "blocked", "password": "pw12345"}})
+	if !withoutCode.hasErrorContaining("first-user registration must be completed") {
+		t.Fatalf("first register without shared code must be rejected, got: %+v", withoutCode)
+	}
+	if _, err := env.database.Exec(
+		"INSERT INTO settings (user_id, key, value) VALUES (0, 'registration_code', 'ABCD-EFGH-IJKL')"); err != nil {
+		t.Fatalf("seed registration code: %v", err)
+	}
 	r := env.gql(t, "", `mutation($in: RegisterInput!){ register(input: $in){ user { username role } } }`,
-		map[string]any{"in": map[string]any{"username": "root", "password": "pw12345"}})
+		map[string]any{"in": map[string]any{
+			"username": "root", "password": "pw12345", "registrationCode": "abcdefghijkl",
+		}})
 	if len(r.Errors) != 0 {
 		t.Fatalf("first register errored: %+v", r.Errors)
 	}
@@ -283,6 +318,25 @@ func TestFirstRegistrationBecomesAdministrator(t *testing.T) {
 	}
 	if ia != 1 {
 		t.Fatalf("first-user instance_admin = %d, want 1", ia)
+	}
+	var codes int
+	if err := env.database.QueryRow("SELECT COUNT(*) FROM settings WHERE key = 'registration_code'").Scan(&codes); err != nil {
+		t.Fatalf("check consumed registration code: %v", err)
+	}
+	if codes != 0 {
+		t.Fatalf("registration code was not consumed")
+	}
+}
+
+func TestDeletedUserTokenIsRejected(t *testing.T) {
+	env := newTestEnv(t, true)
+	token := env.token(t, env.memberID, "member")
+	if _, err := env.database.Exec("DELETE FROM users WHERE id = ?", env.memberID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	r := env.gql(t, token, `{ me { id } }`, nil)
+	if !r.hasErrorContaining("authentication required") {
+		t.Fatalf("deleted user's token must be rejected, got: %+v", r)
 	}
 }
 
@@ -465,6 +519,54 @@ func TestUpdateSourceInstanceWritesNodeAuthType(t *testing.T) {
 	}
 	if stored != "password" {
 		t.Fatalf("DB auth_type = %q, want password", stored)
+	}
+}
+
+func TestUpdateIntentPersistsSafetyFiltersAndRejectsTimezone(t *testing.T) {
+	env := newTestEnv(t, true)
+	admin := env.token(t, env.adminID, "admin")
+	res, err := env.database.Exec(`INSERT INTO intents
+		(user_id, name, schedule_type, match_containers, exclude_images, dry_run)
+		VALUES (?, 'safe', 'immediate', '["old"]', '["old"]', 0)`, env.adminID)
+	if err != nil {
+		t.Fatalf("seed intent: %v", err)
+	}
+	id, _ := res.LastInsertId()
+
+	r := env.gql(t, admin, `mutation($id: ID!, $in: UpdateIntentInput!){
+		updateIntent(id: $id, input: $in){ id matchContainers matchRegistries excludeImages excludeRegistries dryRun }
+	}`, map[string]any{
+		"id": strconv.FormatInt(id, 10),
+		"in": map[string]any{
+			"matchContainers":   []any{"web-*"},
+			"matchRegistries":   []any{"ghcr.io"},
+			"excludeImages":     []any{},
+			"excludeRegistries": []any{"quay.io"},
+			"dryRun":            true,
+		},
+	})
+	if len(r.Errors) != 0 {
+		t.Fatalf("updateIntent errored: %+v", r.Errors)
+	}
+
+	var matchContainers, matchRegistries, excludeImages, excludeRegistries string
+	var dryRun int
+	err = env.database.QueryRow(`SELECT match_containers, match_registries, exclude_images,
+		exclude_registries, dry_run FROM intents WHERE id = ?`, id).
+		Scan(&matchContainers, &matchRegistries, &excludeImages, &excludeRegistries, &dryRun)
+	if err != nil {
+		t.Fatalf("read intent update: %v", err)
+	}
+	if matchContainers != `["web-*"]` || matchRegistries != `["ghcr.io"]` ||
+		excludeImages != `[]` || excludeRegistries != `["quay.io"]` || dryRun != 1 {
+		t.Fatalf("intent safety fields not persisted: containers=%s registries=%s excludeImages=%s excludeRegistries=%s dryRun=%d",
+			matchContainers, matchRegistries, excludeImages, excludeRegistries, dryRun)
+	}
+
+	unsupported := env.gql(t, admin, `mutation($id: ID!, $in: UpdateIntentInput!){ updateIntent(id: $id, input: $in){ id } }`,
+		map[string]any{"id": strconv.FormatInt(id, 10), "in": map[string]any{"scheduleTimezone": "UTC"}})
+	if !unsupported.hasErrorContaining("scheduleTimezone is not supported") {
+		t.Fatalf("unsupported timezone must be rejected, got: %+v", unsupported)
 	}
 }
 

@@ -18,6 +18,13 @@ CREATE TABLE users (
   instance_admin INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE settings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT,
+  UNIQUE(user_id, key)
 );`
 
 func newUsersDB(t *testing.T) *sql.DB {
@@ -95,5 +102,41 @@ func TestRegisterUserConcurrentBootstrap(t *testing.T) {
 	}
 	if count != n {
 		t.Fatalf("user count = %d, want %d", count, n)
+	}
+}
+
+func TestRegisterUserWithCodeConsumesCodeAtomically(t *testing.T) {
+	database := newUsersDB(t)
+	ctx := context.Background()
+	if _, err := database.ExecContext(ctx,
+		"INSERT INTO settings (user_id, key, value) VALUES (0, 'registration_code', 'SHARED')"); err != nil {
+		t.Fatal(err)
+	}
+	_, role, admin, err := RegisterUserWithCode(ctx, database, "root", "hash", "SHARED")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != "Administrator" || admin != 1 {
+		t.Fatalf("role/admin = %s/%d, want Administrator/1", role, admin)
+	}
+	var users, codes int
+	if err := database.QueryRow("SELECT COUNT(*) FROM users").Scan(&users); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow("SELECT COUNT(*) FROM settings WHERE key = 'registration_code'").Scan(&codes); err != nil {
+		t.Fatal(err)
+	}
+	if users != 1 || codes != 0 {
+		t.Fatalf("users/codes = %d/%d, want 1/0", users, codes)
+	}
+
+	if _, _, _, err := RegisterUserWithCode(ctx, database, "second", "hash", "SHARED"); err == nil {
+		t.Fatal("consumed code was accepted again")
+	}
+	if err := database.QueryRow("SELECT COUNT(*) FROM users").Scan(&users); err != nil {
+		t.Fatal(err)
+	}
+	if users != 1 {
+		t.Fatalf("failed code reuse inserted a user; count=%d", users)
 	}
 }

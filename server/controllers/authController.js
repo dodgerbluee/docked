@@ -20,6 +20,7 @@ const {
   getAllUsers,
   hasAnyUsers,
   createUser,
+  registerUser,
   updateVerificationToken,
   verifyAndClearToken,
   deleteUser,
@@ -161,7 +162,7 @@ async function register(req, res, next) {
       });
     }
 
-    await createUser(username, password, email || null, "Administrator", isFirstUser);
+    await registerUser(username, password, email || null);
 
     if (isFirstUser) {
       clearRegistrationCode();

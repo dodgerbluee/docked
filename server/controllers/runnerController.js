@@ -401,11 +401,11 @@ async function upgradeRunnerContainer(req, res, next) {
     // Acquire upgrade lock to prevent conflicts with intent-driven, batch, or manual upgrades
     const upgradeLockManager = require("../services/intents/upgradeLockManager");
     const lockOpts = { runnerId };
-    const acquired = upgradeLockManager.acquire(containerId, {
+    const lockToken = await upgradeLockManager.acquire(containerId, {
       ...lockOpts,
       owner: "runner-sse",
     });
-    if (!acquired) {
+    if (!lockToken) {
       const lockInfo = upgradeLockManager.isLocked(containerId, lockOpts);
       return res.status(409).json({
         success: false,
@@ -416,7 +416,7 @@ async function upgradeRunnerContainer(req, res, next) {
     try {
       await proxyUpgradeStream(runner, containerId, req, res);
     } finally {
-      upgradeLockManager.release(containerId, lockOpts);
+      await upgradeLockManager.release(containerId, { ...lockOpts, lockToken });
     }
   } catch (err) {
     next(err);

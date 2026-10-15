@@ -219,7 +219,7 @@ function invalidateRunnerContainerCache() {
  * @param {import('http').IncomingMessage} req - Express request (for close detection)
  * @param {import('http').ServerResponse} res - Express response
  */
-async function proxyUpgradeStream(runner, containerId, req, res) {
+async function proxyUpgradeStream(runner, containerId, _req, res) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -242,28 +242,40 @@ async function proxyUpgradeStream(runner, containerId, req, res) {
 
     runnerStream = response.data;
 
-    runnerStream.on("data", (chunk) => {
-      if (!res.writableEnded) {
-        res.write(chunk);
-      }
-    });
+    // Keep this promise pending for the entire upstream stream lifetime. The
+    // controller owns the cross-process upgrade lock and releases it only after
+    // this function resolves.
+    await new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
 
-    runnerStream.on("end", () => {
-      if (!res.writableEnded) {
-        res.end();
-      }
-    });
-
-    runnerStream.on("error", (err) => {
-      logger.error(`Runner upgrade stream error for container ${containerId}: ${err.message}`, {
-        module: "runnerService",
-        containerId,
-        runnerId: runner.id,
+      runnerStream.on("data", chunk => {
+        if (!res.writableEnded) res.write(chunk);
       });
-      if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
-        res.end();
-      }
+      runnerStream.once("end", () => {
+        if (!res.writableEnded) res.end();
+        finish();
+      });
+      runnerStream.once("error", err => {
+        logger.error(`Runner upgrade stream error for container ${containerId}: ${err.message}`, {
+          module: "runnerService",
+          containerId,
+          runnerId: runner.id,
+        });
+        if (!res.writableEnded) {
+          res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
+          res.end();
+        }
+        finish();
+      });
+      res.once("close", () => {
+        if (runnerStream && !runnerStream.destroyed) runnerStream.destroy();
+        finish();
+      });
     });
   } catch (err) {
     logger.error(`Failed to connect to runner for upgrade: ${err.message}`, {
@@ -277,12 +289,6 @@ async function proxyUpgradeStream(runner, containerId, req, res) {
     }
     return;
   }
-
-  req.on("close", () => {
-    if (runnerStream) {
-      runnerStream.destroy();
-    }
-  });
 }
 
 /**

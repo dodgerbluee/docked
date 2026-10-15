@@ -11,9 +11,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/dockedapp/backend/graph"
-	"github.com/dockedapp/backend/internal/auth"
 	apimiddleware "github.com/dockedapp/backend/internal/api/middleware"
+	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/config"
+	"github.com/dockedapp/backend/internal/db"
 )
 
 // NewServer builds the chi router with all middleware and routes registered.
@@ -53,6 +54,15 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			if err != nil {
 				// Token invalid — proceed without user context
 				slog.Debug("graphql auth: token validation failed", "error", err.Error())
+				next.ServeHTTP(w, req)
+				return
+			}
+			// Match Node's authentication boundary: a cryptographically valid token
+			// is not sufficient after its user has been deleted. Without this check,
+			// deleted users retained access to every resolver guarded by requireUser.
+			user, err := db.GetUserByID(req.Context(), database, userID)
+			if err != nil || user == nil {
+				slog.Debug("graphql auth: token user no longer exists", "userID", userID)
 				next.ServeHTTP(w, req)
 				return
 			}

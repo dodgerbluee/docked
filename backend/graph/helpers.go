@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -26,6 +27,34 @@ func requireUser(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("authentication required")
 	}
 	return uid, nil
+}
+
+func registrationCodesEqual(input, stored string) bool {
+	normalize := func(s string) string {
+		return strings.ToUpper(strings.ReplaceAll(s, "-", ""))
+	}
+	return normalize(input) == normalize(stored)
+}
+
+func containerTargetKey(containerID string, runnerID, sourceInstanceID *int64) string {
+	if runnerID != nil {
+		return "runner:" + strconv.FormatInt(*runnerID, 10) + ":" + containerID
+	}
+	if sourceInstanceID != nil {
+		return "portainer:" + strconv.FormatInt(*sourceInstanceID, 10) + ":" + containerID
+	}
+	return "unknown:" + containerID
+}
+
+func claimIdempotency(ctx context.Context, database *sql.DB, userID int64, operationType string, key *string) error {
+	claimed, err := db.ClaimIdempotencyKey(ctx, database, userID, operationType, key)
+	if err != nil {
+		return fmt.Errorf("claim idempotency key: %w", err)
+	}
+	if !claimed {
+		return fmt.Errorf("duplicate idempotency key")
+	}
+	return nil
 }
 
 // requireAdmin returns the caller's user id only if that user is an INSTANCE
@@ -571,6 +600,11 @@ func httpGetWithAuth(url, username, password string) (int, []byte, error) {
 // upstream cannot wedge a fire-and-forget goroutine forever.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+// Upgrade responses are long-lived SSE streams. A client-level timeout would
+// override the request's five-minute context, so upgrades use a separate client
+// with no global timeout and rely on that context as the sole deadline.
+var upgradeHTTPClient = &http.Client{}
+
 func runnerPost(baseURL, apiKey, path string, payload any) error {
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", baseURL+path, bytes.NewReader(body))
@@ -610,7 +644,7 @@ func runnerUpgrade(baseURL, apiKey, containerID string) error {
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := upgradeHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -618,12 +652,64 @@ func runnerUpgrade(baseURL, apiKey, containerID string) error {
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("runner returned %d", resp.StatusCode)
 	}
-	// Drain the SSE stream so the upgrade runs to completion. io.Copy returns
-	// when the runner closes the stream (upgrade finished) or ctx expires.
-	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+	// The runner's authoritative terminal signal is event: done with a JSON
+	// exitCode. HTTP 200 only means the stream was established; an error event
+	// or an EOF without done must not be counted as a successful upgrade.
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	event := ""
+	data := ""
+	lastError := ""
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "event:"):
+			event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "data:"):
+			part := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if data != "" {
+				data += "\n"
+			}
+			data += part
+		case line == "":
+			if event == "error" {
+				var payload struct {
+					Message string `json:"message"`
+				}
+				if json.Unmarshal([]byte(data), &payload) == nil && payload.Message != "" {
+					lastError = payload.Message
+				} else if data != "" {
+					lastError = data
+				}
+			}
+			if event == "done" {
+				var payload struct {
+					ExitCode *int `json:"exitCode"`
+				}
+				if err := json.Unmarshal([]byte(data), &payload); err != nil {
+					return fmt.Errorf("invalid runner done event: %w", err)
+				}
+				if payload.ExitCode == nil {
+					return fmt.Errorf("runner done event missing exitCode")
+				}
+				if *payload.ExitCode != 0 {
+					if lastError != "" {
+						return fmt.Errorf("runner upgrade failed (exit %d): %s", *payload.ExitCode, lastError)
+					}
+					return fmt.Errorf("runner upgrade failed with exit code %d", *payload.ExitCode)
+				}
+				return nil
+			}
+			event, data = "", ""
+		}
+	}
+	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("upgrade stream: %w", err)
 	}
-	return nil
+	if lastError != "" {
+		return fmt.Errorf("runner upgrade stream ended after error: %s", lastError)
+	}
+	return fmt.Errorf("runner upgrade stream ended without a done event")
 }
 func runnerDelete(baseURL, apiKey, path string) error {
 	req, err := http.NewRequest("DELETE", baseURL+path, nil)

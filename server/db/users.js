@@ -352,6 +352,32 @@ async function createUser(
 }
 
 /**
+ * Register a public user while deciding instance-admin status in the same SQL
+ * statement as the insert. This prevents two Node requests, or Node and Go,
+ * from both persisting a stale "first user" decision.
+ */
+async function registerUser(username, password, email = null) {
+  const passwordHash = await bcrypt.hash(password, 10);
+  return new Promise((resolve, reject) => {
+    try {
+      const db = getDatabase();
+      db.run(
+        `INSERT INTO users (username, password_hash, email, role, password_changed, instance_admin)
+         SELECT ?, ?, ?, 'Administrator', 1,
+                CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END`,
+        [username, passwordHash, email],
+        function onRegistered(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID });
+        }
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
  * Update verification token for a user
  * @param {string} username - Username
  * @param {string} token - Verification token
@@ -462,6 +488,7 @@ module.exports = {
   updateLastLogin,
   hasAnyUsers,
   createUser,
+  registerUser,
   updateVerificationToken,
   verifyAndClearToken,
   getAllUsers,

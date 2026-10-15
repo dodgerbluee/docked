@@ -3,6 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -44,95 +47,132 @@ func GetUnusedImages(ctx context.Context, database *sql.DB, userID int64) ([]Dep
 	return result, rows.Err()
 }
 
-// GetContainersMatchingIntent returns container rows matching the intent's match/exclude criteria.
-// Uses the same JOIN structure as containersQuery so scanRow works correctly.
+// GetContainersMatchingIntent mirrors Node's intent matcher: only containers
+// with an available update are eligible; inclusion dimensions are ANDed; each
+// dimension supports case-insensitive * and ? globs; sources use typed keys
+// ("portainer:<id>" / "runner:<id>"); exclusions are applied last.
 func GetContainersMatchingIntent(ctx context.Context, database *sql.DB, userID int64,
 	matchContainers, matchImages, matchSources, matchStacks, matchRegistries []string,
 	excludeContainers, excludeImages, excludeStacks, excludeRegistries []string,
 	limit, offset int) ([]ContainerRow, int, error) {
-
-	// Build extra AND clauses for intent matching
-	var extra string
-	args := []any{userID}
-
-	if len(matchContainers) > 0 {
-		extra += " AND c.container_name IN (" + placeholders(len(matchContainers)) + ")"
-		for _, v := range matchContainers {
-			args = append(args, v)
-		}
-	}
-	if len(matchImages) > 0 {
-		extra += " AND c.image_repo IN (" + placeholders(len(matchImages)) + ")"
-		for _, v := range matchImages {
-			args = append(args, v)
-		}
-	}
-	if len(matchStacks) > 0 {
-		extra += " AND c.stack_name IN (" + placeholders(len(matchStacks)) + ")"
-		for _, v := range matchStacks {
-			args = append(args, v)
-		}
-	}
-	if len(matchSources) > 0 {
-		extra += " AND c.source_instance_id IN (" + placeholders(len(matchSources)) + ")"
-		for _, v := range matchSources {
-			args = append(args, v)
-		}
-	}
-	if len(excludeContainers) > 0 {
-		extra += " AND c.container_name NOT IN (" + placeholders(len(excludeContainers)) + ")"
-		for _, v := range excludeContainers {
-			args = append(args, v)
-		}
-	}
-	if len(excludeImages) > 0 {
-		extra += " AND c.image_repo NOT IN (" + placeholders(len(excludeImages)) + ")"
-		for _, v := range excludeImages {
-			args = append(args, v)
-		}
-	}
-	if len(excludeStacks) > 0 {
-		extra += " AND (c.stack_name IS NULL OR c.stack_name NOT IN (" + placeholders(len(excludeStacks)) + "))"
-		for _, v := range excludeStacks {
-			args = append(args, v)
-		}
-	}
-
-	// Count using the same FROM/JOIN structure
-	countQ := `SELECT COUNT(*) FROM containers c
-		LEFT JOIN deployed_images di ON c.deployed_image_id = di.id
-		WHERE c.user_id = ?` + extra
-	var total int
-	database.QueryRowContext(ctx, countQ, args...).Scan(&total)
-
-	// Main query: reuse containersQuery structure with extra clauses
-	query := containersQuery
-	// Strip trailing backtick and ORDER BY, then inject extra conditions
-	if end := strings.LastIndex(query, "`"); end != -1 {
-		query = query[:end]
-	}
-	if idx := strings.LastIndex(query, "WHERE c.user_id = ?"); idx != -1 {
-		query = query[:idx+len("WHERE c.user_id = ?")] + extra + " ORDER BY c.container_name LIMIT ? OFFSET ?"
-	} else {
-		query += extra + " ORDER BY c.container_name LIMIT ? OFFSET ?"
-	}
-	args = append(args, limit, offset)
-
-	rows, err := database.QueryContext(ctx, query, args...)
+	rows, err := GetContainers(ctx, database, userID)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
 
-	var result []ContainerRow
-	for rows.Next() {
-		r, err := scanRow(rows)
-		if err != nil {
-			return nil, 0, err
+	matched := make([]ContainerRow, 0, len(rows))
+	for _, row := range rows {
+		if !containerHasUpdate(row) ||
+			!intentIncludes(row, matchContainers, matchImages, matchSources, matchStacks, matchRegistries) ||
+			intentExcludes(row, excludeContainers, excludeImages, excludeStacks, excludeRegistries) {
+			continue
 		}
-		result = append(result, r)
+		matched = append(matched, row)
 	}
-	return result, total, rows.Err()
+
+	total := len(matched)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= total {
+		return []ContainerRow{}, total, nil
+	}
+	end := total
+	if limit > 0 && offset+limit < end {
+		end = offset + limit
+	}
+	return matched[offset:end], total, nil
+}
+
+func containerHasUpdate(c ContainerRow) bool {
+	if c.Provider.Valid && strings.EqualFold(c.Provider.String, "github-releases") &&
+		c.ImageTag.Valid && c.LatestVersion.Valid {
+		normalizeVersion := func(value string) string {
+			return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(value, "v"), "V")))
+		}
+		current := normalizeVersion(c.ImageTag.String)
+		latest := normalizeVersion(c.LatestVersion.String)
+		return current != "" && latest != "" && current != latest
+	}
+	if !c.LatestDigest.Valid || !c.CurrentDigest.Valid || !c.RepoDigests.Valid {
+		return false
+	}
+	normalizeDigest := func(value string) string {
+		value = strings.TrimSpace(strings.ToLower(value))
+		return strings.TrimPrefix(value, "sha256:")
+	}
+	latest := normalizeDigest(c.LatestDigest.String)
+	if latest == "" {
+		return false
+	}
+	var repoDigests []string
+	if json.Unmarshal([]byte(c.RepoDigests.String), &repoDigests) != nil || len(repoDigests) == 0 {
+		return false
+	}
+	for _, digest := range repoDigests {
+		if normalizeDigest(digest) == latest {
+			return false
+		}
+	}
+	return true
+}
+
+func intentIncludes(c ContainerRow, containers, images, sources, stacks, registries []string) bool {
+	if len(containers) > 0 && !matchesAnyGlob(c.ContainerName, containers) {
+		return false
+	}
+	if len(images) > 0 && !matchesAnyGlob(c.ImageName.String, images) {
+		return false
+	}
+	if len(stacks) > 0 && !matchesAnyGlob(c.StackName.String, stacks) {
+		return false
+	}
+	if len(registries) > 0 && !matchesAnyGlob(c.Registry.String, registries) {
+		return false
+	}
+	if len(sources) > 0 {
+		key := ""
+		if c.SourceInstanceID.Valid {
+			key = "portainer:" + strconv.FormatInt(c.SourceInstanceID.Int64, 10)
+		} else if c.RunnerID.Valid {
+			key = "runner:" + strconv.FormatInt(c.RunnerID.Int64, 10)
+		}
+		if !containsString(sources, key) {
+			return false
+		}
+	}
+	return true
+}
+
+func intentExcludes(c ContainerRow, containers, images, stacks, registries []string) bool {
+	return matchesAnyGlob(c.ContainerName, containers) ||
+		matchesAnyGlob(c.ImageName.String, images) ||
+		matchesAnyGlob(c.StackName.String, stacks) ||
+		matchesAnyGlob(c.Registry.String, registries)
+}
+
+func matchesAnyGlob(value string, patterns []string) bool {
+	if value == "" || len(patterns) == 0 {
+		return false
+	}
+	for _, pattern := range patterns {
+		expr := regexp.QuoteMeta(pattern)
+		expr = strings.ReplaceAll(expr, `\*`, ".*")
+		expr = strings.ReplaceAll(expr, `\?`, ".")
+		if re, err := regexp.Compile("(?i)^" + expr + "$"); err == nil && re.MatchString(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func placeholders(n int) string {

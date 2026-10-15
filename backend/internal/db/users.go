@@ -136,6 +136,58 @@ func RegisterUser(ctx context.Context, database *sql.DB, username, passwordHash 
 	}
 }
 
+// RegisterUserWithCode atomically consumes a shared bootstrap code and inserts
+// the user. If either operation fails, neither is committed.
+func RegisterUserWithCode(ctx context.Context, database *sql.DB, username, passwordHash, storedCode string) (id int64, role string, instanceAdmin int, err error) {
+	const insert = `INSERT INTO users (username, password_hash, role, instance_admin)
+		SELECT ?, ?,
+			CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'Administrator' ELSE 'Member' END,
+			CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END
+		RETURNING id, role, instance_admin`
+
+	for attempt := 0; ; attempt++ {
+		tx, beginErr := database.BeginTx(ctx, nil)
+		if beginErr != nil {
+			err = beginErr
+		} else {
+			var current string
+			err = tx.QueryRowContext(ctx,
+				"SELECT value FROM settings WHERE key = 'registration_code' AND value = ? LIMIT 1", storedCode).Scan(&current)
+			if err == nil {
+				err = tx.QueryRowContext(ctx, insert, username, passwordHash).Scan(&id, &role, &instanceAdmin)
+			}
+			if err == nil {
+				var result sql.Result
+				result, err = tx.ExecContext(ctx,
+					"DELETE FROM settings WHERE key = 'registration_code' AND value = ?", storedCode)
+				if err == nil {
+					var changed int64
+					changed, err = result.RowsAffected()
+					if err == nil && changed != 1 {
+						err = fmt.Errorf("registration code was already consumed")
+					}
+				}
+			}
+			if err == nil {
+				err = tx.Commit()
+			} else {
+				_ = tx.Rollback()
+			}
+		}
+		if err == nil {
+			return id, role, instanceAdmin, nil
+		}
+		if !isBusy(err) || attempt >= 20 {
+			return 0, "", 0, fmt.Errorf("register user with code: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return 0, "", 0, fmt.Errorf("register user with code: %w", ctx.Err())
+		case <-time.After(time.Duration(5*(1<<min(attempt, 5))) * time.Millisecond):
+		}
+	}
+}
+
 // isBusy reports whether err is a SQLite write-lock contention error.
 func isBusy(err error) bool {
 	if err == nil {

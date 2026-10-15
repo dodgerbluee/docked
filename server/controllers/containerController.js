@@ -413,13 +413,25 @@ async function upgradeContainer(req, res, next) {
       });
     }
 
-    // Acquire upgrade lock to prevent conflicts with intent-driven or batch upgrades
-    const lockOpts = runnerId ? { runnerId: Number(runnerId) } : { sourceInstanceId: endpointId };
-    const acquired = upgradeLockManager.acquire(containerId, {
+    // Acquire upgrade lock to prevent conflicts with intent-driven or batch
+    // upgrades. Portainer lock identity is the source_instances DB id—not the
+    // Portainer endpoint id—so manual and intent-driven paths use one key.
+    let sourceInstance = null;
+    if (!runnerId) {
+      const instances = await getAllSourceInstances(userId);
+      sourceInstance = instances.find(instance => instance.url === portainerUrl);
+      if (!sourceInstance) {
+        return res.status(404).json({ success: false, error: "Portainer instance not found" });
+      }
+    }
+    const lockOpts = runnerId
+      ? { runnerId: Number(runnerId) }
+      : { sourceInstanceId: sourceInstance.id };
+    const lockToken = await upgradeLockManager.acquire(containerId, {
       ...lockOpts,
       owner: "manual-single",
     });
-    if (!acquired) {
+    if (!lockToken) {
       const lockInfo = upgradeLockManager.isLocked(containerId, lockOpts);
       return res.status(409).json({
         success: false,
@@ -445,7 +457,7 @@ async function upgradeContainer(req, res, next) {
         ...result,
       });
     } finally {
-      upgradeLockManager.release(containerId, lockOpts);
+      await upgradeLockManager.release(containerId, { ...lockOpts, lockToken });
     }
   } catch (error) {
     next(error);
@@ -535,14 +547,23 @@ async function batchUpgradeContainers(req, res, next) {
 
     // Upgrade all containers concurrently (with per-container upgrade locking)
     const upgradePromises = containers.map(async (container) => {
+      const instance = instanceMap.get(container.portainerUrl);
+      if (!instance) {
+        return {
+          success: false,
+          containerId: container.containerId,
+          containerName: container.containerName || "Unknown",
+          error: `Portainer instance not found: ${container.portainerUrl}`,
+        };
+      }
       // Attempt to acquire upgrade lock to prevent conflicts with intent-driven upgrades
-      const lockOpts = { sourceInstanceId: container.sourceInstanceId };
-      const acquired = upgradeLockManager.acquire(container.containerId, {
+      const lockOpts = { sourceInstanceId: instance.id };
+      const lockToken = await upgradeLockManager.acquire(container.containerId, {
         ...lockOpts,
         owner: "manual-batch",
       });
 
-      if (!acquired) {
+      if (!lockToken) {
         const lockInfo = upgradeLockManager.isLocked(container.containerId, lockOpts);
         logger.info("Batch upgrade skipped — container locked", {
           module: "containerController",
@@ -559,11 +580,6 @@ async function batchUpgradeContainers(req, res, next) {
       }
 
       try {
-        const instance = instanceMap.get(container.portainerUrl);
-        if (!instance) {
-          throw new Error(`Portainer instance not found: ${container.portainerUrl}`);
-        }
-
         // Authenticate for this instance (may be redundant but ensures we have a valid session)
         // This is safe to call multiple times as it will reuse existing sessions if available
         await portainerService.authenticatePortainer({
@@ -598,7 +614,7 @@ async function batchUpgradeContainers(req, res, next) {
           error: error.message,
         };
       } finally {
-        upgradeLockManager.release(container.containerId, lockOpts);
+        await upgradeLockManager.release(container.containerId, { ...lockOpts, lockToken });
       }
     });
 

@@ -287,12 +287,12 @@ async function upgradeContainer(container, userId, executionId, intentId) {
   const lockOwner = `intent:${intentId}`;
 
   // Attempt to acquire upgrade lock
-  const acquired = upgradeLockManager.acquire(container.containerId, {
+  const lockToken = await upgradeLockManager.acquire(container.containerId, {
     ...lockOpts,
     owner: lockOwner,
   });
 
-  if (!acquired) {
+  if (!lockToken) {
     const lockInfo = upgradeLockManager.isLocked(container.containerId, lockOpts);
     logger.info("Container upgrade skipped — already locked", {
       containerId: container.containerId,
@@ -405,7 +405,7 @@ async function upgradeContainer(container, userId, executionId, intentId) {
       durationMs,
     };
   } finally {
-    upgradeLockManager.release(container.containerId, lockOpts);
+    await upgradeLockManager.release(container.containerId, { ...lockOpts, lockToken });
   }
 }
 

@@ -24,12 +24,29 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// modernc/sqlite is safe with multiple readers but not concurrent writers.
-	// Since this service is read-only, a small pool is fine.
+	// Keep the pool small because this process shares SQLite write access with
+	// Node; WAL permits concurrent readers but SQLite still serializes writers.
 	database.SetMaxOpenConns(4)
 
 	if err := database.Ping(); err != nil {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
+	}
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS upgrade_locks (
+		target_key TEXT PRIMARY KEY,
+		owner TEXT NOT NULL,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return nil, fmt.Errorf("ensure upgrade locks: %w", err)
+	}
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS idempotency_claims (
+		user_id INTEGER NOT NULL,
+		operation_type TEXT NOT NULL,
+		idempotency_key TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (user_id, operation_type, idempotency_key)
+	)`); err != nil {
+		return nil, fmt.Errorf("ensure idempotency claims: %w", err)
 	}
 
 	return database, nil
