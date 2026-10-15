@@ -8,12 +8,11 @@ export default defineConfig({
     baseURL: "http://localhost:3002",
     headless: true,
   },
-  projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-  ],
+  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
   webServer: [
     {
-      command: "cd ../ && DATABASE_PATH=./data/users.db ADDR=:4000 JWT_SECRET=test-secret /tmp/docked-api",
+      command:
+        "cd ../ && DATABASE_PATH=./data/users.db ADDR=:4000 JWT_SECRET=test-secret /tmp/docked-api",
       port: 4000,
       timeout: 10_000,
       reuseExistingServer: true,

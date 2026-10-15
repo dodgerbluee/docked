@@ -160,8 +160,7 @@ test.describe("GraphQL Integration", () => {
 
     const mutationRequest = graphqlRequests.find(
       (r) =>
-        r.combined.includes("updateUserPreferences") ||
-        r.combined.includes("UpdateUserPreferences")
+        r.combined.includes("updateUserPreferences") || r.combined.includes("UpdateUserPreferences")
     );
     expect(mutationRequest).toBeTruthy();
     expect(mutationRequest.url).toContain("/graphql");

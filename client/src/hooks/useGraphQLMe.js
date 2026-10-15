@@ -19,7 +19,7 @@ export function useGraphQLMe(isAuthenticated) {
   // Refetch when auth state changes
   useEffect(() => {
     if (isAuthenticated) reexecute({ requestPolicy: "network-only" });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, reexecute]);
 
   return { userInfo, loading, error, refetch: () => reexecute({ requestPolicy: "network-only" }) };
 }
