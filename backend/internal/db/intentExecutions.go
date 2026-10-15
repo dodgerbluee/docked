@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 type IntentExecutionRow struct {
@@ -79,4 +80,49 @@ func UpdateIntentExecution(ctx context.Context, database *sql.DB, id int64, stat
 		 WHERE id=?`,
 		status, matched, upgraded, failed, skipped, errMsg, id)
 	return err
+}
+
+// IntentExecutionContainerRow is a row from the intent_execution_containers table.
+type IntentExecutionContainerRow struct {
+	ID               int64
+	ExecutionID      int64
+	ContainerID      string
+	ContainerName    string
+	ImageName        string
+	SourceInstanceID sql.NullInt64
+	RunnerID         sql.NullInt64
+	Status           string
+	OldImage         sql.NullString
+	NewImage         sql.NullString
+	OldDigest        sql.NullString
+	NewDigest        sql.NullString
+	ErrorMessage     sql.NullString
+	DurationMs       sql.NullInt64
+	CreatedAt        string
+}
+
+// GetIntentExecutionContainers returns the per-container results for an intent execution.
+func GetIntentExecutionContainers(ctx context.Context, database *sql.DB, executionID int64) ([]IntentExecutionContainerRow, error) {
+	rows, err := database.QueryContext(ctx,
+		`SELECT id, execution_id, container_id, container_name, image_name,
+			source_instance_id, runner_id, status, old_image, new_image, old_digest, new_digest,
+			error_message, duration_ms, created_at
+		 FROM intent_execution_containers WHERE execution_id = ? ORDER BY id`,
+		executionID)
+	if err != nil {
+		return nil, fmt.Errorf("get intent execution containers: %w", err)
+	}
+	defer rows.Close()
+
+	var results []IntentExecutionContainerRow
+	for rows.Next() {
+		var r IntentExecutionContainerRow
+		if err := rows.Scan(&r.ID, &r.ExecutionID, &r.ContainerID, &r.ContainerName, &r.ImageName,
+			&r.SourceInstanceID, &r.RunnerID, &r.Status, &r.OldImage, &r.NewImage, &r.OldDigest, &r.NewDigest,
+			&r.ErrorMessage, &r.DurationMs, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan intent execution container: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
 }

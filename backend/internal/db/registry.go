@@ -36,3 +36,25 @@ func GetRegistryData(ctx context.Context, database *sql.DB, userID int64, imageR
 	}
 	return &d, nil
 }
+
+// GetAssociatedImages returns the distinct image repos associated with a
+// repository access token (deployed_images.repository_token_id).
+func GetAssociatedImages(ctx context.Context, database *sql.DB, userID, tokenID int64) ([]string, error) {
+	rows, err := database.QueryContext(ctx,
+		"SELECT DISTINCT image_repo FROM deployed_images WHERE user_id = ? AND repository_token_id = ?",
+		userID, tokenID)
+	if err != nil {
+		return nil, fmt.Errorf("get associated images: %w", err)
+	}
+	defer rows.Close()
+
+	var result []string
+	for rows.Next() {
+		var repo string
+		if err := rows.Scan(&repo); err != nil {
+			return nil, fmt.Errorf("scan associated image: %w", err)
+		}
+		result = append(result, repo)
+	}
+	return result, rows.Err()
+}

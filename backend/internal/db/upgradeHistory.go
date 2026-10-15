@@ -77,3 +77,32 @@ func GetUpgradeHistory(ctx context.Context, database *sql.DB, userID int64, limi
 	}
 	return results, total, rows.Err()
 }
+
+// GetUpgradeHistoryBy returns upgrade history filtered by a single column
+// (one of: source_instance_id, runner_id, container_id). The column name is an
+// internal constant, never user input, so it is safe to interpolate.
+func GetUpgradeHistoryBy(ctx context.Context, database *sql.DB, userID int64, limit, offset int, col string, val any) ([]UpgradeHistoryRow, int, error) {
+	var total int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM upgrade_history WHERE user_id = ? AND "+col+" = ?", userID, val).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count upgrade history: %w", err)
+	}
+
+	rows, err := database.QueryContext(ctx,
+		"SELECT "+upgradeCols+" FROM upgrade_history WHERE user_id = ? AND "+col+" = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		userID, val, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get upgrade history: %w", err)
+	}
+	defer rows.Close()
+
+	var results []UpgradeHistoryRow
+	for rows.Next() {
+		r, err := scanUpgrade(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan upgrade history: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, total, rows.Err()
+}

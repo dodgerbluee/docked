@@ -14,6 +14,7 @@ scalar JSON
 scalar BigInt   # 64-bit integer for byte sizes etc.
 scalar Upload   # graphql-upload multipart file
 
+
 # -----------------------------------------------------------------------------
 # Enums
 # -----------------------------------------------------------------------------

@@ -138,3 +138,50 @@ func UpdateTrackedAppVersion(ctx context.Context, database *sql.DB, id int64, la
 		latestVersion, latestDigest, hasUpdate, id)
 	return err
 }
+
+// TrackedAppUpgradeRow is a row from the tracked_app_upgrade_history table.
+type TrackedAppUpgradeRow struct {
+	ID           int64
+	TrackedAppID sql.NullInt64
+	OldVersion   sql.NullString
+	NewVersion   sql.NullString
+	OldTag       sql.NullString
+	NewTag       sql.NullString
+	OldCommitSHA sql.NullString
+	NewCommitSHA sql.NullString
+	Status       string
+	CreatedAt    string
+}
+
+// GetTrackedAppUpgradeHistory returns upgrade records for a single tracked app.
+func GetTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, userID, trackedAppID int64, limit, offset int) ([]TrackedAppUpgradeRow, int, error) {
+	var total int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tracked_app_upgrade_history WHERE user_id = ? AND tracked_app_id = ?",
+		userID, trackedAppID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count tracked app upgrades: %w", err)
+	}
+
+	rows, err := database.QueryContext(ctx,
+		`SELECT id, tracked_app_id, old_version, new_version, old_tag, new_tag,
+			old_commit_sha, new_commit_sha, status, created_at
+		 FROM tracked_app_upgrade_history
+		 WHERE user_id = ? AND tracked_app_id = ?
+		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		userID, trackedAppID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get tracked app upgrades: %w", err)
+	}
+	defer rows.Close()
+
+	var results []TrackedAppUpgradeRow
+	for rows.Next() {
+		var r TrackedAppUpgradeRow
+		if err := rows.Scan(&r.ID, &r.TrackedAppID, &r.OldVersion, &r.NewVersion,
+			&r.OldTag, &r.NewTag, &r.OldCommitSHA, &r.NewCommitSHA, &r.Status, &r.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("scan tracked app upgrade: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, total, rows.Err()
+}
