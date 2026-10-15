@@ -2208,7 +2208,81 @@ func containerRowToModel(c *db.ContainerRow) *model.Container {
 		CreatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
 		UpdatedAt:         parseTime(nullStrDefault(c.CreatedAt)),
 		Source:            containerSourceFromRow(c),
+		ImageInfo:         imageInfoFromRow(c),
 	}
+}
+
+func imageInfoFromRow(c *db.ContainerRow) *model.ImageVersionInfo {
+	// Only return imageInfo if we have registry_image_versions data
+	if !c.LatestTag.Valid && !c.Provider.Valid && !c.ImageTag.Valid {
+		return nil
+	}
+	repo := nullStrDefault(c.ImageRepo)
+	registry := model.RegistryDockerHub
+	if c.Provider.Valid {
+		switch strings.ToLower(c.Provider.String) {
+		case "ghcr":
+			registry = model.RegistryGhcr
+		case "quay":
+			registry = model.RegistryQuay
+		case "lscr":
+			registry = model.RegistryOther
+		}
+	}
+	namespace, repository := parseRepoParts(repo)
+	hasUpdate := false
+	if c.LatestDigest.Valid && c.CurrentDigest.Valid {
+		hasUpdate = c.LatestDigest.String != c.CurrentDigest.String
+	} else if c.LatestTag.Valid && c.ImageTag.Valid {
+		hasUpdate = c.LatestTag.String != c.ImageTag.String
+	}
+	info := &model.ImageVersionInfo{
+		Registry:   registry,
+		Namespace:  namespace,
+		Repository: repository,
+		HasUpdate:  hasUpdate,
+	}
+	if c.ImageTag.Valid {
+		info.CurrentTag = &c.ImageTag.String
+	}
+	if c.CurrentDigest.Valid {
+		info.CurrentDigest = &c.CurrentDigest.String
+	}
+	if c.LatestTag.Valid {
+		info.LatestTag = &c.LatestTag.String
+	}
+	if c.LatestVersion.Valid {
+		info.LatestVersion = &c.LatestVersion.String
+	}
+	if c.LatestDigest.Valid {
+		info.LatestDigest = &c.LatestDigest.String
+	}
+	if c.LatestPublishDate.Valid {
+		t := parseTime(c.LatestPublishDate.String)
+		info.LatestPublishDate = &t
+	}
+	if c.LastChecked.Valid {
+		info.LastChecked = parseTime(c.LastChecked.String)
+	}
+	return info
+}
+
+func parseRepoParts(repo string) (*string, string) {
+	// Strip registry prefix if present
+	base := repo
+	if idx := strings.Index(base, "/"); idx != -1 && (strings.Contains(base[:idx], ".") || strings.Contains(base[:idx], ":")) {
+		base = base[idx+1:]
+	}
+	// Strip tag/digest
+	if idx := strings.IndexAny(base, ":@"); idx != -1 {
+		base = base[:idx]
+	}
+	parts := strings.SplitN(base, "/", 2)
+	if len(parts) == 2 {
+		ns := parts[0]
+		return &ns, parts[1]
+	}
+	return nil, base
 }
 
 func containerSourceFromRow(c *db.ContainerRow) model.ContainerSource {
