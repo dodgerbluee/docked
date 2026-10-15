@@ -1,6 +1,6 @@
 {
   "name": "docked",
-  "version": "3.20.8-dev",
+  "version": "3.20.8",
   "description": "Docker app maintenance tool with Portainer integration",
   "main": "server/index.js",
   "keywords": [
