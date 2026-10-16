@@ -586,16 +586,40 @@ type TrackedAppCheckResult struct {
 	LatestVersion  *string `json:"latestVersion,omitempty"`
 }
 
+type TrackedAppHistoryFilterInput struct {
+	AppName  *string        `json:"appName,omitempty"`
+	Provider *string        `json:"provider,omitempty"`
+	Status   *UpgradeStatus `json:"status,omitempty"`
+}
+
+type TrackedAppUpgradeHistoryStats struct {
+	TotalUpgrades      int        `json:"totalUpgrades"`
+	SuccessfulUpgrades int        `json:"successfulUpgrades"`
+	FailedUpgrades     int        `json:"failedUpgrades"`
+	AvgDurationMs      *float64   `json:"avgDurationMs,omitempty"`
+	FirstUpgrade       *time.Time `json:"firstUpgrade,omitempty"`
+	LastUpgrade        *time.Time `json:"lastUpgrade,omitempty"`
+	TotalAppsUpgraded  int        `json:"totalAppsUpgraded"`
+}
+
 type TrackedAppUpgradeRecord struct {
-	ID           string        `json:"id"`
-	TrackedAppID string        `json:"trackedAppId"`
-	OldVersion   *string       `json:"oldVersion,omitempty"`
-	NewVersion   *string       `json:"newVersion,omitempty"`
-	OldDigest    *string       `json:"oldDigest,omitempty"`
-	NewDigest    *string       `json:"newDigest,omitempty"`
-	Status       UpgradeStatus `json:"status"`
-	PerformedBy  *User         `json:"performedBy,omitempty"`
-	CreatedAt    time.Time     `json:"createdAt"`
+	ID                string        `json:"id"`
+	TrackedAppID      *string       `json:"trackedAppId,omitempty"`
+	AppName           *string       `json:"appName,omitempty"`
+	Provider          *string       `json:"provider,omitempty"`
+	Repository        *string       `json:"repository,omitempty"`
+	OldVersion        *string       `json:"oldVersion,omitempty"`
+	NewVersion        *string       `json:"newVersion,omitempty"`
+	OldTag            *string       `json:"oldTag,omitempty"`
+	NewTag            *string       `json:"newTag,omitempty"`
+	OldCommitSha      *string       `json:"oldCommitSha,omitempty"`
+	NewCommitSha      *string       `json:"newCommitSha,omitempty"`
+	ReleaseNotes      *string       `json:"releaseNotes,omitempty"`
+	Status            UpgradeStatus `json:"status"`
+	ErrorMessage      *string       `json:"errorMessage,omitempty"`
+	UpgradeDurationMs *int          `json:"upgradeDurationMs,omitempty"`
+	PerformedBy       *User         `json:"performedBy,omitempty"`
+	CreatedAt         time.Time     `json:"createdAt"`
 }
 
 type TrackedAppUpgradeRecordConnection struct {
@@ -714,6 +738,15 @@ type UpgradeHistoryFilterInput struct {
 	RunnerID         *string        `json:"runnerId,omitempty"`
 	From             *time.Time     `json:"from,omitempty"`
 	To               *time.Time     `json:"to,omitempty"`
+}
+
+type UpgradeHistoryStats struct {
+	TotalUpgrades      int        `json:"totalUpgrades"`
+	SuccessfulUpgrades int        `json:"successfulUpgrades"`
+	FailedUpgrades     int        `json:"failedUpgrades"`
+	AvgDurationMs      *float64   `json:"avgDurationMs,omitempty"`
+	FirstUpgrade       *time.Time `json:"firstUpgrade,omitempty"`
+	LastUpgrade        *time.Time `json:"lastUpgrade,omitempty"`
 }
 
 type UpgradeProgressEvent struct {

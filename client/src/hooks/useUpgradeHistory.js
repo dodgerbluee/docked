@@ -1,13 +1,11 @@
 /**
  * Hook for fetching and managing upgrade history
- * Uses GraphQL for the main list, REST for stats and detail
+ * Uses GraphQL for the list and stats.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
 import { graphqlClient } from "../graphql/client";
-import { UPGRADE_HISTORY_QUERY } from "../graphql/queries";
+import { UPGRADE_HISTORY_QUERY, UPGRADE_HISTORY_STATS_QUERY } from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
@@ -103,11 +101,22 @@ export const useUpgradeHistory = (options = {}) => {
       if (cachedStats === null) {
         setStatsLoading(true);
       }
-      const response = await axios.get(`${API_BASE_URL}/api/containers/upgrade-history/stats`);
-      if (response.data.success && mountedRef.current) {
-        const data = response.data.stats || {};
-        cachedStats = data;
-        setStats(data);
+      const { data, error } = await graphqlClient
+        .query(UPGRADE_HISTORY_STATS_QUERY)
+        .toPromise();
+      if (error) throw error;
+      if (mountedRef.current) {
+        const s = data?.upgradeHistoryStats || {};
+        const mapped = {
+          total_upgrades: s.totalUpgrades ?? 0,
+          successful_upgrades: s.successfulUpgrades ?? 0,
+          failed_upgrades: s.failedUpgrades ?? 0,
+          avg_duration_ms: s.avgDurationMs ?? null,
+          first_upgrade: s.firstUpgrade ?? null,
+          last_upgrade: s.lastUpgrade ?? null,
+        };
+        cachedStats = mapped;
+        setStats(mapped);
       }
     } catch (err) {
       console.error("Error fetching upgrade history stats:", err);
@@ -115,19 +124,6 @@ export const useUpgradeHistory = (options = {}) => {
       if (mountedRef.current) {
         setStatsLoading(false);
       }
-    }
-  }, []);
-
-  const fetchUpgradeById = useCallback(async (id) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/containers/upgrade-history/${id}`);
-      if (response.data.success) {
-        return response.data.upgrade;
-      }
-      return null;
-    } catch (err) {
-      console.error("Error fetching upgrade by ID:", err);
-      throw err;
     }
   }, []);
 
@@ -163,6 +159,5 @@ export const useUpgradeHistory = (options = {}) => {
     stats,
     statsLoading,
     refetch: fetchHistory,
-    fetchUpgradeById,
   };
 };

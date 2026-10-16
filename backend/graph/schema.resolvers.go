@@ -2629,6 +2629,79 @@ func (r *queryResolver) UpgradeHistory(ctx context.Context, filter *model.Upgrad
 	}, nil
 }
 
+// UpgradeHistoryStats is the resolver for the upgradeHistoryStats field.
+func (r *queryResolver) UpgradeHistoryStats(ctx context.Context) (*model.UpgradeHistoryStats, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s, err := db.GetUpgradeHistoryStats(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.UpgradeHistoryStats{
+		TotalUpgrades:      s.Total,
+		SuccessfulUpgrades: s.Successful,
+		FailedUpgrades:     s.Failed,
+		AvgDurationMs:      nullFloatPtr(s.AvgDuration),
+		FirstUpgrade:       nullTimePtr(s.FirstUpgrade),
+		LastUpgrade:        nullTimePtr(s.LastUpgrade),
+	}, nil
+}
+
+// TrackedAppUpgradeHistory is the resolver for the trackedAppUpgradeHistory field.
+func (r *queryResolver) TrackedAppUpgradeHistory(ctx context.Context, filter *model.TrackedAppHistoryFilterInput, first *int, offset *int) ([]*model.TrackedAppUpgradeRecord, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	limit := derefInt(first, 100)
+	if limit < 1 {
+		limit = 100
+	}
+	off := derefInt(offset, 0)
+
+	var appName, provider, status *string
+	if filter != nil {
+		appName, provider = filter.AppName, filter.Provider
+		if filter.Status != nil {
+			s := dbEnumValue(string(*filter.Status))
+			status = &s
+		}
+	}
+
+	rows, err := db.GetTrackedAppUpgradeHistoryAll(ctx, r.DB, uid, appName, provider, status, limit, off)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*model.TrackedAppUpgradeRecord, len(rows))
+	for i, row := range rows {
+		items[i] = trackedAppUpgradeToModel(row)
+	}
+	return items, nil
+}
+
+// TrackedAppUpgradeHistoryStats is the resolver for the trackedAppUpgradeHistoryStats field.
+func (r *queryResolver) TrackedAppUpgradeHistoryStats(ctx context.Context) (*model.TrackedAppUpgradeHistoryStats, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s, err := db.GetTrackedAppUpgradeHistoryStats(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &model.TrackedAppUpgradeHistoryStats{
+		TotalUpgrades:      s.Total,
+		SuccessfulUpgrades: s.Successful,
+		FailedUpgrades:     s.Failed,
+		AvgDurationMs:      nullFloatPtr(s.AvgDuration),
+		FirstUpgrade:       nullTimePtr(s.FirstUpgrade),
+		LastUpgrade:        nullTimePtr(s.LastUpgrade),
+		TotalAppsUpgraded:  s.TotalAppsChanged,
+	}, nil
+}
+
 // DiscordWebhooks is the resolver for the discordWebhooks field.
 func (r *queryResolver) DiscordWebhooks(ctx context.Context) ([]*model.DiscordWebhook, error) {
 	uid, err := requireUser(ctx)
@@ -3122,16 +3195,7 @@ func (r *trackedAppResolver) UpgradeHistory(ctx context.Context, obj *model.Trac
 	}
 	items := make([]*model.TrackedAppUpgradeRecord, len(rows))
 	for i, row := range rows {
-		items[i] = &model.TrackedAppUpgradeRecord{
-			ID:           strconv.FormatInt(row.ID, 10),
-			TrackedAppID: nullInt64Default(row.TrackedAppID),
-			OldVersion:   nullStrPtr(row.OldVersion),
-			NewVersion:   nullStrPtr(row.NewVersion),
-			OldDigest:    nullStrPtr(row.OldCommitSHA),
-			NewDigest:    nullStrPtr(row.NewCommitSHA),
-			Status:       model.UpgradeStatus(enumConst(row.Status)),
-			CreatedAt:    parseTime(row.CreatedAt),
-		}
+		items[i] = trackedAppUpgradeToModel(row)
 	}
 	return &model.TrackedAppUpgradeRecordConnection{
 		Items:      items,

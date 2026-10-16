@@ -26,7 +26,6 @@ const deployedImages = require("./deployedImages");
 const registryImageVersions = require("./registryImageVersions");
 const dockerHubImageVersions = require("./dockerHubImageVersions");
 const upgradeHistory = require("./upgradeHistory");
-const trackedAppUpgradeHistory = require("./trackedAppUpgradeHistory");
 const intents = require("./intents");
 const intentExecutions = require("./intentExecutions");
 const oauth = require("./oauth");
@@ -132,7 +131,6 @@ module.exports = {
   ...registryImageVersions,
   ...dockerHubImageVersions,
   ...upgradeHistory,
-  ...trackedAppUpgradeHistory,
   ...intents,
   ...intentExecutions,
   ...oauth,

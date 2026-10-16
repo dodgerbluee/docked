@@ -38,7 +38,6 @@ const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
-const trackedAppHistoryController = require("../controllers/trackedAppController");
 
 const versionController = require("../controllers/versionController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
@@ -792,25 +791,8 @@ router.post(
 router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
 router.post("/images/delete", destructiveLimiter, asyncHandler(imageController.deleteImages));
 
-// Upgrade history routes
-router.get(
-  "/containers/upgrade-history/stats",
-  asyncHandler(containerController.getUpgradeHistoryStats)
-);
-router.get(
-  "/containers/upgrade-history/:id",
-  asyncHandler(containerController.getUpgradeHistoryById)
-);
-
-// Tracked App Upgrade History routes
-router.get(
-  "/tracked-apps/upgrade-history",
-  asyncHandler(trackedAppHistoryController.getTrackedAppHistory)
-);
-router.get(
-  "/tracked-apps/upgrade-history/stats",
-  asyncHandler(trackedAppHistoryController.getTrackedAppHistoryStats)
-);
+// Upgrade history routes: served by the graph (upgradeHistoryStats,
+// trackedAppUpgradeHistory, trackedAppUpgradeHistoryStats).
 
 /**
  * Get container debug information (developer mode only)

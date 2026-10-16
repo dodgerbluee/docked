@@ -53,6 +53,32 @@ func scanUpgrade(row interface{ Scan(...any) error }) (UpgradeHistoryRow, error)
 	return r, err
 }
 
+// UpgradeHistoryStats aggregates the upgrade_history table for one user,
+// mirroring Node's getUpgradeHistoryStats.
+type UpgradeHistoryStats struct {
+	Total        int
+	Successful   int
+	Failed       int
+	AvgDuration  sql.NullFloat64
+	FirstUpgrade sql.NullString
+	LastUpgrade  sql.NullString
+}
+
+func GetUpgradeHistoryStats(ctx context.Context, database *sql.DB, userID int64) (*UpgradeHistoryStats, error) {
+	var s UpgradeHistoryStats
+	err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*),
+			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
+			AVG(upgrade_duration_ms), MIN(created_at), MAX(created_at)
+		 FROM upgrade_history WHERE user_id = ?`, userID).
+		Scan(&s.Total, &s.Successful, &s.Failed, &s.AvgDuration, &s.FirstUpgrade, &s.LastUpgrade)
+	if err != nil {
+		return nil, fmt.Errorf("upgrade history stats: %w", err)
+	}
+	return &s, nil
+}
+
 // UpgradeHistoryInsert carries one upgrade_history row, mirroring the fields
 // Node's createUpgradeHistory writes (status domain: "success" | "failed").
 type UpgradeHistoryInsert struct {

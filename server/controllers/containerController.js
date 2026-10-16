@@ -1143,72 +1143,6 @@ async function clearContainerData(req, res, _next) {
   }
 }
 
-/**
- * Get a single upgrade history record by ID
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getUpgradeHistoryById(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-
-    const { id } = req.params;
-    const { getUpgradeHistoryById: getHistoryById } = require("../db/index");
-
-    const upgrade = await getHistoryById(userId, parseInt(id, 10));
-
-    if (!upgrade) {
-      return res.status(404).json({
-        success: false,
-        error: "Upgrade history record not found",
-      });
-    }
-
-    return res.json({
-      success: true,
-      upgrade,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/**
- * Get upgrade history statistics for the authenticated user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-async function getUpgradeHistoryStats(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-    }
-
-    const { getUpgradeHistoryStats: getStats } = require("../db/index");
-
-    const stats = await getStats(userId);
-
-    return res.json({
-      success: true,
-      stats,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 const { resolveBackend } = require("../services/dockerBackendFactory");
 
 module.exports = {
@@ -1218,6 +1152,4 @@ module.exports = {
   clearContainerData,
   upgradeContainer,
   batchUpgradeContainers,
-  getUpgradeHistoryById,
-  getUpgradeHistoryStats,
 };

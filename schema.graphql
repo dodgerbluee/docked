@@ -338,12 +338,20 @@ type TrackedApp {
 
 type TrackedAppUpgradeRecord {
   id: ID!
-  trackedAppId: ID!
+  trackedAppId: ID
+  appName: String
+  provider: String
+  repository: String
   oldVersion: String
   newVersion: String
-  oldDigest: String
-  newDigest: String
+  oldTag: String
+  newTag: String
+  oldCommitSha: String
+  newCommitSha: String
+  releaseNotes: String
   status: UpgradeStatus!
+  errorMessage: String
+  upgradeDurationMs: Int
   performedBy: User
   createdAt: DateTime!
 }
@@ -921,6 +929,32 @@ input UpgradeHistoryFilterInput {
   to: DateTime
 }
 
+input TrackedAppHistoryFilterInput {
+  # substring match on app_name
+  appName: String
+  provider: String
+  status: UpgradeStatus
+}
+
+type UpgradeHistoryStats {
+  totalUpgrades: Int!
+  successfulUpgrades: Int!
+  failedUpgrades: Int!
+  avgDurationMs: Float
+  firstUpgrade: DateTime
+  lastUpgrade: DateTime
+}
+
+type TrackedAppUpgradeHistoryStats {
+  totalUpgrades: Int!
+  successfulUpgrades: Int!
+  failedUpgrades: Int!
+  avgDurationMs: Float
+  firstUpgrade: DateTime
+  lastUpgrade: DateTime
+  totalAppsUpgraded: Int!
+}
+
 input DeleteImageInput {
   imageId: String!
   sourceInstanceId: ID
@@ -1002,6 +1036,14 @@ type Query {
     first: Int
     after: String
   ): UpgradeRecordConnection!
+  upgradeHistoryStats: UpgradeHistoryStats!
+  # Global tracked-app upgrade list (limit/offset paging, matching the old REST route).
+  trackedAppUpgradeHistory(
+    filter: TrackedAppHistoryFilterInput
+    first: Int
+    offset: Int
+  ): [TrackedAppUpgradeRecord!]!
+  trackedAppUpgradeHistoryStats: TrackedAppUpgradeHistoryStats!
 
   # ── Discord ───────────────────────────────────────────────────────────────
   discordWebhooks: [DiscordWebhook!]!

@@ -1145,3 +1145,57 @@ export const SET_DEBUG_ENDPOINTS_ENABLED_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+export const UPGRADE_HISTORY_STATS_QUERY = /* GraphQL */ `
+  query UpgradeHistoryStats {
+    upgradeHistoryStats {
+      totalUpgrades
+      successfulUpgrades
+      failedUpgrades
+      avgDurationMs
+      firstUpgrade
+      lastUpgrade
+    }
+  }
+`;
+
+export const TRACKED_APP_UPGRADE_HISTORY_QUERY = /* GraphQL */ `
+  query TrackedAppUpgradeHistory(
+    $filter: TrackedAppHistoryFilterInput
+    $first: Int
+    $offset: Int
+  ) {
+    trackedAppUpgradeHistory(filter: $filter, first: $first, offset: $offset) {
+      id
+      trackedAppId
+      appName
+      provider
+      repository
+      oldVersion
+      newVersion
+      oldTag
+      newTag
+      oldCommitSha
+      newCommitSha
+      releaseNotes
+      status
+      errorMessage
+      upgradeDurationMs
+      createdAt
+    }
+  }
+`;
+
+export const TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY = /* GraphQL */ `
+  query TrackedAppUpgradeHistoryStats {
+    trackedAppUpgradeHistoryStats {
+      totalUpgrades
+      successfulUpgrades
+      failedUpgrades
+      avgDurationMs
+      firstUpgrade
+      lastUpgrade
+      totalAppsUpgraded
+    }
+  }
+`;

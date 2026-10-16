@@ -219,16 +219,34 @@ func InsertTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, h Tra
 
 // TrackedAppUpgradeRow is a row from the tracked_app_upgrade_history table.
 type TrackedAppUpgradeRow struct {
-	ID           int64
-	TrackedAppID sql.NullInt64
-	OldVersion   sql.NullString
-	NewVersion   sql.NullString
-	OldTag       sql.NullString
-	NewTag       sql.NullString
-	OldCommitSHA sql.NullString
-	NewCommitSHA sql.NullString
-	Status       string
-	CreatedAt    string
+	ID               int64
+	TrackedAppID     sql.NullInt64
+	AppName          sql.NullString
+	Provider         sql.NullString
+	Repository       sql.NullString
+	OldVersion       sql.NullString
+	NewVersion       sql.NullString
+	OldTag           sql.NullString
+	NewTag           sql.NullString
+	OldCommitSHA     sql.NullString
+	NewCommitSHA     sql.NullString
+	ReleaseNotes     sql.NullString
+	Status           string
+	ErrorMessage     sql.NullString
+	UpgradeDuration  sql.NullInt64
+	CreatedAt        string
+}
+
+const trackedAppUpgradeCols = `id, tracked_app_id, app_name, provider, repository,
+	old_version, new_version, old_tag, new_tag, old_commit_sha, new_commit_sha,
+	release_notes, status, error_message, upgrade_duration_ms, created_at`
+
+func scanTrackedAppUpgrade(row interface{ Scan(...any) error }) (TrackedAppUpgradeRow, error) {
+	var r TrackedAppUpgradeRow
+	err := row.Scan(&r.ID, &r.TrackedAppID, &r.AppName, &r.Provider, &r.Repository,
+		&r.OldVersion, &r.NewVersion, &r.OldTag, &r.NewTag, &r.OldCommitSHA, &r.NewCommitSHA,
+		&r.ReleaseNotes, &r.Status, &r.ErrorMessage, &r.UpgradeDuration, &r.CreatedAt)
+	return r, err
 }
 
 // GetTrackedAppUpgradeHistory returns upgrade records for a single tracked app.
@@ -241,8 +259,7 @@ func GetTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, userID, 
 	}
 
 	rows, err := database.QueryContext(ctx,
-		`SELECT id, tracked_app_id, old_version, new_version, old_tag, new_tag,
-			old_commit_sha, new_commit_sha, status, created_at
+		`SELECT `+trackedAppUpgradeCols+`
 		 FROM tracked_app_upgrade_history
 		 WHERE user_id = ? AND tracked_app_id = ?
 		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
@@ -254,12 +271,77 @@ func GetTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, userID, 
 
 	var results []TrackedAppUpgradeRow
 	for rows.Next() {
-		var r TrackedAppUpgradeRow
-		if err := rows.Scan(&r.ID, &r.TrackedAppID, &r.OldVersion, &r.NewVersion,
-			&r.OldTag, &r.NewTag, &r.OldCommitSHA, &r.NewCommitSHA, &r.Status, &r.CreatedAt); err != nil {
+		r, err := scanTrackedAppUpgrade(rows)
+		if err != nil {
 			return nil, 0, fmt.Errorf("scan tracked app upgrade: %w", err)
 		}
 		results = append(results, r)
 	}
 	return results, total, rows.Err()
+}
+
+// GetTrackedAppUpgradeHistoryAll returns the user's tracked-app upgrade history
+// across all apps with the same filters/paging as Node's REST route
+// (appName is a LIKE substring match; provider/status are exact).
+func GetTrackedAppUpgradeHistoryAll(ctx context.Context, database *sql.DB, userID int64, appName, provider, status *string, limit, offset int) ([]TrackedAppUpgradeRow, error) {
+	q := `SELECT ` + trackedAppUpgradeCols + ` FROM tracked_app_upgrade_history WHERE user_id = ?`
+	args := []any{userID}
+	if appName != nil && *appName != "" {
+		q += " AND app_name LIKE ?"
+		args = append(args, "%"+*appName+"%")
+	}
+	if provider != nil && *provider != "" {
+		q += " AND provider = ?"
+		args = append(args, *provider)
+	}
+	if status != nil && *status != "" {
+		q += " AND status = ?"
+		args = append(args, *status)
+	}
+	q += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := database.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get tracked app upgrades all: %w", err)
+	}
+	defer rows.Close()
+
+	var results []TrackedAppUpgradeRow
+	for rows.Next() {
+		r, err := scanTrackedAppUpgrade(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan tracked app upgrade: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+// TrackedAppUpgradeStats aggregates tracked_app_upgrade_history for one user,
+// mirroring Node's getTrackedAppUpgradeHistoryStats.
+type TrackedAppUpgradeStats struct {
+	Total            int
+	Successful       int
+	Failed           int
+	AvgDuration      sql.NullFloat64
+	FirstUpgrade     sql.NullString
+	LastUpgrade      sql.NullString
+	TotalAppsChanged int
+}
+
+func GetTrackedAppUpgradeHistoryStats(ctx context.Context, database *sql.DB, userID int64) (*TrackedAppUpgradeStats, error) {
+	var s TrackedAppUpgradeStats
+	err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*),
+			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
+			AVG(upgrade_duration_ms), MIN(created_at), MAX(created_at),
+			COUNT(DISTINCT app_name)
+		 FROM tracked_app_upgrade_history WHERE user_id = ?`, userID).
+		Scan(&s.Total, &s.Successful, &s.Failed, &s.AvgDuration, &s.FirstUpgrade, &s.LastUpgrade, &s.TotalAppsChanged)
+	if err != nil {
+		return nil, fmt.Errorf("tracked app upgrade stats: %w", err)
+	}
+	return &s, nil
 }

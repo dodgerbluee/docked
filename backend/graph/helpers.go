@@ -753,6 +753,43 @@ func nullTimePtr(s sql.NullString) *time.Time {
 }
 func strPtr(s string) *string { return &s }
 
+func nullFloatPtr(s sql.NullFloat64) *float64 {
+	if !s.Valid {
+		return nil
+	}
+	return &s.Float64
+}
+
+func derefInt(p *int, def int) int {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+
+// trackedAppUpgradeToModel projects a tracked_app_upgrade_history row onto the
+// graph type, shared by the per-app field and the global list query.
+func trackedAppUpgradeToModel(row db.TrackedAppUpgradeRow) *model.TrackedAppUpgradeRecord {
+	return &model.TrackedAppUpgradeRecord{
+		ID:                strconv.FormatInt(row.ID, 10),
+		TrackedAppID:      nullInt64StrPtr(row.TrackedAppID),
+		AppName:           nullStrPtr(row.AppName),
+		Provider:          nullStrPtr(row.Provider),
+		Repository:        nullStrPtr(row.Repository),
+		OldVersion:        nullStrPtr(row.OldVersion),
+		NewVersion:        nullStrPtr(row.NewVersion),
+		OldTag:            nullStrPtr(row.OldTag),
+		NewTag:            nullStrPtr(row.NewTag),
+		OldCommitSha:      nullStrPtr(row.OldCommitSHA),
+		NewCommitSha:      nullStrPtr(row.NewCommitSHA),
+		ReleaseNotes:      nullStrPtr(row.ReleaseNotes),
+		Status:            model.UpgradeStatus(enumConst(row.Status)),
+		ErrorMessage:      nullStrPtr(row.ErrorMessage),
+		UpgradeDurationMs: nullInt64Ptr(row.UpgradeDuration),
+		CreatedAt:         parseTime(row.CreatedAt),
+	}
+}
+
 // pageArgs parses the standard first/after pagination arguments into a
 // limit/offset pair, using defaultLimit when first is not supplied.
 func pageArgs(first *int, after *string, defaultLimit int) (limit, offset int) {

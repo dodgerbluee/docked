@@ -4,13 +4,38 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  TRACKED_APP_UPGRADE_HISTORY_QUERY,
+  TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY,
+} from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
 // on re-navigation instead of firing API calls again.
 let cachedHistory = null;
 let cachedStats = null;
+
+/** Maps a graph TrackedAppUpgradeRecord to the snake_case shape UI components expect. */
+function mapRecord(r) {
+  return {
+    id: Number(r.id),
+    tracked_app_id: r.trackedAppId ? Number(r.trackedAppId) : null,
+    app_name: r.appName,
+    provider: r.provider,
+    repository: r.repository,
+    old_version: r.oldVersion,
+    new_version: r.newVersion,
+    old_tag: r.oldTag,
+    new_tag: r.newTag,
+    old_commit_sha: r.oldCommitSha,
+    new_commit_sha: r.newCommitSha,
+    release_notes: r.releaseNotes,
+    status: r.status?.toLowerCase(),
+    error_message: r.errorMessage,
+    upgrade_duration_ms: r.upgradeDurationMs,
+    created_at: r.createdAt,
+  };
+}
 
 export function useTrackedAppUpgradeHistory() {
   const [history, setHistory] = useState(cachedHistory || []);
@@ -26,27 +51,28 @@ export function useTrackedAppUpgradeHistory() {
       }
       setError(null);
 
-      const params = new URLSearchParams();
-      if (options.limit) params.append("limit", options.limit);
-      if (options.offset) params.append("offset", options.offset);
-      if (options.appName) params.append("appName", options.appName);
-      if (options.provider) params.append("provider", options.provider);
-      if (options.status) params.append("status", options.status);
+      const filter = {};
+      if (options.appName) filter.appName = options.appName;
+      if (options.provider) filter.provider = options.provider;
+      if (options.status) filter.status = options.status.toUpperCase();
 
-      const response = await axios.get(
-        `${API_BASE_URL}/api/tracked-apps/upgrade-history?${params.toString()}`
-      );
+      const { data, error: gqlError } = await graphqlClient
+        .query(TRACKED_APP_UPGRADE_HISTORY_QUERY, {
+          filter: Object.keys(filter).length ? filter : null,
+          first: options.limit || 100,
+          offset: options.offset || 0,
+        })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
 
-      if (response.data.success && mountedRef.current) {
-        const data = response.data.history || [];
-        cachedHistory = data;
-        setHistory(data);
-      } else if (!response.data.success) {
-        throw new Error(response.data.error || "Failed to fetch upgrade history");
+      if (mountedRef.current) {
+        const rows = (data?.trackedAppUpgradeHistory || []).map(mapRecord);
+        cachedHistory = rows;
+        setHistory(rows);
       }
     } catch (err) {
       if (mountedRef.current) {
-        setError(err.response?.data?.error || err.message || "Failed to fetch upgrade history");
+        setError(err.message || "Failed to fetch upgrade history");
       }
     } finally {
       if (mountedRef.current) {
@@ -57,14 +83,26 @@ export function useTrackedAppUpgradeHistory() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/tracked-apps/upgrade-history/stats`);
+      const { data, error: gqlError } = await graphqlClient
+        .query(TRACKED_APP_UPGRADE_HISTORY_STATS_QUERY)
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
 
-      if (response.data.success && mountedRef.current) {
-        const data = response.data.stats || null;
-        cachedStats = data;
-        setStats(data);
-      } else if (!response.data.success) {
-        throw new Error(response.data.error || "Failed to fetch statistics");
+      if (mountedRef.current) {
+        const s = data?.trackedAppUpgradeHistoryStats || null;
+        const mapped = s
+          ? {
+              total_upgrades: s.totalUpgrades ?? 0,
+              successful_upgrades: s.successfulUpgrades ?? 0,
+              failed_upgrades: s.failedUpgrades ?? 0,
+              avg_duration_ms: s.avgDurationMs ?? null,
+              first_upgrade: s.firstUpgrade ?? null,
+              last_upgrade: s.lastUpgrade ?? null,
+              total_apps_upgraded: s.totalAppsUpgraded ?? 0,
+            }
+          : null;
+        cachedStats = mapped;
+        setStats(mapped);
       }
     } catch (err) {
       // Don't set error for stats failure, it's not critical

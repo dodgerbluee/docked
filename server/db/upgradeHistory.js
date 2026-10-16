@@ -184,87 +184,6 @@ function getUpgradeHistory(userId, options = {}) {
 }
 
 /**
- * Get a single upgrade history record by ID
- * @param {number} userId - User ID
- * @param {number} upgradeId - Upgrade history ID
- * @returns {Promise<Object|null>} - Upgrade history record or null
- */
-function getUpgradeHistoryById(userId, upgradeId) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-
-      queueDatabaseOperation(() => {
-        db.get(
-          `SELECT
-          id, user_id, source_instance_id, source_instance_name,
-          runner_id, runner_name,
-          container_id, container_name,
-          endpoint_id, source_url, old_image, new_image, old_digest, new_digest,
-          old_version, new_version, image_repo, registry, namespace, repository,
-          status, error_message, upgrade_duration_ms, created_at
-        FROM upgrade_history
-        WHERE id = ? AND user_id = ?`,
-          [upgradeId, userId],
-          (err, row) => {
-            if (err) {
-              logger.error("Error fetching upgrade history by ID:", {
-                error: err,
-                userId,
-                upgradeId,
-              });
-              reject(err);
-            } else {
-              resolve(row || null);
-            }
-          }
-        );
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Get upgrade history statistics for a user
- * @param {number} userId - User ID
- * @returns {Promise<Object>} - Statistics object
- */
-function getUpgradeHistoryStats(userId) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-
-      queueDatabaseOperation(() => {
-        db.get(
-          `SELECT 
-          COUNT(*) as total_upgrades,
-          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_upgrades,
-          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_upgrades,
-          AVG(upgrade_duration_ms) as avg_duration_ms,
-          MIN(created_at) as first_upgrade,
-          MAX(created_at) as last_upgrade
-        FROM upgrade_history
-        WHERE user_id = ?`,
-          [userId],
-          (err, row) => {
-            if (err) {
-              logger.error("Error fetching upgrade history stats:", { error: err, userId });
-              reject(err);
-            } else {
-              resolve(row || {});
-            }
-          }
-        );
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
  * Delete old upgrade history records (cleanup)
  * @param {number} userId - User ID
  * @param {number} daysToKeep - Number of days of history to keep
@@ -303,7 +222,5 @@ function cleanupOldUpgradeHistory(userId, daysToKeep = 90) {
 module.exports = {
   createUpgradeHistory,
   getUpgradeHistory,
-  getUpgradeHistoryById,
-  getUpgradeHistoryStats,
   cleanupOldUpgradeHistory,
 };

@@ -408,45 +408,48 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		BatchConfigs             func(childComplexity int) int
-		BatchLogLevel            func(childComplexity int) int
-		BatchRun                 func(childComplexity int, id string) int
-		BatchRuns                func(childComplexity int, jobType *model.BatchJobType, first *int, after *string) int
-		Container                func(childComplexity int, id string) int
-		ContainerGroup           func(childComplexity int) int
-		Containers               func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
-		DebugEndpointsEnabled    func(childComplexity int) int
-		DisallowedContainers     func(childComplexity int) int
-		DiscordWebhook           func(childComplexity int, id string) int
-		DiscordWebhookInfo       func(childComplexity int, webhookURL string) int
-		DiscordWebhooks          func(childComplexity int) int
-		Health                   func(childComplexity int) int
-		Intent                   func(childComplexity int, id string) int
-		IntentExecution          func(childComplexity int, id string) int
-		IntentExecutions         func(childComplexity int, intentID *string, first *int, after *string) int
-		Intents                  func(childComplexity int) int
-		LatestRelease            func(childComplexity int) int
-		Logs                     func(childComplexity int, lines *int, since *int, file *string, offset *int) int
-		Me                       func(childComplexity int) int
-		OauthProviders           func(childComplexity int) int
-		Operation                func(childComplexity int, id string) int
-		PreviewIntent            func(childComplexity int, id string) int
-		RegistrationCodeRequired func(childComplexity int) int
-		RepositoryToken          func(childComplexity int, provider string) int
-		RepositoryTokens         func(childComplexity int) int
-		Runner                   func(childComplexity int, id string) int
-		Runners                  func(childComplexity int) int
-		SourceInstance           func(childComplexity int, id string) int
-		SourceInstances          func(childComplexity int) int
-		SummaryStats             func(childComplexity int) int
-		TrackedApp               func(childComplexity int, id string) int
-		TrackedApps              func(childComplexity int) int
-		UnusedImages             func(childComplexity int) int
-		UpgradeHistory           func(childComplexity int, filter *model.UpgradeHistoryFilterInput, first *int, after *string) int
-		UserExists               func(childComplexity int, username string) int
-		UserPreferences          func(childComplexity int) int
-		Users                    func(childComplexity int) int
-		Version                  func(childComplexity int) int
+		BatchConfigs                  func(childComplexity int) int
+		BatchLogLevel                 func(childComplexity int) int
+		BatchRun                      func(childComplexity int, id string) int
+		BatchRuns                     func(childComplexity int, jobType *model.BatchJobType, first *int, after *string) int
+		Container                     func(childComplexity int, id string) int
+		ContainerGroup                func(childComplexity int) int
+		Containers                    func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
+		DebugEndpointsEnabled         func(childComplexity int) int
+		DisallowedContainers          func(childComplexity int) int
+		DiscordWebhook                func(childComplexity int, id string) int
+		DiscordWebhookInfo            func(childComplexity int, webhookURL string) int
+		DiscordWebhooks               func(childComplexity int) int
+		Health                        func(childComplexity int) int
+		Intent                        func(childComplexity int, id string) int
+		IntentExecution               func(childComplexity int, id string) int
+		IntentExecutions              func(childComplexity int, intentID *string, first *int, after *string) int
+		Intents                       func(childComplexity int) int
+		LatestRelease                 func(childComplexity int) int
+		Logs                          func(childComplexity int, lines *int, since *int, file *string, offset *int) int
+		Me                            func(childComplexity int) int
+		OauthProviders                func(childComplexity int) int
+		Operation                     func(childComplexity int, id string) int
+		PreviewIntent                 func(childComplexity int, id string) int
+		RegistrationCodeRequired      func(childComplexity int) int
+		RepositoryToken               func(childComplexity int, provider string) int
+		RepositoryTokens              func(childComplexity int) int
+		Runner                        func(childComplexity int, id string) int
+		Runners                       func(childComplexity int) int
+		SourceInstance                func(childComplexity int, id string) int
+		SourceInstances               func(childComplexity int) int
+		SummaryStats                  func(childComplexity int) int
+		TrackedApp                    func(childComplexity int, id string) int
+		TrackedAppUpgradeHistory      func(childComplexity int, filter *model.TrackedAppHistoryFilterInput, first *int, offset *int) int
+		TrackedAppUpgradeHistoryStats func(childComplexity int) int
+		TrackedApps                   func(childComplexity int) int
+		UnusedImages                  func(childComplexity int) int
+		UpgradeHistory                func(childComplexity int, filter *model.UpgradeHistoryFilterInput, first *int, after *string) int
+		UpgradeHistoryStats           func(childComplexity int) int
+		UserExists                    func(childComplexity int, username string) int
+		UserPreferences               func(childComplexity int) int
+		Users                         func(childComplexity int) int
+		Version                       func(childComplexity int) int
 	}
 
 	RepositoryAccessToken struct {
@@ -586,16 +589,34 @@ type ComplexityRoot struct {
 		Updated        func(childComplexity int) int
 	}
 
+	TrackedAppUpgradeHistoryStats struct {
+		AvgDurationMs      func(childComplexity int) int
+		FailedUpgrades     func(childComplexity int) int
+		FirstUpgrade       func(childComplexity int) int
+		LastUpgrade        func(childComplexity int) int
+		SuccessfulUpgrades func(childComplexity int) int
+		TotalAppsUpgraded  func(childComplexity int) int
+		TotalUpgrades      func(childComplexity int) int
+	}
+
 	TrackedAppUpgradeRecord struct {
-		CreatedAt    func(childComplexity int) int
-		ID           func(childComplexity int) int
-		NewDigest    func(childComplexity int) int
-		NewVersion   func(childComplexity int) int
-		OldDigest    func(childComplexity int) int
-		OldVersion   func(childComplexity int) int
-		PerformedBy  func(childComplexity int) int
-		Status       func(childComplexity int) int
-		TrackedAppID func(childComplexity int) int
+		AppName           func(childComplexity int) int
+		CreatedAt         func(childComplexity int) int
+		ErrorMessage      func(childComplexity int) int
+		ID                func(childComplexity int) int
+		NewCommitSha      func(childComplexity int) int
+		NewTag            func(childComplexity int) int
+		NewVersion        func(childComplexity int) int
+		OldCommitSha      func(childComplexity int) int
+		OldTag            func(childComplexity int) int
+		OldVersion        func(childComplexity int) int
+		PerformedBy       func(childComplexity int) int
+		Provider          func(childComplexity int) int
+		ReleaseNotes      func(childComplexity int) int
+		Repository        func(childComplexity int) int
+		Status            func(childComplexity int) int
+		TrackedAppID      func(childComplexity int) int
+		UpgradeDurationMs func(childComplexity int) int
 	}
 
 	TrackedAppUpgradeRecordConnection struct {
@@ -610,6 +631,15 @@ type ComplexityRoot struct {
 		Success      func(childComplexity int) int
 		Token        func(childComplexity int) int
 		Username     func(childComplexity int) int
+	}
+
+	UpgradeHistoryStats struct {
+		AvgDurationMs      func(childComplexity int) int
+		FailedUpgrades     func(childComplexity int) int
+		FirstUpgrade       func(childComplexity int) int
+		LastUpgrade        func(childComplexity int) int
+		SuccessfulUpgrades func(childComplexity int) int
+		TotalUpgrades      func(childComplexity int) int
 	}
 
 	UpgradeProgressEvent struct {
@@ -798,6 +828,9 @@ type QueryResolver interface {
 	BatchRuns(ctx context.Context, jobType *model.BatchJobType, first *int, after *string) (*model.BatchRunConnection, error)
 	BatchRun(ctx context.Context, id string) (*model.BatchRun, error)
 	UpgradeHistory(ctx context.Context, filter *model.UpgradeHistoryFilterInput, first *int, after *string) (*model.UpgradeRecordConnection, error)
+	UpgradeHistoryStats(ctx context.Context) (*model.UpgradeHistoryStats, error)
+	TrackedAppUpgradeHistory(ctx context.Context, filter *model.TrackedAppHistoryFilterInput, first *int, offset *int) ([]*model.TrackedAppUpgradeRecord, error)
+	TrackedAppUpgradeHistoryStats(ctx context.Context) (*model.TrackedAppUpgradeHistoryStats, error)
 	DiscordWebhooks(ctx context.Context) ([]*model.DiscordWebhook, error)
 	DiscordWebhook(ctx context.Context, id string) (*model.DiscordWebhook, error)
 	DiscordWebhookInfo(ctx context.Context, webhookURL string) (*model.DiscordWebhookInfo, error)
@@ -3025,6 +3058,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.TrackedApp(childComplexity, args["id"].(string)), true
+	case "Query.trackedAppUpgradeHistory":
+		if e.ComplexityRoot.Query.TrackedAppUpgradeHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_trackedAppUpgradeHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TrackedAppUpgradeHistory(childComplexity, args["filter"].(*model.TrackedAppHistoryFilterInput), args["first"].(*int), args["offset"].(*int)), true
+	case "Query.trackedAppUpgradeHistoryStats":
+		if e.ComplexityRoot.Query.TrackedAppUpgradeHistoryStats == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TrackedAppUpgradeHistoryStats(childComplexity), true
 	case "Query.trackedApps":
 		if e.ComplexityRoot.Query.TrackedApps == nil {
 			break
@@ -3048,6 +3098,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.UpgradeHistory(childComplexity, args["filter"].(*model.UpgradeHistoryFilterInput), args["first"].(*int), args["after"].(*string)), true
+	case "Query.upgradeHistoryStats":
+		if e.ComplexityRoot.Query.UpgradeHistoryStats == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.UpgradeHistoryStats(childComplexity), true
 	case "Query.userExists":
 		if e.ComplexityRoot.Query.UserExists == nil {
 			break
@@ -3709,36 +3765,103 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TrackedAppCheckResult.Updated(childComplexity), true
 
+	case "TrackedAppUpgradeHistoryStats.avgDurationMs":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.AvgDurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.AvgDurationMs(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.failedUpgrades":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.FailedUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.FailedUpgrades(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.firstUpgrade":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.FirstUpgrade == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.FirstUpgrade(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.lastUpgrade":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.LastUpgrade == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.LastUpgrade(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.successfulUpgrades":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.SuccessfulUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.SuccessfulUpgrades(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.totalAppsUpgraded":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.TotalAppsUpgraded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.TotalAppsUpgraded(childComplexity), true
+	case "TrackedAppUpgradeHistoryStats.totalUpgrades":
+		if e.ComplexityRoot.TrackedAppUpgradeHistoryStats.TotalUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeHistoryStats.TotalUpgrades(childComplexity), true
+
+	case "TrackedAppUpgradeRecord.appName":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.AppName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.AppName(childComplexity), true
 	case "TrackedAppUpgradeRecord.createdAt":
 		if e.ComplexityRoot.TrackedAppUpgradeRecord.CreatedAt == nil {
 			break
 		}
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecord.CreatedAt(childComplexity), true
+	case "TrackedAppUpgradeRecord.errorMessage":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.ErrorMessage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.ErrorMessage(childComplexity), true
 	case "TrackedAppUpgradeRecord.id":
 		if e.ComplexityRoot.TrackedAppUpgradeRecord.ID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecord.ID(childComplexity), true
-	case "TrackedAppUpgradeRecord.newDigest":
-		if e.ComplexityRoot.TrackedAppUpgradeRecord.NewDigest == nil {
+	case "TrackedAppUpgradeRecord.newCommitSha":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.NewCommitSha == nil {
 			break
 		}
 
-		return e.ComplexityRoot.TrackedAppUpgradeRecord.NewDigest(childComplexity), true
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.NewCommitSha(childComplexity), true
+	case "TrackedAppUpgradeRecord.newTag":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.NewTag == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.NewTag(childComplexity), true
 	case "TrackedAppUpgradeRecord.newVersion":
 		if e.ComplexityRoot.TrackedAppUpgradeRecord.NewVersion == nil {
 			break
 		}
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecord.NewVersion(childComplexity), true
-	case "TrackedAppUpgradeRecord.oldDigest":
-		if e.ComplexityRoot.TrackedAppUpgradeRecord.OldDigest == nil {
+	case "TrackedAppUpgradeRecord.oldCommitSha":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.OldCommitSha == nil {
 			break
 		}
 
-		return e.ComplexityRoot.TrackedAppUpgradeRecord.OldDigest(childComplexity), true
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.OldCommitSha(childComplexity), true
+	case "TrackedAppUpgradeRecord.oldTag":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.OldTag == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.OldTag(childComplexity), true
 	case "TrackedAppUpgradeRecord.oldVersion":
 		if e.ComplexityRoot.TrackedAppUpgradeRecord.OldVersion == nil {
 			break
@@ -3751,6 +3874,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecord.PerformedBy(childComplexity), true
+	case "TrackedAppUpgradeRecord.provider":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.Provider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.Provider(childComplexity), true
+	case "TrackedAppUpgradeRecord.releaseNotes":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.ReleaseNotes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.ReleaseNotes(childComplexity), true
+	case "TrackedAppUpgradeRecord.repository":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.Repository == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.Repository(childComplexity), true
 	case "TrackedAppUpgradeRecord.status":
 		if e.ComplexityRoot.TrackedAppUpgradeRecord.Status == nil {
 			break
@@ -3763,6 +3904,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecord.TrackedAppID(childComplexity), true
+	case "TrackedAppUpgradeRecord.upgradeDurationMs":
+		if e.ComplexityRoot.TrackedAppUpgradeRecord.UpgradeDurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackedAppUpgradeRecord.UpgradeDurationMs(childComplexity), true
 
 	case "TrackedAppUpgradeRecordConnection.items":
 		if e.ComplexityRoot.TrackedAppUpgradeRecordConnection.Items == nil {
@@ -3813,6 +3960,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.UpdateUsernameResult.Username(childComplexity), true
+
+	case "UpgradeHistoryStats.avgDurationMs":
+		if e.ComplexityRoot.UpgradeHistoryStats.AvgDurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.AvgDurationMs(childComplexity), true
+	case "UpgradeHistoryStats.failedUpgrades":
+		if e.ComplexityRoot.UpgradeHistoryStats.FailedUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.FailedUpgrades(childComplexity), true
+	case "UpgradeHistoryStats.firstUpgrade":
+		if e.ComplexityRoot.UpgradeHistoryStats.FirstUpgrade == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.FirstUpgrade(childComplexity), true
+	case "UpgradeHistoryStats.lastUpgrade":
+		if e.ComplexityRoot.UpgradeHistoryStats.LastUpgrade == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.LastUpgrade(childComplexity), true
+	case "UpgradeHistoryStats.successfulUpgrades":
+		if e.ComplexityRoot.UpgradeHistoryStats.SuccessfulUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.SuccessfulUpgrades(childComplexity), true
+	case "UpgradeHistoryStats.totalUpgrades":
+		if e.ComplexityRoot.UpgradeHistoryStats.TotalUpgrades == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpgradeHistoryStats.TotalUpgrades(childComplexity), true
 
 	case "UpgradeProgressEvent.containerName":
 		if e.ComplexityRoot.UpgradeProgressEvent.ContainerName == nil {
@@ -4232,6 +4416,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRefreshTokenInput,
 		ec.unmarshalInputRegisterInput,
 		ec.unmarshalInputReorderSourceInput,
+		ec.unmarshalInputTrackedAppHistoryFilterInput,
 		ec.unmarshalInputUpdateBatchConfigInput,
 		ec.unmarshalInputUpdateDiscordWebhookInput,
 		ec.unmarshalInputUpdateIntentInput,
@@ -4678,12 +4863,20 @@ type TrackedApp {
 
 type TrackedAppUpgradeRecord {
   id: ID!
-  trackedAppId: ID!
+  trackedAppId: ID
+  appName: String
+  provider: String
+  repository: String
   oldVersion: String
   newVersion: String
-  oldDigest: String
-  newDigest: String
+  oldTag: String
+  newTag: String
+  oldCommitSha: String
+  newCommitSha: String
+  releaseNotes: String
   status: UpgradeStatus!
+  errorMessage: String
+  upgradeDurationMs: Int
   performedBy: User
   createdAt: DateTime!
 }
@@ -5261,6 +5454,32 @@ input UpgradeHistoryFilterInput {
   to: DateTime
 }
 
+input TrackedAppHistoryFilterInput {
+  # substring match on app_name
+  appName: String
+  provider: String
+  status: UpgradeStatus
+}
+
+type UpgradeHistoryStats {
+  totalUpgrades: Int!
+  successfulUpgrades: Int!
+  failedUpgrades: Int!
+  avgDurationMs: Float
+  firstUpgrade: DateTime
+  lastUpgrade: DateTime
+}
+
+type TrackedAppUpgradeHistoryStats {
+  totalUpgrades: Int!
+  successfulUpgrades: Int!
+  failedUpgrades: Int!
+  avgDurationMs: Float
+  firstUpgrade: DateTime
+  lastUpgrade: DateTime
+  totalAppsUpgraded: Int!
+}
+
 input DeleteImageInput {
   imageId: String!
   sourceInstanceId: ID
@@ -5342,6 +5561,14 @@ type Query {
     first: Int
     after: String
   ): UpgradeRecordConnection!
+  upgradeHistoryStats: UpgradeHistoryStats!
+  # Global tracked-app upgrade list (limit/offset paging, matching the old REST route).
+  trackedAppUpgradeHistory(
+    filter: TrackedAppHistoryFilterInput
+    first: Int
+    offset: Int
+  ): [TrackedAppUpgradeRecord!]!
+  trackedAppUpgradeHistoryStats: TrackedAppUpgradeHistoryStats!
 
   # ── Discord ───────────────────────────────────────────────────────────────
   discordWebhooks: [DiscordWebhook!]!
@@ -6478,22 +6705,58 @@ func (ec *executionContext) childFields_TrackedAppCheckResult(ctx context.Contex
 	return nil, fmt.Errorf("no field named %q was found under type TrackedAppCheckResult", field.Name)
 }
 
+func (ec *executionContext) childFields_TrackedAppUpgradeHistoryStats(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalUpgrades":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_totalUpgrades(ctx, field)
+	case "successfulUpgrades":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_successfulUpgrades(ctx, field)
+	case "failedUpgrades":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_failedUpgrades(ctx, field)
+	case "avgDurationMs":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_avgDurationMs(ctx, field)
+	case "firstUpgrade":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_firstUpgrade(ctx, field)
+	case "lastUpgrade":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_lastUpgrade(ctx, field)
+	case "totalAppsUpgraded":
+		return ec.fieldContext_TrackedAppUpgradeHistoryStats_totalAppsUpgraded(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TrackedAppUpgradeHistoryStats", field.Name)
+}
+
 func (ec *executionContext) childFields_TrackedAppUpgradeRecord(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_TrackedAppUpgradeRecord_id(ctx, field)
 	case "trackedAppId":
 		return ec.fieldContext_TrackedAppUpgradeRecord_trackedAppId(ctx, field)
+	case "appName":
+		return ec.fieldContext_TrackedAppUpgradeRecord_appName(ctx, field)
+	case "provider":
+		return ec.fieldContext_TrackedAppUpgradeRecord_provider(ctx, field)
+	case "repository":
+		return ec.fieldContext_TrackedAppUpgradeRecord_repository(ctx, field)
 	case "oldVersion":
 		return ec.fieldContext_TrackedAppUpgradeRecord_oldVersion(ctx, field)
 	case "newVersion":
 		return ec.fieldContext_TrackedAppUpgradeRecord_newVersion(ctx, field)
-	case "oldDigest":
-		return ec.fieldContext_TrackedAppUpgradeRecord_oldDigest(ctx, field)
-	case "newDigest":
-		return ec.fieldContext_TrackedAppUpgradeRecord_newDigest(ctx, field)
+	case "oldTag":
+		return ec.fieldContext_TrackedAppUpgradeRecord_oldTag(ctx, field)
+	case "newTag":
+		return ec.fieldContext_TrackedAppUpgradeRecord_newTag(ctx, field)
+	case "oldCommitSha":
+		return ec.fieldContext_TrackedAppUpgradeRecord_oldCommitSha(ctx, field)
+	case "newCommitSha":
+		return ec.fieldContext_TrackedAppUpgradeRecord_newCommitSha(ctx, field)
+	case "releaseNotes":
+		return ec.fieldContext_TrackedAppUpgradeRecord_releaseNotes(ctx, field)
 	case "status":
 		return ec.fieldContext_TrackedAppUpgradeRecord_status(ctx, field)
+	case "errorMessage":
+		return ec.fieldContext_TrackedAppUpgradeRecord_errorMessage(ctx, field)
+	case "upgradeDurationMs":
+		return ec.fieldContext_TrackedAppUpgradeRecord_upgradeDurationMs(ctx, field)
 	case "performedBy":
 		return ec.fieldContext_TrackedAppUpgradeRecord_performedBy(ctx, field)
 	case "createdAt":
@@ -6528,6 +6791,24 @@ func (ec *executionContext) childFields_UpdateUsernameResult(ctx context.Context
 		return ec.fieldContext_UpdateUsernameResult_refreshToken(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type UpdateUsernameResult", field.Name)
+}
+
+func (ec *executionContext) childFields_UpgradeHistoryStats(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalUpgrades":
+		return ec.fieldContext_UpgradeHistoryStats_totalUpgrades(ctx, field)
+	case "successfulUpgrades":
+		return ec.fieldContext_UpgradeHistoryStats_successfulUpgrades(ctx, field)
+	case "failedUpgrades":
+		return ec.fieldContext_UpgradeHistoryStats_failedUpgrades(ctx, field)
+	case "avgDurationMs":
+		return ec.fieldContext_UpgradeHistoryStats_avgDurationMs(ctx, field)
+	case "firstUpgrade":
+		return ec.fieldContext_UpgradeHistoryStats_firstUpgrade(ctx, field)
+	case "lastUpgrade":
+		return ec.fieldContext_UpgradeHistoryStats_lastUpgrade(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type UpgradeHistoryStats", field.Name)
 }
 
 func (ec *executionContext) childFields_UpgradeProgressEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -8049,6 +8330,36 @@ func (ec *executionContext) field_Query_sourceInstance_args(ctx context.Context,
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_trackedAppUpgradeHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*model.TrackedAppHistoryFilterInput, error) {
+			return ec.unmarshalOTrackedAppHistoryFilterInput2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppHistoryFilterInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
 	return args, nil
 }
 
@@ -16832,6 +17143,114 @@ func (ec *executionContext) fieldContext_Query_upgradeHistory(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_upgradeHistoryStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_upgradeHistoryStats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().UpgradeHistoryStats(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.UpgradeHistoryStats) graphql.Marshaler {
+			return ec.marshalNUpgradeHistoryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeHistoryStats(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_upgradeHistoryStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_UpgradeHistoryStats(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_trackedAppUpgradeHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_trackedAppUpgradeHistory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TrackedAppUpgradeHistory(ctx, fc.Args["filter"].(*model.TrackedAppHistoryFilterInput), fc.Args["first"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.TrackedAppUpgradeRecord) graphql.Marshaler {
+			return ec.marshalNTrackedAppUpgradeRecord2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppUpgradeRecordᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_trackedAppUpgradeHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TrackedAppUpgradeRecord(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_trackedAppUpgradeHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_trackedAppUpgradeHistoryStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_trackedAppUpgradeHistoryStats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TrackedAppUpgradeHistoryStats(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TrackedAppUpgradeHistoryStats) graphql.Marshaler {
+			return ec.marshalNTrackedAppUpgradeHistoryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppUpgradeHistoryStats(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_trackedAppUpgradeHistoryStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TrackedAppUpgradeHistoryStats(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_discordWebhooks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19812,6 +20231,167 @@ func (ec *executionContext) fieldContext_TrackedAppCheckResult_latestVersion(_ c
 	return graphql.NewScalarFieldContext("TrackedAppCheckResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_totalUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_totalUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_totalUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_successfulUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_successfulUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SuccessfulUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_successfulUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_failedUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_failedUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FailedUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_failedUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_avgDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_avgDurationMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgDurationMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_avgDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_firstUpgrade(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_firstUpgrade(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstUpgrade, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_firstUpgrade(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_lastUpgrade(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_lastUpgrade(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUpgrade, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_lastUpgrade(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats_totalAppsUpgraded(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeHistoryStats_totalAppsUpgraded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalAppsUpgraded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeHistoryStats_totalAppsUpgraded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _TrackedAppUpgradeRecord_id(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19847,15 +20427,84 @@ func (ec *executionContext) _TrackedAppUpgradeRecord_trackedAppId(ctx context.Co
 			return obj.TrackedAppID, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_trackedAppId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_appName(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_appName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AppName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_appName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_provider(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_provider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_repository(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_repository(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Repository, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_repository(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _TrackedAppUpgradeRecord_oldVersion(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
@@ -19904,16 +20553,16 @@ func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_newVersion(_ co
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _TrackedAppUpgradeRecord_oldDigest(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+func (ec *executionContext) _TrackedAppUpgradeRecord_oldTag(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_TrackedAppUpgradeRecord_oldDigest(ctx, field)
+			return ec.fieldContext_TrackedAppUpgradeRecord_oldTag(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.OldDigest, nil
+			return obj.OldTag, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -19923,20 +20572,20 @@ func (ec *executionContext) _TrackedAppUpgradeRecord_oldDigest(ctx context.Conte
 		false,
 	)
 }
-func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_oldDigest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_oldTag(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _TrackedAppUpgradeRecord_newDigest(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+func (ec *executionContext) _TrackedAppUpgradeRecord_newTag(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_TrackedAppUpgradeRecord_newDigest(ctx, field)
+			return ec.fieldContext_TrackedAppUpgradeRecord_newTag(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.NewDigest, nil
+			return obj.NewTag, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -19946,7 +20595,76 @@ func (ec *executionContext) _TrackedAppUpgradeRecord_newDigest(ctx context.Conte
 		false,
 	)
 }
-func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_newDigest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_newTag(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_oldCommitSha(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_oldCommitSha(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OldCommitSha, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_oldCommitSha(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_newCommitSha(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_newCommitSha(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NewCommitSha, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_newCommitSha(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_releaseNotes(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_releaseNotes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReleaseNotes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_releaseNotes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -19971,6 +20689,52 @@ func (ec *executionContext) _TrackedAppUpgradeRecord_status(ctx context.Context,
 }
 func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type UpgradeStatus does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_errorMessage(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_errorMessage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorMessage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_errorMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TrackedAppUpgradeRecord_upgradeDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackedAppUpgradeRecord_upgradeDurationMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpgradeDurationMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TrackedAppUpgradeRecord_upgradeDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecord", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _TrackedAppUpgradeRecord_performedBy(ctx context.Context, field graphql.CollectedField, obj *model.TrackedAppUpgradeRecord) (ret graphql.Marshaler) {
@@ -20228,6 +20992,144 @@ func (ec *executionContext) _UpdateUsernameResult_refreshToken(ctx context.Conte
 }
 func (ec *executionContext) fieldContext_UpdateUsernameResult_refreshToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_totalUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_totalUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_totalUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_successfulUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_successfulUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SuccessfulUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_successfulUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_failedUpgrades(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_failedUpgrades(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FailedUpgrades, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_failedUpgrades(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_avgDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_avgDurationMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgDurationMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_avgDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_firstUpgrade(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_firstUpgrade(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstUpgrade, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_firstUpgrade(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _UpgradeHistoryStats_lastUpgrade(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeHistoryStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpgradeHistoryStats_lastUpgrade(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUpgrade, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpgradeHistoryStats_lastUpgrade(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpgradeHistoryStats", field, false, false, errors.New("field of type DateTime does not have child fields"))
 }
 
 func (ec *executionContext) _UpgradeProgressEvent_operationId(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeProgressEvent) (ret graphql.Marshaler) {
@@ -23637,6 +24539,50 @@ func (ec *executionContext) unmarshalInputReorderSourceInput(ctx context.Context
 				return it, err
 			}
 			it.Order = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTrackedAppHistoryFilterInput(ctx context.Context, obj any) (model.TrackedAppHistoryFilterInput, error) {
+	var it model.TrackedAppHistoryFilterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"appName", "provider", "status"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "appName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AppName = data
+		case "provider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("provider"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Provider = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOUpgradeStatus2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
 		}
 	}
 	return it, nil
@@ -27817,6 +28763,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "upgradeHistoryStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_upgradeHistoryStats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "trackedAppUpgradeHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_trackedAppUpgradeHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "trackedAppUpgradeHistoryStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_trackedAppUpgradeHistoryStats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "discordWebhooks":
 			field := field
 
@@ -29200,6 +30212,74 @@ func (ec *executionContext) _TrackedAppCheckResult(ctx context.Context, sel ast.
 	return out
 }
 
+var trackedAppUpgradeHistoryStatsImplementors = []string{"TrackedAppUpgradeHistoryStats"}
+
+func (ec *executionContext) _TrackedAppUpgradeHistoryStats(ctx context.Context, sel ast.SelectionSet, obj *model.TrackedAppUpgradeHistoryStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, trackedAppUpgradeHistoryStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TrackedAppUpgradeHistoryStats")
+		case "totalUpgrades":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_totalUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "successfulUpgrades":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_successfulUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failedUpgrades":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_failedUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgDurationMs":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_avgDurationMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "firstUpgrade":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_firstUpgrade(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "lastUpgrade":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_lastUpgrade(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "totalAppsUpgraded":
+			out.Values[i] = ec._TrackedAppUpgradeHistoryStats_totalAppsUpgraded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var trackedAppUpgradeRecordImplementors = []string{"TrackedAppUpgradeRecord"}
 
 func (ec *executionContext) _TrackedAppUpgradeRecord(ctx context.Context, sel ast.SelectionSet, obj *model.TrackedAppUpgradeRecord) graphql.Marshaler {
@@ -29219,7 +30299,22 @@ func (ec *executionContext) _TrackedAppUpgradeRecord(ctx context.Context, sel as
 			}
 		case "trackedAppId":
 			out.Values[i] = ec._TrackedAppUpgradeRecord_trackedAppId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "appName":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_appName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "provider":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_provider(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "repository":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_repository(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "oldVersion":
@@ -29232,19 +30327,44 @@ func (ec *executionContext) _TrackedAppUpgradeRecord(ctx context.Context, sel as
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
-		case "oldDigest":
-			out.Values[i] = ec._TrackedAppUpgradeRecord_oldDigest(ctx, field, obj)
+		case "oldTag":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_oldTag(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
-		case "newDigest":
-			out.Values[i] = ec._TrackedAppUpgradeRecord_newDigest(ctx, field, obj)
+		case "newTag":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_newTag(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "oldCommitSha":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_oldCommitSha(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "newCommitSha":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_newCommitSha(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "releaseNotes":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_releaseNotes(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "status":
 			out.Values[i] = ec._TrackedAppUpgradeRecord_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorMessage":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_errorMessage(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "upgradeDurationMs":
+			out.Values[i] = ec._TrackedAppUpgradeRecord_upgradeDurationMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "performedBy":
@@ -29360,6 +30480,69 @@ func (ec *executionContext) _UpdateUsernameResult(ctx context.Context, sel ast.S
 			}
 		case "refreshToken":
 			out.Values[i] = ec._UpdateUsernameResult_refreshToken(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var upgradeHistoryStatsImplementors = []string{"UpgradeHistoryStats"}
+
+func (ec *executionContext) _UpgradeHistoryStats(ctx context.Context, sel ast.SelectionSet, obj *model.UpgradeHistoryStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, upgradeHistoryStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UpgradeHistoryStats")
+		case "totalUpgrades":
+			out.Values[i] = ec._UpgradeHistoryStats_totalUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "successfulUpgrades":
+			out.Values[i] = ec._UpgradeHistoryStats_successfulUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failedUpgrades":
+			out.Values[i] = ec._UpgradeHistoryStats_failedUpgrades(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgDurationMs":
+			out.Values[i] = ec._UpgradeHistoryStats_avgDurationMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "firstUpgrade":
+			out.Values[i] = ec._UpgradeHistoryStats_firstUpgrade(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "lastUpgrade":
+			out.Values[i] = ec._UpgradeHistoryStats_lastUpgrade(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -31630,6 +32813,16 @@ func (ec *executionContext) marshalNTrackedAppSourceType2githubᚗcomᚋdockedap
 	return v
 }
 
+func (ec *executionContext) marshalNTrackedAppUpgradeHistoryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppUpgradeHistoryStats(ctx context.Context, sel ast.SelectionSet, v *model.TrackedAppUpgradeHistoryStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TrackedAppUpgradeHistoryStats(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTrackedAppUpgradeRecord2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppUpgradeRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TrackedAppUpgradeRecord) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -31748,6 +32941,16 @@ func (ec *executionContext) unmarshalNUpgradeContainerInput2ᚕᚖgithubᚗcom�
 func (ec *executionContext) unmarshalNUpgradeContainerInput2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeContainerInput(ctx context.Context, v any) (*model.UpgradeContainerInput, error) {
 	res, err := ec.unmarshalInputUpgradeContainerInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUpgradeHistoryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeHistoryStats(ctx context.Context, sel ast.SelectionSet, v *model.UpgradeHistoryStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UpgradeHistoryStats(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNUpgradePhase2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradePhase(ctx context.Context, v any) (model.UpgradePhase, error) {
@@ -32209,6 +33412,23 @@ func (ec *executionContext) marshalOErrorCode2ᚖgithubᚗcomᚋdockedappᚋback
 	return v
 }
 
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
 func (ec *executionContext) marshalOGitHubRelease2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐGitHubRelease(ctx context.Context, sel ast.SelectionSet, v *model.GitHubRelease) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -32389,6 +33609,14 @@ func (ec *executionContext) marshalOTrackedApp2ᚖgithubᚗcomᚋdockedappᚋbac
 		return graphql.Null
 	}
 	return ec._TrackedApp(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOTrackedAppHistoryFilterInput2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppHistoryFilterInput(ctx context.Context, v any) (*model.TrackedAppHistoryFilterInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputTrackedAppHistoryFilterInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOTrackedAppSourceType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedAppSourceType(ctx context.Context, v any) (*model.TrackedAppSourceType, error) {
