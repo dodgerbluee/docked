@@ -22,6 +22,43 @@
  */
 
 const { getDatabase } = require("./connection");
+const { publishGraphEvent } = require("../utils/graphEvents");
+
+// Fan a runner Docker-status transition out to GraphQL runnerStatusChanged
+// subscribers via the Go bridge (best-effort, never affects callers).
+// docker_status ('ok'|'unavailable'|'unknown') maps onto the graph
+// RunnerStatus enum (ONLINE/OFFLINE/DEGRADED).
+function publishRunnerStatusEvent(runnerId, dockerStatus) {
+  try {
+    const db = getDatabase();
+    db.get(
+      "SELECT id, user_id, name, last_seen FROM runners WHERE id = ?",
+      [runnerId],
+      (err, row) => {
+        if (err || !row) return;
+        const status =
+          dockerStatus === "ok"
+            ? "ONLINE"
+            : dockerStatus === "unavailable"
+              ? "OFFLINE"
+              : "DEGRADED";
+        const lastHeartbeat = row.last_seen
+          ? String(row.last_seen).includes("T")
+            ? String(row.last_seen)
+            : `${String(row.last_seen).replace(" ", "T")}Z`
+          : null;
+        publishGraphEvent("runnerStatusChanged", row.user_id, {
+          runnerId: String(row.id),
+          runnerName: row.name || "",
+          status,
+          lastHeartbeat,
+        });
+      }
+    );
+  } catch {
+    // event fan-out is strictly best-effort
+  }
+}
 
 /**
  * Event type constants
@@ -213,7 +250,10 @@ function updateRunnerDockerStatus(runnerId, status) {
             [status, runnerId],
             (err2) => {
               if (err2) reject(err2);
-              else resolve(true);
+              else {
+                publishRunnerStatusEvent(runnerId, status);
+                resolve(true);
+              }
             }
           );
         } else {

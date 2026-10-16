@@ -16,6 +16,7 @@ const {
 const { RateLimitExceededError } = require("../utils/errors");
 const { getAllSourceInstances } = require("../db/index");
 const upgradeLockManager = require("../services/intents/upgradeLockManager");
+const { publishGraphEvent } = require("../utils/graphEvents");
 const logger = require("../utils/logger");
 // const { sendErrorResponse, sendValidationErrorResponse } = require("../utils/responseHelpers"); // Unused
 
@@ -326,6 +327,11 @@ async function pullContainers(req, res, _next) {
         portainerUrl: portainerUrl || "all-instances",
       });
 
+      publishGraphEvent("containersUpdated", userId, {
+        sourceIds: [],
+        containerCount: result.containers?.length || 0,
+      });
+
       return res.json({
         success: true,
         message: "Container data pulled successfully",
@@ -341,6 +347,11 @@ async function pullContainers(req, res, _next) {
       operation: "pullContainers",
       containerCount: result.containers?.length || 0,
       portainerUrl: portainerUrl || "all-instances",
+    });
+
+    publishGraphEvent("containersUpdated", userId, {
+      sourceIds: [],
+      containerCount: result.containers?.length || 0,
     });
 
     return res.json({
@@ -442,14 +453,41 @@ async function upgradeContainer(req, res, next) {
     try {
       // Backend resolution and authentication is handled inside upgradeSingleContainer
       // via dockerBackendFactory.resolveBackend.
-      const result = await containerService.upgradeSingleContainer(
-        portainerUrl || null,
-        endpointId || null,
-        containerId,
-        imageName,
-        userId,
-        runnerId ? Number(runnerId) : null
-      );
+      const srcType = runnerId ? "RUNNER" : "PORTAINER";
+      const srcName = runnerId ? String(runnerId) : String(portainerUrl);
+      const progressEvent = (phase, progress, message) => ({
+        operationId: `rest-upgrade-${containerId}`,
+        dockerContainerId: containerId,
+        containerName: containerId,
+        sourceType: srcType,
+        sourceName: srcName,
+        phase,
+        message: message || null,
+        progress,
+      });
+      publishGraphEvent("upgradeProgress", userId, progressEvent("PULLING", 0));
+
+      let result;
+      try {
+        result = await containerService.upgradeSingleContainer(
+          portainerUrl || null,
+          endpointId || null,
+          containerId,
+          imageName,
+          userId,
+          runnerId ? Number(runnerId) : null
+        );
+      } catch (upgradeErr) {
+        publishGraphEvent(
+          "upgradeProgress",
+          userId,
+          progressEvent("FAILED", 100, upgradeErr.message || "upgrade failed")
+        );
+        throw upgradeErr;
+      }
+
+      publishGraphEvent("upgradeProgress", userId, progressEvent("COMPLETED", 100));
+      publishGraphEvent("containersUpdated", userId, { sourceIds: [], containerCount: 0 });
 
       return res.json({
         success: true,

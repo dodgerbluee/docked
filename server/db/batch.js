@@ -9,6 +9,21 @@
 
 const logger = require("../utils/logger");
 const { getDatabase } = require("./connection");
+const { publishGraphEvent, batchRunPayload } = require("../utils/graphEvents");
+
+// Re-read a batch run row and fan it out to GraphQL batchJobProgress
+// subscribers via the Go bridge (best-effort, never affects callers).
+function publishBatchRunEvent(runId, userId) {
+  try {
+    const db = getDatabase();
+    db.get("SELECT * FROM batch_runs WHERE id = ? AND user_id = ?", [runId, userId], (err, row) => {
+      if (err || !row) return;
+      publishGraphEvent("batchJobProgress", userId, batchRunPayload(row));
+    });
+  } catch {
+    // event fan-out is strictly best-effort
+  }
+}
 
 /**
  * Get batch configuration for a specific job type or all job types for a user
@@ -352,6 +367,7 @@ function createBatchRun(userId, status = "running", jobType = "docker-hub-pull",
           if (err) {
             reject(err);
           } else {
+            publishBatchRunEvent(this.lastID, userId);
             resolve(this.lastID);
           }
         }
@@ -434,6 +450,7 @@ function updateBatchRun(runId, userId, options = {}) {
               if (updateErr) {
                 reject(updateErr);
               } else {
+                publishBatchRunEvent(runId, userId);
                 resolve();
               }
             }

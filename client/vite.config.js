@@ -11,6 +11,8 @@ export default defineConfig({
       "/graphql": {
         target: "http://localhost:4000",
         changeOrigin: true,
+        // graphql-ws subscriptions ride WebSocket upgrades on this path
+        ws: true,
       },
       // Route GET /api/containers (with or without query string) to the Go backend.
       // The (\?.*)? allows query params like ?useNewCache=true to still match.

@@ -9,6 +9,21 @@
 
 const logger = require("../utils/logger");
 const { getDatabase, queueDatabaseOperation } = require("./connection");
+const { publishGraphEvent, intentExecutionPayload } = require("../utils/graphEvents");
+
+// Re-read an execution row and fan it out to GraphQL intentExecutionProgress
+// subscribers via the Go bridge (best-effort, never affects callers).
+function publishIntentExecutionEvent(executionId) {
+  try {
+    const db = getDatabase();
+    db.get("SELECT * FROM intent_executions WHERE id = ?", [executionId], (err, row) => {
+      if (err || !row) return;
+      publishGraphEvent("intentExecutionProgress", row.user_id, intentExecutionPayload(row));
+    });
+  } catch {
+    // event fan-out is strictly best-effort
+  }
+}
 
 /**
  * Create a new intent execution record
@@ -40,6 +55,7 @@ function createIntentExecution(executionData) {
               logger.error("Error creating intent execution:", { error: err, executionData });
               reject(err);
             } else {
+              publishIntentExecutionEvent(this.lastID);
               resolve(this.lastID);
             }
           }
@@ -113,6 +129,7 @@ function updateIntentExecution(executionId, updates) {
               });
               reject(err);
             } else {
+              publishIntentExecutionEvent(executionId);
               resolve();
             }
           }

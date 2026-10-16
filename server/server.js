@@ -228,6 +228,50 @@ app.use("/graphql", (req, res) => {
   else proxyReq.end();
 });
 
+// Proxy WebSocket upgrades for /graphql to the Go backend so graphql-ws
+// subscriptions reach the Go transport through the same path as HTTP.
+function attachGraphqlWsProxy(server) {
+  server.on("upgrade", (req, socket, head) => {
+    const url = req.url || "";
+    if (!url.startsWith("/graphql")) {
+      socket.destroy();
+      return;
+    }
+    const target = new URL(GRAPHQL_BACKEND);
+    const targetPort = target.port || 80;
+    const proxyReq = http.request({
+      host: target.hostname,
+      port: targetPort,
+      method: "GET",
+      path: url,
+      headers: { ...req.headers, host: `${target.hostname}:${targetPort}` },
+    });
+    proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+      const headerLines = [];
+      for (const [k, v] of Object.entries(proxyRes.headers)) {
+        headerLines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+      }
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headerLines.join("\r\n")}\r\n\r\n`);
+      if (proxyHead && proxyHead.length) socket.write(proxyHead);
+      proxySocket.pipe(socket);
+      socket.pipe(proxySocket);
+      const destroy = () => {
+        proxySocket.destroy();
+        socket.destroy();
+      };
+      proxySocket.on("error", destroy);
+      socket.on("error", destroy);
+      proxySocket.on("close", destroy);
+      socket.on("close", destroy);
+    });
+    proxyReq.on("error", (err) => {
+      logger.warn("GraphQL WS proxy error", { module: "server", error: err.message });
+      socket.destroy();
+    });
+    proxyReq.end();
+  });
+}
+
 const shouldServeStatic =
   process.env.NODE_ENV === "production" ||
   (process.env.NODE_ENV === "development" && fs.existsSync(publicPath));
@@ -354,6 +398,9 @@ if (shouldStartServer) {
         port: config.port,
         nodeVersion: process.version,
       });
+
+      // graphql-ws subscriptions: bridge /graphql WebSocket upgrades to Go
+      attachGraphqlWsProxy(server);
 
       if (process.env.NODE_ENV === "development") {
         logger.debug("Development configuration", {
