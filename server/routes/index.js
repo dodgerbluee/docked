@@ -852,19 +852,11 @@ router.post("/avatars", writeLimiter, asyncHandler(avatarController.uploadAvatar
 router.delete("/avatars", destructiveLimiter, asyncHandler(avatarController.deleteAvatar));
 
 // Batch configuration routes
-router.get("/batch/config", asyncHandler(batchController.getBatchConfigHandler));
-router.post("/batch/config", writeLimiter, asyncHandler(batchController.updateBatchConfigHandler));
 router.post(
   "/batch/trigger",
   destructiveLimiter,
   asyncHandler(batchController.triggerBatchJobHandler)
 );
-router.get("/batch/log-level", asyncHandler(batchController.getLogLevelHandler));
-router.post("/batch/log-level", writeLimiter, asyncHandler(batchController.setLogLevelHandler));
-router.post("/batch/runs", writeLimiter, asyncHandler(batchController.createBatchRunHandler));
-router.put("/batch/runs/:id", writeLimiter, asyncHandler(batchController.updateBatchRunHandler));
-router.get("/batch/runs/latest", asyncHandler(batchController.getLatestBatchRunHandler));
-router.get("/batch/runs", asyncHandler(batchController.getRecentBatchRunsHandler));
 
 // Intent routes
 // IMPORTANT: Specific/static routes must come before parameterized routes

@@ -6,7 +6,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { parseUTCTimestamp } from "../utils/formatters";
-import { API_BASE_URL } from "../utils/api";
 import { graphqlClient } from "../graphql/client";
 import {
   TRACKED_APPS_QUERY,
@@ -15,6 +14,8 @@ import {
   CLEAR_TRACKED_APP_CACHE_MUTATION,
   DELETE_TRACKED_APP_MUTATION,
   UPDATE_TRACKED_APP_MUTATION,
+  CREATE_BATCH_RUN_MUTATION,
+  UPDATE_BATCH_RUN_MUTATION,
 } from "../graphql/queries";
 import {
   // SUCCESS_MESSAGE_DURATION is not currently used but kept for potential future use
@@ -372,11 +373,13 @@ export function useTrackedApps(isAuthenticated, authToken) {
     try {
       // Create batch run record
       log("Starting tracked apps batch check process...");
-      const runResponse = await axios.post(`${API_BASE_URL}/api/batch/runs`, {
-        status: "running",
-        jobType: "tracked-apps-check",
-      });
-      runId = runResponse.data.runId;
+      const runResult = await graphqlClient
+        .mutation(CREATE_BATCH_RUN_MUTATION, { jobType: "TRACKED_APPS_CHECK" })
+        .toPromise();
+      if (runResult.error || !runResult.data?.createBatchRun?.id) {
+        throw new Error(runResult.error?.message || "Failed to create batch run");
+      }
+      runId = runResult.data.createBatchRun.id;
       log(`Batch run ${runId} created`);
 
       setCheckingUpdates(true);
@@ -400,12 +403,15 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
         // Update batch run as completed
         if (runId) {
-          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
-            status: "completed",
-            containersChecked: appsChecked,
-            containersUpdated: appsWithUpdates,
-            logs: logs.join("\n"),
-          });
+          await graphqlClient
+            .mutation(UPDATE_BATCH_RUN_MUTATION, {
+              id: runId,
+              status: "COMPLETED",
+              containersChecked: appsChecked,
+              containersUpdated: appsWithUpdates,
+              logs: logs.join("\n"),
+            })
+            .toPromise();
           log(`Batch run ${runId} marked as completed`);
         }
       } else {
@@ -423,11 +429,14 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // Update batch run as failed
       if (runId) {
         try {
-          await axios.put(`${API_BASE_URL}/api/batch/runs/${runId}`, {
-            status: "failed",
-            errorMessage,
-            logs: logs.join("\n"),
-          });
+          await graphqlClient
+            .mutation(UPDATE_BATCH_RUN_MUTATION, {
+              id: runId,
+              status: "FAILED",
+              errorMessage,
+              logs: logs.join("\n"),
+            })
+            .toPromise();
           log(`Batch run ${runId} marked as failed`);
         } catch (updateErr) {
           console.error("Error updating batch run:", updateErr);

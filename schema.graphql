@@ -975,6 +975,7 @@ type Query {
 
   # ── Batch System ──────────────────────────────────────────────────────────
   batchConfigs: [BatchConfig!]!
+  batchLogLevel: LogLevel!
   batchRuns(
     jobType: BatchJobType
     first: Int
@@ -1096,6 +1097,15 @@ type Mutation {
   updateBatchConfig(input: UpdateBatchConfigInput!): SuccessResult!
   triggerBatchJob(jobType: BatchJobType, idempotencyKey: String): BatchRun!
   setBatchLogLevel(logLevel: LogLevel!): SuccessResult!
+  createBatchRun(jobType: BatchJobType, isManual: Boolean): BatchRun!
+  updateBatchRun(
+    id: ID!
+    status: BatchRunStatus!
+    containersChecked: Int
+    containersUpdated: Int
+    errorMessage: String
+    logs: String
+  ): SuccessResult!
 
   # ── Discord ───────────────────────────────────────────────────────────────
   createDiscordWebhook(input: CreateDiscordWebhookInput!): DiscordWebhook!

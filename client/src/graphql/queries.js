@@ -269,12 +269,14 @@ export const BATCH_RUNS_QUERY = /* GraphQL */ `
         id
         jobType
         status
+        queuedAt
         startedAt
         completedAt
         durationMs
         containersChecked
         containersUpdated
         errorMessage
+        logs
         isManual
       }
       totalCount
@@ -601,6 +603,54 @@ export const DISCORD_WEBHOOK_INFO_QUERY = /* GraphQL */ `
       channelId
       guildId
       avatar
+    }
+  }
+`;
+
+export const BATCH_LOG_LEVEL_QUERY = /* GraphQL */ `
+  query BatchLogLevel {
+    batchLogLevel
+  }
+`;
+
+export const SET_BATCH_LOG_LEVEL_MUTATION = /* GraphQL */ `
+  mutation SetBatchLogLevel($logLevel: LogLevel!) {
+    setBatchLogLevel(logLevel: $logLevel) {
+      success
+      message
+    }
+  }
+`;
+
+export const CREATE_BATCH_RUN_MUTATION = /* GraphQL */ `
+  mutation CreateBatchRun($jobType: BatchJobType, $isManual: Boolean) {
+    createBatchRun(jobType: $jobType, isManual: $isManual) {
+      id
+      status
+      jobType
+    }
+  }
+`;
+
+export const UPDATE_BATCH_RUN_MUTATION = /* GraphQL */ `
+  mutation UpdateBatchRun(
+    $id: ID!
+    $status: BatchRunStatus!
+    $containersChecked: Int
+    $containersUpdated: Int
+    $errorMessage: String
+    $logs: String
+  ) {
+    updateBatchRun(
+      id: $id
+      status: $status
+      containersChecked: $containersChecked
+      containersUpdated: $containersUpdated
+      errorMessage: $errorMessage
+      logs: $logs
+    ) {
+      success
+      message
     }
   }
 `;

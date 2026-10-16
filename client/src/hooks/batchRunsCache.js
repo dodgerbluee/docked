@@ -1,24 +1,44 @@
 /**
  * Shared module-level cache for batch runs by-job-type data.
  *
- * Both useBatchPolling (App-level) and useBatchRuns (SummaryPage) fetch
- * `batch/runs/latest?byJobType=true`. This module deduplicates that request:
+ * Both useBatchPolling (App-level) and useBatchRuns (SummaryPage) fetch the
+ * latest batch runs per job type. This module deduplicates that request:
  *
- * - useBatchPolling calls `fetchLatestRunsByJobType()` which fires the XHR and
+ * - useBatchPolling calls `fetchLatestRunsByJobType()` which fires the query and
  *   caches both the promise and the resolved data.
  * - useBatchRuns calls the same function on its initial load. If the request is
  *   already in-flight it gets the same promise back; if it already resolved it
  *   gets the cached data immediately.
  */
 
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { BATCH_RUNS_QUERY } from "../graphql/queries";
 
 let _latestRunsByJobType = null;
 let _inflight = null;
 
+// Convert a graph BatchRun (camelCase, enum names) into the snake_case row
+// shape the batch UI components consume.
+export function mapGraphRunToRow(run) {
+  if (!run) return null;
+  return {
+    id: Number(run.id),
+    status: run.status.toLowerCase(),
+    job_type: run.jobType.toLowerCase().replace(/_/g, "-"),
+    queued_at: run.queuedAt,
+    started_at: run.startedAt,
+    completed_at: run.completedAt,
+    duration_ms: run.durationMs,
+    containers_checked: run.containersChecked,
+    containers_updated: run.containersUpdated,
+    error_message: run.errorMessage,
+    logs: run.logs,
+    is_manual: run.isManual,
+  };
+}
+
 /**
- * Fetch `batch/runs/latest?byJobType=true`, deduplicating concurrent calls.
+ * Fetch the latest batch run per job type, deduplicating concurrent calls.
  * Returns a promise that resolves to the runs object (or null on error).
  */
 export function fetchLatestRunsByJobType() {
@@ -27,11 +47,19 @@ export function fetchLatestRunsByJobType() {
     return _inflight;
   }
 
-  _inflight = axios
-    .get(`${API_BASE_URL}/api/batch/runs/latest?byJobType=true`)
-    .then((response) => {
-      if (response.data.success) {
-        const runs = response.data.runs || {};
+  _inflight = graphqlClient
+    .query(BATCH_RUNS_QUERY, { first: 50 })
+    .toPromise()
+    .then((result) => {
+      if (!result.error && result.data?.batchRuns?.items) {
+        // Items come back newest-first, so the first item per job type wins.
+        const runs = {};
+        result.data.batchRuns.items.forEach((item) => {
+          const jobType = item.jobType.toLowerCase().replace(/_/g, "-");
+          if (!runs[jobType]) {
+            runs[jobType] = mapGraphRunToRow(item);
+          }
+        });
         _latestRunsByJobType = runs;
         return runs;
       }

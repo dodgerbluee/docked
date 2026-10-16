@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { BATCH_JOB_TYPES, DEFAULT_BATCH_CONFIG } from "../constants/settings";
 import { getErrorMessage, SUCCESS_MESSAGES } from "../utils/errorMessages";
 import { graphqlClient } from "../graphql/client";
-import { USER_PREFERENCES_QUERY, UPDATE_USER_PREFERENCES_MUTATION } from "../graphql/queries";
+import {
+  USER_PREFERENCES_QUERY,
+  UPDATE_USER_PREFERENCES_MUTATION,
+  BATCH_CONFIGS_QUERY,
+  UPDATE_BATCH_CONFIG_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useGeneralSettings Hook
@@ -57,9 +60,12 @@ export function useGeneralSettings({
 
   const fetchBatchConfig = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/config`);
-      if (response.data.success) {
-        const configs = response.data.config || {};
+      const result = await graphqlClient.query(BATCH_CONFIGS_QUERY).toPromise();
+      if (!result.error && result.data?.batchConfigs) {
+        const configs = {};
+        result.data.batchConfigs.forEach((c) => {
+          configs[c.jobType.toLowerCase().replace(/_/g, "-")] = c;
+        });
         const newConfigs = {
           [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
           [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
@@ -203,7 +209,7 @@ export function useGeneralSettings({
       const configs = configsToSubmit || batchConfigs;
 
       try {
-        const responses = await Promise.all(
+        await Promise.all(
           [
             BATCH_JOB_TYPES.DOCKER_HUB_PULL,
             BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
@@ -213,79 +219,28 @@ export function useGeneralSettings({
             const intervalMinutes =
               config.intervalUnit === "hours" ? config.intervalValue * 60 : config.intervalValue;
 
-            const response = await axios.post(`${API_BASE_URL}/api/batch/config`, {
-              jobType: jobType,
-              enabled: config.enabled,
-              intervalMinutes: intervalMinutes,
-            });
+            const result = await graphqlClient
+              .mutation(UPDATE_BATCH_CONFIG_MUTATION, {
+                input: {
+                  jobType: jobType.toUpperCase().replace(/-/g, "_"),
+                  enabled: config.enabled,
+                  intervalMinutes: intervalMinutes,
+                },
+              })
+              .toPromise();
 
-            if (!response.data.success) {
-              throw new Error(response.data.error || "Failed to update batch configuration");
+            if (result.error || !result.data?.updateBatchConfig?.success) {
+              throw new Error(
+                result.error?.message ||
+                  result.data?.updateBatchConfig?.message ||
+                  "Failed to update batch configuration"
+              );
             }
-
-            return { jobType, response: response.data };
           })
         );
 
-        // Use the configs from the last response (server returns all configs)
-        const lastResponse = responses[responses.length - 1];
-        if (lastResponse?.response?.config) {
-          const serverConfigs = lastResponse.response.config;
-          const newConfigs = {
-            [BATCH_JOB_TYPES.DOCKER_HUB_PULL]: { ...DEFAULT_BATCH_CONFIG },
-            [BATCH_JOB_TYPES.TRACKED_APPS_CHECK]: { ...DEFAULT_BATCH_CONFIG },
-            [BATCH_JOB_TYPES.APP_VERSION_SCAN]: { ...DEFAULT_BATCH_CONFIG },
-          };
-
-          [
-            BATCH_JOB_TYPES.DOCKER_HUB_PULL,
-            BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
-            BATCH_JOB_TYPES.APP_VERSION_SCAN,
-          ].forEach((jobType) => {
-            const config = serverConfigs[jobType] || {
-              enabled: false,
-              intervalMinutes: 60,
-            };
-            const minutes = config.intervalMinutes || 60;
-
-            if (minutes >= 60 && minutes % 60 === 0) {
-              newConfigs[jobType] = {
-                enabled: config.enabled || false,
-                intervalMinutes: minutes,
-                intervalValue: minutes / 60,
-                intervalUnit: "hours",
-              };
-            } else {
-              newConfigs[jobType] = {
-                enabled: config.enabled || false,
-                intervalMinutes: minutes,
-                intervalValue: minutes,
-                intervalUnit: "minutes",
-              };
-            }
-          });
-
-          setBatchConfigs(newConfigs);
-        } else {
-          // Fallback: update state with the configs we just submitted
-          setBatchConfigs((prev) => {
-            const updated = { ...prev };
-            [
-              BATCH_JOB_TYPES.DOCKER_HUB_PULL,
-              BATCH_JOB_TYPES.TRACKED_APPS_CHECK,
-              BATCH_JOB_TYPES.APP_VERSION_SCAN,
-            ].forEach((jobType) => {
-              const config = configs[jobType];
-              const intervalMinutes =
-                config.intervalUnit === "hours" ? config.intervalValue * 60 : config.intervalValue;
-              updated[jobType] = {
-                ...config,
-                intervalMinutes: intervalMinutes,
-              };
-            });
-            return updated;
-          });
-        }
+        // Re-read the canonical configs from the server
+        await fetchBatchConfig();
 
         setBatchSuccess(SUCCESS_MESSAGES.BATCH.CONFIG_UPDATE);
         setTimeout(() => setBatchSuccess(""), 3000);
@@ -309,7 +264,7 @@ export function useGeneralSettings({
         });
       }
     },
-    [batchConfigs, onBatchConfigUpdate]
+    [batchConfigs, onBatchConfigUpdate, fetchBatchConfig]
   );
 
   return {

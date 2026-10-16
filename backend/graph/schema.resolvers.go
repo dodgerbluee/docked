@@ -1477,6 +1477,49 @@ func (r *mutationResolver) SetBatchLogLevel(ctx context.Context, logLevel model.
 	return &model.SuccessResult{Success: true}, nil
 }
 
+// CreateBatchRun is the resolver for the createBatchRun field.
+func (r *mutationResolver) CreateBatchRun(ctx context.Context, jobType *model.BatchJobType, isManual *bool) (*model.BatchRun, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jt := "docker-hub-pull"
+	if jobType != nil {
+		jt = dbEnumValue(string(*jobType))
+	}
+	manual := isManual != nil && *isManual
+
+	id, err := db.CreateBatchRun(ctx, r.DB, uid, jt, manual)
+	if err != nil {
+		return nil, err
+	}
+	row, err := db.GetBatchRunByID(ctx, r.DB, id, uid)
+	if err != nil || row == nil {
+		return nil, fmt.Errorf("batch run not found")
+	}
+	return batchRunToModel(row), nil
+}
+
+// UpdateBatchRun is the resolver for the updateBatchRun field.
+func (r *mutationResolver) UpdateBatchRun(ctx context.Context, id string, status model.BatchRunStatus, containersChecked *int, containersUpdated *int, errorMessage *string, logs *string) (*model.SuccessResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rid, _ := strconv.ParseInt(id, 10, 64)
+	checked, updated := 0, 0
+	if containersChecked != nil {
+		checked = *containersChecked
+	}
+	if containersUpdated != nil {
+		updated = *containersUpdated
+	}
+	if err := db.UpdateBatchRun(ctx, r.DB, rid, uid, dbEnumValue(string(status)), checked, updated, errorMessage, logs); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Batch run updated successfully")}, nil
+}
+
 // CreateDiscordWebhook is the resolver for the createDiscordWebhook field.
 func (r *mutationResolver) CreateDiscordWebhook(ctx context.Context, input model.CreateDiscordWebhookInput) (*model.DiscordWebhook, error) {
 	uid, err := requireUser(ctx)
@@ -2275,6 +2318,20 @@ func (r *queryResolver) BatchConfigs(ctx context.Context) ([]*model.BatchConfig,
 		result[i] = batchConfigToModel(&row)
 	}
 	return result, nil
+}
+
+// BatchLogLevel is the resolver for the batchLogLevel field.
+func (r *queryResolver) BatchLogLevel(ctx context.Context) (model.LogLevel, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return "", err
+	}
+	var level string
+	if err := r.DB.QueryRowContext(ctx,
+		"SELECT value FROM settings WHERE user_id = 0 AND key = 'log_level'").Scan(&level); err != nil {
+		level = "info"
+	}
+	return model.LogLevel(strings.ToUpper(level)), nil
 }
 
 // BatchRuns is the resolver for the batchRuns field.

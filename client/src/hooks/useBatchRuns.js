@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { DEFAULT_RUN_LIMIT, REFRESH_INTERVAL_MS } from "../constants/batch";
 // DEFAULT_POLLING_INTERVAL_MS is not currently used but kept for potential future use
 import { getErrorMessage } from "../utils/errorMessages";
+import { graphqlClient } from "../graphql/client";
+import { BATCH_RUNS_QUERY } from "../graphql/queries";
 import {
   getCachedLatestRunsByJobType,
   setCachedLatestRunsByJobType,
   fetchLatestRunsByJobType,
+  mapGraphRunToRow,
 } from "./batchRunsCache";
 import { isBackendUp } from "../utils/backendStatus";
 
@@ -49,19 +50,24 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
       // (useBatchPolling may already have an in-flight request for the
       // same endpoint). If we already have cached data, skip the call entirely.
       const requests = [
-        axios.get(`${API_BASE_URL}/api/batch/runs/latest`),
+        graphqlClient.query(BATCH_RUNS_QUERY, { first: DEFAULT_RUN_LIMIT }).toPromise(),
         existingCache ? Promise.resolve(existingCache) : fetchLatestRunsByJobType(),
-        axios.get(`${API_BASE_URL}/api/batch/runs?limit=${DEFAULT_RUN_LIMIT}`),
       ];
 
       // Fetch all data in parallel for better performance
-      const [latestResponse, byJobTypeRuns, recentResponse] = await Promise.all(requests);
+      const [runsResult, byJobTypeRuns] = await Promise.all(requests);
 
       if (!mountedRef.current) return;
 
-      // Process latest run
-      if (latestResponse.data.success) {
-        const latest = latestResponse.data.run || null;
+      // Items come back newest-first; the first item is the latest run
+      const items =
+        !runsResult.error && runsResult.data?.batchRuns?.items
+          ? runsResult.data.batchRuns.items.map(mapGraphRunToRow)
+          : null;
+
+      if (items) {
+        // Process latest run
+        const latest = items[0] || null;
         cachedLatestRun = latest;
         setLatestRun(latest);
         // Auto-select latest run only on initial load if none selected
@@ -69,21 +75,18 @@ export function useBatchRuns(pollingInterval = REFRESH_INTERVAL_MS) {
         if (isInitialLoad && latest) {
           setSelectedRun((prev) => prev || latest);
         }
+
+        // Process recent runs
+        cachedRecentRuns = items;
+        setRecentRuns(items);
       }
 
       // Process latest runs by job type
       // byJobTypeRuns comes from the shared fetchLatestRunsByJobType() which
-      // returns the runs object directly (already unwrapped from response.data).
+      // returns the runs object directly (already unwrapped).
       if (byJobTypeRuns) {
         setCachedLatestRunsByJobType(byJobTypeRuns);
         setLatestRunsByJobType(byJobTypeRuns);
-      }
-
-      // Process recent runs
-      if (recentResponse.data.success) {
-        const runs = recentResponse.data.runs || [];
-        cachedRecentRuns = runs;
-        setRecentRuns(runs);
       }
     } catch (err) {
       console.error("Error fetching batch runs:", err);

@@ -318,6 +318,7 @@ type ComplexityRoot struct {
 		CheckTrackedAppUpdates      func(childComplexity int) int
 		ClearContainerData          func(childComplexity int) int
 		ClearTrackedAppCache        func(childComplexity int) int
+		CreateBatchRun              func(childComplexity int, jobType *model.BatchJobType, isManual *bool) int
 		CreateDiscordWebhook        func(childComplexity int, input model.CreateDiscordWebhookInput) int
 		CreateIntent                func(childComplexity int, input model.CreateIntentInput) int
 		CreateRunner                func(childComplexity int, input model.CreateRunnerInput) int
@@ -348,6 +349,7 @@ type ComplexityRoot struct {
 		TriggerBatchJob             func(childComplexity int, jobType *model.BatchJobType, idempotencyKey *string) int
 		TriggerIntent               func(childComplexity int, id string, idempotencyKey *string) int
 		UpdateBatchConfig           func(childComplexity int, input model.UpdateBatchConfigInput) int
+		UpdateBatchRun              func(childComplexity int, id string, status model.BatchRunStatus, containersChecked *int, containersUpdated *int, errorMessage *string, logs *string) int
 		UpdateDiscordWebhook        func(childComplexity int, id string, input model.UpdateDiscordWebhookInput) int
 		UpdateIntent                func(childComplexity int, id string, input model.UpdateIntentInput) int
 		UpdatePassword              func(childComplexity int, input model.UpdatePasswordInput) int
@@ -397,6 +399,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		BatchConfigs             func(childComplexity int) int
+		BatchLogLevel            func(childComplexity int) int
 		BatchRun                 func(childComplexity int, id string) int
 		BatchRuns                func(childComplexity int, jobType *model.BatchJobType, first *int, after *string) int
 		Container                func(childComplexity int, id string) int
@@ -720,6 +723,8 @@ type MutationResolver interface {
 	UpdateBatchConfig(ctx context.Context, input model.UpdateBatchConfigInput) (*model.SuccessResult, error)
 	TriggerBatchJob(ctx context.Context, jobType *model.BatchJobType, idempotencyKey *string) (*model.BatchRun, error)
 	SetBatchLogLevel(ctx context.Context, logLevel model.LogLevel) (*model.SuccessResult, error)
+	CreateBatchRun(ctx context.Context, jobType *model.BatchJobType, isManual *bool) (*model.BatchRun, error)
+	UpdateBatchRun(ctx context.Context, id string, status model.BatchRunStatus, containersChecked *int, containersUpdated *int, errorMessage *string, logs *string) (*model.SuccessResult, error)
 	CreateDiscordWebhook(ctx context.Context, input model.CreateDiscordWebhookInput) (*model.DiscordWebhook, error)
 	UpdateDiscordWebhook(ctx context.Context, id string, input model.UpdateDiscordWebhookInput) (*model.DiscordWebhook, error)
 	DeleteDiscordWebhook(ctx context.Context, id string) (*model.SuccessResult, error)
@@ -758,6 +763,7 @@ type QueryResolver interface {
 	IntentExecutions(ctx context.Context, intentID *string, first *int, after *string) (*model.IntentExecutionConnection, error)
 	PreviewIntent(ctx context.Context, id string) (*model.IntentPreview, error)
 	BatchConfigs(ctx context.Context) ([]*model.BatchConfig, error)
+	BatchLogLevel(ctx context.Context) (model.LogLevel, error)
 	BatchRuns(ctx context.Context, jobType *model.BatchJobType, first *int, after *string) (*model.BatchRunConnection, error)
 	BatchRun(ctx context.Context, id string) (*model.BatchRun, error)
 	UpgradeHistory(ctx context.Context, filter *model.UpgradeHistoryFilterInput, first *int, after *string) (*model.UpgradeRecordConnection, error)
@@ -2033,6 +2039,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearTrackedAppCache(childComplexity), true
+	case "Mutation.createBatchRun":
+		if e.ComplexityRoot.Mutation.CreateBatchRun == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createBatchRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateBatchRun(childComplexity, args["jobType"].(*model.BatchJobType), args["isManual"].(*bool)), true
 	case "Mutation.createDiscordWebhook":
 		if e.ComplexityRoot.Mutation.CreateDiscordWebhook == nil {
 			break
@@ -2348,6 +2365,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateBatchConfig(childComplexity, args["input"].(model.UpdateBatchConfigInput)), true
+	case "Mutation.updateBatchRun":
+		if e.ComplexityRoot.Mutation.UpdateBatchRun == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateBatchRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateBatchRun(childComplexity, args["id"].(string), args["status"].(model.BatchRunStatus), args["containersChecked"].(*int), args["containersUpdated"].(*int), args["errorMessage"].(*string), args["logs"].(*string)), true
 	case "Mutation.updateDiscordWebhook":
 		if e.ComplexityRoot.Mutation.UpdateDiscordWebhook == nil {
 			break
@@ -2639,6 +2667,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.BatchConfigs(childComplexity), true
+	case "Query.batchLogLevel":
+		if e.ComplexityRoot.Query.BatchLogLevel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.BatchLogLevel(childComplexity), true
 	case "Query.batchRun":
 		if e.ComplexityRoot.Query.BatchRun == nil {
 			break
@@ -5100,6 +5134,7 @@ type Query {
 
   # ── Batch System ──────────────────────────────────────────────────────────
   batchConfigs: [BatchConfig!]!
+  batchLogLevel: LogLevel!
   batchRuns(
     jobType: BatchJobType
     first: Int
@@ -5221,6 +5256,15 @@ type Mutation {
   updateBatchConfig(input: UpdateBatchConfigInput!): SuccessResult!
   triggerBatchJob(jobType: BatchJobType, idempotencyKey: String): BatchRun!
   setBatchLogLevel(logLevel: LogLevel!): SuccessResult!
+  createBatchRun(jobType: BatchJobType, isManual: Boolean): BatchRun!
+  updateBatchRun(
+    id: ID!
+    status: BatchRunStatus!
+    containersChecked: Int
+    containersUpdated: Int
+    errorMessage: String
+    logs: String
+  ): SuccessResult!
 
   # ── Discord ───────────────────────────────────────────────────────────────
   createDiscordWebhook(input: CreateDiscordWebhookInput!): DiscordWebhook!
@@ -6684,6 +6728,28 @@ func (ec *executionContext) field_Mutation_checkTrackedAppUpdate_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createBatchRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "jobType",
+		func(ctx context.Context, v any) (*model.BatchJobType, error) {
+			return ec.unmarshalOBatchJobType2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBatchJobType(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["jobType"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "isManual",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["isManual"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createDiscordWebhook_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7099,6 +7165,60 @@ func (ec *executionContext) field_Mutation_updateBatchConfig_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateBatchRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (model.BatchRunStatus, error) {
+			return ec.unmarshalNBatchRunStatus2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBatchRunStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "containersChecked",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["containersChecked"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "containersUpdated",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["containersUpdated"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "errorMessage",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["errorMessage"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "logs",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["logs"] = arg5
 	return args, nil
 }
 
@@ -13931,6 +14051,94 @@ func (ec *executionContext) fieldContext_Mutation_setBatchLogLevel(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createBatchRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createBatchRun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateBatchRun(ctx, fc.Args["jobType"].(*model.BatchJobType), fc.Args["isManual"].(*bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BatchRun) graphql.Marshaler {
+			return ec.marshalNBatchRun2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBatchRun(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createBatchRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BatchRun(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createBatchRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateBatchRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateBatchRun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateBatchRun(ctx, fc.Args["id"].(string), fc.Args["status"].(model.BatchRunStatus), fc.Args["containersChecked"].(*int), fc.Args["containersUpdated"].(*int), fc.Args["errorMessage"].(*string), fc.Args["logs"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateBatchRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateBatchRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createDiscordWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15865,6 +16073,29 @@ func (ec *executionContext) fieldContext_Query_batchConfigs(_ context.Context, f
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_batchLogLevel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_batchLogLevel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().BatchLogLevel(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LogLevel) graphql.Marshaler {
+			return ec.marshalNLogLevel2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐLogLevel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_batchLogLevel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type LogLevel does not have child fields"))
 }
 
 func (ec *executionContext) _Query_batchRuns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -25641,6 +25872,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createBatchRun":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createBatchRun(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateBatchRun":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateBatchRun(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createDiscordWebhook":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createDiscordWebhook(ctx, field)
@@ -26466,6 +26711,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_batchConfigs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "batchLogLevel":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_batchLogLevel(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

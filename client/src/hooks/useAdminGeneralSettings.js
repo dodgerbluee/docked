@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { BATCH_LOG_LEVEL_QUERY, SET_BATCH_LOG_LEVEL_MUTATION } from "../graphql/queries";
 
 /**
  * useAdminGeneralSettings Hook
@@ -19,9 +21,9 @@ export function useAdminGeneralSettings() {
 
   const fetchLogLevel = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/batch/log-level`);
-      if (response.data.success) {
-        const fetchedLevel = response.data.logLevel || "info";
+      const result = await graphqlClient.query(BATCH_LOG_LEVEL_QUERY).toPromise();
+      if (!result.error && result.data?.batchLogLevel) {
+        const fetchedLevel = result.data.batchLogLevel.toLowerCase() || "info";
         setLogLevel(fetchedLevel);
         // Set local state immediately with DB value to prevent flicker
         setLocalLogLevel(fetchedLevel);
@@ -83,10 +85,10 @@ export function useAdminGeneralSettings() {
       // Save log level to DB
       let logLevelSuccess = false;
       try {
-        const logLevelResponse = await axios.post(`${API_BASE_URL}/api/batch/log-level`, {
-          logLevel: localLogLevel,
-        });
-        logLevelSuccess = logLevelResponse.data.success;
+        const logLevelResult = await graphqlClient
+          .mutation(SET_BATCH_LOG_LEVEL_MUTATION, { logLevel: localLogLevel.toUpperCase() })
+          .toPromise();
+        logLevelSuccess = !logLevelResult.error && !!logLevelResult.data?.setBatchLogLevel?.success;
         if (logLevelSuccess) {
           // Update the actual log level state
           setLogLevel(localLogLevel);

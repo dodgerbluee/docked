@@ -153,3 +153,21 @@ func CompleteBatchRun(ctx context.Context, database *sql.DB, id int64, status st
 		status, checked, updated, errMsg, id)
 	return err
 }
+
+// UpdateBatchRun finalizes a client-driven batch run (parity with Node's updateBatchRun:
+// status, duration from started_at, counts, error message, and logs; scoped by user).
+func UpdateBatchRun(ctx context.Context, database *sql.DB, id, userID int64, status string, checked, updated int, errMsg, logs *string) error {
+	res, err := database.ExecContext(ctx,
+		`UPDATE batch_runs SET status = ?, completed_at = CURRENT_TIMESTAMP,
+		 duration_ms = CAST((julianday(CURRENT_TIMESTAMP)-julianday(started_at))*86400000 AS INTEGER),
+		 containers_checked = ?, containers_updated = ?, error_message = ?, logs = ?
+		 WHERE id = ? AND user_id = ?`,
+		status, checked, updated, errMsg, logs, id, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("batch run not found")
+	}
+	return nil
+}
