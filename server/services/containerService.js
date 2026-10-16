@@ -19,5 +19,4 @@ module.exports = {
   // Container querying
   getAllContainersWithUpdates: containerQueryService.getAllContainersWithUpdates,
   getContainersFromPortainer: containerQueryService.getContainersFromPortainer,
-  getUnusedImages: containerQueryService.getUnusedImages,
 };

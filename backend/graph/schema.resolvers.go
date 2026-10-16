@@ -22,6 +22,7 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
 	runnerclient "github.com/dockedapp/backend/internal/runner"
+	"sync"
 )
 
 // UpgradeHistory is the resolver for the upgradeHistory field.
@@ -716,43 +717,82 @@ func (r *mutationResolver) DeleteImages(ctx context.Context, images []*model.Del
 	if err != nil {
 		return nil, err
 	}
-
-	var deleted, failed int
-	results := make([]*model.DeleteImageResult, 0, len(images))
-
-	for _, img := range images {
-		var runnerURL, runnerKey string
-		if img.RunnerID != nil && *img.RunnerID != "" {
-			rid, _ := strconv.ParseInt(*img.RunnerID, 10, 64)
-			runner, _ := db.GetRunnerByID(ctx, r.DB, rid, uid)
-			if runner != nil {
-				runnerURL, runnerKey = runner.URL, runner.APIKey
-			}
-		}
-
-		var success bool
-		if runnerURL != "" {
-			path := "/images/" + img.ImageID
-			success = runnerDelete(runnerURL, runnerKey, path) == nil
-		}
-
-		if success {
-			deleted++
-		} else {
-			failed++
-		}
-		results = append(results, &model.DeleteImageResult{
-			ImageID: img.ImageID,
-			Success: success,
-		})
+	if len(images) == 0 {
+		return &model.DeleteImagesResult{Success: false, Deleted: 0, Results: []*model.DeleteImageResult{}}, nil
 	}
 
-	return &model.DeleteImagesResult{
-		Success: failed == 0,
-		Deleted: deleted,
-		Failed:  failed,
-		Results: results,
-	}, nil
+	// Deduplicate by id+source+endpointId, matching Node's controller.
+	type dedupeKey struct {
+		id         string
+		source     string
+		endpointID int
+	}
+	seen := make(map[dedupeKey]bool)
+	unique := make([]*model.DeleteImageInput, 0, len(images))
+	for _, img := range images {
+		source := ""
+		switch {
+		case img.RunnerID != nil:
+			source = *img.RunnerID
+		case img.PortainerURL != nil:
+			source = *img.PortainerURL
+		case img.SourceURL != nil:
+			source = *img.SourceURL
+		}
+		endpoint := 0
+		if img.EndpointID != nil {
+			endpoint = *img.EndpointID
+		}
+		key := dedupeKey{id: img.ID, source: source, endpointID: endpoint}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, img)
+	}
+
+	instances, err := db.GetAllSourceInstances(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	runners, err := db.GetAllRunners(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	instanceMap := make(map[string]db.SourceInstanceRow, len(instances))
+	for _, inst := range instances {
+		instanceMap[inst.URL] = inst
+	}
+	runnerMap := make(map[int64]db.RunnerRow, len(runners))
+	for _, rr := range runners {
+		runnerMap[rr.ID] = rr
+	}
+
+	outcomes := make([]*model.DeleteImageResult, len(unique))
+	var wg sync.WaitGroup
+	for i, img := range unique {
+		wg.Add(1)
+		go func(i int, img *model.DeleteImageInput) {
+			defer wg.Done()
+			outcomes[i] = r.deleteOneImage(ctx, img, instanceMap, runnerMap)
+		}(i, img)
+	}
+	wg.Wait()
+
+	results := make([]*model.DeleteImageResult, 0, len(outcomes))
+	var errs []*model.DeleteImageResult
+	for _, o := range outcomes {
+		if o.Error != nil {
+			errs = append(errs, o)
+		} else {
+			results = append(results, o)
+		}
+	}
+	res := &model.DeleteImagesResult{Success: true, Deleted: len(results), Results: results}
+	if len(errs) > 0 {
+		res.Errors = errs
+	}
+	return res, nil
 }
 
 // CreateSourceInstance is the resolver for the createSourceInstance field.
@@ -2605,31 +2645,47 @@ func (r *queryResolver) Container(ctx context.Context, id string) (*model.Contai
 	return containerRowToModel(row), nil
 }
 
-// UnusedImages is the resolver for the unusedImages field.
+// UnusedImages is the resolver for the unusedImages field. Live parity
+// with Node's containerQueryService.getUnusedImages: every Portainer
+// instance and runner host is queried in parallel and the per-source
+// failures are isolated (logged, skipped).
 func (r *queryResolver) UnusedImages(ctx context.Context) ([]*model.DockerImage, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	rows, err := db.GetUnusedImages(ctx, r.DB, uid)
+	instances, err := db.GetAllSourceInstances(ctx, r.DB, uid)
+	if err != nil {
+		return nil, err
+	}
+	runners, err := db.GetAllRunners(ctx, r.DB, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*model.DockerImage, len(rows))
-	for i, row := range rows {
-		repoTags := []string{row.ImageRepo + ":" + row.ImageTag}
-		result[i] = &model.DockerImage{
-			ID:         strconv.FormatInt(row.ID, 10),
-			RepoTags:   repoTags,
-			SizeBytes:  0,
-			Created:    parseTime(row.LastSeen),
-			SourceURL:  nullStrDefault(row.Registry),
-			EndpointID: "",
-		}
+	perSource := make([][]*model.DockerImage, len(instances)+len(runners))
+	var wg sync.WaitGroup
+	for i, inst := range instances {
+		wg.Add(1)
+		go func(i int, inst db.SourceInstanceRow) {
+			defer wg.Done()
+			perSource[i] = r.unusedFromPortainer(ctx, inst)
+		}(i, inst)
 	}
-	return result, nil
+	for j, rr := range runners {
+		wg.Add(1)
+		go func(j int, rr db.RunnerRow) {
+			defer wg.Done()
+			perSource[len(instances)+j] = r.unusedFromRunner(ctx, rr)
+		}(j, rr)
+	}
+	wg.Wait()
+
+	var out []*model.DockerImage
+	for _, rows := range perSource {
+		out = append(out, rows...)
+	}
+	return out, nil
 }
 
 // SourceInstances is the resolver for the sourceInstances field.

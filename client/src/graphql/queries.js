@@ -442,10 +442,12 @@ export const UNUSED_IMAGES_QUERY = /* GraphQL */ `
     unusedImages {
       id
       repoTags
-      sizeBytes
+      size
       created
       sourceUrl
       endpointId
+      sourceName
+      runnerId
     }
   }
 `;
@@ -780,10 +782,15 @@ export const DELETE_IMAGES_MUTATION = /* GraphQL */ `
     deleteImages(images: $images) {
       success
       deleted
-      failed
       results {
-        imageId
+        id
         success
+        error
+      }
+      errors {
+        id
+        success
+        error
       }
     }
   }

@@ -4,7 +4,7 @@ import { API_BASE_URL } from "../constants/api";
 import { updateContainersWithPreservedState } from "../utils/containerStateHelpers";
 import { registerCacheClear } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
-import { SOURCE_INSTANCES_QUERY } from "../graphql/queries";
+import { SOURCE_INSTANCES_QUERY, UNUSED_IMAGES_QUERY } from "../graphql/queries";
 
 // Module-level cache – survives unmount/remount so container-dependent tabs
 // (Summary, Containers) render instantly on re-navigation instead of showing
@@ -81,8 +81,13 @@ export const useContainersData = (isAuthenticated, authToken, successfullyUpdate
 
   const fetchUnusedImages = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/images/unused`);
-      const images = response.data.unusedImages || [];
+      const result = await graphqlClient.query(UNUSED_IMAGES_QUERY).toPromise();
+      if (result.error) throw result.error;
+      // Graph runnerId is String; the UI (source filters, delete payloads)
+      // uses numeric runner ids like the legacy REST rows did.
+      const images = (result.data?.unusedImages || []).map((img) =>
+        img.runnerId != null ? { ...img, runnerId: Number(img.runnerId) } : img
+      );
       setUnusedImages(images);
       setUnusedImagesCount(images.length);
     } catch (err) {

@@ -1058,24 +1058,6 @@ func runnerUpgrade(baseURL, apiKey, containerID string) error {
 	}
 	return fmt.Errorf("runner upgrade stream ended without a done event")
 }
-func runnerDelete(baseURL, apiKey, path string) error {
-	req, err := http.NewRequest("DELETE", baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("runner returned %d", resp.StatusCode)
-	}
-	return nil
-}
 func pruneRecentAvatars(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

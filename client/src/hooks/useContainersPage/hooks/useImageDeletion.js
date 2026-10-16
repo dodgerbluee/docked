@@ -3,9 +3,8 @@
  */
 
 import { useState, useCallback } from "react";
-import axios from "axios";
 import { getImageKey } from "../../../utils/imageHelpers";
-import { API_BASE_URL } from "../../../utils/api";
+import { deleteImages } from "../../../graphql/imageOps";
 import { toast } from "../../../utils/toast";
 
 /**
@@ -38,19 +37,17 @@ export const useImageDeletion = ({
     async (image) => {
       try {
         setDeletingImages(true);
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: [
-            {
-              id: image.id,
-              portainerUrl: image.portainerUrl,
-              sourceUrl: image.sourceUrl,
-              endpointId: image.endpointId,
-              runnerId: image.runnerId,
-            },
-          ],
-        });
+        const data = await deleteImages([
+          {
+            id: image.id,
+            portainerUrl: image.portainerUrl,
+            sourceUrl: image.sourceUrl,
+            endpointId: image.endpointId,
+            runnerId: image.runnerId,
+          },
+        ]);
 
-        if (response.data.success) {
+        if (data.success) {
           const imageKey = getImageKey(image);
           if (onUnusedImagesUpdate) {
             onUnusedImagesUpdate((prev) => prev.filter((img) => getImageKey(img) !== imageKey));
@@ -69,7 +66,7 @@ export const useImageDeletion = ({
           // Don't refetch: optimistic update already removed the image; refetch can re-add it if server is stale
         } else {
           toast.error("Failed to delete image. Check console for details.");
-          console.error("Delete errors:", response.data.errors);
+          console.error("Delete errors:", data.errors);
         }
       } catch (err) {
         const errorMessage = err.response?.data?.error || err.message || "Unknown error";
@@ -111,18 +108,18 @@ export const useImageDeletion = ({
           }
         }
 
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: uniqueImages.map((img) => ({
+        const data = await deleteImages(
+          uniqueImages.map((img) => ({
             id: img.id,
             portainerUrl: img.portainerUrl,
             sourceUrl: img.sourceUrl,
             endpointId: img.endpointId,
             runnerId: img.runnerId,
-          })),
-        });
+          }))
+        );
 
-        if (response.data.success) {
-          const deletedCount = response.data.deleted || uniqueImages.length;
+        if (data.success) {
+          const deletedCount = data.deleted || uniqueImages.length;
           const deletedKeys = new Set(uniqueImages.map((img) => getImageKey(img)));
 
           if (onUnusedImagesUpdate) {
@@ -144,7 +141,7 @@ export const useImageDeletion = ({
           // Don't refetch: optimistic update already removed the images; refetch can re-add them if server is stale
         } else {
           toast.error("Failed to delete images. Check console for details.");
-          console.error("Delete errors:", response.data.errors);
+          console.error("Delete errors:", data.errors);
         }
       } catch (err) {
         const errorMessage = err.response?.data?.error || err.message || "Unknown error";

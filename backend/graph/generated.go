@@ -145,14 +145,14 @@ type ComplexityRoot struct {
 	}
 
 	DeleteImageResult struct {
-		ErrorCode func(childComplexity int) int
-		ImageID   func(childComplexity int) int
-		Success   func(childComplexity int) int
+		Error   func(childComplexity int) int
+		ID      func(childComplexity int) int
+		Success func(childComplexity int) int
 	}
 
 	DeleteImagesResult struct {
 		Deleted func(childComplexity int) int
-		Failed  func(childComplexity int) int
+		Errors  func(childComplexity int) int
 		Results func(childComplexity int) int
 		Success func(childComplexity int) int
 	}
@@ -187,7 +187,9 @@ type ComplexityRoot struct {
 		EndpointID func(childComplexity int) int
 		ID         func(childComplexity int) int
 		RepoTags   func(childComplexity int) int
-		SizeBytes  func(childComplexity int) int
+		RunnerID   func(childComplexity int) int
+		Size       func(childComplexity int) int
+		SourceName func(childComplexity int) int
 		SourceURL  func(childComplexity int) int
 	}
 
@@ -1416,18 +1418,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ContainersUpdatedEvent.Stats(childComplexity), true
 
-	case "DeleteImageResult.errorCode":
-		if e.ComplexityRoot.DeleteImageResult.ErrorCode == nil {
+	case "DeleteImageResult.error":
+		if e.ComplexityRoot.DeleteImageResult.Error == nil {
 			break
 		}
 
-		return e.ComplexityRoot.DeleteImageResult.ErrorCode(childComplexity), true
-	case "DeleteImageResult.imageId":
-		if e.ComplexityRoot.DeleteImageResult.ImageID == nil {
+		return e.ComplexityRoot.DeleteImageResult.Error(childComplexity), true
+	case "DeleteImageResult.id":
+		if e.ComplexityRoot.DeleteImageResult.ID == nil {
 			break
 		}
 
-		return e.ComplexityRoot.DeleteImageResult.ImageID(childComplexity), true
+		return e.ComplexityRoot.DeleteImageResult.ID(childComplexity), true
 	case "DeleteImageResult.success":
 		if e.ComplexityRoot.DeleteImageResult.Success == nil {
 			break
@@ -1441,12 +1443,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteImagesResult.Deleted(childComplexity), true
-	case "DeleteImagesResult.failed":
-		if e.ComplexityRoot.DeleteImagesResult.Failed == nil {
+	case "DeleteImagesResult.errors":
+		if e.ComplexityRoot.DeleteImagesResult.Errors == nil {
 			break
 		}
 
-		return e.ComplexityRoot.DeleteImagesResult.Failed(childComplexity), true
+		return e.ComplexityRoot.DeleteImagesResult.Errors(childComplexity), true
 	case "DeleteImagesResult.results":
 		if e.ComplexityRoot.DeleteImagesResult.Results == nil {
 			break
@@ -1583,12 +1585,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DockerImage.RepoTags(childComplexity), true
-	case "DockerImage.sizeBytes":
-		if e.ComplexityRoot.DockerImage.SizeBytes == nil {
+	case "DockerImage.runnerId":
+		if e.ComplexityRoot.DockerImage.RunnerID == nil {
 			break
 		}
 
-		return e.ComplexityRoot.DockerImage.SizeBytes(childComplexity), true
+		return e.ComplexityRoot.DockerImage.RunnerID(childComplexity), true
+	case "DockerImage.size":
+		if e.ComplexityRoot.DockerImage.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DockerImage.Size(childComplexity), true
+	case "DockerImage.sourceName":
+		if e.ComplexityRoot.DockerImage.SourceName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DockerImage.SourceName(childComplexity), true
 	case "DockerImage.sourceUrl":
 		if e.ComplexityRoot.DockerImage.SourceURL == nil {
 			break
@@ -5787,13 +5801,18 @@ type DisallowedContainersResult {
 # Docker Images
 # -----------------------------------------------------------------------------
 
+# Live unused-image row (Portainer or runner host), shaped to match the
+# legacy REST payload the unused-images UI consumes. created is normalized
+# to RFC3339 (runner unix-seconds values are converted server-side).
 type DockerImage {
   id: String!
   repoTags: [String!]!
-  sizeBytes: BigInt!
-  created: DateTime!
+  size: Int!
+  created: String!
   sourceUrl: String!
-  endpointId: String!
+  endpointId: Int
+  sourceName: String!
+  runnerId: String
 }
 
 # -----------------------------------------------------------------------------
@@ -6158,12 +6177,14 @@ type TrackedAppUpgradeHistoryStats {
   totalAppsUpgraded: Int!
 }
 
+# Mirrors the legacy REST delete payload: runnerId wins, otherwise the
+# Portainer instance is resolved from portainerUrl/sourceUrl.
 input DeleteImageInput {
-  imageId: String!
-  sourceInstanceId: ID
-  runnerId: ID
-  endpointId: String
-  idempotencyKey: String
+  id: String!
+  portainerUrl: String
+  sourceUrl: String
+  endpointId: Int
+  runnerId: String
 }
 
 # -----------------------------------------------------------------------------
@@ -6469,17 +6490,19 @@ type BatchUpgradeResult {
   results: [UpgradeResult!]!
 }
 
+# Per-image outcomes mirror the REST response: results = successes,
+# errors = {id, error} rows.
 type DeleteImagesResult {
   success: Boolean!
   deleted: Int!
-  failed: Int!
   results: [DeleteImageResult!]!
+  errors: [DeleteImageResult!]
 }
 
 type DeleteImageResult {
-  imageId: String!
-  success: Boolean!
-  errorCode: ErrorCode
+  id: String!
+  success: Boolean
+  error: String
 }
 
 type EnrollmentTokenResult {
@@ -6738,12 +6761,12 @@ func (ec *executionContext) childFields_ContainersUpdatedEvent(ctx context.Conte
 
 func (ec *executionContext) childFields_DeleteImageResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "imageId":
-		return ec.fieldContext_DeleteImageResult_imageId(ctx, field)
+	case "id":
+		return ec.fieldContext_DeleteImageResult_id(ctx, field)
 	case "success":
 		return ec.fieldContext_DeleteImageResult_success(ctx, field)
-	case "errorCode":
-		return ec.fieldContext_DeleteImageResult_errorCode(ctx, field)
+	case "error":
+		return ec.fieldContext_DeleteImageResult_error(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DeleteImageResult", field.Name)
 }
@@ -6754,10 +6777,10 @@ func (ec *executionContext) childFields_DeleteImagesResult(ctx context.Context, 
 		return ec.fieldContext_DeleteImagesResult_success(ctx, field)
 	case "deleted":
 		return ec.fieldContext_DeleteImagesResult_deleted(ctx, field)
-	case "failed":
-		return ec.fieldContext_DeleteImagesResult_failed(ctx, field)
 	case "results":
 		return ec.fieldContext_DeleteImagesResult_results(ctx, field)
+	case "errors":
+		return ec.fieldContext_DeleteImagesResult_errors(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DeleteImagesResult", field.Name)
 }
@@ -6818,14 +6841,18 @@ func (ec *executionContext) childFields_DockerImage(ctx context.Context, field g
 		return ec.fieldContext_DockerImage_id(ctx, field)
 	case "repoTags":
 		return ec.fieldContext_DockerImage_repoTags(ctx, field)
-	case "sizeBytes":
-		return ec.fieldContext_DockerImage_sizeBytes(ctx, field)
+	case "size":
+		return ec.fieldContext_DockerImage_size(ctx, field)
 	case "created":
 		return ec.fieldContext_DockerImage_created(ctx, field)
 	case "sourceUrl":
 		return ec.fieldContext_DockerImage_sourceUrl(ctx, field)
 	case "endpointId":
 		return ec.fieldContext_DockerImage_endpointId(ctx, field)
+	case "sourceName":
+		return ec.fieldContext_DockerImage_sourceName(ctx, field)
+	case "runnerId":
+		return ec.fieldContext_DockerImage_runnerId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DockerImage", field.Name)
 }
@@ -11360,16 +11387,16 @@ func (ec *executionContext) fieldContext_ContainersUpdatedEvent_stats(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _DeleteImageResult_imageId(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImageResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _DeleteImageResult_id(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImageResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeleteImageResult_imageId(ctx, field)
+			return ec.fieldContext_DeleteImageResult_id(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ImageID, nil
+			return obj.ID, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -11379,7 +11406,7 @@ func (ec *executionContext) _DeleteImageResult_imageId(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_DeleteImageResult_imageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_DeleteImageResult_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -11395,38 +11422,38 @@ func (ec *executionContext) _DeleteImageResult_success(ctx context.Context, fiel
 			return obj.Success, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_DeleteImageResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
-func (ec *executionContext) _DeleteImageResult_errorCode(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImageResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _DeleteImageResult_error(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImageResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeleteImageResult_errorCode(ctx, field)
+			return ec.fieldContext_DeleteImageResult_error(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ErrorCode, nil
+			return obj.Error, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ErrorCode) graphql.Marshaler {
-			return ec.marshalOErrorCode2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐErrorCode(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
 		},
 		true,
 		false,
 	)
 }
-func (ec *executionContext) fieldContext_DeleteImageResult_errorCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type ErrorCode does not have child fields"))
+func (ec *executionContext) fieldContext_DeleteImageResult_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeleteImageResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _DeleteImagesResult_success(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImagesResult) (ret graphql.Marshaler) {
@@ -11475,29 +11502,6 @@ func (ec *executionContext) fieldContext_DeleteImagesResult_deleted(_ context.Co
 	return graphql.NewScalarFieldContext("DeleteImagesResult", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
-func (ec *executionContext) _DeleteImagesResult_failed(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImagesResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeleteImagesResult_failed(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Failed, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_DeleteImagesResult_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeleteImagesResult", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
 func (ec *executionContext) _DeleteImagesResult_results(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImagesResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11518,6 +11522,38 @@ func (ec *executionContext) _DeleteImagesResult_results(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_DeleteImagesResult_results(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteImagesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeleteImageResult(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeleteImagesResult_errors(ctx context.Context, field graphql.CollectedField, obj *model.DeleteImagesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteImagesResult_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DeleteImageResult) graphql.Marshaler {
+			return ec.marshalODeleteImageResult2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDeleteImageResultᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteImagesResult_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "DeleteImagesResult",
 		Field:      field,
@@ -11944,27 +11980,27 @@ func (ec *executionContext) fieldContext_DockerImage_repoTags(_ context.Context,
 	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _DockerImage_sizeBytes(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
+func (ec *executionContext) _DockerImage_size(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DockerImage_sizeBytes(ctx, field)
+			return ec.fieldContext_DockerImage_size(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.SizeBytes, nil
+			return obj.Size, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.BigInt) graphql.Marshaler {
-			return ec.marshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_DockerImage_sizeBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type BigInt does not have child fields"))
+func (ec *executionContext) fieldContext_DockerImage_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _DockerImage_created(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
@@ -11979,15 +12015,15 @@ func (ec *executionContext) _DockerImage_created(ctx context.Context, field grap
 			return obj.Created, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_DockerImage_created(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type DateTime does not have child fields"))
+	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _DockerImage_sourceUrl(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
@@ -12025,6 +12061,29 @@ func (ec *executionContext) _DockerImage_endpointId(ctx context.Context, field g
 			return obj.EndpointID, nil
 		},
 		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DockerImage_endpointId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DockerImage_sourceName(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DockerImage_sourceName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SourceName, nil
+		},
+		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
 			return ec.marshalNString2string(ctx, selections, v)
 		},
@@ -12032,7 +12091,30 @@ func (ec *executionContext) _DockerImage_endpointId(ctx context.Context, field g
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_DockerImage_endpointId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_DockerImage_sourceName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DockerImage_runnerId(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DockerImage_runnerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RunnerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DockerImage_runnerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DockerImage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -27302,48 +27384,48 @@ func (ec *executionContext) unmarshalInputDeleteImageInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"imageId", "sourceInstanceId", "runnerId", "endpointId", "idempotencyKey"}
+	fieldsInOrder := [...]string{"id", "portainerUrl", "sourceUrl", "endpointId", "runnerId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "imageId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("imageId"))
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ImageID = data
-		case "sourceInstanceId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceInstanceId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			it.ID = data
+		case "portainerUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("portainerUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.SourceInstanceID = data
-		case "runnerId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			it.PortainerURL = data
+		case "sourceUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.RunnerID = data
+			it.SourceURL = data
 		case "endpointId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endpointId"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.EndpointID = data
-		case "idempotencyKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idempotencyKey"))
+		case "runnerId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runnerId"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.IdempotencyKey = data
+			it.RunnerID = data
 		}
 	}
 	return it, nil
@@ -29290,18 +29372,18 @@ func (ec *executionContext) _DeleteImageResult(ctx context.Context, sel ast.Sele
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("DeleteImageResult")
-		case "imageId":
-			out.Values[i] = ec._DeleteImageResult_imageId(ctx, field, obj)
+		case "id":
+			out.Values[i] = ec._DeleteImageResult_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "success":
 			out.Values[i] = ec._DeleteImageResult_success(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
-		case "errorCode":
-			out.Values[i] = ec._DeleteImageResult_errorCode(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._DeleteImageResult_error(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -29348,14 +29430,14 @@ func (ec *executionContext) _DeleteImagesResult(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "failed":
-			out.Values[i] = ec._DeleteImagesResult_failed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "results":
 			out.Values[i] = ec._DeleteImagesResult_results(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._DeleteImagesResult_errors(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -29580,8 +29662,8 @@ func (ec *executionContext) _DockerImage(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "sizeBytes":
-			out.Values[i] = ec._DockerImage_sizeBytes(ctx, field, obj)
+		case "size":
+			out.Values[i] = ec._DockerImage_size(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -29597,7 +29679,17 @@ func (ec *executionContext) _DockerImage(ctx context.Context, sel ast.SelectionS
 			}
 		case "endpointId":
 			out.Values[i] = ec._DockerImage_endpointId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sourceName":
+			out.Values[i] = ec._DockerImage_sourceName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runnerId":
+			out.Values[i] = ec._DockerImage_runnerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -35749,22 +35841,6 @@ func (ec *executionContext) unmarshalNBatchUpgradeInput2githubᚗcomᚋdockedapp
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx context.Context, v any) (model.BigInt, error) {
-	res, err := model.UnmarshalBigInt(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNBigInt2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐBigInt(ctx context.Context, sel ast.SelectionSet, v model.BigInt) graphql.Marshaler {
-	_ = sel
-	res := model.MarshalBigInt(v)
-	if res == graphql.Null {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-	}
-	return res
-}
-
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -37411,6 +37487,25 @@ func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context,
 	_ = ctx
 	res := model.MarshalDateTime(*v)
 	return res
+}
+
+func (ec *executionContext) marshalODeleteImageResult2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDeleteImageResultᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DeleteImageResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeleteImageResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDeleteImageResult(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalODiscordWebhook2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDiscordWebhook(ctx context.Context, sel ast.SelectionSet, v *model.DiscordWebhook) graphql.Marshaler {

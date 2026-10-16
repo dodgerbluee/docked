@@ -3,8 +3,7 @@
  */
 
 import { useState, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../constants/api";
+import { deleteImages } from "../../../graphql/imageOps";
 import { showContainerError } from "../utils/containerErrorHandling";
 
 /** Map an unused-image row to the /api/images/delete payload contract
@@ -43,11 +42,9 @@ export const useContainerDeletion = ({
     async (image) => {
       try {
         setDeletingImages(true);
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: [toDeletePayload(image)],
-        });
+        const data = await deleteImages([toDeletePayload(image)]);
 
-        if (response.data.success) {
+        if (data.success) {
           updateLastImageDeleteTime();
           setUnusedImages((prev) => prev.filter((img) => img.id !== image.id));
           setUnusedImagesCount((prev) => Math.max(0, prev - 1));
@@ -57,7 +54,7 @@ export const useContainerDeletion = ({
             return next;
           });
         } else {
-          throw new Error(response.data.error || "image delete failed");
+          throw new Error(data.error || "image delete failed");
         }
       } catch (err) {
         console.error("Error deleting image:", err);
@@ -101,19 +98,17 @@ export const useContainerDeletion = ({
         setDeletingImagesState(true);
         updateLastImageDeleteTime();
 
-        const response = await axios.post(`${API_BASE_URL}/api/images/delete`, {
-          images: imagesToDelete.map(toDeletePayload),
-        });
+        const data = await deleteImages(imagesToDelete.map(toDeletePayload));
 
-        if (response.data.success) {
+        if (data.success) {
           const deletedIds = new Set(imagesToDelete.map((img) => img.id));
           setUnusedImages((prev) => prev.filter((img) => !deletedIds.has(img.id)));
           setUnusedImagesCount((prev) =>
-            Math.max(0, prev - (response.data.deleted || imagesToDelete.length))
+            Math.max(0, prev - (data.deleted || imagesToDelete.length))
           );
           setSelectedImages(new Set());
         } else {
-          throw new Error(response.data.error || "image delete failed");
+          throw new Error(data.error || "image delete failed");
         }
       } catch (err) {
         console.error("Error deleting images:", err);

@@ -694,13 +694,18 @@ type DisallowedContainersResult {
 # Docker Images
 # -----------------------------------------------------------------------------
 
+# Live unused-image row (Portainer or runner host), shaped to match the
+# legacy REST payload the unused-images UI consumes. created is normalized
+# to RFC3339 (runner unix-seconds values are converted server-side).
 type DockerImage {
   id: String!
   repoTags: [String!]!
-  sizeBytes: BigInt!
-  created: DateTime!
+  size: Int!
+  created: String!
   sourceUrl: String!
-  endpointId: String!
+  endpointId: Int
+  sourceName: String!
+  runnerId: String
 }
 
 # -----------------------------------------------------------------------------
@@ -1065,12 +1070,14 @@ type TrackedAppUpgradeHistoryStats {
   totalAppsUpgraded: Int!
 }
 
+# Mirrors the legacy REST delete payload: runnerId wins, otherwise the
+# Portainer instance is resolved from portainerUrl/sourceUrl.
 input DeleteImageInput {
-  imageId: String!
-  sourceInstanceId: ID
-  runnerId: ID
-  endpointId: String
-  idempotencyKey: String
+  id: String!
+  portainerUrl: String
+  sourceUrl: String
+  endpointId: Int
+  runnerId: String
 }
 
 # -----------------------------------------------------------------------------
@@ -1376,17 +1383,19 @@ type BatchUpgradeResult {
   results: [UpgradeResult!]!
 }
 
+# Per-image outcomes mirror the REST response: results = successes,
+# errors = {id, error} rows.
 type DeleteImagesResult {
   success: Boolean!
   deleted: Int!
-  failed: Int!
   results: [DeleteImageResult!]!
+  errors: [DeleteImageResult!]
 }
 
 type DeleteImageResult {
-  imageId: String!
-  success: Boolean!
-  errorCode: ErrorCode
+  id: String!
+  success: Boolean
+  error: String
 }
 
 type EnrollmentTokenResult {

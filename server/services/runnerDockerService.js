@@ -201,22 +201,6 @@ async function pullImage(runnerUrl, _endpointId, imageName, _originalUrl, apiKey
   logger.info("runnerDockerService: image pulled", { imageName, runnerUrl });
 }
 
-/**
- * Delete a local image on the runner.
- * @param {string} runnerUrl
- * @param {*} _endpointId - ignored
- * @param {string} imageId
- * @param {boolean} [force=false]
- * @param {string} apiKey
- * @returns {Promise<void>}
- */
-async function deleteImage(runnerUrl, _endpointId, imageId, force = false, apiKey) {
-  await axios.delete(`${runnerUrl}/images/${encodeURIComponent(imageId)}`, {
-    ...opConfig(apiKey),
-    params: { force: force ? "true" : "false" },
-  });
-}
-
 // ── Stubs for interface parity (not applicable to runner backend) ──────────
 
 /** Not needed for runner — no separate auth step. */
@@ -237,7 +221,6 @@ module.exports = {
   // Image
   getImages,
   pullImage,
-  deleteImage,
   // Stubs
   authenticatePortainer,
   clearAuthToken,

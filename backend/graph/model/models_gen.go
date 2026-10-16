@@ -216,24 +216,24 @@ type CreateTrackedAppInput struct {
 }
 
 type DeleteImageInput struct {
-	ImageID          string  `json:"imageId"`
-	SourceInstanceID *string `json:"sourceInstanceId,omitempty"`
-	RunnerID         *string `json:"runnerId,omitempty"`
-	EndpointID       *string `json:"endpointId,omitempty"`
-	IdempotencyKey   *string `json:"idempotencyKey,omitempty"`
+	ID           string  `json:"id"`
+	PortainerURL *string `json:"portainerUrl,omitempty"`
+	SourceURL    *string `json:"sourceUrl,omitempty"`
+	EndpointID   *int    `json:"endpointId,omitempty"`
+	RunnerID     *string `json:"runnerId,omitempty"`
 }
 
 type DeleteImageResult struct {
-	ImageID   string     `json:"imageId"`
-	Success   bool       `json:"success"`
-	ErrorCode *ErrorCode `json:"errorCode,omitempty"`
+	ID      string  `json:"id"`
+	Success *bool   `json:"success,omitempty"`
+	Error   *string `json:"error,omitempty"`
 }
 
 type DeleteImagesResult struct {
 	Success bool                 `json:"success"`
 	Deleted int                  `json:"deleted"`
-	Failed  int                  `json:"failed"`
 	Results []*DeleteImageResult `json:"results"`
+	Errors  []*DeleteImageResult `json:"errors,omitempty"`
 }
 
 type DisallowedContainersResult struct {
@@ -262,12 +262,14 @@ type DiscordWebhookInfo struct {
 }
 
 type DockerImage struct {
-	ID         string    `json:"id"`
-	RepoTags   []string  `json:"repoTags"`
-	SizeBytes  BigInt    `json:"sizeBytes"`
-	Created    time.Time `json:"created"`
-	SourceURL  string    `json:"sourceUrl"`
-	EndpointID string    `json:"endpointId"`
+	ID         string   `json:"id"`
+	RepoTags   []string `json:"repoTags"`
+	Size       int      `json:"size"`
+	Created    string   `json:"created"`
+	SourceURL  string   `json:"sourceUrl"`
+	EndpointID *int     `json:"endpointId,omitempty"`
+	SourceName string   `json:"sourceName"`
+	RunnerID   *string  `json:"runnerId,omitempty"`
 }
 
 type EnrollmentTokenResult struct {

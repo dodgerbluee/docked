@@ -34,7 +34,6 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const containerController = require("../controllers/containerController");
 const containerDebugController = require("../controllers/containerDebugController");
-const imageController = require("../controllers/imageController");
 const authController = require("../controllers/authController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
@@ -743,9 +742,7 @@ router.post(
   asyncHandler(containerController.upgradeContainer)
 );
 
-// Image routes
-router.get("/images/unused", asyncHandler(imageController.getUnusedImages));
-router.post("/images/delete", destructiveLimiter, asyncHandler(imageController.deleteImages));
+// Image routes: served by the graph (unusedImages query, deleteImages mutation).
 
 // Upgrade history routes: served by the graph (upgradeHistoryStats,
 // trackedAppUpgradeHistory, trackedAppUpgradeHistoryStats).
