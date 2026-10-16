@@ -3,6 +3,7 @@
 // best-effort (clients also refetch on load), so failures are logged at
 // debug level and never surface to request handlers.
 const http = require("http");
+const logger = require("./logger");
 
 const GRAPHQL_BACKEND = process.env.GRAPHQL_BACKEND || "http://127.0.0.1:4000";
 const JWT_SECRET = process.env.JWT_SECRET || "";
@@ -38,7 +39,6 @@ function publishGraphEvent(type, userId, payload) {
     (res) => {
       res.resume(); // drain to release the socket
       if (res.statusCode >= 400) {
-        const { logger } = require("./logger");
         logger.debug("Graph event bridge rejected", {
           module: "graphEvents",
           type,
@@ -48,7 +48,6 @@ function publishGraphEvent(type, userId, payload) {
     }
   );
   req.on("error", (err) => {
-    const { logger } = require("./logger");
     logger.debug("Graph event bridge error", { module: "graphEvents", type, error: err.message });
   });
   req.on("timeout", () => req.destroy());
