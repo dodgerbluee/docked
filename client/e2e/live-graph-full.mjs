@@ -220,13 +220,25 @@ async function phase1() {
           d.containers.items.every((c) => c.stackName === stacked.stackName) ? null : "stack leaked"
         );
     }
-    // cursor page 2
-    const cur = c1.containers.pageInfo.endCursor;
+    // cursor page 2. The sort is last_seen DESC (same as Node's) and runner
+    // heartbeats move rows between two separate fetches, so retry the pair
+    // against a freshly fetched page 1 before declaring a real overlap.
     if (c1.containers.pageInfo.hasNextPage) {
-      const c2 = ok("containers page 2 via cursor", await gql(`query Q($c:String!){ containers(first:2, after:$c) { items { id } pageInfo { hasPreviousPage } } }`, { c: cur }), (d) =>
-        d.containers.items.every((c) => !S.containers.some((p) => p.id === c.id)) ? null : "page overlap"
-      );
-      if (c2 && !c2.containers.pageInfo.hasPreviousPage) note("pageInfo.hasPreviousPage always false (cosmetic)");
+      let c2 = null;
+      let overlap = "page overlap";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const p1 = await gql(`query { containers(first:2) { items { id } pageInfo { endCursor hasNextPage } } }`);
+        if (hasErr(p1) || !p1.data.containers.pageInfo.hasNextPage) break;
+        c2 = await gql(`query Q($c:String!){ containers(first:2, after:$c) { items { id } pageInfo { hasPreviousPage } } }`, { c: p1.data.containers.pageInfo.endCursor });
+        if (hasErr(c2)) break;
+        overlap = c2.data.containers.items.every((c) => !p1.data.containers.items.some((p) => p.id === c.id))
+          ? null
+          : "page overlap";
+        if (!overlap) break;
+        await sleep(2000);
+      }
+      record("containers page 2 via cursor", c2 && !hasErr(c2) && !overlap, overlap || "");
+      if (c2 && !hasErr(c2) && !c2.data.containers.pageInfo.hasPreviousPage) note("pageInfo.hasPreviousPage always false (cosmetic)");
     }
   }
 
@@ -744,15 +756,41 @@ async function phase4() {
     return { status: r.status, message: j.message || j.error || "" };
   });
   record("Node REST POST /api/batch/trigger(docker-hub-pull)", trig.status === 200, `status=${trig.status} ${trig.message}`.slice(0, 120));
-  // The job runs in the background and upserts rows one container at a time;
-  // a full inventory scan takes minutes, so poll patiently for the bulk back.
+  // The job runs in the background and upserts rows one container at a time,
+  // with a per-image registry check (slow, and Docker Hub rate limits can end
+  // a pass partial). Poll to progress-stall, then re-trigger up to two more
+  // passes if the inventory is still short.
   const want = Math.max(1, Math.floor(before * 0.9));
-  let restored = 0;
-  for (let i = 0; i < 72; i++) {
+  const countContainers = async () => {
     const d = await gql(`query { summaryStats { totalContainers } }`);
-    restored = d.data?.summaryStats?.totalContainers ?? 0;
-    if (restored >= want) break;
-    await sleep(5000);
+    return d.data?.summaryStats?.totalContainers ?? 0;
+  };
+  const retrigger = () =>
+    page.evaluate(async () => {
+      const token = localStorage.getItem("authToken");
+      const r = await fetch("/api/batch/trigger", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ jobType: "docker-hub-pull" }),
+      });
+      return r.status;
+    });
+  let restored = 0;
+  for (let pass = 0; pass < 3 && restored < want; pass++) {
+    if (pass > 0) {
+      const st = await retrigger();
+      note(`re-triggered docker-hub-pull (pass ${pass + 1}, status=${st})`);
+    }
+    let stable = 0;
+    let last = -1;
+    for (let i = 0; i < 180; i++) {
+      await sleep(5000);
+      restored = await countContainers();
+      if (restored >= want) break;
+      stable = restored === last ? stable + 1 : 0;
+      last = restored;
+      if (stable >= 8) break; // 40s with no progress: pass finished or stalled
+    }
   }
   record("containers restored after re-pull", restored >= want, `before=${before} restored=${restored}`);
   if (restored > 0) {
@@ -778,9 +816,11 @@ async function phase4() {
     note("no runner-backed unused image available — real deleteImages not exercised");
   }
 
-  // ---- real upgrade on a runner container
+  // ---- real upgrade on a runner container. Pick from the RESTORED inventory
+  // (the pre-clear list is stale after the clear + re-pull cycle).
+  const upgradePool = (S.containers || []).filter((c) => c.source?.__typename === "Runner");
   const target =
-    runnerContainers.find((c) => c.imageInfo?.hasUpdate) || runnerContainers[0];
+    upgradePool.find((c) => c.imageInfo?.hasUpdate) || upgradePool[0];
   if (target) {
     const histBefore = await gql(`query Q($n:String!){ upgradeHistory(filter:{containerName:$n}) { totalCount } }`, { n: target.name });
     const beforeCount = histBefore.data?.upgradeHistory?.totalCount ?? 0;
