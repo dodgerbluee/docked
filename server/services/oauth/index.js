@@ -242,8 +242,30 @@ async function reloadProviders() {
   providers.clear();
   providerSettings.clear();
   await initializeProviders();
+  lastLoadedAt = Date.now();
   logger.info(`OAuth providers reloaded: ${providers.size} active`);
 }
+
+/**
+ * Lazily refresh the provider registry so DB changes made outside this
+ * process (e.g. SSO admin CRUD via the GraphQL backend) become visible.
+ * Reloads at most once per RELOAD_TTL_MS.
+ */
+async function ensureFresh() {
+  if (Date.now() - lastLoadedAt < RELOAD_TTL_MS) return;
+  if (!reloadPromise) {
+    reloadPromise = reloadProviders()
+      .catch((err) => logger.error("OAuth provider refresh failed:", { error: err.message }))
+      .finally(() => {
+        reloadPromise = null;
+      });
+  }
+  return reloadPromise;
+}
+
+const RELOAD_TTL_MS = 15000;
+let lastLoadedAt = 0;
+let reloadPromise = null;
 
 module.exports = {
   registerProvider,
@@ -252,5 +274,6 @@ module.exports = {
   isOAuthEnabled,
   initializeProviders,
   reloadProviders,
+  ensureFresh,
   getProviderSettings,
 };

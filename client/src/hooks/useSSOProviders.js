@@ -1,10 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import {
+  SSO_PROVIDERS_QUERY,
+  SSO_SETTINGS_QUERY,
+  CREATE_SSO_PROVIDER_MUTATION,
+  UPDATE_SSO_PROVIDER_MUTATION,
+  DELETE_SSO_PROVIDER_MUTATION,
+  TEST_SSO_PROVIDER_MUTATION,
+  SET_SSO_SETTINGS_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useSSOProviders Hook
- * Manages SSO/OAuth provider CRUD and global SSO settings for the admin UI.
+ * Manages SSO/OAuth provider CRUD and global SSO settings for the admin UI
+ * (served by the GraphQL backend; all ops require instance admin).
  */
 export function useSSOProviders() {
   const [providers, setProviders] = useState([]);
@@ -14,22 +23,20 @@ export function useSSOProviders() {
 
   const fetchProviders = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/sso/providers`);
-      if (response.data.success) {
-        setProviders(response.data.providers || []);
-      }
+      const { data, error: gqlError } = await graphqlClient.query(SSO_PROVIDERS_QUERY).toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      setProviders(data?.ssoProviders || []);
     } catch (err) {
       console.error("Error fetching SSO providers:", err);
-      setError(err.response?.data?.error || "Failed to load SSO providers");
+      setError(err.message || "Failed to load SSO providers");
     }
   }, []);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/sso/settings`);
-      if (response.data.success) {
-        setSettings(response.data.settings);
-      }
+      const { data, error: gqlError } = await graphqlClient.query(SSO_SETTINGS_QUERY).toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      if (data?.ssoSettings) setSettings(data.ssoSettings);
     } catch (err) {
       console.error("Error fetching SSO settings:", err);
     }
@@ -48,54 +55,58 @@ export function useSSOProviders() {
 
   const createProvider = useCallback(
     async (providerData) => {
-      const response = await axios.post(`${API_BASE_URL}/api/admin/sso/providers`, providerData);
-      if (response.data.success) {
-        await fetchProviders();
-      }
-      return response.data;
+      const { error: gqlError } = await graphqlClient
+        .mutation(CREATE_SSO_PROVIDER_MUTATION, { input: providerData })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      await fetchProviders();
+      return { success: true };
     },
     [fetchProviders]
   );
 
   const updateProvider = useCallback(
     async (id, providerData) => {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/admin/sso/providers/${id}`,
-        providerData
-      );
-      if (response.data.success) {
-        await fetchProviders();
-      }
-      return response.data;
+      const { error: gqlError } = await graphqlClient
+        .mutation(UPDATE_SSO_PROVIDER_MUTATION, { id: String(id), input: providerData })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      await fetchProviders();
+      return { success: true };
     },
     [fetchProviders]
   );
 
   const deleteProvider = useCallback(
     async (id) => {
-      const response = await axios.delete(`${API_BASE_URL}/api/admin/sso/providers/${id}`);
-      if (response.data.success) {
-        await fetchProviders();
-      }
-      return response.data;
+      const { error: gqlError } = await graphqlClient
+        .mutation(DELETE_SSO_PROVIDER_MUTATION, { id: String(id) })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      await fetchProviders();
+      return { success: true };
     },
     [fetchProviders]
   );
 
   const testConnection = useCallback(async (issuerUrl) => {
-    const response = await axios.post(`${API_BASE_URL}/api/admin/sso/providers/test`, {
-      issuerUrl,
-    });
-    return response.data;
+    const { data, error: gqlError } = await graphqlClient
+      .mutation(TEST_SSO_PROVIDER_MUTATION, { issuerUrl })
+      .toPromise();
+    if (gqlError) throw new Error(gqlError.message);
+    return data?.testSSOProvider || { valid: false, error: "No result from test" };
   }, []);
 
   const updateSettings = useCallback(
     async (newSettings) => {
-      const response = await axios.put(`${API_BASE_URL}/api/admin/sso/settings`, newSettings);
-      if (response.data.success) {
-        await fetchSettings();
-      }
-      return response.data;
+      const { error: gqlError } = await graphqlClient
+        .mutation(SET_SSO_SETTINGS_MUTATION, {
+          allowLocalLogin: Boolean(newSettings.allowLocalLogin),
+        })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      await fetchSettings();
+      return { success: true };
     },
     [fetchSettings]
   );

@@ -329,6 +329,7 @@ type ComplexityRoot struct {
 		CreateDiscordWebhook        func(childComplexity int, input model.CreateDiscordWebhookInput) int
 		CreateIntent                func(childComplexity int, input model.CreateIntentInput) int
 		CreateRunner                func(childComplexity int, input model.CreateRunnerInput) int
+		CreateSSOProvider           func(childComplexity int, input model.CreateSSOProviderInput) int
 		CreateSourceInstance        func(childComplexity int, input model.CreateSourceInstanceInput) int
 		CreateTrackedApp            func(childComplexity int, input model.CreateTrackedAppInput) int
 		DeleteAvatar                func(childComplexity int) int
@@ -338,6 +339,7 @@ type ComplexityRoot struct {
 		DeleteRegistryCredentials   func(childComplexity int, registry model.Registry) int
 		DeleteRepositoryToken       func(childComplexity int, id string) int
 		DeleteRunner                func(childComplexity int, id string) int
+		DeleteSSOProvider           func(childComplexity int, id string) int
 		DeleteSourceInstance        func(childComplexity int, id string) int
 		DeleteTrackedApp            func(childComplexity int, id string) int
 		DeleteUser                  func(childComplexity int, userID string) int
@@ -353,10 +355,12 @@ type ComplexityRoot struct {
 		SetBatchLogLevel            func(childComplexity int, logLevel model.LogLevel) int
 		SetDebugEndpointsEnabled    func(childComplexity int, enabled bool) int
 		SetDisallowedContainers     func(childComplexity int, containers []string) int
+		SetSSOSettings              func(childComplexity int, allowLocalLogin bool) int
 		SetUserPassword             func(childComplexity int, userID string, newPassword string) int
 		SetUserRole                 func(childComplexity int, userID string, role model.Role, instanceAdmin *bool) int
 		TestDiscordWebhook          func(childComplexity int, id string) int
 		TestDiscordWebhookURL       func(childComplexity int, webhookURL string) int
+		TestSSOProvider             func(childComplexity int, issuerURL string) int
 		TriggerBatchJob             func(childComplexity int, jobType *model.BatchJobType, idempotencyKey *string) int
 		TriggerIntent               func(childComplexity int, id string, idempotencyKey *string) int
 		UpdateBatchConfig           func(childComplexity int, input model.UpdateBatchConfigInput) int
@@ -366,6 +370,7 @@ type ComplexityRoot struct {
 		UpdatePassword              func(childComplexity int, input model.UpdatePasswordInput) int
 		UpdateRegistryCredentials   func(childComplexity int, input model.UpdateRegistryCredentialsInput) int
 		UpdateRunner                func(childComplexity int, id string, input model.UpdateRunnerInput) int
+		UpdateSSOProvider           func(childComplexity int, id string, input model.UpdateSSOProviderInput) int
 		UpdateSourceInstance        func(childComplexity int, id string, input model.UpdateSourceInstanceInput) int
 		UpdateTrackedApp            func(childComplexity int, id string, input model.UpdateTrackedAppInput) int
 		UpdateUserPreferences       func(childComplexity int, input model.UpdateUserPreferencesInput) int
@@ -386,6 +391,19 @@ type ComplexityRoot struct {
 		Scopes    func(childComplexity int) int
 		Type      func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
+	}
+
+	OIDCDiscovery struct {
+		Endpoints       func(childComplexity int) int
+		Issuer          func(childComplexity int) int
+		ScopesSupported func(childComplexity int) int
+	}
+
+	OIDCDiscoveryEndpoints struct {
+		Authorization func(childComplexity int) int
+		Jwks          func(childComplexity int) int
+		Token         func(childComplexity int) int
+		Userinfo      func(childComplexity int) int
 	}
 
 	Operation struct {
@@ -439,6 +457,8 @@ type ComplexityRoot struct {
 		Runners                       func(childComplexity int) int
 		SourceInstance                func(childComplexity int, id string) int
 		SourceInstances               func(childComplexity int) int
+		SsoProviders                  func(childComplexity int) int
+		SsoSettings                   func(childComplexity int) int
 		SummaryStats                  func(childComplexity int) int
 		TrackedApp                    func(childComplexity int, id string) int
 		TrackedAppUpgradeHistory      func(childComplexity int, filter *model.TrackedAppHistoryFilterInput, first *int, offset *int) int
@@ -506,6 +526,32 @@ type ComplexityRoot struct {
 		RunnerID      func(childComplexity int) int
 		RunnerName    func(childComplexity int) int
 		Status        func(childComplexity int) int
+	}
+
+	SSOProvider struct {
+		AutoRegister func(childComplexity int) int
+		ClientID     func(childComplexity int) int
+		ClientSecret func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		DefaultRole  func(childComplexity int) int
+		DisplayName  func(childComplexity int) int
+		Enabled      func(childComplexity int) int
+		ID           func(childComplexity int) int
+		IssuerURL    func(childComplexity int) int
+		Name         func(childComplexity int) int
+		ProviderType func(childComplexity int) int
+		Scopes       func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
+	}
+
+	SSOProviderTestResult struct {
+		Discovery func(childComplexity int) int
+		Error     func(childComplexity int) int
+		Valid     func(childComplexity int) int
+	}
+
+	SSOSettings struct {
+		AllowLocalLogin func(childComplexity int) int
 	}
 
 	SourceHealthResult struct {
@@ -800,6 +846,11 @@ type MutationResolver interface {
 	UpdateUserPreferences(ctx context.Context, input model.UpdateUserPreferencesInput) (*model.SuccessResult, error)
 	SetDisallowedContainers(ctx context.Context, containers []string) (*model.DisallowedContainersResult, error)
 	SetDebugEndpointsEnabled(ctx context.Context, enabled bool) (*model.SuccessResult, error)
+	CreateSSOProvider(ctx context.Context, input model.CreateSSOProviderInput) (*model.SuccessResult, error)
+	UpdateSSOProvider(ctx context.Context, id string, input model.UpdateSSOProviderInput) (*model.SuccessResult, error)
+	DeleteSSOProvider(ctx context.Context, id string) (*model.SuccessResult, error)
+	TestSSOProvider(ctx context.Context, issuerURL string) (*model.SSOProviderTestResult, error)
+	SetSSOSettings(ctx context.Context, allowLocalLogin bool) (*model.SuccessResult, error)
 	UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error)
 	DeleteAvatar(ctx context.Context) (*model.SuccessResult, error)
 }
@@ -812,6 +863,8 @@ type QueryResolver interface {
 	User(ctx context.Context, id string) (*model.User, error)
 	RegistrationCodeRequired(ctx context.Context) (bool, error)
 	UserExists(ctx context.Context, username string) (bool, error)
+	SsoProviders(ctx context.Context) ([]*model.SSOProvider, error)
+	SsoSettings(ctx context.Context) (*model.SSOSettings, error)
 	Containers(ctx context.Context, filter *model.ContainerFilterInput, first *int, after *string) (*model.ContainerConnection, error)
 	ContainerGroup(ctx context.Context) (*model.ContainerGroup, error)
 	Container(ctx context.Context, id string) (*model.Container, error)
@@ -2181,6 +2234,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRunner(childComplexity, args["input"].(model.CreateRunnerInput)), true
+	case "Mutation.createSSOProvider":
+		if e.ComplexityRoot.Mutation.CreateSSOProvider == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createSSOProvider_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateSSOProvider(childComplexity, args["input"].(model.CreateSSOProviderInput)), true
 	case "Mutation.createSourceInstance":
 		if e.ComplexityRoot.Mutation.CreateSourceInstance == nil {
 			break
@@ -2275,6 +2339,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRunner(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteSSOProvider":
+		if e.ComplexityRoot.Mutation.DeleteSSOProvider == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteSSOProvider_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteSSOProvider(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteSourceInstance":
 		if e.ComplexityRoot.Mutation.DeleteSourceInstance == nil {
 			break
@@ -2430,6 +2505,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetDisallowedContainers(childComplexity, args["containers"].([]string)), true
+	case "Mutation.setSSOSettings":
+		if e.ComplexityRoot.Mutation.SetSSOSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setSSOSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetSSOSettings(childComplexity, args["allowLocalLogin"].(bool)), true
 	case "Mutation.setUserPassword":
 		if e.ComplexityRoot.Mutation.SetUserPassword == nil {
 			break
@@ -2474,6 +2560,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.TestDiscordWebhookURL(childComplexity, args["webhookUrl"].(string)), true
+	case "Mutation.testSSOProvider":
+		if e.ComplexityRoot.Mutation.TestSSOProvider == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_testSSOProvider_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.TestSSOProvider(childComplexity, args["issuerUrl"].(string)), true
 	case "Mutation.triggerBatchJob":
 		if e.ComplexityRoot.Mutation.TriggerBatchJob == nil {
 			break
@@ -2573,6 +2670,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRunner(childComplexity, args["id"].(string), args["input"].(model.UpdateRunnerInput)), true
+	case "Mutation.updateSSOProvider":
+		if e.ComplexityRoot.Mutation.UpdateSSOProvider == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSSOProvider_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateSSOProvider(childComplexity, args["id"].(string), args["input"].(model.UpdateSSOProviderInput)), true
 	case "Mutation.updateSourceInstance":
 		if e.ComplexityRoot.Mutation.UpdateSourceInstance == nil {
 			break
@@ -2716,6 +2824,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OAuthProvider.UpdatedAt(childComplexity), true
+
+	case "OIDCDiscovery.endpoints":
+		if e.ComplexityRoot.OIDCDiscovery.Endpoints == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscovery.Endpoints(childComplexity), true
+	case "OIDCDiscovery.issuer":
+		if e.ComplexityRoot.OIDCDiscovery.Issuer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscovery.Issuer(childComplexity), true
+	case "OIDCDiscovery.scopesSupported":
+		if e.ComplexityRoot.OIDCDiscovery.ScopesSupported == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscovery.ScopesSupported(childComplexity), true
+
+	case "OIDCDiscoveryEndpoints.authorization":
+		if e.ComplexityRoot.OIDCDiscoveryEndpoints.Authorization == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscoveryEndpoints.Authorization(childComplexity), true
+	case "OIDCDiscoveryEndpoints.jwks":
+		if e.ComplexityRoot.OIDCDiscoveryEndpoints.Jwks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscoveryEndpoints.Jwks(childComplexity), true
+	case "OIDCDiscoveryEndpoints.token":
+		if e.ComplexityRoot.OIDCDiscoveryEndpoints.Token == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscoveryEndpoints.Token(childComplexity), true
+	case "OIDCDiscoveryEndpoints.userinfo":
+		if e.ComplexityRoot.OIDCDiscoveryEndpoints.Userinfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OIDCDiscoveryEndpoints.Userinfo(childComplexity), true
 
 	case "Operation.completedAt":
 		if e.ComplexityRoot.Operation.CompletedAt == nil {
@@ -3059,6 +3211,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SourceInstances(childComplexity), true
+	case "Query.ssoProviders":
+		if e.ComplexityRoot.Query.SsoProviders == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SsoProviders(childComplexity), true
+	case "Query.ssoSettings":
+		if e.ComplexityRoot.Query.SsoSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SsoSettings(childComplexity), true
 	case "Query.summaryStats":
 		if e.ComplexityRoot.Query.SummaryStats == nil {
 			break
@@ -3411,6 +3575,111 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RunnerStatusEvent.Status(childComplexity), true
+
+	case "SSOProvider.autoRegister":
+		if e.ComplexityRoot.SSOProvider.AutoRegister == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.AutoRegister(childComplexity), true
+	case "SSOProvider.clientId":
+		if e.ComplexityRoot.SSOProvider.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.ClientID(childComplexity), true
+	case "SSOProvider.clientSecret":
+		if e.ComplexityRoot.SSOProvider.ClientSecret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.ClientSecret(childComplexity), true
+	case "SSOProvider.createdAt":
+		if e.ComplexityRoot.SSOProvider.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.CreatedAt(childComplexity), true
+	case "SSOProvider.defaultRole":
+		if e.ComplexityRoot.SSOProvider.DefaultRole == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.DefaultRole(childComplexity), true
+	case "SSOProvider.displayName":
+		if e.ComplexityRoot.SSOProvider.DisplayName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.DisplayName(childComplexity), true
+	case "SSOProvider.enabled":
+		if e.ComplexityRoot.SSOProvider.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.Enabled(childComplexity), true
+	case "SSOProvider.id":
+		if e.ComplexityRoot.SSOProvider.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.ID(childComplexity), true
+	case "SSOProvider.issuerUrl":
+		if e.ComplexityRoot.SSOProvider.IssuerURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.IssuerURL(childComplexity), true
+	case "SSOProvider.name":
+		if e.ComplexityRoot.SSOProvider.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.Name(childComplexity), true
+	case "SSOProvider.providerType":
+		if e.ComplexityRoot.SSOProvider.ProviderType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.ProviderType(childComplexity), true
+	case "SSOProvider.scopes":
+		if e.ComplexityRoot.SSOProvider.Scopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.Scopes(childComplexity), true
+	case "SSOProvider.updatedAt":
+		if e.ComplexityRoot.SSOProvider.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProvider.UpdatedAt(childComplexity), true
+
+	case "SSOProviderTestResult.discovery":
+		if e.ComplexityRoot.SSOProviderTestResult.Discovery == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProviderTestResult.Discovery(childComplexity), true
+	case "SSOProviderTestResult.error":
+		if e.ComplexityRoot.SSOProviderTestResult.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProviderTestResult.Error(childComplexity), true
+	case "SSOProviderTestResult.valid":
+		if e.ComplexityRoot.SSOProviderTestResult.Valid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOProviderTestResult.Valid(childComplexity), true
+
+	case "SSOSettings.allowLocalLogin":
+		if e.ComplexityRoot.SSOSettings.AllowLocalLogin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SSOSettings.AllowLocalLogin(childComplexity), true
 
 	case "SourceHealthResult.message":
 		if e.ComplexityRoot.SourceHealthResult.Message == nil {
@@ -4438,6 +4707,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateIntentInput,
 		ec.unmarshalInputCreateRepositoryTokenInput,
 		ec.unmarshalInputCreateRunnerInput,
+		ec.unmarshalInputCreateSSOProviderInput,
 		ec.unmarshalInputCreateSourceInstanceInput,
 		ec.unmarshalInputCreateTrackedAppInput,
 		ec.unmarshalInputDeleteImageInput,
@@ -4452,6 +4722,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdatePasswordInput,
 		ec.unmarshalInputUpdateRegistryCredentialsInput,
 		ec.unmarshalInputUpdateRunnerInput,
+		ec.unmarshalInputUpdateSSOProviderInput,
 		ec.unmarshalInputUpdateSourceInstanceInput,
 		ec.unmarshalInputUpdateTrackedAppInput,
 		ec.unmarshalInputUpdateUserPreferencesInput,
@@ -5117,6 +5388,72 @@ type OAuthProvider {
   updatedAt: DateTime!
 }
 
+# Admin-managed runtime SSO provider (oauth_providers table).
+# clientSecret is always masked (****last4), matching the old REST admin API.
+type SSOProvider {
+  id: ID!
+  name: String!
+  displayName: String!
+  providerType: String!
+  clientId: String!
+  clientSecret: String!
+  issuerUrl: String!
+  scopes: String!
+  autoRegister: Boolean!
+  defaultRole: String!
+  enabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type SSOSettings {
+  allowLocalLogin: Boolean!
+}
+
+type OIDCDiscoveryEndpoints {
+  authorization: String
+  token: String
+  userinfo: String
+  jwks: String
+}
+
+type OIDCDiscovery {
+  issuer: String
+  endpoints: OIDCDiscoveryEndpoints
+  scopesSupported: [String!]
+}
+
+type SSOProviderTestResult {
+  valid: Boolean!
+  error: String
+  discovery: OIDCDiscovery
+}
+
+input CreateSSOProviderInput {
+  name: String!
+  displayName: String!
+  providerType: String!
+  clientId: String!
+  clientSecret: String!
+  issuerUrl: String!
+  scopes: String
+  autoRegister: Boolean
+  defaultRole: String
+  enabled: Boolean
+}
+
+input UpdateSSOProviderInput {
+  displayName: String
+  providerType: String
+  clientId: String
+  clientSecret: String
+  issuerUrl: String
+  scopes: String
+  autoRegister: Boolean
+  defaultRole: String
+  enabled: Boolean
+}
+
 # -----------------------------------------------------------------------------
 # Settings (allowlisted — no generic key/value exposure)
 # -----------------------------------------------------------------------------
@@ -5534,6 +5871,10 @@ type Query {
   registrationCodeRequired: Boolean!
   userExists(username: String!): Boolean!
 
+  # ── SSO / OAuth admin (instance admin only) ───────────────────────────────
+  ssoProviders: [SSOProvider!]!
+  ssoSettings: SSOSettings!
+
   # ── Containers ────────────────────────────────────────────────────────────
   containers(
     filter: ContainerFilterInput
@@ -5752,6 +6093,13 @@ type Mutation {
   setDisallowedContainers(containers: [String!]!): DisallowedContainersResult!
   # System-wide; instance admin only.
   setDebugEndpointsEnabled(enabled: Boolean!): SuccessResult!
+
+  # ── SSO / OAuth admin (instance admin only) ───────────────────────────────
+  createSSOProvider(input: CreateSSOProviderInput!): SuccessResult!
+  updateSSOProvider(id: ID!, input: UpdateSSOProviderInput!): SuccessResult!
+  deleteSSOProvider(id: ID!): SuccessResult!
+  testSSOProvider(issuerUrl: String!): SSOProviderTestResult!
+  setSSOSettings(allowLocalLogin: Boolean!): SuccessResult!
 
   # ── Avatars ───────────────────────────────────────────────────────────────
   uploadAvatar(file: Upload!): SuccessResult!
@@ -6440,6 +6788,32 @@ func (ec *executionContext) childFields_OAuthProvider(ctx context.Context, field
 	return nil, fmt.Errorf("no field named %q was found under type OAuthProvider", field.Name)
 }
 
+func (ec *executionContext) childFields_OIDCDiscovery(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "issuer":
+		return ec.fieldContext_OIDCDiscovery_issuer(ctx, field)
+	case "endpoints":
+		return ec.fieldContext_OIDCDiscovery_endpoints(ctx, field)
+	case "scopesSupported":
+		return ec.fieldContext_OIDCDiscovery_scopesSupported(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OIDCDiscovery", field.Name)
+}
+
+func (ec *executionContext) childFields_OIDCDiscoveryEndpoints(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "authorization":
+		return ec.fieldContext_OIDCDiscoveryEndpoints_authorization(ctx, field)
+	case "token":
+		return ec.fieldContext_OIDCDiscoveryEndpoints_token(ctx, field)
+	case "userinfo":
+		return ec.fieldContext_OIDCDiscoveryEndpoints_userinfo(ctx, field)
+	case "jwks":
+		return ec.fieldContext_OIDCDiscoveryEndpoints_jwks(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OIDCDiscoveryEndpoints", field.Name)
+}
+
 func (ec *executionContext) childFields_Operation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -6586,6 +6960,58 @@ func (ec *executionContext) childFields_RunnerStatusEvent(ctx context.Context, f
 		return ec.fieldContext_RunnerStatusEvent_lastHeartbeat(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RunnerStatusEvent", field.Name)
+}
+
+func (ec *executionContext) childFields_SSOProvider(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SSOProvider_id(ctx, field)
+	case "name":
+		return ec.fieldContext_SSOProvider_name(ctx, field)
+	case "displayName":
+		return ec.fieldContext_SSOProvider_displayName(ctx, field)
+	case "providerType":
+		return ec.fieldContext_SSOProvider_providerType(ctx, field)
+	case "clientId":
+		return ec.fieldContext_SSOProvider_clientId(ctx, field)
+	case "clientSecret":
+		return ec.fieldContext_SSOProvider_clientSecret(ctx, field)
+	case "issuerUrl":
+		return ec.fieldContext_SSOProvider_issuerUrl(ctx, field)
+	case "scopes":
+		return ec.fieldContext_SSOProvider_scopes(ctx, field)
+	case "autoRegister":
+		return ec.fieldContext_SSOProvider_autoRegister(ctx, field)
+	case "defaultRole":
+		return ec.fieldContext_SSOProvider_defaultRole(ctx, field)
+	case "enabled":
+		return ec.fieldContext_SSOProvider_enabled(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_SSOProvider_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_SSOProvider_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SSOProvider", field.Name)
+}
+
+func (ec *executionContext) childFields_SSOProviderTestResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "valid":
+		return ec.fieldContext_SSOProviderTestResult_valid(ctx, field)
+	case "error":
+		return ec.fieldContext_SSOProviderTestResult_error(ctx, field)
+	case "discovery":
+		return ec.fieldContext_SSOProviderTestResult_discovery(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SSOProviderTestResult", field.Name)
+}
+
+func (ec *executionContext) childFields_SSOSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "allowLocalLogin":
+		return ec.fieldContext_SSOSettings_allowLocalLogin(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SSOSettings", field.Name)
 }
 
 func (ec *executionContext) childFields_SourceHealthResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7366,6 +7792,20 @@ func (ec *executionContext) field_Mutation_createRunner_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createSSOProvider_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.CreateSSOProviderInput, error) {
+			return ec.unmarshalNCreateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSSOProviderInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createSourceInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7465,6 +7905,20 @@ func (ec *executionContext) field_Mutation_deleteRepositoryToken_args(ctx contex
 }
 
 func (ec *executionContext) field_Mutation_deleteRunner_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteSSOProvider_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -7668,6 +8122,20 @@ func (ec *executionContext) field_Mutation_setDisallowedContainers_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setSSOSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "allowLocalLogin",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["allowLocalLogin"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setUserPassword_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7745,6 +8213,20 @@ func (ec *executionContext) field_Mutation_testDiscordWebhook_args(ctx context.C
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_testSSOProvider_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "issuerUrl",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["issuerUrl"] = arg0
 	return args, nil
 }
 
@@ -7946,6 +8428,28 @@ func (ec *executionContext) field_Mutation_updateRunner_args(ctx context.Context
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.UpdateRunnerInput, error) {
 			return ec.unmarshalNUpdateRunnerInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateRunnerInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSSOProvider_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.UpdateSSOProviderInput, error) {
+			return ec.unmarshalNUpdateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateSSOProviderInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -15639,6 +16143,226 @@ func (ec *executionContext) fieldContext_Mutation_setDebugEndpointsEnabled(ctx c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createSSOProvider(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createSSOProvider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateSSOProvider(ctx, fc.Args["input"].(model.CreateSSOProviderInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createSSOProvider(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createSSOProvider_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSSOProvider(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateSSOProvider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateSSOProvider(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateSSOProviderInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateSSOProvider(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSSOProvider_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSSOProvider(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteSSOProvider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteSSOProvider(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteSSOProvider(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteSSOProvider_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_testSSOProvider(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_testSSOProvider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().TestSSOProvider(ctx, fc.Args["issuerUrl"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SSOProviderTestResult) graphql.Marshaler {
+			return ec.marshalNSSOProviderTestResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProviderTestResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_testSSOProvider(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SSOProviderTestResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_testSSOProvider_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setSSOSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setSSOSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetSSOSettings(ctx, fc.Args["allowLocalLogin"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setSSOSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setSSOSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_uploadAvatar(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15920,6 +16644,176 @@ func (ec *executionContext) _OAuthProvider_updatedAt(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_OAuthProvider_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OAuthProvider", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscovery_issuer(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscovery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscovery_issuer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issuer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscovery_issuer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscovery", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscovery_endpoints(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscovery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscovery_endpoints(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Endpoints, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OIDCDiscoveryEndpoints) graphql.Marshaler {
+			return ec.marshalOOIDCDiscoveryEndpoints2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOIDCDiscoveryEndpoints(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscovery_endpoints(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OIDCDiscovery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OIDCDiscoveryEndpoints(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OIDCDiscovery_scopesSupported(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscovery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscovery_scopesSupported(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScopesSupported, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalOString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscovery_scopesSupported(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscovery", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscoveryEndpoints_authorization(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscoveryEndpoints) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscoveryEndpoints_authorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Authorization, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscoveryEndpoints_authorization(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscoveryEndpoints", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscoveryEndpoints_token(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscoveryEndpoints) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscoveryEndpoints_token(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Token, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscoveryEndpoints_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscoveryEndpoints", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscoveryEndpoints_userinfo(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscoveryEndpoints) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscoveryEndpoints_userinfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Userinfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscoveryEndpoints_userinfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscoveryEndpoints", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OIDCDiscoveryEndpoints_jwks(ctx context.Context, field graphql.CollectedField, obj *model.OIDCDiscoveryEndpoints) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OIDCDiscoveryEndpoints_jwks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Jwks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OIDCDiscoveryEndpoints_jwks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OIDCDiscoveryEndpoints", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Operation_id(ctx context.Context, field graphql.CollectedField, obj *model.Operation) (ret graphql.Marshaler) {
@@ -16511,6 +17405,70 @@ func (ec *executionContext) fieldContext_Query_userExists(ctx context.Context, f
 	if fc.Args, err = ec.field_Query_userExists_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_ssoProviders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_ssoProviders(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SsoProviders(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SSOProvider) graphql.Marshaler {
+			return ec.marshalNSSOProvider2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProviderᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_ssoProviders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SSOProvider(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_ssoSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_ssoSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SsoSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SSOSettings) graphql.Marshaler {
+			return ec.marshalNSSOSettings2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_ssoSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SSOSettings(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -18873,6 +19831,406 @@ func (ec *executionContext) _RunnerStatusEvent_lastHeartbeat(ctx context.Context
 }
 func (ec *executionContext) fieldContext_RunnerStatusEvent_lastHeartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RunnerStatusEvent", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_id(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_name(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_displayName(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_displayName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DisplayName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_providerType(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_providerType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProviderType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_providerType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_clientId(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_clientSecret(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_clientSecret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientSecret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_clientSecret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_issuerUrl(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_issuerUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssuerURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_issuerUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_scopes(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_scopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_scopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_autoRegister(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_autoRegister(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoRegister, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_autoRegister(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_defaultRole(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_defaultRole(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultRole, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_defaultRole(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_enabled(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProvider_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SSOProvider) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProvider_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProvider_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProvider", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProviderTestResult_valid(ctx context.Context, field graphql.CollectedField, obj *model.SSOProviderTestResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProviderTestResult_valid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Valid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProviderTestResult_valid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProviderTestResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProviderTestResult_error(ctx context.Context, field graphql.CollectedField, obj *model.SSOProviderTestResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProviderTestResult_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProviderTestResult_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOProviderTestResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SSOProviderTestResult_discovery(ctx context.Context, field graphql.CollectedField, obj *model.SSOProviderTestResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOProviderTestResult_discovery(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Discovery, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OIDCDiscovery) graphql.Marshaler {
+			return ec.marshalOOIDCDiscovery2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOIDCDiscovery(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SSOProviderTestResult_discovery(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SSOProviderTestResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OIDCDiscovery(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SSOSettings_allowLocalLogin(ctx context.Context, field graphql.CollectedField, obj *model.SSOSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SSOSettings_allowLocalLogin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AllowLocalLogin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SSOSettings_allowLocalLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SSOSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _SourceHealthResult_online(ctx context.Context, field graphql.CollectedField, obj *model.SourceHealthResult) (ret graphql.Marshaler) {
@@ -24341,6 +25699,99 @@ func (ec *executionContext) unmarshalInputCreateRunnerInput(ctx context.Context,
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateSSOProviderInput(ctx context.Context, obj any) (model.CreateSSOProviderInput, error) {
+	var it model.CreateSSOProviderInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "displayName", "providerType", "clientId", "clientSecret", "issuerUrl", "scopes", "autoRegister", "defaultRole", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "displayName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisplayName = data
+		case "providerType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("providerType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProviderType = data
+		case "clientId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientID = data
+		case "clientSecret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientSecret"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientSecret = data
+		case "issuerUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuerUrl"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuerURL = data
+		case "scopes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scopes"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scopes = data
+		case "autoRegister":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoRegister"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoRegister = data
+		case "defaultRole":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultRole"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultRole = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateSourceInstanceInput(ctx context.Context, obj any) (model.CreateSourceInstanceInput, error) {
 	var it model.CreateSourceInstanceInput
 	if obj == nil {
@@ -25099,6 +26550,92 @@ func (ec *executionContext) unmarshalInputUpdateRunnerInput(ctx context.Context,
 				return it, err
 			}
 			it.APIKey = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateSSOProviderInput(ctx context.Context, obj any) (model.UpdateSSOProviderInput, error) {
+	var it model.UpdateSSOProviderInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"displayName", "providerType", "clientId", "clientSecret", "issuerUrl", "scopes", "autoRegister", "defaultRole", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "displayName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisplayName = data
+		case "providerType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("providerType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProviderType = data
+		case "clientId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientID = data
+		case "clientSecret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientSecret"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientSecret = data
+		case "issuerUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuerUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuerURL = data
+		case "scopes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scopes"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scopes = data
+		case "autoRegister":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoRegister"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoRegister = data
+		case "defaultRole":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultRole"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultRole = data
 		case "enabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -28054,6 +29591,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createSSOProvider":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createSSOProvider(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSSOProvider":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSSOProvider(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteSSOProvider":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSSOProvider(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "testSSOProvider":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_testSSOProvider(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setSSOSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setSSOSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "uploadAvatar":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_uploadAvatar(ctx, field)
@@ -28144,6 +29716,107 @@ func (ec *executionContext) _OAuthProvider(ctx context.Context, sel ast.Selectio
 		case "updatedAt":
 			out.Values[i] = ec._OAuthProvider_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oIDCDiscoveryImplementors = []string{"OIDCDiscovery"}
+
+func (ec *executionContext) _OIDCDiscovery(ctx context.Context, sel ast.SelectionSet, obj *model.OIDCDiscovery) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oIDCDiscoveryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OIDCDiscovery")
+		case "issuer":
+			out.Values[i] = ec._OIDCDiscovery_issuer(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "endpoints":
+			out.Values[i] = ec._OIDCDiscovery_endpoints(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "scopesSupported":
+			out.Values[i] = ec._OIDCDiscovery_scopesSupported(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oIDCDiscoveryEndpointsImplementors = []string{"OIDCDiscoveryEndpoints"}
+
+func (ec *executionContext) _OIDCDiscoveryEndpoints(ctx context.Context, sel ast.SelectionSet, obj *model.OIDCDiscoveryEndpoints) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oIDCDiscoveryEndpointsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OIDCDiscoveryEndpoints")
+		case "authorization":
+			out.Values[i] = ec._OIDCDiscoveryEndpoints_authorization(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "token":
+			out.Values[i] = ec._OIDCDiscoveryEndpoints_token(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "userinfo":
+			out.Values[i] = ec._OIDCDiscoveryEndpoints_userinfo(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "jwks":
+			out.Values[i] = ec._OIDCDiscoveryEndpoints_jwks(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -28487,6 +30160,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_userExists(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "ssoProviders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_ssoProviders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "ssoSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_ssoSettings(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -29740,6 +31457,190 @@ func (ec *executionContext) _RunnerStatusEvent(ctx context.Context, sel ast.Sele
 		case "lastHeartbeat":
 			out.Values[i] = ec._RunnerStatusEvent_lastHeartbeat(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sSOProviderImplementors = []string{"SSOProvider"}
+
+func (ec *executionContext) _SSOProvider(ctx context.Context, sel ast.SelectionSet, obj *model.SSOProvider) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sSOProviderImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SSOProvider")
+		case "id":
+			out.Values[i] = ec._SSOProvider_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SSOProvider_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "displayName":
+			out.Values[i] = ec._SSOProvider_displayName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providerType":
+			out.Values[i] = ec._SSOProvider_providerType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientId":
+			out.Values[i] = ec._SSOProvider_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientSecret":
+			out.Values[i] = ec._SSOProvider_clientSecret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuerUrl":
+			out.Values[i] = ec._SSOProvider_issuerUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scopes":
+			out.Values[i] = ec._SSOProvider_scopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoRegister":
+			out.Values[i] = ec._SSOProvider_autoRegister(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultRole":
+			out.Values[i] = ec._SSOProvider_defaultRole(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._SSOProvider_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SSOProvider_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SSOProvider_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sSOProviderTestResultImplementors = []string{"SSOProviderTestResult"}
+
+func (ec *executionContext) _SSOProviderTestResult(ctx context.Context, sel ast.SelectionSet, obj *model.SSOProviderTestResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sSOProviderTestResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SSOProviderTestResult")
+		case "valid":
+			out.Values[i] = ec._SSOProviderTestResult_valid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._SSOProviderTestResult_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "discovery":
+			out.Values[i] = ec._SSOProviderTestResult_discovery(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sSOSettingsImplementors = []string{"SSOSettings"}
+
+func (ec *executionContext) _SSOSettings(ctx context.Context, sel ast.SelectionSet, obj *model.SSOSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sSOSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SSOSettings")
+		case "allowLocalLogin":
+			out.Values[i] = ec._SSOSettings_allowLocalLogin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -32259,6 +34160,11 @@ func (ec *executionContext) unmarshalNCreateRunnerInput2githubᚗcomᚋdockedapp
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSSOProviderInput(ctx context.Context, v any) (model.CreateSSOProviderInput, error) {
+	res, err := ec.unmarshalInputCreateSSOProviderInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateSourceInstanceInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐCreateSourceInstanceInput(ctx context.Context, v any) (model.CreateSourceInstanceInput, error) {
 	res, err := ec.unmarshalInputCreateSourceInstanceInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -32905,6 +34811,52 @@ func (ec *executionContext) marshalNRunnerStatusEvent2ᚖgithubᚗcomᚋdockedap
 	return ec._RunnerStatusEvent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSSOProvider2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProviderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SSOProvider) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSSOProvider2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProvider(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSSOProvider2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProvider(ctx context.Context, sel ast.SelectionSet, v *model.SSOProvider) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SSOProvider(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSSOProviderTestResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOProviderTestResult(ctx context.Context, sel ast.SelectionSet, v *model.SSOProviderTestResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SSOProviderTestResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSSOSettings2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSSOSettings(ctx context.Context, sel ast.SelectionSet, v *model.SSOSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SSOSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNSourceHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSourceHealthResult(ctx context.Context, sel ast.SelectionSet, v *model.SourceHealthResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -33161,6 +35113,11 @@ func (ec *executionContext) unmarshalNUpdateRegistryCredentialsInput2githubᚗco
 
 func (ec *executionContext) unmarshalNUpdateRunnerInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateRunnerInput(ctx context.Context, v any) (model.UpdateRunnerInput, error) {
 	res, err := ec.unmarshalInputUpdateRunnerInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSSOProviderInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateSSOProviderInput(ctx context.Context, v any) (model.UpdateSSOProviderInput, error) {
+	res, err := ec.unmarshalInputUpdateSSOProviderInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -33782,6 +35739,20 @@ func (ec *executionContext) marshalOIntentScheduleType2ᚖgithubᚗcomᚋdockeda
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOOIDCDiscovery2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOIDCDiscovery(ctx context.Context, sel ast.SelectionSet, v *model.OIDCDiscovery) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OIDCDiscovery(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOOIDCDiscoveryEndpoints2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOIDCDiscoveryEndpoints(ctx context.Context, sel ast.SelectionSet, v *model.OIDCDiscoveryEndpoints) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OIDCDiscoveryEndpoints(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOOperation2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐOperation(ctx context.Context, sel ast.SelectionSet, v *model.Operation) graphql.Marshaler {

@@ -1964,6 +1964,163 @@ func (r *mutationResolver) SetDebugEndpointsEnabled(ctx context.Context, enabled
 	}, nil
 }
 
+// CreateSSOProvider is the resolver for the createSSOProvider field.
+func (r *mutationResolver) CreateSSOProvider(ctx context.Context, input model.CreateSSOProviderInput) (*model.SuccessResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	if input.Name == "" || input.DisplayName == "" || input.ProviderType == "" ||
+		input.ClientID == "" || input.ClientSecret == "" || input.IssuerURL == "" {
+		return nil, fmt.Errorf("missing required fields: name, displayName, providerType, clientId, clientSecret, issuerUrl")
+	}
+	if !isValidSSOSlug(input.Name) {
+		return nil, fmt.Errorf("provider name must be a lowercase slug (letters, numbers, hyphens, underscores), 2-50 characters")
+	}
+	if !validSSOProviderType(input.ProviderType) {
+		return nil, fmt.Errorf("providerType must be 'authentik' or 'generic_oidc'")
+	}
+	existing, err := db.GetOAuthProviderByName(ctx, r.DB, input.Name)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, fmt.Errorf("a provider with the name '%s' already exists", input.Name)
+	}
+	row := db.OAuthProviderRow{
+		Name:         input.Name,
+		DisplayName:  input.DisplayName,
+		ProviderType: input.ProviderType,
+		ClientID:     input.ClientID,
+		ClientSecret: input.ClientSecret,
+		IssuerURL:    input.IssuerURL,
+		Scopes:       "openid,profile,email",
+		AutoRegister: 1,
+		DefaultRole:  "Administrator",
+		Enabled:      1,
+	}
+	if input.Scopes != nil && *input.Scopes != "" {
+		row.Scopes = *input.Scopes
+	}
+	if input.AutoRegister != nil && !*input.AutoRegister {
+		row.AutoRegister = 0
+	}
+	if input.DefaultRole != nil && *input.DefaultRole != "" {
+		row.DefaultRole = *input.DefaultRole
+	}
+	if input.Enabled != nil && !*input.Enabled {
+		row.Enabled = 0
+	}
+	if _, err := db.CreateOAuthProvider(ctx, r.DB, &row); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Provider created")}, nil
+}
+
+// UpdateSSOProvider is the resolver for the updateSSOProvider field.
+func (r *mutationResolver) UpdateSSOProvider(ctx context.Context, id string, input model.UpdateSSOProviderInput) (*model.SuccessResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	pid, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid provider ID")
+	}
+	existing, err := db.GetOAuthProviderByID(ctx, r.DB, pid)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("provider not found")
+	}
+	if input.ProviderType != nil && !validSSOProviderType(*input.ProviderType) {
+		return nil, fmt.Errorf("providerType must be 'authentik' or 'generic_oidc'")
+	}
+	updates := map[string]any{}
+	if input.DisplayName != nil {
+		updates["display_name"] = *input.DisplayName
+	}
+	if input.ProviderType != nil {
+		updates["provider_type"] = *input.ProviderType
+	}
+	if input.ClientID != nil {
+		updates["client_id"] = *input.ClientID
+	}
+	// Only update the secret when a non-empty value is provided (parity with Node).
+	if input.ClientSecret != nil && *input.ClientSecret != "" {
+		updates["client_secret"] = *input.ClientSecret
+	}
+	if input.IssuerURL != nil {
+		updates["issuer_url"] = *input.IssuerURL
+	}
+	if input.Scopes != nil {
+		updates["scopes"] = *input.Scopes
+	}
+	if input.AutoRegister != nil {
+		v := 0
+		if *input.AutoRegister {
+			v = 1
+		}
+		updates["auto_register"] = v
+	}
+	if input.DefaultRole != nil {
+		updates["default_role"] = *input.DefaultRole
+	}
+	if input.Enabled != nil {
+		v := 0
+		if *input.Enabled {
+			v = 1
+		}
+		updates["enabled"] = v
+	}
+	if len(updates) > 0 {
+		if _, err := db.UpdateOAuthProvider(ctx, r.DB, pid, updates); err != nil {
+			return nil, err
+		}
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Provider updated")}, nil
+}
+
+// DeleteSSOProvider is the resolver for the deleteSSOProvider field.
+func (r *mutationResolver) DeleteSSOProvider(ctx context.Context, id string) (*model.SuccessResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	pid, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid provider ID")
+	}
+	changes, err := db.DeleteOAuthProvider(ctx, r.DB, pid)
+	if err != nil {
+		return nil, err
+	}
+	if changes == 0 {
+		return nil, fmt.Errorf("provider not found")
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Provider deleted")}, nil
+}
+
+// TestSSOProvider is the resolver for the testSSOProvider field.
+func (r *mutationResolver) TestSSOProvider(ctx context.Context, issuerURL string) (*model.SSOProviderTestResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	if issuerURL == "" {
+		return &model.SSOProviderTestResult{Valid: false, Error: strPtr("issuerUrl is required")}, nil
+	}
+	return fetchOIDCDiscovery(ctx, issuerURL)
+}
+
+// SetSSOSettings is the resolver for the setSSOSettings field.
+func (r *mutationResolver) SetSSOSettings(ctx context.Context, allowLocalLogin bool) (*model.SuccessResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	if err := db.SetSystemSetting(ctx, r.DB, "oauth_allow_local_login", strconv.FormatBool(allowLocalLogin)); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true}, nil
+}
+
 // UploadAvatar is the resolver for the uploadAvatar field.
 func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error) {
 	uid, err := requireUser(ctx)
@@ -2120,6 +2277,34 @@ func (r *queryResolver) RegistrationCodeRequired(ctx context.Context) (bool, err
 func (r *queryResolver) UserExists(ctx context.Context, username string) (bool, error) {
 	exists, _ := db.UserExists(ctx, r.DB, username)
 	return exists, nil
+}
+
+// SsoProviders is the resolver for the ssoProviders field.
+func (r *queryResolver) SsoProviders(ctx context.Context) ([]*model.SSOProvider, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	rows, err := db.GetAllOAuthProviders(ctx, r.DB)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.SSOProvider, len(rows))
+	for i := range rows {
+		out[i] = ssoProviderToModel(&rows[i])
+	}
+	return out, nil
+}
+
+// SsoSettings is the resolver for the ssoSettings field.
+func (r *queryResolver) SsoSettings(ctx context.Context) (*model.SSOSettings, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	v, err := db.GetSystemSetting(ctx, r.DB, "oauth_allow_local_login")
+	if err != nil {
+		return nil, err
+	}
+	return &model.SSOSettings{AllowLocalLogin: v == nil || *v != "false"}, nil
 }
 
 // Containers is the resolver for the containers field.
@@ -3399,26 +3584,6 @@ func (r *userResolver) TrackedAppCount(ctx context.Context, obj *model.User) (in
 		return 0, err
 	}
 	return stats.TrackedApps, nil
-}
-
-// userStatsFor gates the per-user count fields: instance admins may view any
-// user's counts, everyone else only their own (parity with the old admin-only
-// /auth/users/:id/stats route, relaxed for self-service).
-func (r *userResolver) userStatsFor(ctx context.Context, obj *model.User) (*db.UserStats, error) {
-	uid, err := requireUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	target, err := strconv.ParseInt(obj.ID, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user id")
-	}
-	if uid != target {
-		if _, err := requireAdmin(ctx, r.DB); err != nil {
-			return nil, err
-		}
-	}
-	return db.CountUserStats(ctx, r.DB, target)
 }
 
 // Container returns ContainerResolver implementation.

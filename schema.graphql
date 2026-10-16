@@ -563,6 +563,72 @@ type OAuthProvider {
   updatedAt: DateTime!
 }
 
+# Admin-managed runtime SSO provider (oauth_providers table).
+# clientSecret is always masked (****last4), matching the old REST admin API.
+type SSOProvider {
+  id: ID!
+  name: String!
+  displayName: String!
+  providerType: String!
+  clientId: String!
+  clientSecret: String!
+  issuerUrl: String!
+  scopes: String!
+  autoRegister: Boolean!
+  defaultRole: String!
+  enabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type SSOSettings {
+  allowLocalLogin: Boolean!
+}
+
+type OIDCDiscoveryEndpoints {
+  authorization: String
+  token: String
+  userinfo: String
+  jwks: String
+}
+
+type OIDCDiscovery {
+  issuer: String
+  endpoints: OIDCDiscoveryEndpoints
+  scopesSupported: [String!]
+}
+
+type SSOProviderTestResult {
+  valid: Boolean!
+  error: String
+  discovery: OIDCDiscovery
+}
+
+input CreateSSOProviderInput {
+  name: String!
+  displayName: String!
+  providerType: String!
+  clientId: String!
+  clientSecret: String!
+  issuerUrl: String!
+  scopes: String
+  autoRegister: Boolean
+  defaultRole: String
+  enabled: Boolean
+}
+
+input UpdateSSOProviderInput {
+  displayName: String
+  providerType: String
+  clientId: String
+  clientSecret: String
+  issuerUrl: String
+  scopes: String
+  autoRegister: Boolean
+  defaultRole: String
+  enabled: Boolean
+}
+
 # -----------------------------------------------------------------------------
 # Settings (allowlisted — no generic key/value exposure)
 # -----------------------------------------------------------------------------
@@ -980,6 +1046,10 @@ type Query {
   registrationCodeRequired: Boolean!
   userExists(username: String!): Boolean!
 
+  # ── SSO / OAuth admin (instance admin only) ───────────────────────────────
+  ssoProviders: [SSOProvider!]!
+  ssoSettings: SSOSettings!
+
   # ── Containers ────────────────────────────────────────────────────────────
   containers(
     filter: ContainerFilterInput
@@ -1198,6 +1268,13 @@ type Mutation {
   setDisallowedContainers(containers: [String!]!): DisallowedContainersResult!
   # System-wide; instance admin only.
   setDebugEndpointsEnabled(enabled: Boolean!): SuccessResult!
+
+  # ── SSO / OAuth admin (instance admin only) ───────────────────────────────
+  createSSOProvider(input: CreateSSOProviderInput!): SuccessResult!
+  updateSSOProvider(id: ID!, input: UpdateSSOProviderInput!): SuccessResult!
+  deleteSSOProvider(id: ID!): SuccessResult!
+  testSSOProvider(issuerUrl: String!): SSOProviderTestResult!
+  setSSOSettings(allowLocalLogin: Boolean!): SuccessResult!
 
   # ── Avatars ───────────────────────────────────────────────────────────────
   uploadAvatar(file: Upload!): SuccessResult!

@@ -6,10 +6,7 @@ import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../utils/api";
 import { graphqlClient } from "../../graphql/client";
-import {
-  TOKEN_ASSOCIATED_IMAGES_QUERY,
-  ASSOCIATE_IMAGES_MUTATION,
-} from "../../graphql/queries";
+import { TOKEN_ASSOCIATED_IMAGES_QUERY, ASSOCIATE_IMAGES_MUTATION } from "../../graphql/queries";
 import styles from "./AssociateImagesModal.module.css";
 
 /**

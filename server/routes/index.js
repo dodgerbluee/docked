@@ -42,7 +42,6 @@ const batchController = require("../controllers/batchController");
 const versionController = require("../controllers/versionController");
 const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
-const ssoAdminController = require("../controllers/ssoAdminController");
 const runnerController = require("../controllers/runnerController");
 const debugRouter = require("./debug");
 const { getAllRunners } = require("../db/runners");
@@ -510,26 +509,9 @@ router.post(
   asyncHandler(authController.verifyInstanceAdminToken)
 );
 
-// Admin SSO provider management routes (protected - instanceAdmin checked inside handlers)
-router.get("/admin/sso/providers", asyncHandler(ssoAdminController.listProviders));
-router.post("/admin/sso/providers", writeLimiter, asyncHandler(ssoAdminController.createProvider));
-router.post(
-  "/admin/sso/providers/test",
-  writeLimiter,
-  asyncHandler(ssoAdminController.testProvider)
-);
-router.put(
-  "/admin/sso/providers/:id",
-  writeLimiter,
-  asyncHandler(ssoAdminController.updateProvider)
-);
-router.delete(
-  "/admin/sso/providers/:id",
-  destructiveLimiter,
-  asyncHandler(ssoAdminController.deleteProvider)
-);
-router.get("/admin/sso/settings", asyncHandler(ssoAdminController.getSettings));
-router.put("/admin/sso/settings", writeLimiter, asyncHandler(ssoAdminController.updateSettings));
+// Admin SSO provider management is served by the graph (ssoProviders,
+// ssoSettings queries; createSSOProvider, updateSSOProvider, deleteSSOProvider,
+// testSSOProvider, setSSOSettings mutations).
 
 // User management routes: served by the graph (user query, deleteUser mutation).
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));

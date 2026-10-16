@@ -29,6 +29,7 @@ const {
   getConfiguredProviders,
   isOAuthEnabled,
   getProviderSettings,
+  ensureFresh,
 } = require("../services/oauth");
 const BaseProvider = require("../services/oauth/providers/BaseProvider");
 
@@ -41,6 +42,7 @@ const LINK_REQUIRED = "LINK_REQUIRED";
  * Public endpoint - no auth required.
  */
 async function getProviders(req, res) {
+  await ensureFresh();
   if (!isOAuthEnabled()) {
     return res.json({
       success: true,
@@ -84,6 +86,7 @@ async function getProviders(req, res) {
 // eslint-disable-next-line max-lines-per-function -- OAuth initiation requires multiple steps
 async function initiateLogin(req, res, next) {
   try {
+    await ensureFresh();
     if (!isOAuthEnabled()) {
       return res.status(400).json({
         success: false,
@@ -152,6 +155,7 @@ async function initiateLogin(req, res, next) {
 // eslint-disable-next-line max-lines-per-function, complexity -- OAuth callback requires comprehensive validation and account resolution
 async function handleCallback(req, res, next) {
   try {
+    await ensureFresh();
     // OAuth2 authorization code is delivered via GET query params per RFC 6749 §4.1.2 —
     // this is required by the spec and cannot be changed to a POST body.
     const { code, state, error: oauthError, error_description: errorDescription } = req.query;

@@ -145,7 +145,9 @@ function SSOProviderModal({
 
       onSuccess();
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to save provider. Please try again.");
+      setError(
+        err.response?.data?.error || err.message || "Failed to save provider. Please try again."
+      );
     } finally {
       setLoading(false);
     }

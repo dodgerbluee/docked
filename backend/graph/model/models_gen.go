@@ -182,6 +182,19 @@ type CreateRunnerInput struct {
 	APIKey string `json:"apiKey"`
 }
 
+type CreateSSOProviderInput struct {
+	Name         string  `json:"name"`
+	DisplayName  string  `json:"displayName"`
+	ProviderType string  `json:"providerType"`
+	ClientID     string  `json:"clientId"`
+	ClientSecret string  `json:"clientSecret"`
+	IssuerURL    string  `json:"issuerUrl"`
+	Scopes       *string `json:"scopes,omitempty"`
+	AutoRegister *bool   `json:"autoRegister,omitempty"`
+	DefaultRole  *string `json:"defaultRole,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
+}
+
 type CreateSourceInstanceInput struct {
 	Name      string   `json:"name"`
 	URL       string   `json:"url"`
@@ -405,6 +418,19 @@ type OAuthProvider struct {
 	UpdatedAt time.Time         `json:"updatedAt"`
 }
 
+type OIDCDiscovery struct {
+	Issuer          *string                 `json:"issuer,omitempty"`
+	Endpoints       *OIDCDiscoveryEndpoints `json:"endpoints,omitempty"`
+	ScopesSupported []string                `json:"scopesSupported,omitempty"`
+}
+
+type OIDCDiscoveryEndpoints struct {
+	Authorization *string `json:"authorization,omitempty"`
+	Token         *string `json:"token,omitempty"`
+	Userinfo      *string `json:"userinfo,omitempty"`
+	Jwks          *string `json:"jwks,omitempty"`
+}
+
 type Operation struct {
 	ID          string          `json:"id"`
 	Type        OperationType   `json:"type"`
@@ -501,6 +527,32 @@ type RunnerStatusEvent struct {
 	RunnerName    string       `json:"runnerName"`
 	Status        RunnerStatus `json:"status"`
 	LastHeartbeat *time.Time   `json:"lastHeartbeat,omitempty"`
+}
+
+type SSOProvider struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	DisplayName  string    `json:"displayName"`
+	ProviderType string    `json:"providerType"`
+	ClientID     string    `json:"clientId"`
+	ClientSecret string    `json:"clientSecret"`
+	IssuerURL    string    `json:"issuerUrl"`
+	Scopes       string    `json:"scopes"`
+	AutoRegister bool      `json:"autoRegister"`
+	DefaultRole  string    `json:"defaultRole"`
+	Enabled      bool      `json:"enabled"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+type SSOProviderTestResult struct {
+	Valid     bool           `json:"valid"`
+	Error     *string        `json:"error,omitempty"`
+	Discovery *OIDCDiscovery `json:"discovery,omitempty"`
+}
+
+type SSOSettings struct {
+	AllowLocalLogin bool `json:"allowLocalLogin"`
 }
 
 type SourceHealthResult struct {
@@ -678,6 +730,18 @@ type UpdateRunnerInput struct {
 	URL     *string `json:"url,omitempty"`
 	APIKey  *string `json:"apiKey,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
+}
+
+type UpdateSSOProviderInput struct {
+	DisplayName  *string `json:"displayName,omitempty"`
+	ProviderType *string `json:"providerType,omitempty"`
+	ClientID     *string `json:"clientId,omitempty"`
+	ClientSecret *string `json:"clientSecret,omitempty"`
+	IssuerURL    *string `json:"issuerUrl,omitempty"`
+	Scopes       *string `json:"scopes,omitempty"`
+	AutoRegister *bool   `json:"autoRegister,omitempty"`
+	DefaultRole  *string `json:"defaultRole,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
 }
 
 type UpdateSourceInstanceInput struct {

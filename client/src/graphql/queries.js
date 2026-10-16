@@ -1160,11 +1160,7 @@ export const UPGRADE_HISTORY_STATS_QUERY = /* GraphQL */ `
 `;
 
 export const TRACKED_APP_UPGRADE_HISTORY_QUERY = /* GraphQL */ `
-  query TrackedAppUpgradeHistory(
-    $filter: TrackedAppHistoryFilterInput
-    $first: Int
-    $offset: Int
-  ) {
+  query TrackedAppUpgradeHistory($filter: TrackedAppHistoryFilterInput, $first: Int, $offset: Int) {
     trackedAppUpgradeHistory(filter: $filter, first: $first, offset: $offset) {
       id
       trackedAppId
@@ -1239,6 +1235,89 @@ export const TOKEN_ASSOCIATED_IMAGES_QUERY = /* GraphQL */ `
 export const ASSOCIATE_IMAGES_MUTATION = /* GraphQL */ `
   mutation AssociateImages($tokenId: ID!, $input: AssociateImagesInput!) {
     associateImages(tokenId: $tokenId, input: $input) {
+      success
+      message
+    }
+  }
+`;
+
+export const SSO_PROVIDERS_QUERY = /* GraphQL */ `
+  query SSOProviders {
+    ssoProviders {
+      id
+      name
+      displayName
+      providerType
+      clientId
+      clientSecret
+      issuerUrl
+      scopes
+      autoRegister
+      defaultRole
+      enabled
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const SSO_SETTINGS_QUERY = /* GraphQL */ `
+  query SSOSettings {
+    ssoSettings {
+      allowLocalLogin
+    }
+  }
+`;
+
+export const CREATE_SSO_PROVIDER_MUTATION = /* GraphQL */ `
+  mutation CreateSSOProvider($input: CreateSSOProviderInput!) {
+    createSSOProvider(input: $input) {
+      success
+      message
+    }
+  }
+`;
+
+export const UPDATE_SSO_PROVIDER_MUTATION = /* GraphQL */ `
+  mutation UpdateSSOProvider($id: ID!, $input: UpdateSSOProviderInput!) {
+    updateSSOProvider(id: $id, input: $input) {
+      success
+      message
+    }
+  }
+`;
+
+export const DELETE_SSO_PROVIDER_MUTATION = /* GraphQL */ `
+  mutation DeleteSSOProvider($id: ID!) {
+    deleteSSOProvider(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
+export const TEST_SSO_PROVIDER_MUTATION = /* GraphQL */ `
+  mutation TestSSOProvider($issuerUrl: String!) {
+    testSSOProvider(issuerUrl: $issuerUrl) {
+      valid
+      error
+      discovery {
+        issuer
+        endpoints {
+          authorization
+          token
+          userinfo
+          jwks
+        }
+        scopesSupported
+      }
+    }
+  }
+`;
+
+export const SET_SSO_SETTINGS_MUTATION = /* GraphQL */ `
+  mutation SetSSOSettings($allowLocalLogin: Boolean!) {
+    setSSOSettings(allowLocalLogin: $allowLocalLogin) {
       success
       message
     }
