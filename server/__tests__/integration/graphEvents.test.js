@@ -1,7 +1,8 @@
 // Regression tests for the Node→Go event bridge (utils/graphEvents.js).
 // Guards the two failure callbacks that once crashed the server with
 // "Cannot read properties of undefined (reading 'debug')" when the Go
-// backend answered /internal/events with 401.
+// backend answered /internal/events with 401. The callbacks now log at
+// warn level so rejections are visible at the production log level.
 const http = require("http");
 
 const mockLogger = {
@@ -21,7 +22,9 @@ function loadBridge(backendUrl) {
 }
 
 function listen(server) {
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+  return new Promise((resolve) =>
+    server.listen(0, "127.0.0.1", () => resolve(server.address().port))
+  );
 }
 
 function close(server) {
@@ -52,9 +55,9 @@ describe("publishGraphEvent failure callbacks", () => {
     else process.env.GRAPHQL_BACKEND = prevBackend;
   });
 
-  beforeEach(() => mockLogger.debug.mockClear());
+  beforeEach(() => mockLogger.warn.mockClear());
 
-  test("rejected response (401) logs debug and does not throw", async () => {
+  test("rejected response (401) logs warn and does not throw", async () => {
     let gotPath = null;
     const server = http.createServer((req, res) => {
       gotPath = req.url;
@@ -66,8 +69,8 @@ describe("publishGraphEvent failure callbacks", () => {
 
     try {
       expect(() => publishGraphEvent("containersUpdated", 1, { count: 1 })).not.toThrow();
-      await waitFor(() => mockLogger.debug.mock.calls.length > 0);
-      const [msg, meta] = mockLogger.debug.mock.calls[0];
+      await waitFor(() => mockLogger.warn.mock.calls.length > 0);
+      const [msg, meta] = mockLogger.warn.mock.calls[0];
       expect(msg).toBe("Graph event bridge rejected");
       expect(meta).toMatchObject({ module: "graphEvents", type: "containersUpdated", status: 401 });
       expect(gotPath).toBe("/internal/events");
@@ -76,7 +79,7 @@ describe("publishGraphEvent failure callbacks", () => {
     }
   });
 
-  test("connection error logs debug and does not throw", async () => {
+  test("connection error logs warn and does not throw", async () => {
     // Bind then immediately close a port so the connect attempt fails (ECONNREFUSED).
     const probe = http.createServer();
     const port = await listen(probe);
@@ -84,8 +87,8 @@ describe("publishGraphEvent failure callbacks", () => {
     const { publishGraphEvent } = loadBridge(`http://127.0.0.1:${port}`);
 
     expect(() => publishGraphEvent("upgradeProgress", 1, { step: "x" })).not.toThrow();
-    await waitFor(() => mockLogger.debug.mock.calls.length > 0);
-    const [msg, meta] = mockLogger.debug.mock.calls[0];
+    await waitFor(() => mockLogger.warn.mock.calls.length > 0);
+    const [msg, meta] = mockLogger.warn.mock.calls[0];
     expect(msg).toBe("Graph event bridge error");
     expect(meta).toMatchObject({ module: "graphEvents", type: "upgradeProgress" });
   });

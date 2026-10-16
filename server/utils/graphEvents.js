@@ -39,7 +39,10 @@ function publishGraphEvent(type, userId, payload) {
     (res) => {
       res.resume(); // drain to release the socket
       if (res.statusCode >= 400) {
-        logger.debug("Graph event bridge rejected", {
+        // warn, not debug: at production log level (info) a debug line is
+        // invisible, and a rejected event means every live subscription is
+        // silently dead — that must be visible in the logs.
+        logger.warn("Graph event bridge rejected", {
           module: "graphEvents",
           type,
           status: res.statusCode,
@@ -48,7 +51,7 @@ function publishGraphEvent(type, userId, payload) {
     }
   );
   req.on("error", (err) => {
-    logger.debug("Graph event bridge error", { module: "graphEvents", type, error: err.message });
+    logger.warn("Graph event bridge error", { module: "graphEvents", type, error: err.message });
   });
   req.on("timeout", () => req.destroy());
   req.end(body);

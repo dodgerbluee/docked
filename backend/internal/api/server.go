@@ -58,6 +58,10 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 			AcceptOptions: coderws.AcceptOptions{InsecureSkipVerify: true},
 		},
 		KeepAlivePingInterval: 10 * time.Second,
+		// KeepAlivePingInterval only covers the legacy graphql-ws subprotocol;
+		// graphql-transport-ws (what the clients use) needs PongOnlyInterval or
+		// the socket goes idle and proxies (nginx read timeout) reap it ~90s in.
+		PongOnlyInterval: 10 * time.Second,
 		InitFunc: func(ctx context.Context, initPayload transport.InitPayload) (context.Context, *transport.InitPayload, error) {
 			// In graphql-transport-ws, failures are signaled by the close frame
 			// (connection_error is a no-op), so set close code 4401 (the
