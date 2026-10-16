@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
 import { hasVersionUpdate, versionsEqual } from "../../utils/versionHelpers";
+import { checkRunnerHealth, updateRunnerBinary, uninstallRunner } from "../../graphql/runnerOps";
 import { graphqlClient } from "../../graphql/client";
 import {
   RUNNERS_QUERY,
@@ -430,7 +431,7 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
     setError(null);
     try {
       if (uninstall) {
-        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/uninstall`);
+        await uninstallRunner(runner.id);
       } else {
         await graphqlClient.mutation(DELETE_RUNNER_MUTATION, { id: runner.id }).toPromise();
       }
@@ -542,9 +543,8 @@ export default function RunnerTab() {
       if (!list?.length) return;
       list.forEach((r) => {
         setHealthStatus((prev) => ({ ...prev, [r.id]: { checking: true } }));
-        axios
-          .post(`${API_BASE_URL}/api/runners/${r.id}/health`)
-          .then(({ data }) => {
+        checkRunnerHealth(r.id)
+          .then((data) => {
             setHealthStatus((prev) => ({
               ...prev,
               [r.id]: { online: data.online, checking: false, health: data.health },
@@ -586,13 +586,13 @@ export default function RunnerTab() {
     async (runner) => {
       setUpdatingRunner(runner.id);
       try {
-        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
+        await updateRunnerBinary(runner.id);
         const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
           attempts++;
           try {
-            const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+            const data = await checkRunnerHealth(runner.id);
             const liveVersion = data.health?.version || "";
             if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
@@ -632,7 +632,7 @@ export default function RunnerTab() {
   const handlePing = useCallback(async (runner) => {
     setHealthStatus((prev) => ({ ...prev, [runner.id]: { checking: true } }));
     try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+      const data = await checkRunnerHealth(runner.id);
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: data.online, checking: false, health: data.health },

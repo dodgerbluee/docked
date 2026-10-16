@@ -109,79 +109,6 @@ function insertRunnerEvent({ runnerId, eventType, message = null, details = null
 }
 
 /**
- * Get events for a runner, newest first.
- * @param {number} runnerId
- * @param {Object} [options]
- * @param {number} [options.limit=50] - Max events to return
- * @param {number} [options.offset=0] - Pagination offset
- * @param {string} [options.eventType] - Filter by event type
- * @returns {Promise<Array>}
- */
-function getRunnerEvents(runnerId, { limit = 50, offset = 0, eventType = null } = {}) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      let sql = "SELECT * FROM runner_events WHERE runner_id = ?";
-      const params = [runnerId];
-
-      if (eventType) {
-        sql += " AND event_type = ?";
-        params.push(eventType);
-      }
-
-      sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-      params.push(limit, offset);
-
-      db.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else {
-          // Parse details JSON where possible
-          const parsed = (rows || []).map((row) => {
-            if (row.details) {
-              try {
-                row.details = JSON.parse(row.details);
-              } catch {
-                // keep as string
-              }
-            }
-            return row;
-          });
-          resolve(parsed);
-        }
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Get the count of events for a runner (for pagination).
- * @param {number} runnerId
- * @param {string} [eventType]
- * @returns {Promise<number>}
- */
-function getRunnerEventCount(runnerId, eventType = null) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      let sql = "SELECT COUNT(*) as count FROM runner_events WHERE runner_id = ?";
-      const params = [runnerId];
-      if (eventType) {
-        sql += " AND event_type = ?";
-        params.push(eventType);
-      }
-      db.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row?.count || 0);
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
  * Prune old events, keeping the most recent N events per runner.
  * @param {number} [keepPerRunner=200] - Number of events to keep per runner
  * @returns {Promise<number>} Number of deleted events
@@ -269,8 +196,6 @@ function updateRunnerDockerStatus(runnerId, status) {
 module.exports = {
   EVENT_TYPES,
   insertRunnerEvent,
-  getRunnerEvents,
-  getRunnerEventCount,
   pruneRunnerEvents,
   updateRunnerLastSeen,
   updateRunnerDockerStatus,

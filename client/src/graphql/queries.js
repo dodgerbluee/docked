@@ -1357,3 +1357,68 @@ export const INTENT_PREVIEW_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+export const RUNNER_EVENTS_QUERY = /* GraphQL */ `
+  query RunnerEvents($runnerId: ID!, $first: Int, $offset: Int, $eventType: String) {
+    runnerEvents(runnerId: $runnerId, first: $first, offset: $offset, eventType: $eventType) {
+      items {
+        id
+        runnerId
+        eventType
+        message
+        details
+        createdAt
+      }
+      total
+    }
+  }
+`;
+
+export const RUNNER_LOGS_QUERY = /* GraphQL */ `
+  query RunnerLogs($runnerId: ID!, $lines: Int) {
+    runnerLogs(runnerId: $runnerId, lines: $lines) {
+      lines
+      count
+      error
+    }
+  }
+`;
+
+export const RUNNER_HEALTH_MUTATION = /* GraphQL */ `
+  mutation RunnerHealthCheck($runnerId: ID!) {
+    runnerHealthCheck(runnerId: $runnerId) {
+      online
+      version
+      dockerOk
+      uptimeSeconds
+      error
+    }
+  }
+`;
+
+export const RESTART_RUNNER_MUTATION = /* GraphQL */ `
+  mutation RestartRunner($runnerId: ID!) {
+    restartRunner(runnerId: $runnerId) {
+      success
+      message
+    }
+  }
+`;
+
+export const UPDATE_RUNNER_BINARY_MUTATION = /* GraphQL */ `
+  mutation UpdateRunnerBinary($runnerId: ID!, $version: String) {
+    updateRunnerBinary(runnerId: $runnerId, version: $version) {
+      success
+      message
+    }
+  }
+`;
+
+export const UNINSTALL_RUNNER_MUTATION = /* GraphQL */ `
+  mutation UninstallRunner($runnerId: ID!) {
+    uninstallRunner(runnerId: $runnerId) {
+      success
+      message
+    }
+  }
+`;

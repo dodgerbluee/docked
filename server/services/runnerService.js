@@ -253,14 +253,14 @@ async function proxyUpgradeStream(runner, containerId, _req, res) {
         resolve();
       };
 
-      runnerStream.on("data", chunk => {
+      runnerStream.on("data", (chunk) => {
         if (!res.writableEnded) res.write(chunk);
       });
       runnerStream.once("end", () => {
         if (!res.writableEnded) res.end();
         finish();
       });
-      runnerStream.once("error", err => {
+      runnerStream.once("error", (err) => {
         logger.error(`Runner upgrade stream error for container ${containerId}: ${err.message}`, {
           module: "runnerService",
           containerId,
@@ -473,41 +473,6 @@ async function proxyOperationRunStream(runner, operationName, req, res) {
  * @param {Object} githubService - github service with getLatestRelease(repo)
  * @returns {Promise<Array>} enriched operations
  */
-/**
- * Trigger a self-update on the runner binary.
- * @param {Object} runner - Runner DB row { url, api_key }
- * @param {string} version - Target version tag (e.g. "v0.1.5")
- * @returns {Promise<Object>} runner response
- */
-async function triggerRunnerUpdate(runner, version) {
-  const resp = await axios.post(
-    `${runner.url}/update`,
-    { version },
-    runnerAxiosConfig(runner.api_key)
-  );
-  return resp.data;
-}
-
-/**
- * Trigger self-uninstall on the runner.
- * @param {Object} runner - Runner DB row { url, api_key }
- * @returns {Promise<Object>} runner response
- */
-async function triggerRunnerUninstall(runner) {
-  const resp = await axios.post(`${runner.url}/uninstall`, {}, runnerAxiosConfig(runner.api_key));
-  return resp.data;
-}
-
-/**
- * Trigger a restart of the dockhand service on the runner.
- * @param {Object} runner - Runner DB row { url, api_key }
- * @returns {Promise<Object>} runner response
- */
-async function triggerRunnerRestart(runner) {
-  const resp = await axios.post(`${runner.url}/restart`, {}, runnerAxiosConfig(runner.api_key));
-  return resp.data;
-}
-
 async function enrichOperationsWithVersions(operations, githubService) {
   return Promise.all(
     operations.map(async (op) => {
@@ -667,21 +632,6 @@ async function proxyAppOperationRunStream(runner, appName, opName, req, res) {
   });
 }
 
-/**
- * Fetch dockhand's own service logs (journalctl output).
- * @param {string} url - Runner base URL
- * @param {string} apiKey - Runner API key
- * @param {number} [lines=100] - Number of log lines to fetch
- * @returns {Promise<{lines: string[], count: number}>}
- */
-async function fetchRunnerLogs(url, apiKey, lines = 100) {
-  const { data } = await axios.get(`${url}/logs`, {
-    ...runnerAxiosConfig(apiKey),
-    params: { lines },
-  });
-  return data;
-}
-
 module.exports = {
   pingRunner,
   fetchRunnerContainers,
@@ -699,8 +649,4 @@ module.exports = {
   fetchRunnerAppsAllHistory,
   enrichAppsWithVersions,
   proxyAppOperationRunStream,
-  triggerRunnerUpdate,
-  triggerRunnerUninstall,
-  triggerRunnerRestart,
-  fetchRunnerLogs,
 };

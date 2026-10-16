@@ -23,6 +23,7 @@ import AppCard from "../components/apps/AppCard";
 import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
+import { checkRunnerHealth, updateRunnerBinary } from "../graphql/runnerOps";
 import { registerCacheClear } from "../utils/cacheRegistry";
 import { graphqlClient } from "../graphql/client";
 import { RUNNERS_QUERY } from "../graphql/queries";
@@ -589,7 +590,7 @@ export default function AppsPage({
     async (runner) => {
       setUpdatingRunners((prev) => new Set(prev).add(runner.id));
       try {
-        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
+        await updateRunnerBinary(runner.id);
 
         // Poll health until the runner comes back with the new version (up to 90s)
         const targetVersion = runner.latest_version?.replace(/^v/, "");
@@ -608,7 +609,7 @@ export default function AppsPage({
           }
           attempts++;
           try {
-            const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+            const data = await checkRunnerHealth(runner.id);
             const currentVersion = data.health?.version?.replace(/^v/, "");
             if (data.online && currentVersion && currentVersion === targetVersion) {
               setUpdatingRunners((prev) => {

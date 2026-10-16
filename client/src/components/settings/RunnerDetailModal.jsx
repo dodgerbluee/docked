@@ -20,11 +20,15 @@ import {
   Info,
   ChevronDown,
 } from "lucide-react";
-import axios from "axios";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import { API_BASE_URL } from "../../constants/api";
 import { hasVersionUpdate } from "../../utils/versionHelpers";
+import {
+  checkRunnerHealth,
+  restartRunner,
+  fetchRunnerEvents,
+  fetchRunnerLogs,
+} from "../../graphql/runnerOps";
 import styles from "./RunnerDetailModal.module.css";
 
 const TABS = {
@@ -111,9 +115,7 @@ function RunnerDetailModal({
       if (!runner) return;
       setEventsLoading(true);
       try {
-        const { data } = await axios.get(
-          `${API_BASE_URL}/api/runners/${runner.id}/events?limit=50&offset=${offset}`
-        );
+        const data = await fetchRunnerEvents(runner.id, { limit: 50, offset });
         if (data.success) {
           setEvents((prev) => (offset === 0 ? data.events : [...prev, ...data.events]));
           setEventsTotal(data.total);
@@ -133,7 +135,7 @@ function RunnerDetailModal({
     setLogsLoading(true);
     setLogsError(null);
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/runners/${runner.id}/logs?lines=200`);
+      const data = await fetchRunnerLogs(runner.id, 200);
       if (data.success) {
         setLogs(data.lines || []);
       } else {
@@ -189,7 +191,7 @@ function RunnerDetailModal({
     if (!runner) return;
     setChecking(true);
     try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+      const data = await checkRunnerHealth(runner.id);
       if (onHealthUpdate) {
         onHealthUpdate(runner.id, {
           online: data.online,
@@ -217,7 +219,7 @@ function RunnerDetailModal({
     if (!confirmed) return;
     setRestarting(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/restart`);
+      await restartRunner(runner.id);
     } catch {
       // ignore — runner will go offline momentarily regardless
     } finally {

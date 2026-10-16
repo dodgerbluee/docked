@@ -29,6 +29,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
+import { uninstallRunner } from "../../graphql/runnerOps";
 import { graphqlClient } from "../../graphql/client";
 import {
   CHECK_SOURCE_INSTANCE_HEALTH_MUTATION,
@@ -249,7 +250,7 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
     setError(null);
     try {
       if (uninstall) {
-        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/uninstall`);
+        await uninstallRunner(runner.id);
       } else {
         await graphqlClient.mutation(DELETE_RUNNER_MUTATION, { id: runner.id }).toPromise();
       }

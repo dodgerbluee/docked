@@ -149,3 +149,14 @@ func DeleteRunner(ctx context.Context, database *sql.DB, id, userID int64) error
 		"DELETE FROM runners WHERE id = ? AND user_id = ?", id, userID)
 	return err
 }
+
+// UpdateRunnerVersion persists the runner's reported version and the latest
+// known release (parity with Node's db/runners.updateRunnerVersion).
+func UpdateRunnerVersion(ctx context.Context, database *sql.DB, id, userID int64, version, latestVersion *string) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE runners
+		    SET version = ?, latest_version = ?, version_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		  WHERE id = ? AND user_id = ?`,
+		version, latestVersion, id, userID)
+	return err
+}

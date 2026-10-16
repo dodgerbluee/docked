@@ -13,7 +13,6 @@ const {
   createRunner,
   updateRunnerUrl,
   updateRunnerApiKey,
-  deleteRunner,
   updateRunnerVersion,
   apiKeysEqual,
 } = require("../db/runners");
@@ -25,13 +24,10 @@ const {
 const {
   EVENT_TYPES,
   insertRunnerEvent,
-  getRunnerEvents: fetchRunnerEventsFromDb,
-  getRunnerEventCount,
   updateRunnerLastSeen,
   updateRunnerDockerStatus,
 } = require("../db/runnerEvents");
 const {
-  pingRunner,
   proxyUpgradeStream,
   proxyLogsStream,
   fetchRunnerOperations,
@@ -43,10 +39,6 @@ const {
   fetchRunnerAppsAllHistory,
   enrichAppsWithVersions,
   proxyAppOperationRunStream,
-  triggerRunnerUpdate,
-  triggerRunnerUninstall,
-  triggerRunnerRestart,
-  fetchRunnerLogs,
 } = require("../services/runnerService");
 const githubService = require("../services/githubService");
 const { resetRunnerBackoff } = require("../services/runnerVersionPoller");
@@ -149,85 +141,6 @@ cleanupExpiredTokens()
   .catch((err) => {
     logger.warn(`Failed to clean up expired enrollment tokens on startup: ${err.message}`);
   });
-
-/**
- * POST /api/runners/:id/health
- * Checks connectivity to the runner and returns its health payload.
- */
-async function healthCheckRunner(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runner = await getRunnerById(parseInt(req.params.id, 10), userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    try {
-      const health = await pingRunner(runner.url, runner.api_key);
-
-      // Update last_seen and docker status
-      await updateRunnerLastSeen(runner.id);
-
-      const dockerStatus = health.dockerOk === false ? "unavailable" : "ok";
-      const dockerChanged = await updateRunnerDockerStatus(runner.id, dockerStatus);
-
-      // Log health check event
-      insertRunnerEvent({
-        runnerId: runner.id,
-        eventType: EVENT_TYPES.HEALTH_CHECK,
-        message: `Health check: online, Docker ${dockerStatus}`,
-        details: {
-          version: health.version,
-          dockerOk: health.dockerOk,
-          uptimeSeconds: health.uptimeSeconds,
-        },
-      }).catch(() => {});
-
-      // Log Docker state change
-      if (dockerChanged) {
-        insertRunnerEvent({
-          runnerId: runner.id,
-          eventType: EVENT_TYPES.DOCKER_CHANGE,
-          message: `Docker status changed to "${dockerStatus}"`,
-          details: { from: runner.docker_status || "unknown", to: dockerStatus },
-        }).catch(() => {});
-      }
-
-      // Fire-and-forget: persist version info without blocking the health response.
-      // The GitHub release lookup (500-1500ms) is unnecessary for online/offline status.
-      githubService
-        .getLatestRelease(DOCKHAND_GITHUB_REPO)
-        .then((latestRelease) =>
-          updateRunnerVersion(
-            runner.id,
-            userId,
-            health.version ?? null,
-            latestRelease?.tag_name ?? null
-          )
-        )
-        .catch((err) => logger.warn(`background version persist failed: ${err.message}`));
-
-      return res.json({ success: true, online: true, health });
-    } catch (err) {
-      logger.warn(`Runner "${runner.name}" health check failed: ${err.message}`);
-
-      // Log health check failure
-      insertRunnerEvent({
-        runnerId: runner.id,
-        eventType: EVENT_TYPES.HEALTH_CHECK_ERROR,
-        message: `Health check failed: ${err.message}`,
-        details: { error: err.message, code: err.code },
-      }).catch(() => {});
-
-      return res.json({ success: true, online: false, error: err.message });
-    }
-  } catch (err) {
-    next(err);
-  }
-}
 
 /**
  * POST /api/runners/:runnerId/containers/:containerId/upgrade  (SSE)
@@ -802,128 +715,6 @@ async function getRunnerAppsHistory(req, res, next) {
 }
 
 /**
- * POST /api/runners/:id/update
- * Tells the runner to download and apply a new binary, then restart.
- */
-async function updateRunnerBinary(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runner = await getRunnerById(parseInt(req.params.id, 10), userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    // Use runner's stored latest_version, or let caller supply one
-    const version = req.body?.version || runner.latest_version;
-    if (!version) {
-      return res.status(400).json({ success: false, error: "No target version available" });
-    }
-
-    try {
-      const result = await triggerRunnerUpdate(runner, version);
-      return res.json({ success: true, ...result });
-    } catch (err) {
-      logger.warn(`Runner "${runner.name}" update trigger failed: ${err.message}`);
-      return res.status(502).json({ success: false, error: err.message });
-    }
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * POST /api/runners/:id/uninstall
- * Tells the runner to uninstall itself, then removes it from the DB.
- */
-async function uninstallRunnerHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const id = parseInt(req.params.id, 10);
-    const runner = await getRunnerById(id, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    // 1. Send uninstall signal — fail immediately if runner is unreachable
-    try {
-      await triggerRunnerUninstall(runner);
-    } catch (err) {
-      return res
-        .status(502)
-        .json({ success: false, error: `Could not reach runner: ${err.message}` });
-    }
-
-    // 2. Poll health until runner goes offline (up to 30s)
-    const MAX_POLLS = 15;
-    let offline = false;
-    for (let i = 0; i < MAX_POLLS; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      try {
-        await pingRunner(runner.url, runner.api_key);
-        // still online — keep polling
-      } catch {
-        offline = true;
-        break;
-      }
-    }
-
-    if (!offline) {
-      return res.status(408).json({
-        success: false,
-        error: "Runner did not go offline after 30 seconds. Uninstall may have failed.",
-      });
-    }
-
-    // 3. Confirmed offline — remove from DB
-    await deleteRunner(id, userId);
-    return res.json({ success: true, message: "Runner uninstalled and removed" });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * POST /api/runners/:id/restart
- * Tells the runner to restart its dockhand service.
- */
-async function restartRunnerHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runner = await getRunnerById(parseInt(req.params.id, 10), userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    try {
-      const result = await triggerRunnerRestart(runner);
-
-      // Log the restart event
-      await insertRunnerEvent({
-        runnerId: runner.id,
-        eventType: EVENT_TYPES.INFO,
-        message: `Restart triggered remotely`,
-      });
-
-      return res.json({ success: true, ...result });
-    } catch (err) {
-      logger.warn(`Runner "${runner.name}" restart trigger failed: ${err.message}`);
-      return res.status(502).json({ success: false, error: err.message });
-    }
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
  * GET /api/runners/enrollment-status?token=...  (authenticated)
  * Returns { status: 'pending' } or { status: 'registered', runner } for the given token.
  */
@@ -1153,82 +944,7 @@ async function reEnrollRunner(req, res, next) {
   }
 }
 
-/**
- * GET /api/runners/:id/events
- * Returns the runner's event history for troubleshooting.
- * Query params: ?limit=50&offset=0&type=docker_change
- */
-async function getRunnerEventsHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runnerId = parseInt(req.params.id, 10);
-    const runner = await getRunnerById(runnerId, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const eventType = req.query.type || null;
-
-    const [events, total] = await Promise.all([
-      fetchRunnerEventsFromDb(runnerId, { limit, offset, eventType }),
-      getRunnerEventCount(runnerId, eventType),
-    ]);
-
-    return res.json({
-      success: true,
-      events,
-      total,
-      limit,
-      offset,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * GET /api/runners/:id/logs
- * Proxies the runner's own service logs (journalctl output from dockhand).
- * Query params: ?lines=100
- */
-async function getRunnerLogsHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runnerId = parseInt(req.params.id, 10);
-    const runner = await getRunnerById(runnerId, userId);
-    if (!runner) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    const lines = Math.min(parseInt(req.query.lines, 10) || 100, 1000);
-
-    try {
-      const data = await fetchRunnerLogs(runner.url, runner.api_key, lines);
-      return res.json({ success: true, ...data });
-    } catch (err) {
-      logger.warn(`Failed to fetch logs from runner "${runner.name}": ${err.message}`);
-      return res.json({
-        success: false,
-        error: err.message,
-        lines: [],
-        count: 0,
-      });
-    }
-  } catch (err) {
-    next(err);
-  }
-}
-
 module.exports = {
-  healthCheckRunner,
   upgradeRunnerContainer,
   getRunnerOperations,
   runRunnerOperation,
@@ -1241,9 +957,4 @@ module.exports = {
   registerRunner,
   heartbeatRunner,
   reEnrollRunner,
-  updateRunnerBinary,
-  uninstallRunnerHandler,
-  restartRunnerHandler,
-  getRunnerEventsHandler,
-  getRunnerLogsHandler,
 };

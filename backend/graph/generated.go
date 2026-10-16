@@ -363,6 +363,8 @@ type ComplexityRoot struct {
 		RefreshToken                func(childComplexity int, input model.RefreshTokenInput) int
 		Register                    func(childComplexity int, input model.RegisterInput) int
 		ReorderSourceInstances      func(childComplexity int, instances []*model.ReorderSourceInput) int
+		RestartRunner               func(childComplexity int, runnerID string) int
+		RunnerHealthCheck           func(childComplexity int, runnerID string) int
 		SaveRepositoryToken         func(childComplexity int, input model.CreateRepositoryTokenInput) int
 		SetBatchLogLevel            func(childComplexity int, logLevel model.LogLevel) int
 		SetDebugEndpointsEnabled    func(childComplexity int, enabled bool) int
@@ -375,6 +377,7 @@ type ComplexityRoot struct {
 		TestSSOProvider             func(childComplexity int, issuerURL string) int
 		TriggerBatchJob             func(childComplexity int, jobType *model.BatchJobType, idempotencyKey *string) int
 		TriggerIntent               func(childComplexity int, id string, idempotencyKey *string) int
+		UninstallRunner             func(childComplexity int, runnerID string) int
 		UpdateBatchConfig           func(childComplexity int, input model.UpdateBatchConfigInput) int
 		UpdateBatchRun              func(childComplexity int, id string, status model.BatchRunStatus, containersChecked *int, containersUpdated *int, errorMessage *string, logs *string) int
 		UpdateDiscordWebhook        func(childComplexity int, id string, input model.UpdateDiscordWebhookInput) int
@@ -382,6 +385,7 @@ type ComplexityRoot struct {
 		UpdatePassword              func(childComplexity int, input model.UpdatePasswordInput) int
 		UpdateRegistryCredentials   func(childComplexity int, input model.UpdateRegistryCredentialsInput) int
 		UpdateRunner                func(childComplexity int, id string, input model.UpdateRunnerInput) int
+		UpdateRunnerBinary          func(childComplexity int, runnerID string, version *string) int
 		UpdateSSOProvider           func(childComplexity int, id string, input model.UpdateSSOProviderInput) int
 		UpdateSourceInstance        func(childComplexity int, id string, input model.UpdateSourceInstanceInput) int
 		UpdateTrackedApp            func(childComplexity int, id string, input model.UpdateTrackedAppInput) int
@@ -466,6 +470,8 @@ type ComplexityRoot struct {
 		RepositoryToken               func(childComplexity int, provider string) int
 		RepositoryTokens              func(childComplexity int) int
 		Runner                        func(childComplexity int, id string) int
+		RunnerEvents                  func(childComplexity int, runnerID string, first *int, offset *int, eventType *string) int
+		RunnerLogs                    func(childComplexity int, runnerID string, lines *int) int
 		Runners                       func(childComplexity int) int
 		SourceInstance                func(childComplexity int, id string) int
 		SourceInstances               func(childComplexity int) int
@@ -526,6 +532,34 @@ type ComplexityRoot struct {
 		SystemUpdates     func(childComplexity int) int
 		VersionCommand    func(childComplexity int) int
 		VersionSource     func(childComplexity int) int
+	}
+
+	RunnerEvent struct {
+		CreatedAt func(childComplexity int) int
+		Details   func(childComplexity int) int
+		EventType func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Message   func(childComplexity int) int
+		RunnerID  func(childComplexity int) int
+	}
+
+	RunnerEventConnection struct {
+		Items func(childComplexity int) int
+		Total func(childComplexity int) int
+	}
+
+	RunnerHealthResult struct {
+		DockerOk      func(childComplexity int) int
+		Error         func(childComplexity int) int
+		Online        func(childComplexity int) int
+		UptimeSeconds func(childComplexity int) int
+		Version       func(childComplexity int) int
+	}
+
+	RunnerLogsResult struct {
+		Count func(childComplexity int) int
+		Error func(childComplexity int) int
+		Lines func(childComplexity int) int
 	}
 
 	RunnerOperation struct {
@@ -827,6 +861,10 @@ type MutationResolver interface {
 	CreateRunner(ctx context.Context, input model.CreateRunnerInput) (*model.Runner, error)
 	UpdateRunner(ctx context.Context, id string, input model.UpdateRunnerInput) (*model.Runner, error)
 	DeleteRunner(ctx context.Context, id string) (*model.SuccessResult, error)
+	RunnerHealthCheck(ctx context.Context, runnerID string) (*model.RunnerHealthResult, error)
+	RestartRunner(ctx context.Context, runnerID string) (*model.SuccessResult, error)
+	UpdateRunnerBinary(ctx context.Context, runnerID string, version *string) (*model.SuccessResult, error)
+	UninstallRunner(ctx context.Context, runnerID string) (*model.SuccessResult, error)
 	GenerateEnrollmentToken(ctx context.Context) (*model.EnrollmentTokenResult, error)
 	CreateTrackedApp(ctx context.Context, input model.CreateTrackedAppInput) (*model.TrackedApp, error)
 	UpdateTrackedApp(ctx context.Context, id string, input model.UpdateTrackedAppInput) (*model.TrackedApp, error)
@@ -885,6 +923,8 @@ type QueryResolver interface {
 	SourceInstance(ctx context.Context, id string) (*model.SourceInstance, error)
 	Runners(ctx context.Context) ([]*model.Runner, error)
 	Runner(ctx context.Context, id string) (*model.Runner, error)
+	RunnerEvents(ctx context.Context, runnerID string, first *int, offset *int, eventType *string) (*model.RunnerEventConnection, error)
+	RunnerLogs(ctx context.Context, runnerID string, lines *int) (*model.RunnerLogsResult, error)
 	TrackedApps(ctx context.Context) ([]*model.TrackedApp, error)
 	TrackedApp(ctx context.Context, id string) (*model.TrackedApp, error)
 	Intents(ctx context.Context) ([]*model.Intent, error)
@@ -2523,6 +2563,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ReorderSourceInstances(childComplexity, args["instances"].([]*model.ReorderSourceInput)), true
+	case "Mutation.restartRunner":
+		if e.ComplexityRoot.Mutation.RestartRunner == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_restartRunner_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RestartRunner(childComplexity, args["runnerId"].(string)), true
+	case "Mutation.runnerHealthCheck":
+		if e.ComplexityRoot.Mutation.RunnerHealthCheck == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_runnerHealthCheck_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RunnerHealthCheck(childComplexity, args["runnerId"].(string)), true
 	case "Mutation.saveRepositoryToken":
 		if e.ComplexityRoot.Mutation.SaveRepositoryToken == nil {
 			break
@@ -2655,6 +2717,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.TriggerIntent(childComplexity, args["id"].(string), args["idempotencyKey"].(*string)), true
+	case "Mutation.uninstallRunner":
+		if e.ComplexityRoot.Mutation.UninstallRunner == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_uninstallRunner_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UninstallRunner(childComplexity, args["runnerId"].(string)), true
 	case "Mutation.updateBatchConfig":
 		if e.ComplexityRoot.Mutation.UpdateBatchConfig == nil {
 			break
@@ -2732,6 +2805,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRunner(childComplexity, args["id"].(string), args["input"].(model.UpdateRunnerInput)), true
+	case "Mutation.updateRunnerBinary":
+		if e.ComplexityRoot.Mutation.UpdateRunnerBinary == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateRunnerBinary_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateRunnerBinary(childComplexity, args["runnerId"].(string), args["version"].(*string)), true
 	case "Mutation.updateSSOProvider":
 		if e.ComplexityRoot.Mutation.UpdateSSOProvider == nil {
 			break
@@ -3250,6 +3334,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Runner(childComplexity, args["id"].(string)), true
+	case "Query.runnerEvents":
+		if e.ComplexityRoot.Query.RunnerEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_runnerEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.RunnerEvents(childComplexity, args["runnerId"].(string), args["first"].(*int), args["offset"].(*int), args["eventType"].(*string)), true
+	case "Query.runnerLogs":
+		if e.ComplexityRoot.Query.RunnerLogs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_runnerLogs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.RunnerLogs(childComplexity, args["runnerId"].(string), args["lines"].(*int)), true
 	case "Query.runners":
 		if e.ComplexityRoot.Query.Runners == nil {
 			break
@@ -3599,6 +3705,106 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RunnerApp.VersionSource(childComplexity), true
+
+	case "RunnerEvent.createdAt":
+		if e.ComplexityRoot.RunnerEvent.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.CreatedAt(childComplexity), true
+	case "RunnerEvent.details":
+		if e.ComplexityRoot.RunnerEvent.Details == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.Details(childComplexity), true
+	case "RunnerEvent.eventType":
+		if e.ComplexityRoot.RunnerEvent.EventType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.EventType(childComplexity), true
+	case "RunnerEvent.id":
+		if e.ComplexityRoot.RunnerEvent.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.ID(childComplexity), true
+	case "RunnerEvent.message":
+		if e.ComplexityRoot.RunnerEvent.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.Message(childComplexity), true
+	case "RunnerEvent.runnerId":
+		if e.ComplexityRoot.RunnerEvent.RunnerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEvent.RunnerID(childComplexity), true
+
+	case "RunnerEventConnection.items":
+		if e.ComplexityRoot.RunnerEventConnection.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEventConnection.Items(childComplexity), true
+	case "RunnerEventConnection.total":
+		if e.ComplexityRoot.RunnerEventConnection.Total == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerEventConnection.Total(childComplexity), true
+
+	case "RunnerHealthResult.dockerOk":
+		if e.ComplexityRoot.RunnerHealthResult.DockerOk == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerHealthResult.DockerOk(childComplexity), true
+	case "RunnerHealthResult.error":
+		if e.ComplexityRoot.RunnerHealthResult.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerHealthResult.Error(childComplexity), true
+	case "RunnerHealthResult.online":
+		if e.ComplexityRoot.RunnerHealthResult.Online == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerHealthResult.Online(childComplexity), true
+	case "RunnerHealthResult.uptimeSeconds":
+		if e.ComplexityRoot.RunnerHealthResult.UptimeSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerHealthResult.UptimeSeconds(childComplexity), true
+	case "RunnerHealthResult.version":
+		if e.ComplexityRoot.RunnerHealthResult.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerHealthResult.Version(childComplexity), true
+
+	case "RunnerLogsResult.count":
+		if e.ComplexityRoot.RunnerLogsResult.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerLogsResult.Count(childComplexity), true
+	case "RunnerLogsResult.error":
+		if e.ComplexityRoot.RunnerLogsResult.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerLogsResult.Error(childComplexity), true
+	case "RunnerLogsResult.lines":
+		if e.ComplexityRoot.RunnerLogsResult.Lines == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunnerLogsResult.Lines(childComplexity), true
 
 	case "RunnerOperation.description":
 		if e.ComplexityRoot.RunnerOperation.Description == nil {
@@ -5432,6 +5638,35 @@ type AssociatedImage {
 # Runner Apps (dockhand agent operations)
 # -----------------------------------------------------------------------------
 
+# Runner action results (health / events / logs served by the graph)
+type RunnerHealthResult {
+  online: Boolean!
+  version: String
+  dockerOk: Boolean
+  uptimeSeconds: Int
+  error: String
+}
+
+type RunnerEvent {
+  id: ID!
+  runnerId: ID!
+  eventType: String!
+  message: String
+  details: String
+  createdAt: DateTime!
+}
+
+type RunnerEventConnection {
+  items: [RunnerEvent!]!
+  total: Int!
+}
+
+type RunnerLogsResult {
+  lines: [String!]!
+  count: Int!
+  error: String
+}
+
 type RunnerApp {
   name: String!
   description: String
@@ -5975,6 +6210,8 @@ type Query {
   # ── Runners (dockhand agents) ─────────────────────────────────────────────
   runners: [Runner!]!
   runner(id: ID!): Runner
+  runnerEvents(runnerId: ID!, first: Int, offset: Int, eventType: String): RunnerEventConnection!
+  runnerLogs(runnerId: ID!, lines: Int): RunnerLogsResult!
 
   # ── Tracked Apps ──────────────────────────────────────────────────────────
   trackedApps: [TrackedApp!]!
@@ -6115,6 +6352,10 @@ type Mutation {
   createRunner(input: CreateRunnerInput!): Runner!
   updateRunner(id: ID!, input: UpdateRunnerInput!): Runner!
   deleteRunner(id: ID!): SuccessResult!
+  runnerHealthCheck(runnerId: ID!): RunnerHealthResult!
+  restartRunner(runnerId: ID!): SuccessResult!
+  updateRunnerBinary(runnerId: ID!, version: String): SuccessResult!
+  uninstallRunner(runnerId: ID!): SuccessResult!
   generateEnrollmentToken: EnrollmentTokenResult!
 
   # ── Tracked Apps ──────────────────────────────────────────────────────────
@@ -7037,6 +7278,62 @@ func (ec *executionContext) childFields_RunnerApp(ctx context.Context, field gra
 		return ec.fieldContext_RunnerApp_operations(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RunnerApp", field.Name)
+}
+
+func (ec *executionContext) childFields_RunnerEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_RunnerEvent_id(ctx, field)
+	case "runnerId":
+		return ec.fieldContext_RunnerEvent_runnerId(ctx, field)
+	case "eventType":
+		return ec.fieldContext_RunnerEvent_eventType(ctx, field)
+	case "message":
+		return ec.fieldContext_RunnerEvent_message(ctx, field)
+	case "details":
+		return ec.fieldContext_RunnerEvent_details(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_RunnerEvent_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RunnerEvent", field.Name)
+}
+
+func (ec *executionContext) childFields_RunnerEventConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_RunnerEventConnection_items(ctx, field)
+	case "total":
+		return ec.fieldContext_RunnerEventConnection_total(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RunnerEventConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_RunnerHealthResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "online":
+		return ec.fieldContext_RunnerHealthResult_online(ctx, field)
+	case "version":
+		return ec.fieldContext_RunnerHealthResult_version(ctx, field)
+	case "dockerOk":
+		return ec.fieldContext_RunnerHealthResult_dockerOk(ctx, field)
+	case "uptimeSeconds":
+		return ec.fieldContext_RunnerHealthResult_uptimeSeconds(ctx, field)
+	case "error":
+		return ec.fieldContext_RunnerHealthResult_error(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RunnerHealthResult", field.Name)
+}
+
+func (ec *executionContext) childFields_RunnerLogsResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "lines":
+		return ec.fieldContext_RunnerLogsResult_lines(ctx, field)
+	case "count":
+		return ec.fieldContext_RunnerLogsResult_count(ctx, field)
+	case "error":
+		return ec.fieldContext_RunnerLogsResult_error(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RunnerLogsResult", field.Name)
 }
 
 func (ec *executionContext) childFields_RunnerOperation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -8145,6 +8442,34 @@ func (ec *executionContext) field_Mutation_reorderSourceInstances_args(ctx conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_restartRunner_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_runnerHealthCheck_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_saveRepositoryToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8353,6 +8678,20 @@ func (ec *executionContext) field_Mutation_triggerIntent_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_uninstallRunner_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateBatchConfig_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8490,6 +8829,28 @@ func (ec *executionContext) field_Mutation_updateRegistryCredentials_args(ctx co
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateRunnerBinary_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "version",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["version"] = arg1
 	return args, nil
 }
 
@@ -8930,6 +9291,66 @@ func (ec *executionContext) field_Query_repositoryToken_args(ctx context.Context
 		return nil, err
 	}
 	args["provider"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_runnerEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "eventType",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["eventType"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_runnerLogs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runnerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["runnerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "lines",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["lines"] = arg1
 	return args, nil
 }
 
@@ -15108,6 +15529,182 @@ func (ec *executionContext) fieldContext_Mutation_deleteRunner(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_runnerHealthCheck(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_runnerHealthCheck(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RunnerHealthCheck(ctx, fc.Args["runnerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RunnerHealthResult) graphql.Marshaler {
+			return ec.marshalNRunnerHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerHealthResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_runnerHealthCheck(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RunnerHealthResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_runnerHealthCheck_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_restartRunner(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_restartRunner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RestartRunner(ctx, fc.Args["runnerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_restartRunner(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_restartRunner_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateRunnerBinary(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateRunnerBinary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateRunnerBinary(ctx, fc.Args["runnerId"].(string), fc.Args["version"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateRunnerBinary(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateRunnerBinary_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_uninstallRunner(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_uninstallRunner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UninstallRunner(ctx, fc.Args["runnerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_uninstallRunner(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_uninstallRunner_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_generateEnrollmentToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18070,6 +18667,94 @@ func (ec *executionContext) fieldContext_Query_runner(ctx context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_runnerEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_runnerEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().RunnerEvents(ctx, fc.Args["runnerId"].(string), fc.Args["first"].(*int), fc.Args["offset"].(*int), fc.Args["eventType"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RunnerEventConnection) graphql.Marshaler {
+			return ec.marshalNRunnerEventConnection2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEventConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_runnerEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RunnerEventConnection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_runnerEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_runnerLogs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_runnerLogs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().RunnerLogs(ctx, fc.Args["runnerId"].(string), fc.Args["lines"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RunnerLogsResult) graphql.Marshaler {
+			return ec.marshalNRunnerLogsResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerLogsResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_runnerLogs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RunnerLogsResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_runnerLogs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_trackedApps(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19986,6 +20671,383 @@ func (ec *executionContext) fieldContext_RunnerApp_operations(_ context.Context,
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _RunnerEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEvent_runnerId(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_runnerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RunnerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_runnerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEvent_eventType(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_eventType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_eventType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEvent_message(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEvent_details(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_details(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Details, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_details(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEvent_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEvent_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEvent", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerEventConnection_items(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEventConnection_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RunnerEvent) graphql.Marshaler {
+			return ec.marshalNRunnerEvent2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEventᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEventConnection_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunnerEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RunnerEvent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunnerEventConnection_total(ctx context.Context, field graphql.CollectedField, obj *model.RunnerEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerEventConnection_total(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerEventConnection_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerEventConnection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerHealthResult_online(ctx context.Context, field graphql.CollectedField, obj *model.RunnerHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerHealthResult_online(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Online, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerHealthResult_online(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerHealthResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerHealthResult_version(ctx context.Context, field graphql.CollectedField, obj *model.RunnerHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerHealthResult_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerHealthResult_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerHealthResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerHealthResult_dockerOk(ctx context.Context, field graphql.CollectedField, obj *model.RunnerHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerHealthResult_dockerOk(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DockerOk, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerHealthResult_dockerOk(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerHealthResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerHealthResult_uptimeSeconds(ctx context.Context, field graphql.CollectedField, obj *model.RunnerHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerHealthResult_uptimeSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UptimeSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerHealthResult_uptimeSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerHealthResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerHealthResult_error(ctx context.Context, field graphql.CollectedField, obj *model.RunnerHealthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerHealthResult_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerHealthResult_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerHealthResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerLogsResult_lines(ctx context.Context, field graphql.CollectedField, obj *model.RunnerLogsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerLogsResult_lines(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lines, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerLogsResult_lines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerLogsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerLogsResult_count(ctx context.Context, field graphql.CollectedField, obj *model.RunnerLogsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerLogsResult_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerLogsResult_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerLogsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RunnerLogsResult_error(ctx context.Context, field graphql.CollectedField, obj *model.RunnerLogsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RunnerLogsResult_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RunnerLogsResult_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RunnerLogsResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _RunnerOperation_name(ctx context.Context, field graphql.CollectedField, obj *model.RunnerOperation) (ret graphql.Marshaler) {
@@ -29745,6 +30807,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "runnerHealthCheck":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_runnerHealthCheck(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "restartRunner":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_restartRunner(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateRunnerBinary":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateRunnerBinary(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uninstallRunner":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_uninstallRunner(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "generateEnrollmentToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_generateEnrollmentToken(ctx, field)
@@ -30763,6 +31853,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "runnerEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_runnerEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "runnerLogs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_runnerLogs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "trackedApps":
 			field := field
 
@@ -31732,6 +32866,218 @@ func (ec *executionContext) _RunnerApp(ctx context.Context, sel ast.SelectionSet
 		case "operations":
 			out.Values[i] = ec._RunnerApp_operations(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var runnerEventImplementors = []string{"RunnerEvent"}
+
+func (ec *executionContext) _RunnerEvent(ctx context.Context, sel ast.SelectionSet, obj *model.RunnerEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runnerEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunnerEvent")
+		case "id":
+			out.Values[i] = ec._RunnerEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runnerId":
+			out.Values[i] = ec._RunnerEvent_runnerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventType":
+			out.Values[i] = ec._RunnerEvent_eventType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._RunnerEvent_message(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "details":
+			out.Values[i] = ec._RunnerEvent_details(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._RunnerEvent_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var runnerEventConnectionImplementors = []string{"RunnerEventConnection"}
+
+func (ec *executionContext) _RunnerEventConnection(ctx context.Context, sel ast.SelectionSet, obj *model.RunnerEventConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runnerEventConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunnerEventConnection")
+		case "items":
+			out.Values[i] = ec._RunnerEventConnection_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._RunnerEventConnection_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var runnerHealthResultImplementors = []string{"RunnerHealthResult"}
+
+func (ec *executionContext) _RunnerHealthResult(ctx context.Context, sel ast.SelectionSet, obj *model.RunnerHealthResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runnerHealthResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunnerHealthResult")
+		case "online":
+			out.Values[i] = ec._RunnerHealthResult_online(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._RunnerHealthResult_version(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "dockerOk":
+			out.Values[i] = ec._RunnerHealthResult_dockerOk(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "uptimeSeconds":
+			out.Values[i] = ec._RunnerHealthResult_uptimeSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._RunnerHealthResult_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var runnerLogsResultImplementors = []string{"RunnerLogsResult"}
+
+func (ec *executionContext) _RunnerLogsResult(ctx context.Context, sel ast.SelectionSet, obj *model.RunnerLogsResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runnerLogsResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunnerLogsResult")
+		case "lines":
+			out.Values[i] = ec._RunnerLogsResult_lines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._RunnerLogsResult_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._RunnerLogsResult_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -35160,6 +36506,62 @@ func (ec *executionContext) marshalNRunnerApp2ᚖgithubᚗcomᚋdockedappᚋback
 		return graphql.Null
 	}
 	return ec._RunnerApp(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRunnerEvent2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RunnerEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRunnerEvent2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRunnerEvent2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEvent(ctx context.Context, sel ast.SelectionSet, v *model.RunnerEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RunnerEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRunnerEventConnection2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerEventConnection(ctx context.Context, sel ast.SelectionSet, v *model.RunnerEventConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RunnerEventConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRunnerHealthResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerHealthResult(ctx context.Context, sel ast.SelectionSet, v *model.RunnerHealthResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RunnerHealthResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRunnerLogsResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerLogsResult(ctx context.Context, sel ast.SelectionSet, v *model.RunnerLogsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RunnerLogsResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNRunnerOperation2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐRunnerOperationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RunnerOperation) graphql.Marshaler {

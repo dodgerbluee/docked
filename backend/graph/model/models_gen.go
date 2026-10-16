@@ -529,6 +529,34 @@ type RunnerApp struct {
 	Operations        []*RunnerOperation `json:"operations"`
 }
 
+type RunnerEvent struct {
+	ID        string    `json:"id"`
+	RunnerID  string    `json:"runnerId"`
+	EventType string    `json:"eventType"`
+	Message   *string   `json:"message,omitempty"`
+	Details   *string   `json:"details,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type RunnerEventConnection struct {
+	Items []*RunnerEvent `json:"items"`
+	Total int            `json:"total"`
+}
+
+type RunnerHealthResult struct {
+	Online        bool    `json:"online"`
+	Version       *string `json:"version,omitempty"`
+	DockerOk      *bool   `json:"dockerOk,omitempty"`
+	UptimeSeconds *int    `json:"uptimeSeconds,omitempty"`
+	Error         *string `json:"error,omitempty"`
+}
+
+type RunnerLogsResult struct {
+	Lines []string `json:"lines"`
+	Count int      `json:"count"`
+	Error *string  `json:"error,omitempty"`
+}
+
 type RunnerOperation struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`

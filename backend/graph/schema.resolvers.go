@@ -21,6 +21,7 @@ import (
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
 	"github.com/dockedapp/backend/internal/events"
+	"github.com/dockedapp/backend/internal/runnerclient"
 )
 
 // UpgradeHistory is the resolver for the upgradeHistory field.
@@ -957,6 +958,145 @@ func (r *mutationResolver) DeleteRunner(ctx context.Context, id string) (*model.
 		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
+}
+
+// RunnerHealthCheck is the resolver for the runnerHealthCheck field.
+// Mirrors Node's healthCheckRunner: ping, persist last_seen/docker status,
+// log events, fan out status transitions, and fire-and-forget version persist.
+func (r *mutationResolver) RunnerHealthCheck(ctx context.Context, runnerID string) (*model.RunnerHealthResult, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+
+	client := runnerclient.New()
+	health, perr := client.Ping(ctx, runner.URL, runner.APIKey)
+	if perr != nil {
+		_ = db.InsertRunnerEvent(ctx, r.DB, runner.ID, db.EventHealthCheckError, "Health check failed: "+perr.Error(), "")
+		return &model.RunnerHealthResult{Online: false, Error: strPtr(perr.Error())}, nil
+	}
+
+	_ = db.UpdateRunnerLastSeen(ctx, r.DB, runner.ID)
+	dockerStatus := "ok"
+	if health.DockerOK != nil && !*health.DockerOK {
+		dockerStatus = "unavailable"
+	}
+	changed, _ := db.UpdateRunnerDockerStatus(ctx, r.DB, runner.ID, dockerStatus)
+
+	details, _ := json.Marshal(map[string]any{
+		"version":       health.Version,
+		"dockerOk":      health.DockerOK,
+		"uptimeSeconds": health.UptimeSeconds,
+	})
+	_ = db.InsertRunnerEvent(ctx, r.DB, runner.ID, db.EventHealthCheck,
+		fmt.Sprintf("Health check: online, Docker %s", dockerStatus), string(details))
+	if changed {
+		from := "unknown"
+		if runner.DockerStatus.Valid {
+			from = runner.DockerStatus.String
+		}
+		det, _ := json.Marshal(map[string]string{"from": from, "to": dockerStatus})
+		_ = db.InsertRunnerEvent(ctx, r.DB, runner.ID, db.EventDockerChange,
+			fmt.Sprintf("Docker status changed to %q", dockerStatus), string(det))
+		r.publishRunnerStatus(runner, dockerStatus)
+	}
+
+	// Fire-and-forget: persist version info without blocking the response
+	// (the GitHub release lookup is unnecessary for online/offline status).
+	go func() {
+		bctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		var latest *string
+		if status, body, herr := httpGet("https://api.github.com/repos/dockedapp/dockhand/releases/latest"); herr == nil && status == 200 {
+			var rel struct {
+				TagName string `json:"tag_name"`
+			}
+			if json.Unmarshal(body, &rel) == nil && rel.TagName != "" {
+				latest = strPtr(rel.TagName)
+			}
+		}
+		_ = db.UpdateRunnerVersion(bctx, r.DB, runner.ID, runner.UserID, health.Version, latest)
+	}()
+
+	res := &model.RunnerHealthResult{Online: true, Version: health.Version, DockerOk: health.DockerOK}
+	if health.UptimeSeconds != nil {
+		v := int(*health.UptimeSeconds)
+		res.UptimeSeconds = &v
+	}
+	return res, nil
+}
+
+// RestartRunner is the resolver for the restartRunner field.
+func (r *mutationResolver) RestartRunner(ctx context.Context, runnerID string) (*model.SuccessResult, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+	client := runnerclient.New()
+	if err := client.Restart(ctx, runner.URL, runner.APIKey); err != nil {
+		return &model.SuccessResult{Success: false, Message: strPtr(err.Error())}, nil
+	}
+	_ = db.InsertRunnerEvent(ctx, r.DB, runner.ID, db.EventInfo, "Restart triggered remotely", "")
+	return &model.SuccessResult{Success: true, Message: strPtr("Restart triggered")}, nil
+}
+
+// UpdateRunnerBinary is the resolver for the updateRunnerBinary field.
+// Falls back to the runner's stored latest_version when no version is given
+// (Node parity).
+func (r *mutationResolver) UpdateRunnerBinary(ctx context.Context, runnerID string, version *string) (*model.SuccessResult, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+	target := ""
+	if version != nil {
+		target = *version
+	}
+	if target == "" && runner.LatestVersion.Valid {
+		target = runner.LatestVersion.String
+	}
+	if target == "" {
+		return &model.SuccessResult{Success: false, Message: strPtr("No target version available")}, nil
+	}
+	client := runnerclient.New()
+	if err := client.Update(ctx, runner.URL, runner.APIKey, target); err != nil {
+		return &model.SuccessResult{Success: false, Message: strPtr(err.Error())}, nil
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Update triggered to " + target)}, nil
+}
+
+// UninstallRunner is the resolver for the uninstallRunner field.
+// Signals the runner, polls until it drops offline (max 30s), then removes
+// the DB row (Node parity).
+func (r *mutationResolver) UninstallRunner(ctx context.Context, runnerID string) (*model.SuccessResult, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+	client := runnerclient.New()
+	if err := client.Uninstall(ctx, runner.URL, runner.APIKey); err != nil {
+		return &model.SuccessResult{Success: false, Message: strPtr("Could not reach runner: " + err.Error())}, nil
+	}
+	offline := false
+	for i := 0; i < 15; i++ {
+		select {
+		case <-ctx.Done():
+			return &model.SuccessResult{Success: false, Message: strPtr("Uninstall confirmation cancelled")}, nil
+		case <-time.After(2 * time.Second):
+		}
+		if _, perr := client.Ping(ctx, runner.URL, runner.APIKey); perr != nil {
+			offline = true
+			break
+		}
+	}
+	if !offline {
+		return &model.SuccessResult{Success: false,
+			Message: strPtr("Runner did not go offline after 30 seconds. Uninstall may have failed.")}, nil
+	}
+	if err := db.DeleteRunner(ctx, r.DB, runner.ID, runner.UserID); err != nil {
+		return &model.SuccessResult{Success: false, Message: strPtr("Runner uninstalled but removal failed: " + err.Error())}, nil
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("Runner uninstalled and removed")}, nil
 }
 
 // GenerateEnrollmentToken is the resolver for the generateEnrollmentToken field.
@@ -2562,6 +2702,83 @@ func (r *queryResolver) Runner(ctx context.Context, id string) (*model.Runner, e
 	return runnerToModel(row), nil
 }
 
+// RunnerEvents is the resolver for the runnerEvents field.
+// Append-only runner event log, newest first (Node parity: limit capped at 200).
+func (r *queryResolver) RunnerEvents(ctx context.Context, runnerID string, first *int, offset *int, eventType *string) (*model.RunnerEventConnection, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+	limit := 50
+	if first != nil {
+		limit = *first
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	off := 0
+	if offset != nil {
+		off = *offset
+	}
+	et := ""
+	if eventType != nil {
+		et = *eventType
+	}
+
+	rows, err := db.FetchRunnerEvents(ctx, r.DB, runner.ID, limit, off, et)
+	if err != nil {
+		return nil, err
+	}
+	total, err := db.CountRunnerEvents(ctx, r.DB, runner.ID, et)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*model.RunnerEvent, 0, len(rows))
+	for i := range rows {
+		ev := &model.RunnerEvent{
+			ID:        strconv.FormatInt(rows[i].ID, 10),
+			RunnerID:  strconv.FormatInt(rows[i].RunnerID, 10),
+			EventType: rows[i].EventType,
+			CreatedAt: parseTime(rows[i].CreatedAt.String),
+		}
+		if rows[i].Message.Valid {
+			ev.Message = &rows[i].Message.String
+		}
+		if rows[i].Details.Valid {
+			ev.Details = &rows[i].Details.String
+		}
+		items = append(items, ev)
+	}
+	return &model.RunnerEventConnection{Items: items, Total: total}, nil
+}
+
+// RunnerLogs is the resolver for the runnerLogs field.
+// Proxies the runner's own service log lines; failures come back as an
+// error field with empty lines (Node parity).
+func (r *queryResolver) RunnerLogs(ctx context.Context, runnerID string, lines *int) (*model.RunnerLogsResult, error) {
+	runner, err := r.runnerForAction(ctx, runnerID)
+	if err != nil {
+		return nil, err
+	}
+	n := 100
+	if lines != nil {
+		n = *lines
+	}
+	if n > 1000 {
+		n = 1000
+	}
+	client := runnerclient.New()
+	res, lerr := client.Logs(ctx, runner.URL, runner.APIKey, n)
+	if lerr != nil {
+		return &model.RunnerLogsResult{Lines: []string{}, Count: 0, Error: strPtr(lerr.Error())}, nil
+	}
+	if res.Lines == nil {
+		res.Lines = []string{}
+	}
+	return &model.RunnerLogsResult{Lines: res.Lines, Count: res.Count}, nil
+}
+
 // TrackedApps is the resolver for the trackedApps field.
 func (r *queryResolver) TrackedApps(ctx context.Context) ([]*model.TrackedApp, error) {
 	uid, err := requireUser(ctx)
@@ -2748,29 +2965,6 @@ func (r *queryResolver) PreviewIntent(ctx context.Context, id string) (*model.In
 		ExcludedContainers:   excluded,
 		NextExecutionPreview: next,
 	}, nil
-}
-
-func previewContainer(c *db.ContainerRow, hasUpdate bool, exclusionReason, status *string) *model.IntentPreviewContainer {
-	pc := &model.IntentPreviewContainer{
-		ContainerID:     c.ContainerID,
-		ContainerName:   c.ContainerName,
-		HasUpdate:       hasUpdate,
-		ExclusionReason: exclusionReason,
-		Status:          status,
-	}
-	if c.ImageName.Valid {
-		pc.ImageName = &c.ImageName.String
-	}
-	if c.StackName.Valid {
-		pc.StackName = &c.StackName.String
-	}
-	if c.SourceInstanceID.Valid {
-		pc.SourceInstanceID = strPtr(strconv.FormatInt(c.SourceInstanceID.Int64, 10))
-	}
-	if c.RunnerID.Valid {
-		pc.RunnerID = strPtr(strconv.FormatInt(c.RunnerID.Int64, 10))
-	}
-	return pc
 }
 
 // BatchConfigs is the resolver for the batchConfigs field.

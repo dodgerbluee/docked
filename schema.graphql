@@ -545,6 +545,35 @@ type AssociatedImage {
 # Runner Apps (dockhand agent operations)
 # -----------------------------------------------------------------------------
 
+# Runner action results (health / events / logs served by the graph)
+type RunnerHealthResult {
+  online: Boolean!
+  version: String
+  dockerOk: Boolean
+  uptimeSeconds: Int
+  error: String
+}
+
+type RunnerEvent {
+  id: ID!
+  runnerId: ID!
+  eventType: String!
+  message: String
+  details: String
+  createdAt: DateTime!
+}
+
+type RunnerEventConnection {
+  items: [RunnerEvent!]!
+  total: Int!
+}
+
+type RunnerLogsResult {
+  lines: [String!]!
+  count: Int!
+  error: String
+}
+
 type RunnerApp {
   name: String!
   description: String
@@ -1088,6 +1117,8 @@ type Query {
   # ── Runners (dockhand agents) ─────────────────────────────────────────────
   runners: [Runner!]!
   runner(id: ID!): Runner
+  runnerEvents(runnerId: ID!, first: Int, offset: Int, eventType: String): RunnerEventConnection!
+  runnerLogs(runnerId: ID!, lines: Int): RunnerLogsResult!
 
   # ── Tracked Apps ──────────────────────────────────────────────────────────
   trackedApps: [TrackedApp!]!
@@ -1228,6 +1259,10 @@ type Mutation {
   createRunner(input: CreateRunnerInput!): Runner!
   updateRunner(id: ID!, input: UpdateRunnerInput!): Runner!
   deleteRunner(id: ID!): SuccessResult!
+  runnerHealthCheck(runnerId: ID!): RunnerHealthResult!
+  restartRunner(runnerId: ID!): SuccessResult!
+  updateRunnerBinary(runnerId: ID!, version: String): SuccessResult!
+  uninstallRunner(runnerId: ID!): SuccessResult!
   generateEnrollmentToken: EnrollmentTokenResult!
 
   # ── Tracked Apps ──────────────────────────────────────────────────────────

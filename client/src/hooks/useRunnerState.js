@@ -4,9 +4,8 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate, versionsEqual } from "../utils/versionHelpers";
+import { checkRunnerHealth, updateRunnerBinary } from "../graphql/runnerOps";
 import { graphqlClient } from "../graphql/client";
 import { RUNNERS_QUERY, UPDATE_RUNNER_MUTATION } from "../graphql/queries";
 import { mapGraphRunner } from "../utils/runnerShape";
@@ -51,9 +50,8 @@ export function useRunnerState() {
   // the DB, so a later fetchRunners() reflects any out-of-band update.
   const pingRunnerHealth = useCallback((id) => {
     setHealthStatus((prev) => ({ ...prev, [id]: { checking: true } }));
-    return axios
-      .post(`${API_BASE_URL}/api/runners/${id}/health`)
-      .then(({ data }) => {
+    return checkRunnerHealth(id)
+      .then((data) => {
         setHealthStatus((prev) => ({
           ...prev,
           [id]: { online: data.online, checking: false, health: data.health },
@@ -118,13 +116,13 @@ export function useRunnerState() {
     async (runner) => {
       setUpdatingRunners((prev) => new Set([...prev, runner.id]));
       try {
-        await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/update`);
+        await updateRunnerBinary(runner.id);
         const targetVersion = runner.latest_version || "";
         let attempts = 0;
         updatePollRef.current[runner.id] = setInterval(async () => {
           attempts++;
           try {
-            const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+            const data = await checkRunnerHealth(runner.id);
             const liveVersion = data.health?.version || "";
             if (versionsEqual(liveVersion, targetVersion)) {
               clearInterval(updatePollRef.current[runner.id]);
@@ -193,7 +191,7 @@ export function useRunnerState() {
   const handlePing = useCallback(async (runner) => {
     setHealthStatus((prev) => ({ ...prev, [runner.id]: { checking: true } }));
     try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/health`);
+      const data = await checkRunnerHealth(runner.id);
       setHealthStatus((prev) => ({
         ...prev,
         [runner.id]: { online: data.online, checking: false, health: data.health },
