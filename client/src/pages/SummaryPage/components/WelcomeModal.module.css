@@ -86,6 +86,12 @@
   object-fit: contain;
 }
 
+/* Wordmark PNG is white-filled: render it black in light mode (same
+   treatment as the Header and login page). */
+:global(body:not(.dark-mode)) .titleImage {
+  filter: brightness(0);
+}
+
 .subtitle {
   margin: 0;
   color: var(--text-secondary);
