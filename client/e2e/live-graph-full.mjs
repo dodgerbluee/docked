@@ -789,9 +789,20 @@ async function phase4() {
     }), (d) => (d.upgradeContainer?.id ? null : "no operation"));
     if (up) {
       S.upgradeOpId = up.upgradeContainer.id;
-      expectErr("concurrent upgrade rejected by lock", await gql(`mutation Q($i:UpgradeContainerInput!){ upgradeContainer(input:$i) { id } }`, {
+      // The lock is held only while the upgrade goroutine runs, so the pair
+      // must be fired concurrently — a sequential second call would
+      // legitimately succeed once the first upgrade has completed.
+      const req = () => gql(`mutation Q($i:UpgradeContainerInput!){ upgradeContainer(input:$i) { id } }`, {
         i: { dockerContainerId: target.dockerContainerId, runnerId: target.source.id, imageName: target.imageName },
-      }), "in progress");
+      });
+      const pair = await Promise.all([req(), req()]);
+      const rejected = pair.filter(hasErr);
+      const accepted = pair.filter((r) => !hasErr(r));
+      record(
+        "concurrent upgrade rejected by lock",
+        accepted.length === 1 && rejected.length === 1 && errMsg(rejected[0]).includes("in progress"),
+        `accepted=${accepted.length} rejected=${rejected.length} ${rejected.map(errMsg).join(";")}`.slice(0, 160)
+      );
       let rec = null;
       for (let i = 0; i < 60; i++) {
         const h = await gql(`query Q($n:String!){ upgradeHistory(filter:{containerName:$n}, first:1) { totalCount items { id status oldImage newImage errorMessage upgradeDurationMs createdAt performedBy { id username } } } }`, { n: target.name });

@@ -53,6 +53,64 @@ func scanUpgrade(row interface{ Scan(...any) error }) (UpgradeHistoryRow, error)
 	return r, err
 }
 
+// UpgradeHistoryInsert carries one upgrade_history row, mirroring the fields
+// Node's createUpgradeHistory writes (status domain: "success" | "failed").
+type UpgradeHistoryInsert struct {
+	UserID            int64
+	SourceInstanceID  *int64
+	SourceName        string
+	RunnerID          *int64
+	RunnerName        string
+	ContainerID       string
+	ContainerName     string
+	EndpointID        *int64
+	SourceURL         string
+	OldImage          string
+	NewImage          string
+	Status            string
+	ErrorMessage      string
+	UpgradeDurationMs *int64
+	IntentID          *int64
+}
+
+// InsertUpgradeHistory writes one upgrade_history row. Node refuses rows that
+// lack userId/containerId/containerName/oldImage/newImage; mirror that guard
+// so the shared table never gets partial rows from either backend.
+func InsertUpgradeHistory(ctx context.Context, database *sql.DB, in *UpgradeHistoryInsert) (int64, error) {
+	if in.UserID == 0 || in.ContainerID == "" || in.ContainerName == "" || in.OldImage == "" || in.NewImage == "" {
+		return 0, fmt.Errorf("upgrade history requires userId, containerId, containerName, oldImage and newImage")
+	}
+	status := in.Status
+	if status == "" {
+		status = "success"
+	}
+	nullStr := func(s string) any {
+		if s == "" {
+			return nil
+		}
+		return s
+	}
+	nullInt := func(p *int64) any {
+		if p == nil {
+			return nil
+		}
+		return *p
+	}
+	res, err := database.ExecContext(ctx,
+		`INSERT INTO upgrade_history (
+			user_id, source_instance_id, source_instance_name, runner_id, runner_name,
+			container_id, container_name, endpoint_id, source_url,
+			old_image, new_image, status, error_message, upgrade_duration_ms, intent_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.UserID, nullInt(in.SourceInstanceID), nullStr(in.SourceName), nullInt(in.RunnerID), nullStr(in.RunnerName),
+		in.ContainerID, in.ContainerName, nullInt(in.EndpointID), nullStr(in.SourceURL),
+		in.OldImage, in.NewImage, status, nullStr(in.ErrorMessage), nullInt(in.UpgradeDurationMs), nullInt(in.IntentID))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
 func GetUpgradeHistory(ctx context.Context, database *sql.DB, userID int64, limit, offset int) ([]UpgradeHistoryRow, int, error) {
 	var total int
 	err := database.QueryRowContext(ctx,

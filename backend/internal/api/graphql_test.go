@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/config"
@@ -811,6 +812,71 @@ func TestUpdateUsernameRequiresCorrectPassword(t *testing.T) {
 	if err := env.database.QueryRowContext(context.Background(),
 		"SELECT username FROM users WHERE id = ?", env.adminID).Scan(&got); err != nil || got != "renamed-ok" {
 		t.Fatalf("username = %q (err %v), want trimmed renamed-ok", got, err)
+	}
+}
+
+// TestUpgradeContainerWritesHistoryAndBlocksConcurrent guards the Node-parity
+// contract: every upgrade attempt writes an upgrade_history row, and while an
+// upgrade is in flight a second upgrade for the same container is rejected by
+// the shared upgrade lock.
+func TestUpgradeContainerWritesHistoryAndBlocksConcurrent(t *testing.T) {
+	env := newTestEnv(t, true)
+	ctx := context.Background()
+	admin := env.token(t, env.adminID, "admin")
+
+	release := make(chan struct{})
+	runnerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: start\ndata: {}\n\n")
+		<-release // hold the SSE open so the lock stays held during the probe
+		fmt.Fprint(w, "event: done\ndata: {\"exitCode\":0}\n\n")
+	}))
+	defer runnerSrv.Close()
+
+	res, err := env.database.ExecContext(ctx,
+		"INSERT INTO runners (user_id, name, url, api_key, enabled) VALUES (?, 'hist-runner', ?, 'k', 1)",
+		env.adminID, runnerSrv.URL)
+	if err != nil {
+		t.Fatalf("seed runner: %v", err)
+	}
+	runnerID, _ := res.LastInsertId()
+	if _, err := env.database.ExecContext(ctx,
+		`INSERT INTO containers (user_id, container_id, container_name, image_name, runner_id)
+		 VALUES (?, 'histdocker1', 'hist-container', 'nginx:1.24', ?)`, env.adminID, runnerID); err != nil {
+		t.Fatalf("seed container: %v", err)
+	}
+
+	mut := `mutation($i:UpgradeContainerInput!){ upgradeContainer(input:$i){ id status } }`
+	vars := map[string]any{"i": map[string]any{
+		"dockerContainerId": "histdocker1",
+		"runnerId":          strconv.FormatInt(runnerID, 10),
+		"imageName":         "nginx:1.25",
+	}}
+	if r := env.gql(t, admin, mut, vars); len(r.Errors) != 0 {
+		t.Fatalf("upgrade failed: %+v", r.Errors)
+	}
+	if r := env.gql(t, admin, mut, vars); !r.hasErrorContaining("in progress") {
+		close(release)
+		t.Fatalf("concurrent upgrade must be rejected by the lock: %+v", r)
+	}
+	close(release)
+
+	var status, oldImg, newImg string
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err = env.database.QueryRowContext(ctx,
+			`SELECT status, old_image, new_image FROM upgrade_history WHERE container_id = 'histdocker1'`).
+			Scan(&status, &oldImg, &newImg)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no upgrade_history row written: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if status != "success" || oldImg != "nginx:1.24" || newImg != "nginx:1.25" {
+		t.Fatalf("history row wrong: status=%q %q -> %q", status, oldImg, newImg)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -727,6 +728,45 @@ func runnerPost(baseURL, apiKey, path string, payload any) error {
 // in the path, no JSON body) returning a text/event-stream. The response body
 // MUST be drained to EOF rather than closed immediately, otherwise the runner
 // aborts the upgrade mid-flight; a per-request context bounds the wait.
+// recordUpgradeHistory writes the upgrade_history row that Node's
+// upgradeSingleContainer records for every upgrade attempt, so the
+// upgradeHistory query shows Go-initiated upgrades too.
+func (r *Resolver) recordUpgradeHistory(ctx context.Context, uid int64, c *db.ContainerRow, runner *db.RunnerRow, newImage, status, errMsg string, durMs int64) {
+	oldImage := nullStrDefault(c.ImageName)
+	if newImage == "" {
+		newImage = oldImage
+	}
+	in := &db.UpgradeHistoryInsert{
+		UserID:            uid,
+		ContainerID:       c.ContainerID,
+		ContainerName:     c.ContainerName,
+		OldImage:          oldImage,
+		NewImage:          newImage,
+		Status:            status,
+		ErrorMessage:      errMsg,
+		UpgradeDurationMs: &durMs,
+	}
+	if c.RunnerID.Valid {
+		rid := c.RunnerID.Int64
+		in.RunnerID = &rid
+	}
+	if c.SourceInstanceID.Valid {
+		sid := c.SourceInstanceID.Int64
+		in.SourceInstanceID = &sid
+	}
+	if c.EndpointID.Valid {
+		eid := c.EndpointID.Int64
+		in.EndpointID = &eid
+	}
+	if runner != nil {
+		in.RunnerName = runner.Name
+		in.SourceURL = runner.URL
+	}
+	if _, err := db.InsertUpgradeHistory(ctx, r.DB, in); err != nil {
+		log.Printf("upgrade history insert failed (container %s): %v", c.ContainerID, err)
+	}
+}
+
 func runnerUpgrade(baseURL, apiKey, containerID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

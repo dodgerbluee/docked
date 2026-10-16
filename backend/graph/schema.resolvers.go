@@ -417,8 +417,9 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 
 	// Determine backend (runner or source instance)
 	var runnerURL, runnerKey string
+	var runner *db.RunnerRow
 	if container.RunnerID.Valid {
-		runner, _ := db.GetRunnerByID(ctx, r.DB, container.RunnerID.Int64, uid)
+		runner, _ = db.GetRunnerByID(ctx, r.DB, container.RunnerID.Int64, uid)
 		if runner == nil {
 			return nil, fmt.Errorf("runner not found for container")
 		}
@@ -441,12 +442,20 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 	}
 
 	// Fire-and-forget upgrade via runner. Matches the Node runner contract:
-	// POST /containers/{id}/upgrade (SSE), not a JSON-body endpoint.
+	// POST /containers/{id}/upgrade (SSE), not a JSON-body endpoint. Node also
+	// writes an upgrade_history row for every attempt; mirror that so the
+	// upgradeHistory query sees Go-initiated upgrades.
 	go func() {
 		defer db.ReleaseUpgradeLock(context.Background(), r.DB, targetKey, opID)
+		start := time.Now()
+		status, errMsg := "success", ""
 		if runnerURL != "" {
-			_ = runnerUpgrade(runnerURL, runnerKey, container.ContainerID)
+			if err := runnerUpgrade(runnerURL, runnerKey, container.ContainerID); err != nil {
+				status, errMsg = "failed", err.Error()
+			}
 		}
+		r.recordUpgradeHistory(context.Background(), uid, container, runner,
+			input.ImageName, status, errMsg, time.Since(start).Milliseconds())
 	}()
 
 	return &model.Operation{
@@ -533,8 +542,9 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				continue
 			}
 			var runnerURL, runnerKey string
+			var runner *db.RunnerRow
 			if c.RunnerID.Valid {
-				runner, _ := db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
+				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
 				if runner != nil {
 					runnerURL, runnerKey = runner.URL, runner.APIKey
 				}
@@ -558,13 +568,21 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 				}
 				continue
 			}
+			upStart := time.Now()
 			upgradeErr := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
 			_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
-			if upgradeErr == nil {
+			upStatus, upErr := "success", ""
+			if upgradeErr != nil {
+				upStatus, upErr = "failed", upgradeErr.Error()
+				if firstErr == "" {
+					firstErr = upErr
+				}
+			} else {
 				upgraded++
-			} else if firstErr == "" {
-				firstErr = upgradeErr.Error()
 			}
+			row := c
+			r.recordUpgradeHistory(ctx, uid, &row, runner, nullStrDefault(row.ImageName),
+				upStatus, upErr, time.Since(upStart).Milliseconds())
 		}
 
 		// Report an honest terminal status instead of always "completed":
@@ -1147,8 +1165,9 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		skipped := 0
 		for _, c := range matched {
 			var runnerURL, runnerKey string
+			var runner *db.RunnerRow
 			if c.RunnerID.Valid {
-				runner, _ := db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
+				runner, _ = db.GetRunnerByID(ctx, r.DB, c.RunnerID.Int64, uid)
 				if runner != nil {
 					runnerURL, runnerKey = runner.URL, runner.APIKey
 				}
@@ -1162,13 +1181,19 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 					skipped++
 					continue
 				}
+				upStart := time.Now()
 				err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
 				_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
+				upStatus, upErr := "success", ""
 				if err == nil {
 					upgraded++
 				} else {
 					failed++
+					upStatus, upErr = "failed", err.Error()
 				}
+				row := c
+				r.recordUpgradeHistory(ctx, uid, &row, runner, nullStrDefault(row.ImageName),
+					upStatus, upErr, time.Since(upStart).Milliseconds())
 			} else {
 				skipped++
 			}
