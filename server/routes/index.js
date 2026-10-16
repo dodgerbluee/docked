@@ -39,7 +39,7 @@ const authController = require("../controllers/authController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedAppHistoryController = require("../controllers/trackedAppController");
-const settingsController = require("../controllers/settingsController");
+
 const versionController = require("../controllers/versionController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const intentController = require("../controllers/intentController");
@@ -848,64 +848,6 @@ router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPrevie
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
-
-// Settings routes
-
-/**
- * @swagger
- * /settings/refreshing-toggles-enabled:
- *   get:
- *     summary: Get whether refreshing toggles are enabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Refreshing toggles enabled status
- *   post:
- *     summary: Set whether refreshing toggles are enabled
- *     tags: [Settings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - enabled
- *             properties:
- *               enabled:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Setting updated
- */
-router.get(
-  "/settings/refreshing-toggles-enabled",
-  asyncHandler(settingsController.getRefreshingTogglesEnabledHandler)
-);
-
-router.get(
-  "/settings/disallowed-containers",
-  asyncHandler(settingsController.getDisallowedContainersHandler)
-);
-router.put(
-  "/settings/disallowed-containers",
-  writeLimiter,
-  asyncHandler(settingsController.setDisallowedContainersHandler)
-);
-
-router.get(
-  "/settings/debug-endpoints-enabled",
-  asyncHandler(settingsController.getDebugEndpointsEnabledHandler)
-);
-router.post(
-  "/settings/debug-endpoints-enabled",
-  writeLimiter,
-  asyncHandler(settingsController.setDebugEndpointsEnabledHandler)
-);
 
 // Repository access token routes
 

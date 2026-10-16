@@ -1869,6 +1869,60 @@ func (r *mutationResolver) UpdateUserPreferences(ctx context.Context, input mode
 	return &model.SuccessResult{Success: true}, nil
 }
 
+// SetDisallowedContainers is the resolver for the setDisallowedContainers field.
+func (r *mutationResolver) SetDisallowedContainers(ctx context.Context, containers []string) (*model.DisallowedContainersResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sanitization mirrors Node: drop blanks, trim, cap item length and count.
+	filtered := make([]string, 0, len(containers))
+	for _, item := range containers {
+		t := strings.TrimSpace(item)
+		if t == "" {
+			continue
+		}
+		if len(t) > 255 {
+			t = t[:255]
+		}
+		filtered = append(filtered, t)
+	}
+	if len(filtered) > 1000 {
+		filtered = filtered[:1000]
+	}
+
+	stored, err := json.Marshal(filtered)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.SetSetting(ctx, r.DB, "disallowed_containers", uid, string(stored)); err != nil {
+		return nil, err
+	}
+	return &model.DisallowedContainersResult{
+		Containers:      filtered,
+		DefaultPatterns: defaultBlockedPatterns,
+	}, nil
+}
+
+// SetDebugEndpointsEnabled is the resolver for the setDebugEndpointsEnabled field.
+func (r *mutationResolver) SetDebugEndpointsEnabled(ctx context.Context, enabled bool) (*model.SuccessResult, error) {
+	if _, err := requireAdmin(ctx, r.DB); err != nil {
+		return nil, err
+	}
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	if err := db.SetSystemSetting(ctx, r.DB, "debug_endpoints_enabled", v); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{
+		Success: true,
+		Message: strPtr(fmt.Sprintf("Debug endpoints %s", map[bool]string{true: "enabled", false: "disabled"}[enabled])),
+	}, nil
+}
+
 // UploadAvatar is the resolver for the uploadAvatar field.
 func (r *mutationResolver) UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error) {
 	uid, err := requireUser(ctx)
@@ -2706,6 +2760,39 @@ func (r *queryResolver) UserPreferences(ctx context.Context) (*model.UserPrefere
 		DisableTrackedAppsPage:   row.DisableTrackedAppsPage == 1,
 		RefreshingTogglesEnabled: row.RefreshingToggles == 1,
 	}, nil
+}
+
+// DisallowedContainers is the resolver for the disallowedContainers field.
+func (r *queryResolver) DisallowedContainers(ctx context.Context) (*model.DisallowedContainersResult, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := db.GetSetting(ctx, r.DB, "disallowed_containers", uid)
+	if err != nil {
+		return nil, err
+	}
+	res := &model.DisallowedContainersResult{DefaultPatterns: defaultBlockedPatterns}
+	if raw != nil && *raw != "" {
+		var list []string
+		if err := json.Unmarshal([]byte(*raw), &list); err != nil {
+			return nil, fmt.Errorf("stored blocklist is corrupt: %w", err)
+		}
+		res.Containers = list
+	}
+	return res, nil
+}
+
+// DebugEndpointsEnabled is the resolver for the debugEndpointsEnabled field.
+func (r *queryResolver) DebugEndpointsEnabled(ctx context.Context) (bool, error) {
+	if _, err := requireUser(ctx); err != nil {
+		return false, err
+	}
+	v, err := db.GetSystemSetting(ctx, r.DB, "debug_endpoints_enabled")
+	if err != nil {
+		return false, err
+	}
+	return v != nil && *v == "true", nil
 }
 
 // OauthProviders is the resolver for the oauthProviders field.

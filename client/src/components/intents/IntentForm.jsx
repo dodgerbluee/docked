@@ -5,12 +5,12 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
+import { graphqlClient } from "../../graphql/client";
+import { DISALLOWED_CONTAINERS_QUERY } from "../../graphql/queries";
 import cronstrue from "cronstrue";
 import { Plus, X, Box, LaptopMinimalCheck, Layers, Globe, Zap, Clock, Server } from "lucide-react";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
-import { API_BASE_URL } from "../../constants/api";
 import {
   SCHEDULE_TYPES,
   SCHEDULE_TYPE_LABELS,
@@ -574,11 +574,12 @@ const IntentForm = React.memo(function IntentForm({
   // Fetch the global blocklist and pre-populate exclusion criteria with blocked container names.
   // This makes it visible to the user which containers are always excluded from upgrading.
   useEffect(() => {
-    axios
-      .get(`${API_BASE_URL}/api/settings/disallowed-containers`)
-      .then(({ data }) => {
-        if (!data.success) return;
-        const blocked = data.containers;
+    graphqlClient
+      .query(DISALLOWED_CONTAINERS_QUERY)
+      .toPromise()
+      .then(({ data, error }) => {
+        if (error) return;
+        const blocked = data?.disallowedContainers?.containers;
         if (!blocked || blocked.length === 0) return;
         setBlockedContainerNames(blocked);
         setFormData((prev) => {

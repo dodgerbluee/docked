@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
-import { API_BASE_URL } from "../../utils/api";
+import { graphqlClient } from "../../graphql/client";
+import {
+  DISALLOWED_CONTAINERS_QUERY,
+  SET_DISALLOWED_CONTAINERS_MUTATION,
+} from "../../graphql/queries";
 import Button from "../ui/Button";
 import styles from "./ContainerBlocklist.module.css";
 
@@ -74,16 +77,24 @@ function ContainerBlocklist({ containers = [] }) {
     async function load() {
       setLoading(true);
       try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/settings/disallowed-containers`);
+        const { data, error } = await graphqlClient
+          .query(DISALLOWED_CONTAINERS_QUERY)
+          .toPromise();
         if (cancelled) return;
+        if (error) throw new Error(error.message);
+        const settings = data.disallowedContainers;
 
         const entries = buildEntriesFrom(containers);
 
         let disallowedNameSet; // Set<string> of lowercase names
-        if (data.containers === null) {
+        if (settings.containers === null) {
           // Never saved — compute defaults:
           // Block names whose name or image matches known infra patterns
-          const patterns = data.defaultPatterns || ["portainer", "docked", "nginx-proxy-manager"];
+          const patterns = settings.defaultPatterns || [
+            "portainer",
+            "docked",
+            "nginx-proxy-manager",
+          ];
           disallowedNameSet = new Set();
           for (const e of entries) {
             const key = e.name.toLowerCase();
@@ -97,7 +108,7 @@ function ContainerBlocklist({ containers = [] }) {
           }
         } else {
           // Saved list — use exactly what the user saved, no auto-additions
-          const savedNames = new Set((data.containers || []).map((n) => n.toLowerCase()));
+          const savedNames = new Set((settings.containers || []).map((n) => n.toLowerCase()));
           disallowedNameSet = new Set(savedNames);
         }
 
@@ -317,12 +328,13 @@ function ContainerBlocklist({ containers = [] }) {
     setSaving(true);
     try {
       const containerNames = [...new Set(disallowedList.map((c) => c.name))];
-      await axios.put(`${API_BASE_URL}/api/settings/disallowed-containers`, {
-        containers: containerNames,
-      });
+      const res = await graphqlClient
+        .mutation(SET_DISALLOWED_CONTAINERS_MUTATION, { containers: containerNames })
+        .toPromise();
+      if (res.error) throw new Error(res.error.message);
       showSaveMessage("success", "Blocklist saved successfully");
     } catch (err) {
-      showSaveMessage("error", err.response?.data?.error || "Failed to save blocklist");
+      showSaveMessage("error", err.message || "Failed to save blocklist");
     } finally {
       setSaving(false);
     }

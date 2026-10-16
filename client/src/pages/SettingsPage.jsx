@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Settings from "../components/Settings";
 import SettingsTabNavigation from "../components/settings/SettingsTabNavigation";
 import { SETTINGS_TABS } from "../constants/settings";
-import { API_BASE_URL } from "../utils/api";
+import { graphqlClient } from "../graphql/client";
+import { USER_PREFERENCES_QUERY } from "../graphql/queries";
 import styles from "./SettingsPage.module.css";
 
 /**
@@ -43,10 +43,11 @@ function SettingsPage({
   // Fetch developer mode state
   const fetchDeveloperMode = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
-      if (response.data.success) {
-        setDeveloperModeEnabled(response.data.enabled || false);
-      }
+      const { data, error } = await graphqlClient
+        .query(USER_PREFERENCES_QUERY)
+        .toPromise();
+      if (error) throw error;
+      setDeveloperModeEnabled(data?.userPreferences?.refreshingTogglesEnabled || false);
     } catch (err) {
       console.error("Error fetching developer mode:", err);
       setDeveloperModeEnabled(false);

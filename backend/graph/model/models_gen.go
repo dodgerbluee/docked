@@ -223,6 +223,11 @@ type DeleteImagesResult struct {
 	Results []*DeleteImageResult `json:"results"`
 }
 
+type DisallowedContainersResult struct {
+	Containers      []string `json:"containers,omitempty"`
+	DefaultPatterns []string `json:"defaultPatterns"`
+}
+
 type DiscordWebhook struct {
 	ID          string    `json:"id"`
 	MaskedURL   string    `json:"maskedUrl"`

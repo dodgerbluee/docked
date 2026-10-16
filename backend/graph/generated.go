@@ -157,6 +157,11 @@ type ComplexityRoot struct {
 		Success func(childComplexity int) int
 	}
 
+	DisallowedContainersResult struct {
+		Containers      func(childComplexity int) int
+		DefaultPatterns func(childComplexity int) int
+	}
+
 	DiscordWebhook struct {
 		AvatarURL   func(childComplexity int) int
 		ChannelID   func(childComplexity int) int
@@ -345,6 +350,8 @@ type ComplexityRoot struct {
 		ReorderSourceInstances      func(childComplexity int, instances []*model.ReorderSourceInput) int
 		SaveRepositoryToken         func(childComplexity int, input model.CreateRepositoryTokenInput) int
 		SetBatchLogLevel            func(childComplexity int, logLevel model.LogLevel) int
+		SetDebugEndpointsEnabled    func(childComplexity int, enabled bool) int
+		SetDisallowedContainers     func(childComplexity int, containers []string) int
 		SetUserPassword             func(childComplexity int, userID string, newPassword string) int
 		SetUserRole                 func(childComplexity int, userID string, role model.Role, instanceAdmin *bool) int
 		TestDiscordWebhook          func(childComplexity int, id string) int
@@ -408,6 +415,8 @@ type ComplexityRoot struct {
 		Container                func(childComplexity int, id string) int
 		ContainerGroup           func(childComplexity int) int
 		Containers               func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
+		DebugEndpointsEnabled    func(childComplexity int) int
+		DisallowedContainers     func(childComplexity int) int
 		DiscordWebhook           func(childComplexity int, id string) int
 		DiscordWebhookInfo       func(childComplexity int, webhookURL string) int
 		DiscordWebhooks          func(childComplexity int) int
@@ -756,6 +765,8 @@ type MutationResolver interface {
 	DeleteRegistryCredentials(ctx context.Context, registry model.Registry) (*model.SuccessResult, error)
 	ValidateRegistryCredentials(ctx context.Context, input model.ValidateRegistryCredentialsInput) (*model.ValidationResult, error)
 	UpdateUserPreferences(ctx context.Context, input model.UpdateUserPreferencesInput) (*model.SuccessResult, error)
+	SetDisallowedContainers(ctx context.Context, containers []string) (*model.DisallowedContainersResult, error)
+	SetDebugEndpointsEnabled(ctx context.Context, enabled bool) (*model.SuccessResult, error)
 	UploadAvatar(ctx context.Context, file model.Upload) (*model.SuccessResult, error)
 	DeleteAvatar(ctx context.Context) (*model.SuccessResult, error)
 }
@@ -793,6 +804,8 @@ type QueryResolver interface {
 	RepositoryTokens(ctx context.Context) ([]*model.RepositoryAccessToken, error)
 	RepositoryToken(ctx context.Context, provider string) (*model.RepositoryAccessToken, error)
 	UserPreferences(ctx context.Context) (*model.UserPreferences, error)
+	DisallowedContainers(ctx context.Context) (*model.DisallowedContainersResult, error)
+	DebugEndpointsEnabled(ctx context.Context) (bool, error)
 	OauthProviders(ctx context.Context) ([]*model.OAuthProvider, error)
 	Logs(ctx context.Context, lines *int, since *int, file *string, offset *int) (*model.LogResult, error)
 	Operation(ctx context.Context, id string) (*model.Operation, error)
@@ -1301,6 +1314,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteImagesResult.Success(childComplexity), true
+
+	case "DisallowedContainersResult.containers":
+		if e.ComplexityRoot.DisallowedContainersResult.Containers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DisallowedContainersResult.Containers(childComplexity), true
+	case "DisallowedContainersResult.defaultPatterns":
+		if e.ComplexityRoot.DisallowedContainersResult.DefaultPatterns == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DisallowedContainersResult.DefaultPatterns(childComplexity), true
 
 	case "DiscordWebhook.avatarUrl":
 		if e.ComplexityRoot.DiscordWebhook.AvatarURL == nil {
@@ -2331,6 +2357,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetBatchLogLevel(childComplexity, args["logLevel"].(model.LogLevel)), true
+	case "Mutation.setDebugEndpointsEnabled":
+		if e.ComplexityRoot.Mutation.SetDebugEndpointsEnabled == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDebugEndpointsEnabled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDebugEndpointsEnabled(childComplexity, args["enabled"].(bool)), true
+	case "Mutation.setDisallowedContainers":
+		if e.ComplexityRoot.Mutation.SetDisallowedContainers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDisallowedContainers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDisallowedContainers(childComplexity, args["containers"].([]string)), true
 	case "Mutation.setUserPassword":
 		if e.ComplexityRoot.Mutation.SetUserPassword == nil {
 			break
@@ -2766,6 +2814,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Containers(childComplexity, args["filter"].(*model.ContainerFilterInput), args["first"].(*int), args["after"].(*string)), true
+	case "Query.debugEndpointsEnabled":
+		if e.ComplexityRoot.Query.DebugEndpointsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DebugEndpointsEnabled(childComplexity), true
+	case "Query.disallowedContainers":
+		if e.ComplexityRoot.Query.DisallowedContainers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DisallowedContainers(childComplexity), true
 	case "Query.discordWebhook":
 		if e.ComplexityRoot.Query.DiscordWebhook == nil {
 			break
@@ -4846,6 +4906,12 @@ type UserPreferences {
   refreshingTogglesEnabled: Boolean!
 }
 
+type DisallowedContainersResult {
+  # null when the user has never saved a list (client uses defaultPatterns)
+  containers: [String!]
+  defaultPatterns: [String!]!
+}
+
 # -----------------------------------------------------------------------------
 # Docker Images
 # -----------------------------------------------------------------------------
@@ -5288,6 +5354,11 @@ type Query {
 
   # ── Settings ──────────────────────────────────────────────────────────────
   userPreferences: UserPreferences!
+  # Per-user container blocklist. containers is null when unset (client
+  # falls back to defaultPatterns).
+  disallowedContainers: DisallowedContainersResult!
+  # System-wide flag gating the debug endpoints surface.
+  debugEndpointsEnabled: Boolean!
 
   # ── OAuth / SSO ───────────────────────────────────────────────────────────
   oauthProviders: [OAuthProvider!]!
@@ -5419,6 +5490,10 @@ type Mutation {
 
   # ── Settings ──────────────────────────────────────────────────────────────
   updateUserPreferences(input: UpdateUserPreferencesInput!): SuccessResult!
+  # Replaces the per-user blocklist; returns the sanitized stored list.
+  setDisallowedContainers(containers: [String!]!): DisallowedContainersResult!
+  # System-wide; instance admin only.
+  setDebugEndpointsEnabled(enabled: Boolean!): SuccessResult!
 
   # ── Avatars ───────────────────────────────────────────────────────────────
   uploadAvatar(file: Upload!): SuccessResult!
@@ -5761,6 +5836,16 @@ func (ec *executionContext) childFields_DeleteImagesResult(ctx context.Context, 
 		return ec.fieldContext_DeleteImagesResult_results(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DeleteImagesResult", field.Name)
+}
+
+func (ec *executionContext) childFields_DisallowedContainersResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "containers":
+		return ec.fieldContext_DisallowedContainersResult_containers(ctx, field)
+	case "defaultPatterns":
+		return ec.fieldContext_DisallowedContainersResult_defaultPatterns(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DisallowedContainersResult", field.Name)
 }
 
 func (ec *executionContext) childFields_DiscordWebhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7226,6 +7311,34 @@ func (ec *executionContext) field_Mutation_setBatchLogLevel_args(ctx context.Con
 		return nil, err
 	}
 	args["logLevel"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDebugEndpointsEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDisallowedContainers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "containers",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["containers"] = arg0
 	return args, nil
 }
 
@@ -10041,6 +10154,52 @@ func (ec *executionContext) fieldContext_DeleteImagesResult_results(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _DisallowedContainersResult_containers(ctx context.Context, field graphql.CollectedField, obj *model.DisallowedContainersResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DisallowedContainersResult_containers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Containers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalOString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DisallowedContainersResult_containers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DisallowedContainersResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DisallowedContainersResult_defaultPatterns(ctx context.Context, field graphql.CollectedField, obj *model.DisallowedContainersResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DisallowedContainersResult_defaultPatterns(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultPatterns, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DisallowedContainersResult_defaultPatterns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DisallowedContainersResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _DiscordWebhook_id(ctx context.Context, field graphql.CollectedField, obj *model.DiscordWebhook) (ret graphql.Marshaler) {
@@ -14978,6 +15137,94 @@ func (ec *executionContext) fieldContext_Mutation_updateUserPreferences(ctx cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setDisallowedContainers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDisallowedContainers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDisallowedContainers(ctx, fc.Args["containers"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DisallowedContainersResult) graphql.Marshaler {
+			return ec.marshalNDisallowedContainersResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDisallowedContainersResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDisallowedContainers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DisallowedContainersResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDisallowedContainers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setDebugEndpointsEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDebugEndpointsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDebugEndpointsEnabled(ctx, fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
+			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDebugEndpointsEnabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SuccessResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDebugEndpointsEnabled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_uploadAvatar(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16811,6 +17058,61 @@ func (ec *executionContext) fieldContext_Query_userPreferences(_ context.Context
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_disallowedContainers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_disallowedContainers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DisallowedContainers(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DisallowedContainersResult) graphql.Marshaler {
+			return ec.marshalNDisallowedContainersResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDisallowedContainersResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_disallowedContainers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DisallowedContainersResult(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_debugEndpointsEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_debugEndpointsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DebugEndpointsEnabled(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_debugEndpointsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Query_oauthProviders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -25092,6 +25394,49 @@ func (ec *executionContext) _DeleteImagesResult(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var disallowedContainersResultImplementors = []string{"DisallowedContainersResult"}
+
+func (ec *executionContext) _DisallowedContainersResult(ctx context.Context, sel ast.SelectionSet, obj *model.DisallowedContainersResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, disallowedContainersResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DisallowedContainersResult")
+		case "containers":
+			out.Values[i] = ec._DisallowedContainersResult_containers(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "defaultPatterns":
+			out.Values[i] = ec._DisallowedContainersResult_defaultPatterns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var discordWebhookImplementors = []string{"DiscordWebhook"}
 
 func (ec *executionContext) _DiscordWebhook(ctx context.Context, sel ast.SelectionSet, obj *model.DiscordWebhook) graphql.Marshaler {
@@ -26595,6 +26940,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setDisallowedContainers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDisallowedContainers(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setDebugEndpointsEnabled":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDebugEndpointsEnabled(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "uploadAvatar":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_uploadAvatar(ctx, field)
@@ -27578,6 +27937,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_userPreferences(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "disallowedContainers":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_disallowedContainers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "debugEndpointsEnabled":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_debugEndpointsEnabled(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -30477,6 +30880,16 @@ func (ec *executionContext) marshalNDeleteImagesResult2ᚖgithubᚗcomᚋdockeda
 		return graphql.Null
 	}
 	return ec._DeleteImagesResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDisallowedContainersResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDisallowedContainersResult(ctx context.Context, sel ast.SelectionSet, v *model.DisallowedContainersResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DisallowedContainersResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDiscordWebhook2ᚕᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDiscordWebhookᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DiscordWebhook) graphql.Marshaler {

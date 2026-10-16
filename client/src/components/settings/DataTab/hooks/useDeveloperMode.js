@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../../utils/api";
+import { graphqlClient } from "../../../../graphql/client";
+import { USER_PREFERENCES_QUERY } from "../../../../graphql/queries";
 
 /**
  * Hook to check if developer mode is enabled
@@ -17,10 +17,11 @@ export const useDeveloperMode = () => {
   useEffect(() => {
     const checkDeveloperMode = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
-        if (response.data.success) {
-          setDeveloperModeEnabled(response.data.enabled || false);
-        }
+        const { data, error } = await graphqlClient
+          .query(USER_PREFERENCES_QUERY)
+          .toPromise();
+        if (error) throw error;
+        setDeveloperModeEnabled(data?.userPreferences?.refreshingTogglesEnabled || false);
       } catch (err) {
         console.error("Error checking developer mode:", err);
         setDeveloperModeEnabled(false);

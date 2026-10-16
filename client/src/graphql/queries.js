@@ -1112,3 +1112,36 @@ export const CONTAINERS_UPDATED_SUBSCRIPTION = /* GraphQL */ `
     }
   }
 `;
+
+export const DISALLOWED_CONTAINERS_QUERY = /* GraphQL */ `
+  query DisallowedContainers {
+    disallowedContainers {
+      containers
+      defaultPatterns
+    }
+  }
+`;
+
+export const SET_DISALLOWED_CONTAINERS_MUTATION = /* GraphQL */ `
+  mutation SetDisallowedContainers($containers: [String!]!) {
+    setDisallowedContainers(containers: $containers) {
+      containers
+      defaultPatterns
+    }
+  }
+`;
+
+export const DEBUG_ENDPOINTS_ENABLED_QUERY = /* GraphQL */ `
+  query DebugEndpointsEnabled {
+    debugEndpointsEnabled
+  }
+`;
+
+export const SET_DEBUG_ENDPOINTS_ENABLED_MUTATION = /* GraphQL */ `
+  mutation SetDebugEndpointsEnabled($enabled: Boolean!) {
+    setDebugEndpointsEnabled(enabled: $enabled) {
+      success
+      message
+    }
+  }
+`;

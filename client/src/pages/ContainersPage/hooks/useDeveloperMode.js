@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../utils/api";
+import { graphqlClient } from "../../../graphql/client";
+import { USER_PREFERENCES_QUERY } from "../../../graphql/queries";
 
 /**
  * Hook to manage developer mode state
@@ -15,12 +15,13 @@ export const useDeveloperMode = () => {
 
   const fetchDeveloperMode = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/settings/refreshing-toggles-enabled`);
-      if (response.data.success) {
-        setDeveloperModeEnabled(response.data.enabled || false);
-      }
+      const { data, error } = await graphqlClient
+        .query(USER_PREFERENCES_QUERY)
+        .toPromise();
+      if (error) throw error;
+      setDeveloperModeEnabled(data?.userPreferences?.refreshingTogglesEnabled || false);
     } catch (err) {
-      // If endpoint doesn't exist yet, default to false
+      // If the query fails, default to false
       console.error("Error fetching developer mode:", err);
       setDeveloperModeEnabled(false);
     }

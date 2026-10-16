@@ -216,6 +216,10 @@ func requireAdmin(ctx context.Context, database *sql.DB) (int64, error) {
 	return uid, nil
 }
 
+// defaultBlockedPatterns is the fallback container blocklist shipped with the
+// app (mirrors server/constants/blocklistDefaults.js).
+var defaultBlockedPatterns = []string{"portainer", "docked", "nginx-proxy-manager"}
+
 // enumConst normalizes a raw DB enum-ish string (e.g. "docker-hub-pull",
 // "Administrator", "dry_run") into the GraphQL enum's UPPER_SNAKE form so the
 // value is always a valid member of its enum.

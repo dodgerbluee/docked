@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { graphqlClient } from "../graphql/client";
-import { BATCH_LOG_LEVEL_QUERY, SET_BATCH_LOG_LEVEL_MUTATION } from "../graphql/queries";
+import {
+  BATCH_LOG_LEVEL_QUERY,
+  SET_BATCH_LOG_LEVEL_MUTATION,
+  DEBUG_ENDPOINTS_ENABLED_QUERY,
+  SET_DEBUG_ENDPOINTS_ENABLED_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useAdminGeneralSettings Hook
@@ -44,8 +47,11 @@ export function useAdminGeneralSettings() {
 
   const fetchDebugEndpointsEnabled = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/settings/debug-endpoints-enabled`);
-      const enabled = response.data.enabled || false;
+      const { data, error } = await graphqlClient
+        .query(DEBUG_ENDPOINTS_ENABLED_QUERY)
+        .toPromise();
+      if (error) throw error;
+      const enabled = !!data?.debugEndpointsEnabled;
       setDebugEndpointsEnabled(enabled);
       setLocalDebugEndpointsEnabled(enabled);
     } catch (err) {
@@ -101,13 +107,13 @@ export function useAdminGeneralSettings() {
       // Save debug endpoints enabled
       let debugEndpointsSuccess = false;
       try {
-        const debugResponse = await axios.post(
-          `${API_BASE_URL}/api/settings/debug-endpoints-enabled`,
-          {
+        const debugResult = await graphqlClient
+          .mutation(SET_DEBUG_ENDPOINTS_ENABLED_MUTATION, {
             enabled: localDebugEndpointsEnabled,
-          }
-        );
-        debugEndpointsSuccess = debugResponse.data.success;
+          })
+          .toPromise();
+        debugEndpointsSuccess =
+          !debugResult.error && !!debugResult.data?.setDebugEndpointsEnabled?.success;
         if (debugEndpointsSuccess) {
           setDebugEndpointsEnabled(localDebugEndpointsEnabled);
         }

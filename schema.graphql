@@ -566,6 +566,12 @@ type UserPreferences {
   refreshingTogglesEnabled: Boolean!
 }
 
+type DisallowedContainersResult {
+  # null when the user has never saved a list (client uses defaultPatterns)
+  containers: [String!]
+  defaultPatterns: [String!]!
+}
+
 # -----------------------------------------------------------------------------
 # Docker Images
 # -----------------------------------------------------------------------------
@@ -1008,6 +1014,11 @@ type Query {
 
   # ── Settings ──────────────────────────────────────────────────────────────
   userPreferences: UserPreferences!
+  # Per-user container blocklist. containers is null when unset (client
+  # falls back to defaultPatterns).
+  disallowedContainers: DisallowedContainersResult!
+  # System-wide flag gating the debug endpoints surface.
+  debugEndpointsEnabled: Boolean!
 
   # ── OAuth / SSO ───────────────────────────────────────────────────────────
   oauthProviders: [OAuthProvider!]!
@@ -1139,6 +1150,10 @@ type Mutation {
 
   # ── Settings ──────────────────────────────────────────────────────────────
   updateUserPreferences(input: UpdateUserPreferencesInput!): SuccessResult!
+  # Replaces the per-user blocklist; returns the sanitized stored list.
+  setDisallowedContainers(containers: [String!]!): DisallowedContainersResult!
+  # System-wide; instance admin only.
+  setDebugEndpointsEnabled(enabled: Boolean!): SuccessResult!
 
   # ── Avatars ───────────────────────────────────────────────────────────────
   uploadAvatar(file: Upload!): SuccessResult!

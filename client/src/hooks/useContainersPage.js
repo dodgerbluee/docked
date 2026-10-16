@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../constants/api";
+import { graphqlClient } from "../graphql/client";
+import { DISALLOWED_CONTAINERS_QUERY } from "../graphql/queries";
 import { BLOCKLISTED_CONTAINER_MESSAGE } from "../constants/containersPage";
 import { formatBytes as formatBytesUtil } from "../utils/formatters";
 import { useContainersTabs } from "./useContainersPage/hooks/useContainersTabs";
@@ -170,15 +170,19 @@ export function useContainersPage({
   useEffect(() => {
     if (blockedFetched.current) return;
     blockedFetched.current = true;
-    axios
-      .get(`${API_BASE_URL}/api/settings/disallowed-containers`)
-      .then(({ data }) => {
-        const list = data.containers;
+    graphqlClient
+      .query(DISALLOWED_CONTAINERS_QUERY)
+      .toPromise()
+      .then(({ data, error }) => {
+        if (error) return;
+        const settings = data?.disallowedContainers;
+        if (!settings) return;
+        const list = settings.containers;
         if (Array.isArray(list) && list.length > 0) {
           setBlockedNames(new Set(list.map((n) => n.toLowerCase())));
-        } else if (list === null && Array.isArray(data.defaultPatterns)) {
+        } else if (list === null && Array.isArray(settings.defaultPatterns)) {
           // Never saved — use default patterns for greying out infra containers
-          setDefaultPatterns(data.defaultPatterns);
+          setDefaultPatterns(settings.defaultPatterns);
         }
       })
       .catch(() => {

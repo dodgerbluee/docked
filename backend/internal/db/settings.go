@@ -103,6 +103,57 @@ func UpsertUserSettings(ctx context.Context, database *sql.DB, userID int64,
 	return tx.Commit()
 }
 
+// GetSetting reads a per-user setting from the key-value settings table.
+// Returns nil when the key is unset for that user.
+func GetSetting(ctx context.Context, database *sql.DB, key string, userID int64) (*string, error) {
+	var val string
+	err := database.QueryRowContext(ctx,
+		"SELECT value FROM settings WHERE key = ? AND user_id = ?", key, userID).Scan(&val)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get setting: %w", err)
+	}
+	return &val, nil
+}
+
+// SetSetting writes a per-user setting (INSERT OR REPLACE, matching Node).
+func SetSetting(ctx context.Context, database *sql.DB, key string, userID int64, value string) error {
+	_, err := database.ExecContext(ctx,
+		"INSERT OR REPLACE INTO settings (user_id, key, value, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+		userID, key, value)
+	if err != nil {
+		return fmt.Errorf("set setting: %w", err)
+	}
+	return nil
+}
+
+// GetSystemSetting reads a system-wide setting (user_id = 0).
+func GetSystemSetting(ctx context.Context, database *sql.DB, key string) (*string, error) {
+	var val string
+	err := database.QueryRowContext(ctx,
+		"SELECT value FROM settings WHERE key = ? AND user_id = 0", key).Scan(&val)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get system setting: %w", err)
+	}
+	return &val, nil
+}
+
+// SetSystemSetting writes a system-wide setting (user_id = 0).
+func SetSystemSetting(ctx context.Context, database *sql.DB, key, value string) error {
+	_, err := database.ExecContext(ctx,
+		"INSERT OR REPLACE INTO settings (user_id, key, value, updated_at) VALUES (0, ?, ?, CURRENT_TIMESTAMP)",
+		key, value)
+	if err != nil {
+		return fmt.Errorf("set system setting: %w", err)
+	}
+	return nil
+}
+
 // GetRegistrationCode returns the current registration code, if set.
 func GetRegistrationCode(ctx context.Context, database *sql.DB) (*string, error) {
 	row := database.QueryRowContext(ctx,
