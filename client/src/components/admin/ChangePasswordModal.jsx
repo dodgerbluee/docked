@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
-import { API_BASE_URL } from "../../utils/api";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import Alert from "../ui/Alert";
+import { graphqlClient } from "../../graphql/client";
+import { SET_USER_PASSWORD_MUTATION } from "../../graphql/queries";
 import styles from "./ChangePasswordModal.module.css";
 
 /**
@@ -47,23 +47,23 @@ const ChangePasswordModal = ({ isOpen, onClose, userId, username, onPasswordUpda
     setSaving(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/users/${userId}/password`, {
-        newPassword,
-      });
+      const result = await graphqlClient
+        .mutation(SET_USER_PASSWORD_MUTATION, { userId, newPassword })
+        .toPromise();
 
-      if (response.data.success) {
+      if (!result.error && result.data?.setUserPassword?.success) {
         handleClose();
         if (onPasswordUpdated) {
           onPasswordUpdated();
         }
       } else {
-        setError(response.data.error || "Failed to update password");
+        setError(
+          result.error?.message || result.data?.setUserPassword?.message || "Failed to update password"
+        );
       }
     } catch (err) {
       console.error("Error updating password:", err);
-      setError(
-        err.response?.data?.error || err.message || "Failed to update password. Please try again."
-      );
+      setError(err.message || "Failed to update password. Please try again.");
     } finally {
       setSaving(false);
     }

@@ -553,21 +553,8 @@ router.get("/admin/sso/settings", asyncHandler(ssoAdminController.getSettings));
 router.put("/admin/sso/settings", writeLimiter, asyncHandler(ssoAdminController.updateSettings));
 
 // User management routes (protected)
-router.get("/auth/users", asyncHandler(authController.getAllUsersEndpoint));
 router.get("/auth/users/:userId/stats", asyncHandler(authController.getUserStatsEndpoint));
 router.get("/auth/export-users", asyncHandler(authController.exportUsersEndpoint));
-router.post("/auth/update-password", writeLimiter, asyncHandler(authController.updateUserPassword));
-router.post("/auth/update-username", writeLimiter, asyncHandler(authController.updateUserUsername));
-router.post(
-  "/auth/users/:userId/password",
-  writeLimiter,
-  asyncHandler(authController.adminUpdateUserPassword)
-);
-router.put(
-  "/auth/users/:userId/role",
-  writeLimiter,
-  asyncHandler(authController.adminUpdateUserRole)
-);
 router.delete(
   "/auth/users/:userId",
   destructiveLimiter,

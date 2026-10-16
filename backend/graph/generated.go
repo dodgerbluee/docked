@@ -343,7 +343,7 @@ type ComplexityRoot struct {
 		SaveRepositoryToken         func(childComplexity int, input model.CreateRepositoryTokenInput) int
 		SetBatchLogLevel            func(childComplexity int, logLevel model.LogLevel) int
 		SetUserPassword             func(childComplexity int, userID string, newPassword string) int
-		SetUserRole                 func(childComplexity int, userID string, role model.Role) int
+		SetUserRole                 func(childComplexity int, userID string, role model.Role, instanceAdmin *bool) int
 		TestDiscordWebhook          func(childComplexity int, id string) int
 		TestDiscordWebhookURL       func(childComplexity int, webhookURL string) int
 		TriggerBatchJob             func(childComplexity int, jobType *model.BatchJobType, idempotencyKey *string) int
@@ -588,6 +588,14 @@ type ComplexityRoot struct {
 		TotalCount func(childComplexity int) int
 	}
 
+	UpdateUsernameResult struct {
+		Message      func(childComplexity int) int
+		RefreshToken func(childComplexity int) int
+		Success      func(childComplexity int) int
+		Token        func(childComplexity int) int
+		Username     func(childComplexity int) int
+	}
+
 	UpgradeProgressEvent struct {
 		ContainerName     func(childComplexity int) int
 		DockerContainerID func(childComplexity int) int
@@ -644,8 +652,11 @@ type ComplexityRoot struct {
 		Containers          func(childComplexity int, first *int, after *string) int
 		CreatedAt           func(childComplexity int) int
 		DiscordWebhooks     func(childComplexity int) int
+		Email               func(childComplexity int) int
 		ID                  func(childComplexity int) int
+		InstanceAdmin       func(childComplexity int) int
 		Intents             func(childComplexity int) int
+		LastLogin           func(childComplexity int) int
 		PasswordChanged     func(childComplexity int) int
 		Preferences         func(childComplexity int) int
 		RepositoryTokens    func(childComplexity int) int
@@ -692,9 +703,9 @@ type MutationResolver interface {
 	RefreshToken(ctx context.Context, input model.RefreshTokenInput) (*model.AuthPayload, error)
 	Logout(ctx context.Context) (*model.SuccessResult, error)
 	UpdatePassword(ctx context.Context, input model.UpdatePasswordInput) (*model.SuccessResult, error)
-	UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.SuccessResult, error)
+	UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.UpdateUsernameResult, error)
 	SetUserPassword(ctx context.Context, userID string, newPassword string) (*model.SuccessResult, error)
-	SetUserRole(ctx context.Context, userID string, role model.Role) (*model.SuccessResult, error)
+	SetUserRole(ctx context.Context, userID string, role model.Role, instanceAdmin *bool) (*model.SuccessResult, error)
 	PullContainers(ctx context.Context, sourceInstanceID *string, runnerID *string) (*model.Operation, error)
 	UpgradeContainer(ctx context.Context, input model.UpgradeContainerInput) (*model.Operation, error)
 	BatchUpgrade(ctx context.Context, input model.BatchUpgradeInput) (*model.Operation, error)
@@ -2309,7 +2320,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.SetUserRole(childComplexity, args["userId"].(string), args["role"].(model.Role)), true
+		return e.ComplexityRoot.Mutation.SetUserRole(childComplexity, args["userId"].(string), args["role"].(model.Role), args["instanceAdmin"].(*bool)), true
 	case "Mutation.testDiscordWebhook":
 		if e.ComplexityRoot.Mutation.TestDiscordWebhook == nil {
 			break
@@ -3651,6 +3662,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TrackedAppUpgradeRecordConnection.TotalCount(childComplexity), true
 
+	case "UpdateUsernameResult.message":
+		if e.ComplexityRoot.UpdateUsernameResult.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateUsernameResult.Message(childComplexity), true
+	case "UpdateUsernameResult.refreshToken":
+		if e.ComplexityRoot.UpdateUsernameResult.RefreshToken == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateUsernameResult.RefreshToken(childComplexity), true
+	case "UpdateUsernameResult.success":
+		if e.ComplexityRoot.UpdateUsernameResult.Success == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateUsernameResult.Success(childComplexity), true
+	case "UpdateUsernameResult.token":
+		if e.ComplexityRoot.UpdateUsernameResult.Token == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateUsernameResult.Token(childComplexity), true
+	case "UpdateUsernameResult.username":
+		if e.ComplexityRoot.UpdateUsernameResult.Username == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateUsernameResult.Username(childComplexity), true
+
 	case "UpgradeProgressEvent.containerName":
 		if e.ComplexityRoot.UpgradeProgressEvent.ContainerName == nil {
 			break
@@ -3918,18 +3960,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.DiscordWebhooks(childComplexity), true
+	case "User.email":
+		if e.ComplexityRoot.User.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.Email(childComplexity), true
 	case "User.id":
 		if e.ComplexityRoot.User.ID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.User.ID(childComplexity), true
+	case "User.instanceAdmin":
+		if e.ComplexityRoot.User.InstanceAdmin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.InstanceAdmin(childComplexity), true
 	case "User.intents":
 		if e.ComplexityRoot.User.Intents == nil {
 			break
 		}
 
 		return e.ComplexityRoot.User.Intents(childComplexity), true
+	case "User.lastLogin":
+		if e.ComplexityRoot.User.LastLogin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.LastLogin(childComplexity), true
 	case "User.passwordChanged":
 		if e.ComplexityRoot.User.PasswordChanged == nil {
 			break
@@ -4329,6 +4389,9 @@ type User {
   username: String!
   role: Role!
   passwordChanged: Boolean!
+  instanceAdmin: Boolean!
+  email: String
+  lastLogin: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
   avatarUrl: String
@@ -5208,11 +5271,11 @@ type Mutation {
   refreshToken(input: RefreshTokenInput!): AuthPayload!
   logout: SuccessResult!
   updatePassword(input: UpdatePasswordInput!): SuccessResult!
-  updateUsername(input: UpdateUsernameInput!): SuccessResult!
+  updateUsername(input: UpdateUsernameInput!): UpdateUsernameResult!
 
   # Admin user management
   setUserPassword(userId: ID!, newPassword: String!): SuccessResult!
-  setUserRole(userId: ID!, role: Role!): SuccessResult!
+  setUserRole(userId: ID!, role: Role!, instanceAdmin: Boolean): SuccessResult!
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull
@@ -5299,6 +5362,16 @@ type SuccessResult {
   success: Boolean!
   message: String
   errorCode: ErrorCode
+}
+
+# Returned by updateUsername: the renamed user plus freshly minted tokens,
+# mirroring the REST contract which re-issues JWTs after a rename.
+type UpdateUsernameResult {
+  success: Boolean!
+  message: String
+  username: String
+  token: String
+  refreshToken: String
 }
 
 type ValidationResult {
@@ -6274,6 +6347,22 @@ func (ec *executionContext) childFields_TrackedAppUpgradeRecordConnection(ctx co
 	return nil, fmt.Errorf("no field named %q was found under type TrackedAppUpgradeRecordConnection", field.Name)
 }
 
+func (ec *executionContext) childFields_UpdateUsernameResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "success":
+		return ec.fieldContext_UpdateUsernameResult_success(ctx, field)
+	case "message":
+		return ec.fieldContext_UpdateUsernameResult_message(ctx, field)
+	case "username":
+		return ec.fieldContext_UpdateUsernameResult_username(ctx, field)
+	case "token":
+		return ec.fieldContext_UpdateUsernameResult_token(ctx, field)
+	case "refreshToken":
+		return ec.fieldContext_UpdateUsernameResult_refreshToken(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type UpdateUsernameResult", field.Name)
+}
+
 func (ec *executionContext) childFields_UpgradeProgressEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "operationId":
@@ -6384,6 +6473,12 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_role(ctx, field)
 	case "passwordChanged":
 		return ec.fieldContext_User_passwordChanged(ctx, field)
+	case "instanceAdmin":
+		return ec.fieldContext_User_instanceAdmin(ctx, field)
+	case "email":
+		return ec.fieldContext_User_email(ctx, field)
+	case "lastLogin":
+		return ec.fieldContext_User_lastLogin(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_User_createdAt(ctx, field)
 	case "updatedAt":
@@ -7079,6 +7174,14 @@ func (ec *executionContext) field_Mutation_setUserRole_args(ctx context.Context,
 		return nil, err
 	}
 	args["role"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "instanceAdmin",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["instanceAdmin"] = arg2
 	return args, nil
 }
 
@@ -12748,8 +12851,8 @@ func (ec *executionContext) _Mutation_updateUsername(ctx context.Context, field 
 			return ec.Resolvers.Mutation().UpdateUsername(ctx, fc.Args["input"].(model.UpdateUsernameInput))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
-			return ec.marshalNSuccessResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSuccessResult(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.UpdateUsernameResult) graphql.Marshaler {
+			return ec.marshalNUpdateUsernameResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateUsernameResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -12762,7 +12865,7 @@ func (ec *executionContext) fieldContext_Mutation_updateUsername(ctx context.Con
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SuccessResult(ctx, field)
+			return ec.childFields_UpdateUsernameResult(ctx, field)
 		},
 	}
 	defer func() {
@@ -12833,7 +12936,7 @@ func (ec *executionContext) _Mutation_setUserRole(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SetUserRole(ctx, fc.Args["userId"].(string), fc.Args["role"].(model.Role))
+			return ec.Resolvers.Mutation().SetUserRole(ctx, fc.Args["userId"].(string), fc.Args["role"].(model.Role), fc.Args["instanceAdmin"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SuccessResult) graphql.Marshaler {
@@ -19389,6 +19492,121 @@ func (ec *executionContext) fieldContext_TrackedAppUpgradeRecordConnection_total
 	return graphql.NewScalarFieldContext("TrackedAppUpgradeRecordConnection", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _UpdateUsernameResult_success(ctx context.Context, field graphql.CollectedField, obj *model.UpdateUsernameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpdateUsernameResult_success(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UpdateUsernameResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _UpdateUsernameResult_message(ctx context.Context, field graphql.CollectedField, obj *model.UpdateUsernameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpdateUsernameResult_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpdateUsernameResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _UpdateUsernameResult_username(ctx context.Context, field graphql.CollectedField, obj *model.UpdateUsernameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpdateUsernameResult_username(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Username, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpdateUsernameResult_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _UpdateUsernameResult_token(ctx context.Context, field graphql.CollectedField, obj *model.UpdateUsernameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpdateUsernameResult_token(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Token, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpdateUsernameResult_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _UpdateUsernameResult_refreshToken(ctx context.Context, field graphql.CollectedField, obj *model.UpdateUsernameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UpdateUsernameResult_refreshToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RefreshToken, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UpdateUsernameResult_refreshToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UpdateUsernameResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _UpgradeProgressEvent_operationId(ctx context.Context, field graphql.CollectedField, obj *model.UpgradeProgressEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20398,6 +20616,75 @@ func (ec *executionContext) _User_passwordChanged(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_User_passwordChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _User_instanceAdmin(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_instanceAdmin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InstanceAdmin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_instanceAdmin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_User_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _User_lastLogin(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_lastLogin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastLogin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_User_lastLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type DateTime does not have child fields"))
 }
 
 func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -28261,6 +28548,64 @@ func (ec *executionContext) _TrackedAppUpgradeRecordConnection(ctx context.Conte
 	return out
 }
 
+var updateUsernameResultImplementors = []string{"UpdateUsernameResult"}
+
+func (ec *executionContext) _UpdateUsernameResult(ctx context.Context, sel ast.SelectionSet, obj *model.UpdateUsernameResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, updateUsernameResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UpdateUsernameResult")
+		case "success":
+			out.Values[i] = ec._UpdateUsernameResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._UpdateUsernameResult_message(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "username":
+			out.Values[i] = ec._UpdateUsernameResult_username(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "token":
+			out.Values[i] = ec._UpdateUsernameResult_token(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "refreshToken":
+			out.Values[i] = ec._UpdateUsernameResult_refreshToken(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var upgradeProgressEventImplementors = []string{"UpgradeProgressEvent"}
 
 func (ec *executionContext) _UpgradeProgressEvent(ctx context.Context, sel ast.SelectionSet, obj *model.UpgradeProgressEvent) graphql.Marshaler {
@@ -28613,6 +28958,21 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "passwordChanged":
 			out.Values[i] = ec._User_passwordChanged(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "instanceAdmin":
+			out.Values[i] = ec._User_instanceAdmin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "email":
+			out.Values[i] = ec._User_email(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastLogin":
+			out.Values[i] = ec._User_lastLogin(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
@@ -30566,6 +30926,16 @@ func (ec *executionContext) unmarshalNUpdateUserPreferencesInput2githubᚗcomᚋ
 func (ec *executionContext) unmarshalNUpdateUsernameInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateUsernameInput(ctx context.Context, v any) (model.UpdateUsernameInput, error) {
 	res, err := ec.unmarshalInputUpdateUsernameInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUpdateUsernameResult2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpdateUsernameResult(ctx context.Context, sel ast.SelectionSet, v *model.UpdateUsernameResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UpdateUsernameResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNUpgradeContainerInput2githubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐUpgradeContainerInput(ctx context.Context, v any) (model.UpgradeContainerInput, error) {

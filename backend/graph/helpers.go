@@ -131,6 +131,9 @@ func userRowToModel(u *db.UserRow) *model.User {
 		Username:        u.Username,
 		Role:            model.Role(enumConst(u.Role)),
 		PasswordChanged: u.PasswordChanged == 1,
+		InstanceAdmin:   u.InstanceAdmin == 1,
+		Email:           nullStrPtr(u.Email),
+		LastLogin:       nullTimePtr(u.LastLogin),
 		CreatedAt:       parseTime(u.CreatedAt),
 		UpdatedAt:       parseTime(u.UpdatedAt),
 	}

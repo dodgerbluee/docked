@@ -679,6 +679,14 @@ type UpdateUsernameInput struct {
 	Password    *string `json:"password,omitempty"`
 }
 
+type UpdateUsernameResult struct {
+	Success      bool    `json:"success"`
+	Message      *string `json:"message,omitempty"`
+	Username     *string `json:"username,omitempty"`
+	Token        *string `json:"token,omitempty"`
+	RefreshToken *string `json:"refreshToken,omitempty"`
+}
+
 type UpgradeContainerInput struct {
 	DockerContainerID string  `json:"dockerContainerId"`
 	SourceInstanceID  *string `json:"sourceInstanceId,omitempty"`
@@ -755,6 +763,9 @@ type User struct {
 	Username            string                   `json:"username"`
 	Role                Role                     `json:"role"`
 	PasswordChanged     bool                     `json:"passwordChanged"`
+	InstanceAdmin       bool                     `json:"instanceAdmin"`
+	Email               *string                  `json:"email,omitempty"`
+	LastLogin           *time.Time               `json:"lastLogin,omitempty"`
 	CreatedAt           time.Time                `json:"createdAt"`
 	UpdatedAt           time.Time                `json:"updatedAt"`
 	AvatarURL           *string                  `json:"avatarUrl,omitempty"`

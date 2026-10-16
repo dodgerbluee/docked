@@ -12,6 +12,8 @@ import LoadingSpinner from "../ui/LoadingSpinner";
 import { formatDate } from "../../utils/batchFormatters";
 import { selectStyles } from "../AddTrackedAppModal/utils/selectStyles";
 import ChangePasswordModal from "./ChangePasswordModal";
+import { graphqlClient } from "../../graphql/client";
+import { SET_USER_ROLE_MUTATION } from "../../graphql/queries";
 import styles from "./UserDetailsModal.module.css";
 
 /**
@@ -174,12 +176,15 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
         actualInstanceAdmin = false;
       }
 
-      const response = await axios.put(`${API_BASE_URL}/api/auth/users/${user.id}/role`, {
-        role: actualRole,
-        instanceAdmin: actualInstanceAdmin,
-      });
+      const result = await graphqlClient
+        .mutation(SET_USER_ROLE_MUTATION, {
+          userId: user.id,
+          role: actualRole === "Administrator" ? "ADMINISTRATOR" : "MEMBER",
+          instanceAdmin: actualInstanceAdmin,
+        })
+        .toPromise();
 
-      if (response.data.success) {
+      if (!result.error && result.data?.setUserRole?.success) {
         // Update local state to reflect the new role
         setRole(role);
         setRoleUpdateSuccess("Role updated successfully");
@@ -188,11 +193,13 @@ const UserDetailsModal = ({ isOpen, onClose, user, onUserUpdated, currentUsernam
           onUserUpdated();
         }
       } else {
-        setRoleUpdateError(response.data.error || "Failed to update role");
+        setRoleUpdateError(
+          result.error?.message || result.data?.setUserRole?.message || "Failed to update role"
+        );
       }
     } catch (err) {
       console.error("Error updating user role:", err);
-      setRoleUpdateError(err.response?.data?.error || err.message || "Failed to update user role");
+      setRoleUpdateError(err.message || "Failed to update user role");
     } finally {
       setUpdatingRole(false);
     }

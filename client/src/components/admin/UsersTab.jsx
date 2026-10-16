@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../utils/api";
 import Alert from "../ui/Alert";
 import Button from "../ui/Button";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
@@ -9,6 +7,8 @@ import ImportUsersModal from "../ImportUsersModal";
 import UserDetailsModal from "./UserDetailsModal";
 import { Upload, Download, Crown, Shield, User } from "lucide-react";
 import { useExport } from "../../hooks/useExport";
+import { graphqlClient } from "../../graphql/client";
+import { USERS_QUERY } from "../../graphql/queries";
 import styles from "./UsersTab.module.css";
 
 /**
@@ -34,14 +34,19 @@ const UsersTab = React.memo(function UsersTab() {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`${API_BASE_URL}/api/auth/users`);
-      if (response.data.success) {
-        setUsers(response.data.users || []);
+      const result = await graphqlClient.query(USERS_QUERY).toPromise();
+      if (!result.error && result.data?.users) {
+        setUsers(
+          result.data.users.map((u) => ({
+            ...u,
+            role: u.role === "ADMINISTRATOR" ? "Administrator" : "Member",
+          }))
+        );
       } else {
-        setError(response.data.error || "Failed to fetch users");
+        setError(result.error?.message || "Failed to fetch users");
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to fetch users");
+      setError(err.message || "Failed to fetch users");
     } finally {
       setLoading(false);
     }

@@ -170,6 +170,9 @@ type User {
   username: String!
   role: Role!
   passwordChanged: Boolean!
+  instanceAdmin: Boolean!
+  email: String
+  lastLogin: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
   avatarUrl: String
@@ -1049,11 +1052,11 @@ type Mutation {
   refreshToken(input: RefreshTokenInput!): AuthPayload!
   logout: SuccessResult!
   updatePassword(input: UpdatePasswordInput!): SuccessResult!
-  updateUsername(input: UpdateUsernameInput!): SuccessResult!
+  updateUsername(input: UpdateUsernameInput!): UpdateUsernameResult!
 
   # Admin user management
   setUserPassword(userId: ID!, newPassword: String!): SuccessResult!
-  setUserRole(userId: ID!, role: Role!): SuccessResult!
+  setUserRole(userId: ID!, role: Role!, instanceAdmin: Boolean): SuccessResult!
 
   # ── Containers ────────────────────────────────────────────────────────────
   # Returns an Operation for tracking long-running pull
@@ -1140,6 +1143,16 @@ type SuccessResult {
   success: Boolean!
   message: String
   errorCode: ErrorCode
+}
+
+# Returned by updateUsername: the renamed user plus freshly minted tokens,
+# mirroring the REST contract which re-issues JWTs after a rename.
+type UpdateUsernameResult {
+  success: Boolean!
+  message: String
+  username: String
+  token: String
+  refreshToken: String
 }
 
 type ValidationResult {

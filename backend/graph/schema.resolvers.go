@@ -285,7 +285,7 @@ func (r *mutationResolver) UpdatePassword(ctx context.Context, input model.Updat
 }
 
 // UpdateUsername is the resolver for the updateUsername field.
-func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.SuccessResult, error) {
+func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (*model.UpdateUsernameResult, error) {
 	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
@@ -319,7 +319,19 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, input model.Updat
 	if err := db.UpdateUsername(ctx, r.DB, uid, newUsername); err != nil {
 		return nil, err
 	}
-	return &model.SuccessResult{Success: true}, nil
+	// Parity with REST: re-issue JWTs so the client's stored token carries the
+	// new username claim.
+	newToken, newRefresh, err := auth.GenerateTokens(uid, newUsername, user.Role)
+	if err != nil {
+		return nil, err
+	}
+	return &model.UpdateUsernameResult{
+		Success:      true,
+		Message:      strPtr("Username updated successfully"),
+		Username:     strPtr(newUsername),
+		Token:        strPtr(newToken),
+		RefreshToken: strPtr(newRefresh),
+	}, nil
 }
 
 // SetUserPassword is the resolver for the setUserPassword field.
@@ -341,7 +353,7 @@ func (r *mutationResolver) SetUserPassword(ctx context.Context, userID string, n
 }
 
 // SetUserRole is the resolver for the setUserRole field.
-func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role model.Role) (*model.SuccessResult, error) {
+func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role model.Role, instanceAdmin *bool) (*model.SuccessResult, error) {
 	_, err := requireAdmin(ctx, r.DB)
 	if err != nil {
 		return nil, err
@@ -352,10 +364,26 @@ func (r *mutationResolver) SetUserRole(ctx context.Context, userID string, role 
 	if role == model.RoleAdministrator {
 		dbRole = "Administrator"
 	}
-	if err := db.SetUserRole(ctx, r.DB, uid, dbRole); err != nil {
+	// Parity with Node: a Member cannot hold instance-admin privileges.
+	if dbRole == "Member" && instanceAdmin != nil && *instanceAdmin {
+		return nil, fmt.Errorf("Member role cannot have instance admin privileges")
+	}
+
+	target, err := db.GetUserByID(ctx, r.DB, uid)
+	if err != nil {
 		return nil, err
 	}
-	return &model.SuccessResult{Success: true}, nil
+	if target == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	newInstanceAdmin := target.InstanceAdmin == 1
+	if instanceAdmin != nil {
+		newInstanceAdmin = *instanceAdmin
+	}
+	if err := db.SetUserRole(ctx, r.DB, uid, dbRole, newInstanceAdmin); err != nil {
+		return nil, err
+	}
+	return &model.SuccessResult{Success: true, Message: strPtr("User role updated successfully")}, nil
 }
 
 // PullContainers is the resolver for the pullContainers field.

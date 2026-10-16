@@ -16,11 +16,13 @@ type UserRow struct {
 	Role            string
 	PasswordChanged int
 	InstanceAdmin   int
+	Email           sql.NullString
+	LastLogin       sql.NullString
 	CreatedAt       string
 	UpdatedAt       string
 }
 
-const userCols = `id, username, password_hash, role, password_changed, instance_admin, created_at, updated_at`
+const userCols = `id, username, password_hash, role, password_changed, instance_admin, email, last_login, created_at, updated_at`
 
 // GetUserByID fetches a single user by primary key.
 func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, error) {
@@ -29,7 +31,7 @@ func GetUserByID(ctx context.Context, database *sql.DB, id int64) (*UserRow, err
 
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.PasswordChanged, &u.InstanceAdmin, &u.CreatedAt, &u.UpdatedAt)
+		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -46,7 +48,7 @@ func GetUserByUsername(ctx context.Context, database *sql.DB, username string) (
 
 	var u UserRow
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.PasswordChanged, &u.InstanceAdmin, &u.CreatedAt, &u.UpdatedAt)
+		&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -69,7 +71,7 @@ func GetAllUsers(ctx context.Context, database *sql.DB) ([]UserRow, error) {
 	for rows.Next() {
 		var u UserRow
 		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-			&u.PasswordChanged, &u.InstanceAdmin, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.PasswordChanged, &u.InstanceAdmin, &u.Email, &u.LastLogin, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
 		users = append(users, u)
@@ -214,10 +216,16 @@ func UpdateUsername(ctx context.Context, database *sql.DB, userID int64, newUser
 }
 
 // SetUserRole updates a user's role.
-func SetUserRole(ctx context.Context, database *sql.DB, userID int64, role string) error {
+// SetUserRole updates a user's role and instance-admin flag (parity with Node's
+// updateUserRole, which always writes both columns).
+func SetUserRole(ctx context.Context, database *sql.DB, userID int64, role string, instanceAdmin bool) error {
+	ia := 0
+	if instanceAdmin {
+		ia = 1
+	}
 	_, err := database.ExecContext(ctx,
-		"UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?",
-		role, userID)
+		"UPDATE users SET role = ?, instance_admin = ?, updated_at = datetime('now') WHERE id = ?",
+		role, ia, userID)
 	return err
 }
 

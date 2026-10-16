@@ -26,6 +26,60 @@ export const USER_PREFERENCES_QUERY = /* GraphQL */ `
   }
 `;
 
+export const USERS_QUERY = /* GraphQL */ `
+  query Users {
+    users {
+      id
+      username
+      role
+      instanceAdmin
+      email
+      lastLogin
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const SET_USER_ROLE_MUTATION = /* GraphQL */ `
+  mutation SetUserRole($userId: ID!, $role: Role!) {
+    setUserRole(userId: $userId, role: $role) {
+      success
+      message
+    }
+  }
+`;
+
+export const SET_USER_PASSWORD_MUTATION = /* GraphQL */ `
+  mutation SetUserPassword($userId: ID!, $newPassword: String!) {
+    setUserPassword(userId: $userId, newPassword: $newPassword) {
+      success
+      message
+    }
+  }
+`;
+
+export const UPDATE_USERNAME_MUTATION = /* GraphQL */ `
+  mutation UpdateUsername($input: UpdateUsernameInput!) {
+    updateUsername(input: $input) {
+      success
+      message
+      username
+      token
+      refreshToken
+    }
+  }
+`;
+
+export const UPDATE_PASSWORD_MUTATION = /* GraphQL */ `
+  mutation UpdatePassword($input: UpdatePasswordInput!) {
+    updatePassword(input: $input) {
+      success
+      message
+    }
+  }
+`;
+
 export const SUMMARY_STATS_QUERY = /* GraphQL */ `
   query SummaryStats {
     summaryStats {

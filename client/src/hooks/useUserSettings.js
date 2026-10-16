@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../utils/api";
 import { graphqlClient } from "../graphql/client";
-import { ME_QUERY } from "../graphql/queries";
+import {
+  ME_QUERY,
+  UPDATE_USERNAME_MUTATION,
+  UPDATE_PASSWORD_MUTATION,
+} from "../graphql/queries";
 
 /**
  * useUserSettings Hook
@@ -58,32 +60,36 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
       }
 
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/auth/update-username`, {
-          newUsername: newUsername.trim(),
-          password: usernamePassword,
-        });
+        const result = await graphqlClient
+          .mutation(UPDATE_USERNAME_MUTATION, {
+            input: { newUsername: newUsername.trim(), password: usernamePassword },
+          })
+          .toPromise();
 
-        if (response.data.success) {
+        if (!result.error && result.data?.updateUsername?.success) {
+          const data = result.data.updateUsername;
           setUsernameSuccess("Username updated successfully!");
           setNewUsername("");
           setUsernamePassword("");
-          if (response.data.token) {
+          if (data.token) {
             if (onUsernameUpdate) {
-              onUsernameUpdate(response.data.newUsername, response.data.token);
+              onUsernameUpdate(data.username, data.token);
             }
           } else {
             if (onUsernameUpdate) {
-              onUsernameUpdate(response.data.newUsername);
+              onUsernameUpdate(data.username);
             }
           }
           await fetchUserInfo();
         } else {
-          setUsernameError(response.data.error || "Failed to update username");
+          setUsernameError(
+            result.error?.message ||
+              result.data?.updateUsername?.message ||
+              "Failed to update username"
+          );
         }
       } catch (err) {
-        setUsernameError(
-          err.response?.data?.error || "Failed to update username. Please try again."
-        );
+        setUsernameError(err.message || "Failed to update username. Please try again.");
       } finally {
         setUsernameLoading(false);
       }
@@ -118,11 +124,13 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
           return;
         }
 
-        const requestBody = { currentPassword, newPassword };
+        const result = await graphqlClient
+          .mutation(UPDATE_PASSWORD_MUTATION, {
+            input: { currentPassword, newPassword },
+          })
+          .toPromise();
 
-        const response = await axios.post(`${API_BASE_URL}/api/auth/update-password`, requestBody);
-
-        if (response.data.success) {
+        if (!result.error && result.data?.updatePassword?.success) {
           setPasswordSuccess("Password updated successfully!");
           setCurrentPassword("");
           setNewPassword("");
@@ -134,7 +142,11 @@ export function useUserSettings({ username, onUsernameUpdate, onPasswordUpdateSu
             }, 1500);
           }
         } else {
-          setPasswordError(response.data.error || "Failed to update password");
+          setPasswordError(
+            result.error?.message ||
+              result.data?.updatePassword?.message ||
+              "Failed to update password"
+          );
         }
       } catch (err) {
         setPasswordError(
