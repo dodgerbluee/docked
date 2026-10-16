@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bufio"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -17,6 +20,29 @@ type requestLogger struct {
 func (w *requestLogger) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
+}
+
+// Flush forwards to the underlying writer when it supports flushing,
+// keeping streaming responses (SSE-style) working through the wrapper.
+func (w *requestLogger) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Hijack forwards to the underlying writer so WebSocket upgrades survive
+// this middleware; without it the graphql-ws handshake fails with
+// "response writer does not implement http.Hijacker".
+func (w *requestLogger) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("underlying ResponseWriter does not implement http.Hijacker")
+	}
+	conn, bufrw, err := hj.Hijack()
+	if err == nil {
+		w.status = http.StatusSwitchingProtocols
+	}
+	return conn, bufrw, err
 }
 
 // Logger logs every request at INFO level. When debug logging is active

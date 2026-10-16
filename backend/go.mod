@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/99designs/gqlgen v0.17.95
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/vektah/gqlparser/v2 v2.5.63
@@ -13,7 +14,6 @@ require (
 
 require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect

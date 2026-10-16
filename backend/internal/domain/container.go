@@ -2,7 +2,7 @@ package domain
 
 // Container is the API representation of a Docker container with update info.
 type Container struct {
-	ID    string `json:"id"`    // Docker container ID
+	ID    string `json:"id"` // Docker container ID
 	Name  string `json:"name"`
 	Image string `json:"image"` // Full image name, e.g. "postgres:15"
 

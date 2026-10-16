@@ -140,7 +140,7 @@ type ContainerGroup struct {
 type ContainersUpdatedEvent struct {
 	SourceIds      []string      `json:"sourceIds"`
 	ContainerCount int           `json:"containerCount"`
-	Stats          *SummaryStats `json:"stats"`
+	Stats          *SummaryStats `json:"stats,omitempty"`
 }
 
 type CreateDiscordWebhookInput struct {

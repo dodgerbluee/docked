@@ -80,6 +80,82 @@ func tailFileLines(path string, maxLines int) (string, int64, error) {
 	return strings.Join(lines, "\n"), size, nil
 }
 
+// forwardSubscription bridges a hub channel to a gqlgen subscription
+// output channel. It terminates (and runs cleanup) when the subscription
+// context is cancelled, so hub subscribers are released on disconnect.
+func forwardSubscription[T any](ctx context.Context, in <-chan T, cleanup func()) <-chan *T {
+	out := make(chan *T, 1)
+	go func() {
+		defer close(out)
+		defer cleanup()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case v := <-in:
+				val := v
+				select {
+				case out <- &val:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out
+}
+
+// publishBatchRun re-reads a batch run and fans it out to batchJobProgress
+// subscribers (best-effort).
+func (r *mutationResolver) publishBatchRun(ctx context.Context, uid, batchID int64) {
+	if r.Hub == nil {
+		return
+	}
+	run, err := db.GetBatchRunByID(ctx, r.DB, batchID, uid)
+	if err != nil || run == nil {
+		return
+	}
+	r.Hub.PublishBatchJob(uid, *batchRunToModel(run))
+}
+
+// publishIntentExecution re-reads an execution row and fans it out to
+// intentExecutionProgress subscribers (best-effort).
+func (r *mutationResolver) publishIntentExecution(ctx context.Context, uid, execID int64) {
+	if r.Hub == nil {
+		return
+	}
+	row, err := db.GetIntentExecutionByID(ctx, r.DB, execID, uid)
+	if err != nil || row == nil {
+		return
+	}
+	r.Hub.PublishIntentExecution(uid, *intentExecutionToModel(*row))
+}
+
+// publishUpgradePhase emits an UpgradeProgressEvent for Go-initiated
+// upgrades (best-effort).
+func (r *mutationResolver) publishUpgradePhase(uid int64, opID string, container *db.ContainerRow, phase model.UpgradePhase, message string) {
+	if r.Hub == nil || container == nil {
+		return
+	}
+	srcType, srcName := model.SourceTypeRunner, nullStrDefault(container.RunnerName)
+	if !container.RunnerID.Valid {
+		srcType = model.SourceTypePortainer
+		srcName = nullStrDefault(container.SourceName)
+	}
+	msg := message
+	progress := 100
+	r.Hub.PublishUpgradeProgress(uid, model.UpgradeProgressEvent{
+		OperationID:       opID,
+		DockerContainerID: container.ContainerID,
+		ContainerName:     container.ContainerName,
+		SourceType:        srcType,
+		SourceName:        srcName,
+		Phase:             phase,
+		Message:           &msg,
+		Progress:          &progress,
+	})
+}
+
 func requireUser(ctx context.Context) (int64, error) {
 	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {

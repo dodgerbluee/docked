@@ -5526,7 +5526,8 @@ type Subscription {
 type ContainersUpdatedEvent {
   sourceIds: [ID!]!
   containerCount: Int!
-  stats: SummaryStats!
+  # Optional: publishers may omit it; clients refetch stats on event.
+  stats: SummaryStats
 }
 
 type UpgradeProgressEvent {
@@ -9853,10 +9854,10 @@ func (ec *executionContext) _ContainersUpdatedEvent_stats(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SummaryStats) graphql.Marshaler {
-			return ec.marshalNSummaryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSummaryStats(ctx, selections, v)
+			return ec.marshalOSummaryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSummaryStats(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_ContainersUpdatedEvent_stats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24966,7 +24967,7 @@ func (ec *executionContext) _ContainersUpdatedEvent(ctx context.Context, sel ast
 			}
 		case "stats":
 			out.Values[i] = ec._ContainersUpdatedEvent_stats(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -31961,6 +31962,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOSummaryStats2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐSummaryStats(ctx context.Context, sel ast.SelectionSet, v *model.SummaryStats) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SummaryStats(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOTrackedApp2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐTrackedApp(ctx context.Context, sel ast.SelectionSet, v *model.TrackedApp) graphql.Marshaler {

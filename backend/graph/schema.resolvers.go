@@ -20,6 +20,7 @@ import (
 	"github.com/dockedapp/backend/graph/model"
 	"github.com/dockedapp/backend/internal/auth"
 	"github.com/dockedapp/backend/internal/db"
+	"github.com/dockedapp/backend/internal/events"
 )
 
 // UpgradeHistory is the resolver for the upgradeHistory field.
@@ -485,6 +486,16 @@ func (r *mutationResolver) UpgradeContainer(ctx context.Context, input model.Upg
 		}
 		r.recordUpgradeHistory(context.Background(), uid, container, runner,
 			input.ImageName, status, errMsg, time.Since(start).Milliseconds())
+		phase := model.UpgradePhaseCompleted
+		if status == "failed" {
+			phase = model.UpgradePhaseFailed
+		}
+		r.publishUpgradePhase(uid, opID, container, phase, errMsg)
+		if status == "success" && r.Hub != nil {
+			r.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
+				SourceIds: []string{}, ContainerCount: 0,
+			})
+		}
 	}()
 
 	return &model.Operation{
@@ -635,6 +646,12 @@ func (r *mutationResolver) BatchUpgrade(ctx context.Context, input model.BatchUp
 			msg = strPtr(fmt.Sprintf("partial: %d of %d upgrades failed: %s", failed, attempted, firstErr))
 		}
 		db.CompleteBatchRun(ctx, r.DB, batchID, status, attempted, upgraded, msg)
+		r.publishBatchRun(ctx, uid, batchID)
+		if upgraded > 0 && r.Hub != nil {
+			r.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
+				SourceIds: []string{}, ContainerCount: 0,
+			})
+		}
 	}()
 
 	return &model.Operation{
@@ -1431,6 +1448,12 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		}
 		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, skipped, nil)
 		_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
+		r.publishIntentExecution(ctx, uid, execID)
+		if upgraded > 0 && r.Hub != nil {
+			r.Hub.PublishContainersUpdated(events.BroadcastUserID, model.ContainersUpdatedEvent{
+				SourceIds: []string{}, ContainerCount: 0,
+			})
+		}
 	}()
 
 	return &model.IntentExecution{
@@ -1484,6 +1507,7 @@ func (r *mutationResolver) DryRunIntent(ctx context.Context, id string) (*model.
 		return nil, err
 	}
 	_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
+	r.publishIntentExecution(ctx, uid, execID)
 
 	row, _ := db.GetIntentExecutionByID(ctx, r.DB, execID, uid)
 	if row == nil {
@@ -1584,6 +1608,7 @@ func (r *mutationResolver) CreateBatchRun(ctx context.Context, jobType *model.Ba
 	if err != nil {
 		return nil, err
 	}
+	r.publishBatchRun(ctx, uid, id)
 	row, err := db.GetBatchRunByID(ctx, r.DB, id, uid)
 	if err != nil || row == nil {
 		return nil, fmt.Errorf("batch run not found")
@@ -1608,6 +1633,7 @@ func (r *mutationResolver) UpdateBatchRun(ctx context.Context, id string, status
 	if err := db.UpdateBatchRun(ctx, r.DB, rid, uid, dbEnumValue(string(status)), checked, updated, errorMessage, logs); err != nil {
 		return nil, err
 	}
+	r.publishBatchRun(ctx, uid, rid)
 	return &model.SuccessResult{Success: true, Message: strPtr("Batch run updated successfully")}, nil
 }
 
@@ -2936,68 +2962,62 @@ func (r *sourceInstanceResolver) UpgradeHistory(ctx context.Context, obj *model.
 
 // ContainersUpdated is the resolver for the containersUpdated field.
 func (r *subscriptionResolver) ContainersUpdated(ctx context.Context) (<-chan *model.ContainersUpdatedEvent, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.ContainersUpdatedEvent, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeContainersUpdated(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // ContainerUpgradeProgress is the resolver for the containerUpgradeProgress field.
 func (r *subscriptionResolver) ContainerUpgradeProgress(ctx context.Context) (<-chan *model.UpgradeProgressEvent, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.UpgradeProgressEvent, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeUpgradeProgress(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // BatchJobProgress is the resolver for the batchJobProgress field.
 func (r *subscriptionResolver) BatchJobProgress(ctx context.Context) (<-chan *model.BatchRun, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.BatchRun, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeBatchJob(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // IntentExecutionProgress is the resolver for the intentExecutionProgress field.
 func (r *subscriptionResolver) IntentExecutionProgress(ctx context.Context) (<-chan *model.IntentExecution, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.IntentExecution, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeIntentExecution(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // RunnerStatusChanged is the resolver for the runnerStatusChanged field.
 func (r *subscriptionResolver) RunnerStatusChanged(ctx context.Context) (<-chan *model.RunnerStatusEvent, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.RunnerStatusEvent, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeRunnerStatus(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // OperationProgress is the resolver for the operationProgress field.
 func (r *subscriptionResolver) OperationProgress(ctx context.Context) (<-chan *model.Operation, error) {
-	_, err := requireUser(ctx)
+	uid, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan *model.Operation, 1)
-	<-ctx.Done()
-	return ch, nil
+	ch, unsub := r.Hub.SubscribeOperation(uid)
+	return forwardSubscription(ctx, ch, unsub), nil
 }
 
 // UpgradeHistory is the resolver for the upgradeHistory field.

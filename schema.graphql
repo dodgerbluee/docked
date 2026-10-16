@@ -1246,7 +1246,8 @@ type Subscription {
 type ContainersUpdatedEvent {
   sourceIds: [ID!]!
   containerCount: Int!
-  stats: SummaryStats!
+  # Optional: publishers may omit it; clients refetch stats on event.
+  stats: SummaryStats
 }
 
 type UpgradeProgressEvent {
