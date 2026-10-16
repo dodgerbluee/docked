@@ -47,9 +47,7 @@ export function useAdminGeneralSettings() {
 
   const fetchDebugEndpointsEnabled = useCallback(async () => {
     try {
-      const { data, error } = await graphqlClient
-        .query(DEBUG_ENDPOINTS_ENABLED_QUERY)
-        .toPromise();
+      const { data, error } = await graphqlClient.query(DEBUG_ENDPOINTS_ENABLED_QUERY).toPromise();
       if (error) throw error;
       const enabled = !!data?.debugEndpointsEnabled;
       setDebugEndpointsEnabled(enabled);

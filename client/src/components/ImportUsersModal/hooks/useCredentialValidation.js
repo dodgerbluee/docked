@@ -102,7 +102,8 @@ export function useCredentialValidation({
               return {
                 success: valid,
                 index,
-                error: result.error?.message || result.data?.validateSourceCredentials?.message || null,
+                error:
+                  result.error?.message || result.data?.validateSourceCredentials?.message || null,
               };
             } catch (err) {
               console.error(`[ImportUsersModal] Validation error for instance:`, {

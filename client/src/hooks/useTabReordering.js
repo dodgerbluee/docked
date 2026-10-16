@@ -1,9 +1,6 @@
 import { useState, useCallback } from "react";
 import { graphqlClient } from "../graphql/client";
-import {
-  SOURCE_INSTANCES_QUERY,
-  REORDER_SOURCE_INSTANCES_MUTATION,
-} from "../graphql/queries";
+import { SOURCE_INSTANCES_QUERY, REORDER_SOURCE_INSTANCES_MUTATION } from "../graphql/queries";
 
 /**
  * useTabReordering Hook

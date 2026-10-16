@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { graphqlClient } from "../graphql/client";
-import {
-  ME_QUERY,
-  UPDATE_USERNAME_MUTATION,
-  UPDATE_PASSWORD_MUTATION,
-} from "../graphql/queries";
+import { ME_QUERY, UPDATE_USERNAME_MUTATION, UPDATE_PASSWORD_MUTATION } from "../graphql/queries";
 
 /**
  * useUserSettings Hook

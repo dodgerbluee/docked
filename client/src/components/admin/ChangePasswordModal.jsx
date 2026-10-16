@@ -58,7 +58,9 @@ const ChangePasswordModal = ({ isOpen, onClose, userId, username, onPasswordUpda
         }
       } else {
         setError(
-          result.error?.message || result.data?.setUserPassword?.message || "Failed to update password"
+          result.error?.message ||
+            result.data?.setUserPassword?.message ||
+            "Failed to update password"
         );
       }
     } catch (err) {

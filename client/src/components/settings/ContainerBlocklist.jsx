@@ -77,9 +77,7 @@ function ContainerBlocklist({ containers = [] }) {
     async function load() {
       setLoading(true);
       try {
-        const { data, error } = await graphqlClient
-          .query(DISALLOWED_CONTAINERS_QUERY)
-          .toPromise();
+        const { data, error } = await graphqlClient.query(DISALLOWED_CONTAINERS_QUERY).toPromise();
         if (cancelled) return;
         if (error) throw new Error(error.message);
         const settings = data.disallowedContainers;

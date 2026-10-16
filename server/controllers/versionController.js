@@ -6,8 +6,6 @@
 
 const path = require("path");
 const fs = require("fs");
-const githubService = require("../services/githubService");
-const logger = require("../utils/logger");
 
 /**
  * Get application version
@@ -80,7 +78,6 @@ const getVersion = (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   getVersion,

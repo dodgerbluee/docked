@@ -57,7 +57,7 @@ class UpgradeLockManager {
          expires_at = excluded.expires_at,
          created_at = CURRENT_TIMESTAMP
        WHERE upgrade_locks.expires_at <= CURRENT_TIMESTAMP`,
-      [key, token],
+      [key, token]
     );
     if (acquired.changes !== 1) return false;
 
@@ -66,7 +66,7 @@ class UpgradeLockManager {
         `UPDATE upgrade_locks
          SET expires_at = datetime('now', '+10 minutes')
          WHERE target_key = ? AND owner = ?`,
-        [key, token],
+        [key, token]
       ).catch(() => {
         // The active operation will still release its owner-scoped lock. A
         // transient heartbeat failure leaves the existing ten-minute lease.
@@ -115,7 +115,7 @@ class UpgradeLockManager {
           expires_at DATETIME NOT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        err => (err ? reject(err) : resolve()),
+        (err) => (err ? reject(err) : resolve())
       );
     });
     return new Promise((resolve, reject) => {

@@ -43,9 +43,7 @@ function SettingsPage({
   // Fetch developer mode state
   const fetchDeveloperMode = useCallback(async () => {
     try {
-      const { data, error } = await graphqlClient
-        .query(USER_PREFERENCES_QUERY)
-        .toPromise();
+      const { data, error } = await graphqlClient.query(USER_PREFERENCES_QUERY).toPromise();
       if (error) throw error;
       setDeveloperModeEnabled(data?.userPreferences?.refreshingTogglesEnabled || false);
     } catch (err) {

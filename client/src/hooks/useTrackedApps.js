@@ -165,7 +165,9 @@ export function useTrackedApps(isAuthenticated, authToken) {
       // If we have an app ID, check the version first, then refresh once
       if (appId) {
         try {
-          await graphqlClient.mutation(CHECK_TRACKED_APP_UPDATE_MUTATION, { id: appId }).toPromise();
+          await graphqlClient
+            .mutation(CHECK_TRACKED_APP_UPDATE_MUTATION, { id: appId })
+            .toPromise();
         } catch (err) {
           // Silently fail - version check is not critical, just a nice-to-have
           console.error("Error checking version for tracked app:", err);
@@ -188,7 +190,9 @@ export function useTrackedApps(isAuthenticated, authToken) {
           isResolved = true;
 
           try {
-            const result = await graphqlClient.mutation(DELETE_TRACKED_APP_MUTATION, { id }).toPromise();
+            const result = await graphqlClient
+              .mutation(DELETE_TRACKED_APP_MUTATION, { id })
+              .toPromise();
             if (!result.error && result.data?.deleteTrackedApp?.success) {
               await fetchTrackedApps(false); // Silent refresh after delete
               setConfirmDialog({
@@ -202,7 +206,9 @@ export function useTrackedApps(isAuthenticated, authToken) {
               resolve();
             } else {
               const error =
-                result.error?.message || result.data?.deleteTrackedApp?.message || "Failed to delete tracked app";
+                result.error?.message ||
+                result.data?.deleteTrackedApp?.message ||
+                "Failed to delete tracked app";
               setTrackedAppError(error);
               setConfirmDialog({
                 isOpen: false,
@@ -463,7 +469,8 @@ export function useTrackedApps(isAuthenticated, authToken) {
 
           if (!result.error && result.data?.clearTrackedAppCache?.success) {
             const message =
-              result.data.clearTrackedAppCache.message || "Latest version data cleared successfully";
+              result.data.clearTrackedAppCache.message ||
+              "Latest version data cleared successfully";
             setTrackedAppSuccess(message);
             setTimeout(() => setTrackedAppSuccess(""), SHORT_SUCCESS_MESSAGE_DURATION);
 

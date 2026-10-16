@@ -76,7 +76,9 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
 
         if (result.error || !result.data?.testDiscordWebhook?.success) {
           throw new Error(
-            result.error?.message || result.data?.testDiscordWebhook?.message || "Webhook test failed"
+            result.error?.message ||
+              result.data?.testDiscordWebhook?.message ||
+              "Webhook test failed"
           );
         }
       } else if (webhookUrl) {

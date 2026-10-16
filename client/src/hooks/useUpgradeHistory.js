@@ -101,9 +101,7 @@ export const useUpgradeHistory = (options = {}) => {
       if (cachedStats === null) {
         setStatsLoading(true);
       }
-      const { data, error } = await graphqlClient
-        .query(UPGRADE_HISTORY_STATS_QUERY)
-        .toPromise();
+      const { data, error } = await graphqlClient.query(UPGRADE_HISTORY_STATS_QUERY).toPromise();
       if (error) throw error;
       if (mountedRef.current) {
         const s = data?.upgradeHistoryStats || {};
