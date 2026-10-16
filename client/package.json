@@ -1,6 +1,6 @@
 {
   "name": "docked-client",
-  "version": "3.20.9",
+  "version": "3.20.10-dev",
   "private": true,
   "type": "module",
   "dependencies": {
