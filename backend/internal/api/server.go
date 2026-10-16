@@ -13,6 +13,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	coderws "github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -50,6 +51,12 @@ func NewServer(cfg *config.Config, database *sql.DB) http.Handler {
 	resolver := &graph.Resolver{DB: database, Cfg: cfg, Hub: hub}
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	srv.AddTransport(transport.Websocket{
+		// Auth is the JWT in connectionParams (see InitFunc), not cookies, so
+		// the default same-origin handshake check only breaks proxied setups
+		// (Vite dev proxy, Node upgrade proxy) where Origin and Host differ.
+		Implementation: transport.CoderWebsocketImplementation{
+			AcceptOptions: coderws.AcceptOptions{InsecureSkipVerify: true},
+		},
 		KeepAlivePingInterval: 10 * time.Second,
 		InitFunc: func(ctx context.Context, initPayload transport.InitPayload) (context.Context, *transport.InitPayload, error) {
 			// In graphql-transport-ws, failures are signaled by the close frame
