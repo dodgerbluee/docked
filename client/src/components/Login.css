@@ -39,6 +39,12 @@ body.dark-mode .login-header h1 {
   color: var(--dodger-blue-light);
 }
 
+/* The wordmark PNG is white-filled: render it black in light mode so it is
+   not an invisible outline on the light card (same treatment as the Header). */
+body:not(.dark-mode) .login-logo-text {
+  filter: brightness(0);
+}
+
 .login-header p {
   font-size: 1rem;
   color: var(--text-secondary);

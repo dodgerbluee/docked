@@ -139,6 +139,7 @@ function Login({ onLogin }) {
             <img
               src="/img/text-header.png"
               alt="docked"
+              className="login-logo-text"
               style={{
                 height: "1.25em",
                 verticalAlign: "middle",
