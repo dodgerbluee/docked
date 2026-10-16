@@ -935,15 +935,8 @@ router.get("/logs", asyncHandler(logsController.getLogsHandler));
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes
-router.get("/runners", asyncHandler(runnerController.getRunners));
 router.post("/runners/enrollment", writeLimiter, asyncHandler(runnerController.createEnrollment));
 router.get("/runners/enrollment-status", asyncHandler(runnerController.getEnrollmentStatus));
-router.put("/runners/:id", writeLimiter, asyncHandler(runnerController.updateRunnerHandler));
-router.delete(
-  "/runners/:id",
-  destructiveLimiter,
-  asyncHandler(runnerController.deleteRunnerHandler)
-);
 router.post("/runners/:id/health", asyncHandler(runnerController.healthCheckRunner));
 router.post("/runners/:id/update", writeLimiter, asyncHandler(runnerController.updateRunnerBinary));
 // Runner health & diagnostics

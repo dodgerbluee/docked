@@ -129,9 +129,11 @@ CREATE TABLE runners (
   enabled INTEGER DEFAULT 1,
   version TEXT,
   latest_version TEXT,
+  version_checked_at DATETIME,
   docker_enabled INTEGER DEFAULT 0,
   last_seen DATETIME,
   docker_status TEXT,
+  docker_status_since DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

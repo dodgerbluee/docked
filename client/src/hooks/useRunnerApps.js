@@ -12,6 +12,9 @@ import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import { registerCacheClear } from "../utils/cacheRegistry";
+import { graphqlClient } from "../graphql/client";
+import { RUNNERS_QUERY } from "../graphql/queries";
+import { mapGraphRunner } from "../utils/runnerShape";
 
 // Module-level cache – survives unmount/remount so pages render instantly
 let cachedRunners = null;
@@ -40,8 +43,10 @@ export const useRunnerApps = () => {
       setError(null);
 
       // 1. Fetch runners
-      const { data: runnersData } = await axios.get(`${API_BASE_URL}/api/runners`);
-      const enabledRunners = (runnersData.runners || []).filter((r) => r.enabled !== 0);
+      const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+      const enabledRunners = (runnersResult.data?.runners || [])
+        .map(mapGraphRunner)
+        .filter((r) => r.enabled !== 0);
 
       if (!mountedRef.current) return;
       setRunners(enabledRunners);

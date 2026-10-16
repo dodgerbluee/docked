@@ -225,9 +225,12 @@ type Runner implements ContainerSource {
   type: SourceType!
   enabled: Boolean!
   version: String
+  latestVersion: String
+  versionCheckedAt: DateTime
   dockerEnabled: Boolean!
   lastHeartbeat: DateTime
   healthStatus: String
+  dockerStatusSince: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
 

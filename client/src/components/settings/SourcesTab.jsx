@@ -30,7 +30,10 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../constants/api";
 import { graphqlClient } from "../../graphql/client";
-import { CHECK_SOURCE_INSTANCE_HEALTH_MUTATION } from "../../graphql/queries";
+import {
+  CHECK_SOURCE_INSTANCE_HEALTH_MUTATION,
+  DELETE_RUNNER_MUTATION,
+} from "../../graphql/queries";
 import PortainerIcon from "../icons/PortainerIcon";
 import Card from "../ui/Card";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -248,7 +251,7 @@ function DeleteRunnerDialog({ runner, onClose, onDeleted }) {
       if (uninstall) {
         await axios.post(`${API_BASE_URL}/api/runners/${runner.id}/uninstall`);
       } else {
-        await axios.delete(`${API_BASE_URL}/api/runners/${runner.id}`);
+        await graphqlClient.mutation(DELETE_RUNNER_MUTATION, { id: runner.id }).toPromise();
       }
       onDeleted();
     } catch (err) {

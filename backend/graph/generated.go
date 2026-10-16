@@ -446,21 +446,24 @@ type ComplexityRoot struct {
 	}
 
 	Runner struct {
-		Apps           func(childComplexity int) int
-		Containers     func(childComplexity int, first *int, after *string) int
-		CreatedAt      func(childComplexity int) int
-		DockerEnabled  func(childComplexity int) int
-		Enabled        func(childComplexity int) int
-		HasAPIKey      func(childComplexity int) int
-		HealthStatus   func(childComplexity int) int
-		ID             func(childComplexity int) int
-		LastHeartbeat  func(childComplexity int) int
-		Name           func(childComplexity int) int
-		Type           func(childComplexity int) int
-		URL            func(childComplexity int) int
-		UpdatedAt      func(childComplexity int) int
-		UpgradeHistory func(childComplexity int, first *int, after *string) int
-		Version        func(childComplexity int) int
+		Apps              func(childComplexity int) int
+		Containers        func(childComplexity int, first *int, after *string) int
+		CreatedAt         func(childComplexity int) int
+		DockerEnabled     func(childComplexity int) int
+		DockerStatusSince func(childComplexity int) int
+		Enabled           func(childComplexity int) int
+		HasAPIKey         func(childComplexity int) int
+		HealthStatus      func(childComplexity int) int
+		ID                func(childComplexity int) int
+		LastHeartbeat     func(childComplexity int) int
+		LatestVersion     func(childComplexity int) int
+		Name              func(childComplexity int) int
+		Type              func(childComplexity int) int
+		URL               func(childComplexity int) int
+		UpdatedAt         func(childComplexity int) int
+		UpgradeHistory    func(childComplexity int, first *int, after *string) int
+		Version           func(childComplexity int) int
+		VersionCheckedAt  func(childComplexity int) int
 	}
 
 	RunnerApp struct {
@@ -3041,6 +3044,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Runner.DockerEnabled(childComplexity), true
+	case "Runner.dockerStatusSince":
+		if e.ComplexityRoot.Runner.DockerStatusSince == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Runner.DockerStatusSince(childComplexity), true
 	case "Runner.enabled":
 		if e.ComplexityRoot.Runner.Enabled == nil {
 			break
@@ -3071,6 +3080,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Runner.LastHeartbeat(childComplexity), true
+	case "Runner.latestVersion":
+		if e.ComplexityRoot.Runner.LatestVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Runner.LatestVersion(childComplexity), true
 	case "Runner.name":
 		if e.ComplexityRoot.Runner.Name == nil {
 			break
@@ -3112,6 +3127,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Runner.Version(childComplexity), true
+	case "Runner.versionCheckedAt":
+		if e.ComplexityRoot.Runner.VersionCheckedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Runner.VersionCheckedAt(childComplexity), true
 
 	case "RunnerApp.currentVersion":
 		if e.ComplexityRoot.RunnerApp.CurrentVersion == nil {
@@ -4444,9 +4465,12 @@ type Runner implements ContainerSource {
   type: SourceType!
   enabled: Boolean!
   version: String
+  latestVersion: String
+  versionCheckedAt: DateTime
   dockerEnabled: Boolean!
   lastHeartbeat: DateTime
   healthStatus: String
+  dockerStatusSince: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
 
@@ -6093,12 +6117,18 @@ func (ec *executionContext) childFields_Runner(ctx context.Context, field graphq
 		return ec.fieldContext_Runner_enabled(ctx, field)
 	case "version":
 		return ec.fieldContext_Runner_version(ctx, field)
+	case "latestVersion":
+		return ec.fieldContext_Runner_latestVersion(ctx, field)
+	case "versionCheckedAt":
+		return ec.fieldContext_Runner_versionCheckedAt(ctx, field)
 	case "dockerEnabled":
 		return ec.fieldContext_Runner_dockerEnabled(ctx, field)
 	case "lastHeartbeat":
 		return ec.fieldContext_Runner_lastHeartbeat(ctx, field)
 	case "healthStatus":
 		return ec.fieldContext_Runner_healthStatus(ctx, field)
+	case "dockerStatusSince":
+		return ec.fieldContext_Runner_dockerStatusSince(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Runner_createdAt(ctx, field)
 	case "updatedAt":
@@ -17074,6 +17104,52 @@ func (ec *executionContext) fieldContext_Runner_version(_ context.Context, field
 	return graphql.NewScalarFieldContext("Runner", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Runner_latestVersion(ctx context.Context, field graphql.CollectedField, obj *model.Runner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Runner_latestVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LatestVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Runner_latestVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Runner", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Runner_versionCheckedAt(ctx context.Context, field graphql.CollectedField, obj *model.Runner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Runner_versionCheckedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VersionCheckedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Runner_versionCheckedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Runner", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
 func (ec *executionContext) _Runner_dockerEnabled(ctx context.Context, field graphql.CollectedField, obj *model.Runner) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17141,6 +17217,29 @@ func (ec *executionContext) _Runner_healthStatus(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_Runner_healthStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Runner", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Runner_dockerStatusSince(ctx context.Context, field graphql.CollectedField, obj *model.Runner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Runner_dockerStatusSince(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DockerStatusSince, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Runner_dockerStatusSince(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Runner", field, false, false, errors.New("field of type DateTime does not have child fields"))
 }
 
 func (ec *executionContext) _Runner_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Runner) (ret graphql.Marshaler) {
@@ -27491,6 +27590,16 @@ func (ec *executionContext) _Runner(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "latestVersion":
+			out.Values[i] = ec._Runner_latestVersion(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "versionCheckedAt":
+			out.Values[i] = ec._Runner_versionCheckedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "dockerEnabled":
 			out.Values[i] = ec._Runner_dockerEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -27503,6 +27612,11 @@ func (ec *executionContext) _Runner(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "healthStatus":
 			out.Values[i] = ec._Runner_healthStatus(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "dockerStatusSince":
+			out.Values[i] = ec._Runner_dockerStatusSince(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -7,13 +7,10 @@
 const os = require("os");
 
 const {
-  getAllRunners,
   getRunnerById,
   getRunnerByName,
-  getRunnerByNameAndUser,
   getRunnerByApiKey,
   createRunner,
-  updateRunner,
   updateRunnerUrl,
   updateRunnerApiKey,
   deleteRunner,
@@ -152,92 +149,6 @@ cleanupExpiredTokens()
   .catch((err) => {
     logger.warn(`Failed to clean up expired enrollment tokens on startup: ${err.message}`);
   });
-
-/**
- * GET /api/runners
- */
-async function getRunners(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const runners = await getAllRunners(userId);
-    // Never expose api_key in list response
-    const safe = runners.map(({ api_key: _apiKey, ...rest }) => rest);
-    return res.json({ success: true, runners: safe });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * PUT /api/runners/:id
- */
-async function updateRunnerHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const id = parseInt(req.params.id, 10);
-    const existing = await getRunnerById(id, userId);
-    if (!existing) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    const { name, url, apiKey, enabled } = req.body;
-
-    if (!name || !url) {
-      return res.status(400).json({ success: false, error: "name and url are required" });
-    }
-
-    // Validate URL format
-    try {
-      const parsed = new URL(url);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return res.status(400).json({ success: false, error: "URL must use http:// or https://" });
-      }
-    } catch {
-      return res.status(400).json({ success: false, error: "Invalid URL format" });
-    }
-
-    await updateRunner({
-      id,
-      userId,
-      name: name.trim(),
-      url: url.trim(),
-      apiKey: apiKey || null, // null = keep existing
-      enabled: enabled !== false,
-    });
-
-    return res.json({ success: true, message: "Runner updated successfully" });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * DELETE /api/runners/:id
- */
-async function deleteRunnerHandler(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    const id = parseInt(req.params.id, 10);
-    const existing = await getRunnerById(id, userId);
-    if (!existing) {
-      return res.status(404).json({ success: false, error: "Runner not found" });
-    }
-
-    await deleteRunner(id, userId);
-    return res.json({ success: true, message: "Runner deleted successfully" });
-  } catch (err) {
-    next(err);
-  }
-}
 
 /**
  * POST /api/runners/:id/health
@@ -1317,9 +1228,6 @@ async function getRunnerLogsHandler(req, res, next) {
 }
 
 module.exports = {
-  getRunners,
-  updateRunnerHandler,
-  deleteRunnerHandler,
   healthCheckRunner,
   upgradeRunnerContainer,
   getRunnerOperations,

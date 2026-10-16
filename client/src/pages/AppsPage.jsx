@@ -24,6 +24,9 @@ import AppsSidebar, { APPS_VIEWS } from "../components/apps/AppsSidebar";
 import AppsHistoryTab from "../components/apps/AppsHistoryTab";
 import { hasVersionUpdate } from "../utils/versionHelpers";
 import { registerCacheClear } from "../utils/cacheRegistry";
+import { graphqlClient } from "../graphql/client";
+import { RUNNERS_QUERY } from "../graphql/queries";
+import { mapGraphRunner } from "../utils/runnerShape";
 import styles from "./AppsPage.module.css";
 
 // Module-level cache – survives unmount/remount so the tab renders instantly
@@ -425,8 +428,10 @@ export default function AppsPage({
       else setLoading(true);
 
       try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
-        const list = (data.runners || []).filter((r) => r.enabled !== 0);
+        const runnersResult = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+        const list = (runnersResult.data?.runners || [])
+          .map(mapGraphRunner)
+          .filter((r) => r.enabled !== 0);
         setRunners(list);
         cachedRunners = list;
         await Promise.all(list.map(fetchAppsForRunner));

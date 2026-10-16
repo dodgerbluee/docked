@@ -7,6 +7,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
 import { hasVersionUpdate, versionsEqual } from "../utils/versionHelpers";
+import { graphqlClient } from "../graphql/client";
+import { RUNNERS_QUERY, UPDATE_RUNNER_MUTATION } from "../graphql/queries";
+import { mapGraphRunner } from "../utils/runnerShape";
 
 // How often to refresh runner data while the Runners view is open, so runners
 // updated outside docked clear their "update available" badge automatically.
@@ -29,9 +32,13 @@ export function useRunnerState() {
 
   const fetchRunners = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/runners`);
-      if (data.success) setRunners(data.runners);
-      return data.runners || [];
+      const result = await graphqlClient.query(RUNNERS_QUERY).toPromise();
+      if (!result.error && result.data?.runners) {
+        const runners = result.data.runners.map(mapGraphRunner);
+        setRunners(runners);
+        return runners;
+      }
+      return [];
     } catch (err) {
       console.error("Failed to fetch runners:", err);
       return [];
@@ -90,11 +97,12 @@ export function useRunnerState() {
       if (!editRunner) return;
       setSaving(true);
       try {
-        await axios.put(`${API_BASE_URL}/api/runners/${editRunner.id}`, {
-          name,
-          url,
-          enabled,
-        });
+        await graphqlClient
+          .mutation(UPDATE_RUNNER_MUTATION, {
+            id: editRunner.id,
+            input: { name, url, enabled },
+          })
+          .toPromise();
         await fetchRunners();
         setEditRunner(null);
       } catch (err) {

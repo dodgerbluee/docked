@@ -22,7 +22,8 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 )
 
-func requireUser(ctx context.Context) (int64, error) {	uid := auth.UserIDFromContext(ctx)
+func requireUser(ctx context.Context) (int64, error) {
+	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {
 		return 0, fmt.Errorf("authentication required")
 	}
@@ -261,18 +262,21 @@ func runnerToModel(r *db.RunnerRow) *model.Runner {
 		return nil
 	}
 	return &model.Runner{
-		ID:            strconv.FormatInt(r.ID, 10),
-		Name:          r.Name,
-		URL:           r.URL,
-		Type:          model.SourceTypeRunner,
-		Enabled:       r.Enabled,
-		Version:       nullStrPtr(r.Version),
-		DockerEnabled: r.DockerEnabled.Valid && r.DockerEnabled.Int64 == 1,
-		LastHeartbeat: nullTimePtr(r.LastSeen),
-		HealthStatus:  nullStrPtr(r.DockerStatus),
-		CreatedAt:     parseTime(r.CreatedAt),
-		UpdatedAt:     parseTime(r.UpdatedAt),
-		HasAPIKey:     r.APIKey != "",
+		ID:                strconv.FormatInt(r.ID, 10),
+		Name:              r.Name,
+		URL:               r.URL,
+		Type:              model.SourceTypeRunner,
+		Enabled:           r.Enabled,
+		Version:           nullStrPtr(r.Version),
+		LatestVersion:     nullStrPtr(r.LatestVersion),
+		VersionCheckedAt:  nullTimePtr(r.VersionCheckedAt),
+		DockerEnabled:     r.DockerEnabled.Valid && r.DockerEnabled.Int64 == 1,
+		LastHeartbeat:     nullTimePtr(r.LastSeen),
+		HealthStatus:      nullStrPtr(r.DockerStatus),
+		DockerStatusSince: nullTimePtr(r.DockerStatusSince),
+		CreatedAt:         parseTime(r.CreatedAt),
+		UpdatedAt:         parseTime(r.UpdatedAt),
+		HasAPIKey:         r.APIKey != "",
 	}
 }
 func trackedAppToModel(t *db.TrackedAppRow) *model.TrackedApp {

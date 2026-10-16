@@ -26,6 +26,46 @@ export const USER_PREFERENCES_QUERY = /* GraphQL */ `
   }
 `;
 
+export const RUNNERS_QUERY = /* GraphQL */ `
+  query Runners {
+    runners {
+      id
+      name
+      url
+      enabled
+      version
+      latestVersion
+      versionCheckedAt
+      dockerEnabled
+      lastHeartbeat
+      healthStatus
+      dockerStatusSince
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const UPDATE_RUNNER_MUTATION = /* GraphQL */ `
+  mutation UpdateRunner($id: ID!, $input: UpdateRunnerInput!) {
+    updateRunner(id: $id, input: $input) {
+      id
+      name
+      url
+      enabled
+    }
+  }
+`;
+
+export const DELETE_RUNNER_MUTATION = /* GraphQL */ `
+  mutation DeleteRunner($id: ID!) {
+    deleteRunner(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
 export const USERS_QUERY = /* GraphQL */ `
   query Users {
     users {
@@ -406,25 +446,6 @@ export const UNUSED_IMAGES_QUERY = /* GraphQL */ `
       created
       sourceUrl
       endpointId
-    }
-  }
-`;
-
-export const RUNNERS_QUERY = /* GraphQL */ `
-  query Runners {
-    runners {
-      id
-      name
-      url
-      type
-      enabled
-      version
-      dockerEnabled
-      lastHeartbeat
-      healthStatus
-      createdAt
-      updatedAt
-      hasApiKey
     }
   }
 `;

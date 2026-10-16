@@ -8,29 +8,31 @@ import (
 
 // RunnerRow is a row from the runners table.
 type RunnerRow struct {
-	ID            int64
-	UserID        int64
-	Name          string
-	URL           string
-	APIKey        string
-	Enabled       bool
-	Version       sql.NullString
-	LatestVersion sql.NullString
-	DockerEnabled sql.NullInt64
-	LastSeen      sql.NullString
-	DockerStatus  sql.NullString
-	CreatedAt     string
-	UpdatedAt     string
+	ID                int64
+	UserID            int64
+	Name              string
+	URL               string
+	APIKey            string
+	Enabled           bool
+	Version           sql.NullString
+	LatestVersion     sql.NullString
+	VersionCheckedAt  sql.NullString
+	DockerEnabled     sql.NullInt64
+	LastSeen          sql.NullString
+	DockerStatus      sql.NullString
+	DockerStatusSince sql.NullString
+	CreatedAt         string
+	UpdatedAt         string
 }
 
-const runnerCols = `id, user_id, name, url, api_key, enabled, version, latest_version, docker_enabled, last_seen, docker_status, created_at, updated_at`
+const runnerCols = `id, user_id, name, url, api_key, enabled, version, latest_version, version_checked_at, docker_enabled, last_seen, docker_status, docker_status_since, created_at, updated_at`
 
 func scanRunner(row interface{ Scan(...any) error }) (RunnerRow, error) {
 	var r RunnerRow
 	var enabled int
 	err := row.Scan(&r.ID, &r.UserID, &r.Name, &r.URL, &r.APIKey, &enabled,
-		&r.Version, &r.LatestVersion, &r.DockerEnabled, &r.LastSeen, &r.DockerStatus,
-		&r.CreatedAt, &r.UpdatedAt)
+		&r.Version, &r.LatestVersion, &r.VersionCheckedAt, &r.DockerEnabled, &r.LastSeen,
+		&r.DockerStatus, &r.DockerStatusSince, &r.CreatedAt, &r.UpdatedAt)
 	r.Enabled = enabled == 1
 	return r, err
 }

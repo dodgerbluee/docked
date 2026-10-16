@@ -446,21 +446,24 @@ type RepositoryAccessToken struct {
 }
 
 type Runner struct {
-	ID             string                   `json:"id"`
-	Name           string                   `json:"name"`
-	URL            string                   `json:"url"`
-	Type           SourceType               `json:"type"`
-	Enabled        bool                     `json:"enabled"`
-	Version        *string                  `json:"version,omitempty"`
-	DockerEnabled  bool                     `json:"dockerEnabled"`
-	LastHeartbeat  *time.Time               `json:"lastHeartbeat,omitempty"`
-	HealthStatus   *string                  `json:"healthStatus,omitempty"`
-	CreatedAt      time.Time                `json:"createdAt"`
-	UpdatedAt      time.Time                `json:"updatedAt"`
-	HasAPIKey      bool                     `json:"hasApiKey"`
-	Containers     *ContainerConnection     `json:"containers"`
-	UpgradeHistory *UpgradeRecordConnection `json:"upgradeHistory"`
-	Apps           []*RunnerApp             `json:"apps"`
+	ID                string                   `json:"id"`
+	Name              string                   `json:"name"`
+	URL               string                   `json:"url"`
+	Type              SourceType               `json:"type"`
+	Enabled           bool                     `json:"enabled"`
+	Version           *string                  `json:"version,omitempty"`
+	LatestVersion     *string                  `json:"latestVersion,omitempty"`
+	VersionCheckedAt  *time.Time               `json:"versionCheckedAt,omitempty"`
+	DockerEnabled     bool                     `json:"dockerEnabled"`
+	LastHeartbeat     *time.Time               `json:"lastHeartbeat,omitempty"`
+	HealthStatus      *string                  `json:"healthStatus,omitempty"`
+	DockerStatusSince *time.Time               `json:"dockerStatusSince,omitempty"`
+	CreatedAt         time.Time                `json:"createdAt"`
+	UpdatedAt         time.Time                `json:"updatedAt"`
+	HasAPIKey         bool                     `json:"hasApiKey"`
+	Containers        *ContainerConnection     `json:"containers"`
+	UpgradeHistory    *UpgradeRecordConnection `json:"upgradeHistory"`
+	Apps              []*RunnerApp             `json:"apps"`
 }
 
 func (Runner) IsContainerSource()                       {}
