@@ -847,13 +847,7 @@ router.post(
 
 // Intent routes
 // IMPORTANT: Specific/static routes must come before parameterized routes
-router.get("/intents/executions/recent", asyncHandler(intentController.getRecentExecutionsHandler));
-router.get(
-  "/intents/executions/:executionId",
-  asyncHandler(intentController.getExecutionDetailHandler)
-);
 router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPreviewHandler));
-router.post("/intents/:id/dry-run", asyncHandler(intentController.dryRunIntentHandler));
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes

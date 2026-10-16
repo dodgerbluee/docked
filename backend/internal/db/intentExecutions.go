@@ -145,6 +145,19 @@ type IntentExecutionContainerRow struct {
 	CreatedAt        string
 }
 
+// InsertIntentExecutionContainer records a per-container result row for an
+// intent execution, mirroring Node's addIntentExecutionContainer.
+func InsertIntentExecutionContainer(ctx context.Context, database *sql.DB, executionID int64,
+	containerID, containerName, imageName, status string,
+	sourceInstanceID, runnerID *int64, oldImage, errorMessage *string, durationMs *int64) error {
+	_, err := database.ExecContext(ctx,
+		`INSERT INTO intent_execution_containers
+		 (execution_id, container_id, container_name, image_name, source_instance_id, runner_id, status, old_image, error_message, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		executionID, containerID, containerName, imageName, sourceInstanceID, runnerID, status, oldImage, errorMessage, durationMs)
+	return err
+}
+
 // GetIntentExecutionContainers returns the per-container results for an intent execution.
 func GetIntentExecutionContainers(ctx context.Context, database *sql.DB, executionID int64) ([]IntentExecutionContainerRow, error) {
 	rows, err := database.QueryContext(ctx,

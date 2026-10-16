@@ -131,6 +131,16 @@ func DeleteIntent(ctx context.Context, database *sql.DB, id, userID int64) error
 	return err
 }
 
+// TouchIntentLastEvaluated records that an intent was evaluated, mirroring
+// Node's updateLastEvaluated: last_evaluated_at + last_execution_id.
+func TouchIntentLastEvaluated(ctx context.Context, database *sql.DB, intentID, userID, executionID int64) error {
+	_, err := database.ExecContext(ctx,
+		`UPDATE intents SET last_evaluated_at = CURRENT_TIMESTAMP, last_execution_id = ?
+		 WHERE id = ? AND user_id = ?`,
+		executionID, intentID, userID)
+	return err
+}
+
 // UnmarshalStringArr decodes a JSON array string from the DB into a []string.
 func UnmarshalStringArr(s sql.NullString) []string {
 	if !s.Valid || s.String == "" {

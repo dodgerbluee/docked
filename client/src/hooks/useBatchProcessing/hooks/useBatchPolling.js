@@ -3,11 +3,11 @@
  */
 
 import { useEffect, useRef } from "react";
-import axios from "axios";
 import { parseUTCTimestamp } from "../../../utils/formatters";
 import { fetchLatestRunsByJobType } from "../../batchRunsCache";
 import { isBackendUp } from "../../../utils/backendStatus";
-import { API_BASE_URL } from "../../../utils/api";
+import { graphqlClient } from "../../../graphql/client";
+import { INTENT_EXECUTIONS_QUERY } from "../../../graphql/queries";
 
 /**
  * Hook for batch run polling
@@ -140,11 +140,13 @@ export const useBatchPolling = ({
         // refresh automatically after an intent finishes upgrading them.
         if (fetchContainers) {
           try {
-            const response = await axios.get(`${API_BASE_URL}/api/intents/executions/recent`, {
-              params: { limit: 1 },
-              headers: { Authorization: `Bearer ${authToken}` },
-            });
-            const executions = response.data?.executions || [];
+            const execResult = await graphqlClient
+              .query(INTENT_EXECUTIONS_QUERY, { first: 1 })
+              .toPromise();
+            const executions = (execResult.data?.intentExecutions?.items || []).map((e) => ({
+              id: Number(e.id),
+              status: e.status?.toLowerCase(),
+            }));
             if (executions.length > 0) {
               const latestExecution = executions[0];
               const previousId = lastCheckedIntentExecutionIdRef.current;

@@ -975,6 +975,7 @@ type Query {
     first: Int
     after: String
   ): IntentExecutionConnection!
+  intentExecution(id: ID!): IntentExecution
 
   # Preview which containers an intent would match (dry-run, no side effects)
   previewIntent(id: ID!): IntentPreview!
@@ -1098,6 +1099,8 @@ type Mutation {
   updateIntent(id: ID!, input: UpdateIntentInput!): Intent!
   deleteIntent(id: ID!): SuccessResult!
   triggerIntent(id: ID!, idempotencyKey: String): IntentExecution!
+  # Evaluation-only run: records matches as dry_run rows, never upgrades.
+  dryRunIntent(id: ID!): IntentExecution!
 
   # ── Batch System ──────────────────────────────────────────────────────────
   updateBatchConfig(input: UpdateBatchConfigInput!): SuccessResult!

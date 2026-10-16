@@ -1,7 +1,8 @@
 /**
  * Custom hook for Intents functionality
  * Manages state and operations for automated upgrade intents
- * Uses GraphQL for CRUD and execution operations, REST for dry-run/detail
+ * Uses GraphQL for CRUD, execution, dry-run, and detail operations;
+ * the intent preview simulation remains REST.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -15,6 +16,8 @@ import {
   DELETE_INTENT_MUTATION,
   TRIGGER_INTENT_MUTATION,
   INTENT_EXECUTIONS_QUERY,
+  INTENT_EXECUTION_QUERY,
+  DRY_RUN_INTENT_MUTATION,
 } from "../graphql/queries";
 import { SHORT_SUCCESS_MESSAGE_DURATION } from "../constants/intents";
 
@@ -290,16 +293,28 @@ export function useIntents(isAuthenticated, authToken) {
     [fetchIntents]
   );
 
-  // Dry-run an intent (REST)
+  // Dry-run an intent (GraphQL)
   const handleDryRunIntent = useCallback(async (id) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/intents/${id}/dry-run`);
-      if (response.data.success) {
-        return { success: true, execution: response.data.execution };
+      const result = await graphqlClient.mutation(DRY_RUN_INTENT_MUTATION, { id }).toPromise();
+      if (!result.error && result.data?.dryRunIntent) {
+        const exec = result.data.dryRunIntent;
+        return {
+          success: true,
+          execution: {
+            executionId: Number(exec.id),
+            status: exec.status?.toLowerCase(),
+            containersMatched: exec.containersMatched,
+            containersUpgraded: exec.containersUpgraded,
+            containersFailed: exec.containersFailed,
+            containersSkipped: exec.containersSkipped,
+            durationMs: exec.durationMs,
+          },
+        };
       }
-      return { success: false, error: response.data.error || "Failed to dry run intent" };
+      return { success: false, error: result.error?.message || "Failed to dry run intent" };
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Failed to dry run intent";
+      const errorMsg = err.message || "Failed to dry run intent";
       setError(errorMsg);
       return { success: false, error: errorMsg };
     }
@@ -387,22 +402,57 @@ export function useIntents(isAuthenticated, authToken) {
     }
   }, []);
 
-  // Fetch execution detail with per-container results (REST)
+  // Fetch execution detail with per-container results (GraphQL)
   const fetchExecutionDetail = useCallback(async (executionId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/intents/executions/${executionId}`);
-      if (response.data.success) {
+      const result = await graphqlClient
+        .query(INTENT_EXECUTION_QUERY, { id: executionId })
+        .toPromise();
+      if (!result.error && result.data?.intentExecution) {
+        const exec = result.data.intentExecution;
         return {
           success: true,
-          execution: transformExecution(response.data.execution),
-          containers: (response.data.containers || []).map(transformExecutionContainer),
+          execution: transformExecution({
+            id: Number(exec.id),
+            intent_id: Number(exec.intentId),
+            status: exec.status?.toLowerCase(),
+            trigger_type: exec.triggerType?.toLowerCase(),
+            containers_matched: exec.containersMatched,
+            containers_upgraded: exec.containersUpgraded,
+            containers_failed: exec.containersFailed,
+            containers_skipped: exec.containersSkipped,
+            error_message: exec.errorMessage,
+            started_at: exec.startedAt,
+            completed_at: exec.completedAt,
+            duration_ms: exec.durationMs,
+            intent_name: exec.intent?.name,
+          }),
+          containers: (exec.containers?.items || []).map((c) =>
+            transformExecutionContainer({
+              id: Number(c.id),
+              execution_id: Number(c.executionId),
+              container_id: c.dockerContainerId,
+              container_name: c.containerName,
+              image_name: c.imageName,
+              source_instance_id: c.sourceInstanceId ? Number(c.sourceInstanceId) : null,
+              runner_id: c.runnerId ? Number(c.runnerId) : null,
+              status: c.status?.toLowerCase(),
+              old_image: c.oldImage,
+              new_image: c.newImage,
+              old_digest: c.oldDigest,
+              new_digest: c.newDigest,
+              error_message: c.errorMessage,
+              duration_ms: c.durationMs,
+              created_at: c.createdAt,
+            })
+          ),
         };
       }
       return { success: false, error: "Failed to fetch execution detail" };
     } catch (err) {
       return {
         success: false,
-        error: err.response?.data?.error || "Failed to fetch execution detail",
+        error: err.response?.data?.error || err.message || "Failed to fetch execution detail",
       };
     }
   }, []);

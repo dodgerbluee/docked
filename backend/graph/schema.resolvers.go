@@ -1362,18 +1362,21 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		}
 
 		// A dry-run is an evaluation only. It must never make an upstream
-		// mutation request; report every match as skipped instead.
+		// mutation request; record every match as a dry_run row instead.
 		if intent.DryRun == 1 {
-			if err := db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil); err != nil {
-				return
+			for i := range matched {
+				recordIntentExecContainer(ctx, r.DB, execID, &matched[i], "dry_run", nil, nil)
 			}
+			_ = db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil)
+			_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
 			return
 		}
 
 		upgraded := 0
 		failed := 0
 		skipped := 0
-		for _, c := range matched {
+		for i := range matched {
+			c := &matched[i]
 			var runnerURL, runnerKey string
 			var runner *db.RunnerRow
 			if c.RunnerID.Valid {
@@ -1389,35 +1392,44 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 				locked, lockErr := db.AcquireUpgradeLock(ctx, r.DB, targetKey, owner)
 				if lockErr != nil || !locked {
 					skipped++
+					recordIntentExecContainer(ctx, r.DB, execID, c, "skipped", nil, nil)
 					continue
 				}
 				upStart := time.Now()
 				err := runnerUpgrade(runnerURL, runnerKey, c.ContainerID)
 				_ = db.ReleaseUpgradeLock(ctx, r.DB, targetKey, owner)
 				upStatus, upErr := "success", ""
+				duration := time.Since(upStart).Milliseconds()
 				if err == nil {
 					upgraded++
+					recordIntentExecContainer(ctx, r.DB, execID, c, "upgraded", nil, &duration)
 				} else {
 					failed++
 					upStatus, upErr = "failed", err.Error()
+					recordIntentExecContainer(ctx, r.DB, execID, c, "failed", &upErr, &duration)
 				}
-				row := c
+				row := *c
 				r.recordUpgradeHistory(ctx, uid, &row, runner, nullStrDefault(row.ImageName),
-					upStatus, upErr, time.Since(upStart).Milliseconds())
+					upStatus, upErr, duration)
 			} else {
 				skipped++
+				recordIntentExecContainer(ctx, r.DB, execID, c, "skipped", nil, nil)
 			}
 			if intent.SequentialDelaySec > 0 {
 				time.Sleep(time.Duration(intent.SequentialDelaySec) * time.Second)
 			}
 		}
+		// Node parity: skipped containers alone still count as completed.
 		status := "completed"
-		if failed > 0 && upgraded == 0 {
-			status = "failed"
-		} else if failed > 0 || skipped > 0 {
-			status = "partial"
+		if failed > 0 {
+			if upgraded == 0 {
+				status = "failed"
+			} else {
+				status = "partial"
+			}
 		}
 		db.UpdateIntentExecution(ctx, r.DB, execID, status, total, upgraded, failed, skipped, nil)
+		_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
 	}()
 
 	return &model.IntentExecution{
@@ -1427,6 +1439,56 @@ func (r *mutationResolver) TriggerIntent(ctx context.Context, id string, idempot
 		TriggerType: model.IntentTriggerTypeManual,
 		QueuedAt:    time.Now(),
 	}, nil
+}
+
+// DryRunIntent is the resolver for the dryRunIntent field.
+func (r *mutationResolver) DryRunIntent(ctx context.Context, id string) (*model.IntentExecution, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	iid, _ := strconv.ParseInt(id, 10, 64)
+
+	intent, err := db.GetIntentByID(ctx, r.DB, iid, uid)
+	if err != nil || intent == nil {
+		return nil, fmt.Errorf("intent not found")
+	}
+
+	matchC := db.UnmarshalStringArr(intent.MatchContainers)
+	matchI := db.UnmarshalStringArr(intent.MatchImages)
+	matchS := db.UnmarshalStringArr(intent.MatchSources)
+	matchSt := db.UnmarshalStringArr(intent.MatchStacks)
+	matchR := db.UnmarshalStringArr(intent.MatchRegistries)
+	exC := db.UnmarshalStringArr(intent.ExcludeContainers)
+	exI := db.UnmarshalStringArr(intent.ExcludeImages)
+	exSt := db.UnmarshalStringArr(intent.ExcludeStacks)
+	exR := db.UnmarshalStringArr(intent.ExcludeRegistries)
+
+	matched, total, err := db.GetContainersMatchingIntent(ctx, r.DB, uid,
+		matchC, matchI, matchS, matchSt, matchR, exC, exI, exSt, exR, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	execID, err := db.CreateIntentExecution(ctx, r.DB, iid, uid, "manual")
+	if err != nil {
+		return nil, fmt.Errorf("create execution: %w", err)
+	}
+
+	// Evaluation only: record matches, never touch upstream systems.
+	for i := range matched {
+		recordIntentExecContainer(ctx, r.DB, execID, &matched[i], "dry_run", nil, nil)
+	}
+	if err := db.UpdateIntentExecution(ctx, r.DB, execID, "completed", total, 0, 0, total, nil); err != nil {
+		return nil, err
+	}
+	_ = db.TouchIntentLastEvaluated(ctx, r.DB, iid, uid, execID)
+
+	row, _ := db.GetIntentExecutionByID(ctx, r.DB, execID, uid)
+	if row == nil {
+		return nil, fmt.Errorf("execution not found")
+	}
+	return intentExecutionToModel(*row), nil
 }
 
 // UpdateBatchConfig is the resolver for the updateBatchConfig field.
@@ -2280,6 +2342,24 @@ func (r *queryResolver) IntentExecutions(ctx context.Context, intentID *string, 
 		TotalCount: total,
 		PageInfo:   buildPageInfo(len(items), total, limit, offset),
 	}, nil
+}
+
+// IntentExecution is the resolver for the intentExecution field.
+func (r *queryResolver) IntentExecution(ctx context.Context, id string) (*model.IntentExecution, error) {
+	uid, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	eid, _ := strconv.ParseInt(id, 10, 64)
+
+	row, err := db.GetIntentExecutionByID(ctx, r.DB, eid, uid)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, fmt.Errorf("execution not found")
+	}
+	return intentExecutionToModel(*row), nil
 }
 
 // PreviewIntent is the resolver for the previewIntent field.

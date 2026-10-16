@@ -239,6 +239,21 @@ func intentExecutionToModel(row db.IntentExecutionRow) *model.IntentExecution {
 	}
 	return m
 }
+
+// recordIntentExecContainer writes a per-container result row for an intent
+// execution, mirroring Node's addIntentExecutionContainer calls.
+func recordIntentExecContainer(ctx context.Context, database *sql.DB, execID int64,
+	c *db.ContainerRow, status string, errMsg *string, durationMs *int64) {
+	var siID, rID *int64
+	if c.SourceInstanceID.Valid {
+		siID = &c.SourceInstanceID.Int64
+	}
+	if c.RunnerID.Valid {
+		rID = &c.RunnerID.Int64
+	}
+	_ = db.InsertIntentExecutionContainer(ctx, database, execID, c.ContainerID, c.ContainerName,
+		nullStrDefault(c.ImageName), status, siID, rID, nullStrPtr(c.ImageName), errMsg, durationMs)
+}
 func sourceInstanceToModel(s *db.SourceInstanceRow) *model.SourceInstance {
 	if s == nil {
 		return nil

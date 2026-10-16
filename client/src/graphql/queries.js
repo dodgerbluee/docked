@@ -888,6 +888,65 @@ export const INTENT_EXECUTIONS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const INTENT_EXECUTION_QUERY = /* GraphQL */ `
+  query IntentExecution($id: ID!) {
+    intentExecution(id: $id) {
+      id
+      intentId
+      status
+      triggerType
+      containersMatched
+      containersUpgraded
+      containersFailed
+      containersSkipped
+      errorMessage
+      queuedAt
+      startedAt
+      completedAt
+      durationMs
+      intent {
+        name
+      }
+      containers {
+        items {
+          id
+          executionId
+          dockerContainerId
+          containerName
+          imageName
+          sourceInstanceId
+          runnerId
+          status
+          oldImage
+          newImage
+          oldDigest
+          newDigest
+          errorMessage
+          durationMs
+          createdAt
+        }
+      }
+    }
+  }
+`;
+
+export const DRY_RUN_INTENT_MUTATION = /* GraphQL */ `
+  mutation DryRunIntent($id: ID!) {
+    dryRunIntent(id: $id) {
+      id
+      intentId
+      status
+      containersMatched
+      containersUpgraded
+      containersFailed
+      containersSkipped
+      startedAt
+      completedAt
+      durationMs
+    }
+  }
+`;
+
 export const REPOSITORY_TOKENS_QUERY = /* GraphQL */ `
   query RepositoryTokens {
     repositoryTokens {
