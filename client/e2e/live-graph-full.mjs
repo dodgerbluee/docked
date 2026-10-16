@@ -20,7 +20,7 @@
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.E2E_BASE || "https://docked.dbluee.net";
-const LOGIN_TIMEOUT_MS = 300000;
+const LOGIN_TIMEOUT_MS = Number(process.env.E2E_LOGIN_TIMEOUT_MS || 900000);
 const SKIP_DESTRUCTIVE = process.env.E2E_SKIP_DESTRUCTIVE === "1";
 const TAG = "e2etmp";
 // Idempotency claims live 24h in the shared DB, so keys must be unique per
