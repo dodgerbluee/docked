@@ -1224,3 +1224,23 @@ export const USER_EXISTS_QUERY = /* GraphQL */ `
     userExists(username: $username)
   }
 `;
+
+export const TOKEN_ASSOCIATED_IMAGES_QUERY = /* GraphQL */ `
+  query TokenAssociatedImages {
+    repositoryTokens {
+      id
+      associatedImages {
+        imageRepo
+      }
+    }
+  }
+`;
+
+export const ASSOCIATE_IMAGES_MUTATION = /* GraphQL */ `
+  mutation AssociateImages($tokenId: ID!, $input: AssociateImagesInput!) {
+    associateImages(tokenId: $tokenId, input: $input) {
+      success
+      message
+    }
+  }
+`;

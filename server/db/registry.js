@@ -181,105 +181,10 @@ function deleteRepositoryAccessToken(id, userId) {
   });
 }
 
-/**
- * Associate images with a repository access token
- * @param {number} userId - User ID
- * @param {number} tokenId - Token ID
- * @param {Array<string>} imageRepos - Array of image repository names
- * @returns {Promise<void>}
- */
-// eslint-disable-next-line max-lines-per-function -- Image association requires comprehensive database operations
-function associateImagesWithToken(userId, tokenId, imageRepos) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-
-      if (!imageRepos || imageRepos.length === 0) {
-        // If no images provided, clear all associations for this token
-        db.run(
-          `UPDATE deployed_images 
-           SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = ? AND repository_token_id = ?`,
-          [userId, tokenId],
-          (err) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
-        return;
-      }
-
-      // First, clear existing associations for this token
-      db.run(
-        `UPDATE deployed_images 
-         SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
-         WHERE user_id = ? AND repository_token_id = ?`,
-        [userId, tokenId],
-        (clearErr) => {
-          if (clearErr) {
-            reject(clearErr);
-            return;
-          }
-
-          // Then, set the token for the specified images
-          const placeholders = imageRepos.map(() => "?").join(",");
-          db.run(
-            `UPDATE deployed_images 
-             SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE user_id = ? AND image_repo IN (${placeholders})`,
-            [tokenId, userId, ...imageRepos],
-            (updateErr) => {
-              if (updateErr) {
-                reject(updateErr);
-              } else {
-                resolve();
-              }
-            }
-          );
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Get images associated with a repository access token
- * @param {number} userId - User ID
- * @param {number} tokenId - Token ID
- * @returns {Promise<Array<string>>} - Array of image repository names
- */
-function getAssociatedImagesForToken(userId, tokenId) {
-  return new Promise((resolve, reject) => {
-    try {
-      const db = getDatabase();
-      db.all(
-        "SELECT DISTINCT image_repo FROM deployed_images WHERE user_id = ? AND repository_token_id = ?",
-        [userId, tokenId],
-        (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve((rows || []).map((row) => row.image_repo));
-          }
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
 module.exports = {
   getAllRepositoryAccessTokens,
   getRepositoryAccessTokenByProvider,
   getRepositoryAccessTokenById,
   upsertRepositoryAccessToken,
   deleteRepositoryAccessToken,
-  associateImagesWithToken,
-  getAssociatedImagesForToken,
 };

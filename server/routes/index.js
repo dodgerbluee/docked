@@ -40,7 +40,6 @@ const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 
 const versionController = require("../controllers/versionController");
-const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
 const ssoAdminController = require("../controllers/ssoAdminController");
@@ -291,24 +290,6 @@ function appendRunnerContainers(req, res, next) {
 const avatarLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-
-// Repository access token routes rate limiter: 100 requests per 15 minutes per IP
-const repositoryAssociatedImagesRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-
-// Associate images route rate limiter: 10 requests per minute per IP (more restrictive for write operations)
-const associateImagesLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 requests per minute
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -825,19 +806,8 @@ router.get("/intents/:id/preview", asyncHandler(intentController.getIntentPrevie
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
 
-// Repository access token routes
-
-router.get(
-  "/repository-access-tokens/:id/associated-images",
-  repositoryAssociatedImagesRateLimiter,
-  asyncHandler(repositoryAccessTokenController.getAssociatedImages)
-);
-
-router.post(
-  "/repository-access-tokens/:id/associate-images",
-  associateImagesLimiter,
-  asyncHandler(repositoryAccessTokenController.associateImages)
-);
+// Repository access token associated-images routes are served by the graph
+// (repositoryTokens.associatedImages field + associateImages mutation).
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes

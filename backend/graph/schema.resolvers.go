@@ -1812,13 +1812,21 @@ func (r *mutationResolver) AssociateImages(ctx context.Context, tokenID string, 
 	if err != nil {
 		return nil, err
 	}
-	tid, _ := strconv.ParseInt(tokenID, 10, 64)
-
-	// Update deployed_images to associate with this token
-	for _, repo := range input.ImageRepos {
-		r.DB.ExecContext(ctx,
-			"UPDATE deployed_images SET repository_token_id = ? WHERE user_id = ? AND image_repo = ?",
-			tid, uid, repo)
+	tid, err := strconv.ParseInt(tokenID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token id")
+	}
+	token, err := db.GetRepositoryTokenByID(ctx, r.DB, uid, tid)
+	if err != nil {
+		return nil, err
+	}
+	if token == nil {
+		return nil, fmt.Errorf("repository access token not found")
+	}
+	// Replace semantics (parity with Node's associateImagesWithToken):
+	// clear the token's existing associations, then set the new list.
+	if err := db.AssociateImagesWithToken(ctx, r.DB, uid, tid, input.ImageRepos); err != nil {
+		return nil, err
 	}
 	return &model.SuccessResult{Success: true}, nil
 }

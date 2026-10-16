@@ -88,27 +88,6 @@ class RegistryRepository extends BaseRepository {
   deleteRepositoryAccessToken(id, userId) {
     return registryDb.deleteRepositoryAccessToken(id, userId);
   }
-
-  /**
-   * Associate images with a repository access token
-   * @param {number} userId - User ID
-   * @param {number} tokenId - Token ID
-   * @param {Array<string>} imageRepos - Array of image repository names
-   * @returns {Promise<void>}
-   */
-  associateImagesWithToken(userId, tokenId, imageRepos) {
-    return registryDb.associateImagesWithToken(userId, tokenId, imageRepos);
-  }
-
-  /**
-   * Get associated images for a repository access token
-   * @param {number} userId - User ID
-   * @param {number} tokenId - Token ID
-   * @returns {Promise<Array>} - Array of associated image repository names
-   */
-  getAssociatedImagesForToken(userId, tokenId) {
-    return registryDb.getAssociatedImagesForToken(userId, tokenId);
-  }
 }
 
 module.exports = RegistryRepository;

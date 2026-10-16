@@ -47,6 +47,20 @@ func GetRepositoryTokenByProvider(ctx context.Context, database *sql.DB, userID 
 	return &r, nil
 }
 
+func GetRepositoryTokenByID(ctx context.Context, database *sql.DB, userID, tokenID int64) (*RepositoryTokenRow, error) {
+	var r RepositoryTokenRow
+	err := database.QueryRowContext(ctx,
+		"SELECT id, provider, name, access_token, created_at, updated_at FROM repository_access_tokens WHERE id = ? AND user_id = ?",
+		tokenID, userID).Scan(&r.ID, &r.Provider, &r.Name, &r.AccessToken, &r.CreatedAt, &r.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func UpsertRepositoryToken(ctx context.Context, database *sql.DB, userID int64, provider, name, accessToken string) (int64, error) {
 	res, err := database.ExecContext(ctx,
 		`INSERT INTO repository_access_tokens (user_id, provider, name, access_token)

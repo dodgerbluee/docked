@@ -5,6 +5,11 @@ import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { API_BASE_URL } from "../../utils/api";
+import { graphqlClient } from "../../graphql/client";
+import {
+  TOKEN_ASSOCIATED_IMAGES_QUERY,
+  ASSOCIATE_IMAGES_MUTATION,
+} from "../../graphql/queries";
 import styles from "./AssociateImagesModal.module.css";
 
 /**
@@ -22,10 +27,12 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     if (!token) return;
 
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/repository-access-tokens/${token.id}/associated-images`
-      );
-      const associatedImageRepos = response.data.imageRepos || [];
+      const { data, error: gqlError } = await graphqlClient
+        .query(TOKEN_ASSOCIATED_IMAGES_QUERY)
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
+      const entry = (data?.repositoryTokens || []).find((t) => String(t.id) === String(token.id));
+      const associatedImageRepos = (entry?.associatedImages || []).map((i) => i.imageRepo);
       setSelectedImages(new Set(associatedImageRepos));
     } catch (err) {
       console.error("Error fetching associated images:", err);
@@ -126,18 +133,18 @@ const AssociateImagesModal = ({ isOpen, onClose, token }) => {
     setError(null);
 
     try {
-      // TODO: Implement API endpoint for associating images with tokens
-      await axios.post(
-        `${API_BASE_URL}/api/repository-access-tokens/${token.id}/associate-images`,
-        {
-          imageRepos: Array.from(selectedImages),
-        }
-      );
+      const { error: gqlError } = await graphqlClient
+        .mutation(ASSOCIATE_IMAGES_MUTATION, {
+          tokenId: String(token.id),
+          input: { imageRepos: Array.from(selectedImages) },
+        })
+        .toPromise();
+      if (gqlError) throw new Error(gqlError.message);
 
       onClose();
     } catch (err) {
       console.error("Error associating images:", err);
-      setError(err.response?.data?.error || "Failed to associate images. Please try again.");
+      setError(err.message || "Failed to associate images. Please try again.");
     } finally {
       setSaving(false);
     }

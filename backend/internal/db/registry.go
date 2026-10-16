@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // RegistryData holds the latest version info for an image from registry_image_versions.
@@ -57,4 +58,31 @@ func GetAssociatedImages(ctx context.Context, database *sql.DB, userID, tokenID 
 		result = append(result, repo)
 	}
 	return result, rows.Err()
+}
+
+// AssociateImagesWithToken replaces the image associations for a token
+// (clear existing, then set the new list), mirroring Node's
+// associateImagesWithToken. An empty list just clears all associations.
+func AssociateImagesWithToken(ctx context.Context, database *sql.DB, userID, tokenID int64, imageRepos []string) error {
+	if _, err := database.ExecContext(ctx,
+		`UPDATE deployed_images SET repository_token_id = NULL, updated_at = CURRENT_TIMESTAMP
+		 WHERE user_id = ? AND repository_token_id = ?`, userID, tokenID); err != nil {
+		return fmt.Errorf("clear token associations: %w", err)
+	}
+	if len(imageRepos) == 0 {
+		return nil
+	}
+	placeholders := strings.Repeat("?, ", len(imageRepos))
+	placeholders = placeholders[:len(placeholders)-2]
+	args := make([]any, 0, len(imageRepos)+2)
+	args = append(args, tokenID, userID)
+	for _, repo := range imageRepos {
+		args = append(args, repo)
+	}
+	if _, err := database.ExecContext(ctx,
+		`UPDATE deployed_images SET repository_token_id = ?, updated_at = CURRENT_TIMESTAMP
+		 WHERE user_id = ? AND image_repo IN (`+placeholders+`)`, args...); err != nil {
+		return fmt.Errorf("set token associations: %w", err)
+	}
+	return nil
 }

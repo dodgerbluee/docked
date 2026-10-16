@@ -219,22 +219,22 @@ func InsertTrackedAppUpgradeHistory(ctx context.Context, database *sql.DB, h Tra
 
 // TrackedAppUpgradeRow is a row from the tracked_app_upgrade_history table.
 type TrackedAppUpgradeRow struct {
-	ID               int64
-	TrackedAppID     sql.NullInt64
-	AppName          sql.NullString
-	Provider         sql.NullString
-	Repository       sql.NullString
-	OldVersion       sql.NullString
-	NewVersion       sql.NullString
-	OldTag           sql.NullString
-	NewTag           sql.NullString
-	OldCommitSHA     sql.NullString
-	NewCommitSHA     sql.NullString
-	ReleaseNotes     sql.NullString
-	Status           string
-	ErrorMessage     sql.NullString
-	UpgradeDuration  sql.NullInt64
-	CreatedAt        string
+	ID              int64
+	TrackedAppID    sql.NullInt64
+	AppName         sql.NullString
+	Provider        sql.NullString
+	Repository      sql.NullString
+	OldVersion      sql.NullString
+	NewVersion      sql.NullString
+	OldTag          sql.NullString
+	NewTag          sql.NullString
+	OldCommitSHA    sql.NullString
+	NewCommitSHA    sql.NullString
+	ReleaseNotes    sql.NullString
+	Status          string
+	ErrorMessage    sql.NullString
+	UpgradeDuration sql.NullInt64
+	CreatedAt       string
 }
 
 const trackedAppUpgradeCols = `id, tracked_app_id, app_name, provider, repository,
