@@ -236,6 +236,13 @@ type DiscordWebhook struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+type DiscordWebhookInfo struct {
+	Name      *string `json:"name,omitempty"`
+	ChannelID *string `json:"channelId,omitempty"`
+	GuildID   *string `json:"guildId,omitempty"`
+	Avatar    *string `json:"avatar,omitempty"`
+}
+
 type DockerImage struct {
 	ID         string    `json:"id"`
 	RepoTags   []string  `json:"repoTags"`

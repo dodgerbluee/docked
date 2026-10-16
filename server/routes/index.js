@@ -39,7 +39,6 @@ const authController = require("../controllers/authController");
 const avatarController = require("../controllers/avatarController");
 const batchController = require("../controllers/batchController");
 const trackedAppHistoryController = require("../controllers/trackedAppController");
-const discordController = require("../controllers/discordController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
 const logsController = require("../controllers/logsController");
@@ -501,8 +500,6 @@ router.post("/auth/oauth/link", oauthLimiter, asyncHandler(oauthController.compl
  */
 router.get("/auth/verify", asyncHandler(authController.verifyToken));
 
-router.post("/discord/test", publicLimiter, asyncHandler(discordController.testDiscordWebhook));
-
 // Runner enrollment routes (unauthenticated — called by install script and dockhand agent)
 router.get(
   "/runners/install/:token",
@@ -881,24 +878,6 @@ router.post("/intents/:id/dry-run", asyncHandler(intentController.dryRunIntentHa
 
 // Tracked apps routes
 // IMPORTANT: More specific routes must come before parameterized routes
-
-// Discord notification routes
-router.post(
-  "/discord/webhooks",
-  writeLimiter,
-  asyncHandler(discordController.createDiscordWebhook)
-);
-router.put(
-  "/discord/webhooks/:id",
-  writeLimiter,
-  asyncHandler(discordController.updateDiscordWebhook)
-);
-router.post(
-  "/discord/webhooks/:id/test",
-  writeLimiter,
-  asyncHandler(discordController.testDiscordWebhookById)
-);
-router.get("/discord/webhooks/info", asyncHandler(discordController.getWebhookInfo));
 
 // Settings routes
 

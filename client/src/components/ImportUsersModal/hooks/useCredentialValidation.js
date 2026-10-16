@@ -1,9 +1,10 @@
 import { useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../../utils/api";
 import { validateStep } from "../utils/userImportValidators";
 import { graphqlClient } from "../../../graphql/client";
-import { VALIDATE_SOURCE_CREDENTIALS_MUTATION } from "../../../graphql/queries";
+import {
+  VALIDATE_SOURCE_CREDENTIALS_MUTATION,
+  TEST_DISCORD_WEBHOOK_URL_MUTATION,
+} from "../../../graphql/queries";
 
 // Step types
 const STEP_TYPES = {
@@ -56,15 +57,6 @@ export function useCredentialValidation({
 
     const username = currentUser.username;
     const creds = userCredentials[username] || {};
-
-    // Create a separate axios instance for validation requests without auth headers
-    const validationAxios = axios.create({
-      baseURL: API_BASE_URL,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    delete validationAxios.defaults.headers.common["Authorization"];
 
     try {
       if (
@@ -154,19 +146,19 @@ export function useCredentialValidation({
             // Only validate if webhook URL is provided
             if (cred.webhookUrl) {
               try {
-                const response = await validationAxios.post(`/api/discord/test`, {
-                  webhookUrl: cred.webhookUrl,
-                });
-                if (!response.data.success) {
+                const result = await graphqlClient
+                  .mutation(TEST_DISCORD_WEBHOOK_URL_MUTATION, { webhookUrl: cred.webhookUrl })
+                  .toPromise();
+                if (result.error || !result.data?.testDiscordWebhookUrl?.success) {
                   return {
                     success: false,
-                    error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": ${response.data.error || "Webhook test failed"}`,
+                    error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": ${result.error?.message || result.data?.testDiscordWebhookUrl?.message || "Webhook test failed"}`,
                   };
                 }
               } catch (error) {
                 return {
                   success: false,
-                  error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": ${error.response?.data?.error || "Webhook test failed"}`,
+                  error: `Discord webhook "${webhook.server_name || `Webhook ${i + 1}`}": ${error.message || "Webhook test failed"}`,
                 };
               }
             }

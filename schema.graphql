@@ -486,6 +486,13 @@ type DiscordWebhook {
   updatedAt: DateTime!
 }
 
+type DiscordWebhookInfo {
+  name: String
+  channelId: String
+  guildId: String
+  avatar: String
+}
+
 # -----------------------------------------------------------------------------
 # Repository Access Tokens
 # -----------------------------------------------------------------------------
@@ -985,6 +992,7 @@ type Query {
   # ── Discord ───────────────────────────────────────────────────────────────
   discordWebhooks: [DiscordWebhook!]!
   discordWebhook(id: ID!): DiscordWebhook
+  discordWebhookInfo(webhookUrl: String!): DiscordWebhookInfo
 
   # ── Repository Tokens ─────────────────────────────────────────────────────
   repositoryTokens: [RepositoryAccessToken!]!

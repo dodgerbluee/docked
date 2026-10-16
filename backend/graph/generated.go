@@ -170,6 +170,13 @@ type ComplexityRoot struct {
 		UpdatedAt   func(childComplexity int) int
 	}
 
+	DiscordWebhookInfo struct {
+		Avatar    func(childComplexity int) int
+		ChannelID func(childComplexity int) int
+		GuildID   func(childComplexity int) int
+		Name      func(childComplexity int) int
+	}
+
 	DockerImage struct {
 		Created    func(childComplexity int) int
 		EndpointID func(childComplexity int) int
@@ -396,6 +403,7 @@ type ComplexityRoot struct {
 		ContainerGroup           func(childComplexity int) int
 		Containers               func(childComplexity int, filter *model.ContainerFilterInput, first *int, after *string) int
 		DiscordWebhook           func(childComplexity int, id string) int
+		DiscordWebhookInfo       func(childComplexity int, webhookURL string) int
 		DiscordWebhooks          func(childComplexity int) int
 		Health                   func(childComplexity int) int
 		Intent                   func(childComplexity int, id string) int
@@ -755,6 +763,7 @@ type QueryResolver interface {
 	UpgradeHistory(ctx context.Context, filter *model.UpgradeHistoryFilterInput, first *int, after *string) (*model.UpgradeRecordConnection, error)
 	DiscordWebhooks(ctx context.Context) ([]*model.DiscordWebhook, error)
 	DiscordWebhook(ctx context.Context, id string) (*model.DiscordWebhook, error)
+	DiscordWebhookInfo(ctx context.Context, webhookURL string) (*model.DiscordWebhookInfo, error)
 	RepositoryTokens(ctx context.Context) ([]*model.RepositoryAccessToken, error)
 	RepositoryToken(ctx context.Context, provider string) (*model.RepositoryAccessToken, error)
 	UserPreferences(ctx context.Context) (*model.UserPreferences, error)
@@ -1327,6 +1336,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DiscordWebhook.UpdatedAt(childComplexity), true
+
+	case "DiscordWebhookInfo.avatar":
+		if e.ComplexityRoot.DiscordWebhookInfo.Avatar == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscordWebhookInfo.Avatar(childComplexity), true
+	case "DiscordWebhookInfo.channelId":
+		if e.ComplexityRoot.DiscordWebhookInfo.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscordWebhookInfo.ChannelID(childComplexity), true
+	case "DiscordWebhookInfo.guildId":
+		if e.ComplexityRoot.DiscordWebhookInfo.GuildID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscordWebhookInfo.GuildID(childComplexity), true
+	case "DiscordWebhookInfo.name":
+		if e.ComplexityRoot.DiscordWebhookInfo.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscordWebhookInfo.Name(childComplexity), true
 
 	case "DockerImage.created":
 		if e.ComplexityRoot.DockerImage.Created == nil {
@@ -2666,6 +2700,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.DiscordWebhook(childComplexity, args["id"].(string)), true
+	case "Query.discordWebhookInfo":
+		if e.ComplexityRoot.Query.DiscordWebhookInfo == nil {
+			break
+		}
+
+		args, err := ec.field_Query_discordWebhookInfo_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.DiscordWebhookInfo(childComplexity, args["webhookUrl"].(string)), true
 	case "Query.discordWebhooks":
 		if e.ComplexityRoot.Query.DiscordWebhooks == nil {
 			break
@@ -4566,6 +4611,13 @@ type DiscordWebhook {
   updatedAt: DateTime!
 }
 
+type DiscordWebhookInfo {
+  name: String
+  channelId: String
+  guildId: String
+  avatar: String
+}
+
 # -----------------------------------------------------------------------------
 # Repository Access Tokens
 # -----------------------------------------------------------------------------
@@ -5065,6 +5117,7 @@ type Query {
   # ── Discord ───────────────────────────────────────────────────────────────
   discordWebhooks: [DiscordWebhook!]!
   discordWebhook(id: ID!): DiscordWebhook
+  discordWebhookInfo(webhookUrl: String!): DiscordWebhookInfo
 
   # ── Repository Tokens ─────────────────────────────────────────────────────
   repositoryTokens: [RepositoryAccessToken!]!
@@ -5545,6 +5598,20 @@ func (ec *executionContext) childFields_DiscordWebhook(ctx context.Context, fiel
 		return ec.fieldContext_DiscordWebhook_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DiscordWebhook", field.Name)
+}
+
+func (ec *executionContext) childFields_DiscordWebhookInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_DiscordWebhookInfo_name(ctx, field)
+	case "channelId":
+		return ec.fieldContext_DiscordWebhookInfo_channelId(ctx, field)
+	case "guildId":
+		return ec.fieldContext_DiscordWebhookInfo_guildId(ctx, field)
+	case "avatar":
+		return ec.fieldContext_DiscordWebhookInfo_avatar(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DiscordWebhookInfo", field.Name)
 }
 
 func (ec *executionContext) childFields_DockerImage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7356,6 +7423,20 @@ func (ec *executionContext) field_Query_containers_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_discordWebhookInfo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "webhookUrl",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["webhookUrl"] = arg0
 	return args, nil
 }
 
@@ -9849,6 +9930,98 @@ func (ec *executionContext) _DiscordWebhook_updatedAt(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_DiscordWebhook_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DiscordWebhook", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _DiscordWebhookInfo_name(ctx context.Context, field graphql.CollectedField, obj *model.DiscordWebhookInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DiscordWebhookInfo_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DiscordWebhookInfo_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DiscordWebhookInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DiscordWebhookInfo_channelId(ctx context.Context, field graphql.CollectedField, obj *model.DiscordWebhookInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DiscordWebhookInfo_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DiscordWebhookInfo_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DiscordWebhookInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DiscordWebhookInfo_guildId(ctx context.Context, field graphql.CollectedField, obj *model.DiscordWebhookInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DiscordWebhookInfo_guildId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GuildID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DiscordWebhookInfo_guildId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DiscordWebhookInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DiscordWebhookInfo_avatar(ctx context.Context, field graphql.CollectedField, obj *model.DiscordWebhookInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DiscordWebhookInfo_avatar(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Avatar, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DiscordWebhookInfo_avatar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DiscordWebhookInfo", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _DockerImage_id(ctx context.Context, field graphql.CollectedField, obj *model.DockerImage) (ret graphql.Marshaler) {
@@ -15896,6 +16069,50 @@ func (ec *executionContext) fieldContext_Query_discordWebhook(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_discordWebhook_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_discordWebhookInfo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_discordWebhookInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().DiscordWebhookInfo(ctx, fc.Args["webhookUrl"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DiscordWebhookInfo) graphql.Marshaler {
+			return ec.marshalODiscordWebhookInfo2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDiscordWebhookInfo(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_discordWebhookInfo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DiscordWebhookInfo(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_discordWebhookInfo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -24119,6 +24336,59 @@ func (ec *executionContext) _DiscordWebhook(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var discordWebhookInfoImplementors = []string{"DiscordWebhookInfo"}
+
+func (ec *executionContext) _DiscordWebhookInfo(ctx context.Context, sel ast.SelectionSet, obj *model.DiscordWebhookInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, discordWebhookInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DiscordWebhookInfo")
+		case "name":
+			out.Values[i] = ec._DiscordWebhookInfo_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "channelId":
+			out.Values[i] = ec._DiscordWebhookInfo_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "guildId":
+			out.Values[i] = ec._DiscordWebhookInfo_guildId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "avatar":
+			out.Values[i] = ec._DiscordWebhookInfo_avatar(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var dockerImageImplementors = []string{"DockerImage"}
 
 func (ec *executionContext) _DockerImage(ctx context.Context, sel ast.SelectionSet, obj *model.DockerImage) graphql.Marshaler {
@@ -26306,6 +26576,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_discordWebhook(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "discordWebhookInfo":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_discordWebhookInfo(ctx, field)
 				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -30467,6 +30759,13 @@ func (ec *executionContext) marshalODiscordWebhook2ᚖgithubᚗcomᚋdockedapp�
 		return graphql.Null
 	}
 	return ec._DiscordWebhook(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODiscordWebhookInfo2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐDiscordWebhookInfo(ctx context.Context, sel ast.SelectionSet, v *model.DiscordWebhookInfo) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DiscordWebhookInfo(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOErrorCode2ᚖgithubᚗcomᚋdockedappᚋbackendᚋgraphᚋmodelᚐErrorCode(ctx context.Context, v any) (*model.ErrorCode, error) {

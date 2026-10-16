@@ -2418,6 +2418,50 @@ func (r *queryResolver) DiscordWebhook(ctx context.Context, id string) (*model.D
 	return discordWebhookToModel(row), nil
 }
 
+// DiscordWebhookInfo is the resolver for the discordWebhookInfo field.
+func (r *queryResolver) DiscordWebhookInfo(ctx context.Context, webhookURL string) (*model.DiscordWebhookInfo, error) {
+	_, err := requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if webhookURL == "" {
+		return nil, fmt.Errorf("webhook URL is required")
+	}
+
+	status, body, err := httpGet(webhookURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch webhook info: %w", err)
+	}
+	if status != 200 {
+		return nil, fmt.Errorf("discord returned HTTP %d", status)
+	}
+
+	var payload struct {
+		Name      string `json:"name"`
+		Avatar    string `json:"avatar"`
+		ChannelID string `json:"channel_id"`
+		GuildID   string `json:"guild_id"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse webhook info: %w", err)
+	}
+
+	info := &model.DiscordWebhookInfo{}
+	if payload.Name != "" {
+		info.Name = &payload.Name
+	}
+	if payload.Avatar != "" {
+		info.Avatar = &payload.Avatar
+	}
+	if payload.ChannelID != "" {
+		info.ChannelID = &payload.ChannelID
+	}
+	if payload.GuildID != "" {
+		info.GuildID = &payload.GuildID
+	}
+	return info, nil
+}
+
 // RepositoryTokens is the resolver for the repositoryTokens field.
 func (r *queryResolver) RepositoryTokens(ctx context.Context) ([]*model.RepositoryAccessToken, error) {
 	uid, err := requireUser(ctx)

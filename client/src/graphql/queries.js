@@ -585,6 +585,26 @@ export const TEST_DISCORD_WEBHOOK_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const TEST_DISCORD_WEBHOOK_URL_MUTATION = /* GraphQL */ `
+  mutation TestDiscordWebhookUrl($webhookUrl: String!) {
+    testDiscordWebhookUrl(webhookUrl: $webhookUrl) {
+      success
+      message
+    }
+  }
+`;
+
+export const DISCORD_WEBHOOK_INFO_QUERY = /* GraphQL */ `
+  query DiscordWebhookInfo($webhookUrl: String!) {
+    discordWebhookInfo(webhookUrl: $webhookUrl) {
+      name
+      channelId
+      guildId
+      avatar
+    }
+  }
+`;
+
 export const UPDATE_BATCH_CONFIG_MUTATION = /* GraphQL */ `
   mutation UpdateBatchConfig($input: UpdateBatchConfigInput!) {
     updateBatchConfig(input: $input) {

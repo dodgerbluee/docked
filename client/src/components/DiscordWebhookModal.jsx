@@ -5,12 +5,18 @@
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
+import { graphqlClient } from "../graphql/client";
+import {
+  CREATE_DISCORD_WEBHOOK_MUTATION,
+  UPDATE_DISCORD_WEBHOOK_MUTATION,
+  TEST_DISCORD_WEBHOOK_MUTATION,
+  TEST_DISCORD_WEBHOOK_URL_MUTATION,
+  DISCORD_WEBHOOK_INFO_QUERY,
+} from "../graphql/queries";
 import Modal from "./ui/Modal";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 import Alert from "./ui/Alert";
-import { API_BASE_URL } from "../utils/api";
 import styles from "./DiscordWebhookModal.module.css";
 
 function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = null }) {
@@ -64,21 +70,27 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
 
       // If editing and no URL provided, test the existing webhook by ID
       if (!webhookUrl && existingWebhook?.hasWebhook) {
-        const response = await axios.post(
-          `${API_BASE_URL}/api/discord/webhooks/${existingWebhook.id}/test`
-        );
+        const result = await graphqlClient
+          .mutation(TEST_DISCORD_WEBHOOK_MUTATION, { id: existingWebhook.id })
+          .toPromise();
 
-        if (!response.data.success) {
-          throw new Error(response.data.error || "Webhook test failed");
+        if (result.error || !result.data?.testDiscordWebhook?.success) {
+          throw new Error(
+            result.error?.message || result.data?.testDiscordWebhook?.message || "Webhook test failed"
+          );
         }
       } else if (webhookUrl) {
         // Test with provided URL
-        const response = await axios.post(`${API_BASE_URL}/api/discord/test`, {
-          webhookUrl: webhookUrl,
-        });
+        const result = await graphqlClient
+          .mutation(TEST_DISCORD_WEBHOOK_URL_MUTATION, { webhookUrl })
+          .toPromise();
 
-        if (!response.data.success) {
-          throw new Error(response.data.error || "Webhook test failed");
+        if (result.error || !result.data?.testDiscordWebhookUrl?.success) {
+          throw new Error(
+            result.error?.message ||
+              result.data?.testDiscordWebhookUrl?.message ||
+              "Webhook test failed"
+          );
         }
       } else {
         setError("Please enter a webhook URL to test");
@@ -86,7 +98,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
         return;
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to test webhook");
+      setError(err.message || "Failed to test webhook");
     } finally {
       setTestingWebhook(false);
     }
@@ -106,11 +118,11 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
       // If webhook URL is provided and server name is missing, try to fetch webhook info
       if (webhookUrl && !serverName) {
         try {
-          const infoResponse = await axios.get(`${API_BASE_URL}/api/discord/webhooks/info`, {
-            params: { webhookUrl },
-          });
-          if (infoResponse.data.success && infoResponse.data.info) {
-            const info = infoResponse.data.info;
+          const infoResult = await graphqlClient
+            .query(DISCORD_WEBHOOK_INFO_QUERY, { webhookUrl })
+            .toPromise();
+          const info = infoResult.data?.discordWebhookInfo;
+          if (!infoResult.error && info) {
             // Use webhook name as server name if not provided
             if (!serverName && info.name) {
               serverName = info.name;
@@ -138,12 +150,11 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           updateData.webhookUrl = webhookUrl;
         }
 
-        const response = await axios.put(
-          `${API_BASE_URL}/api/discord/webhooks/${existingWebhook.id}`,
-          updateData
-        );
+        const result = await graphqlClient
+          .mutation(UPDATE_DISCORD_WEBHOOK_MUTATION, { id: existingWebhook.id, input: updateData })
+          .toPromise();
 
-        if (response.data.success) {
+        if (!result.error && result.data?.updateDiscordWebhook) {
           // Clear form
           setFormData({
             webhookUrl: "",
@@ -157,7 +168,7 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           // Close modal
           onClose();
         } else {
-          setError(response.data.error || "Failed to update webhook");
+          setError(result.error?.message || "Failed to update webhook");
         }
       } else {
         // Create new webhook - webhook URL is required
@@ -167,13 +178,17 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           return;
         }
 
-        const response = await axios.post(`${API_BASE_URL}/api/discord/webhooks`, {
-          webhookUrl: webhookUrl,
-          serverName: serverName,
-          enabled: formData.enabled,
-        });
+        const result = await graphqlClient
+          .mutation(CREATE_DISCORD_WEBHOOK_MUTATION, {
+            input: {
+              webhookUrl: webhookUrl,
+              serverName: serverName,
+              enabled: formData.enabled,
+            },
+          })
+          .toPromise();
 
-        if (response.data.success) {
+        if (!result.error && result.data?.createDiscordWebhook) {
           // Clear form
           setFormData({
             webhookUrl: "",
@@ -187,11 +202,11 @@ function DiscordWebhookModal({ isOpen, onClose, onSuccess, existingWebhook = nul
           // Close modal
           onClose();
         } else {
-          setError(response.data.error || "Failed to create webhook");
+          setError(result.error?.message || "Failed to create webhook");
         }
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to save webhook. Please try again.");
+      setError(err.message || "Failed to save webhook. Please try again.");
     } finally {
       setLoading(false);
     }
