@@ -41,7 +41,6 @@ const batchController = require("../controllers/batchController");
 const trackedAppHistoryController = require("../controllers/trackedAppController");
 const settingsController = require("../controllers/settingsController");
 const versionController = require("../controllers/versionController");
-const logsController = require("../controllers/logsController");
 const repositoryAccessTokenController = require("../controllers/repositoryAccessTokenController");
 const intentController = require("../controllers/intentController");
 const oauthController = require("../controllers/oauthController");
@@ -923,9 +922,6 @@ router.post(
   associateImagesLimiter,
   asyncHandler(repositoryAccessTokenController.associateImages)
 );
-
-// Logs routes
-router.get("/logs", asyncHandler(logsController.getLogsHandler));
 
 // Runner routes (dockhand agent instances)
 // IMPORTANT: Specific/static routes must come before parameterized routes

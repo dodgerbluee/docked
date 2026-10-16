@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
-import axios from "axios";
-import { API_BASE_URL } from "../../utils/api";
+import { graphqlClient } from "../../graphql/client";
+import { LOGS_QUERY } from "../../graphql/queries";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Alert from "../ui/Alert";
@@ -107,19 +107,15 @@ function LogsTab() {
 
         wasAtBottomRef.current = checkIfAtBottom();
 
-        const params = incremental ? { offset: lastFileSizeRef.current } : { lines: tailLines };
+        const vars = incremental ? { offset: lastFileSizeRef.current } : { lines: tailLines };
 
-        const response = await axios.get(`${API_BASE_URL}/api/logs`, {
-          params,
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        });
-
-        if (!response.data.success) {
-          setError(response.data.error || "Failed to fetch logs");
+        const result = await graphqlClient.query(LOGS_QUERY, vars).toPromise();
+        if (result.error) {
+          setError(result.error.message || "Failed to fetch logs");
           return;
         }
 
-        const { logs: rawLogs, fileSize, rotated } = response.data;
+        const { logs: rawLogs, fileSize, rotated } = result.data.logs;
 
         // If the log file was rotated (fileSize shrank), do a fresh tail load
         if (rotated) {

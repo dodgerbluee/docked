@@ -304,9 +304,11 @@ type ComplexityRoot struct {
 	}
 
 	LogResult struct {
+		FileSize      func(childComplexity int) int
 		Logs          func(childComplexity int) int
 		NewLines      func(childComplexity int) int
 		ReturnedLines func(childComplexity int) int
+		Rotated       func(childComplexity int) int
 		TotalLines    func(childComplexity int) int
 	}
 
@@ -415,7 +417,7 @@ type ComplexityRoot struct {
 		IntentExecutions         func(childComplexity int, intentID *string, first *int, after *string) int
 		Intents                  func(childComplexity int) int
 		LatestRelease            func(childComplexity int) int
-		Logs                     func(childComplexity int, lines *int, since *int, file *string) int
+		Logs                     func(childComplexity int, lines *int, since *int, file *string, offset *int) int
 		Me                       func(childComplexity int) int
 		OauthProviders           func(childComplexity int) int
 		Operation                func(childComplexity int, id string) int
@@ -792,7 +794,7 @@ type QueryResolver interface {
 	RepositoryToken(ctx context.Context, provider string) (*model.RepositoryAccessToken, error)
 	UserPreferences(ctx context.Context) (*model.UserPreferences, error)
 	OauthProviders(ctx context.Context) ([]*model.OAuthProvider, error)
-	Logs(ctx context.Context, lines *int, since *int, file *string) (*model.LogResult, error)
+	Logs(ctx context.Context, lines *int, since *int, file *string, offset *int) (*model.LogResult, error)
 	Operation(ctx context.Context, id string) (*model.Operation, error)
 	SummaryStats(ctx context.Context) (*model.SummaryStats, error)
 }
@@ -1970,6 +1972,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.IntentPreview.MatchedCount(childComplexity), true
 
+	case "LogResult.fileSize":
+		if e.ComplexityRoot.LogResult.FileSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogResult.FileSize(childComplexity), true
 	case "LogResult.logs":
 		if e.ComplexityRoot.LogResult.Logs == nil {
 			break
@@ -1988,6 +1996,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LogResult.ReturnedLines(childComplexity), true
+	case "LogResult.rotated":
+		if e.ComplexityRoot.LogResult.Rotated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogResult.Rotated(childComplexity), true
 	case "LogResult.totalLines":
 		if e.ComplexityRoot.LogResult.TotalLines == nil {
 			break
@@ -2842,7 +2856,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Logs(childComplexity, args["lines"].(*int), args["since"].(*int), args["file"].(*string)), true
+		return e.ComplexityRoot.Query.Logs(childComplexity, args["lines"].(*int), args["since"].(*int), args["file"].(*string), args["offset"].(*int)), true
 	case "Query.me":
 		if e.ComplexityRoot.Query.Me == nil {
 			break
@@ -5279,7 +5293,7 @@ type Query {
   oauthProviders: [OAuthProvider!]!
 
   # ── Logs ──────────────────────────────────────────────────────────────────
-  logs(lines: Int, since: Int, file: String): LogResult!
+  logs(lines: Int, since: Int, file: String, offset: Int): LogResult!
 
   # ── Operations (long-running task tracking) ───────────────────────────────
   operation(id: ID!): Operation
@@ -5309,6 +5323,10 @@ type LogResult {
   totalLines: Int!
   returnedLines: Int!
   newLines: Int!
+  # Byte size of the log file after the read (for offset-based incremental polling)
+  fileSize: Int!
+  # True when the file shrank below the requested offset (log rotation)
+  rotated: Boolean!
 }
 
 # -----------------------------------------------------------------------------
@@ -6046,6 +6064,10 @@ func (ec *executionContext) childFields_LogResult(ctx context.Context, field gra
 		return ec.fieldContext_LogResult_returnedLines(ctx, field)
 	case "newLines":
 		return ec.fieldContext_LogResult_newLines(ctx, field)
+	case "fileSize":
+		return ec.fieldContext_LogResult_fileSize(ctx, field)
+	case "rotated":
+		return ec.fieldContext_LogResult_rotated(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LogResult", field.Name)
 }
@@ -7835,6 +7857,14 @@ func (ec *executionContext) field_Query_logs_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["file"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg3
 	return args, nil
 }
 
@@ -12717,6 +12747,52 @@ func (ec *executionContext) fieldContext_LogResult_newLines(_ context.Context, f
 	return graphql.NewScalarFieldContext("LogResult", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _LogResult_fileSize(ctx context.Context, field graphql.CollectedField, obj *model.LogResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogResult_fileSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogResult_fileSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LogResult_rotated(ctx context.Context, field graphql.CollectedField, obj *model.LogResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogResult_rotated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rotated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogResult_rotated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16778,7 +16854,7 @@ func (ec *executionContext) _Query_logs(ctx context.Context, field graphql.Colle
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Logs(ctx, fc.Args["lines"].(*int), fc.Args["since"].(*int), fc.Args["file"].(*string))
+			return ec.Resolvers.Query().Logs(ctx, fc.Args["lines"].(*int), fc.Args["since"].(*int), fc.Args["file"].(*string), fc.Args["offset"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.LogResult) graphql.Marshaler {
@@ -26107,6 +26183,16 @@ func (ec *executionContext) _LogResult(ctx context.Context, sel ast.SelectionSet
 			}
 		case "newLines":
 			out.Values[i] = ec._LogResult_newLines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fileSize":
+			out.Values[i] = ec._LogResult_fileSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rotated":
+			out.Values[i] = ec._LogResult_rotated(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

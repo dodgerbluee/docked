@@ -947,6 +947,16 @@ export const DRY_RUN_INTENT_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const LOGS_QUERY = /* GraphQL */ `
+  query Logs($lines: Int, $offset: Int) {
+    logs(lines: $lines, offset: $offset) {
+      logs
+      fileSize
+      rotated
+    }
+  }
+`;
+
 export const REPOSITORY_TOKENS_QUERY = /* GraphQL */ `
   query RepositoryTokens {
     repositoryTokens {

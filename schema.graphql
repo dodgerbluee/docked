@@ -1013,7 +1013,7 @@ type Query {
   oauthProviders: [OAuthProvider!]!
 
   # ── Logs ──────────────────────────────────────────────────────────────────
-  logs(lines: Int, since: Int, file: String): LogResult!
+  logs(lines: Int, since: Int, file: String, offset: Int): LogResult!
 
   # ── Operations (long-running task tracking) ───────────────────────────────
   operation(id: ID!): Operation
@@ -1043,6 +1043,10 @@ type LogResult {
   totalLines: Int!
   returnedLines: Int!
   newLines: Int!
+  # Byte size of the log file after the read (for offset-based incremental polling)
+  fileSize: Int!
+  # True when the file shrank below the requested offset (log rotation)
+  rotated: Boolean!
 }
 
 # -----------------------------------------------------------------------------

@@ -22,6 +22,64 @@ import (
 	"github.com/dockedapp/backend/internal/db"
 )
 
+// readFromOffset returns the bytes of a file after the given offset and the
+// file's current size. When the file is smaller than the offset (rotation),
+// it returns empty content and the new size.
+func readFromOffset(path string, offset int64) (string, int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", 0, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return "", 0, err
+	}
+	if offset >= st.Size() {
+		return "", st.Size(), nil
+	}
+	buf := make([]byte, st.Size()-offset)
+	if _, err := f.ReadAt(buf, offset); err != nil && err != io.EOF {
+		return "", 0, err
+	}
+	return string(buf), st.Size(), nil
+}
+
+// tailFileLines returns the last maxLines lines of a file (reading backwards
+// in chunks so huge log files are not loaded whole) plus the file size.
+func tailFileLines(path string, maxLines int) (string, int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", 0, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return "", 0, err
+	}
+	size := st.Size()
+	const chunkSize = 64 * 1024
+	var buf []byte
+	pos := size
+	for pos > 0 && strings.Count(string(buf), "\n") <= maxLines {
+		n := int64(chunkSize)
+		if n > pos {
+			n = pos
+		}
+		pos -= n
+		chunk := make([]byte, n)
+		if _, err := f.ReadAt(chunk, pos); err != nil && err != io.EOF {
+			return "", 0, err
+		}
+		buf = append(chunk, buf...)
+	}
+	lines := strings.Split(strings.TrimRight(string(buf), "\n"), "\n")
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return strings.Join(lines, "\n"), size, nil
+}
+
 func requireUser(ctx context.Context) (int64, error) {
 	uid := auth.UserIDFromContext(ctx)
 	if uid == 0 {

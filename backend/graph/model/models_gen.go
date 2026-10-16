@@ -376,6 +376,8 @@ type LogResult struct {
 	TotalLines    int    `json:"totalLines"`
 	ReturnedLines int    `json:"returnedLines"`
 	NewLines      int    `json:"newLines"`
+	FileSize      int    `json:"fileSize"`
+	Rotated       bool   `json:"rotated"`
 }
 
 type LoginInput struct {

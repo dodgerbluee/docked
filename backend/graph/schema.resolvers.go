@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -2687,47 +2688,79 @@ func (r *queryResolver) OauthProviders(ctx context.Context) ([]*model.OAuthProvi
 }
 
 // Logs is the resolver for the logs field.
-func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *string) (*model.LogResult, error) {
+func (r *queryResolver) Logs(ctx context.Context, lines *int, since *int, file *string, offset *int) (*model.LogResult, error) {
 	_, err := requireUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	dataDir := getDataDir()
-	logFile := dataDir + "/logs/out.log"
+	// Node parity: LOGS_DIR env (default: ./logs relative to the app root),
+	// default file combined.log, basename-only sanitization.
+	logsDir := os.Getenv("LOGS_DIR")
+	if logsDir == "" {
+		logsDir = "logs"
+	}
+	name := "combined.log"
 	if file != nil && *file != "" {
-		name := *file
-		// Prevent path traversal: only a bare log file name is allowed.
-		if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		name = filepath.Base(*file)
+		if name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
 			return nil, fmt.Errorf("invalid log file name")
 		}
-		logFile = dataDir + "/logs/" + name
 	}
+	logFile := filepath.Join(logsDir, name)
 
-	maxLines := 100
+	maxLines := 500
 	if lines != nil && *lines > 0 {
 		maxLines = *lines
 	}
 
-	data, err := os.ReadFile(logFile)
+	if st, err := os.Stat(logsDir); err != nil || !st.IsDir() {
+		return &model.LogResult{
+			Logs: "Logs directory not found: " + logsDir +
+				"\n\nLogs will appear here once the application starts generating log entries.",
+			TotalLines: 0, ReturnedLines: 0, NewLines: 0, FileSize: 0, Rotated: false,
+		}, nil
+	}
+	if _, err := os.Stat(logFile); err != nil {
+		return &model.LogResult{
+			Logs: fmt.Sprintf("Log file %s not found in %s.\n\nLogs will appear here once the application starts generating log entries.",
+				name, logsDir),
+			TotalLines: 0, ReturnedLines: 0, NewLines: 0, FileSize: 0, Rotated: false,
+		}, nil
+	}
+
+	// Incremental fetch: only return new bytes since the client's offset.
+	if offset != nil && *offset >= 0 {
+		content, size, err := readFromOffset(logFile, int64(*offset))
+		if err != nil {
+			return nil, err
+		}
+		if content == "" && size < int64(*offset) {
+			// Log rotated (file shrank below the offset) — signal the client to reload.
+			return &model.LogResult{
+				Logs: "", TotalLines: 0, ReturnedLines: 0, NewLines: 0, FileSize: int(size), Rotated: true,
+			}, nil
+		}
+		newLines := 0
+		for _, l := range strings.Split(content, "\n") {
+			if strings.TrimSpace(l) != "" {
+				newLines++
+			}
+		}
+		return &model.LogResult{
+			Logs: content, TotalLines: 0, ReturnedLines: newLines, NewLines: newLines,
+			FileSize: int(size), Rotated: false,
+		}, nil
+	}
+
+	// Full tail fetch: last N lines.
+	tailed, size, err := tailFileLines(logFile, maxLines)
 	if err != nil {
-		return &model.LogResult{Logs: "", TotalLines: 0, ReturnedLines: 0, NewLines: 0}, nil
+		return nil, err
 	}
-
-	allLines := strings.Split(string(data), "\n")
-	total := len(allLines)
-
-	start := total - maxLines
-	if start < 0 {
-		start = 0
-	}
-	returned := allLines[start:]
-
 	return &model.LogResult{
-		Logs:          strings.Join(returned, "\n"),
-		TotalLines:    total,
-		ReturnedLines: len(returned),
-		NewLines:      len(returned),
+		Logs: tailed, TotalLines: 0, ReturnedLines: len(strings.Split(tailed, "\n")), NewLines: 0,
+		FileSize: int(size), Rotated: false,
 	}, nil
 }
 
